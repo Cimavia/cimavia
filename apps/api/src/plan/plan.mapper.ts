@@ -1,6 +1,14 @@
-import type { PlanDto, PlanSummaryDto, PlanWeekDto, ScheduledSessionSummaryDto } from "@cmv/shared";
+import type {
+  AccessGrantDto,
+  MyAccess,
+  PlanDto,
+  PlanSummaryDto,
+  PlanWeekDto,
+  ScheduledSessionSummaryDto,
+} from "@cmv/shared";
 import { planWeekRange, required } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
+import { ACCESS_INCLUDE } from "../access/access.mapper";
 import { toIsoDate } from "../util/date.util";
 
 // Le plan en liste : pas de contenu, juste de quoi le situer (nb de semaines, nb de séances).
@@ -36,6 +44,26 @@ export const PLAN_DETAIL_INCLUDE = {
 export type PlanWithWeeks = Prisma.PlanGetPayload<{
   include: typeof PLAN_DETAIL_INCLUDE;
 }>;
+
+/**
+ * Les mêmes, lus par un Coach : avec de quoi dire son droit sur le cycle (#607). L'athlète n'en
+ * charge rien — il n'a pas de droit d'accès, et les lignes d'entreprise ne le regardent pas.
+ */
+export const COACH_PLAN_COUNTS_INCLUDE = {
+  ...PLAN_COUNTS_INCLUDE,
+  ...ACCESS_INCLUDE,
+} satisfies Prisma.PlanInclude;
+export const COACH_PLAN_DETAIL_INCLUDE = {
+  ...PLAN_DETAIL_INCLUDE,
+  ...ACCESS_INCLUDE,
+} satisfies Prisma.PlanInclude;
+
+/**
+ * Ce que le DTO dit des accès au cycle : le droit du Coach courant, et les droits accordés pour le
+ * propriétaire seul. `ATHLETE_PLAN_ACCESS` pour l'athlète, qui n'a ni l'un ni les autres.
+ */
+export type PlanAccess = { myAccess: MyAccess | null; grants: AccessGrantDto[] | null };
+export const ATHLETE_PLAN_ACCESS: PlanAccess = { myAccess: null, grants: null };
 
 type ScheduledSessionWithCount = PlanWithWeeks["weeks"][number]["sessions"][number];
 
@@ -80,11 +108,12 @@ export function toPlanWeekDto(
   };
 }
 
-export function toPlanSummaryDto(plan: PlanWithCounts): PlanSummaryDto {
+export function toPlanSummaryDto(plan: PlanWithCounts, access: PlanAccess): PlanSummaryDto {
   return {
     id: plan.id,
     coachId: plan.coachId,
     coachName: plan.coach.name,
+    myAccess: access.myAccess,
     athleteId: plan.athleteId,
     // La relation suit la colonne : un brouillon sans destinataire (#144) n'a pas d'athlète à
     // nommer. Les trois champs disent la MÊME absence — il n'y a pas de cycle nommé sans athlète.
@@ -102,9 +131,10 @@ export function toPlanSummaryDto(plan: PlanWithCounts): PlanSummaryDto {
   };
 }
 
-export function toPlanDto(plan: PlanWithWeeks): PlanDto {
+export function toPlanDto(plan: PlanWithWeeks, access: PlanAccess): PlanDto {
   return {
-    ...toPlanSummaryDto(plan),
+    ...toPlanSummaryDto(plan, access),
+    grants: access.grants,
     weeks: plan.weeks.map((week) => toPlanWeekDto(week, plan.startDate)),
   };
 }

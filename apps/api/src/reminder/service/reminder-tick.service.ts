@@ -64,6 +64,13 @@ const REASON_PUSH_LABEL: Record<ReminderReason, string> = {
  * facture), jamais de `now`. Un tick en retard d'une heure — ou rejoué — produit donc exactement les
  * mêmes rappels : c'est ce qui rend la granularité du déclencheur externe sans conséquence.
  *
+ * ## Les rappels restent au propriétaire du cycle (#607)
+ *
+ * Un Coach lit aussi les cycles qu'on lui ouvre, et leurs factures : le scope seul lui en ferait
+ * générer les rappels. Chaque lecture de génération se borne donc à SES cycles (`coachId`) — c'est
+ * le propriétaire qui renouvelle et qui relance. Et quand un autre Coach règle une facture, le
+ * rappel du propriétaire se clôt au passage suivant (`closeSettledOverdue`).
+ *
  * Les conversions passent par `util/date.util` (`toDbDate`, `shiftDbDate`, `toIsoDate`), qui fait
  * déjà le pont entre les colonnes `@db.Date` et les dates civiles de `@cmv/shared` : `Plan.startDate`
  * et `Invoice.dueDate` sont des dates SANS heure, ancrées à minuit UTC en base.
@@ -120,18 +127,20 @@ export class ReminderTickService {
     // MÊME contrat, avec un acteur choisi au lieu d'un acteur résolu depuis une session.
     return this.cls.run(async () => {
       this.cls.set(TENANT_CLS_KEY, actor);
-      // La génération d'abord : un rappel créé par CE tick et déjà dû doit partir en push dans la
+      // La clôture d'abord : un rappel dont la facture est réglée ne doit plus partir en push.
+      await this.closeSettledOverdue();
+      // La génération ensuite : un rappel créé par CE tick et déjà dû doit partir en push dans la
       // foulée, pas au tick suivant.
-      const created = await this.generate(now);
+      const created = await this.generate(coachId, now);
       const pushed = await this.pushDue(coachId, now);
       return { created, pushed };
     });
   }
 
-  private async generate(now: Date): Promise<number> {
+  private async generate(coachId: string, now: Date): Promise<number> {
     const candidates = [
-      ...(await this.planEndingRows(now)),
-      ...(await this.invoiceOverdueRows(now)),
+      ...(await this.planEndingRows(coachId, now)),
+      ...(await this.invoiceOverdueRows(coachId, now)),
     ];
     if (candidates.length === 0) return 0;
 
@@ -163,6 +172,44 @@ export class ReminderTickService {
    * marquerait alors la NOUVELLE échéance comme poussée sans que rien ne soit parti pour elle — le
    * rappel resterait muet le jour venu. Le couple `(id, dueAt)` laisse ce report intact.
    */
+  /**
+   * Clôt le rappel « facture en retard » d'une facture que le coach ne doit plus relancer (#607).
+   *
+   * Quand il la règle lui-même, `ReminderService.closeInvoiceOverdue` le clôt dans la transaction.
+   * Mais un Coach à qui le cycle est ouvert en Écriture peut la régler aussi : sa transaction ne
+   * voit que SES rappels, et celui du propriétaire resterait ouvert. On ne l'écrit pas depuis la
+   * transaction de l'autre par le client de base : le tick du propriétaire le rattrape, sous son
+   * propre acteur, et la frontière du coach n'est franchie par aucune écriture.
+   *
+   * Même règle que la clôture en transaction : le rappel GÉNÉRÉ seul, et `PENDING` seul.
+   */
+  private async closeSettledOverdue(): Promise<void> {
+    const overdue = {
+      entityType: ReminderEntityType.INVOICE,
+      reason: ReminderReason.INVOICE_OVERDUE,
+      status: ReminderStatus.PENDING,
+    };
+    const reminders = await this.db.reminder.findMany({
+      where: overdue,
+      select: { entityId: true },
+    });
+    if (reminders.length === 0) return;
+
+    const settled = await this.db.invoice.findMany({
+      where: {
+        id: { in: reminders.map((reminder) => reminder.entityId) },
+        status: { not: InvoiceStatus.PENDING },
+      },
+      select: { id: true },
+    });
+    if (settled.length === 0) return;
+
+    await this.db.reminder.updateMany({
+      where: { ...overdue, entityId: { in: settled.map((invoice) => invoice.id) } },
+      data: { status: ReminderStatus.DONE },
+    });
+  }
+
   private async pushDue(coachId: string, now: Date): Promise<number> {
     const due = await this.db.reminder.findMany({
       where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, pushedAt: null },
@@ -208,7 +255,7 @@ export class ReminderTickService {
    *
    * Les cycles DRAFT sont ignorés : un cycle jamais diffusé n'a pas de renouvellement à proposer.
    */
-  private async planEndingRows(now: Date): Promise<ReminderSeed[]> {
+  private async planEndingRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     /**
      * DEUX requêtes scopées plutôt qu'un `_count` imbriqué : l'extension n'intercepte que le
      * premier niveau, un compteur de relation se lirait donc SANS filtre tenant (piège n°2 du scope
@@ -217,10 +264,10 @@ export class ReminderTickService {
      */
     const [plans, weekCounts] = await Promise.all([
       this.db.plan.findMany({
-        where: { status: PlanStatus.PUBLISHED },
+        where: { coachId, status: PlanStatus.PUBLISHED },
         select: { id: true, startDate: true },
       }),
-      this.db.planWeek.groupBy({ by: ["planId"], _count: { _all: true } }),
+      this.db.planWeek.groupBy({ by: ["planId"], where: { coachId }, _count: { _all: true } }),
     ]);
 
     const weeksByPlan = new Map(weekCounts.map((row) => [row.planId, row._count._all]));
@@ -255,9 +302,9 @@ export class ReminderTickService {
    *
    * Les brouillons et les factures annulées sont hors du lot : rien à relancer.
    */
-  private async invoiceOverdueRows(now: Date): Promise<ReminderSeed[]> {
+  private async invoiceOverdueRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     const invoices = await this.db.invoice.findMany({
-      where: { status: InvoiceStatus.PENDING },
+      where: { coachId, status: InvoiceStatus.PENDING },
       select: { id: true, dueDate: true },
     });
 

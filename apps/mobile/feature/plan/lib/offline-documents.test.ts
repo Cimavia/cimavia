@@ -101,6 +101,8 @@ function plan(
     id,
     coachId: "coach-1",
     coachName: "Julie Renaud",
+    myAccess: null,
+    grants: null,
     athleteId: "athlete-1",
     athleteName: "Ada",
     athleteEmail: "ada@test.fr",

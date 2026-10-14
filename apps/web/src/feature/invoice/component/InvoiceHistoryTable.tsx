@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
+import { SharedByLine } from "@/feature/library/component/SharedByLine";
 import { CMV_TABLE, CmvPager } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate, formatInstantDate } from "@/shared/util/date.util";
@@ -72,7 +73,11 @@ export function InvoiceHistoryTable({
             "w-full px-cmv-md py-cmv-sm text-left transition-colors hover:bg-cmv-surface",
           )}
         >
-          <span className="text-cmv-text-hi">{formatPeriod(invoice.period)}</span>
+          {/* La facture suit son cycle (#607) : celle d'un cycle partagé nomme son propriétaire. */}
+          <span className="flex min-w-0 flex-col">
+            <span className="text-cmv-text-hi">{formatPeriod(invoice.period)}</span>
+            <SharedByLine owner={invoice.coachName} myAccess={invoice.myAccess} />
+          </span>
           <span
             className={cn(
               "font-cmv-display",

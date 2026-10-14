@@ -896,6 +896,7 @@ export {
   selectVisiblePlans,
   weekSessionProgress,
 } from "./util/plan.util";
+export { defaultPlanGrant, eligibleOrganizations } from "./util/plan-access.util";
 export type {
   PlanAthleteRow,
   PlanConcurrency,

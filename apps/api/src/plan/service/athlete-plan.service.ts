@@ -6,7 +6,12 @@ import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { productToday, toIsoDate } from "../../util/date.util";
-import { PLAN_COUNTS_INCLUDE, PLAN_DETAIL_INCLUDE, toPlanDto } from "../plan.mapper";
+import {
+  ATHLETE_PLAN_ACCESS,
+  PLAN_COUNTS_INCLUDE,
+  PLAN_DETAIL_INCLUDE,
+  toPlanDto,
+} from "../plan.mapper";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-session.mapper";
 
@@ -80,7 +85,10 @@ export class AthletePlanService {
     const byId = new Map(details.map((detail) => [detail.id, detail]));
     // Lus dans la même requête, sous le même scope : chaque cycle visible a son détail.
     return visible.map((plan) =>
-      toPlanDto(required(byId.get(plan.id), `[plan] détail absent du cycle visible ${plan.id}`)),
+      toPlanDto(
+        required(byId.get(plan.id), `[plan] détail absent du cycle visible ${plan.id}`),
+        ATHLETE_PLAN_ACCESS,
+      ),
     );
   }
 

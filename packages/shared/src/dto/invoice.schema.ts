@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { myAccessSchema } from "./access.schema";
 
 export const INVOICE_NOTE_MAX_LENGTH = 2000;
 // Plafond de garde-fou (100 000 €) : borne le champ, pas une règle métier. amountCents est un
@@ -118,6 +119,10 @@ export const invoiceDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
   coachName: z.string(),
+  // Le droit du Coach courant sur la facture, qui suit celui qu'il a sur son cycle (#607) : il
+  // lit la facture d'un autre Coach (`coachId`, au nom duquel elle est émise) sans en gérer
+  // forcément le statut. `OWNER` hors cycle ; `null` pour l'athlète, qui en est le destinataire.
+  myAccess: myAccessSchema.nullable(),
   athleteId: z.string(),
   athleteName: z.string(),
   // Cycle facturé (1:1). Nullable : le modèle reste ouvert à une facture hors-cycle (v1.0) ; en

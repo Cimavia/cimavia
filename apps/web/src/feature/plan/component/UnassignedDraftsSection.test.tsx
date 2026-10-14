@@ -1,4 +1,4 @@
-import { PlanStatus, type PlanSummaryDto } from "@cmv/shared";
+import { MyAccessLevel, PlanStatus, type PlanSummaryDto } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { UnassignedDraftsSection } from "@/feature/plan/component/UnassignedDraftsSection";
 import { renderInRoute } from "../../../../test/render";
@@ -7,6 +7,7 @@ function draft(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): Plan
   return {
     coachId: "usr_coach",
     coachName: "Julie Renaud",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: null,
     athleteName: null,
     athleteEmail: null,
@@ -66,5 +67,18 @@ describe("UnassignedDraftsSection", () => {
     await user.click(getByText("Prépa bloc hiver — v2"));
 
     expect(router.state.location.pathname).toBe("/plans/pln_a");
+  });
+
+  it("nomme le propriétaire d'un brouillon partagé, et lui seul (#607)", async () => {
+    const { getAllByText } = await mount([
+      draft({ id: "pln_a" }),
+      draft({
+        id: "pln_m",
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+      }),
+    ]);
+
+    expect(getAllByText("library.access.sharedBy")).toHaveLength(1);
   });
 });

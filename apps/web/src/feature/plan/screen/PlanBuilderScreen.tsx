@@ -1,5 +1,8 @@
 import {
+  canWrite,
+  isOwner,
   isSelfCoached,
+  type MyAccess,
   type PlanDto,
   PlanStatus,
   type PlanSummaryDto,
@@ -13,12 +16,14 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useParams } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
+import { myRightText } from "@/feature/library/util/access-text.util";
 import { planKeys } from "@/feature/plan/api";
+import { PlanAccessButton } from "@/feature/plan/component/PlanAccessButton";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
@@ -39,6 +44,7 @@ import {
   CmvEmptyState,
   CmvErrorState,
   CmvLeaveDialog,
+  CmvReadOnlyBanner,
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
@@ -131,6 +137,7 @@ export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
+  const navigate = useNavigate();
 
   const { data: plan, isPending, error, refetch } = usePlan(planId);
   /**
@@ -179,6 +186,11 @@ export function PlanBuilderScreen() {
     coachPlans == null ? null : planAudience(plan, siblingsOf(plan, coachPlans), todayIsoDate());
   const titlesById = new Map((coachPlans ?? []).map((item) => [item.id, item.title]));
   const athleteTitle = athleteHeading(plan, athleteLabel, t("plan.unassigned"));
+  // Ce que le Coach peut du cycle (#607) : le sien, ou celui d'un autre, ouvert en Lecture ou en
+  // Écriture. Supprimer, gérer les accès, réaffecter et programmer un rappel restent au propriétaire.
+  const access = required(plan.myAccess, "droit du coach sur son cycle");
+  const isMine = isOwner(access);
+  const readOnly = !canWrite(access);
 
   function onOpenCreate(week: PlanWeekDto, date: string) {
     setEdit({ week, date, sessionId: null });
@@ -203,30 +215,39 @@ export function PlanBuilderScreen() {
         sessions: plan.sessionCount,
       })}
       actions={
-        <>
-          {/* Rappel contextuel (#45) : posé ICI plutôt que dans PlanBuilderActions, qui ne porte
-              que les actions destructrices et leur gating. Un rappel se programme à tout moment,
-              brouillon comme cycle diffusé. */}
-          <ScheduleReminderButton
-            entityType={ReminderEntityType.PLAN}
-            entityId={planId}
-            targetLabel={plan.title}
-            variant="ghost"
-          />
-          <PlanBuilderActions
-            planId={planId}
-            version={plan.updatedAt}
-            isPublished={isPublished}
-            hasWeeks={plan.weeks.length > 0}
-            hasAthlete={hasAthlete}
-            isBillingFilled={billing != null}
-            requiresBilling={!isSelfCoached(plan)}
-            isHeaderUnsaved={isHeaderUnsaved}
-            isBillingUnsaved={isBillingUnsaved}
-            isBusy={isBusy}
-            onDeleted={guard.release}
-          />
-        </>
+        // En Lecture, le cycle se consulte et se quitte : rien d'autre ne s'y fait (#607).
+        readOnly ? (
+          <CmvButton
+            onClick={() =>
+              navigate({
+                to: "/plans",
+                search: { q: undefined, state: undefined, athlete: undefined },
+              })
+            }
+          >
+            {t("common.close")}
+          </CmvButton>
+        ) : (
+          <>
+            {isMine ? (
+              <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
+            ) : null}
+            <PlanBuilderActions
+              planId={planId}
+              version={plan.updatedAt}
+              isPublished={isPublished}
+              canDelete={isMine}
+              hasWeeks={plan.weeks.length > 0}
+              hasAthlete={hasAthlete}
+              isBillingFilled={billing != null}
+              requiresBilling={!isSelfCoached(plan)}
+              isHeaderUnsaved={isHeaderUnsaved}
+              isBillingUnsaved={isBillingUnsaved}
+              isBusy={isBusy}
+              onDeleted={guard.release}
+            />
+          </>
+        )
       }
     >
       <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
@@ -246,6 +267,8 @@ export function PlanBuilderScreen() {
           audience={audience}
           titlesById={titlesById}
         />
+
+        <SharedPlanBanner access={access} owner={plan.coachName} />
 
         {/* Le presse-papier survit à la navigation (c'est ce qui rend le collage inter-cycle
             possible) : sans ce bandeau, des boutons « Coller ici » apparaîtraient sur un cycle
@@ -277,6 +300,8 @@ export function PlanBuilderScreen() {
           key={`${plan.status}:${headerReload.generation}`}
           plan={plan}
           hasInvoiceDocument={billing?.documentFileName != null}
+          readOnly={readOnly}
+          canReassign={isMine}
           isSaving={saveHeader.isPending}
           onSave={(input, onSaved) => saveHeader.mutate(input, { onSuccess: onSaved })}
           isStale={isStaleWriteError(saveHeader.error)}
@@ -298,21 +323,24 @@ export function PlanBuilderScreen() {
             planId={planId}
             planTitle={plan.title}
             isPublished={isPublished}
+            readOnly={readOnly}
             week={week}
             onAddSession={(date) => onOpenCreate(week, date)}
             onEditSession={(session) => onOpenEdit(week, session)}
           />
         ))}
 
-        <div>
-          <CmvButton
-            variant="secondary"
-            disabled={isBusy}
-            onClick={() => addWeek.mutate({ type: PlanWeekType.TRAINING })}
-          >
-            {t("plan.builder.addWeek")}
-          </CmvButton>
-        </div>
+        {readOnly ? null : (
+          <div>
+            <CmvButton
+              variant="secondary"
+              disabled={isBusy}
+              onClick={() => addWeek.mutate({ type: PlanWeekType.TRAINING })}
+            >
+              {t("plan.builder.addWeek")}
+            </CmvButton>
+          </div>
+        )}
 
         {/* Facturation du cycle : sa saisie conditionne la diffusion (gating) — SAUF en
             auto-coaching, où l'on ne se facture pas soi-même. L'API lève alors le gating et
@@ -324,6 +352,7 @@ export function PlanBuilderScreen() {
             isPublished={isPublished}
             hasAthlete={hasAthlete}
             billing={billing}
+            readOnly={readOnly}
             onDirtyChange={setBillingUnsaved}
           />
         )}
@@ -335,6 +364,7 @@ export function PlanBuilderScreen() {
           weeks={plan.weeks}
           planId={planId}
           isPublished={isPublished}
+          readOnly={readOnly}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
           onDirtyChange={setPanelUnsaved}
@@ -347,12 +377,54 @@ export function PlanBuilderScreen() {
 
 const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404;
 
+/**
+ * Ce qui reste au propriétaire dans la barre du builder : ouvrir le cycle à ses entreprises
+ * (#607), et le rappel contextuel (#45) — posé ici plutôt que dans PlanBuilderActions, qui ne
+ * porte que les actions destructrices et leur gating. Un rappel se programme à tout moment,
+ * brouillon comme cycle diffusé ; il ne vise que ce qui est à soi.
+ */
+function OwnerTools({
+  plan,
+  athleteName,
+}: Readonly<{ plan: PlanDto; athleteName: string | null }>) {
+  return (
+    <>
+      <PlanAccessButton plan={plan} athleteName={athleteName} />
+      <ScheduleReminderButton
+        entityType={ReminderEntityType.PLAN}
+        entityId={plan.id}
+        targetLabel={plan.title}
+        variant="ghost"
+      />
+    </>
+  );
+}
+
+/**
+ * Ce que l'écran dit du cycle d'un autre Coach (#607) : en Lecture, qu'il se consulte seulement ;
+ * en Écriture, ce qui reste à son propriétaire. Rien sur le sien.
+ */
+function SharedPlanBanner({ access, owner }: Readonly<{ access: MyAccess; owner: string }>) {
+  const { t } = useTranslation();
+  if (isOwner(access)) return null;
+  const right = myRightText(access, t);
+  return (
+    <CmvReadOnlyBanner
+      message={t(canWrite(access) ? "plan.builder.sharedWrite" : "plan.builder.readOnly", {
+        owner,
+        right,
+      })}
+    />
+  );
+}
+
 type SessionPanelHostProps = {
   edit: SessionEdit;
   // Les semaines telles que le cycle les montre À L'INSTANT : un autre Coach a pu le décaler.
   weeks: readonly PlanWeekDto[];
   planId: string;
   isPublished: boolean;
+  readOnly: boolean;
   athleteName: string | null;
   onClose: () => void;
   onDirtyChange: (isDirty: boolean) => void;

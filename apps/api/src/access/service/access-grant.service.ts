@@ -1,4 +1,4 @@
-import type { ChangeAccessInput, ElementAccessDto } from "@cmv/shared";
+import type { AccessLevel, ChangeAccessInput, ElementAccessDto } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -6,20 +6,25 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { type AccessRow, toAccessView, toGrantDtos } from "../access.mapper";
 import { AccessService } from "./access.service";
 
-/** La colonne de `AccessGrant` qui désigne la cible : un exercice, ou une séance. */
-export type AccessTarget = "exerciseId" | "sessionId";
+/** La colonne de `AccessGrant` qui désigne la cible : un exercice, une séance ou un cycle. */
+export type AccessTarget = "exerciseId" | "sessionId" | "planId";
+
+/**
+ * Un changement prêt à écrire. `level: null` supprime la ligne ; `NONE` n'arrive que d'un cycle,
+ * où « Aucun » s'écrit pour que le droit par défaut ne rouvre pas l'entreprise (#607).
+ */
+export type GrantChange = { organizationId: string; level: AccessLevel | null };
 
 const GRANT_SELECT = {
   exerciseId: true,
   sessionId: true,
+  planId: true,
   level: true,
   organization: { select: { id: true, user: { select: { name: true } } } },
 } satisfies Prisma.AccessGrantSelect;
 
 function onTargets(target: AccessTarget, ids: readonly string[]): Prisma.AccessGrantWhereInput {
-  return target === "exerciseId"
-    ? { exerciseId: { in: [...ids] } }
-    : { sessionId: { in: [...ids] } };
+  return { [target]: { in: [...ids] } };
 }
 
 /**
@@ -68,7 +73,7 @@ export class AccessGrantService {
    */
   async apply(
     target: AccessTarget,
-    { ids, changes }: ChangeAccessInput,
+    { ids, changes }: { ids: readonly string[]; changes: readonly GrantChange[] },
   ): Promise<ElementAccessDto[]> {
     await this.db.$transaction(async (tx) => {
       for (const { organizationId, level } of changes) {

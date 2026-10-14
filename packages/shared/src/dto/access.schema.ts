@@ -2,9 +2,10 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 
 /**
- * Le niveau d'un droit d'accès (#605). `NONE` n'existe que sur la ligne d'un Coach, pour l'emporter
- * sur celle de son entreprise (#608) : sur la ligne d'une entreprise, « Aucun » est l'ABSENCE de
- * ligne, jamais un `NONE` écrit.
+ * Le niveau d'un droit d'accès (#605). `NONE` vit sur la ligne d'un Coach, pour l'emporter sur celle
+ * de son entreprise (#608), et sur la ligne d'une entreprise d'une PLANIFICATION (#607) : il y dit
+ * « fermée exprès », que le droit par défaut ne rouvre pas à la réaffectation. Sur la ligne d'une
+ * entreprise d'un exercice ou d'une séance, « Aucun » reste l'ABSENCE de ligne.
  */
 export const AccessLevel = {
   NONE: "NONE",

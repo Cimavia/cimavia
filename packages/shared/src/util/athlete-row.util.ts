@@ -1,3 +1,4 @@
+import type { MyAccess } from "../dto/access.schema";
 import { PlanStatus } from "../dto/plan.schema";
 import { required } from "./invariant.util";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
@@ -35,6 +36,9 @@ export type AthletePlanSource = PlanPeriod & {
   athleteId: string | null;
   title: string;
   status: PlanStatus;
+  /** Le Coach qui a écrit le cycle, et ce que l'acteur en peut (#607) : cf. `PlanSummaryDto`. */
+  coachName: string;
+  myAccess: MyAccess | null;
 };
 
 export type AthleteFeedbackSource = {
@@ -79,6 +83,12 @@ export type AthleteRowPlan = {
   startDate: string;
   /** Dernier jour du cycle — toujours calculable, pour la même raison que `phase`. */
   endDate: string;
+  /**
+   * Son propriétaire et le droit de l'acteur (#607) : le cycle courant d'un athlète suivi à
+   * plusieurs peut être celui d'un autre Coach, et la ligne le dit.
+   */
+  coachName: string;
+  myAccess: MyAccess | null;
 };
 
 export type AthleteRow = {
@@ -208,6 +218,8 @@ export function currentAthletePlan<T extends AthletePlanSource>(
       // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
       `cycle élu sans fin : ${plan.id}`,
     ),
+    coachName: plan.coachName,
+    myAccess: plan.myAccess,
   };
 }
 

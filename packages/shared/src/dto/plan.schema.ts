@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { isMondayIsoDate } from "../util/date.util";
+import { accessGrantDtoSchema, myAccessSchema } from "./access.schema";
 import { adjustmentsSchema } from "./dosage-override.schema";
 import {
   EXERCISE_DESCRIPTION_MAX_LENGTH,
@@ -363,6 +364,12 @@ export const planSummaryDtoSchema = z.object({
    */
   coachName: z.string(),
   /**
+   * Ce que le Coach courant peut faire du cycle, et l'entreprise qui le lui ouvre (#607) : un cycle
+   * partagé se lit, ou s'écrit, sans être à soi. `null` pour l'athlète, qui le suit sans droit
+   * d'accès — il en est le destinataire.
+   */
+  myAccess: myAccessSchema.nullable(),
+  /**
    * `null` = brouillon dont le destinataire n'est pas encore choisi (#144). Ce n'est pas une
    * donnée manquante mais un ÉTAT, et il est actionnable : le coach affecte quand il a décidé.
    * Toujours renseigné sur un cycle diffusé — `publish` l'exige.
@@ -388,6 +395,8 @@ export const planSummaryDtoSchema = z.object({
 export type PlanSummaryDto = z.infer<typeof planSummaryDtoSchema>;
 
 export const planDtoSchema = planSummaryDtoSchema.extend({
+  /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
+  grants: z.array(accessGrantDtoSchema).nullable(),
   weeks: z.array(planWeekDtoSchema),
 });
 export type PlanDto = z.infer<typeof planDtoSchema>;

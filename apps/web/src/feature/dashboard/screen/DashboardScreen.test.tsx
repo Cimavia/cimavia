@@ -4,6 +4,7 @@ import {
   type ConversationDto,
   type InvoiceDto,
   InvoiceStatus,
+  MyAccessLevel,
   mondayOfIsoWeek,
   type PendingOrganizationInvitationDto,
   PlanStatus,
@@ -300,6 +301,17 @@ describe("DashboardScreen — le tableau de suivi", () => {
     expect(await view.findByText("dashboard.table.planEnded")).toBeInTheDocument();
     expect(view.getByText("dashboard.table.planUpcoming")).toBeInTheDocument();
     expect(view.queryByText("dashboard.table.weekProgress")).toBeNull();
+  });
+
+  it("nomme le propriétaire du cycle courant quand il est à un autre Coach (#607)", async () => {
+    const shared = {
+      ...plan("ath_lea", THIS_MONDAY),
+      coachName: "M",
+      myAccess: { level: MyAccessLevel.WRITE, via: { id: "org_f", name: "F" } },
+    };
+    const view = await mount({ plans: [shared] });
+
+    expect(await view.findByText("library.access.sharedBy")).toBeInTheDocument();
   });
 
   /**

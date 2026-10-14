@@ -9,6 +9,11 @@ type PlanDayCellProps = {
   date: string;
   sessions: readonly ScheduledSessionSummaryDto[];
   isBusy: boolean;
+  /**
+   * En Lecture (#607), la séance s'ouvre pour se lire ; elle ne s'ajoute ni ne se glisse. Sans
+   * poignée, aucun glisser ne part : les cibles de dépôt restent inertes.
+   */
+  readOnly: boolean;
   /** Le glisser de la SEMAINE : une case ne peut pas le tenir, une séance en sort. */
   drag: ReturnType<typeof useWeekDrag>;
   onAddSession: (date: string) => void;
@@ -32,6 +37,7 @@ export function PlanDayCell({
   date,
   sessions,
   isBusy,
+  readOnly,
   drag,
   onAddSession,
   onEditSession,
@@ -63,11 +69,13 @@ export function PlanDayCell({
         >
           {/* La poignée est offerte même sur une séance SEULE dans sa journée : depuis #93 elle
               peut partir vers un autre jour, et l'affordance doit dire ce que le geste permet. */}
-          <CmvDragHandle
-            label={`${t("plan.week.moveSession")} ${index + 1}`}
-            {...drag.handleProps(date, index)}
-            onMove={(direction) => onMoveWithinDay(date, index, direction)}
-          />
+          {readOnly ? null : (
+            <CmvDragHandle
+              label={`${t("plan.week.moveSession")} ${index + 1}`}
+              {...drag.handleProps(date, index)}
+              onMove={(direction) => onMoveWithinDay(date, index, direction)}
+            />
+          )}
           {/* La carte n'est plus un `button` à elle seule : la poignée en est un, et un bouton
               dans un bouton n'est pas du HTML valide. Le titre porte donc l'ouverture. */}
           <button
@@ -83,9 +91,11 @@ export function PlanDayCell({
         </div>
       ))}
 
-      <CmvButton variant="ghost" onClick={() => onAddSession(date)} disabled={isBusy}>
-        {t("plan.week.addSession")}
-      </CmvButton>
+      {readOnly ? null : (
+        <CmvButton variant="ghost" onClick={() => onAddSession(date)} disabled={isBusy}>
+          {t("plan.week.addSession")}
+        </CmvButton>
+      )}
     </div>
   );
 }

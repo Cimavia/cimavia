@@ -1,4 +1,5 @@
 import type {
+  CoachOrganizationDto,
   CreatePlanInput,
   PlanDto,
   PlanSummaryDto,
@@ -25,6 +26,13 @@ import {
 } from "@nestjs/common";
 import type { Plan, PlanWeek, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import {
+  ACCESS_INCLUDE,
+  type AccessContext,
+  type AccessRow,
+  toAccessView,
+} from "../../access/access.mapper";
+import { type AccessGesture, AccessService } from "../../access/service/access.service";
 import { InvoiceService } from "../../invoice/service/invoice.service";
 import { NotificationService } from "../../notification/notification.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
@@ -39,15 +47,19 @@ import {
   writeAtVersion,
 } from "../../util/stale-write.util";
 import {
-  PLAN_COUNTS_INCLUDE,
-  PLAN_DETAIL_INCLUDE,
-  type PlanWithWeeks,
+  COACH_PLAN_COUNTS_INCLUDE,
+  COACH_PLAN_DETAIL_INCLUDE,
+  type PlanAccess,
   toPlanDto,
   toPlanSummaryDto,
 } from "../plan.mapper";
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
+import { PlanAccessService, settledOrganizations } from "./plan-access.service";
 
 export type ListPlansFilters = { athleteId?: string };
+
+/** Un cycle lu avec de quoi dire qui le possède, et ce que l'acteur peut en faire (#607). */
+export type PlanWithAccess = Prisma.PlanGetPayload<{ include: typeof ACCESS_INCLUDE }>;
 
 const PLAN_NOT_FOUND = "Planification introuvable";
 
@@ -59,14 +71,19 @@ export class PlanService {
     private readonly invoices: InvoiceService,
     private readonly reminders: ReminderService,
     private readonly cls: ClsService,
+    private readonly access: AccessService,
+    private readonly planAccess: PlanAccessService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
     // Sans destinataire (#144), il n'y a rien à valider : c'est un cycle qu'on prépare avant de
     // savoir pour qui, et `publish` réclamera l'athlète le moment venu.
     const athleteId = input.athleteId ?? null;
+    let opened: string | null = null;
     if (athleteId != null) {
       await this.assertAthleteOwned(athleteId);
+      // Né pour un athlète suivi via F, le cycle s'ouvre en Écriture aux autres Coachs de F (#607).
+      opened = await this.planAccess.defaultOrganization(athleteId, new Set());
     }
 
     const plan = await this.db.$transaction(async (tx) => {
@@ -83,26 +100,40 @@ export class PlanService {
         > as Prisma.PlanUncheckedCreateInput,
       });
       await this.createWeeks(tx, created.id, athleteId, input.weeks, 1);
+      await this.planAccess.grantDefault(tx, created.id, opened);
       return created;
     });
 
     return this.getDto(plan.id);
   }
 
+  /**
+   * Ses cycles, et ceux qu'on lui ouvre (#607) : un athlète suivi à plusieurs montre aussi ce que
+   * l'autre Coach lui a écrit, avec son auteur (`coachName`) et le droit qu'on en a.
+   */
   async list(filters: ListPlansFilters): Promise<PlanSummaryDto[]> {
     const where: Prisma.PlanWhereInput = {};
     if (filters.athleteId) where.athleteId = filters.athleteId;
 
-    const plans = await this.db.plan.findMany({
-      where,
-      include: PLAN_COUNTS_INCLUDE,
-      orderBy: { startDate: "desc" },
-    });
-    return plans.map(toPlanSummaryDto);
+    const [plans, context] = await Promise.all([
+      this.db.plan.findMany({
+        where,
+        include: COACH_PLAN_COUNTS_INCLUDE,
+        orderBy: { startDate: "desc" },
+      }),
+      this.access.context(),
+    ]);
+    return plans.map((plan) => toPlanSummaryDto(plan, planAccessOf(plan, context)));
   }
 
   async get(id: string): Promise<PlanDto> {
     return this.getDto(id);
+  }
+
+  /** Les entreprises à qui le propriétaire peut ouvrir son cycle : le panneau des accès (#607). */
+  async organizations(id: string): Promise<CoachOrganizationDto[]> {
+    const { plan } = await this.getForOrThrow(id, "share");
+    return this.planAccess.eligibleFor(plan);
   }
 
   /**
@@ -114,9 +145,18 @@ export class PlanService {
    *
    * Sous la version lue (#604) : deux Coachs d'une même entreprise peuvent retoucher le même cycle,
    * et le second enregistrement n'efface plus le premier en silence — 409 `STALE_WRITE`.
+   *
+   * Changer de destinataire reste au propriétaire (#607) : c'est changer l'audience du cycle, les
+   * Coachs qui peuvent le lire. Renvoyer le MÊME athlète n'en change rien, et passe en Écriture.
+   * Affecté à un athlète suivi via F, le cycle s'ouvre à F en Écriture, sauf si F y est déjà
+   * réglée — « Aucun » compris.
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
-    const plan = await this.getOwnedOrThrow(id);
+    const { plan, context } = await this.getForOrThrow(id, "write");
+    const reassigned = input.athleteId !== undefined;
+    if (reassigned && (input.athleteId ?? null) !== plan.athleteId) {
+      this.access.assertCan(toAccessView(plan, context), "reassign");
+    }
     const expected = new Date(input.expectedUpdatedAt);
     // Le premier refus : une saisie périmée n'a pas vu l'état qu'on jugerait ensuite — un cycle
     // diffusé entre-temps, un destinataire déjà changé. « Recharger » le lui montrera.
@@ -144,15 +184,21 @@ export class PlanService {
 
     // `undefined` = ne touche pas au destinataire ; `null` = le détacher. Les deux se
     // distinguent, et c'est toute la raison d'être du `nullable().optional()` du schéma.
-    const reassigned = input.athleteId !== undefined;
+    let opened: string | null = null;
     if (reassigned) {
       await this.assertReassignable(plan, input.athleteId ?? null);
       data.athleteId = input.athleteId ?? null;
+      if (input.athleteId != null && input.athleteId !== plan.athleteId) {
+        opened = await this.planAccess.defaultOrganization(
+          input.athleteId,
+          settledOrganizations(plan),
+        );
+      }
     }
 
     // Rien à écrire : la version n'avance pas. L'avancer sans changement ferait prendre un 409 à
     // l'autre Coach pour une écriture qui n'a rien modifié.
-    if (Object.keys(data).length === 0) return this.getDto(id);
+    if (Object.keys(data).length === 0) return this.getDto(id, this.db, context);
 
     return this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
@@ -164,11 +210,12 @@ export class PlanService {
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
+        await this.planAccess.grantDefault(tx, id, opened);
       }
       // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
       // formulaire, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
-      return this.getDto(id, tx);
+      return this.getDto(id, tx, context);
     });
   }
 
@@ -262,7 +309,7 @@ export class PlanService {
    * entier, après confirmation.
    */
   async delete(id: string, query: VersionQuery): Promise<void> {
-    const plan = await this.getOwnedOrThrow(id);
+    const { plan } = await this.getForOrThrow(id, "delete");
     const expected = new Date(query.expectedUpdatedAt);
     // La version avant le verrou, comme pour l'en-tête : un écran qui n'a pas vu la diffusion se
     // relit et la montre, au lieu d'opposer un refus à un état que le Coach ignore.
@@ -301,7 +348,7 @@ export class PlanService {
    * athlète qu'il n'a jamais vu à l'écran — notifié, et facturé à son nom.
    */
   async publish(id: string, input: PublishPlanInput): Promise<PlanDto> {
-    const plan = await this.getOwnedOrThrow(id);
+    const { plan, context } = await this.getForOrThrow(id, "write");
     const expected = new Date(input.expectedUpdatedAt);
     // Avant tout autre refus : sur un écran périmé, le cycle est peut-être déjà diffusé, ou son
     // destinataire choisi — « relire » le montrera, « choisis l'athlète » le ferait chercher.
@@ -354,7 +401,7 @@ export class PlanService {
       // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
       const issued = solo ? null : await this.invoices.issueForPlan(tx, plan);
       // Relu DANS la transaction, comme l'en-tête : la réponse porte NOTRE version.
-      return { invoice: issued, published: await this.getDto(id, tx) };
+      return { invoice: issued, published: await this.getDto(id, tx, context) };
     });
 
     // Pas de garde `solo` ici : `NotificationService` ignore déjà toute notification vers soi-même
@@ -377,7 +424,7 @@ export class PlanService {
   // ── Semaines ───────────────────────────────────────────────────────────────
 
   async addWeek(planId: string, input: PlanWeekInput): Promise<PlanDto> {
-    const plan = await this.getOwnedOrThrow(planId);
+    const { plan, context } = await this.getForOrThrow(planId, "write");
 
     const weekCount = await this.db.planWeek.count({ where: { planId } });
     if (weekCount >= PLAN_MAX_WEEKS) {
@@ -391,12 +438,13 @@ export class PlanService {
     await staleOnCollision(() =>
       this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1),
     );
-    return this.getDto(planId);
+    return this.getDto(planId, this.db, context);
   }
 
   /** Sous la version de la semaine affichée (#604) — voir `updatePlanWeekSchema`. */
   async updateWeek(weekId: string, input: UpdatePlanWeekInput): Promise<PlanDto> {
-    const week = await this.getWeekOwnedOrThrow(weekId);
+    const week = await this.getWeekOrThrow(weekId);
+    const { context } = await this.getForOrThrow(week.planId, "write");
     const expected = new Date(input.expectedUpdatedAt);
     assertReadAtVersion(week.updatedAt, expected);
 
@@ -404,11 +452,11 @@ export class PlanService {
     if (input.type !== undefined) data.type = input.type;
     if (input.note !== undefined) data.note = input.note;
     // Rien à écrire : la version n'avance pas, comme sur l'en-tête du cycle.
-    if (Object.keys(data).length === 0) return this.getDto(week.planId);
+    if (Object.keys(data).length === 0) return this.getDto(week.planId, this.db, context);
 
     return this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.planWeek, weekId, expected, data, WEEK_NOT_FOUND);
-      return this.getDto(week.planId, tx);
+      return this.getDto(week.planId, tx, context);
     });
   }
 
@@ -427,12 +475,12 @@ export class PlanService {
    * et Postgres ne revérifie pas une condition portée par une autre table.
    */
   async deleteWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
-    const week = await this.getWeekOwnedOrThrow(weekId);
+    const week = await this.getWeekOrThrow(weekId);
+    const { plan, context } = await this.getForOrThrow(week.planId, "write");
     const expected = new Date(query.expectedUpdatedAt);
     // Retirer une semaine qu'un autre Coach vient de garnir emporterait ses séances sans qu'on les
     // ait vues (#604) : le conflit passe avant le verrou de diffusion, comme sur l'en-tête.
     assertReadAtVersion(week.updatedAt, expected);
-    const plan = await this.getOwnedOrThrow(week.planId);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new ConflictException(
         "Un cycle diffusé ne perd plus de semaine : son athlète s'entraîne dessus",
@@ -457,25 +505,38 @@ export class PlanService {
       }
     });
 
-    return this.getDto(week.planId);
+    return this.getDto(week.planId, this.db, context);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /**
-   * Charge un plan du coach courant, ou lève 404 (scope coachId appliqué par le tenancy layer).
-   * Public : le service des séances planifiées s'appuie dessus — un seul contrôle
-   * d'appartenance, un seul message, pas deux implémentations à garder en phase.
+   * Un cycle que l'acteur peut LIRE — le sien, ou un cycle qu'on lui ouvre (#607) —, ou 404 :
+   * illisible, il ne dit rien de son existence. Public : séances planifiées et copie de semaine
+   * s'appuient dessus — un seul contrôle, un seul message.
    */
-  async getOwnedOrThrow(id: string): Promise<Plan> {
-    const plan = await this.db.plan.findFirst({ where: { id } });
+  async getReadableOrThrow(id: string): Promise<PlanWithAccess> {
+    const plan = await this.db.plan.findFirst({ where: { id }, include: ACCESS_INCLUDE });
     if (plan == null) {
       throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
 
-  async getWeekOwnedOrThrow(weekId: string): Promise<PlanWeek> {
+  /**
+   * Le cycle, si le droit de l'acteur couvre le geste : 404 illisible, 403 lisible sans plus. À
+   * appeler AVANT toute écriture dans le cycle ou ses enfants : l'extension refuserait sinon
+   * l'écriture d'un lecteur par un 500 (enfant créé) ou par une écriture qui ne touche rien.
+   */
+  async getForOrThrow(
+    id: string,
+    gesture: AccessGesture,
+  ): Promise<{ plan: PlanWithAccess; context: AccessContext }> {
+    const { row, context } = await this.access.loadFor(this.getReadableOrThrow(id), gesture);
+    return { plan: row, context };
+  }
+
+  async getWeekOrThrow(weekId: string): Promise<PlanWeek> {
     const week = await this.db.planWeek.findFirst({ where: { id: weekId } });
     if (week == null) {
       throw new NotFoundException(WEEK_NOT_FOUND);
@@ -486,17 +547,29 @@ export class PlanService {
   // Le plan complet (semaines + séances) — la forme rendue par l'API après chaque écriture.
   private async getDetailOrThrow(
     id: string,
-    db: TenantPrisma | TenantTx = this.db,
-  ): Promise<PlanWithWeeks> {
-    const plan = await db.plan.findFirst({ where: { id }, include: PLAN_DETAIL_INCLUDE });
+    db: TenantPrisma | TenantTx,
+  ): Promise<Prisma.PlanGetPayload<{ include: typeof COACH_PLAN_DETAIL_INCLUDE }>> {
+    const plan = await db.plan.findFirst({ where: { id }, include: COACH_PLAN_DETAIL_INCLUDE });
     if (plan == null) {
       throw new NotFoundException(PLAN_NOT_FOUND);
     }
     return plan;
   }
 
-  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<PlanDto> {
-    return toPlanDto(await this.getDetailOrThrow(id, db));
+  /**
+   * `context` : celui que le geste a déjà lu. Dans une transaction, il est OBLIGATOIRE de fait —
+   * le relire passerait par une autre connexion pendant que la transaction tient la sienne.
+   */
+  private async getDto(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+    context?: AccessContext,
+  ): Promise<PlanDto> {
+    const [plan, actor] = await Promise.all([
+      this.getDetailOrThrow(id, db),
+      context ?? this.access.context(),
+    ]);
+    return toPlanDto(plan, planAccessOf(plan, actor));
   }
 
   /**
@@ -602,4 +675,10 @@ function assertHeaderWritable(plan: Plan, input: UpdatePlanInput): void {
   throw new ConflictException(
     "L'en-tête d'un cycle diffusé ne se réécrit plus : son athlète s'entraîne dessus",
   );
+}
+
+/** Le droit du Coach courant sur un cycle lu, et ses droits accordés pour le propriétaire seul. */
+function planAccessOf(plan: AccessRow, context: AccessContext): PlanAccess {
+  const { myAccess, grants } = toAccessView(plan, context);
+  return { myAccess, grants };
 }

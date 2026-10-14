@@ -3,10 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   type CapabilityScope,
   childOf,
+  coachesOfPlanAthlete,
   column,
   grantedTo,
   type OperationClass,
   operationKindOf,
+  optionalChild,
   ownerColumnOrThrow,
   type ParentLink,
   parentIdsOrThrow,
@@ -112,6 +114,73 @@ describe("sharedRoot", () => {
       level: { in: ["WRITE"] },
       organization: { coaches: { some: { coachId: ACTOR } } },
     });
+  });
+});
+
+describe("sharedRoot avec une audience", () => {
+  const scope = sharedRoot("coachId", (actorId) => ({ follows: actorId }));
+
+  // Le droit ne vaut que pour l'audience ; le propriétaire n'y est pas soumis.
+  it.each(["read", "write"] as const)("en %s : l'audience borne le seul droit", (operation) => {
+    expect(scope.where(ACTOR, operation)).toEqual({
+      AND: [
+        {
+          OR: [
+            { coachId: ACTOR },
+            {
+              AND: [{ accessGrants: { some: grantedTo(ACTOR, operation) } }, { follows: ACTOR }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("en administration : le propriétaire seul, audience ou pas", () => {
+    expect(scope.where(ACTOR, "admin")).toEqual({ coachId: ACTOR });
+  });
+});
+
+describe("coachesOfPlanAthlete", () => {
+  // Un Coach de F qui ne suit pas l'athlète n'y voit rien ; sans athlète, comme un exercice.
+  it("les Coachs de l'athlète par un lien actif, ou toute planification sans athlète", () => {
+    expect(coachesOfPlanAthlete(ACTOR)).toEqual({
+      OR: [
+        { athleteId: null },
+        { athlete: { athleteRelations: { some: { coachId: ACTOR, status: "ACTIVE" } } } },
+      ],
+    });
+  });
+
+  it("borne les droits de la planification", () => {
+    expect(scopeOf("Plan").coach?.where(ACTOR, "read")).toEqual(
+      sharedRoot("coachId", coachesOfPlanAthlete).where(ACTOR, "read"),
+    );
+  });
+});
+
+describe("optionalChild", () => {
+  const root = sharedRoot("coachId", coachesOfPlanAthlete);
+  const parent = { model: "Plan", key: "planId", optional: true } as const;
+  const scope = optionalChild("plan", root, parent);
+
+  it.each(CLASSES)("sans parent, privé ; avec, filtré par lui (%s)", (operation) => {
+    expect(scope.where(ACTOR, operation)).toEqual({
+      AND: [{ OR: [{ planId: null, coachId: ACTOR }, { plan: root.where(ACTOR, operation) }] }],
+    });
+  });
+
+  it("se crée dans la colonne de son parent, avec le propriétaire de ce parent", () => {
+    expect(scope.owner).toBe("coachId");
+    expect(scope.parent).toEqual(parent);
+  });
+
+  it("la facture est cet enfant de la planification", () => {
+    for (const operation of CLASSES) {
+      expect(scopeOf("Invoice").coach?.where(ACTOR, operation)).toEqual(
+        scope.where(ACTOR, operation),
+      );
+    }
   });
 });
 
@@ -256,11 +325,26 @@ describe("operationKindOf", () => {
 
 describe("scopeFor", () => {
   /**
-   * Les modèles qu'un droit d'accès ouvre (#605) : la bibliothèque, racines et enfants. Tout autre
-   * modèle se lit, s'écrit et s'administre par la même colonne ; le jour où l'un s'en écarte, c'est
-   * une décision, et ce test le dit.
+   * Les modèles qu'un droit d'accès ouvre : la bibliothèque (#605), la planification et tout ce
+   * qu'elle porte (#607), racines et enfants. Tout autre modèle se lit, s'écrit et s'administre par
+   * la même colonne ; le jour où l'un s'en écarte, c'est une décision, et ce test le dit.
    */
-  const SHARED = ["Exercise", "ExerciseDocument", "ExerciseTag", "Session", "SessionExercise"];
+  const SHARED = [
+    "Exercise",
+    "ExerciseDocument",
+    "ExerciseTag",
+    "Session",
+    "SessionExercise",
+    "Plan",
+    "PlanWeek",
+    "ScheduledSession",
+    "ScheduledSessionExercise",
+    "ScheduledSessionExerciseDocument",
+    "ScheduledSessionExerciseTag",
+    "SessionFeedback",
+    "FeedbackMedia",
+    "Invoice",
+  ];
 
   it.each(SHARED)("%s est partageable au titre de Coach", (model) => {
     const coach = scopeOf(model).coach;
@@ -273,10 +357,33 @@ describe("scopeFor", () => {
     ["ExerciseDocument", "Exercise", "exercise"],
     ["ExerciseTag", "Exercise", "exercise"],
     ["SessionExercise", "Session", "session"],
-  ])("%s se filtre comme la racine %s", (model, root, relation) => {
-    const rootWhere = scopeOf(root).coach?.where(ACTOR, "read");
-    const where = scopeOf(model).coach?.where(ACTOR, "read");
-    expect(where).toEqual(relation == null ? rootWhere : { [relation]: rootWhere });
+    ["PlanWeek", "Plan", "plan"],
+    ["ScheduledSession", "Plan", "plan"],
+    ["ScheduledSessionExercise", "ScheduledSession", "scheduledSession"],
+    ["ScheduledSessionExerciseDocument", "ScheduledSessionExercise", "scheduledSessionExercise"],
+    ["ScheduledSessionExerciseTag", "ScheduledSessionExercise", "scheduledSessionExercise"],
+    ["SessionFeedback", "ScheduledSession", "scheduledSession"],
+    ["FeedbackMedia", "SessionFeedback", "sessionFeedback"],
+  ])("%s se filtre comme son parent %s", (model, root, relation) => {
+    for (const operation of CLASSES) {
+      const rootWhere = scopeOf(root).coach?.where(ACTOR, operation);
+      const where = scopeOf(model).coach?.where(ACTOR, operation);
+      expect(where).toEqual(relation == null ? rootWhere : { [relation]: rootWhere });
+    }
+  });
+
+  // L'athlète lit ce qui lui est diffusé, quel que soit l'auteur : sa colonne, sans droit.
+  it.each([
+    "Plan",
+    "ScheduledSession",
+    "ScheduledSessionExercise",
+    "SessionFeedback",
+    "FeedbackMedia",
+    "Invoice",
+  ])("%s reste sur la colonne de l'athlète", (model) => {
+    for (const operation of CLASSES) {
+      expect(whereOf(scopeOf(model), "athlete", operation)).toEqual({ athleteId: ACTOR });
+    }
   });
 
   it.each(
@@ -305,13 +412,19 @@ describe("scopeFor", () => {
    * fiche (#626) : leur clé athlète est fermée. Rouvrir l'une d'elles est une décision, pas un oubli.
    */
   it.each([
-    "AthleteSheet",
-    "PlanWeek",
-    "ScheduledSessionExerciseDocument",
-    "ScheduledSessionExerciseTag",
-  ])("ferme %s à la capacité athlète, et le laisse au coach", (model) => {
+    ["AthleteSheet", { coachId: ACTOR }],
+    ["PlanWeek", { plan: whereOf(scopeOf("Plan"), "coach") }],
+    [
+      "ScheduledSessionExerciseDocument",
+      { scheduledSessionExercise: whereOf(scopeOf("ScheduledSessionExercise"), "coach") },
+    ],
+    [
+      "ScheduledSessionExerciseTag",
+      { scheduledSessionExercise: whereOf(scopeOf("ScheduledSessionExercise"), "coach") },
+    ],
+  ])("ferme %s à la capacité athlète, et le laisse au coach", (model, coachWhere) => {
     expect(whereOf(scopeOf(model), "athlete")).toBeNull();
-    expect(whereOf(scopeOf(model), "coach")).toEqual({ coachId: ACTOR });
+    expect(whereOf(scopeOf(model), "coach")).toEqual(coachWhere);
   });
 
   /**

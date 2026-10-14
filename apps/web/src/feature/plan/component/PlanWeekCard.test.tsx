@@ -66,7 +66,12 @@ const SOURCE = week({
 
 const RESPONSE = { id: "p-1", weeks: [SOURCE] } as PlanDto;
 
-type Props = { isPublished?: boolean; onAddSession?: () => void; onEditSession?: () => void };
+type Props = {
+  isPublished?: boolean;
+  readOnly?: boolean;
+  onAddSession?: () => void;
+  onEditSession?: () => void;
+};
 
 /**
  * Deux cartes, comme dans le constructeur : copier se fait sur l'une, coller sur l'autre. Les
@@ -81,6 +86,7 @@ function mount(target: PlanWeekDto, props: Props = {}) {
           planId="p-1"
           planTitle="Cycle bloc"
           isPublished={props.isPublished ?? false}
+          readOnly={props.readOnly ?? false}
           week={item}
           onAddSession={props.onAddSession ?? vi.fn()}
           onEditSession={props.onEditSession ?? vi.fn()}
@@ -292,5 +298,22 @@ describe("PlanWeekCard — la semaine", () => {
     // La décharge se repère sans lire le sélecteur : c'est le liseré qui la signale.
     expect(targetCard).toHaveClass("border-l-cmv-info");
     expect(target.getByText("Semaine allégée")).toBeInTheDocument();
+  });
+});
+
+describe("PlanWeekCard — en Lecture (#607)", () => {
+  it("la semaine se copie, rien ne s'y colle, ne s'y retire ni ne change de type", async () => {
+    const { user, source, target } = mount(week({ id: "w-2", startDate: MONDAY_2 }), {
+      readOnly: true,
+    });
+
+    await user.click(source.getByRole("button", { name: "plan.week.copy" }));
+
+    expect(target.queryByRole("button", { name: "plan.week.paste" })).toBeNull();
+    expect(target.queryByRole("button", { name: "plan.week.delete" })).toBeNull();
+    expect(target.queryByRole("button", { name: "plan.week.addSession" })).toBeNull();
+    for (const type of target.getAllByRole("button", { name: /plan\.weekType\./ })) {
+      expect((type as HTMLButtonElement).disabled).toBe(true);
+    }
   });
 });

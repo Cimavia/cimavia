@@ -159,3 +159,31 @@ describe("CompositionEditor — détail dépliable", () => {
     expect(getByRole("button", { name: "Tractions", expanded: true })).toBeInTheDocument();
   });
 });
+
+describe("CompositionEditor — en Lecture (#607)", () => {
+  it("la ligne se déplie pour se lire, rien ne s'y déplace, ne s'y retire ni ne s'y saisit", async () => {
+    const { user, container, getByRole, queryByRole } = renderWithProviders(
+      <CompositionEditor
+        items={rows.slice(0, 1)}
+        onMove={vi.fn()}
+        onMoveTo={vi.fn()}
+        onRemove={vi.fn()}
+        onNoteChange={vi.fn()}
+        detail={(row) => ({ badge: null, body: <input aria-label={`grille ${row.title}`} /> })}
+        readOnly
+      />,
+    );
+
+    expect(queryByRole("button", { name: handleName(1) })).toBeNull();
+    expect(queryByRole("button", { name: MOVE_UP })).toBeNull();
+    expect(queryByRole("button", { name: `${PREFIX}.remove` })).toBeNull();
+    expect((container.querySelector("input[name='note-a']") as HTMLInputElement).disabled).toBe(
+      true,
+    );
+
+    await user.click(getByRole("button", { name: "Tractions", expanded: false }));
+
+    // Figée par le `fieldset` qui l'entoure : la propriété du champ, elle, n'en sait rien.
+    expect(getByRole("textbox", { name: "grille Tractions" })).toBeDisabled();
+  });
+});

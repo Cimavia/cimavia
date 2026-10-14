@@ -1,4 +1,5 @@
 import {
+  MyAccessLevel,
   mondayOfIsoWeek,
   type PlanDto,
   PlanStatus,
@@ -14,6 +15,7 @@ import {
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
+import { listMyOrganizations } from "@/feature/library/api";
 import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
@@ -92,12 +94,17 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/library/api")>()),
   listSessions: vi.fn(async () => []),
   listExercises: vi.fn(async () => []),
+  // Sans entreprise par défaut : ni « Accès », ni rien du partage (#607).
+  listMyOrganizations: vi.fn(async () => []),
 }));
 
 const plan = (over: Partial<PlanDto>): PlanDto =>
   ({
     id: "pln_1",
     coachId: "coach_1",
+    coachName: "Camille",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
+    grants: [],
     athleteId: "ath_lea",
     athleteName: "Léa Moreau",
     athleteEmail: "lea@example.test",
@@ -697,5 +704,107 @@ describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () 
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
     expect(queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Le cycle d'un autre Coach (#607) : ouvert en Lecture, il se consulte et se quitte ; en Écriture,
+ * il se modifie et se diffuse, mais ne se supprime ni ne se réaffecte. « Accès » ne s'offre qu'au
+ * propriétaire membre d'une entreprise.
+ */
+describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
+  const MONDAY = "2026-10-19";
+  const VIA_F = { id: "org_f", name: "F" };
+  const week: PlanWeekDto = {
+    id: "pw_1",
+    weekNumber: 1,
+    type: PlanWeekType.TRAINING,
+    note: null,
+    startDate: MONDAY,
+    endDate: "2026-10-25",
+    updatedAt: "2026-10-01T10:00:00.000Z",
+    sessions: [
+      {
+        id: "ss_1",
+        planId: "pln_1",
+        planWeekId: "pw_1",
+        sourceSessionId: null,
+        title: "Force max",
+        notes: null,
+        scheduledDate: MONDAY,
+        position: 0,
+        status: ScheduledSessionStatus.PLANNED,
+        exerciseCount: 0,
+        updatedAt: "2026-10-01T10:00:00.000Z",
+      },
+    ],
+  };
+  const shared = (level: MyAccessLevel) => ({
+    coachId: "coach_c",
+    coachName: "C",
+    myAccess: { level, via: VIA_F },
+    grants: null,
+    weeks: [week],
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearPlanClipboard();
+    vi.mocked(listMyOrganizations).mockResolvedValue([]);
+  });
+
+  it("en Lecture : le bandeau nomme le propriétaire, tout se fige, « Fermer » ramène aux cycles", async () => {
+    const { container, getByRole, getByText, queryByRole, queryByText, router, user } = await mount(
+      shared(MyAccessLevel.READ),
+    );
+
+    expect(getByText("plan.builder.readOnly")).toBeTruthy();
+    expect(queryByText("plan.builder.delete")).toBeNull();
+    expect(queryByText("plan.builder.publish")).toBeNull();
+    expect(queryByRole("button", { name: "plan.builder.addWeek" })).toBeNull();
+    expect(queryByRole("button", { name: "plan.week.addSession" })).toBeNull();
+    expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
+    expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(true);
+    // La semaine se copie encore : vers un cycle qu'on écrit.
+    expect(getByRole("button", { name: "plan.week.copy" })).toBeTruthy();
+
+    await user.click(getByRole("button", { name: "common.close" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+  });
+
+  it("en Écriture : il se modifie et se diffuse, sans suppression ni réaffectation", async () => {
+    const { container, getByRole, getByText, queryByText } = await mount(
+      shared(MyAccessLevel.WRITE),
+    );
+
+    expect(getByText("plan.builder.sharedWrite")).toBeTruthy();
+    expect(queryByText("plan.builder.delete")).toBeNull();
+    expect(getByText("plan.builder.publish")).toBeTruthy();
+    expect(getByRole("button", { name: "plan.builder.addWeek" })).toBeTruthy();
+    expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(false);
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    expect(getByText("plan.header.athleteOwnerOnly")).toBeTruthy();
+  });
+
+  it("« Accès » s'offre au propriétaire membre d'une entreprise, et à lui seul", async () => {
+    vi.mocked(listMyOrganizations).mockResolvedValue([
+      { ...VIA_F, coaches: [{ coachId: "coach_1", name: "Camille" }] },
+    ]);
+    const mine = await mount({});
+    expect(await mine.findByRole("button", { name: "library.access.title" })).toBeTruthy();
+    expect(mine.queryByText("plan.builder.readOnly")).toBeNull();
+    expect(mine.queryByText("plan.builder.sharedWrite")).toBeNull();
+    mine.unmount();
+
+    const theirs = await mount(shared(MyAccessLevel.WRITE));
+    await waitFor(() => expect(listMyOrganizations).toHaveBeenCalled());
+    expect(theirs.queryByRole("button", { name: "library.access.title" })).toBeNull();
+  });
+
+  it("sans entreprise, pas d'« Accès » sur son propre cycle", async () => {
+    const { queryByRole } = await mount({});
+
+    await waitFor(() => expect(listMyOrganizations).toHaveBeenCalled());
+    expect(queryByRole("button", { name: "library.access.title" })).toBeNull();
   });
 });

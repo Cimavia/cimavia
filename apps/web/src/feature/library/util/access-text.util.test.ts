@@ -1,7 +1,13 @@
 import { AccessLevel, type MyAccess, MyAccessLevel } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { fakeT } from "../../../../test/translator";
-import { accessText, myRightText, ownerRightText, ownerText } from "./access-text.util";
+import {
+  accessText,
+  myRightText,
+  ownerRightText,
+  ownerText,
+  sharedByText,
+} from "./access-text.util";
 
 const C = { id: "c", name: "C" };
 const M = { id: "m", name: "M" };
@@ -74,6 +80,21 @@ describe("myRightText", () => {
   it("sans provenance, le droit seul", () => {
     expect(myRightText({ level: MyAccessLevel.READ, via: null }, fakeT)).toBe(
       "library.access.level.READ",
+    );
+  });
+});
+
+describe("sharedByText", () => {
+  it("rien sur ce qui est à l'acteur, ni pour l'athlète, sans droit", () => {
+    expect(sharedByText("C", OWNER, fakeT)).toBeNull();
+    expect(sharedByText("C", null, fakeT)).toBeNull();
+  });
+
+  it("le propriétaire, et le droit de l'acteur tel que myRightText le dit", () => {
+    const access: MyAccess = { level: MyAccessLevel.READ, via: F };
+    const level = myRightText(access, fakeT);
+    expect(sharedByText("M", access, fakeT)).toBe(
+      `library.access.sharedBy(${JSON.stringify({ owner: "M", level })})`,
     );
   });
 });
