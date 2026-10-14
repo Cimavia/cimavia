@@ -1,7 +1,7 @@
 import { LibraryScope } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
 import { LibraryToolbar, NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
 import {
@@ -9,8 +9,8 @@ import {
   useExercises,
   useExerciseTags,
 } from "@/feature/library/hook/useExercises";
-import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
-import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { useLibraryFilters } from "@/feature/library/hook/useLibraryFilters";
+import { CmvButton, CmvEmptyState } from "@/shared/component";
 
 /**
  * L'onglet Exercices (#606, maquette #597, frames 1, 2, 4 et 14). La liste n'ouvre pas de panneau
@@ -20,19 +20,11 @@ import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 export function ExerciseList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
-  const [search, setSearch] = useState("");
-  const [scope, setScope] = useState<LibraryScope>(LibraryScope.ALL);
-  const trimmed = search.trim();
-
-  // Sans entreprise, la bibliothèque n'a rien du partage : il faut donc SAVOIR avant d'afficher.
-  // Une lecture ratée n'est pas « aucune entreprise » (règle dure n°5) : elle se dit en erreur.
-  const organizations = useMyOrganizations();
-  const sharing = (organizations.data?.length ?? 0) > 0;
+  const filters = useLibraryFilters();
   const exercises = useExercises({
-    ...(tagFilter === NO_TAG_FILTER ? {} : { tag: tagFilter }),
-    ...(trimmed === "" ? {} : { search: trimmed }),
-    ...(sharing ? { scope } : {}),
+    ...(filters.tag === NO_TAG_FILTER ? {} : { tag: filters.tag }),
+    ...(filters.search === "" ? {} : { search: filters.search }),
+    scope: filters.scope,
   });
   // Les tags existants de tout ce que le Coach lit, pas ceux des exercices affichés : dérivés de la
   // liste filtrée, ils rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
@@ -43,37 +35,6 @@ export function ExerciseList() {
     navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId } });
   }
 
-  function body() {
-    if (exercises.isError || organizations.isError) {
-      return (
-        <CmvErrorState
-          title={t("common.errorTitle")}
-          description={t("common.errorDescription")}
-          retryLabel={t("common.retry")}
-          onRetry={() => {
-            if (exercises.isError) exercises.refetch();
-            if (organizations.isError) organizations.refetch();
-          }}
-        />
-      );
-    }
-    if (exercises.data == null || organizations.data == null) {
-      return <p className="text-cmv-text-mid">{t("common.loading")}</p>;
-    }
-    if (exercises.data.length === 0) return emptyState();
-    return (
-      <LibraryTable
-        // Une autre portée est une autre liste : la sélection ne la traverse pas.
-        key={scope}
-        rows={exercises.data}
-        organizations={organizations.data}
-        copyPrefix="library.access.exercise"
-        mutation={change}
-        onOpen={(exercise) => open(exercise.id)}
-      />
-    );
-  }
-
   /**
    * Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
    * bibliothèque neuve, le second constate qu'une recherche ne trouve rien — et propose de créer
@@ -81,30 +42,32 @@ export function ExerciseList() {
    * qui manque n'est pas au Coach de le faire (frame 4).
    */
   function emptyState() {
-    const sharedOnly = sharing && scope === LibraryScope.SHARED;
-    if (trimmed !== "") {
+    const sharedOnly = filters.scope === LibraryScope.SHARED;
+    if (filters.search !== "") {
       return (
         <CmvEmptyState
-          title={t("library.noMatch.title", { search: trimmed })}
+          title={t("library.noMatch.title", { search: filters.search })}
           action={
             sharedOnly ? undefined : (
               <CmvButton
                 onClick={() =>
-                  navigate({ to: "/library/exercises/new", search: { title: trimmed } })
+                  navigate({ to: "/library/exercises/new", search: { title: filters.search } })
                 }
               >
-                {t("library.noMatch.create", { search: trimmed })}
+                {t("library.noMatch.create", { search: filters.search })}
               </CmvButton>
             )
           }
         />
       );
     }
+    // Le tag avant la portée : « rien n'est partagé avec toi » serait faux s'il ne manquait que
+    // des exercices partagés PORTANT ce tag.
+    if (filters.tag !== NO_TAG_FILTER) {
+      return <CmvEmptyState title={t("library.noFilterMatch")} />;
+    }
     if (sharedOnly) {
       return <CmvEmptyState title={t("library.access.exercise.sharedEmpty")} />;
-    }
-    if (tagFilter !== NO_TAG_FILTER) {
-      return <CmvEmptyState title={t("library.noFilterMatch")} />;
     }
     return (
       <CmvEmptyState
@@ -122,16 +85,27 @@ export function ExerciseList() {
   return (
     <>
       <LibraryToolbar
-        search={search}
-        onSearch={setSearch}
+        {...filters.toolbar}
         searchPlaceholder={t("library.searchExercise")}
         tags={tags ?? []}
-        tag={tagFilter}
-        onTag={setTagFilter}
-        scope={sharing ? scope : null}
-        onScope={setScope}
       />
-      {body()}
+      <LibraryListState list={exercises} organizations={filters.organizations}>
+        {(rows, organizations) =>
+          rows.length === 0 ? (
+            emptyState()
+          ) : (
+            <LibraryTable
+              // Une autre portée est une autre liste : la sélection ne la traverse pas.
+              key={filters.scope}
+              rows={rows}
+              organizations={organizations}
+              copyPrefix="library.access.exercise"
+              mutation={change}
+              onOpen={(exercise) => open(exercise.id)}
+            />
+          )
+        }
+      </LibraryListState>
     </>
   );
 }

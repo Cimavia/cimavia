@@ -164,6 +164,7 @@
     "newExercise": "Nouvel exercice",
     "searchLabel": "Rechercher",
     "searchExercise": "Rechercher un exercice…",
+    "searchSession": "Rechercher une séance…",
     "tabs": {
       "exercises": "Exercices",
       "sessions": "Séances"
@@ -185,12 +186,13 @@
       "moveUp": "Monter l'exercice",
       "moveDown": "Descendre l'exercice",
       "remove": "Retirer de la séance",
-      "exerciseCount": "{{count}} exercice",
-      "exerciseCount_other": "{{count}} exercices",
-      "more": "+{{count}} autre",
-      "more_other": "+{{count}} autres",
       "emptyTitle": "Compose ta séance",
       "emptyDescription": "Choisis un exercice dans ta bibliothèque, à droite.",
+      "listEmpty": {
+        "title": "Aucune séance",
+        "description": "Compose ta première séance à partir de tes exercices : elle sera réutilisable dans toutes tes planifications."
+      },
+      "noMatch": "Aucune séance ne correspond à « {{search}} »",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
       "noteLabel": "Note",
@@ -467,9 +469,24 @@
         "selected": "{{count}} exercice sélectionné",
         "selected_other": "{{count}} exercices sélectionnés",
         "sharedEmpty": "Aucun exercice n'est partagé avec toi pour l'instant."
+      },
+      "session": {
+        "mine": "Séance · à toi",
+        "ofOwner": "Séance de {{owner}}",
+        "count": "{{count}} séance",
+        "count_other": "{{count}} séances",
+        "applyTo": "Appliquer à la séance",
+        "applyTo_other": "Appliquer aux {{count}} séances",
+        "readMeans": " : voir la séance et l'utiliser dans ses planifications.",
+        "open": "Ouvrir la séance",
+        "canRead": "Tu peux voir cette séance et l'utiliser dans tes planifications.",
+        "canWrite": "Tu peux voir cette séance, l'utiliser dans tes planifications, et en modifier le contenu.",
+        "selected": "{{count}} séance sélectionnée",
+        "selected_other": "{{count}} séances sélectionnées",
+        "sharedEmpty": "Aucune séance n'est partagée avec toi pour l'instant."
       }
     },
-    "noFilterMatch": "Aucun exercice ne correspond à ces filtres.",
+    "noFilterMatch": "Rien ne correspond à ces filtres.",
     "scope": {
       "all": "Tous",
       "mine": "Les miens",
@@ -480,6 +497,7 @@
       "tags": "Tags",
       "owner": "Propriétaire",
       "access": "Accès",
+      "exercises": "Exercices",
       "updatedAt": "Modifié le",
       "select": "Sélectionner « {{title}} »",
       "selectAll": "Tout sélectionner",

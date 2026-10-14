@@ -7,7 +7,7 @@ import {
   useExerciseTags,
 } from "@/feature/library/hook/useExercises";
 import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
-import { useSessions } from "@/feature/library/hook/useSessions";
+import { useChangeSessionAccess, useSessions } from "@/feature/library/hook/useSessions";
 import { renderInRoute } from "../../../../test/render";
 import { LibraryScreen } from "./LibraryScreen";
 
@@ -17,7 +17,10 @@ vi.mock("@/feature/library/hook/useExercises", () => ({
   useChangeExerciseAccess: vi.fn(),
 }));
 vi.mock("@/feature/library/hook/useMyOrganizations", () => ({ useMyOrganizations: vi.fn() }));
-vi.mock("@/feature/library/hook/useSessions", () => ({ useSessions: vi.fn() }));
+vi.mock("@/feature/library/hook/useSessions", () => ({
+  useSessions: vi.fn(),
+  useChangeSessionAccess: vi.fn(),
+}));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: "coach-1", name: "Cédric" } } }),
@@ -34,6 +37,10 @@ const session = {
   title: "Force max",
   notes: null,
   exercises: [],
+  owner: { id: "coach-1", name: "Cédric" },
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
+  grants: [],
+  updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as SessionDto;
 const exercise = {
   id: "ex-1",
@@ -70,6 +77,9 @@ function served({
   vi.mocked(useChangeExerciseAccess).mockReturnValue({
     reset: vi.fn(),
   } as unknown as ReturnType<typeof useChangeExerciseAccess>);
+  vi.mocked(useChangeSessionAccess).mockReturnValue({
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useChangeSessionAccess>);
   vi.mocked(useMyOrganizations).mockReturnValue({
     data: [],
     isError: false,

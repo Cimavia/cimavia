@@ -96,7 +96,7 @@ describe("ExerciseList — filtres", () => {
     state({ data: [] });
     await setup();
 
-    expect(lastFilters()).toEqual({});
+    expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
   });
 
   it("cherche le texte tapé, sans ses espaces de bord", async () => {
@@ -105,7 +105,7 @@ describe("ExerciseList — filtres", () => {
 
     await user.type(getByRole("searchbox", { name: SEARCH }), "  Planche ");
 
-    expect(lastFilters()).toEqual({ search: "Planche" });
+    expect(lastFilters()).toEqual({ search: "Planche", scope: LibraryScope.ALL });
   });
 
   // Une recherche faite d'espaces n'en est pas une : elle ne filtre rien.
@@ -115,7 +115,7 @@ describe("ExerciseList — filtres", () => {
 
     await user.type(getByRole("searchbox", { name: SEARCH }), "   ");
 
-    expect(lastFilters()).toEqual({});
+    expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
   });
 
   it("filtre par tag, et « Tous » retire le filtre", async () => {
@@ -123,11 +123,11 @@ describe("ExerciseList — filtres", () => {
     const { user, getByRole } = await setup();
 
     await user.click(getByRole("button", { name: "force" }));
-    expect(lastFilters()).toEqual({ tag: "force" });
+    expect(lastFilters()).toEqual({ tag: "force", scope: LibraryScope.ALL });
     expect(getByRole("button", { name: "force" })).toHaveAttribute("aria-pressed", "true");
 
     await user.click(getByRole("button", { name: "library.filterAllTags" }));
-    expect(lastFilters()).toEqual({});
+    expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
   });
 
   it("combine le tag et la recherche", async () => {
@@ -137,7 +137,7 @@ describe("ExerciseList — filtres", () => {
     await user.click(getByRole("button", { name: "doigts" }));
     await user.type(getByRole("searchbox", { name: SEARCH }), "pinces");
 
-    expect(lastFilters()).toEqual({ tag: "doigts", search: "pinces" });
+    expect(lastFilters()).toEqual({ tag: "doigts", search: "pinces", scope: LibraryScope.ALL });
   });
 
   // Un filtre à un seul bouton « Tous » ne filtrerait rien.
@@ -236,7 +236,7 @@ describe("ExerciseList — partage", () => {
     state({ data: [exercise("ex-1", "Tractions")] });
     const { queryByRole, queryByText } = await setup();
 
-    expect(lastFilters()).toEqual({});
+    expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
     expect(queryByRole("button", { name: "library.scope.shared" })).not.toBeInTheDocument();
     expect(queryByText("library.table.access")).not.toBeInTheDocument();
     expect(queryByRole("checkbox")).not.toBeInTheDocument();
@@ -275,6 +275,18 @@ describe("ExerciseList — partage", () => {
 
     expect(getByText("library.noMatch.title")).toBeInTheDocument();
     expect(queryByRole("button", { name: "library.noMatch.create" })).not.toBeInTheDocument();
+  });
+
+  it("un tag sans résultat parmi les partagés n'affirme pas que rien n'est partagé", async () => {
+    organizations([F]);
+    state({ data: [] });
+    const { user, getByRole, getByText, queryByText } = await setup();
+
+    await user.click(getByRole("button", { name: "library.scope.shared" }));
+    await user.click(getByRole("button", { name: "force" }));
+
+    expect(getByText("library.noFilterMatch")).toBeInTheDocument();
+    expect(queryByText("library.access.exercise.sharedEmpty")).not.toBeInTheDocument();
   });
 
   it("un tag qui ne trouve rien n'est pas une bibliothèque vide", async () => {
