@@ -14,19 +14,18 @@ import {
   required,
 } from "@cmv/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { myRightText } from "@/feature/library/util/access-text.util";
-import {
-  CmvBadge,
-  CmvButton,
-  CmvFormError,
-  CmvPanel,
-  CmvSegmented,
-  useToast,
-} from "@/shared/component";
+import { CmvButton, CmvFormError, CmvPanel, CmvSegmented, useToast } from "@/shared/component";
 
 // i18n-values library.access.level: AccessLevel
+
+/** Un choix du sélecteur d'une entreprise : un niveau, ou « Mixte » pour la ligne qui l'était. */
+type Segment = AccessLevelValue | typeof MIXED_ACCESS;
+
+const LEVELS: readonly Segment[] = [AccessLevel.NONE, AccessLevel.READ, AccessLevel.WRITE];
 
 /** Ce que le panneau lit d'un exercice ou d'une séance : les deux portent les mêmes champs. */
 export type AccessElement = Pick<ExerciseDto, "id" | "title" | "owner" | "myAccess" | "grants">;
@@ -53,8 +52,9 @@ type AccessPanelProps<T extends AccessElement> = {
 /**
  * Le panneau des accès (#606, maquette #597, frames 4 à 7 et 13). Le propriétaire y règle, pour
  * chacune de ses entreprises, « Aucun · Lecture · Écriture » ; sur plusieurs éléments, une ligne
- * qui diffère reste « Mixte » tant qu'on n'y touche pas, et n'est pas envoyée. Ouvert sur
- * l'élément d'un autre Coach, il dit seulement le propriétaire et le droit de l'acteur.
+ * qui diffère reste « Mixte » tant qu'on n'y touche pas — ou qu'on y revient —, et n'est pas
+ * envoyée. Ouvert sur l'élément d'un autre Coach, il dit seulement le propriétaire et le droit de
+ * l'acteur.
  *
  * Les lignes d'un Coach (« Hérité ») arrivent avec #608.
  */
@@ -122,7 +122,9 @@ function OwnerAccess<T extends AccessElement>({
         <div className="flex w-full flex-col items-end gap-cmv-sm">
           {/* Au-dessus des boutons, la saisie gardée (frame 13) : le refus de réduire un accès
               dit pourquoi, et le Coach choisit autrement sans tout refaire. */}
-          <CmvFormError error={mutation.error} />
+          {/* Revenu à son point de départ, le panneau n'a plus rien à enregistrer : le refus ne
+              porte plus sur rien. */}
+          <CmvFormError error={changes.length === 0 ? null : mutation.error} />
           <div className="flex gap-cmv-sm">
             <CmvButton variant="ghost" onClick={onClose} disabled={mutation.isPending}>
               {t("common.cancel")}
@@ -154,6 +156,10 @@ function OwnerAccess<T extends AccessElement>({
           </span>
           {organizations.map((organization) => {
             const value = edited.get(organization.id);
+            // Partie de « Mixte », la ligne le garde parmi ses choix : y revenir rend à chaque
+            // élément sa valeur, sans annuler le reste du panneau.
+            const levels: readonly Segment[] =
+              initial.get(organization.id) === MIXED_ACCESS ? [...LEVELS, MIXED_ACCESS] : LEVELS;
             const others = organization.coaches
               .filter((coach) => coach.coachId !== ownerId)
               .map((coach) => coach.name);
@@ -171,23 +177,14 @@ function OwnerAccess<T extends AccessElement>({
                     })}
                   </span>
                 </div>
-                <div className="flex items-center gap-cmv-sm">
-                  {value === MIXED_ACCESS ? (
-                    <CmvBadge variant="neutral">{t("library.access.mixed")}</CmvBadge>
-                  ) : null}
-                  <CmvSegmented
-                    value={toSegment(value)}
-                    disabled={mutation.isPending}
-                    onChange={(next) =>
-                      setEdited((current) =>
-                        new Map(current).set(organization.id, fromSegment(next)),
-                      )
-                    }
-                    options={[AccessLevel.NONE, AccessLevel.READ, AccessLevel.WRITE].map(
-                      (level) => ({ value: level, label: t(`library.access.level.${level}`) }),
-                    )}
-                  />
-                </div>
+                <CmvSegmented
+                  value={toSegment(value)}
+                  disabled={mutation.isPending}
+                  onChange={(next) =>
+                    setEdited((current) => new Map(current).set(organization.id, fromSegment(next)))
+                  }
+                  options={levels.map((level) => ({ value: level, label: levelLabel(level, t) }))}
+                />
               </div>
             );
           })}
@@ -199,17 +196,17 @@ function OwnerAccess<T extends AccessElement>({
   );
 }
 
-/**
- * « Mixte » n'est aucune des trois options : rien ne s'allume tant que le Coach ne choisit pas.
- * « Aucun » est l'absence de ligne de droit, `null` (#605).
- */
-function toSegment(value: PanelAccess | undefined): AccessLevelValue | typeof MIXED_ACCESS {
-  if (value === MIXED_ACCESS) return MIXED_ACCESS;
+/** « Aucun » est l'absence de ligne de droit, `null` (#605). */
+function toSegment(value: PanelAccess | undefined): Segment {
   return value ?? AccessLevel.NONE;
 }
 
-function fromSegment(value: AccessLevelValue | typeof MIXED_ACCESS): PanelAccess {
+function fromSegment(value: Segment): PanelAccess {
   return value === AccessLevel.NONE ? null : value;
+}
+
+function levelLabel(level: Segment, t: TFunction): string {
+  return level === MIXED_ACCESS ? t("library.access.mixed") : t(`library.access.level.${level}`);
 }
 
 /**

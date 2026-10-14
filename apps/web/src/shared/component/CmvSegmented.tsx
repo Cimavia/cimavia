@@ -27,6 +27,7 @@ export function CmvSegmented<T extends string>({
           <button
             key={option.value}
             type="button"
+            aria-pressed={option.value === value}
             disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(

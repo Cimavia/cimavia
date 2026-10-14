@@ -73,8 +73,7 @@ function row(name: string) {
 
 const pressed = (name: string) =>
   row(name)
-    .getAllByRole("button")
-    .filter((button) => button.className.includes("bg-cmv-surface-hi"))
+    .queryAllByRole("button", { pressed: true })
     .map((button) => button.textContent);
 
 describe("AccessPanel — propriétaire", () => {
@@ -133,14 +132,13 @@ describe("AccessPanel — propriétaire", () => {
     expect(send.mock.calls[0]?.[0].changes).toEqual([{ organizationId: "org-f", level: null }]);
   });
 
-  it("plusieurs éléments : « Mixte » sans option allumée, et laissé tel quel il ne part pas", async () => {
+  it("plusieurs éléments : « Mixte » allumé, et laissé tel quel il ne part pas", async () => {
     const { user, send } = setup([
       mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }]),
       mine("ex-2", []),
     ]);
 
-    expect(row("F").getByText("library.access.mixed")).toBeInTheDocument();
-    expect(pressed("F")).toEqual([]);
+    expect(pressed("F")).toEqual(["library.access.mixed"]);
     expect(screen.getByText("Exercice ex-1, Exercice ex-2")).toBeInTheDocument();
 
     await user.click(row("G").getByRole("button", { name: "library.access.level.WRITE" }));
@@ -151,6 +149,32 @@ describe("AccessPanel — propriétaire", () => {
       ids: ["ex-1", "ex-2"],
       changes: [{ organizationId: "org-g", level: AccessLevel.WRITE }],
     });
+  });
+
+  it("une ligne partie de « Mixte » y revient sans défaire les autres, et ne part pas", async () => {
+    const { user, send } = setup([
+      mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }]),
+      mine("ex-2", []),
+    ]);
+
+    await user.click(row("G").getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(row("F").getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(row("F").getByRole("button", { name: "library.access.mixed" }));
+
+    expect(pressed("F")).toEqual(["library.access.mixed"]);
+    expect(pressed("G")).toEqual(["library.access.level.READ"]);
+    await user.click(screen.getByRole("button", { name: "library.access.exercise.applyTo" }));
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0].changes).toEqual([
+      { organizationId: "org-g", level: AccessLevel.READ },
+    ]);
+  });
+
+  it("« Mixte » n'est proposé qu'à la ligne qui l'était", () => {
+    setup([mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }]), mine("ex-2", [])]);
+
+    expect(row("F").getByRole("button", { name: "library.access.mixed" })).toBeInTheDocument();
+    expect(row("G").queryByRole("button", { name: "library.access.mixed" })).toBeNull();
   });
 
   it("un refus s'affiche au-dessus des boutons, la saisie gardée (frame 13)", async () => {
@@ -168,6 +192,23 @@ describe("AccessPanel — propriétaire", () => {
     expect(await screen.findByText(refusal)).toBeInTheDocument();
     expect(pressed("F")).toEqual(["library.access.level.NONE"]);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("revenu à son point de départ, le refus s'efface : il ne porte plus sur rien", async () => {
+    const refusal = "Impossible de réduire cet accès";
+    const { user } = setup(
+      [mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }])],
+      async () => {
+        throw new ApiError(409, refusal, null);
+      },
+    );
+
+    await user.click(row("F").getByRole("button", { name: "library.access.level.NONE" }));
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+    expect(await screen.findByText(refusal)).toBeInTheDocument();
+    await user.click(row("F").getByRole("button", { name: "library.access.level.WRITE" }));
+
+    expect(screen.queryByText(refusal)).toBeNull();
   });
 
   it("ne se ferme pas tant que l'enregistrement est en vol", async () => {

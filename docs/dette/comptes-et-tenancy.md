@@ -685,7 +685,9 @@ liste des domaines vivent dans l'index.
 >   d'auteur. La question laissée ouverte en #440 est close.
 > - **Modifier les droits de plusieurs éléments n'écrit que les bénéficiaires changés** : une
 >   ligne restée « Mixte » garde la valeur de chaque élément. Remplacer tous les droits de chaque
->   élément, comme l'écrivait #605, écraserait ces valeurs.
+>   élément, comme l'écrivait #605, écraserait ces valeurs. Une ligne partie de « Mixte » le garde
+>   parmi ses choix : y revenir ne demande pas d'annuler tout le panneau (écart à la frame 6, où
+>   « Mixte » n'était qu'un badge).
 
 > **Tranché en [#599](https://github.com/Cimavia/cimavia/issues/599)** (un athlète suivi par plusieurs Coachs, absorbant
 > [#364](https://github.com/Cimavia/cimavia/issues/364)) : ce que le cadrage de #593 ne disait pas.
