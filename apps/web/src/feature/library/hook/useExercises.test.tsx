@@ -144,15 +144,13 @@ describe("useDeleteExercise", () => {
 
 describe("useDuplicateExercise", () => {
   it("demande au serveur une copie de la source, titre suffixé", async () => {
-    apiMock.getExercise.mockResolvedValue(source);
     apiMock.duplicateExercise.mockResolvedValue({ ...source, id: "ex-2" });
     const { wrapper, invalidate } = spyInvalidate();
 
     const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
-    const created = await result.current.mutateAsync({ exerciseId: "ex-1", suffix: "(variante)" });
+    const created = await result.current.mutateAsync({ source, suffix: "(variante)" });
 
     expect(created.id).toBe("ex-2");
-    expect(apiMock.getExercise).toHaveBeenCalledWith("ex-1");
     // Ni consigne ni dosage : le serveur les reprend de la source, images de consigne comprises.
     expect(apiMock.duplicateExercise).toHaveBeenCalledExactlyOnceWith("ex-1", {
       title: "Tractions (variante)",
@@ -162,30 +160,17 @@ describe("useDuplicateExercise", () => {
 
   // Depuis une séance, la variante grave les ajustements du coach, pas le défaut de la source.
   it("grave le dosage fourni plutôt que celui de la source", async () => {
-    apiMock.getExercise.mockResolvedValue(source);
     apiMock.duplicateExercise.mockResolvedValue({ ...source, id: "ex-2" });
     const { wrapper } = renderWithQueryClient();
     const adjusted = [{ id: "b-seance" }] as unknown as ExerciseDto["blocks"];
 
     const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
-    await result.current.mutateAsync({ exerciseId: "ex-1", suffix: "(v)", blocks: adjusted });
+    await result.current.mutateAsync({ source, suffix: "(v)", blocks: adjusted });
 
     expect(apiMock.duplicateExercise).toHaveBeenCalledWith("ex-1", {
       title: "Tractions (v)",
       blocks: adjusted,
     });
-  });
-
-  it("ne duplique rien quand la source est introuvable", async () => {
-    apiMock.getExercise.mockRejectedValue(new Error("404"));
-    const { wrapper } = renderWithQueryClient();
-
-    const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
-    await expect(result.current.mutateAsync({ exerciseId: "ex-1", suffix: "(v)" })).rejects.toThrow(
-      "404",
-    );
-
-    expect(apiMock.duplicateExercise).not.toHaveBeenCalled();
   });
 });
 

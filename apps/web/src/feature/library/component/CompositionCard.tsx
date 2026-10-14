@@ -156,7 +156,13 @@ export function CompositionCard({
                   >
                     {t("library.session.reload")}
                   </CmvButton>
-                  <CmvButton variant="ghost" onClick={onDuplicate}>
+                  <CmvButton
+                    variant="ghost"
+                    onClick={() => {
+                      onDuplicate();
+                      setMenuOpen(false);
+                    }}
+                  >
                     {t("library.session.duplicate")}
                   </CmvButton>
                   <CmvButton variant="danger" onClick={onRemove}>

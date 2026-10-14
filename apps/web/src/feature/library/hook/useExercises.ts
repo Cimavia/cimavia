@@ -66,12 +66,13 @@ export function useDeleteExercise() {
 export function useDuplicateExercise() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      exerciseId,
+    mutationFn: ({
+      source,
       suffix,
       blocks,
     }: {
-      exerciseId: string;
+      /** Lue par l'appelant, qui en vérifie le droit : son titre suffixé nomme la variante. */
+      source: Pick<ExerciseDto, "id" | "title">;
       suffix: string;
       /**
        * Le dosage à graver dans la variante. Depuis une séance, c'est celui de la SÉANCE et non
@@ -80,14 +81,12 @@ export function useDuplicateExercise() {
        * tout ressaisir.
        */
       blocks?: ExerciseBlocks;
-    }) => {
-      // Lue pour son seul titre : le suffixe est traduit, le serveur ne le connaît pas.
-      const source = await getExercise(exerciseId);
-      return duplicateExercise(exerciseId, {
+    }) =>
+      // Le suffixe est traduit : le serveur ne le connaît pas.
+      duplicateExercise(source.id, {
         title: `${source.title} ${suffix}`,
         ...(blocks == null ? {} : { blocks }),
-      });
-    },
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
   });
 }

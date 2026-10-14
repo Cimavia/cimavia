@@ -6,6 +6,7 @@ import {
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
 } from "@cmv/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { useEffect, useMemo, useState } from "react";
@@ -15,7 +16,11 @@ import { CompositionCard } from "@/feature/library/component/CompositionCard";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SessionPreview } from "@/feature/library/component/SessionPreview";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
-import { useDuplicateExercise, useExercise } from "@/feature/library/hook/useExercises";
+import {
+  exerciseDetailQuery,
+  useDuplicateExercise,
+  useExercise,
+} from "@/feature/library/hook/useExercises";
 import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
 import {
   sessionDetailQuery,
@@ -150,6 +155,36 @@ function useSessionWrites(draft: ReturnType<typeof useSessionDraft>) {
 }
 
 /**
+ * L'exercice dont on veut une variante, lu AVANT d'enregistrer la séance : la variante reste au
+ * propriétaire de l'exercice (#605, jusqu'à #609), et la séance n'a pas à avancer d'une version
+ * pour un geste voué au 403. `null` quand la variante n'aura pas lieu — et le refus est dit.
+ */
+function useVariantSource() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { onError } = useMutationToast();
+  return async (exerciseId: string): Promise<ExerciseDto | null> => {
+    let source: ExerciseDto;
+    try {
+      // Relu, pas tiré du cache : le titre nomme la variante, et le droit a pu changer depuis.
+      // Sans nouvel essai, qu'un 404 ne ferait que retarder.
+      source = await queryClient.fetchQuery({
+        ...exerciseDetailQuery(exerciseId),
+        staleTime: 0,
+        retry: false,
+      });
+    } catch (error) {
+      onError(error);
+      return null;
+    }
+    if (isOwner(source.myAccess)) return source;
+    toast.error(t("library.session.variantOwnerOnly", { owner: source.owner.name }));
+    return null;
+  };
+}
+
+/**
  * Ce que dit le bandeau de conflit, ou `null` sans conflit. Une écriture refusée garde une saisie ;
  * une suppression refusée n'en a pas, elle invite à voir ce qui a changé avant de retirer.
  */
@@ -191,6 +226,7 @@ function SessionBuilder({
   const { reload, removeSession, staleMessage, isWriting } = useSessionWrites(draft);
   const edited = draft.edited;
   const duplicate = useDuplicateExercise();
+  const variantSource = useVariantSource();
   const [titleTouched, setTitleTouched] = useState(false);
 
   // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
@@ -221,16 +257,19 @@ function SessionBuilder({
    * Une saisie refusée retient de même (#566) : ces deux gestes enregistreraient l'ANCIENNE
    * valeur, puis quitteraient la séance — la saisie disparaîtrait sans que rien ne l'ait dit.
    */
-  async function save(successKey: string): Promise<SessionDto | null> {
+  /** Le titre manque ou une saisie est refusée : la séance ne s'enregistrerait pas, et le dit. */
+  function cannotSave(): boolean {
     if (draft.trimmedTitle === "") {
       setTitleTouched(true);
       toast.error(t("library.session.titleBeforeLeaving"));
-      return null;
+      return true;
     }
-    if (refused.hasRefused) {
-      toast.error(t("library.session.refusedBeforeLeaving"));
-      return null;
-    }
+    if (refused.hasRefused) toast.error(t("library.session.refusedBeforeLeaving"));
+    return refused.hasRefused;
+  }
+
+  async function save(successKey: string): Promise<SessionDto | null> {
+    if (cannotSave()) return null;
     try {
       const saved = await draft.submit();
       toast.success(t(successKey));
@@ -264,9 +303,13 @@ function SessionBuilder({
           });
 
   async function onDuplicate(exerciseId: string, blocks: ExerciseBlocks) {
+    // Ce qui bloque l'enregistrement se dit d'abord : inutile de lire l'exercice pour rien.
+    if (cannotSave()) return;
+    const source = await variantSource(exerciseId);
+    if (source == null) return;
     if ((await save("library.session.savedBeforeVariant")) == null) return;
     duplicate.mutate(
-      { exerciseId, suffix: t("library.session.variantSuffix"), blocks },
+      { source, suffix: t("library.session.variantSuffix"), blocks },
       {
         onSuccess: (created) => {
           guard.release();
@@ -275,6 +318,8 @@ function SessionBuilder({
             params: { exerciseId: created.id },
           });
         },
+        // Le refus de l'API est actionnable — une colonne hors du catalogue du Coach, par exemple.
+        onError,
       },
     );
   }

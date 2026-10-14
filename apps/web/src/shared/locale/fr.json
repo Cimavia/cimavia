@@ -226,6 +226,7 @@
       "saveFailed": "L'enregistrement a échoué.",
       "variantSuffix": "(variante)",
       "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
+      "variantOwnerOnly": "Seul {{owner}} peut dupliquer cet exercice en variante : ajuste-le dans la séance, ou demande-lui la variante.",
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
       "titleBeforeLeaving": "Donne un titre à la séance : elle doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",

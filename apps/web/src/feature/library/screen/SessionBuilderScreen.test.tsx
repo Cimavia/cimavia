@@ -834,6 +834,8 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
       instructions: null,
       blocks: series("lib-b", 5),
       tags: ["force"],
+      owner: { id: "coach-1", name: "Cédric" },
+      myAccess: { level: MyAccessLevel.OWNER, via: null },
     });
     api.duplicateExercise.mockResolvedValue({ id: "ex-new" });
   });
@@ -869,7 +871,54 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
     expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
     expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.getExercise).not.toHaveBeenCalled();
     expect(api.duplicateExercise).not.toHaveBeenCalled();
+  });
+
+  // Avant #609, la variante d'un exercice d'un autre Coach reste à son propriétaire : refusée
+  // avant que la séance s'enregistre, qui n'a pas à avancer pour un geste voué au 403.
+  it("refuse la variante d'un exercice d'un autre Coach sans enregistrer la séance", async () => {
+    api.getExercise.mockResolvedValue({
+      ...planche,
+      id: "ex-1",
+      owner: { id: "coach-m", name: "Marc" },
+      myAccess: { level: MyAccessLevel.WRITE, via: { id: "org-f", name: "F" } },
+    });
+    const view = await edit();
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    expect(await view.findByText("library.session.variantOwnerOnly")).toBeInTheDocument();
+    // Le menu se referme : un second clic relancerait le même refus.
+    expect(
+      view.queryByRole("button", { name: "library.session.duplicate" }),
+    ).not.toBeInTheDocument();
+    expect(api.updateSession).not.toHaveBeenCalled();
+    expect(api.duplicateExercise).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+  });
+
+  it("ne touche pas à la séance quand l'exercice ne se lit pas, et le dit", async () => {
+    api.getExercise.mockRejectedValue(new ApiError(404, "Exercice introuvable", null));
+    const view = await edit();
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    expect(await view.findByText("Exercice introuvable")).toBeInTheDocument();
+    expect(api.updateSession).not.toHaveBeenCalled();
+    expect(api.duplicateExercise).not.toHaveBeenCalled();
+  });
+
+  it("dit pourquoi le serveur refuse la variante, et reste sur la séance", async () => {
+    api.duplicateExercise.mockRejectedValue(
+      new ApiError(400, "Colonne absente de ton catalogue", null),
+    );
+    const view = await edit();
+
+    await view.menu("Tractions", "library.session.duplicate");
+
+    expect(await view.findByText("Colonne absente de ton catalogue")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
 
   it("ne duplique rien quand la séance ne s'enregistre pas, et le dit", async () => {
@@ -879,7 +928,6 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     await view.menu("Tractions", "library.session.duplicate");
 
     expect(await view.findByText("library.session.saveFailed")).toBeInTheDocument();
-    expect(api.getExercise).not.toHaveBeenCalled();
     expect(api.duplicateExercise).not.toHaveBeenCalled();
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
