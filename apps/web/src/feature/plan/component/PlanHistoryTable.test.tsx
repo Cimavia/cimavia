@@ -1,4 +1,4 @@
-import { PlanStatus, type PlanSummaryDto, sortAthletePlans } from "@cmv/shared";
+import { MyAccessLevel, PlanStatus, type PlanSummaryDto, sortAthletePlans } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { PlanHistoryTable } from "@/feature/plan/component/PlanHistoryTable";
 import { renderInRoute } from "../../../../test/render";
@@ -15,6 +15,7 @@ function plan(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): PlanS
   return {
     coachId: "usr_coach",
     coachName: "Julie Renaud",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: "ath_lea",
     athleteName: "Léa Bonnet",
     athleteEmail: "lea@example.test",

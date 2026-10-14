@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AccessModule } from "../access/access.module";
 import { CustomMetricModule } from "../custom-metric/custom-metric.module";
 import { ExerciseModule } from "../exercise/exercise.module";
 import { StorageModule } from "../infra/storage/storage.module";
@@ -19,9 +20,17 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
 // ReminderModule : supprimer un cycle purge les rappels qui le visaient, dans la même transaction
 // (leur référence est polymorphe, donc sans FK — rien en base ne les emporte).
 // ExerciseModule : la garde des exercices cités (`loadAccessibleOrThrow`, #353) ; CustomMetricModule :
-// les métriques recopiées, lues chez le propriétaire de l'exercice (piège n°9).
+// les métriques recopiées, lues chez le propriétaire de l'exercice (piège n°9). AccessModule : ce
+// que le Coach peut faire d'un cycle qu'on lui ouvre (#607).
 @Module({
-  imports: [StorageModule, InvoiceModule, ReminderModule, ExerciseModule, CustomMetricModule],
+  imports: [
+    StorageModule,
+    InvoiceModule,
+    ReminderModule,
+    ExerciseModule,
+    CustomMetricModule,
+    AccessModule,
+  ],
   controllers: [
     PlanController,
     PlanWeekController,

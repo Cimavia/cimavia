@@ -1,4 +1,4 @@
-import { PlanStatus, type PlanSummaryDto } from "@cmv/shared";
+import { MyAccessLevel, PlanStatus, type PlanSummaryDto } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { UnassignedDraftsSection } from "@/feature/plan/component/UnassignedDraftsSection";
 import { renderInRoute } from "../../../../test/render";
@@ -7,6 +7,7 @@ function draft(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): Plan
   return {
     coachId: "usr_coach",
     coachName: "Julie Renaud",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: null,
     athleteName: null,
     athleteEmail: null,

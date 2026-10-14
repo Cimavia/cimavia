@@ -1,4 +1,4 @@
-import { mondayOfIsoWeek, type PlanSummaryDto, todayIsoDate } from "@cmv/shared";
+import { MyAccessLevel, mondayOfIsoWeek, type PlanSummaryDto, todayIsoDate } from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
 import { useCreatePlan, usePlans } from "@/feature/plan/hook/usePlans";
@@ -35,6 +35,7 @@ const existingPlan: PlanSummaryDto = {
   id: "pln_1",
   coachId: "coach_1",
   coachName: "Julie Renaud",
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
   athleteId: "ath_lea",
   athleteName: "Léa Moreau",
   athleteEmail: "lea@example.test",
