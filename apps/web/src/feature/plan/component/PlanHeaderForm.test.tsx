@@ -67,6 +67,8 @@ const form = (current: PlanDto, over: FormProps = {}) => (
   <PlanHeaderForm
     plan={current}
     hasInvoiceDocument={false}
+    readOnly={false}
+    canReassign
     isSaving={false}
     onSave={onSave}
     isStale={false}
@@ -479,5 +481,27 @@ describe("PlanHeaderForm — la version que l'enregistrement cite (#604)", () =>
     const { queryByText } = mount();
 
     expect(queryByText("plan.header.stale")).toBeNull();
+  });
+});
+
+describe("PlanHeaderForm — le cycle d'un autre Coach (#607)", () => {
+  it("en Lecture, l'en-tête se lit : champs figés, rien à enregistrer", () => {
+    const { container, getByText, queryByRole } = renderWithProviders(
+      form(plan(), { readOnly: true, canReassign: false }),
+    );
+
+    expect(getByText("plan.header.lockedReadOnly")).toBeTruthy();
+    for (const field of ["#planTitle", "#startDate", "#planDescription", "#planAthleteId"]) {
+      expect((container.querySelector(field) as HTMLInputElement).disabled).toBe(true);
+    }
+    expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
+  });
+
+  it("en Écriture, il se modifie, son destinataire excepté", () => {
+    const { container, getByRole } = renderWithProviders(form(plan(), { canReassign: false }));
+
+    expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(false);
+    expect((container.querySelector("#planAthleteId") as HTMLSelectElement).disabled).toBe(true);
+    expect(getByRole("button", { name: "plan.header.submit" })).toBeTruthy();
   });
 });

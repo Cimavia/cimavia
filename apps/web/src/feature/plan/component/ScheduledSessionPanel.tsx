@@ -131,10 +131,28 @@ function staleMessageOf(saveError: unknown, removeError: unknown): string | null
   return null;
 }
 
+/**
+ * La taille et les textes du panneau : large en édition, où la bibliothèque s'ouvre à côté ; en
+ * Lecture (#607), il dit que la séance se consulte plutôt qu'il invite à la modifier.
+ */
+function panelHeading(isEditing: boolean, readOnly: boolean) {
+  return {
+    size: isEditing ? ("lg" as const) : ("md" as const),
+    title: isEditing ? "plan.session.editTitle" : "plan.session.createTitle",
+    description: readOnly ? "plan.session.readOnlyDescription" : "plan.session.panelDescription",
+  };
+}
+
 type ScheduledSessionPanelProps = {
   planId: string;
   // Cycle diffusé : retirer une séance prévient l'athlète, le panneau l'annonce avant confirmation.
   isPublished: boolean;
+  /**
+   * Le cycle d'un autre Coach, ouvert en Lecture (#607) : la séance s'ouvre pour se lire — jour,
+   * consignes, dosage —, ne se saisit pas et ne se retire pas. Jamais en création : le jour n'offre
+   * alors pas « Ajouter une séance ».
+   */
+  readOnly: boolean;
   week: PlanWeekDto;
   // Jour cliqué (création) ou jour de la séance (édition).
   date: string;
@@ -169,6 +187,7 @@ type ScheduledSessionPanelProps = {
 export function ScheduledSessionPanel({
   planId,
   isPublished,
+  readOnly,
   week,
   date,
   session,
@@ -230,16 +249,18 @@ export function ScheduledSessionPanel({
   );
 
   const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
+  const heading = panelHeading(isEditing, readOnly);
 
   return (
     <CmvPanel
       open
-      size={isEditing ? "lg" : "md"}
-      title={isEditing ? t("plan.session.editTitle") : t("plan.session.createTitle")}
-      description={t("plan.session.panelDescription")}
+      size={heading.size}
+      title={t(heading.title)}
+      description={t(heading.description)}
       onClose={close.requestClose}
       footer={
         <SessionPanelFooter
+          readOnly={readOnly}
           isEditing={isEditing}
           isDebriefed={session?.status === ScheduledSessionStatus.DONE}
           isPublished={isPublished}
@@ -266,6 +287,7 @@ export function ScheduledSessionPanel({
               value={scheduledDate}
               onChange={(event) => setScheduledDate(event.target.value)}
               options={dayOptions}
+              disabled={readOnly}
             />
 
             {isEditing ? null : (
@@ -284,21 +306,7 @@ export function ScheduledSessionPanel({
 
             {/* Sans modèle, la séance part vide : il lui faut au moins un titre. */}
             {isEditing || sourceSessionId === "" ? (
-              // La légende suit le champ dans son apparition : choisir un modèle retire le titre, et
-              // laisserait sinon une légende qui n'explique plus aucun astérisque.
-              <div className="flex flex-col gap-cmv-xs">
-                <CmvTextField
-                  label={t("plan.session.titleLabel")}
-                  name="sessionTitle"
-                  maxLength={SESSION_TITLE_MAX_LENGTH}
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder={t("plan.session.titlePlaceholder")}
-                  required
-                  requiredMark
-                />
-                <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
-              </div>
+              <SessionTitleField title={title} onChange={setTitle} readOnly={readOnly} />
             ) : (
               <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>
             )}
@@ -311,18 +319,52 @@ export function ScheduledSessionPanel({
                 onNotesChange={setNotes}
                 composition={composition}
                 library={exercises}
+                readOnly={readOnly}
               />
             ) : null}
           </section>
 
           {/* En édition seulement : la bibliothèque dans laquelle piocher des exercices. */}
-          {isEditing ? (
+          {isEditing && !readOnly ? (
             <ExercisePicker exercises={exercises ?? []} onPick={composition.addExercise} />
           ) : null}
         </form>
       </RefusedFieldsContext>
       <CmvLeaveDialog {...close.dialog} />
     </CmvPanel>
+  );
+}
+
+type SessionTitleFieldProps = {
+  title: string;
+  onChange: (title: string) => void;
+  /** En Lecture, le titre se lit : ni astérisque, ni légende qui l'expliquerait. */
+  readOnly: boolean;
+};
+
+/**
+ * Le titre, et sa légende. Elle suit le champ dans son apparition : choisir un modèle retire le
+ * titre, et laisserait sinon une légende qui n'explique plus aucun astérisque.
+ */
+function SessionTitleField({ title, onChange, readOnly }: Readonly<SessionTitleFieldProps>) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-cmv-xs">
+      <CmvTextField
+        label={t("plan.session.titleLabel")}
+        name="sessionTitle"
+        maxLength={SESSION_TITLE_MAX_LENGTH}
+        value={title}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={t("plan.session.titlePlaceholder")}
+        required
+        requiredMark={!readOnly}
+        disabled={readOnly}
+      />
+      {readOnly ? null : (
+        <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+      )}
+    </div>
   );
 }
 
@@ -334,6 +376,7 @@ type EditedSessionFieldsProps = {
   composition: ReturnType<typeof useSessionComposition>;
   /** Les exercices où le sélecteur pioche : ceux d'autres Coachs apportent leurs métriques. */
   library: readonly ExerciseDto[] | undefined;
+  readOnly: boolean;
 };
 
 /**
@@ -347,6 +390,7 @@ function EditedSessionFields({
   onNotesChange,
   composition,
   library,
+  readOnly,
 }: Readonly<EditedSessionFieldsProps>) {
   const { t } = useTranslation();
   const { data: customMetrics } = useCustomMetrics();
@@ -370,6 +414,7 @@ function EditedSessionFields({
         onChange={(event) => onNotesChange(event.target.value)}
         placeholder={t("plan.session.notesPlaceholder")}
         rows={3}
+        disabled={readOnly}
       />
 
       <ScheduledDosageLegend
@@ -385,6 +430,7 @@ function EditedSessionFields({
         onRemove={composition.removeItem}
         onNoteChange={composition.setNote}
         detail={scheduledDosageDetail(forWhom, libraryMetrics, composition.dosage)}
+        readOnly={readOnly}
       />
     </>
   );

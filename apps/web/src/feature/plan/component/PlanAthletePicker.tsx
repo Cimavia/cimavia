@@ -9,6 +9,8 @@ type PlanAthletePickerProps = {
   isPublished: boolean;
   /** Un justificatif PDF est joint à la facturation du cycle : il nomme son destinataire (#472). */
   hasInvoiceDocument: boolean;
+  /** Le cycle d'un autre Coach, ouvert en Écriture : le réaffecter reste à son propriétaire (#607). */
+  isOwnerOnly: boolean;
   isBusy: boolean;
   onChange: (athleteId: string | null) => void;
 };
@@ -33,6 +35,7 @@ export function PlanAthletePicker({
   athleteId,
   isPublished,
   hasInvoiceDocument,
+  isOwnerOnly,
   isBusy,
   onChange,
 }: Readonly<PlanAthletePickerProps>) {
@@ -41,7 +44,8 @@ export function PlanAthletePicker({
   const { data: athletes } = useAthletes();
 
   // Diffusé, la raison est déjà dite par l'en-tête du formulaire : seul le justificatif s'ajoute.
-  const lockedByDocument = hasInvoiceDocument && !isPublished;
+  // Une seule raison sous le champ : celle du geste à faire passe avant celle qu'on constate.
+  const lockedReason = lockedReasonKey(isPublished, hasInvoiceDocument, isOwnerOnly);
 
   return (
     <div className="flex flex-col gap-cmv-xs">
@@ -61,14 +65,26 @@ export function PlanAthletePicker({
             value: relation.athleteId,
             label: athleteLabel(relation.athleteId, relation.athleteName),
           }))}
-          disabled={isPublished || lockedByDocument || isBusy}
+          disabled={isPublished || lockedReason != null || isBusy}
         />
       </span>
-      {lockedByDocument ? (
-        <p className="text-cmv-caption text-cmv-text-lo">
-          {t("plan.header.athleteLockedDocument")}
-        </p>
-      ) : null}
+      {lockedReason == null ? null : (
+        <p className="text-cmv-caption text-cmv-text-lo">{t(lockedReason)}</p>
+      )}
     </div>
   );
+}
+
+/**
+ * Pourquoi le destinataire est figé, quand ce n'est pas la diffusion — que l'en-tête dit déjà.
+ * `null` : rien de plus à dire.
+ */
+function lockedReasonKey(
+  isPublished: boolean,
+  hasInvoiceDocument: boolean,
+  isOwnerOnly: boolean,
+): string | null {
+  if (isPublished) return null;
+  if (isOwnerOnly) return "plan.header.athleteOwnerOnly";
+  return hasInvoiceDocument ? "plan.header.athleteLockedDocument" : null;
 }

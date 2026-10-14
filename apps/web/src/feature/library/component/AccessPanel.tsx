@@ -30,6 +30,26 @@ const LEVELS: readonly Segment[] = [AccessLevel.NONE, AccessLevel.READ, AccessLe
 /** Ce que le panneau lit d'un exercice ou d'une séance : les deux portent les mêmes champs. */
 export type AccessElement = Pick<ExerciseDto, "id" | "title" | "owner" | "myAccess" | "grants">;
 
+/**
+ * Ce que le panneau d'une planification dit de plus (#607, maquette #597, frames 9 et 10) : son
+ * droit ne vaut que pour les Coachs de son athlète, et une entreprise peut n'avoir personne à qui
+ * l'ouvrir. Sans cadrage, le panneau est celui de la bibliothèque.
+ */
+export type AccessFraming = {
+  /** Sous le titre, à la place de « Exercice · à toi ». */
+  caption: string;
+  /** L'en-tête des lignes, à la place de « Entreprises ». */
+  sectionTitle: string;
+  /** Avant les lignes : à qui le droit peut valoir. `null` : rien à rappeler. */
+  scope: string | null;
+  /** Après les lignes : le droit que le cycle reçoit par défaut. `null` : aucun. */
+  defaultNote: string | null;
+  /** Aucune entreprise à proposer (frame 10) : la phrase qui le dit, à la place des lignes. */
+  empty: string;
+  /** Ce qui reste au propriétaire, à la place de la phrase de la bibliothèque. */
+  ownerOnly: string;
+};
+
 type AccessPanelProps<T extends AccessElement> = {
   /** Un élément depuis sa cellule Accès, plusieurs depuis la sélection — tous au Coach alors. */
   elements: readonly T[];
@@ -47,6 +67,7 @@ type AccessPanelProps<T extends AccessElement> = {
   onSaved: () => void;
   /** Lecture seule : « Ouvrir l'exercice ». */
   onOpen: (element: T) => void;
+  framing?: AccessFraming;
 };
 
 /**
@@ -74,6 +95,7 @@ function OwnerAccess<T extends AccessElement>({
   mutation,
   onClose,
   onSaved,
+  framing,
 }: Readonly<AccessPanelProps<T>>) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -99,6 +121,30 @@ function OwnerAccess<T extends AccessElement>({
   const close = () => {
     if (!mutation.isPending) onClose();
   };
+
+  const ownerOnly = framing?.ownerOnly ?? t("library.access.ownerOnly");
+  // Personne à qui ouvrir le cycle (frame 10) : rien à régler, le panneau se ferme seulement.
+  if (framing != null && organizations.length === 0) {
+    return (
+      <CmvPanel
+        open
+        title={t("library.access.title")}
+        onClose={onClose}
+        footer={<CmvButton onClick={onClose}>{t("common.close")}</CmvButton>}
+      >
+        <div className="flex flex-col gap-cmv-xl">
+          <ElementHeading title={first?.title} caption={framing.caption} />
+          <section className="flex flex-col gap-cmv-sm">
+            <SectionTitle>{framing.sectionTitle}</SectionTitle>
+            <p className="rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-lg text-center text-cmv-body text-cmv-text-mid">
+              {framing.empty}
+            </p>
+          </section>
+          <p className="text-cmv-caption text-cmv-text-lo">{ownerOnly}</p>
+        </div>
+      </CmvPanel>
+    );
+  }
 
   function onSubmit() {
     mutation.mutate(
@@ -139,21 +185,21 @@ function OwnerAccess<T extends AccessElement>({
       }
     >
       <div className="flex flex-col gap-cmv-xl">
-        <div className="flex flex-col gap-cmv-xs">
-          <p className="text-cmv-subtitle text-cmv-text-hi">
-            {isSingle ? first?.title : t(`${copyPrefix}.count`, { count: elements.length })}
-          </p>
-          <p className="text-cmv-caption text-cmv-text-mid">
-            {isSingle
-              ? t(`${copyPrefix}.mine`)
-              : elements.map((element) => element.title).join(", ")}
-          </p>
-        </div>
+        <ElementHeading
+          title={isSingle ? first?.title : t(`${copyPrefix}.count`, { count: elements.length })}
+          caption={
+            isSingle
+              ? (framing?.caption ?? t(`${copyPrefix}.mine`))
+              : elements.map((element) => element.title).join(", ")
+          }
+        />
+
+        {framing?.scope == null ? null : (
+          <p className="text-cmv-body text-cmv-text-mid">{framing.scope}</p>
+        )}
 
         <section className="flex flex-col gap-cmv-sm">
-          <span className="text-cmv-caption uppercase tracking-wide text-cmv-text-lo">
-            {t("library.access.organizations")}
-          </span>
+          <SectionTitle>{framing?.sectionTitle ?? t("library.access.organizations")}</SectionTitle>
           {organizations.map((organization) => {
             const value = edited.get(organization.id);
             // Partie de « Mixte », la ligne le garde parmi ses choix : y revenir rend à chaque
@@ -190,9 +236,34 @@ function OwnerAccess<T extends AccessElement>({
           })}
         </section>
 
-        <LevelLegend copyPrefix={copyPrefix} />
+        {framing?.defaultNote == null ? null : (
+          <p className="rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-caption text-cmv-text-mid">
+            {framing.defaultNote}
+          </p>
+        )}
+
+        <LevelLegend copyPrefix={copyPrefix} ownerOnly={ownerOnly} />
       </div>
     </CmvPanel>
+  );
+}
+
+/** Le titre de l'élément — ou le compte des éléments —, et ce qui le situe. */
+function ElementHeading({
+  title,
+  caption,
+}: Readonly<{ title: string | undefined; caption: string }>) {
+  return (
+    <div className="flex flex-col gap-cmv-xs">
+      <p className="text-cmv-subtitle text-cmv-text-hi">{title}</p>
+      <p className="text-cmv-caption text-cmv-text-mid">{caption}</p>
+    </div>
+  );
+}
+
+function SectionTitle({ children }: Readonly<{ children: string }>) {
+  return (
+    <span className="text-cmv-caption uppercase tracking-wide text-cmv-text-lo">{children}</span>
   );
 }
 
@@ -213,7 +284,10 @@ function levelLabel(level: Segment, t: TFunction): string {
  * Ce que veulent dire les deux droits, et ce qu'aucun n'ouvre. Une liste de définitions : le
  * niveau en terme, son sens en phrase entière — l'anglais la traduira sans recoller de morceaux.
  */
-function LevelLegend({ copyPrefix }: Readonly<{ copyPrefix: string }>) {
+function LevelLegend({
+  copyPrefix,
+  ownerOnly,
+}: Readonly<{ copyPrefix: string; ownerOnly: string }>) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-cmv-xs text-cmv-caption text-cmv-text-mid">
@@ -223,7 +297,7 @@ function LevelLegend({ copyPrefix }: Readonly<{ copyPrefix: string }>) {
         <dt className="text-cmv-text-hi">{t("library.access.level.WRITE")}</dt>
         <dd>{t(`${copyPrefix}.writeMeans`)}</dd>
       </dl>
-      <p className="text-cmv-text-lo">{t("library.access.ownerOnly")}</p>
+      <p className="text-cmv-text-lo">{ownerOnly}</p>
     </div>
   );
 }

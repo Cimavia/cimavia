@@ -104,6 +104,7 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
     <ScheduledSessionPanel
       planId="plan-1"
       isPublished={false}
+      readOnly={false}
       week={week}
       date={DATE}
       session={null}
@@ -458,6 +459,7 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
       <ScheduledSessionPanel
         planId="plan-1"
         isPublished={false}
+        readOnly={false}
         week={week}
         date={DATE}
         session={session({ updatedAt: "2026-09-02T10:00:00.000Z" })}
@@ -848,5 +850,27 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+  });
+});
+
+describe("ScheduledSessionPanel — en Lecture (#607)", () => {
+  it("la séance se consulte : champs figés, ni bibliothèque, ni retrait, « Fermer » seul", async () => {
+    const view = setup({ session: session(), readOnly: true });
+
+    expect(view.getByText("plan.session.readOnlyDescription")).toBeTruthy();
+    expect((view.container.querySelector("#sessionTitle") as HTMLInputElement).disabled).toBe(true);
+    expect((view.container.querySelector("#sessionNotes") as HTMLTextAreaElement).disabled).toBe(
+      true,
+    );
+    expect((view.container.querySelector("#scheduledDate") as HTMLSelectElement).disabled).toBe(
+      true,
+    );
+    expect(view.queryByText("common.requiredLegend")).toBeNull();
+    expect(view.queryByText("plan.session.pickerTitle")).toBeNull();
+    expect(view.queryByRole("button", { name: "plan.session.delete" })).toBeNull();
+    expect(view.queryByRole("button", { name: "plan.session.submit" })).toBeNull();
+
+    await view.user.click(view.getByText("common.close", { selector: "button" }));
+    expect(view.onClose).toHaveBeenCalled();
   });
 });

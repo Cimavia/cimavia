@@ -19,6 +19,11 @@ type PlanWeekCardProps = {
   planId: string;
   planTitle: string;
   isPublished: boolean;
+  /**
+   * Le cycle d'un autre Coach, ouvert en Lecture (#607) : la semaine se lit et se copie — vers un
+   * cycle qu'on écrit —, rien ne s'y change.
+   */
+  readOnly: boolean;
   week: PlanWeekDto;
   onAddSession: (date: string) => void;
   onEditSession: (session: ScheduledSessionSummaryDto) => void;
@@ -28,6 +33,7 @@ export function PlanWeekCard({
   planId,
   planTitle,
   isPublished,
+  readOnly,
   week,
   onAddSession,
   onEditSession,
@@ -46,7 +52,7 @@ export function PlanWeekCard({
    *    comme pour une suppression (le collage remplace, il ne fusionne pas).
    */
   function renderPasteAction() {
-    if (clipboard == null || clipboard.planWeekId === week.id) return null;
+    if (readOnly || clipboard == null || clipboard.planWeekId === week.id) return null;
 
     if (isPublished) {
       return (
@@ -134,7 +140,7 @@ export function PlanWeekCard({
 
         <CmvSegmented<PlanWeekType>
           value={week.type}
-          disabled={isBusy}
+          disabled={isBusy || readOnly}
           onChange={(type) =>
             updateWeek.mutate({
               weekId: week.id,
@@ -170,16 +176,18 @@ export function PlanWeekCard({
 
         {/* Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API
             refuse, #312) : le geste reste visible, fermé, avec sa raison. */}
-        <CmvConfirmButton
-          label={t("plan.week.delete")}
-          confirmLabel={t("common.confirmDelete")}
-          cancelLabel={t("common.cancel")}
-          disabled={isBusy}
-          {...(isPublished ? { disabledReason: t("plan.week.deleteDisabledPublished") } : {})}
-          onConfirm={() =>
-            removeWeek.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt })
-          }
-        />
+        {readOnly ? null : (
+          <CmvConfirmButton
+            label={t("plan.week.delete")}
+            confirmLabel={t("common.confirmDelete")}
+            cancelLabel={t("common.cancel")}
+            disabled={isBusy}
+            {...(isPublished ? { disabledReason: t("plan.week.deleteDisabledPublished") } : {})}
+            onConfirm={() =>
+              removeWeek.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt })
+            }
+          />
+        )}
       </header>
 
       {week.note == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{week.note}</p>}
@@ -191,6 +199,7 @@ export function PlanWeekCard({
             date={day}
             sessions={sessionsByDay.get(day) ?? []}
             isBusy={isBusy}
+            readOnly={readOnly}
             drag={drag}
             onAddSession={onAddSession}
             onEditSession={onEditSession}

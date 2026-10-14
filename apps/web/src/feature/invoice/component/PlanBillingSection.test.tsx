@@ -49,6 +49,7 @@ const mount = (props: {
   isPublished?: boolean;
   hasAthlete?: boolean;
   billing?: InvoiceDto | null;
+  readOnly?: boolean;
 }) =>
   renderInRoute(
     <PlanBillingSection
@@ -56,6 +57,7 @@ const mount = (props: {
       isPublished={false}
       hasAthlete={true}
       billing={null}
+      readOnly={false}
       onDirtyChange={onDirtyChange}
       {...props}
     />,
@@ -359,6 +361,7 @@ function ReloadingBuilder({ first }: Readonly<{ first: InvoiceDto | undefined }>
       isPublished={false}
       hasAthlete={true}
       billing={billing}
+      readOnly={false}
       onDirtyChange={onDirtyChange}
     />
   );
@@ -419,5 +422,34 @@ describe("PlanBillingSection — une relecture pendant la saisie", () => {
 
     expect(field("amount").value).toBe("90");
     expect(field("dueDate").value).toBe("2026-11-05");
+  });
+});
+
+describe("PlanBillingSection — le cycle d'un autre Coach, en Lecture (#607)", () => {
+  const TERMS = { amountCents: 6000, dueDate: "2026-11-05", note: "Cycle automne" } as InvoiceDto;
+
+  it("les termes se lisent, rien ne s'enregistre ni ne se joint", async () => {
+    const { container, getByRole, getByText, queryByRole, queryByText } = await mount({
+      billing: { ...TERMS, documentUrl: "https://s3/f.pdf", documentFileName: "f.pdf" },
+      readOnly: true,
+    });
+
+    expect(getByText("invoice.billing.readOnlyHint")).toBeTruthy();
+    expect((container.querySelector("#amount") as HTMLInputElement).value).toBe("60");
+    for (const field of ["#amount", "#dueDate", "#note"]) {
+      expect((container.querySelector(field) as HTMLInputElement).disabled).toBe(true);
+    }
+    expect(queryByText("invoice.billing.save")).toBeNull();
+    expect(queryByText("common.requiredLegend")).toBeNull();
+    expect(getByRole("link", { name: "f.pdf" })).toHaveAttribute("href", "https://s3/f.pdf");
+    expect(queryByRole("button", { name: "invoice.billing.documentRemove" })).toBeNull();
+    expect(container.querySelector("input[type=file]")).toBeNull();
+  });
+
+  it("sans justificatif, il le dit plutôt que d'inviter à en joindre un", async () => {
+    const { getByText, queryByText } = await mount({ billing: null, readOnly: true });
+
+    expect(getByText("invoice.billing.documentNone")).toBeTruthy();
+    expect(queryByText("invoice.billing.documentAfterSave")).toBeNull();
   });
 });
