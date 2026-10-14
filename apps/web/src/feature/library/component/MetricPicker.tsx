@@ -25,7 +25,13 @@ import { cn } from "@/shared/util/cn.util";
 type MetricPickerProps = {
   open: boolean;
   block: ExerciseBlock;
+  /**
+   * Où se nomment les colonnes déjà posées : le catalogue, et les définitions que l'exercice
+   * embarque (#605) — dont une a pu quitter le catalogue depuis.
+   */
   customMetrics: readonly CustomMetric[];
+  /** Ce qui se POSE en colonne : le catalogue vivant. `null` tant qu'il ne se lit pas. */
+  pickable: readonly CustomMetric[] | null;
   /** Le propriétaire du catalogue s'il n'est pas l'acteur : on y choisit, on n'y crée rien. */
   catalogOwner?: string | null;
   onChange: (block: ExerciseBlock) => void;
@@ -45,6 +51,7 @@ export function MetricPicker({
   open,
   block,
   customMetrics,
+  pickable,
   catalogOwner = null,
   onChange,
   onClose,
@@ -158,12 +165,16 @@ export function MetricPicker({
               ? t("library.builder.custom.mine")
               : t("library.builder.custom.ofOwner", { owner: catalogOwner })}
           </span>
-          {customMetrics.length === 0 ? (
+          {pickable == null || pickable.length === 0 ? (
             <span className="text-cmv-caption text-cmv-text-lo">
-              {t("library.builder.custom.none")}
+              {t(
+                pickable == null
+                  ? "library.builder.custom.unavailable"
+                  : "library.builder.custom.none",
+              )}
             </span>
           ) : null}
-          {customMetrics.map((custom) => (
+          {(pickable ?? []).map((custom) => (
             <div key={custom.id} className="flex items-center gap-cmv-xs">
               <button
                 type="button"

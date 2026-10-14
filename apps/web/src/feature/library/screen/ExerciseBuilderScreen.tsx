@@ -180,8 +180,10 @@ function ExerciseBuilder({
   // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
   // cotation se saisirait comme du texte libre. Celles du PROPRIÉTAIRE de l'exercice (#605).
   // Les métriques que l'exercice cite arrivent avec lui : elles résolvent ses colonnes avant que
-  // le catalogue réponde — et à sa place, s'il ne répond pas ou n'est pas demandé (Lecture).
-  const catalog = mergeCatalogs(useExerciseCatalog(edited).data, edited?.customMetrics);
+  // le catalogue réponde — et à sa place, s'il ne répond pas ou n'est pas demandé (Lecture). Elles
+  // ne se POSENT pas : seul le catalogue vivant se choisit.
+  const { data: liveCatalog } = useExerciseCatalog(edited);
+  const catalog = mergeCatalogs(liveCatalog, edited?.customMetrics);
 
   // L'exercice d'un autre Coach (#606) : en Écriture il se modifie, sans suppression ; en Lecture
   // il se consulte.
@@ -321,6 +323,7 @@ function ExerciseBuilder({
               <StructureSection
                 blocks={draft.blocks}
                 customMetrics={catalog}
+                pickable={liveCatalog ?? null}
                 catalogOwner={foreign?.owner.name ?? null}
                 onChange={draft.setBlocks}
               />

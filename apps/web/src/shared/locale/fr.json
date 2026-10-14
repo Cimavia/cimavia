@@ -377,6 +377,7 @@
         "mine": "Mes métriques",
         "ofOwner": "Métriques de {{owner}}",
         "none": "Aucune métrique maison pour l'instant.",
+        "unavailable": "Métriques maison indisponibles pour l'instant.",
         "label": "Nom",
         "labelPlaceholder": "Ex. Cotation maison",
         "labelTooLong": "Nom trop long.",

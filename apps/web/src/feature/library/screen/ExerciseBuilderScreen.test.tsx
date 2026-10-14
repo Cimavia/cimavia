@@ -16,7 +16,7 @@ import {
   RichBlockType,
   STALE_WRITE,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { installProseMirrorLayout } from "../../../../test/prosemirror";
 import { renderInRoute } from "../../../../test/render";
@@ -417,6 +417,47 @@ describe("ExerciseBuilderScreen — édition", () => {
     const view = await edit();
 
     await waitFor(() => expect(view.getAllByText(/^Prises/).length).toBeGreaterThan(0));
+  });
+
+  // Supprimée du catalogue, une métrique que l'exercice cite nomme encore sa colonne ; posée
+  // ailleurs, elle ferait refuser l'enregistrement (400).
+  it("ne propose que le catalogue vivant, pas les métriques que l'exercice embarque", async () => {
+    const gone: CustomMetric = { ...prises, id: "cm-gone", label: "Cotation" };
+    api.getExercise.mockResolvedValue(
+      saved({
+        blocks: [
+          {
+            id: "b-1",
+            label: null,
+            structure: { type: BlockType.FREE },
+            metrics: [
+              {
+                id: "c-1",
+                source: MetricSource.CUSTOM,
+                customMetricId: "cm-gone",
+                label: null,
+                collapsed: false,
+              },
+            ],
+            rows: [],
+          },
+        ] as unknown as ExerciseDto["blocks"],
+        customMetrics: [gone],
+      }),
+    );
+    const view = await edit();
+
+    await view.user.click(
+      await view.findByRole("button", { name: "library.builder.metrics.edit" }),
+    );
+
+    // Dans le panneau : la colonne posée, elle, garde son menu sous le même nom.
+    const picker = within(
+      await view.findByRole("complementary", { name: "library.builder.metrics.title" }),
+    );
+    expect(picker.getByRole("button", { name: "Prises" })).toBeInTheDocument();
+    expect(picker.getByText("Cotation")).toBeInTheDocument();
+    expect(picker.queryByRole("button", { name: /^Cotation/ })).not.toBeInTheDocument();
   });
 
   it("supprime l'exercice après confirmation, et revient à la bibliothèque", async () => {

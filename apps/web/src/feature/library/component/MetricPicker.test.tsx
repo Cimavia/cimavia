@@ -55,6 +55,7 @@ function setup(block: ExerciseBlock, customMetrics: readonly CustomMetric[] = []
       open
       block={block}
       customMetrics={customMetrics}
+      pickable={customMetrics}
       onChange={onChange}
       onClose={vi.fn()}
     />,
@@ -74,6 +75,7 @@ describe("MetricPicker", () => {
         open={false}
         block={blockWith([catalogMetric("m-1", MetricKey.LOAD)])}
         customMetrics={[]}
+        pickable={[]}
         onChange={onChange}
         onClose={vi.fn()}
       />,
@@ -219,6 +221,7 @@ function Harness({
       open
       block={block}
       customMetrics={customMetrics}
+      pickable={customMetrics}
       onChange={(next) => {
         setBlock(next);
         onBlock(next);
@@ -405,6 +408,45 @@ describe("MetricPicker — les métriques maison du coach", () => {
   });
 });
 
+describe("MetricPicker — ce qui se propose : le catalogue vivant", () => {
+  // Une définition que l'exercice embarque peut avoir quitté le catalogue : posée, elle se
+  // refuserait à l'enregistrement (400). Elle nomme encore sa colonne, sans se proposer.
+  it("nomme sa colonne, mais ne se propose plus", () => {
+    const gone = customMetric("cm-gone", "Cotation supprimée");
+    const { getByText, queryByRole } = renderWithProviders(
+      <MetricPicker
+        open
+        block={blockWith([customColumn("c-1", "cm-gone")])}
+        customMetrics={[gone, customMetric("cm-1", "Ressenti")]}
+        pickable={[customMetric("cm-1", "Ressenti")]}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(getByText("Cotation supprimée")).toBeInTheDocument();
+    expect(queryByRole("button", { name: /Cotation supprimée/ })).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "Ressenti" })).toBeInTheDocument();
+  });
+
+  // Un catalogue qui ne se lit pas n'est pas un catalogue vide (règle dure n°5).
+  it("dit le catalogue indisponible, sans le dire vide", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <MetricPicker
+        open
+        block={threeColumns()}
+        customMetrics={[]}
+        pickable={null}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(getByText("library.builder.custom.unavailable")).toBeInTheDocument();
+    expect(queryByText("library.builder.custom.none")).not.toBeInTheDocument();
+  });
+});
+
 describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
   const ofM = [customMetric("cm-9", "Cotation de M")];
 
@@ -415,6 +457,7 @@ describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
         open
         block={threeColumns()}
         customMetrics={ofM}
+        pickable={ofM}
         catalogOwner="M"
         onChange={onChange}
         onClose={vi.fn()}

@@ -51,6 +51,7 @@ function Harness({
     <StructureSection
       blocks={blocks}
       customMetrics={[]}
+      pickable={[]}
       onChange={(next) => {
         setBlocks(next);
         onBlocks(next);

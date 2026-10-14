@@ -23,7 +23,13 @@ import { cn } from "@/shared/util/cn.util";
 
 type StructureSectionProps = {
   blocks: ExerciseBlocks;
+  /** Où se résolvent les colonnes : le catalogue, et les définitions que l'exercice embarque. */
   customMetrics: readonly CustomMetric[];
+  /**
+   * Ce qui se POSE en colonne : le catalogue vivant seul. Une définition embarquée a pu le
+   * quitter — supprimée, elle nomme encore sa colonne, mais posée, l'enregistrement la refuserait.
+   */
+  pickable: readonly CustomMetric[] | null;
   /**
    * Le Coach à qui appartient `customMetrics`, quand ce n'est pas l'acteur (#606) : ce catalogue
    * se choisit, mais ne se gère que chez son propriétaire. `null` = celui de l'acteur.
@@ -35,6 +41,7 @@ type StructureSectionProps = {
 export function StructureSection({
   blocks,
   customMetrics,
+  pickable,
   catalogOwner = null,
   onChange,
 }: Readonly<StructureSectionProps>) {
@@ -96,6 +103,7 @@ export function StructureSection({
           key={block.id}
           block={block}
           customMetrics={customMetrics}
+          pickable={pickable}
           catalogOwner={catalogOwner}
           index={index}
           isFirst={index === 0}
@@ -133,6 +141,7 @@ export function StructureSection({
 type BlockCardProps = {
   block: ExerciseBlock;
   customMetrics: readonly CustomMetric[];
+  pickable: readonly CustomMetric[] | null;
   catalogOwner: string | null;
   index: number;
   isFirst: boolean;
@@ -147,6 +156,7 @@ type BlockCardProps = {
 function BlockCard({
   block,
   customMetrics,
+  pickable,
   catalogOwner,
   index,
   isFirst,
@@ -224,6 +234,7 @@ function BlockCard({
         open={pickingMetrics}
         block={block}
         customMetrics={customMetrics}
+        pickable={pickable}
         catalogOwner={catalogOwner}
         onChange={onChange}
         onClose={() => setPickingMetrics(false)}
