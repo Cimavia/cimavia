@@ -670,6 +670,8 @@ export type { Role as RoleType } from "./role";
 export { Role } from "./role";
 export type { AccessSubject } from "./util/access.util";
 export { canWrite, effectiveAccess } from "./util/access.util";
+export type { PanelAccess } from "./util/access-panel.util";
+export { accessChanges, MIXED_ACCESS, panelAccess } from "./util/access-panel.util";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
 export type { AthleteLabelHooks } from "./util/athlete-label.util";
@@ -808,6 +810,8 @@ export type {
   SessionLineFields,
 } from "./util/library-input.util";
 export { toExerciseInput, toSessionInput } from "./util/library-input.util";
+export type { AccessLabel, AccessLabelSubject } from "./util/library-row.util";
+export { accessLabel, sessionTags } from "./util/library-row.util";
 export type {
   MediaBatch,
   MediaBatchStep,
