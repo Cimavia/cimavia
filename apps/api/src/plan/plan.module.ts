@@ -11,6 +11,7 @@ import { PlanWeekController } from "./controller/plan-week.controller";
 import { ScheduledSessionController } from "./controller/scheduled-session.controller";
 import { AthletePlanService } from "./service/athlete-plan.service";
 import { PlanService } from "./service/plan.service";
+import { PlanAccessService } from "./service/plan-access.service";
 import { PlanWeekCopyService } from "./service/plan-week-copy.service";
 import { ScheduledSessionService } from "./service/scheduled-session.service";
 
@@ -37,7 +38,13 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
     ScheduledSessionController,
     AthletePlanController,
   ],
-  providers: [PlanService, PlanWeekCopyService, ScheduledSessionService, AthletePlanService],
+  providers: [
+    PlanService,
+    PlanAccessService,
+    PlanWeekCopyService,
+    ScheduledSessionService,
+    AthletePlanService,
+  ],
   // AthletePlanService est exporté pour le débrief (P4) : il porte la garde « séance de
   // l'athlète courant, dans un cycle PUBLISHED » — à ne pas réécrire ailleurs.
   exports: [PlanService, AthletePlanService],

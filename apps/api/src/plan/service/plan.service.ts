@@ -1,4 +1,5 @@
 import type {
+  CoachOrganizationDto,
   CreatePlanInput,
   PlanDto,
   PlanSummaryDto,
@@ -53,6 +54,7 @@ import {
   toPlanSummaryDto,
 } from "../plan.mapper";
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
+import { PlanAccessService, settledOrganizations } from "./plan-access.service";
 
 export type ListPlansFilters = { athleteId?: string };
 
@@ -70,14 +72,18 @@ export class PlanService {
     private readonly reminders: ReminderService,
     private readonly cls: ClsService,
     private readonly access: AccessService,
+    private readonly planAccess: PlanAccessService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
     // Sans destinataire (#144), il n'y a rien à valider : c'est un cycle qu'on prépare avant de
     // savoir pour qui, et `publish` réclamera l'athlète le moment venu.
     const athleteId = input.athleteId ?? null;
+    let opened: string | null = null;
     if (athleteId != null) {
       await this.assertAthleteOwned(athleteId);
+      // Né pour un athlète suivi via F, le cycle s'ouvre en Écriture aux autres Coachs de F (#607).
+      opened = await this.planAccess.defaultOrganization(athleteId, new Set());
     }
 
     const plan = await this.db.$transaction(async (tx) => {
@@ -94,6 +100,7 @@ export class PlanService {
         > as Prisma.PlanUncheckedCreateInput,
       });
       await this.createWeeks(tx, created.id, athleteId, input.weeks, 1);
+      await this.planAccess.grantDefault(tx, created.id, opened);
       return created;
     });
 
@@ -123,6 +130,12 @@ export class PlanService {
     return this.getDto(id);
   }
 
+  /** Les entreprises à qui le propriétaire peut ouvrir son cycle : le panneau des accès (#607). */
+  async organizations(id: string): Promise<CoachOrganizationDto[]> {
+    const { plan } = await this.getForOrThrow(id, "share");
+    return this.planAccess.eligibleFor(plan);
+  }
+
   /**
    * Déplacer la date de début décale le cycle ENTIER : les séances suivent leur semaine, sinon
    * elles sortiraient de la plage de celle-ci (invariant « une séance tombe dans sa semaine »).
@@ -135,6 +148,8 @@ export class PlanService {
    *
    * Changer de destinataire reste au propriétaire (#607) : c'est changer l'audience du cycle, les
    * Coachs qui peuvent le lire. Renvoyer le MÊME athlète n'en change rien, et passe en Écriture.
+   * Affecté à un athlète suivi via F, le cycle s'ouvre à F en Écriture, sauf si F y est déjà
+   * réglée — « Aucun » compris.
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const { plan, context } = await this.getForOrThrow(id, "write");
@@ -169,9 +184,16 @@ export class PlanService {
 
     // `undefined` = ne touche pas au destinataire ; `null` = le détacher. Les deux se
     // distinguent, et c'est toute la raison d'être du `nullable().optional()` du schéma.
+    let opened: string | null = null;
     if (reassigned) {
       await this.assertReassignable(plan, input.athleteId ?? null);
       data.athleteId = input.athleteId ?? null;
+      if (input.athleteId != null && input.athleteId !== plan.athleteId) {
+        opened = await this.planAccess.defaultOrganization(
+          input.athleteId,
+          settledOrganizations(plan),
+        );
+      }
     }
 
     // Rien à écrire : la version n'avance pas. L'avancer sans changement ferait prendre un 409 à
@@ -188,6 +210,7 @@ export class PlanService {
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
+        await this.planAccess.grantDefault(tx, id, opened);
       }
       // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le

@@ -14,6 +14,8 @@ const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
  * de F. C a écrit un cycle pour chacun de ses deux athlètes.
  */
 export type SharedPlanWorld = {
+  /** Le compte Entreprise F : il invite, en son nom, les athlètes que ses Coachs suivront. */
+  company: Agent;
   c: Agent;
   m: Agent;
   n: Agent;
@@ -74,6 +76,7 @@ export async function sharedPlanWorld(prefix: string): Promise<SharedPlanWorld> 
     idOf(b),
   ]);
   return {
+    company,
     c,
     m,
     n,
