@@ -11,6 +11,7 @@ import type { TFunction } from "i18next";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
+import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { StructureSection } from "@/feature/library/component/StructureSection";
@@ -26,8 +27,6 @@ import { myRightText } from "@/feature/library/util/access-text.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
   CmvAppShell,
-  CmvButton,
-  CmvConfirmButton,
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
@@ -167,6 +166,7 @@ function ExerciseBuilder({
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
+  const removeExercise = useDeleteExercise();
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
@@ -217,6 +217,12 @@ function ExerciseBuilder({
   }
 
   const heading = builderHeading(edited, t);
+  // Supprimer : l'exercice enregistré, et à soi.
+  const deletable = foreign == null ? edited : null;
+  // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit dans
+  // `removeExercise.error`, pas en rejet non capturé.
+  const onDelete =
+    deletable == null ? null : () => removeExercise.mutate(deletable, { onSuccess: onDeleted });
 
   return (
     <CmvAppShell
@@ -224,15 +230,18 @@ function ExerciseBuilder({
       subtitle={heading.subtitle}
       actions={
         <BuilderActions
-          exercise={edited}
           readOnly={readOnly}
-          canDelete={foreign == null}
+          deleteLabel={t("library.builder.deleteExercise")}
+          onDelete={onDelete}
+          isDeleting={removeExercise.isPending}
+          deleteError={removeExercise.error}
           isSaving={draft.isSaving}
+          isWriting={draft.isSaving}
+          submitLabel={submitLabel(draft.isSaving, edited != null, t)}
           canSubmit={draft.trimmedTitle !== ""}
           blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
           onCancel={onLeave}
           onSubmit={onSubmit}
-          onDeleted={onDeleted}
         />
       }
     >
@@ -379,69 +388,8 @@ function builderHeading(exercise: ExerciseDto | null, t: TFunction) {
   };
 }
 
-type BuilderActionsProps = {
-  exercise: ExerciseDto | null;
-  /** Lecture (#606) : « Fermer », à la place d'Enregistrer et Supprimer (frame 12). */
-  readOnly: boolean;
-  /** Supprimer reste au propriétaire, même à qui a l'Écriture (#605). */
-  canDelete: boolean;
-  isSaving: boolean;
-  canSubmit: boolean;
-  /**
-   * Pourquoi l'enregistrement est fermé alors que le titre est là — une saisie refusée (#566).
-   * Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux, sans quoi le bouton
-   * pourrait annoncer un refus qu'il ne fait pas (#514).
-   */
-  blockedBy: string | undefined;
-  onCancel: () => void;
-  onSubmit: () => void;
-  onDeleted: () => void;
-};
-
-function BuilderActions({
-  exercise,
-  readOnly,
-  canDelete,
-  isSaving,
-  canSubmit,
-  blockedBy,
-  onCancel,
-  onSubmit,
-  onDeleted,
-}: Readonly<BuilderActionsProps>) {
-  const { t } = useTranslation();
-  const removeExercise = useDeleteExercise();
-
-  const isEditing = exercise != null;
-  const submitKey = isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate";
-  const isBusy = isSaving || removeExercise.isPending;
-
-  if (readOnly) return <CmvButton onClick={onCancel}>{t("common.close")}</CmvButton>;
-
-  return (
-    <>
-      {isEditing && canDelete ? (
-        <CmvConfirmButton
-          label={t("library.builder.deleteExercise")}
-          confirmLabel={t("common.confirmDelete")}
-          cancelLabel={t("common.cancel")}
-          disabled={isBusy}
-          // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit
-          // dans `removeExercise.error`, pas en rejet non capturé.
-          onConfirm={() => removeExercise.mutate(exercise, { onSuccess: onDeleted })}
-        />
-      ) : null}
-      <CmvButton variant="ghost" onClick={onCancel} disabled={isBusy}>
-        {t("library.builder.cancel")}
-      </CmvButton>
-      <CmvButton
-        onClick={onSubmit}
-        disabled={isBusy || !canSubmit || blockedBy != null}
-        title={blockedBy}
-      >
-        {isSaving ? t("library.builder.saving") : t(submitKey)}
-      </CmvButton>
-      <CmvFormError error={removeExercise.error} />
-    </>
-  );
+/** Enregistrement en cours · création · édition — trois libellés, un seul endroit pour les lire. */
+function submitLabel(isSaving: boolean, isEditing: boolean, t: TFunction): string {
+  if (isSaving) return t("library.builder.saving");
+  return t(isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate");
 }
