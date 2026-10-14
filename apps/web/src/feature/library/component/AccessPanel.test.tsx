@@ -86,6 +86,21 @@ describe("AccessPanel — propriétaire", () => {
     expect(screen.getByText("library.access.exercise.mine")).toBeInTheDocument();
   });
 
+  it("la légende rend chaque droit avec son sens, en phrases entières", () => {
+    setup([mine("ex-1", [])]);
+
+    const legend = within(
+      screen.getByText("library.access.ownerOnly").parentElement as HTMLElement,
+    );
+    const terms = legend.getAllByRole("term").map((term) => term.textContent);
+    const meanings = legend.getAllByRole("definition").map((meaning) => meaning.textContent);
+    expect(terms).toEqual(["library.access.level.READ", "library.access.level.WRITE"]);
+    expect(meanings).toEqual([
+      "library.access.exercise.readMeans",
+      "library.access.exercise.writeMeans",
+    ]);
+  });
+
   it("rien de changé, rien à enregistrer", () => {
     setup([mine("ex-1", [])]);
 

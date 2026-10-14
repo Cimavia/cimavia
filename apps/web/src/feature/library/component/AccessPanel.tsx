@@ -212,19 +212,20 @@ function fromSegment(value: AccessLevelValue | typeof MIXED_ACCESS): PanelAccess
   return value === AccessLevel.NONE ? null : value;
 }
 
-/** Ce que veulent dire les deux droits, et ce qu'aucun n'ouvre. */
+/**
+ * Ce que veulent dire les deux droits, et ce qu'aucun n'ouvre. Une liste de définitions : le
+ * niveau en terme, son sens en phrase entière — l'anglais la traduira sans recoller de morceaux.
+ */
 function LevelLegend({ copyPrefix }: Readonly<{ copyPrefix: string }>) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-cmv-xs text-cmv-caption text-cmv-text-mid">
-      <p>
-        <span className="text-cmv-text-hi">{t("library.access.level.READ")}</span>
-        {t(`${copyPrefix}.readMeans`)}
-      </p>
-      <p>
-        <span className="text-cmv-text-hi">{t("library.access.level.WRITE")}</span>
-        {t("library.access.writeMeans")}
-      </p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-cmv-sm gap-y-cmv-xs">
+        <dt className="text-cmv-text-hi">{t("library.access.level.READ")}</dt>
+        <dd>{t(`${copyPrefix}.readMeans`)}</dd>
+        <dt className="text-cmv-text-hi">{t("library.access.level.WRITE")}</dt>
+        <dd>{t(`${copyPrefix}.writeMeans`)}</dd>
+      </dl>
       <p className="text-cmv-text-lo">{t("library.access.ownerOnly")}</p>
     </div>
   );
