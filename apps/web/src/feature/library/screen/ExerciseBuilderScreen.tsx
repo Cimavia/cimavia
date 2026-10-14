@@ -182,6 +182,7 @@ function ExerciseBuilder({
   // Les métriques que l'exercice cite arrivent avec lui : elles résolvent ses colonnes avant que
   // le catalogue réponde — et à sa place, s'il ne répond pas ou n'est pas demandé (Lecture). Elles
   // ne se POSENT pas : seul le catalogue vivant se choisit.
+  // Recalculé à chaque rendu, sans mémo : aucun consommateur ne dépend de son identité.
   const { data: liveCatalog } = useExerciseCatalog(edited);
   const catalog = mergeCatalogs(liveCatalog, edited?.customMetrics);
 

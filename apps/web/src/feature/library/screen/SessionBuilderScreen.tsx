@@ -10,7 +10,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
@@ -22,7 +22,7 @@ import {
   useDuplicateExercise,
   useExercise,
 } from "@/feature/library/hook/useExercises";
-import { useSessionDraft } from "@/feature/library/hook/useSessionDraft";
+import { type SessionDraft, useSessionDraft } from "@/feature/library/hook/useSessionDraft";
 import {
   sessionDetailQuery,
   useDeleteSession,
@@ -140,7 +140,7 @@ export function SessionBuilderScreen({
  * exercice, supprimer la séance. Les trois citent la version, les trois peuvent trouver la séance
  * changée depuis — et « Recharger » est alors la seule issue.
  */
-function useSessionWrites(draft: ReturnType<typeof useSessionDraft>) {
+function useSessionWrites(draft: SessionDraft) {
   const reload = useReloadSessionExercise();
   const removeSession = useDeleteSession();
   return {
@@ -203,57 +203,15 @@ function staleMessageOf(isWriteStale: boolean, isDeleteStale: boolean): string |
   return isDeleteStale ? "library.session.staleDelete" : null;
 }
 
-type SessionBuilderProps = {
-  session: SessionDto | null;
-  added: ExerciseDto | null;
-  onLeave: () => void;
-  /** Remplace la saisie par la dernière version de cette séance, après un conflit (#604). */
-  onReload: (id: string) => void;
-  isReloading: boolean;
-};
-
-function SessionBuilder({
-  session,
-  added,
-  onLeave,
-  onReload,
-  isReloading,
-}: Readonly<SessionBuilderProps>) {
+/**
+ * L'enregistrement de la séance, et ce qui le retient : le titre manquant ou une saisie refusée.
+ * `titleTouched` : le titre est réclamé — au départ du champ, ou par un geste qui enregistre.
+ */
+function useSessionSave(draft: SessionDraft, hasRefused: boolean) {
   const { t } = useTranslation();
   const toast = useToast();
-  const { onError, onFailure } = useMutationToast();
-  const navigate = useNavigate();
-  const { data: customMetrics } = useCustomMetrics();
-  const draft = useSessionDraft(session, added);
-  // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
-  // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
-  const refused = useRefusedFields();
-  // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
-  // composition (#327). Seules les sorties qui SUIVENT un enregistrement passent.
-  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
-  // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
-  const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
-  const writes = useSessionWrites(draft);
-  const { reload, removeSession, staleMessage } = writes;
-  const edited = draft.edited;
-  const duplicate = useDuplicateExercise();
-  const variantSource = useVariantSource();
-  const isWriting = writes.isWriting || variantSource.isReading;
+  const { onFailure } = useMutationToast();
   const [titleTouched, setTitleTouched] = useState(false);
-
-  // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
-  // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
-  const foreign = foreignOf(session);
-  const readOnly = foreign != null && !canWrite(foreign.myAccess);
-  // Chaque ligne apporte les métriques de l'exercice qu'elle compose, chez son propriétaire
-  // (#605) : le catalogue du Coach ne résout que les siennes.
-  // Mémorisées : la saisie du titre ne doit pas redonner un catalogue neuf à chaque carte.
-  const metrics = useMemo(
-    () => mergeCatalogs(customMetrics, ...draft.items.map((item) => item.customMetrics)),
-    [customMetrics, draft.items],
-  );
-  const drag = useReorderDrag(draft.moveItem);
-  const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
   /** Le titre manque ou une saisie est refusée : la séance ne s'enregistrerait pas, et le dit. */
   function cannotSave(): boolean {
@@ -262,8 +220,8 @@ function SessionBuilder({
       toast.error(t("library.session.titleBeforeLeaving"));
       return true;
     }
-    if (refused.hasRefused) toast.error(t("library.session.refusedBeforeLeaving"));
-    return refused.hasRefused;
+    if (hasRefused) toast.error(t("library.session.refusedBeforeLeaving"));
+    return hasRefused;
   }
 
   /**
@@ -293,6 +251,57 @@ function SessionBuilder({
       return null;
     }
   }
+
+  return { titleTouched, touchTitle: () => setTitleTouched(true), cannotSave, save };
+}
+
+type SessionBuilderProps = {
+  session: SessionDto | null;
+  added: ExerciseDto | null;
+  onLeave: () => void;
+  /** Remplace la saisie par la dernière version de cette séance, après un conflit (#604). */
+  onReload: (id: string) => void;
+  isReloading: boolean;
+};
+
+function SessionBuilder({
+  session,
+  added,
+  onLeave,
+  onReload,
+  isReloading,
+}: Readonly<SessionBuilderProps>) {
+  const { t } = useTranslation();
+  const { onError } = useMutationToast();
+  const navigate = useNavigate();
+  const { data: customMetrics } = useCustomMetrics();
+  const draft = useSessionDraft(session, added);
+  // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
+  // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
+  const refused = useRefusedFields();
+  // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
+  // composition (#327). Seules les sorties qui SUIVENT un enregistrement passent.
+  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
+  // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
+  const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
+  const writes = useSessionWrites(draft);
+  const { reload, removeSession, staleMessage } = writes;
+  const edited = draft.edited;
+  const duplicate = useDuplicateExercise();
+  const variantSource = useVariantSource();
+  const isWriting = writes.isWriting || variantSource.isReading;
+  const { titleTouched, touchTitle, cannotSave, save } = useSessionSave(draft, refused.hasRefused);
+
+  // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
+  // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
+  const foreign = foreignOf(session);
+  const readOnly = foreign != null && !canWrite(foreign.myAccess);
+  // Chaque ligne apporte les métriques de l'exercice qu'elle compose, chez son propriétaire
+  // (#605) : le catalogue du Coach ne résout que les siennes.
+  // Recalculées à chaque rendu, sans mémo : aucun consommateur ne dépend de leur identité.
+  const metrics = mergeCatalogs(customMetrics, ...draft.items.map((item) => item.customMetrics));
+  const drag = useReorderDrag(draft.moveItem);
+  const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
   async function onSubmit() {
     if ((await save("library.session.saved")) == null) return;
@@ -399,7 +408,7 @@ function SessionBuilder({
                   maxLength={SESSION_TITLE_MAX_LENGTH}
                   value={draft.title}
                   onChange={(event) => draft.setTitle(event.target.value)}
-                  onBlur={() => setTitleTouched(true)}
+                  onBlur={touchTitle}
                   placeholder={t("library.session.titlePlaceholder")}
                   required
                   requiredMark={!readOnly}

@@ -17,7 +17,7 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
-import { useSessionDraft } from "./useSessionDraft";
+import { type SessionDraft, useSessionDraft } from "./useSessionDraft";
 
 const { createSessionMock, updateSessionMock } = vi.hoisted(() => ({
   createSessionMock: vi.fn(),
@@ -103,7 +103,7 @@ function renderDraft(initial: SessionDto | null = session(), added: ExerciseDto 
 }
 
 /** L'item d'une ligne enregistrée, ou un échec lisible. */
-function itemOf(result: { current: ReturnType<typeof useSessionDraft> }, id: string) {
+function itemOf(result: { current: SessionDraft }, id: string) {
   const item = result.current.items.find((candidate) => candidate.id === id);
   if (item == null) throw new Error(`item ${id} absent`);
   return item;

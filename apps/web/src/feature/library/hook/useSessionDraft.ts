@@ -85,6 +85,9 @@ const fromExercise = (exercise: ExerciseDto): CompositionItem => ({
   customMetrics: exercise.customMetrics,
 });
 
+/** Le brouillon d'une séance, tel que les gestes du constructeur le reçoivent. */
+export type SessionDraft = ReturnType<typeof useSessionDraft>;
+
 /**
  * Toute la composition d'une séance et les gestes qui la modifient.
  *
