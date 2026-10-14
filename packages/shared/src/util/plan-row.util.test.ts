@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MyAccessLevel } from "../dto/access.schema";
 import { PlanStatus } from "../dto/plan.schema";
 import {
   buildPlanAthleteRows,
@@ -22,6 +23,8 @@ function plan(over: Partial<PlanRowSource> & Pick<PlanRowSource, "id">): PlanRow
     startDate: "2026-07-13",
     weekCount: 8,
     status: PlanStatus.PUBLISHED,
+    coachName: "C",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     ...over,
   };
 }

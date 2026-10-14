@@ -170,4 +170,22 @@ describe("PlanAthleteTable", () => {
     expect(queryByText("plan.concurrency.flag")).toBeNull();
     expect(queryByText("plan.concurrency.notice")).toBeNull();
   });
+
+  it("le cycle courant d'un autre Coach nomme son propriétaire (#607)", async () => {
+    const { getByText } = await mount([
+      {
+        ...LEA_ONGOING,
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+      },
+    ]);
+
+    expect(getByText("library.access.sharedBy")).toBeTruthy();
+  });
+
+  it("rien sous un cycle à soi", async () => {
+    const { queryByText } = await mount([LEA_ONGOING]);
+
+    expect(queryByText("library.access.sharedBy")).toBeNull();
+  });
 });

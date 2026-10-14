@@ -1,13 +1,17 @@
 import {
+  canWrite,
   type InvoiceDto,
   InvoiceFooter,
   InvoiceStatus,
   invoiceFooter,
+  isOwner,
   ReminderEntityType,
+  required,
 } from "@cmv/shared";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
+import { SharedByLine } from "@/feature/library/component/SharedByLine";
 import { ScheduleReminderButton } from "@/feature/reminder";
 import { CmvButton, CmvConfirmButton, CmvPanel } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
@@ -23,8 +27,8 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  * de design déplace donc ici ce que la carte affichait en vrac — c'est le MÊME contenu, rangé.
  *
  * Servi aux deux titres, comme l'écran (« une ressource = un écran », tranché en #20) : l'athlète
- * y lit sa facture et son PDF, le coach y agit. `canManage` gouverne le pied de panneau, et lui
- * seul — la lecture est identique des deux côtés.
+ * y lit sa facture et son PDF, le coach y agit. `canManage` et le droit du coach sur la facture
+ * (#607) gouvernent le pied de panneau, et lui seul — la lecture est identique des deux côtés.
  */
 
 type InvoiceDetailPanelProps = {
@@ -61,6 +65,9 @@ export function InvoiceDetailPanel({
   // Annulée = terminal (l'API refuse tout retour en 409) : aucune action, et le montant barré —
   // plus personne ne doit rien.
   const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
+  // Le Coach tient la facture s'il écrit son cycle, et seul son propriétaire en planifie la
+  // relance (#607). `canManage` dit le titre exercé ; le droit, lui, vient de la facture.
+  const access = canManage ? required(invoice.myAccess, "droit du coach sur sa facture") : null;
 
   /**
    * Le titre nomme l'AUTRE partie : le coach suit N athlètes, l'athlète n'a qu'un coach — d'où le
@@ -78,7 +85,8 @@ export function InvoiceDetailPanel({
       footer={
         <InvoiceActions
           invoice={invoice}
-          canManage={canManage}
+          canManage={access != null && canWrite(access)}
+          canRemind={access != null && isOwner(access)}
           busy={busy}
           onMarkPaid={onMarkPaid}
           onReopen={onReopen}
@@ -89,6 +97,7 @@ export function InvoiceDetailPanel({
       <div className="flex flex-col gap-cmv-lg">
         <div className="flex flex-col gap-cmv-sm">
           <InvoiceStatusBadge invoice={invoice} />
+          <SharedByLine owner={invoice.coachName} myAccess={invoice.myAccess} />
           <p
             className={cn(
               "font-cmv-display text-cmv-title",
@@ -154,7 +163,10 @@ function Field({ label, children }: Readonly<{ label: string; children: ReactNod
 
 type InvoiceActionsProps = {
   invoice: InvoiceDto;
+  /** Le statut se tient en Écriture : un droit de Lecture ne propose rien (#607). */
   canManage: boolean;
+  /** La relance se planifie au nom du propriétaire, et par lui seul. */
+  canRemind: boolean;
   busy: boolean;
   onMarkPaid: () => void;
   onReopen: () => void;
@@ -165,6 +177,7 @@ type InvoiceActionsProps = {
 function InvoiceActions({
   invoice,
   canManage,
+  canRemind,
   busy,
   onMarkPaid,
   onReopen,
@@ -196,12 +209,14 @@ function InvoiceActions({
       {/* Rappel contextuel (#45) : offert sur les factures qui restent à régler seulement — se
           rappeler de relancer une facture payée ou annulée n'a aucun sens. La période nomme la
           cible, comme dans la liste des rappels. */}
-      <ScheduleReminderButton
-        entityType={ReminderEntityType.INVOICE}
-        entityId={invoice.id}
-        targetLabel={formatPeriod(invoice.period)}
-        variant="ghost"
-      />
+      {canRemind ? (
+        <ScheduleReminderButton
+          entityType={ReminderEntityType.INVOICE}
+          entityId={invoice.id}
+          targetLabel={formatPeriod(invoice.period)}
+          variant="ghost"
+        />
+      ) : null}
       <CmvConfirmButton
         label={t("invoice.cancel")}
         confirmLabel={t("invoice.cancelConfirm")}

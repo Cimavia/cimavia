@@ -125,4 +125,24 @@ describe("InvoiceHistoryTable", () => {
     expect(getByText("février 2026")).toBeTruthy();
     expect(queryByText("juillet 2026")).toBeNull();
   });
+
+  it("nomme le propriétaire de la seule facture d'un cycle partagé (#607)", () => {
+    const { getAllByText } = setup([
+      invoice({ id: "a" }),
+      invoice({
+        id: "b",
+        period: "2026-07",
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+      }),
+    ]);
+
+    expect(getAllByText("library.access.sharedBy")).toHaveLength(1);
+  });
+
+  it("rien côté athlète, qui n'a pas de droit sur ce qu'on lui adresse", () => {
+    const { queryByText } = setup([invoice({ id: "a", myAccess: null })]);
+
+    expect(queryByText("library.access.sharedBy")).toBeNull();
+  });
 });

@@ -111,4 +111,18 @@ describe("PlanHistoryTable", () => {
 
     expect(getByText("Cycle 0")).toBeTruthy();
   });
+
+  it("nomme le propriétaire du seul cycle qui n'est pas à l'acteur (#607)", async () => {
+    const { getAllByText } = await mount([
+      ONGOING,
+      plan({
+        id: "pln_m",
+        title: "Cycle de M",
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+      }),
+    ]);
+
+    expect(getAllByText("library.access.sharedBy")).toHaveLength(1);
+  });
 });

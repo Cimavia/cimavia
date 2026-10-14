@@ -201,4 +201,33 @@ describe("InvoiceDetailPanel", () => {
     expect(getByRole("button", { name: "invoice.markPaid" })).toBeDisabled();
     expect(getByRole("button", { name: "invoice.cancel" })).toBeDisabled();
   });
+
+  describe("la facture du cycle d'un autre Coach (#607)", () => {
+    const F = { id: "org_f", name: "F" };
+    const shared = (level: MyAccessLevel): InvoiceDto => ({
+      ...OVERDUE,
+      coachName: "M",
+      myAccess: { level, via: F },
+    });
+
+    it("en Lecture : son propriétaire se dit, et aucun geste ne s'offre", () => {
+      const { getByText, queryByRole } = setup(shared(MyAccessLevel.READ));
+      expect(getByText("library.access.sharedBy")).toBeTruthy();
+      expect(queryByRole("button", { name: "invoice.markPaid" })).toBeNull();
+      expect(queryByRole("button", { name: "invoice.cancel" })).toBeNull();
+      expect(queryByRole("button", { name: "reminder.schedule" })).toBeNull();
+    });
+
+    it("en Écriture : le statut se tient, la relance reste au propriétaire", () => {
+      const { getByRole, queryByRole } = setup(shared(MyAccessLevel.WRITE));
+      expect(getByRole("button", { name: "invoice.markPaid" })).toBeTruthy();
+      expect(getByRole("button", { name: "invoice.cancel" })).toBeTruthy();
+      expect(queryByRole("button", { name: "reminder.schedule" })).toBeNull();
+    });
+
+    it("rien à dire sur la sienne", () => {
+      const { queryByText } = setup(OVERDUE);
+      expect(queryByText("library.access.sharedBy")).toBeNull();
+    });
+  });
 });

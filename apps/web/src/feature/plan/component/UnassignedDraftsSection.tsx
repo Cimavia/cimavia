@@ -1,6 +1,7 @@
 import type { PlanSummaryDto } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { SharedByLine } from "@/feature/library/component/SharedByLine";
 import { CMV_TABLE, CmvBadge } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
@@ -54,6 +55,8 @@ export function UnassignedDraftsSection({ drafts }: Readonly<UnassignedDraftsSec
             <span className="text-cmv-caption text-cmv-text-lo">
               {t("plan.card.counts", { weeks: draft.weekCount, sessions: draft.sessionCount })}
             </span>
+            {/* Sans athlète, un brouillon se partage comme un exercice (#607). */}
+            <SharedByLine owner={draft.coachName} myAccess={draft.myAccess} />
           </span>
 
           <span className="text-cmv-caption text-cmv-text-mid">

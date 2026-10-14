@@ -1,6 +1,7 @@
 import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE, required } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { SharedByLine } from "@/feature/library/component/SharedByLine";
 import { CmvAvatar, CmvBadge, CmvButton, CmvProgressBar } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { formatDate } from "@/shared/util/date.util";
@@ -153,6 +154,8 @@ function PlanCell({
       >
         {plan.title}
       </Link>
+      {/* Le cycle courant peut être celui d'un autre Coach de l'athlète (#607). */}
+      <SharedByLine owner={plan.coachName} myAccess={plan.myAccess} />
       <PlanTiming plan={plan} />
     </div>
   );

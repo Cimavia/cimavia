@@ -1,6 +1,7 @@
 import type { PlanAthleteRow, PlanConcurrency, PlanDeadline, PlanSummaryDto } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { SharedByLine } from "@/feature/library/component/SharedByLine";
 import { PlanHistoryTable } from "@/feature/plan/component/PlanHistoryTable";
 import { CMV_TABLE, CmvAvatar, CmvBadge } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
@@ -137,14 +138,18 @@ function CurrentPlanCell({ row }: Readonly<{ row: PlanAthleteRow<PlanSummaryDto>
   if (plan == null) return <span className="text-cmv-text-lo">—</span>;
 
   return (
-    <span className="flex min-w-0 items-center gap-cmv-sm">
-      <span className="truncate text-cmv-text-hi">{plan.title}</span>
-      {/* L'époque du cycle élu, jamais nulle — c'est elle qui fait `row.situation`. */}
-      <CmvBadge variant={plan.phase === "ONGOING" ? "accent" : "info"}>
-        {plan.phase === "ONGOING"
-          ? t("plan.row.week", { week: plan.currentWeek, total: plan.weekCount })
-          : t(`plan.state.${plan.phase}`)}
-      </CmvBadge>
+    <span className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 items-center gap-cmv-sm">
+        <span className="truncate text-cmv-text-hi">{plan.title}</span>
+        {/* L'époque du cycle élu, jamais nulle — c'est elle qui fait `row.situation`. */}
+        <CmvBadge variant={plan.phase === "ONGOING" ? "accent" : "info"}>
+          {plan.phase === "ONGOING"
+            ? t("plan.row.week", { week: plan.currentWeek, total: plan.weekCount })
+            : t(`plan.state.${plan.phase}`)}
+        </CmvBadge>
+      </span>
+      {/* Le cycle courant d'un athlète suivi à plusieurs peut être celui d'un autre Coach (#607). */}
+      <SharedByLine owner={plan.coachName} myAccess={plan.myAccess} />
     </span>
   );
 }

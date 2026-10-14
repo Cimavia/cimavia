@@ -64,3 +64,14 @@ export function myRightText({ level, via }: MyAccess, t: TFunction): string {
     ? levelText
     : t("library.access.via", { level: levelText, organization: via.name });
 }
+
+/**
+ * Sous un cycle ou une facture dans une liste (#607) : « Partagé par M · Lecture via F ». Une vue
+ * qui agrège ce que l'acteur possède et ce qu'on lui ouvre nomme le propriétaire de ce qui n'est
+ * pas à lui, et ce qu'il en peut. `null` sur le sien, et pour l'athlète, qui n'a pas de droit : il
+ * en est le destinataire.
+ */
+export function sharedByText(owner: string, myAccess: MyAccess | null, t: TFunction) {
+  if (myAccess == null || isOwner(myAccess)) return null;
+  return t("library.access.sharedBy", { owner, level: myRightText(myAccess, t) });
+}

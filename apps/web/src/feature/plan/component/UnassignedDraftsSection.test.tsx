@@ -68,4 +68,17 @@ describe("UnassignedDraftsSection", () => {
 
     expect(router.state.location.pathname).toBe("/plans/pln_a");
   });
+
+  it("nomme le propriétaire d'un brouillon partagé, et lui seul (#607)", async () => {
+    const { getAllByText } = await mount([
+      draft({ id: "pln_a" }),
+      draft({
+        id: "pln_m",
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+      }),
+    ]);
+
+    expect(getAllByText("library.access.sharedBy")).toHaveLength(1);
+  });
 });
