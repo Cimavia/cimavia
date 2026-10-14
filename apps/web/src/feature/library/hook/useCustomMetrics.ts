@@ -1,8 +1,9 @@
 import {
   type CreateCustomMetricInput,
   type CustomMetric,
+  canWrite,
   type ExerciseDto,
-  MyAccessLevel,
+  isOwner,
   required,
   type UpdateCustomMetricInput,
 } from "@cmv/shared";
@@ -33,16 +34,16 @@ export function useCustomMetrics() {
  * (#605). Une seule des deux requêtes part.
  *
  * `null` est l'exercice qui NAÎT, pas celui qui charge : l'appelant attend l'exercice avant de
- * demander son catalogue, sinon celui du Coach partirait d'abord pour rien.
+ * demander son catalogue, sinon celui du Coach partirait d'abord pour rien. En Lecture, rien ne se
+ * choisit : aucune requête, les métriques que l'exercice cite arrivent avec lui (`customMetrics`).
  */
 export function useExerciseCatalog(exercise: ExerciseDto | null) {
-  const foreignId =
-    exercise != null && exercise.myAccess.level !== MyAccessLevel.OWNER ? exercise.id : null;
+  const foreignId = exercise != null && !isOwner(exercise.myAccess) ? exercise.id : null;
   const own = useQuery<CustomMetric[]>({ ...ownCatalogQuery, enabled: foreignId == null });
   const foreign = useQuery<CustomMetric[]>({
     queryKey: exerciseKeys.customMetrics(foreignId ?? ""),
     queryFn: () => listExerciseCustomMetrics(required(foreignId, "catalogue sans exercice")),
-    enabled: foreignId != null,
+    enabled: foreignId != null && exercise != null && canWrite(exercise.myAccess),
   });
   return foreignId == null ? own : foreign;
 }

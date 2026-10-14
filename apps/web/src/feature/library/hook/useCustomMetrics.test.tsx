@@ -111,17 +111,29 @@ describe("useExerciseCatalog", () => {
     expect(apiMock.listExerciseCustomMetrics).not.toHaveBeenCalled();
   });
 
-  it.each([
-    MyAccessLevel.READ,
-    MyAccessLevel.WRITE,
-  ])("l'exercice d'un autre Coach, en %s : le catalogue du propriétaire, et lui seul", async (level) => {
+  it("l'exercice d'un autre Coach, en Écriture : le catalogue du propriétaire, et lui seul", async () => {
     apiMock.listExerciseCustomMetrics.mockResolvedValue([ownersMetric]);
     const { wrapper } = renderWithQueryClient();
 
-    const { result } = renderHook(() => useExerciseCatalog(exerciseOf(level)), { wrapper });
+    const { result } = renderHook(() => useExerciseCatalog(exerciseOf(MyAccessLevel.WRITE)), {
+      wrapper,
+    });
 
     await waitFor(() => expect(result.current.data).toEqual([ownersMetric]));
     expect(apiMock.listExerciseCustomMetrics).toHaveBeenCalledExactlyOnceWith("ex-1");
+    expect(apiMock.listCustomMetrics).not.toHaveBeenCalled();
+  });
+
+  // Rien ne s'y choisit : les métriques que l'exercice cite arrivent avec lui.
+  it("l'exercice d'un autre Coach, en Lecture : aucun catalogue demandé", () => {
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useExerciseCatalog(exerciseOf(MyAccessLevel.READ)), {
+      wrapper,
+    });
+
+    expect(result.current.data).toBeUndefined();
+    expect(apiMock.listExerciseCustomMetrics).not.toHaveBeenCalled();
     expect(apiMock.listCustomMetrics).not.toHaveBeenCalled();
   });
 });

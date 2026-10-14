@@ -23,12 +23,18 @@ import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
 type StructureSectionProps = {
   blocks: ExerciseBlocks;
   customMetrics: readonly CustomMetric[];
+  /**
+   * Le Coach à qui appartient `customMetrics`, quand ce n'est pas l'acteur (#606) : ce catalogue
+   * se choisit, mais ne se gère que chez son propriétaire. `null` = celui de l'acteur.
+   */
+  catalogOwner?: string | null;
   onChange: (blocks: ExerciseBlocks) => void;
 };
 
 export function StructureSection({
   blocks,
   customMetrics,
+  catalogOwner = null,
   onChange,
 }: Readonly<StructureSectionProps>) {
   const { t } = useTranslation();
@@ -82,6 +88,7 @@ export function StructureSection({
           key={block.id}
           block={block}
           customMetrics={customMetrics}
+          catalogOwner={catalogOwner}
           index={index}
           isFirst={index === 0}
           isLast={index === blocks.length - 1}
@@ -118,6 +125,7 @@ export function StructureSection({
 type BlockCardProps = {
   block: ExerciseBlock;
   customMetrics: readonly CustomMetric[];
+  catalogOwner: string | null;
   index: number;
   isFirst: boolean;
   isLast: boolean;
@@ -131,6 +139,7 @@ type BlockCardProps = {
 function BlockCard({
   block,
   customMetrics,
+  catalogOwner,
   index,
   isFirst,
   isLast,
@@ -200,6 +209,7 @@ function BlockCard({
         open={pickingMetrics}
         block={block}
         customMetrics={customMetrics}
+        catalogOwner={catalogOwner}
         onChange={onChange}
         onClose={() => setPickingMetrics(false)}
       />

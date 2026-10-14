@@ -12,6 +12,7 @@ import {
   MetricSource,
   MetricUnit,
   MetricValueType,
+  MyAccessLevel,
   RichBlockType,
   STALE_WRITE,
 } from "@cmv/shared";
@@ -25,6 +26,7 @@ const api = vi.hoisted(() => ({
   getExercise: vi.fn(),
   listExerciseTags: vi.fn(),
   listCustomMetrics: vi.fn(),
+  listExerciseCustomMetrics: vi.fn(),
   createExercise: vi.fn(),
   updateExercise: vi.fn(),
   deleteExercise: vi.fn(),
@@ -76,6 +78,9 @@ const saved = (over: Partial<ExerciseDto> = {}) =>
     documents: [],
     usedInSessionCount: 0,
     updatedAt: "2026-10-12T07:00:00.000Z",
+    owner: { id: "coach-1", name: "Cédric" },
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
+    grants: [],
     ...over,
   }) as unknown as ExerciseDto;
 
@@ -781,5 +786,87 @@ describe("ExerciseBuilderScreen — consigne trop longue (#319)", () => {
     const submit = view.getByRole("button", { name: SUBMIT_EDIT });
     await waitFor(() => expect(submit).toBeDisabled());
     expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
+  });
+});
+
+describe("ExerciseBuilderScreen — exercice d'un autre Coach (#606)", () => {
+  const ofM = (level: MyAccessLevel) =>
+    saved({
+      owner: { id: "coach-m", name: "M" },
+      myAccess: { level, via: { id: "org-f", name: "F" } },
+      grants: null,
+    });
+
+  beforeEach(() => {
+    api.listExerciseCustomMetrics.mockResolvedValue([prises]);
+  });
+
+  it("en Lecture : nommé, figé, un bandeau qui dit pourquoi, et « Fermer » seul (frame 12)", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.READ));
+    const view = await edit();
+
+    expect(await view.findByRole("textbox", { name: TITLE })).toBeDisabled();
+    expect(heading(view)).toBe("Tractions");
+    expect(view.getByText("library.builder.ofOwner")).toBeInTheDocument();
+    expect(view.getByText("library.builder.readOnly")).toBeInTheDocument();
+    expect(
+      view.queryByRole("button", { name: "library.builder.submitEdit" }),
+    ).not.toBeInTheDocument();
+    expect(
+      view.queryByRole("button", { name: "library.builder.deleteExercise" }),
+    ).not.toBeInTheDocument();
+
+    await view.user.click(view.getByRole("button", { name: "common.close" }));
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+  });
+
+  it("en Lecture, la consigne ne s'édite pas et n'offre aucun outil", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.READ));
+    const view = await edit();
+
+    await waitFor(() =>
+      expect(view.container.querySelector("[contenteditable]")).toHaveAttribute(
+        "contenteditable",
+        "false",
+      ),
+    );
+    expect(view.queryByRole("button", { name: "library.builder.tool.bold" })).toBeNull();
+  });
+
+  it("en Écriture : modifiable, mais la suppression reste au propriétaire", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.WRITE));
+    const view = await edit();
+
+    expect(await view.findByRole("textbox", { name: TITLE })).toBeEnabled();
+    expect(view.getByRole("button", { name: "library.builder.submitEdit" })).toBeInTheDocument();
+    expect(
+      view.queryByRole("button", { name: "library.builder.deleteExercise" }),
+    ).not.toBeInTheDocument();
+    expect(view.queryByText("library.builder.readOnly")).not.toBeInTheDocument();
+  });
+
+  it("en Lecture, aucun catalogue demandé : l'exercice apporte ses métriques", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.READ));
+    const view = await edit();
+    await view.findByRole("textbox", { name: TITLE });
+
+    expect(api.listExerciseCustomMetrics).not.toHaveBeenCalled();
+    expect(api.listCustomMetrics).not.toHaveBeenCalled();
+  });
+
+  it("en Écriture, le sous-titre dit aussi combien de séances il touche", async () => {
+    api.getExercise.mockResolvedValue({ ...ofM(MyAccessLevel.WRITE), usedInSessionCount: 5 });
+    const view = await edit();
+
+    expect(await view.findByText("library.builder.ofOwnerUsed")).toBeInTheDocument();
+  });
+
+  it("ses métriques sont celles du propriétaire, pas celles de l'acteur", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.WRITE));
+    const view = await edit();
+    await view.findByRole("textbox", { name: TITLE });
+
+    await waitFor(() => expect(api.listExerciseCustomMetrics).toHaveBeenCalledWith("ex-1"));
+    expect(api.listCustomMetrics).not.toHaveBeenCalled();
   });
 });

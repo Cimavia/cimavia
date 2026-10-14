@@ -404,3 +404,44 @@ describe("MetricPicker — les métriques maison du coach", () => {
     await waitFor(() => expect(deleteMock).toHaveBeenCalledExactlyOnceWith("cm-2"));
   });
 });
+
+describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
+  const ofM = [customMetric("cm-9", "Cotation de M")];
+
+  function foreign() {
+    const onChange = vi.fn();
+    const view = renderWithProviders(
+      <MetricPicker
+        open
+        block={threeColumns()}
+        customMetrics={ofM}
+        catalogOwner="M"
+        onChange={onChange}
+        onClose={vi.fn()}
+      />,
+    );
+    return { ...view, onChange };
+  }
+
+  it("se choisit, sous le nom de son propriétaire", async () => {
+    const { user, getByRole, getByText, onChange } = foreign();
+
+    expect(getByText("library.builder.custom.ofOwner")).toBeInTheDocument();
+    await user.click(getByRole("button", { name: "Cotation de M" }));
+
+    expect((onChange.mock.lastCall?.[0] as ExerciseBlock).metrics.at(-1)).toMatchObject({
+      customMetricId: "cm-9",
+    });
+  });
+
+  // Créée, modifiée ou supprimée, elle le serait dans le catalogue de l'ACTEUR.
+  it("ne se crée, ne se modifie ni ne se supprime", () => {
+    const { queryByRole, queryByText } = foreign();
+
+    expect(queryByText("library.builder.custom.title")).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.builder.custom.edit" })).not.toBeInTheDocument();
+    expect(
+      queryByRole("button", { name: "library.builder.custom.remove" }),
+    ).not.toBeInTheDocument();
+  });
+});

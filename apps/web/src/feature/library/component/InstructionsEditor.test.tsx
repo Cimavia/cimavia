@@ -466,6 +466,42 @@ describe("InstructionsEditor — une image posée", () => {
   });
 });
 
+describe("InstructionsEditor — en lecture (#606)", () => {
+  function readOnly(initialValue: RichDocument, rerenderAs?: boolean) {
+    const ui = (locked: boolean) => (
+      <InstructionMediaProvider media={fakeMedia()}>
+        <InstructionsEditor initialValue={initialValue} onChange={vi.fn()} readOnly={locked} />
+      </InstructionMediaProvider>
+    );
+    const view = renderWithProviders(ui(true));
+    if (rerenderAs != null) view.rerender(ui(rerenderAs));
+    return view;
+  }
+
+  it("ni outil, ni compteur, et le texte ne s'édite pas", () => {
+    const { container, queryByRole } = readOnly([paragraph("Prise pronation")]);
+
+    expect(queryByRole("button", { name: "library.builder.tool.bold" })).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  });
+
+  it("une image n'offre que sa légende, sans réglage ni retrait", () => {
+    const { getByText, queryByRole } = readOnly([
+      { type: RichBlockType.IMAGE, mediaId: "doc_1", caption: "Prise pince" },
+    ] as RichDocument);
+
+    expect(getByText("Prise pince")).toBeInTheDocument();
+    expect(queryByRole("combobox")).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.builder.image.remove" })).not.toBeInTheDocument();
+  });
+
+  it("suit le droit s'il change sans remontage", () => {
+    const { container } = readOnly([paragraph("Prise pronation")], false);
+
+    expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+  });
+});
+
 describe("useInstructionMediaContext", () => {
   // Une vue de nœud image hors du fournisseur ne saurait ni s'afficher ni progresser : c'est une
   // erreur de montage, qui doit se voir tout de suite plutôt qu'en image vide.

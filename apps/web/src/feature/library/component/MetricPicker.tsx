@@ -26,6 +26,8 @@ type MetricPickerProps = {
   open: boolean;
   block: ExerciseBlock;
   customMetrics: readonly CustomMetric[];
+  /** Le propriétaire du catalogue s'il n'est pas l'acteur : on y choisit, on n'y crée rien. */
+  catalogOwner?: string | null;
   onChange: (block: ExerciseBlock) => void;
   onClose: () => void;
 };
@@ -43,6 +45,7 @@ export function MetricPicker({
   open,
   block,
   customMetrics,
+  catalogOwner = null,
   onChange,
   onClose,
 }: Readonly<MetricPickerProps>) {
@@ -138,16 +141,23 @@ export function MetricPicker({
         />
 
         {/* Créée ICI et posée aussitôt en colonne : sortir du constructeur pour définir une
-            cotation, puis y revenir, ferait perdre le fil de l'exercice en cours. */}
-        <CustomMetricForm
-          editing={editing}
-          onCreated={(metric) => toggleCustom(metric.id)}
-          onUpdated={() => setEditing(null)}
-          onCancelEdit={() => setEditing(null)}
-        />
+            cotation, puis y revenir, ferait perdre le fil de l'exercice en cours. Pas sur
+            l'exercice d'un autre : elle naîtrait chez l'acteur, où cet exercice ne la lit pas. */}
+        {catalogOwner == null ? (
+          <CustomMetricForm
+            editing={editing}
+            onCreated={(metric) => toggleCustom(metric.id)}
+            onUpdated={() => setEditing(null)}
+            onCancelEdit={() => setEditing(null)}
+          />
+        ) : null}
 
         <section className="flex flex-col gap-cmv-xs">
-          <span className="text-cmv-body text-cmv-text-hi">{t("library.builder.custom.mine")}</span>
+          <span className="text-cmv-body text-cmv-text-hi">
+            {catalogOwner == null
+              ? t("library.builder.custom.mine")
+              : t("library.builder.custom.ofOwner", { owner: catalogOwner })}
+          </span>
           {customMetrics.length === 0 ? (
             <span className="text-cmv-caption text-cmv-text-lo">
               {t("library.builder.custom.none")}
@@ -168,21 +178,25 @@ export function MetricPicker({
                 )}
               </button>
 
-              <CmvButton
-                variant="ghost"
-                title={t("library.builder.custom.edit")}
-                onClick={() => setEditing(custom)}
-              >
-                <IoPencil />
-              </CmvButton>
-              <CmvConfirmButton
-                label={t("library.builder.custom.remove")}
-                icon={<IoTrashOutline />}
-                confirmLabel={t("common.confirmDelete")}
-                cancelLabel={t("common.cancel")}
-                disabled={removeMetric.isPending}
-                onConfirm={() => removeMetric.mutate(custom.id)}
-              />
+              {catalogOwner == null ? (
+                <>
+                  <CmvButton
+                    variant="ghost"
+                    title={t("library.builder.custom.edit")}
+                    onClick={() => setEditing(custom)}
+                  >
+                    <IoPencil />
+                  </CmvButton>
+                  <CmvConfirmButton
+                    label={t("library.builder.custom.remove")}
+                    icon={<IoTrashOutline />}
+                    confirmLabel={t("common.confirmDelete")}
+                    cancelLabel={t("common.cancel")}
+                    disabled={removeMetric.isPending}
+                    onConfirm={() => removeMetric.mutate(custom.id)}
+                  />
+                </>
+              ) : null}
             </div>
           ))}
         </section>

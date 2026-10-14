@@ -241,6 +241,9 @@
       "editTitle": "Modifier l'exercice",
       "loadingTitle": "Exercice",
       "subtitle": "Réutilisable dans toutes tes séances.",
+      "ofOwner": "Exercice de {{owner}} · {{right}}",
+      "ofOwnerUsed": "Exercice de {{owner}} · {{right}} · {{used}}",
+      "readOnly": "Lecture seule : exercice de {{owner}}. Tu peux l'utiliser dans tes séances, pas le modifier.",
       "usedInSessions": "Utilisé dans {{count}} séance.",
       "usedInSessions_other": "Utilisé dans {{count}} séances.",
       "titleLabel": "Titre",
@@ -365,6 +368,7 @@
       "custom": {
         "title": "Métrique personnalisée",
         "mine": "Mes métriques",
+        "ofOwner": "Métriques de {{owner}}",
         "none": "Aucune métrique maison pour l'instant.",
         "label": "Nom",
         "labelPlaceholder": "Ex. Cotation maison",

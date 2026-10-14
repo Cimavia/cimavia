@@ -18,6 +18,7 @@ export { CmvMediaPlayer } from "./CmvMediaPlayer";
 export { CmvPager } from "./CmvPager";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";
+export { CmvReadOnlyBanner } from "./CmvReadOnlyBanner";
 export type { ResolveImage } from "./CmvRichDocument";
 export { CmvRichDocument, IMAGE_WIDTH_CLASSES } from "./CmvRichDocument";
 export { CmvRoleGate } from "./CmvRoleGate";

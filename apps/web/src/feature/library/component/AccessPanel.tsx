@@ -15,6 +15,7 @@ import {
 import type { UseMutationResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { myRightText } from "@/feature/library/util/access-text.util";
 import {
   CmvBadge,
   CmvButton,
@@ -232,7 +233,7 @@ function ReadOnlyAccess<T extends AccessElement>({
   onOpen,
 }: Readonly<AccessPanelProps<T> & { element: T }>) {
   const { t } = useTranslation();
-  const { level, via } = element.myAccess;
+  const { level } = element.myAccess;
   return (
     <CmvPanel
       open
@@ -251,14 +252,7 @@ function ReadOnlyAccess<T extends AccessElement>({
           <dt className="text-cmv-text-mid">{t("library.access.owner")}</dt>
           <dd className="text-cmv-text-hi">{element.owner.name}</dd>
           <dt className="text-cmv-text-mid">{t("library.access.myRight")}</dt>
-          <dd className="text-cmv-text-hi">
-            {via == null
-              ? t(`library.access.level.${level}`)
-              : t("library.access.via", {
-                  level: t(`library.access.level.${level}`),
-                  organization: via.name,
-                })}
-          </dd>
+          <dd className="text-cmv-text-hi">{myRightText(element.myAccess, t)}</dd>
         </dl>
         <p className="text-cmv-body text-cmv-text-mid">
           {t(level === MyAccessLevel.WRITE ? `${copyPrefix}.canWrite` : `${copyPrefix}.canRead`)}

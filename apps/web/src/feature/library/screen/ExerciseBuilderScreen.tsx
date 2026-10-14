@@ -1,17 +1,20 @@
 import {
+  canWrite,
   EXERCISE_MAX_TAGS,
   EXERCISE_TAG_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
+  isOwner,
 } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { StructureSection } from "@/feature/library/component/StructureSection";
-import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
+import { useExerciseCatalog } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
 import {
   exerciseDetailQuery,
@@ -19,6 +22,8 @@ import {
   useExercise,
   useExerciseTags,
 } from "@/feature/library/hook/useExercises";
+import { myRightText } from "@/feature/library/util/access-text.util";
+import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
   CmvAppShell,
   CmvButton,
@@ -26,6 +31,7 @@ import {
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
+  CmvReadOnlyBanner,
   CmvStaleBanner,
   CmvTagInput,
   CmvTextField,
@@ -158,9 +164,6 @@ function ExerciseBuilder({
 }: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
   const { data: knownTags } = useExerciseTags();
-  // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
-  // cotation du coach se saisirait comme du texte libre.
-  const { data: customMetrics } = useCustomMetrics();
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
@@ -173,8 +176,16 @@ function ExerciseBuilder({
   // Le brouillon et non la prop : un enregistrement interrompu a pu créer l'exercice, et l'écran
   // doit alors se présenter en édition — c'en est une.
   const edited = draft.exercise;
+  // Les colonnes maison résolvent leur type de valeur et leur échelle ici : sans elles, une
+  // cotation se saisirait comme du texte libre. Celles du PROPRIÉTAIRE de l'exercice (#605).
+  // Les métriques que l'exercice cite arrivent avec lui : elles résolvent ses colonnes avant que
+  // le catalogue réponde — et à sa place, s'il ne répond pas ou n'est pas demandé (Lecture).
+  const catalog = mergeCatalogs(useExerciseCatalog(edited).data, edited?.customMetrics);
 
-  const isEditing = edited != null;
+  // L'exercice d'un autre Coach (#606) : en Écriture il se modifie, sans suppression ; en Lecture
+  // il se consulte.
+  const foreign = foreignExercise(edited);
+  const readOnly = foreign != null && !canWrite(foreign.myAccess);
   // Le message n'apparaît qu'APRÈS que le champ a été touché : l'afficher au premier rendu
   // accueillerait le coach par une erreur qu'il n'a pas encore eu l'occasion de commettre.
   const [titleTouched, setTitleTouched] = useState(false);
@@ -205,23 +216,17 @@ function ExerciseBuilder({
     onLeave();
   }
 
-  /**
-   * Le décompte ne s'affiche QUE s'il y a quelque chose à annoncer. « Utilisé dans 0 séance » est
-   * un non-événement, et le français n'a pas de forme plurielle « zéro » — i18next rendrait le
-   * singulier, qui se lit mal.
-   */
-  const subtitle =
-    isEditing && edited.usedInSessionCount > 0
-      ? t("library.builder.usedInSessions", { count: edited.usedInSessionCount })
-      : t("library.builder.subtitle");
+  const heading = builderHeading(edited, t);
 
   return (
     <CmvAppShell
-      title={isEditing ? t("library.builder.editTitle") : t("library.builder.createTitle")}
-      subtitle={subtitle}
+      title={heading.title}
+      subtitle={heading.subtitle}
       actions={
         <BuilderActions
           exercise={edited}
+          readOnly={readOnly}
+          canDelete={foreign == null}
           isSaving={draft.isSaving}
           canSubmit={draft.trimmedTitle !== ""}
           blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
@@ -231,6 +236,13 @@ function ExerciseBuilder({
         />
       }
     >
+      {readOnly ? (
+        <div className="mb-cmv-xl">
+          <CmvReadOnlyBanner
+            message={t("library.builder.readOnly", { owner: foreign.owner.name })}
+          />
+        </div>
+      ) : null}
       {/* Deux colonnes dès `xl` seulement : en dessous, l'aperçu passe SOUS le formulaire plutôt
           que de le comprimer — une grille de dosage étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
@@ -247,7 +259,9 @@ function ExerciseBuilder({
       <RefusedFieldsContext value={refused.report}>
         <InstructionMediaProvider media={draft.media}>
           <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="flex flex-col gap-cmv-xl">
+            {/* `disabled` sur le fieldset fige d'un geste chaque champ et chaque bouton du
+                formulaire ; les liens des pièces jointes restent ouverts. */}
+            <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-cmv-xl">
               {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
                 (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
               <div className="flex flex-col gap-cmv-xs">
@@ -285,12 +299,14 @@ function ExerciseBuilder({
                 <InstructionsEditor
                   initialValue={exercise?.instructions ?? null}
                   onChange={draft.setInstructions}
+                  readOnly={readOnly}
                 />
               </Suspense>
 
               <StructureSection
                 blocks={draft.blocks}
-                customMetrics={customMetrics ?? []}
+                customMetrics={catalog}
+                catalogOwner={foreign?.owner.name ?? null}
                 onChange={draft.setBlocks}
               />
 
@@ -305,7 +321,7 @@ function ExerciseBuilder({
               />
 
               <CmvFormError error={draft.isStale ? null : draft.error} />
-            </div>
+            </fieldset>
 
             {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
             <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
@@ -314,7 +330,7 @@ function ExerciseBuilder({
                 tags={draft.tags}
                 instructions={draft.instructions}
                 blocks={draft.blocks}
-                customMetrics={customMetrics ?? []}
+                customMetrics={catalog}
                 documents={edited?.documents ?? []}
                 resolveImage={draft.media.resolve}
               />
@@ -327,8 +343,48 @@ function ExerciseBuilder({
   );
 }
 
+/** L'exercice s'il est à un autre Coach ; `null` pour le sien, ou pour celui qui naît. */
+function foreignExercise(exercise: ExerciseDto | null) {
+  return exercise != null && !isOwner(exercise.myAccess) ? exercise : null;
+}
+
+/** Le titre et le sous-titre du constructeur : selon l'exercice, et le droit qu'en a l'acteur. */
+function builderHeading(exercise: ExerciseDto | null, t: TFunction) {
+  if (exercise == null) {
+    return { title: t("library.builder.createTitle"), subtitle: t("library.builder.subtitle") };
+  }
+  // Le décompte ne s'affiche QUE s'il y a quelque chose à annoncer. « Utilisé dans 0 séance » est
+  // un non-événement, et le français n'a pas de forme plurielle « zéro » — i18next rendrait le
+  // singulier, qui se lit mal.
+  const used =
+    exercise.usedInSessionCount > 0
+      ? t("library.builder.usedInSessions", { count: exercise.usedInSessionCount })
+      : null;
+  const foreign = foreignExercise(exercise);
+  if (foreign == null) {
+    return {
+      title: t("library.builder.editTitle"),
+      subtitle: used ?? t("library.builder.subtitle"),
+    };
+  }
+  const ofOwner = { owner: foreign.owner.name, right: myRightText(foreign.myAccess, t) };
+  return {
+    // En lecture, l'exercice se nomme : « Modifier l'exercice » annoncerait ce qu'on ne peut pas.
+    title: canWrite(foreign.myAccess) ? t("library.builder.editTitle") : foreign.title,
+    // Qui écrit sur l'exercice d'un autre doit voir, comme lui, combien de séances il touche.
+    subtitle:
+      used == null
+        ? t("library.builder.ofOwner", ofOwner)
+        : t("library.builder.ofOwnerUsed", { ...ofOwner, used }),
+  };
+}
+
 type BuilderActionsProps = {
   exercise: ExerciseDto | null;
+  /** Lecture (#606) : « Fermer », à la place d'Enregistrer et Supprimer (frame 12). */
+  readOnly: boolean;
+  /** Supprimer reste au propriétaire, même à qui a l'Écriture (#605). */
+  canDelete: boolean;
   isSaving: boolean;
   canSubmit: boolean;
   /**
@@ -344,6 +400,8 @@ type BuilderActionsProps = {
 
 function BuilderActions({
   exercise,
+  readOnly,
+  canDelete,
   isSaving,
   canSubmit,
   blockedBy,
@@ -358,9 +416,11 @@ function BuilderActions({
   const submitKey = isEditing ? "library.builder.submitEdit" : "library.builder.submitCreate";
   const isBusy = isSaving || removeExercise.isPending;
 
+  if (readOnly) return <CmvButton onClick={onCancel}>{t("common.close")}</CmvButton>;
+
   return (
     <>
-      {isEditing ? (
+      {isEditing && canDelete ? (
         <CmvConfirmButton
           label={t("library.builder.deleteExercise")}
           confirmLabel={t("common.confirmDelete")}
