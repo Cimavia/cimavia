@@ -444,7 +444,8 @@ model Session {
 }
 
 enum AccessLevel {
-  NONE // sur la ligne d'un Coach seulement (#608) : ferme ce que son entreprise ouvre
+  NONE // ligne d'un Coach (#608) : ferme ce que son entreprise ouvre ; ligne d'entreprise d'une
+  // planification (#607) : « Aucun » réglé exprès, que le droit par défaut ne rouvre pas
   READ
   WRITE
 }
@@ -454,10 +455,11 @@ enum AccessLevel {
 /// dès #605 pour ne pas migrer deux fois une table qui porte de vraies données : les planifications
 /// s'ouvrent avec #607, les lignes Coach et `NONE` avec #608.
 ///
-/// Trois verrous ne se lisent QUE dans la migration, Prisma ne sachant pas les exprimer : une cible
-/// exactement (`access_grant_single_target`), un bénéficiaire exactement
-/// (`access_grant_single_beneficiary`), et l'unicité (cible, bénéficiaire) en `NULLS NOT DISTINCT`
-/// — sans quoi deux lignes de F sur le même exercice passeraient, leurs `NULL` étant distincts.
+/// Quatre verrous ne se lisent QUE dans les migrations, Prisma ne sachant pas les exprimer : une
+/// cible exactement (`access_grant_single_target`), un bénéficiaire exactement
+/// (`access_grant_single_beneficiary`), `NONE` sur une ligne Coach ou de planification seulement
+/// (`access_grant_none_for_coach_or_plan`, #607), et l'unicité (cible, bénéficiaire) en
+/// `NULLS NOT DISTINCT` — sans quoi deux lignes de F sur le même exercice passeraient, leurs `NULL` étant distincts.
 /// Le `@@unique` ci-dessous porte le NOM de cet index : déclaré sans lui, Prisma voudrait le
 /// supprimer à la migration suivante.
 model AccessGrant {
