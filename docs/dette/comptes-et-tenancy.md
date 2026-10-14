@@ -601,7 +601,9 @@ liste des domaines vivent dans l'index.
 | MC-5 | **Ranger une journée fait avancer ses séances** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `writeDay` et `compactDay` réécrivent la position des séances voisines, et avec elle leur `updatedAt`. Un Coach dont le panneau est ouvert sur l'une d'elles prend un « modifiée pendant que tu l'éditais » alors que seul son rang a bougé. Le faux conflit est rare et sans perte : la saisie reste, « Recharger » repart de la dernière version. | 🟢 | — *(déclencheur : un retour beta d'un conflit inexpliqué ; la sortie serait une position écrite sans faire avancer la version, comme le débrief)* |
 | MC-6 | **Le débrief peut faire avancer la version, au troisième essai** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `markDoneKeepingVersion` passe la séance en DONE en réécrivant la version lue, sous condition qu'elle n'ait pas bougé ; après trois écritures du Coach glissées entre sa lecture et son écriture, il écrit sans condition. Le Coach prend alors un conflit de trop, jamais une perte. | 🟢 | — *(déclencheur : un 409 inexpliqué juste après un débrief ; trois écritures concurrentes en quelques millisecondes ne se voient pas avec des humains)* |
 | MC-7 | **Supprimer un brouillon emporte les semaines qu'un autre Coach vient d'y poser** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : la suppression cite la version du cycle, qui est celle de son en-tête ; ajouter une semaine ou une séance ne la fait pas avancer. Le geste vise le cycle entier, après confirmation. | 🟢 | — *(déclencheur : une perte de travail rapportée par un Coach d'entreprise ; la sortie serait de citer aussi la plus récente version de ses semaines)* |
-| MC-8 | **Supprimer un exercice ou une séance-type ne cite pas de version** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : leur retrait reste inconditionnel, là où celui d'un cycle, d'une semaine ou d'une séance planifiée cite la sienne. Tant que la bibliothèque n'est écrite que par son propriétaire, le risque se limite à deux onglets du même Coach. | 🟢 | — *(déclencheur : [#605](https://github.com/Cimavia/cimavia/issues/605), qui ouvre la bibliothèque à l'écriture d'autres Coachs ; la sortie est `deleteAtVersion`, comme pour un cycle)* |
+| MC-9 | **Une appartenance qui change pendant une lecture fait un 500** ([#605](https://github.com/Cimavia/cimavia/issues/605)) : l'élément et les entreprises de l'acteur se lisent en parallèle, hors d'un même instantané. Si M quitte F entre les deux, l'élément a été lu par F mais `effectiveAccess` ne trouve plus de droit, et `toAccessView` lève : M reçoit un 500 au lieu d'un 404. Rien ne fuit, la réponse échoue. | 🟢 | — *(déclencheur : un 500 « lu sans droit » dans Sentry ; la sortie serait de lire les deux dans une transaction `REPEATABLE READ`, ou de traiter ce désaccord en 404)* |
+
+*Résolues, à l'[archive](archive.md) : MC-8.*
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -893,7 +895,7 @@ liste des domaines vivent dans l'index.
 >   humains ne tapent pas à la milliseconde ; un compteur incrémenté en SQL se reconsidère si la
 >   production en lance plusieurs.
 > - **Contrat cassé côté web** : `expectedUpdatedAt` est requis sur toute écriture qui remplace
->   (hors exercice et séance-type supprimés, **MC-8**). Un onglet resté sur
+>   (exercice et séance-type supprimés compris depuis #605, **MC-8**). Un onglet resté sur
 >   l'ancien bundle (#290) reçoit un 400 en enregistrant, sans perte, jusqu'à ce qu'il recharge.
 > - **#361 se ferme ici** : un dépôt pendant une écriture en vol sur le cycle est ignoré, au glisser
 >   comme au clavier — `isBusy` se lit sur le cycle entier (`useIsMutating`), plus par instance. La
@@ -902,3 +904,45 @@ liste des domaines vivent dans l'index.
 > - **Les factures n'y passent pas**, comme le dit l'issue : leurs statuts sont des transitions
 >   gardées, et le brouillon tient en trois champs. Une facturation retouchée par l'autre Coach ne
 >   fait donc pas avancer la version du cycle, et la diffusion ne la voit pas.
+
+> **Tranché en [#605](https://github.com/Cimavia/cimavia/issues/605)** (droits d'accès sur les
+> exercices et les séances, ouverts aux entreprises) :
+>
+> - **Table, registre et filtre arrivent ensemble.** `AccessGrant` est créée complète (trois
+>   cibles, deux bénéficiaires, `NONE`) pour ne pas migrer deux fois une table qui porte de vraies
+>   données ; seules les lignes d'entreprise sur exercices et séances s'écrivent ici. Les CHECK et
+>   l'unicité `NULLS NOT DISTINCT` ne se lisent que dans la migration.
+> - **Un exercice se lit aussi à travers la séance qui le cite.** La lecture part de la séance
+>   prouvée lisible (`include` ancré, exception au piège n°2), jamais d'un id reçu du client.
+>   L'exercice privé de C, cité par une séance ouverte, se voit dans cette séance (détail,
+>   rechargement, copie planifiée) et nulle part ailleurs : 404 dans la bibliothèque, 400 cité
+>   ailleurs. Seul l'exercice du **propriétaire de la séance** passe ainsi : celui d'un tiers D,
+>   que C lit par G et cite dans une séance ouverte à F, ne s'ouvre pas à F — les droits de D
+>   bornent sa diffusion. La séance en montre la ligne, mais M ne la planifie, ne la recharge ni
+>   ne la recite (400). Une ligne reprise qui cite toujours le même exercice n'est pas revérifiée
+>   au réenregistrement, même si le droit qui l'avait ouvert a disparu : la séance ne se casse pas
+>   sous son auteur.
+> - **Les catalogues de métriques se lisent par le client de base**, avec l'id d'un propriétaire
+>   tiré d'une lecture scopée : qui lit l'exercice de C lit le catalogue de C. Le DTO d'un
+>   exercice, et chaque ligne de séance, embarquent la définition des métriques citées
+>   (`customMetrics`). À l'écriture, seules les citations **nouvelles** doivent exister au
+>   catalogue du propriétaire : une métrique supprimée depuis ne bloque pas l'enregistrement.
+> - **`usedInSessionCount` compte les séances de tous les Coachs**, et la suppression refuse en
+>   409 en comptant à part celles des autres, que C ne peut pas retirer lui-même.
+> - **`coachId` reste dans les DTO** à côté d'`owner`, qu'il redonde (`owner.id`) : le retirer
+>   changerait le contrat de l'API en plein épic, pour un champ qui ne ment pas.
+> - **Le droit dit le geste, la lecture dit l'existence** : 404 sur un élément illisible, 403 sur
+>   un geste que le droit ne couvre pas. Dupliquer en variante reste au propriétaire (403), jusqu'à
+>   la recopie des métriques de #609. `grants` n'est rendu qu'au propriétaire (`null` sinon) ;
+>   `myAccess.via` nomme l'entreprise qui ouvre le droit, la première par nom à niveau égal.
+> - **Un seul geste d'écriture des accès, groupé** (`PATCH /exercises/access`,
+>   `PATCH /sessions/access`) : pas de remplacement unitaire, qui n'en serait qu'un cas. N'ouvrir
+>   qu'à une entreprise dont le propriétaire est membre (400) ; en retirer une qu'il a quittée
+>   reste permis.
+> - **Réduire n'est refusé (409) que si un Coach dont une séance cite l'exercice perd la
+>   lecture** : passer d'Écriture à Lecture, ou retirer une entreprise dont il n'est pas membre,
+>   passe. Les séances-types n'ont pas ce refus : une planification RECOPIE la séance. Le contrôle
+>   et l'écriture ne sont pas sérialisés : une séance qui cite l'exercice à la même milliseconde
+>   passerait, et resterait lisible par le point précédent.
+> - **`GET /me/organizations`** lit les collègues par le client de base, sur les seules
+>   entreprises dont l'appartenance vient d'être lue par le scope du Coach.

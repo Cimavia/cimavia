@@ -1,9 +1,8 @@
 import { DocumentType } from "@cmv/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../infra/prisma/prisma.service";
 import type { DocumentRow } from "../../infra/storage/document.mapper";
 import { StorageService } from "../../infra/storage/storage.service";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
-import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 
 /**
  * Suppression d'un objet en storage — sous condition.
@@ -18,13 +17,18 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
  * pas de l'exercice — chaque envoi a sa propre clé, deux documents d'un même exercice ne la
  * partagent jamais.
  *
+ * Les références se comptent chez TOUS les Coachs (piège n°8, #605), par le client de base : la
+ * planification de M peut recopier un document de C, sous la clé de C. Comptée dans le seul scope
+ * de C, elle ne retiendrait rien, et l'athlète de M perdrait son média. Sûr parce que la clé vient
+ * d'un document que l'appelant a lu par une requête scopée, et que seul un décompte en sort.
+ *
  * Contrepartie assumée : si la dernière copie disparaît plus tard, l'objet reste orphelin en
  * storage (cf. dette P2-1 — tâche de purge).
  */
 @Injectable()
 export class DocumentCleanupService {
   constructor(
-    @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
+    private readonly prisma: PrismaService,
     private readonly storage: StorageService,
   ) {}
 
@@ -34,8 +38,10 @@ export class DocumentCleanupService {
     if (doc.type !== DocumentType.FILE || doc.storagePath == null) return;
 
     const [copies, siblings] = await Promise.all([
-      this.db.scheduledSessionExerciseDocument.count({ where: { storagePath: doc.storagePath } }),
-      this.db.exerciseDocument.count({
+      this.prisma.scheduledSessionExerciseDocument.count({
+        where: { storagePath: doc.storagePath },
+      }),
+      this.prisma.exerciseDocument.count({
         where: { storagePath: doc.storagePath, id: { not: doc.id } },
       }),
     ]);

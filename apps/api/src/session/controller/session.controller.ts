@@ -1,6 +1,25 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
+import {
+  type LibraryScopeQuery,
+  libraryScopeQuerySchema,
+  type VersionQuery,
+  versionQuerySchema,
+} from "@cmv/shared";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ChangeAccessDto } from "../../access/dto/change-access.dto";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateSessionDto } from "../dto/create-session.dto";
 import { ReloadSessionExerciseDto } from "../dto/reload-session-exercise.dto";
 import { UpdateSessionDto } from "../dto/update-session.dto";
@@ -18,8 +37,14 @@ export class SessionController {
   }
 
   @Get()
-  list() {
-    return this.sessions.list();
+  list(@Query(new ZodSchemaPipe(libraryScopeQuerySchema)) query: LibraryScopeQuery) {
+    return this.sessions.list(query.scope);
+  }
+
+  // Avant `:id`, comme pour les exercices : les routes d'une ressource se lisent ensemble.
+  @Patch("access")
+  changeAccess(@Body() dto: ChangeAccessDto) {
+    return this.sessions.changeAccess(dto);
   }
 
   @Get(":id")
@@ -45,9 +70,13 @@ export class SessionController {
     return this.sessions.reloadExerciseFromLibrary(sessionId, sessionExerciseId, dto);
   }
 
+  // Sous la version lue (#605, MC-8) : la séance peut être écrite par d'autres Coachs.
   @Delete(":id")
   @HttpCode(204)
-  delete(@Param("id") id: string) {
-    return this.sessions.delete(id);
+  delete(
+    @Param("id") id: string,
+    @Query(new ZodSchemaPipe(versionQuerySchema)) query: VersionQuery,
+  ) {
+    return this.sessions.delete(id, query);
   }
 }

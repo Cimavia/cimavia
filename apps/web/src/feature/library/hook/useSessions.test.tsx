@@ -158,14 +158,18 @@ describe("useSaveSession", () => {
 });
 
 describe("useDeleteSession", () => {
-  it("supprime puis invalide les séances", async () => {
+  it("supprime à la version affichée, puis invalide les séances", async () => {
     apiMock.deleteSession.mockResolvedValue(undefined);
     const { wrapper, invalidate } = spyInvalidate();
 
     const { result } = renderHook(() => useDeleteSession(), { wrapper });
-    await act(() => result.current.mutateAsync("s-1"));
+    await act(() =>
+      result.current.mutateAsync({ id: "s-1", updatedAt: "2026-10-12T08:00:00.000Z" }),
+    );
 
-    expect(apiMock.deleteSession).toHaveBeenCalledWith("s-1");
+    expect(apiMock.deleteSession).toHaveBeenCalledWith("s-1", {
+      expectedUpdatedAt: "2026-10-12T08:00:00.000Z",
+    });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
 });

@@ -4,12 +4,15 @@ import {
   type CapabilityScope,
   childOf,
   column,
+  grantedTo,
   type OperationClass,
   operationKindOf,
   ownerColumnOrThrow,
   type ParentLink,
   parentIdsOrThrow,
   scopeFor,
+  sharedChild,
+  sharedRoot,
   TENANT_SCOPES,
   type TenantScope,
   throughRoot,
@@ -64,6 +67,67 @@ describe("throughRoot", () => {
     expect(() => ownerColumnOrThrow(throughRoot("exercise", root), "ExerciseDocument")).toThrow(
       "[tenancy] ExerciseDocument ne se crée pas sous ce scope",
     );
+  });
+});
+
+describe("sharedRoot", () => {
+  const scope = sharedRoot("coachId");
+  const owned = { coachId: ACTOR };
+
+  it.each([
+    ["read", ["READ", "WRITE"]],
+    ["write", ["WRITE"]],
+  ] as const)("en %s : propriétaire, ou droit d'une de ses entreprises (%o)", (operation, levels) => {
+    expect(scope.where(ACTOR, operation)).toEqual({
+      AND: [
+        {
+          OR: [
+            owned,
+            {
+              accessGrants: {
+                some: {
+                  level: { in: levels },
+                  organization: { coaches: { some: { coachId: ACTOR } } },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  // Supprimer l'élément, gérer ses accès : aucun droit n'y suffit.
+  it("en administration : le propriétaire seul", () => {
+    expect(scope.where(ACTOR, "admin")).toEqual(owned);
+  });
+
+  it("se crée avec l'acteur, dans sa colonne", () => {
+    expect(scope.owner).toBe("coachId");
+    expect(scope.parent).toBeNull();
+  });
+
+  it("le filtre d'un droit se lit par entreprise de l'acteur, au niveau demandé", () => {
+    expect(grantedTo(ACTOR, "write")).toEqual({
+      level: { in: ["WRITE"] },
+      organization: { coaches: { some: { coachId: ACTOR } } },
+    });
+  });
+});
+
+describe("sharedChild", () => {
+  const root = sharedRoot("coachId");
+  const parent: ParentLink = { model: "Exercise", key: "exerciseId" };
+  const scope = sharedChild("exercise", root, parent);
+
+  it.each(CLASSES)("se filtre à travers sa racine, pour la même classe (%s)", (operation) => {
+    expect(scope.where(ACTOR, operation)).toEqual({ exercise: root.where(ACTOR, operation) });
+  });
+
+  // Piège n°7 : la ligne reste chez le propriétaire de la racine, quel que soit l'acteur.
+  it("se crée dans la colonne de sa racine, avec le propriétaire de son parent", () => {
+    expect(scope.owner).toBe("coachId");
+    expect(scope.parent).toEqual(parent);
   });
 });
 
@@ -192,11 +256,31 @@ describe("operationKindOf", () => {
 
 describe("scopeFor", () => {
   /**
-   * Aucun droit accordé avant #605 : chaque modèle actuel se lit, s'écrit et s'administre par la
-   * même colonne. Le jour où l'un s'en écarte, c'est une décision, et ce test le dit.
+   * Les modèles qu'un droit d'accès ouvre (#605) : la bibliothèque, racines et enfants. Tout autre
+   * modèle se lit, s'écrit et s'administre par la même colonne ; le jour où l'un s'en écarte, c'est
+   * une décision, et ce test le dit.
    */
+  const SHARED = ["Exercise", "ExerciseDocument", "ExerciseTag", "Session", "SessionExercise"];
+
+  it.each(SHARED)("%s est partageable au titre de Coach", (model) => {
+    const coach = scopeOf(model).coach;
+    expect(coach?.where(ACTOR, "read")).not.toEqual(coach?.where(ACTOR, "write"));
+  });
+
+  it.each([
+    ["Exercise", "Exercise", null],
+    ["Session", "Session", null],
+    ["ExerciseDocument", "Exercise", "exercise"],
+    ["ExerciseTag", "Exercise", "exercise"],
+    ["SessionExercise", "Session", "session"],
+  ])("%s se filtre comme la racine %s", (model, root, relation) => {
+    const rootWhere = scopeOf(root).coach?.where(ACTOR, "read");
+    const where = scopeOf(model).coach?.where(ACTOR, "read");
+    expect(where).toEqual(relation == null ? rootWhere : { [relation]: rootWhere });
+  });
+
   it.each(
-    Object.entries(TENANT_SCOPES),
+    Object.entries(TENANT_SCOPES).filter(([model]) => !SHARED.includes(model)),
   )("%s pose le même filtre pour les trois classes", (_, scope) => {
     for (const capability of ["coach", "athlete", "company", null] as const) {
       const read = whereOf(scope, capability, "read");
@@ -269,15 +353,30 @@ describe("scopeFor", () => {
     expect(whereOf(scope, null)).toBeNull();
   });
 
-  // Ses Coachs (#601) et ses athlètes (#602) : l'athlète d'une entreprise n'y lit rien non plus.
-  it.each([
-    "OrganizationCoach",
-    "OrganizationAthlete",
-  ])("ouvre %s à la seule entreprise", (model) => {
-    const scope = scopeOf(model);
+  // Ses athlètes (#602) : ni le Coach ni l'athlète d'une entreprise n'y lisent rien.
+  it("ouvre OrganizationAthlete à la seule entreprise", () => {
+    const scope = scopeOf("OrganizationAthlete");
     expect(whereOf(scope, "company")).toEqual({ organizationId: ACTOR });
     expect(whereOf(scope, "coach")).toBeNull();
     expect(whereOf(scope, "athlete")).toBeNull();
+  });
+
+  // Ses Coachs (#601) ; le Coach y lit ses entreprises (#605), chacun sur sa colonne.
+  it("ouvre OrganizationCoach à l'entreprise et à ses Coachs, chacun sur sa colonne", () => {
+    const scope = scopeOf("OrganizationCoach");
+    expect(whereOf(scope, "company")).toEqual({ organizationId: ACTOR });
+    expect(whereOf(scope, "coach")).toEqual({ coachId: ACTOR });
+    expect(whereOf(scope, "athlete")).toBeNull();
+  });
+
+  // Les droits accordés : le propriétaire seul, pour toute opération.
+  it("ferme AccessGrant à tout autre que son propriétaire", () => {
+    const scope = scopeOf("AccessGrant");
+    for (const operation of CLASSES) {
+      expect(whereOf(scope, "coach", operation)).toEqual({ ownerId: ACTOR });
+    }
+    expect(whereOf(scope, "athlete")).toBeNull();
+    expect(whereOf(scope, "company")).toBeNull();
   });
 
   // Le suivi né d'une entreprise reste un modèle d'entraînement : elle n'en voit rien (#602).

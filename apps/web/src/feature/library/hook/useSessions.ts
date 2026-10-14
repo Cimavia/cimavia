@@ -51,7 +51,9 @@ export function useSaveSession() {
 export function useDeleteSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => deleteSession(id),
+    // La version affichée voyage avec l'id (#605, MC-8) : supprimer ce qu'on n'a pas vu est un 409.
+    mutationFn: ({ id, updatedAt }: SessionVersion) =>
+      deleteSession(id, { expectedUpdatedAt: updatedAt }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 }

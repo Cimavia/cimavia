@@ -6,6 +6,7 @@ import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
 import { ClsModule } from "nestjs-cls";
 import { LoggerModule } from "nestjs-pino";
+import { AccessModule } from "./access/access.module";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { CapabilityModule } from "./auth/capability.module";
@@ -70,6 +71,7 @@ import { VersionModule } from "./version/version.module";
     NotificationModule,
     AccountModule,
     OrganizationModule,
+    AccessModule,
     ExerciseModule,
     CustomMetricModule,
     SessionModule,

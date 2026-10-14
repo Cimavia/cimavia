@@ -31,6 +31,12 @@ l'[index](../dette-technique.md).
 |---|---|---|---|
 | ~~I-3~~ | ~~**`InvitationStatus.REVOKED` reste une valeur sans chemin**~~ : aucune route ne la posait, et un coach ne pouvait pas annuler une invitation encore en attente — il attendait son expiration (7 jours). | ✅ | résolue en [#524](https://github.com/Cimavia/cimavia/issues/524) — `POST /invitations/:id/revoke`, « Retirer » sur le web et le mobile |
 
+### v1.0 — Entreprises, plusieurs Coachs par athlète, droits d'accès ([#593](https://github.com/Cimavia/cimavia/issues/593))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~MC-8~~ | ~~**Supprimer un exercice ou une séance-type ne cite pas de version**~~ : leur retrait restait inconditionnel, là où celui d'un cycle, d'une semaine ou d'une séance planifiée cite la sienne. | ✅ | résolue en [#605](https://github.com/Cimavia/cimavia/issues/605) — `?expectedUpdatedAt=` requis, `deleteAtVersion`, 409 `STALE_WRITE` ; le builder d'exercice cite la version affichée |
+
 ## Débrief et médias
 
 ### P4 — Débrief & Médias

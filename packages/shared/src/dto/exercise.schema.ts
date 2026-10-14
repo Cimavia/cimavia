@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { accessGrantDtoSchema, accessOwnerSchema, myAccessSchema } from "./access.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
 
@@ -193,10 +195,21 @@ export type ExerciseDocumentDto = z.infer<typeof exerciseDocumentDtoSchema>;
 export const exerciseDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
+  /** Le propriétaire : seul à supprimer l'élément et à en gérer les accès (#605). */
+  owner: accessOwnerSchema,
+  /** Ce que l'acteur peut en faire, et l'entreprise qui le lui ouvre. */
+  myAccess: myAccessSchema,
+  /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
+  grants: z.array(accessGrantDtoSchema).nullable(),
   title: z.string(),
   description: z.string().nullable(),
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
+  /**
+   * Les définitions des métriques maison que `blocks` cite, prises chez le PROPRIÉTAIRE de
+   * l'exercice (#605) : celui d'un autre Coach cite son catalogue, que le lecteur n'a pas.
+   */
+  customMetrics: z.array(customMetricSchema),
   tags: z.array(z.string()),
   /**
    * Nombre de séances MODÈLES qui référencent cet exercice. Le constructeur s'en sert pour dire au

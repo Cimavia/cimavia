@@ -81,3 +81,17 @@ export async function linkRelation(
 export async function link(coach: Agent, athlete: Agent): Promise<string> {
   return (await linkRelation(coach, athlete)).athleteId;
 }
+
+/**
+ * L'entreprise invite le Coach dans son équipe, et il accepte (#601) : le chemin réel, invitation
+ * comprise, plutôt qu'une ligne posée en base qu'aucune route ne produirait.
+ */
+export async function joinOrganization(company: Agent, coach: Agent): Promise<void> {
+  const invited = await company
+    .post("/organization/invitations")
+    .send({ email: await emailOf(coach), role: "COACH" });
+  expect(invited.status).toBe(201);
+  expect((await coach.post(`/organization-invitations/${invited.body.id}/accept`)).status).toBe(
+    204,
+  );
+}

@@ -1,30 +1,51 @@
 import {
   AdjustmentLevel,
+  type ChangeAccessInput,
   type CreateSessionInput,
+  type ElementAccessDto,
   type ExerciseBlocks,
+  type LibraryScope,
   type ReloadSessionExerciseInput,
   required,
   type SessionDto,
   type SessionExerciseInput,
   type UpdateSessionInput,
+  type VersionQuery,
 } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { ACCESS_INCLUDE, type AccessContext, libraryScopeWhere } from "../../access/access.mapper";
+import { type AccessGesture, AccessService } from "../../access/service/access.service";
+import { AccessGrantService } from "../../access/service/access-grant.service";
+import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
+import type { LibraryExercise } from "../../exercise/exercise.mapper";
+import { ExerciseService } from "../../exercise/service/exercise.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
-import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
-import { type ExerciseWithTags, type SessionWithExercises, toSessionDto } from "../session.mapper";
+import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import {
+  exerciseOwnersOf,
+  SESSION_DETAIL_INCLUDE,
+  type SessionWithExercises,
+  toSessionDto,
+} from "../session.mapper";
 
 const SESSION_NOT_FOUND = "Séance introuvable";
 
 @Injectable()
 export class SessionService {
-  constructor(@Inject(TENANT_PRISMA) private readonly db: TenantPrisma) {}
+  constructor(
+    @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
+    private readonly library: ExerciseService,
+    private readonly metrics: CustomMetricService,
+    private readonly access: AccessService,
+    private readonly grants: AccessGrantService,
+  ) {}
 
   async create(input: CreateSessionInput): Promise<SessionDto> {
-    await this.assertExercisesOwned(input.exercises);
+    const library = await this.loadCited(input.exercises, null);
     const session = await this.db.$transaction(async (tx) => {
       const created = await tx.session.create({
         // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
@@ -33,21 +54,20 @@ export class SessionService {
           "coachId"
         > as Prisma.SessionUncheckedCreateInput,
       });
-      await this.replaceExercises(tx, created.id, input.exercises, []);
+      await this.replaceExercises(tx, created.id, input.exercises, [], library);
       return created;
     });
     return this.getDto(session.id);
   }
 
-  async list(): Promise<SessionDto[]> {
+  async list(scope: LibraryScope): Promise<SessionDto[]> {
+    const context = await this.access.context();
     const sessions = await this.db.session.findMany({
-      include: { exercises: { orderBy: { position: "asc" } } },
+      where: libraryScopeWhere(scope, context.actorId),
+      include: SESSION_DETAIL_INCLUDE,
       orderBy: { createdAt: "desc" },
     });
-    // Un seul findMany scopé pour résoudre titres/catégories de tous les exercices référencés.
-    const exerciseIds = sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId));
-    const byId = await this.loadExerciseMap(exerciseIds);
-    return sessions.map((s) => toSessionDto(s, byId));
+    return this.toDtos(sessions, context);
   }
 
   async get(id: string): Promise<SessionDto> {
@@ -59,12 +79,13 @@ export class SessionService {
    * (#604) — sinon 409 `STALE_WRITE`, et la base garde l'autre écriture, composition comprise.
    */
   async update(id: string, input: UpdateSessionInput): Promise<SessionDto> {
-    const current = await this.getOwnedOrThrow(id);
+    const { session: current, context } = await this.getForOrThrow(id, "write");
     const expected = new Date(input.expectedUpdatedAt);
     // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
-    await this.assertExercisesOwned(input.exercises);
-    return this.db.$transaction(async (tx) => {
+    // Un exercice que la séance cite déjà reste citable, même privé : le droit vient d'elle.
+    const library = await this.loadCited(input.exercises, current);
+    const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
         id,
@@ -80,29 +101,54 @@ export class SessionService {
         select: { id: true, baseline: true },
       });
       await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
-      await this.replaceExercises(tx, id, input.exercises, previous);
+      await this.replaceExercises(tx, id, input.exercises, previous, library);
       // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
       // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
-      return this.getDto(id, tx);
+      return this.getReadableOrThrow(id, tx);
     });
+    // Le DTO hors de la transaction : les catalogues ne sont pas versionnés avec la séance, et
+    // les lire par une autre connexion pendant qu'elle tient la sienne épuiserait le pool.
+    return this.toDto(saved, context);
   }
 
-  async delete(id: string): Promise<void> {
-    await this.getOwnedOrThrow(id);
-    // Les SessionExercise sont supprimés en cascade (onDelete: Cascade côté schéma).
-    await this.db.session.delete({ where: { id } });
+  /**
+   * Sous la version lue (#605, MC-8) : un rédacteur a pu changer la séance depuis. Les
+   * SessionExercise partent en cascade (onDelete: Cascade côté schéma).
+   */
+  async delete(id: string, query: VersionQuery): Promise<void> {
+    await this.getForOrThrow(id, "delete");
+    await deleteAtVersion(
+      this.db.session,
+      id,
+      new Date(query.expectedUpdatedAt),
+      SESSION_NOT_FOUND,
+    );
+  }
+
+  /**
+   * Changer les droits de séances (#605), propriétaire seul. Aucun refus de réduction : une séance
+   * planifiée RECOPIE la séance-type, et rien ne la cite après coup.
+   */
+  async changeAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
+    const sessions = await this.db.session.findMany({
+      where: { id: { in: input.ids } },
+      include: ACCESS_INCLUDE,
+    });
+    await this.grants.assertCanShare(input, sessions);
+    return this.grants.apply("sessionId", input);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  private async getOwnedOrThrow(
+  // Une séance que l'acteur peut LIRE, ou 404 : illisible, elle ne dit rien de son existence.
+  private async getReadableOrThrow(
     id: string,
     db: TenantPrisma | TenantTx = this.db,
   ): Promise<SessionWithExercises> {
     const session = await db.session.findFirst({
       where: { id },
-      include: { exercises: { orderBy: { position: "asc" } } },
+      include: SESSION_DETAIL_INCLUDE,
     });
     if (session == null) {
       throw new NotFoundException(SESSION_NOT_FOUND);
@@ -110,27 +156,57 @@ export class SessionService {
     return session;
   }
 
-  private async getDto(id: string, db: TenantPrisma | TenantTx = this.db): Promise<SessionDto> {
-    const session = await this.getOwnedOrThrow(id, db);
-    const byId = await this.loadExerciseMap(
-      session.exercises.map((e) => e.exerciseId),
-      db,
-    );
-    return toSessionDto(session, byId);
+  // La séance, si le droit de l'acteur couvre le geste : 404 illisible, 403 lisible sans plus (#605).
+  private async getForOrThrow(
+    id: string,
+    gesture: AccessGesture,
+  ): Promise<{ session: SessionWithExercises; context: AccessContext }> {
+    const { row, context } = await this.access.loadFor(this.getReadableOrThrow(id), gesture);
+    return { session: row, context };
   }
 
-  // Vérifie que TOUS les exercices référencés appartiennent au coach courant (scope coachId).
-  // Indispensable : la FK n'impose pas le tenant, et les include imbriqués ne sont pas scopés.
-  private async assertExercisesOwned(exercises: SessionExerciseInput[]): Promise<void> {
-    const ids = [...new Set(exercises.map((e) => e.exerciseId))];
-    if (ids.length === 0) return;
-    const owned = await this.db.exercise.findMany({
-      where: { id: { in: ids } },
-      select: { id: true },
-    });
-    if (owned.length !== ids.length) {
-      throw new BadRequestException("Un ou plusieurs exercices sont inconnus");
-    }
+  private async getDto(id: string): Promise<SessionDto> {
+    return this.toDto(await this.getReadableOrThrow(id));
+  }
+
+  private async toDto(session: SessionWithExercises, context?: AccessContext): Promise<SessionDto> {
+    const [dto] = await this.toDtos([session], context);
+    return required(dto, "[session] une séance, un DTO");
+  }
+
+  // Un seul aller-retour pour les catalogues de tous les propriétaires des exercices composés, et
+  // un pour les entreprises de l'acteur.
+  private async toDtos(
+    sessions: SessionWithExercises[],
+    context?: AccessContext,
+  ): Promise<SessionDto[]> {
+    const [catalogOf, actor] = await Promise.all([
+      this.metrics.catalogOf(exerciseOwnersOf(sessions)),
+      context ?? this.access.context(),
+    ]);
+    return sessions.map((session) => toSessionDto(session, catalogOf, actor));
+  }
+
+  /**
+   * Les exercices que la composition cite, prouvés accessibles (#353) — ou 400.
+   *
+   * Une ligne REPRISE qui cite toujours le même exercice n'est pas revérifiée : elle garde sa
+   * référence (`baseline`) et ne relit rien de la bibliothèque. La séance ne se casse donc pas
+   * sous son auteur quand le droit qui lui avait ouvert l'exercice disparaît (tranché en #605).
+   */
+  private loadCited(
+    exercises: SessionExerciseInput[],
+    session: { id: string; exercises: readonly { id: string; exerciseId: string }[] } | null,
+  ): Promise<Map<string, LibraryExercise>> {
+    const citedBy = new Map(session?.exercises.map((row) => [row.id, row.exerciseId]));
+    return this.library.loadAccessibleOrThrow(
+      exercises
+        .filter(
+          (exercise) => exercise.id == null || citedBy.get(exercise.id) !== exercise.exerciseId,
+        )
+        .map((exercise) => exercise.exerciseId),
+      session?.id ?? null,
+    );
   }
 
   /**
@@ -153,7 +229,8 @@ export class SessionService {
     sessionExerciseId: string,
     input: ReloadSessionExerciseInput,
   ): Promise<SessionDto> {
-    return this.db.$transaction(async (tx) => {
+    const { context } = await this.getForOrThrow(sessionId, "write");
+    const saved = await this.db.$transaction(async (tx) => {
       // Rien d'autre à écrire sur la séance : seule sa version avance.
       await writeAtVersion(
         tx.session,
@@ -164,18 +241,21 @@ export class SessionService {
       );
       const composed = await tx.sessionExercise.findFirst({
         where: { id: sessionExerciseId, sessionId },
+        select: { exerciseId: true },
       });
       if (composed == null) {
         throw new NotFoundException("Exercice de séance introuvable");
       }
-
-      // FK `Restrict`, même coach : l'exercice composé existe tant que la ligne qui le cite.
-      const exercise = required(
-        await tx.exercise.findFirst({ where: { id: composed.exerciseId } }),
-        `[session] exercice ${composed.exerciseId} hors scope pour la séance ${sessionId}`,
+      // Lisible, ou privé au propriétaire de la séance qui le cite (#605) — pas l'exercice d'un
+      // tiers que l'acteur ne lit pas : recharger en recopierait le dosage.
+      const library = await this.library.loadAccessibleOrThrow(
+        [composed.exerciseId],
+        sessionId,
+        tx,
       );
-
-      const blocks = parseBlocks(exercise.blocks);
+      const blocks = parseBlocks(
+        required(library.get(composed.exerciseId), "[session] exercice rechargé non chargé").blocks,
+      );
       await tx.sessionExercise.update({
         where: { id: sessionExerciseId },
         data: {
@@ -185,22 +265,9 @@ export class SessionService {
         },
       });
       // Dans la transaction, comme après un enregistrement : la réponse porte NOTRE version.
-      return this.getDto(sessionId, tx);
+      return this.getReadableOrThrow(sessionId, tx);
     });
-  }
-
-  // Charge (scopé) les exercices par id → map pour l'enrichissement titre/tags.
-  private async loadExerciseMap(
-    exerciseIds: string[],
-    db: TenantPrisma | TenantTx = this.db,
-  ): Promise<Map<string, ExerciseWithTags>> {
-    const ids = [...new Set(exerciseIds)];
-    if (ids.length === 0) return new Map();
-    const exercises = await db.exercise.findMany({
-      where: { id: { in: ids } },
-      include: { tags: true },
-    });
-    return new Map(exercises.map((e) => [e.id, e]));
+    return this.toDto(saved, context);
   }
 
   /**
@@ -219,10 +286,10 @@ export class SessionService {
     sessionId: string,
     exercises: SessionExerciseInput[],
     previous: readonly { id: string; baseline: Prisma.JsonValue }[],
+    library: ReadonlyMap<string, LibraryExercise>,
   ): Promise<void> {
     if (exercises.length === 0) return;
 
-    const library = await this.loadExerciseMap(exercises.map((e) => e.exerciseId));
     const previousById = new Map(previous.map((row) => [row.id, row]));
     // Une fois par exercice DISTINCT, pas par ligne (#297) : la même référence citée à chaque
     // ligne faisait reparser ses blocs autant de fois.
@@ -230,7 +297,7 @@ export class SessionService {
     const blocksOf = (exerciseId: string): ExerciseBlocks => {
       const cached = libraryBlocks.get(exerciseId);
       if (cached != null) return cached;
-      // `assertExercisesOwned` a déjà refusé en 400 tout exercice inconnu.
+      // `loadAccessibleOrThrow` a déjà refusé en 400 tout exercice inconnu.
       const exercise = required(
         library.get(exerciseId),
         `[session] exercice ${exerciseId} absent de la bibliothèque chargée`,

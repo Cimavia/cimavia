@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { CustomMetricModule } from "../custom-metric/custom-metric.module";
+import { ExerciseModule } from "../exercise/exercise.module";
 import { StorageModule } from "../infra/storage/storage.module";
 import { InvoiceModule } from "../invoice/invoice.module";
 import { ReminderModule } from "../reminder/reminder.module";
@@ -16,8 +18,10 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
 // StorageModule : les documents copiés sont servis en URLs GET signées, comme en bibliothèque.
 // ReminderModule : supprimer un cycle purge les rappels qui le visaient, dans la même transaction
 // (leur référence est polymorphe, donc sans FK — rien en base ne les emporte).
+// ExerciseModule : la garde des exercices cités (`loadAccessibleOrThrow`, #353) ; CustomMetricModule :
+// les métriques recopiées, lues chez le propriétaire de l'exercice (piège n°9).
 @Module({
-  imports: [StorageModule, InvoiceModule, ReminderModule],
+  imports: [StorageModule, InvoiceModule, ReminderModule, ExerciseModule, CustomMetricModule],
   controllers: [
     PlanController,
     PlanWeekController,

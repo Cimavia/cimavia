@@ -60,6 +60,10 @@ model User {
   coachSessions Session[]      @relation("CoachSessions") // séances (modèles) du coach
   customMetrics CustomMetric[] @relation("CoachMetrics") // métriques et échelles maison
 
+  // Droits d'accès (#605) : ceux qu'il accorde sur ses éléments, et ceux qui le visent (#608).
+  ownedAccessGrants    AccessGrant[] @relation("OwnedAccessGrants")
+  receivedAccessGrants AccessGrant[] @relation("ReceivedAccessGrants")
+
   // Métier — planifications (P3) : premier objet lu par les DEUX rôles.
   coachPlans   Plan[] @relation("CoachPlans") // planifs écrites par le coach
   athletePlans Plan[] @relation("AthletePlans") // planifs reçues par l'athlète
@@ -106,6 +110,8 @@ model Organization {
   invitations   Invitation[]
   // Les liens coach-athlète nés de l'entreprise (#602) — leur provenance, pas leur propriétaire.
   coachAthletes CoachAthlete[]
+  // Les droits qu'on lui accorde (#605) : ils valent pour ses Coachs, pas pour le compte.
+  accessGrants  AccessGrant[]
 
   @@map("organization")
 }
@@ -122,7 +128,7 @@ model OrganizationCoach {
   createdAt      DateTime     @default(now())
 
   // Une appartenance par couple. Préfixe organizationId : couvre le scope de l'entreprise ; l'index
-  // sur coachId servira ses entreprises au Coach (#605).
+  // sur coachId sert ses entreprises au Coach (#605), et le filtre « droit accordé ».
   @@unique([organizationId, coachId])
   @@index([coachId])
   @@map("organization_coach")
@@ -352,6 +358,7 @@ model Exercise {
   // Copies posées dans des planifications (P3) : SetNull → la suppression d'un exercice de la
   // bibliothèque ne casse JAMAIS une planif (l'instance garde son snapshot titre/description).
   scheduledCopies  ScheduledSessionExercise[]
+  accessGrants     AccessGrant[]
 
   @@index([coachId])
   @@map("exercise")
@@ -426,13 +433,59 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  exercises SessionExercise[]
+  exercises    SessionExercise[]
   // Instances posées dans des planifications (P3) : SetNull, même raison que Exercise.
-  instances ScheduledSession[]
+  instances    ScheduledSession[]
+  accessGrants AccessGrant[]
 
   @@index([coachId])
   // Exception au singulier (convention repo) : `session` est déjà pris par la table auth.
   @@map("sessions")
+}
+
+enum AccessLevel {
+  NONE // sur la ligne d'un Coach seulement (#608) : ferme ce que son entreprise ouvre
+  READ
+  WRITE
+}
+
+/// Un droit d'accès (#605) : ce qu'un propriétaire ouvre de SON élément — exercice, séance ou
+/// planification — à une entreprise ou à un Coach. Une table pour les trois cibles, créée complète
+/// dès #605 pour ne pas migrer deux fois une table qui porte de vraies données : les planifications
+/// s'ouvrent avec #607, les lignes Coach et `NONE` avec #608.
+///
+/// Trois verrous ne se lisent QUE dans la migration, Prisma ne sachant pas les exprimer : une cible
+/// exactement (`access_grant_single_target`), un bénéficiaire exactement
+/// (`access_grant_single_beneficiary`), et l'unicité (cible, bénéficiaire) en `NULLS NOT DISTINCT`
+/// — sans quoi deux lignes de F sur le même exercice passeraient, leurs `NULL` étant distincts.
+/// Le `@@unique` ci-dessous porte le NOM de cet index : déclaré sans lui, Prisma voudrait le
+/// supprimer à la migration suivante.
+model AccessGrant {
+  id             String        @id @default(cuid())
+  /// Le propriétaire de la cible, dénormalisé : le scope tenant de la table, et le seul à la gérer.
+  ownerId        String
+  owner          User          @relation("OwnedAccessGrants", fields: [ownerId], references: [id], onDelete: Cascade)
+  exerciseId     String?
+  exercise       Exercise?     @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sessionId      String?
+  session        Session?      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  planId         String?
+  plan           Plan?         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  coachId        String?
+  coach          User?         @relation("ReceivedAccessGrants", fields: [coachId], references: [id], onDelete: Cascade)
+  level          AccessLevel
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([exerciseId, sessionId, planId, organizationId, coachId], map: "access_grant_target_beneficiary_key")
+  @@index([ownerId])
+  @@index([sessionId])
+  @@index([planId])
+  @@index([organizationId])
+  @@index([coachId])
+  @@map("access_grant")
 }
 
 model SessionExercise {
@@ -519,6 +572,7 @@ model Plan {
   weeks             PlanWeek[]
   scheduledSessions ScheduledSession[]
   invoice           Invoice? // facturation du cycle (1:1) — DRAFT tant que non diffusé (P6)
+  accessGrants      AccessGrant[] // ouverts avec #607 ; la table les accueille dès #605
 
   @@index([coachId])
   @@index([athleteId, status]) // lecture athlète : ses plans diffusés

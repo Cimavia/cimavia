@@ -22,6 +22,7 @@
     "retry": "Réessayer",
     "staleReload": "Recharger",
     "staleReloadFailed": "La dernière version n'a pas pu être chargée. Ta saisie reste affichée : réessaie dans un instant.",
+    "staleWrite": "Modifié entre-temps par un autre coach : recharge la page, puis recommence.",
     "relativeTime": {
       "now": "à l'instant",
       "minute": "il y a {{count}} min",

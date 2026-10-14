@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { accessGrantDtoSchema, accessOwnerSchema, myAccessSchema } from "./access.schema";
 import { adjustmentsSchema } from "./dosage-override.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
+import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 
 export const SESSION_TITLE_MAX_LENGTH = 200;
@@ -81,6 +83,11 @@ export const sessionExerciseDtoSchema = z.object({
   baseline: exerciseBlocksSchema,
   adjustments: adjustmentsSchema,
   title: z.string(),
+  /**
+   * Les métriques maison que ces blocs citent, chez le propriétaire de l'exercice (#605) : une
+   * séance peut composer l'exercice d'un autre Coach, et ses colonnes citent son catalogue.
+   */
+  customMetrics: z.array(customMetricSchema),
   // Tags de l'exercice RÉFÉRENCÉ, lus à chaque lecture : une séance modèle pointe vers la
   // bibliothèque, elle n'en fige rien (contrairement à la séance planifiée, qui copie).
   tags: z.array(z.string()),
@@ -90,6 +97,12 @@ export type SessionExerciseDto = z.infer<typeof sessionExerciseDtoSchema>;
 export const sessionDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
+  /** Le propriétaire : seul à supprimer l'élément et à en gérer les accès (#605). */
+  owner: accessOwnerSchema,
+  /** Ce que l'acteur peut en faire, et l'entreprise qui le lui ouvre. */
+  myAccess: myAccessSchema,
+  /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
+  grants: z.array(accessGrantDtoSchema).nullable(),
   title: z.string(),
   notes: z.string().nullable(),
   exercises: z.array(sessionExerciseDtoSchema),

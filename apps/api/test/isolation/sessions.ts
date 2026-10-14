@@ -8,7 +8,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
 import { type Agent, billAndPublish, inviteFor, signUp, signUpWith } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { atWeekVersion, deleteAtLatest, putAtLatest, versionOf } from "../support/version";
+import {
+  ANY_VERSION,
+  atWeekVersion,
+  deleteAtLatest,
+  putAtLatest,
+  versionOf,
+} from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
   let coachA: Agent;
@@ -145,7 +151,10 @@ describe("Composition & isolation des séances (P2)", () => {
         })
       ).status,
     ).toBe(404);
-    expect((await coachB.delete(`/sessions/${sessionAId}`)).status).toBe(404);
+    expect(
+      (await coachB.delete(`/sessions/${sessionAId}`).query({ expectedUpdatedAt: ANY_VERSION }))
+        .status,
+    ).toBe(404);
   });
 
   it("un athlète n'a aucun accès aux séances (route coach)", async () => {
@@ -156,7 +165,7 @@ describe("Composition & isolation des séances (P2)", () => {
   // remonterait une violation de clé étrangère (500) au lieu d'un refus explicite.
   it("supprimer un exercice utilisé dans une séance est refusé (409), puis autorisé une fois retiré", async () => {
     // exA2 est encore dans la séance (replace-all précédent).
-    const conflict = await coachA.delete(`/exercises/${exA2}`);
+    const conflict = await deleteAtLatest(coachA, `/exercises/${exA2}`);
     expect(conflict.status).toBe(409);
 
     // On vide la composition → l'exercice n'est plus référencé.
@@ -168,11 +177,11 @@ describe("Composition & isolation des séances (P2)", () => {
     });
     expect(emptied.status).toBe(200);
 
-    expect((await coachA.delete(`/exercises/${exA2}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/exercises/${exA2}`)).status).toBe(204);
   });
 
   it("supprimer une séance est possible et laisse les exercices intacts", async () => {
-    expect((await coachA.delete(`/sessions/${sessionAId}`)).status).toBe(204);
+    expect((await deleteAtLatest(coachA, `/sessions/${sessionAId}`)).status).toBe(204);
     expect((await coachA.get("/sessions")).body).toHaveLength(0);
     // exA1 n'était plus dans la séance mais existe toujours en bibliothèque.
     expect((await coachA.get(`/exercises/${exA1}`)).status).toBe(200);
@@ -1062,7 +1071,7 @@ describe("Séance modèle — version lue (#604)", () => {
 
   it("répond 404 sur une séance supprimée, même munie de sa dernière version", async () => {
     const doomed = await coach.post("/sessions").send({ title: "À supprimer", exercises: [] });
-    expect((await coach.delete(`/sessions/${doomed.body.id}`)).status).toBe(204);
+    expect((await deleteAtLatest(coach, `/sessions/${doomed.body.id}`)).status).toBe(204);
 
     const write = await coach
       .put(`/sessions/${doomed.body.id}`)

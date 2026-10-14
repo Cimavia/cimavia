@@ -57,7 +57,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
   - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
 - Un coach a **N athlètes** et appartient à **0..N entreprises** (#601).
 - Un compte **Entreprise** est **exclusif** : ni coach ni athlète. Un athlète qu'il invite est suivi par **chacun** de ses coachs (un lien par coach, marqué « via » l'entreprise) (#602).
-- Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) *(cible — #605, #607)* ; supprimer, gérer les accès et réaffecter restent au propriétaire.
+- Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) — exercices et séances (#605), planifications *(cible — #607)* ; supprimer, gérer les accès et réaffecter restent au propriétaire.
 - **Les deux capacités accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
 
 ---
@@ -175,14 +175,14 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 
 | Domaine | Exigence |
 |--------|----------|
-| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès ou participation *(cible — #605, #611)*. Refus d'une version périmée (409) sur un exercice, une séance ou un cycle partagé (#604). |
+| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès (#605) ou participation *(cible — #611)*. Refus d'une version périmée (409) sur un exercice, une séance ou un cycle partagé (#604). |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
 | **Médias** | Compression côté client avant upload. Plafonds : vidéo **180 s** / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
 | **Offline** | Lecture des séances de la semaine sans réseau (cache local). |
 | **Notifications** | Push mobile + web. |
 | **Performance** | Consultation fluide en réseau faible. |
-| **Évolutivité** | Plusieurs coachs par athlète (#599) et partage entre coachs d'une entreprise *(cible — #605)* ; générique, sans sport cible. |
+| **Évolutivité** | Plusieurs coachs par athlète (#599) et partage entre coachs d'une entreprise (#605) ; générique, sans sport cible. |
 
 ---
 
@@ -280,7 +280,7 @@ Deux niveaux à ne pas confondre :
 **organizations** (entreprise)
 - `id` = celui du compte Entreprise ; le nom est celui du compte. Appartenance des coachs : `organization_coach`, une ligne par couple entreprise ↔ Coach (#601) ; des athlètes : `organization_athlete`, de même (#602)
 
-**access_grants** (droit d'accès) *(cible — #605)*
+**access_grants** (droit d'accès, #605)
 - cible : exercice, séance ou planification (exactement une) ; bénéficiaire : entreprise ou coach (exactement un) ; niveau `none` / `read` / `write` ; `owner_id` dénormalisé ; unicité (cible, bénéficiaire)
 
 **athlete_sheets** (fiche athlète, champ libre)
@@ -342,8 +342,8 @@ Deux niveaux à ne pas confondre :
 L'isolation des données est garantie **à la couche données**, dans l'API NestJS — **pas** par RLS Postgres (tous les accès passent par Prisma, donc l'extension suffit et reste portable).
 
 - **Tenancy guard** (NestJS) : à partir de la session Better Auth, résout l'acteur courant (`User`) et la capacité exercée par la route, puis les injecte dans le contexte de requête.
-- **Prisma Client Extension** : applique automatiquement le scope tenant à **toute** requête métier, sous trois formes — colonne directe, élément partageable (propriétaire ou droit d'accès, selon l'opération : lire, écrire, administrer — le droit d'accès *(cible — #605)*), participation à une conversation *(cible — #611)*. Aucune query ne s'exécute hors scope.
-- **Invariant** : un coach ne lit/écrit que ce qu'il possède ou ce qu'un droit d'accès lui ouvre *(cible — #605)*, et ne touche que SES athlètes ; un athlète (lié ou autonome) que SES données ; un compte Entreprise, aucun contenu d'entraînement. Deux capacités, deux scopes, jamais un `OR` entre elles. Toute nouvelle entité métier doit être rattachée au tenant.
+- **Prisma Client Extension** : applique automatiquement le scope tenant à **toute** requête métier, sous trois formes — colonne directe, élément partageable (propriétaire ou droit d'accès, selon l'opération : lire, écrire, administrer — le droit d'accès (#605)), participation à une conversation *(cible — #611)*. Aucune query ne s'exécute hors scope.
+- **Invariant** : un coach ne lit/écrit que ce qu'il possède ou ce qu'un droit d'accès lui ouvre (#605), et ne touche que SES athlètes ; un athlète (lié ou autonome) que SES données ; un compte Entreprise, aucun contenu d'entraînement. Deux capacités, deux scopes, jamais un `OR` entre elles. Toute nouvelle entité métier doit être rattachée au tenant.
 - **Médias** : buckets **privés** en object storage ; accès uniquement via **URLs signées** générées par l'API après contrôle du scope (jamais d'accès direct au bucket).
 - **Messagerie** : un utilisateur ne lit que les messages des conversations dont il est participant *(cible — #611 ; aujourd'hui scopées par la relation)*.
 - **Tests e2e d'isolation obligatoires** : vérifier qu'un coach A ne peut jamais lire/écrire les données d'un athlète du coach B, ni un élément qu'on ne lui a pas ouvert.

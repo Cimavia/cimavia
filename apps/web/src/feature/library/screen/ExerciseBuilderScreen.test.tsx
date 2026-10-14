@@ -71,9 +71,11 @@ const saved = (over: Partial<ExerciseDto> = {}) =>
     description: null,
     instructions: null,
     blocks: [],
+    customMetrics: [],
     tags: ["force"],
     documents: [],
     usedInSessionCount: 0,
+    updatedAt: "2026-10-12T07:00:00.000Z",
     ...over,
   }) as unknown as ExerciseDto;
 
@@ -422,7 +424,10 @@ describe("ExerciseBuilderScreen — édition", () => {
     await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
-    expect(api.deleteExercise).toHaveBeenCalledWith("ex-1");
+    // À la version affichée (#605, MC-8) : un autre Coach a pu écrire l'exercice depuis.
+    expect(api.deleteExercise).toHaveBeenCalledWith("ex-1", {
+      expectedUpdatedAt: "2026-10-12T07:00:00.000Z",
+    });
   });
 
   // Le 409 « utilisé dans N séances » est actionnable : il se lit, et l'on reste sur l'exercice.

@@ -1,3 +1,4 @@
+import { STALE_WRITE } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { renderWithProviders } from "../../../test/render";
@@ -35,5 +36,14 @@ describe("CmvFormError", () => {
 
     // La fenêtre de reconnexion en dit la cause ; ce message-ci resterait affiché après (#336).
     expect(container.querySelector("p")).toBeNull();
+  });
+
+  it("traduit une version périmée, qui n'a qu'un code à montrer", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <CmvFormError error={new ApiError(409, STALE_WRITE, null)} />,
+    );
+
+    expect(getByText("common.staleWrite")).toBeInTheDocument();
+    expect(queryByText(STALE_WRITE)).toBeNull();
   });
 });
