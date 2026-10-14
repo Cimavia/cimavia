@@ -1,4 +1,4 @@
-import { cn } from "@/shared/util/cn.util";
+import { chipClass } from "./chip.style";
 
 export type CmvChoiceChip<T extends string> = { value: T; label: string };
 
@@ -32,12 +32,7 @@ export function CmvChoiceChips<T extends string>({
             type="button"
             aria-pressed={option.value === value}
             onClick={() => onChange(option.value)}
-            className={cn(
-              "rounded-cmv-pill border px-cmv-md py-cmv-xs text-cmv-caption transition-colors",
-              option.value === value
-                ? "border-cmv-accent-line bg-cmv-accent-soft text-cmv-accent-on"
-                : "border-cmv-border bg-cmv-surface text-cmv-text-mid hover:text-cmv-text-hi",
-            )}
+            className={chipClass(option.value === value)}
           >
             {option.label}
           </button>
