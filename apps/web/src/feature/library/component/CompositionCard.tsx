@@ -17,7 +17,7 @@ import {
 import { DosageEditor } from "@/feature/library/component/DosageEditor";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
-import { CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
+import { CMV_EDIT, CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type CompositionCardProps = {
@@ -200,9 +200,13 @@ export function CompositionCard({
 
       {summary == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{summary}</p>}
 
-      {/* Le fieldset fige le dosage et la note d'un geste ; le dépli, hors de lui, reste ouvert. */}
+      {/* Le fieldset fige le dosage et la note d'un geste, et efface ce qui ne sert qu'à éditer
+          (`CMV_EDIT`) ; le dépli, hors de lui, reste ouvert. */}
       {open ? (
-        <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-cmv-lg">
+        <fieldset
+          disabled={readOnly}
+          className={cn("flex min-w-0 flex-col gap-cmv-lg", CMV_EDIT.group)}
+        >
           <DosageEditor
             dosage={item}
             level={AdjustmentLevel.SESSION}

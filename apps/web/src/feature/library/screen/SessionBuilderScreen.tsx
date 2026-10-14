@@ -31,6 +31,7 @@ import {
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
+  CMV_EDIT,
   CmvAppShell,
   CmvButton,
   CmvDragHandle,
@@ -372,9 +373,12 @@ function SessionBuilder({
       <RefusedFieldsContext value={refused.report}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-cmv-xl">
-            {/* Le titre et les notes se figent d'un geste ; la composition, elle, reste HORS du
-              fieldset : ses cartes doivent encore se déplier en Lecture. */}
-            <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-cmv-xl">
+            {/* Le titre et les notes se figent d'un geste (`CMV_EDIT`) ; la composition, elle,
+              reste HORS du fieldset : ses cartes doivent encore se déplier en Lecture. */}
+            <fieldset
+              disabled={readOnly}
+              className={cn("flex min-w-0 flex-col gap-cmv-xl", CMV_EDIT.group)}
+            >
               {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
                 (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
               <div className="flex flex-col gap-cmv-xs">
@@ -387,14 +391,16 @@ function SessionBuilder({
                   onBlur={() => setTitleTouched(true)}
                   placeholder={t("library.session.titlePlaceholder")}
                   required
-                  requiredMark
+                  requiredMark={!readOnly}
                 />
                 {titleTouched && draft.trimmedTitle === "" ? (
                   <p className="text-cmv-caption text-cmv-error">
                     {t("library.session.titleRequired")}
                   </p>
                 ) : null}
-                <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+                <p className={cn("text-cmv-caption text-cmv-text-lo", CMV_EDIT.only)}>
+                  {t("common.requiredLegend")}
+                </p>
               </div>
 
               <CmvTextArea

@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockBandeau } from "@/feature/library/component/BlockBandeau";
 import { SessionBlockGrid } from "@/feature/library/component/SessionBlockGrid";
+import { CMV_EDIT } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 type DosageEditorProps = {
   dosage: DosageEditable;
@@ -118,7 +120,7 @@ function StructureAdjustments({
             <button
               type="button"
               onClick={() => onRevert(field)}
-              className="text-cmv-caption text-cmv-accent hover:underline"
+              className={cn("text-cmv-caption text-cmv-accent hover:underline", CMV_EDIT.only)}
             >
               {t("library.session.revert")}
             </button>

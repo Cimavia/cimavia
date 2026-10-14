@@ -21,7 +21,7 @@ import {
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoChevronDown } from "react-icons/io5";
-import { CMV_TABLE, CmvButton } from "@/shared/component";
+import { CMV_EDIT, CMV_TABLE, CmvButton } from "@/shared/component";
 import { useAnchoredPosition } from "@/shared/hook/useAnchoredPosition";
 import { cn } from "@/shared/util/cn.util";
 
@@ -97,7 +97,7 @@ export function ColumnMenu({
         className={cn(CMV_TABLE.headLabel, "flex items-center gap-cmv-xs hover:text-cmv-text-hi")}
       >
         {metricLabel(metric, customMetrics, t)}
-        <IoChevronDown />
+        <IoChevronDown className={CMV_EDIT.only} />
       </button>
 
       {/*

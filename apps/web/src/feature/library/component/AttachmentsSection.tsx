@@ -12,7 +12,8 @@ import { useTranslation } from "react-i18next";
 import { ACCEPTED_DOCUMENT_ATTR } from "@/feature/library/constant";
 import type { PendingFile } from "@/feature/library/hook/useSaveExercise";
 import { useDeleteDocument } from "@/feature/library/hook/useSaveExercise";
-import { CmvBadge, CmvButton, CmvProgressBar, CmvTextField } from "@/shared/component";
+import { CMV_EDIT, CmvBadge, CmvButton, CmvProgressBar, CmvTextField } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 type AttachmentsSectionProps = {
   exercise: ExerciseDto | null;
@@ -126,13 +127,15 @@ export function AttachmentsSection({
                 ? t("library.builder.attachment.link")
                 : t("library.builder.attachment.file")}
             </CmvBadge>
-            <CmvButton
-              variant="danger"
-              disabled={removeDocument.isPending}
-              onClick={() => removeDocument.mutate({ exerciseId, documentId: document.id })}
-            >
-              {t("library.builder.attachment.remove")}
-            </CmvButton>
+            <span className={CMV_EDIT.only}>
+              <CmvButton
+                variant="danger"
+                disabled={removeDocument.isPending}
+                onClick={() => removeDocument.mutate({ exerciseId, documentId: document.id })}
+              >
+                {t("library.builder.attachment.remove")}
+              </CmvButton>
+            </span>
           </div>
         </div>
       ))}
@@ -172,7 +175,18 @@ export function AttachmentsSection({
         </div>
       ))}
 
-      <label className="flex cursor-pointer flex-col items-center gap-cmv-xs rounded-cmv-md border border-cmv-border border-dashed bg-cmv-bg-1 p-cmv-lg text-center hover:border-cmv-border-hi">
+      {attachments.length === 0 ? (
+        <p className={cn(CMV_EDIT.readOnly, "text-cmv-body text-cmv-text-lo")}>
+          {t("library.builder.attachment.none")}
+        </p>
+      ) : null}
+
+      <label
+        className={cn(
+          "flex cursor-pointer flex-col items-center gap-cmv-xs rounded-cmv-md border border-cmv-border border-dashed bg-cmv-bg-1 p-cmv-lg text-center hover:border-cmv-border-hi",
+          CMV_EDIT.only,
+        )}
+      >
         <span className="text-cmv-body text-cmv-text-hi">
           {t("library.builder.attachment.add")}
         </span>
@@ -188,7 +202,7 @@ export function AttachmentsSection({
         />
       </label>
 
-      <div className="flex items-end gap-cmv-sm">
+      <div className={cn("flex items-end gap-cmv-sm", CMV_EDIT.only)}>
         <div className="flex-1">
           <CmvTextField
             label={t("library.builder.attachment.addLink")}

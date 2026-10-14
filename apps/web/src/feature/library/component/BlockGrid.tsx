@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BlockGridHead, BlockGridRow } from "@/feature/library/component/BlockGridRow";
 import { ColumnMenu } from "@/feature/library/component/ColumnMenu";
 import { useBlockRows } from "@/feature/library/hook/useBlockRows";
-import { CMV_TABLE, CmvButton } from "@/shared/component";
+import { CMV_EDIT, CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type BlockGridProps = {
@@ -85,7 +85,7 @@ export function BlockGrid({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center gap-cmv-md">
+      <div className={cn("flex flex-wrap items-center gap-cmv-md", CMV_EDIT.only)}>
         {/* En Séries, c'est le champ « Séries » du bandeau qui fixe le nombre de lignes. */}
         {rows.canAddRow ? (
           <CmvButton variant="secondary" onClick={rows.addRow} disabled={rows.isFull}>

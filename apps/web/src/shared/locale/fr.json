@@ -291,6 +291,7 @@
       "addBlock": "Ajouter une structure",
       "noBlockTitle": "Aucune structure",
       "noBlockDescription": "C'est un état valide — tu peux enregistrer. Ajoute une structure si l'exercice se dose.",
+      "noBlockReadOnly": "Cet exercice n'a pas de structure.",
       "blockLabel": "Libellé du bloc",
       "blockLabelPlaceholder": "Ex. Échauffement, Travail…",
       "moveBlockUp": "Monter le bloc",
@@ -416,6 +417,7 @@
       "deleteExercise": "Supprimer l'exercice",
       "attachment": {
         "title": "Pièces jointes et liens",
+        "none": "Aucune pièce jointe.",
         "add": "Ajouter un fichier",
         "hint": "PDF, PNG, JPEG, WebP · 20 Mo max",
         "file": "Fichier",

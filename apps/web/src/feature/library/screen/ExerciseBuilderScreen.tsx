@@ -26,6 +26,7 @@ import {
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
+  CMV_EDIT,
   CmvAppShell,
   CmvErrorState,
   CmvFormError,
@@ -41,6 +42,7 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { isStaleWriteError } from "@/shared/lib/api";
+import { cn } from "@/shared/util/cn.util";
 
 /**
  * Chargé à la demande : TipTap et ProseMirror pèsent ~120 kB gzip, pour un éditeur que seul le
@@ -267,8 +269,12 @@ function ExerciseBuilder({
         <InstructionMediaProvider media={draft.media}>
           <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
             {/* `disabled` sur le fieldset fige d'un geste chaque champ et chaque bouton du
-                formulaire ; les liens des pièces jointes restent ouverts. */}
-            <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-cmv-xl">
+                formulaire, et efface ce qui ne sert qu'à éditer (`CMV_EDIT`) ; les liens des
+                pièces jointes restent ouverts. */}
+            <fieldset
+              disabled={readOnly}
+              className={cn("flex min-w-0 flex-col gap-cmv-xl", CMV_EDIT.group)}
+            >
               {/* Champ, message et légende serrés ensemble : l'espacement du formulaire
                 (`gap-cmv-xl`) éloignerait la légende de l'astérisque qu'elle explique. */}
               <div className="flex flex-col gap-cmv-xs">
@@ -281,14 +287,16 @@ function ExerciseBuilder({
                   onBlur={() => setTitleTouched(true)}
                   placeholder={t("library.builder.titlePlaceholder")}
                   required
-                  requiredMark
+                  requiredMark={!readOnly}
                 />
                 {titleMissing ? (
                   <p className="text-cmv-caption text-cmv-error">
                     {t("library.builder.titleRequired")}
                   </p>
                 ) : null}
-                <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+                <p className={cn("text-cmv-caption text-cmv-text-lo", CMV_EDIT.only)}>
+                  {t("common.requiredLegend")}
+                </p>
               </div>
 
               <CmvTagInput

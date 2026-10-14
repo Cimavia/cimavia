@@ -35,4 +35,5 @@ export { CmvTextArea } from "./CmvTextArea";
 export { CmvTextField } from "./CmvTextField";
 export { ToastProvider, useToast } from "./CmvToast";
 export { CmvToggleChip } from "./CmvToggleChip";
+export { CMV_EDIT } from "./edit-group.style";
 export { CMV_TABLE } from "./table.style";

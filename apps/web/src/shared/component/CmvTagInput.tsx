@@ -1,4 +1,6 @@
 import { type KeyboardEvent, useId, useMemo, useState } from "react";
+import { cn } from "@/shared/util/cn.util";
+import { CMV_EDIT } from "./edit-group.style";
 
 /**
  * Saisie de tags libres avec autocomplétion.
@@ -94,7 +96,7 @@ export function CmvTagInput({
               type="button"
               onClick={() => remove(tag)}
               aria-label={`${removeLabel} ${tag}`}
-              className="text-cmv-accent-on/70 hover:text-cmv-accent-on"
+              className={cn("text-cmv-accent-on/70 hover:text-cmv-accent-on", CMV_EDIT.only)}
             >
               ×
             </button>
@@ -111,7 +113,10 @@ export function CmvTagInput({
           onKeyDown={onKeyDown}
           onBlur={() => add(draft)}
           placeholder={isFull ? undefined : placeholder}
-          className="min-w-32 flex-1 bg-transparent text-cmv-body text-cmv-text-hi outline-none"
+          className={cn(
+            "min-w-32 flex-1 bg-transparent text-cmv-body text-cmv-text-hi outline-none",
+            CMV_EDIT.only,
+          )}
         />
 
         {/* `datalist` plutôt qu'un menu maison : le navigateur gère le filtrage au clavier,

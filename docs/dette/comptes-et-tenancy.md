@@ -975,7 +975,11 @@ liste des domaines vivent dans l'index.
 >   s'ouvrir encore. Ce que le fieldset ne fige pas suit `readOnly` : le menu d'une carte, la
 >   poignée de glisser et l'ajout d'exercice disparaissent, et la consigne (TipTap, un
 >   `contenteditable`) passe par `setEditable`. Un champ ajouté hors de ces fieldsets doit le lire
->   aussi. En Écriture tout se modifie, et la suppression reste au propriétaire.
+>   aussi. Figé ne suffit pas : la frame 12 montre une fiche, pas un formulaire grisé. Ces
+>   fieldsets portent `CMV_EDIT.group`, et ce qui ne sert qu'à éditer — ajouter, retirer, déplacer,
+>   les textes d'aide — s'efface par le CSS (`CMV_EDIT.only`) plutôt que par un `readOnly` descendu
+>   dans chaque composant ; la grille reste, et ses valeurs. En Écriture tout se modifie, et la
+>   suppression reste au propriétaire.
 > - **Les métriques d'un élément d'un autre Coach sont celles de son propriétaire** :
 >   `mergeCatalogs` réunit le catalogue lu et les définitions que l'élément embarque, la première
 >   rencontrée l'emportant. Une ligne ajoutée à une séance planifiée n'envoie pas les siennes : le

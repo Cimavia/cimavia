@@ -18,7 +18,7 @@ import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockGridHead, BlockGridRow } from "@/feature/library/component/BlockGridRow";
 import { useBlockRows } from "@/feature/library/hook/useBlockRows";
 import { baselineValue } from "@/feature/library/util/dosage-summary.util";
-import { CMV_TABLE, CmvButton } from "@/shared/component";
+import { CMV_EDIT, CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBlockGridProps = {
@@ -109,9 +109,11 @@ export function SessionBlockGrid({
 
       {/* En Séries, c'est le champ « Séries » du bandeau qui fixe le nombre de lignes. */}
       {rows.canAddRow ? (
-        <CmvButton variant="secondary" onClick={rows.addRow} disabled={rows.isFull}>
-          {t("library.builder.grid.addRow")}
-        </CmvButton>
+        <div className={CMV_EDIT.only}>
+          <CmvButton variant="secondary" onClick={rows.addRow} disabled={rows.isFull}>
+            {t("library.builder.grid.addRow")}
+          </CmvButton>
+        </div>
       ) : null}
     </div>
   );
@@ -164,7 +166,7 @@ function AdjustedHint({
       <button
         type="button"
         onClick={onRevert}
-        className="text-cmv-caption text-cmv-accent hover:underline"
+        className={cn("text-cmv-caption text-cmv-accent hover:underline", CMV_EDIT.only)}
       >
         {t("library.session.revert")}
       </button>
