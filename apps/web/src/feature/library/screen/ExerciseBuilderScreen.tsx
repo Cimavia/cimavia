@@ -4,7 +4,7 @@ import {
   EXERCISE_TAG_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
-  isOwner,
+  foreignOf,
 } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
@@ -187,7 +187,7 @@ function ExerciseBuilder({
 
   // L'exercice d'un autre Coach (#606) : en Écriture il se modifie, sans suppression ; en Lecture
   // il se consulte.
-  const foreign = foreignExercise(edited);
+  const foreign = foreignOf(edited);
   const readOnly = foreign != null && !canWrite(foreign.myAccess);
   // Le message n'apparaît qu'APRÈS que le champ a été touché : l'afficher au premier rendu
   // accueillerait le coach par une erreur qu'il n'a pas encore eu l'occasion de commettre.
@@ -361,11 +361,6 @@ function ExerciseBuilder({
   );
 }
 
-/** L'exercice s'il est à un autre Coach ; `null` pour le sien, ou pour celui qui naît. */
-function foreignExercise(exercise: ExerciseDto | null) {
-  return exercise != null && !isOwner(exercise.myAccess) ? exercise : null;
-}
-
 /** Le titre et le sous-titre du constructeur : selon l'exercice, et le droit qu'en a l'acteur. */
 function builderHeading(exercise: ExerciseDto | null, t: TFunction) {
   if (exercise == null) {
@@ -378,7 +373,7 @@ function builderHeading(exercise: ExerciseDto | null, t: TFunction) {
     exercise.usedInSessionCount > 0
       ? t("library.builder.usedInSessions", { count: exercise.usedInSessionCount })
       : null;
-  const foreign = foreignExercise(exercise);
+  const foreign = foreignOf(exercise);
   if (foreign == null) {
     return {
       title: t("library.builder.editTitle"),

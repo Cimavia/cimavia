@@ -3,7 +3,7 @@ import {
   type CustomMetric,
   canWrite,
   type ExerciseDto,
-  isOwner,
+  foreignOf,
   required,
   type UpdateCustomMetricInput,
 } from "@cmv/shared";
@@ -38,14 +38,14 @@ export function useCustomMetrics() {
  * choisit : aucune requête, les métriques que l'exercice cite arrivent avec lui (`customMetrics`).
  */
 export function useExerciseCatalog(exercise: ExerciseDto | null) {
-  const foreignId = exercise != null && !isOwner(exercise.myAccess) ? exercise.id : null;
-  const own = useQuery<CustomMetric[]>({ ...ownCatalogQuery, enabled: foreignId == null });
-  const foreign = useQuery<CustomMetric[]>({
-    queryKey: exerciseKeys.customMetrics(foreignId ?? ""),
-    queryFn: () => listExerciseCustomMetrics(required(foreignId, "catalogue sans exercice")),
-    enabled: foreignId != null && exercise != null && canWrite(exercise.myAccess),
+  const foreign = foreignOf(exercise);
+  const own = useQuery<CustomMetric[]>({ ...ownCatalogQuery, enabled: foreign == null });
+  const owners = useQuery<CustomMetric[]>({
+    queryKey: exerciseKeys.customMetrics(foreign?.id ?? ""),
+    queryFn: () => listExerciseCustomMetrics(required(foreign, "catalogue sans exercice").id),
+    enabled: foreign != null && canWrite(foreign.myAccess),
   });
-  return foreignId == null ? own : foreign;
+  return foreign == null ? own : owners;
 }
 
 /**

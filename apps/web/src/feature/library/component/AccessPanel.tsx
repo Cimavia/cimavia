@@ -6,7 +6,7 @@ import {
   type CoachOrganizationDto,
   type ElementAccessDto,
   type ExerciseDto,
-  isOwner,
+  foreignOf,
   MIXED_ACCESS,
   MyAccessLevel,
   type PanelAccess,
@@ -59,7 +59,7 @@ type AccessPanelProps<T extends AccessElement> = {
 export function AccessPanel<T extends AccessElement>(props: Readonly<AccessPanelProps<T>>) {
   const [first] = props.elements;
   const element = required(first, "panneau des accès sans élément");
-  if (props.elements.length === 1 && !isOwner(element.myAccess)) {
+  if (props.elements.length === 1 && foreignOf(element) != null) {
     return <ReadOnlyAccess element={element} {...props} />;
   }
   return <OwnerAccess {...props} />;

@@ -1,6 +1,7 @@
 import type { CustomMetric, ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv/shared";
 import {
   canWrite,
+  foreignOf,
   isOwner,
   required,
   SESSION_NOTES_MAX_LENGTH,
@@ -242,7 +243,7 @@ function SessionBuilder({
 
   // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
   // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
-  const foreign = foreignSession(session);
+  const foreign = foreignOf(session);
   const readOnly = foreign != null && !canWrite(foreign.myAccess);
   // Chaque ligne apporte les métriques de l'exercice qu'elle compose, chez son propriétaire
   // (#605) : le catalogue du Coach ne résout que les siennes.
@@ -523,11 +524,6 @@ function SessionBuilder({
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
-}
-
-/** La séance si elle est à un autre Coach ; `null` pour la sienne, ou pour celle qui naît. */
-function foreignSession(session: SessionDto | null) {
-  return session != null && !isOwner(session.myAccess) ? session : null;
 }
 
 /** La composition, précédée — pour la séance d'un autre — de son propriétaire et du droit qu'on en a. */

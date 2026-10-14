@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type AccessGrantDto, AccessLevel, MyAccessLevel } from "../dto/access.schema";
-import { canWrite, effectiveAccess, isOwner } from "./access.util";
+import { canWrite, effectiveAccess, foreignOf, isOwner } from "./access.util";
 
 const F = { id: "org-f", name: "F" };
 const G = { id: "org-g", name: "G" };
@@ -85,5 +85,21 @@ describe("isOwner", () => {
     [MyAccessLevel.READ, false],
   ] as const)("%s → %s", (level, expected) => {
     expect(isOwner({ level, via: null })).toBe(expected);
+  });
+});
+
+describe("foreignOf", () => {
+  const of = (level: MyAccessLevel) => ({ id: "e", myAccess: { level, via: null } });
+
+  it("rend l'élément d'un autre, en Lecture comme en Écriture", () => {
+    const read = of(MyAccessLevel.READ);
+    const write = of(MyAccessLevel.WRITE);
+    expect(foreignOf(read)).toBe(read);
+    expect(foreignOf(write)).toBe(write);
+  });
+
+  it("`null` pour le sien, et pour celui qui naît", () => {
+    expect(foreignOf(of(MyAccessLevel.OWNER))).toBeNull();
+    expect(foreignOf(null)).toBeNull();
   });
 });
