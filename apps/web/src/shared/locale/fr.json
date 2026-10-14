@@ -430,9 +430,62 @@
       "title": "Aucun exercice ne correspond à « {{search}} »",
       "create": "Créer « {{search}} »"
     },
-    "card": {
-      "documentCount": "{{count}} pièce jointe",
-      "documentCount_other": "{{count}} pièces jointes"
+    "access": {
+      "title": "Accès",
+      "private": "Privé",
+      "grant": "{{name}} · {{level}}",
+      "sharedBy": "Partagé par {{owner}} · {{level}}",
+      "me": "Moi",
+      "level": {
+        "NONE": "Aucun",
+        "READ": "Lecture",
+        "WRITE": "Écriture"
+      },
+      "via": "{{level}} via {{organization}}",
+      "mixed": "Mixte",
+      "organizations": "Entreprises",
+      "organizationCoaches": "Entreprise · {{coaches}} et toi",
+      "organizationCoaches_zero": "Entreprise · toi seul",
+      "organizationCoaches_other": "Entreprise · {{coaches}} et toi",
+      "writeMeans": " : en modifier le contenu.",
+      "ownerOnly": "Supprimer et gérer les accès restent réservés au propriétaire.",
+      "owner": "Propriétaire",
+      "myRight": "Ton droit",
+      "save": "Enregistrer",
+      "saved": "Accès enregistrés.",
+      "exercise": {
+        "mine": "Exercice · à toi",
+        "ofOwner": "Exercice de {{owner}}",
+        "count": "{{count}} exercice",
+        "count_other": "{{count}} exercices",
+        "applyTo": "Appliquer à l'exercice",
+        "applyTo_other": "Appliquer aux {{count}} exercices",
+        "readMeans": " : voir l'exercice et l'utiliser dans ses séances et planifications.",
+        "open": "Ouvrir l'exercice",
+        "canRead": "Tu peux voir cet exercice et l'utiliser dans tes séances et planifications.",
+        "canWrite": "Tu peux voir cet exercice, l'utiliser dans tes séances et planifications, et en modifier le contenu.",
+        "selected": "{{count}} exercice sélectionné",
+        "selected_other": "{{count}} exercices sélectionnés",
+        "sharedEmpty": "Aucun exercice n'est partagé avec toi pour l'instant."
+      }
+    },
+    "noFilterMatch": "Aucun exercice ne correspond à ces filtres.",
+    "scope": {
+      "all": "Tous",
+      "mine": "Les miens",
+      "shared": "Partagés avec moi"
+    },
+    "table": {
+      "title": "Titre",
+      "tags": "Tags",
+      "owner": "Propriétaire",
+      "access": "Accès",
+      "updatedAt": "Modifié le",
+      "select": "Sélectionner « {{title}} »",
+      "selectAll": "Tout sélectionner",
+      "clearSelection": "Désélectionner",
+      "tooMany": "{{max}} au plus à la fois : désélectionne-en quelques-uns.",
+      "editAccess": "Modifier les accès ({{count}})"
     }
   },
   "plan": {

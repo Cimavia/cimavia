@@ -1,7 +1,17 @@
-import type { ExerciseDto } from "@cmv/shared";
+import {
+  type CoachOrganizationDto,
+  type ExerciseDto,
+  LibraryScope,
+  MyAccessLevel,
+} from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
+import {
+  useChangeExerciseAccess,
+  useExercises,
+  useExerciseTags,
+} from "@/feature/library/hook/useExercises";
+import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { renderInRoute } from "../../../../test/render";
 import { ExerciseList } from "./ExerciseList";
 
@@ -9,13 +19,37 @@ import { ExerciseList } from "./ExerciseList";
 vi.mock("@/feature/library/hook/useExercises", () => ({
   useExercises: vi.fn(),
   useExerciseTags: vi.fn(),
+  useChangeExerciseAccess: vi.fn(),
 }));
+vi.mock("@/feature/library/hook/useMyOrganizations", () => ({ useMyOrganizations: vi.fn() }));
 
 const refetch = vi.fn();
+const refetchOrganizations = vi.fn();
 const SEARCH = "library.searchLabel";
+const F: CoachOrganizationDto = { id: "org-f", name: "F", coaches: [] };
 
-const exercise = (id: string, title: string) =>
-  ({ id, title, description: null, tags: [], documents: [] }) as unknown as ExerciseDto;
+const exercise = (id: string, title: string, owner = "C") =>
+  ({
+    id,
+    title,
+    tags: [],
+    owner: { id: owner, name: owner },
+    myAccess: {
+      level: owner === "C" ? MyAccessLevel.OWNER : MyAccessLevel.READ,
+      via: owner === "C" ? null : F,
+    },
+    grants: owner === "C" ? [] : null,
+    updatedAt: "2026-10-06T08:00:00.000Z",
+  }) as unknown as ExerciseDto;
+
+/** Les entreprises du Coach : aucune par défaut, `undefined` = pas encore lues. */
+function organizations(data: CoachOrganizationDto[] | undefined, isError = false) {
+  vi.mocked(useMyOrganizations).mockReturnValue({
+    data,
+    isError,
+    refetch: refetchOrganizations,
+  } as unknown as ReturnType<typeof useMyOrganizations>);
+}
 
 function state(options: {
   data?: ExerciseDto[];
@@ -35,6 +69,12 @@ function state(options: {
   vi.mocked(useExerciseTags).mockReturnValue({ data: tags } as unknown as ReturnType<
     typeof useExerciseTags
   >);
+  vi.mocked(useChangeExerciseAccess).mockReturnValue({
+    mutate: vi.fn(),
+    reset: vi.fn(),
+    error: null,
+    isPending: false,
+  } as unknown as ReturnType<typeof useChangeExerciseAccess>);
 }
 
 const lastFilters = () => vi.mocked(useExercises).mock.lastCall?.[0];
@@ -48,6 +88,7 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  organizations([]);
 });
 
 describe("ExerciseList — filtres", () => {
@@ -156,17 +197,93 @@ describe("ExerciseList — états", () => {
     expect(router.state.location.search).toEqual({ title: "Planche" });
   });
 
-  it("montre chaque exercice, et ouvre celui qu'on choisit", async () => {
+  it("montre chaque exercice en ligne, et ouvre celui qu'on choisit", async () => {
     state({ data: [exercise("ex-1", "Tractions"), exercise("ex-2", "Gainage")] });
     const { user, getByRole, getAllByRole, queryByText, router } = await setup();
 
-    expect(getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
-      "Tractions",
-      "Gainage",
-    ]);
+    expect(getAllByRole("row")).toHaveLength(3);
     expect(queryByText("library.empty.title")).not.toBeInTheDocument();
-    await user.click(getByRole("button", { name: /Gainage/ }));
+    await user.click(getByRole("button", { name: "Gainage" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/library/exercises/ex-2"));
+  });
+
+  it("attend de savoir si le Coach partage avant d'afficher la liste", async () => {
+    organizations(undefined);
+    state({ data: [exercise("ex-1", "Tractions")] });
+    const { getByText, queryByRole } = await setup();
+
+    expect(getByText("common.loading")).toBeInTheDocument();
+    expect(queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  // Une lecture ratée n'est pas « aucune entreprise » : la liste ne s'affiche pas sans partage.
+  it("des entreprises illisibles se disent en erreur, et se relisent seules", async () => {
+    organizations(undefined, true);
+    state({ data: [exercise("ex-1", "Tractions")] });
+    const { user, getByRole, queryByRole } = await setup();
+
+    expect(queryByRole("table")).not.toBeInTheDocument();
+    await user.click(getByRole("button", { name: "common.retry" }));
+
+    expect(refetchOrganizations).toHaveBeenCalledOnce();
+    expect(refetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExerciseList — partage", () => {
+  it("sans entreprise : ni portée demandée, ni filtre, ni colonnes du partage (frame 14)", async () => {
+    state({ data: [exercise("ex-1", "Tractions")] });
+    const { queryByRole, queryByText } = await setup();
+
+    expect(lastFilters()).toEqual({});
+    expect(queryByRole("button", { name: "library.scope.shared" })).not.toBeInTheDocument();
+    expect(queryByText("library.table.access")).not.toBeInTheDocument();
+    expect(queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("avec une entreprise : la portée se choisit et se demande", async () => {
+    organizations([F]);
+    state({ data: [exercise("ex-1", "Tractions")] });
+    const { user, getByRole, getByText } = await setup();
+
+    expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
+    expect(getByText("library.table.access")).toBeInTheDocument();
+
+    await user.click(getByRole("button", { name: "library.scope.mine" }));
+    expect(lastFilters()).toEqual({ scope: LibraryScope.MINE });
+  });
+
+  it("« Partagés avec moi » vide le dit, sans proposer de créer (frame 4)", async () => {
+    organizations([F]);
+    state({ data: [] });
+    const { user, getByRole, getByText, queryByRole } = await setup();
+
+    await user.click(getByRole("button", { name: "library.scope.shared" }));
+
+    expect(getByText("library.access.exercise.sharedEmpty")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.newExercise" })).not.toBeInTheDocument();
+  });
+
+  it("une recherche vaine parmi les partagés ne propose pas de créer", async () => {
+    organizations([F]);
+    state({ data: [] });
+    const { user, getByRole, getByLabelText, getByText, queryByRole } = await setup();
+
+    await user.click(getByRole("button", { name: "library.scope.shared" }));
+    await user.type(getByLabelText(SEARCH), "Tractions");
+
+    expect(getByText("library.noMatch.title")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.noMatch.create" })).not.toBeInTheDocument();
+  });
+
+  it("un tag qui ne trouve rien n'est pas une bibliothèque vide", async () => {
+    state({ data: [] });
+    const { user, getByRole, getByText, queryByText } = await setup();
+
+    await user.click(getByRole("button", { name: "force" }));
+
+    expect(getByText("library.noFilterMatch")).toBeInTheDocument();
+    expect(queryByText("library.empty.title")).not.toBeInTheDocument();
   });
 });

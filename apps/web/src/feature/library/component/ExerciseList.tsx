@@ -1,120 +1,137 @@
+import { LibraryScope } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
-import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
+import { LibraryTable } from "@/feature/library/component/LibraryTable";
+import { LibraryToolbar, NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
 import {
-  CmvButton,
-  CmvChoiceChips,
-  CmvEmptyState,
-  CmvErrorState,
-  CmvTextField,
-} from "@/shared/component";
-
-// "" = pas de filtre. Un tag ne peut pas être vide (`exerciseTagSchema` impose min 1), la valeur
-// est donc libre de toute collision — pas besoin d'une sentinelle qui pourrait être un vrai tag.
-const NO_TAG_FILTER = "";
+  useChangeExerciseAccess,
+  useExercises,
+  useExerciseTags,
+} from "@/feature/library/hook/useExercises";
+import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
+import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 
 /**
- * La liste n'ouvre plus de panneau : le constructeur est une PAGE, parce qu'il porte la consigne
- * structurée, les blocs de dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne
- * peut pas montrer côte à côte.
+ * L'onglet Exercices (#606, maquette #597, frames 1, 2, 4 et 14). La liste n'ouvre pas de panneau
+ * de détail : le constructeur est une PAGE, parce qu'il porte la consigne structurée, les blocs de
+ * dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne peut pas montrer côte à côte.
  */
 export function ExerciseList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<LibraryScope>(LibraryScope.ALL);
+  const trimmed = search.trim();
 
-  const filters = {
+  // Sans entreprise, la bibliothèque n'a rien du partage : il faut donc SAVOIR avant d'afficher.
+  // Une lecture ratée n'est pas « aucune entreprise » (règle dure n°5) : elle se dit en erreur.
+  const organizations = useMyOrganizations();
+  const sharing = (organizations.data?.length ?? 0) > 0;
+  const exercises = useExercises({
     ...(tagFilter === NO_TAG_FILTER ? {} : { tag: tagFilter }),
-    ...(search.trim() ? { search: search.trim() } : {}),
-  };
-  const { data: exercises, isPending, isError, refetch } = useExercises(filters);
-  // Tous les tags du coach, pas ceux des exercices affichés : dérivés de la liste filtrée, ils
-  // rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
+    ...(trimmed === "" ? {} : { search: trimmed }),
+    ...(sharing ? { scope } : {}),
+  });
+  // Les tags existants de tout ce que le Coach lit, pas ceux des exercices affichés : dérivés de la
+  // liste filtrée, ils rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
   const { data: tags } = useExerciseTags();
+  const change = useChangeExerciseAccess();
 
-  return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-cmv-lg">
-        <div className="w-full max-w-xs">
-          <CmvTextField
-            label={t("library.searchLabel")}
-            name="search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("library.searchExercise")}
-          />
-        </div>
-        {/* Aucun tag chez le coach : pas de filtre à un seul bouton « Tous », qui ne filtrerait rien. */}
-        {tags == null || tags.length === 0 ? null : (
-          <CmvChoiceChips
-            value={tagFilter}
-            onChange={setTagFilter}
-            options={[
-              { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
-              ...tags.map((tag) => ({ value: tag, label: tag })),
-            ]}
-          />
-        )}
-      </div>
+  function open(exerciseId: string) {
+    navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId } });
+  }
 
-      {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
-      {isError ? (
+  function body() {
+    if (exercises.isError || organizations.isError) {
+      return (
         <CmvErrorState
           title={t("common.errorTitle")}
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
-          onRetry={() => refetch()}
+          onRetry={() => {
+            if (exercises.isError) exercises.refetch();
+            if (organizations.isError) organizations.refetch();
+          }}
         />
-      ) : null}
+      );
+    }
+    if (exercises.data == null || organizations.data == null) {
+      return <p className="text-cmv-text-mid">{t("common.loading")}</p>;
+    }
+    if (exercises.data.length === 0) return emptyState();
+    return (
+      <LibraryTable
+        // Une autre portée est une autre liste : la sélection ne la traverse pas.
+        key={scope}
+        rows={exercises.data}
+        organizations={organizations.data}
+        copyPrefix="library.access.exercise"
+        mutation={change}
+        onOpen={(exercise) => open(exercise.id)}
+      />
+    );
+  }
 
-      {/* Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
-          bibliothèque neuve, le second constate qu'une recherche ne trouve rien alors que la
-          bibliothèque est pleine — et propose de créer l'exercice manquant. */}
-      {exercises?.length === 0 && search.trim() !== "" ? (
+  /**
+   * Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
+   * bibliothèque neuve, le second constate qu'une recherche ne trouve rien — et propose de créer
+   * l'exercice manquant. « Partagés avec moi » n'appelle aucune création, recherche comprise : ce
+   * qui manque n'est pas au Coach de le faire (frame 4).
+   */
+  function emptyState() {
+    const sharedOnly = sharing && scope === LibraryScope.SHARED;
+    if (trimmed !== "") {
+      return (
         <CmvEmptyState
-          title={t("library.noMatch.title", { search: search.trim() })}
+          title={t("library.noMatch.title", { search: trimmed })}
           action={
-            <CmvButton
-              onClick={() =>
-                navigate({ to: "/library/exercises/new", search: { title: search.trim() } })
-              }
-            >
-              {t("library.noMatch.create", { search: search.trim() })}
-            </CmvButton>
+            sharedOnly ? undefined : (
+              <CmvButton
+                onClick={() =>
+                  navigate({ to: "/library/exercises/new", search: { title: trimmed } })
+                }
+              >
+                {t("library.noMatch.create", { search: trimmed })}
+              </CmvButton>
+            )
           }
         />
-      ) : null}
+      );
+    }
+    if (sharedOnly) {
+      return <CmvEmptyState title={t("library.access.exercise.sharedEmpty")} />;
+    }
+    if (tagFilter !== NO_TAG_FILTER) {
+      return <CmvEmptyState title={t("library.noFilterMatch")} />;
+    }
+    return (
+      <CmvEmptyState
+        title={t("library.empty.title")}
+        description={t("library.empty.description")}
+        action={
+          <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
+            {t("library.newExercise")}
+          </CmvButton>
+        }
+      />
+    );
+  }
 
-      {exercises?.length === 0 && search.trim() === "" ? (
-        <CmvEmptyState
-          title={t("library.empty.title")}
-          description={t("library.empty.description")}
-          action={
-            <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
-              {t("library.newExercise")}
-            </CmvButton>
-          }
-        />
-      ) : null}
-
-      <div className="grid gap-cmv-lg sm:grid-cols-2 lg:grid-cols-3">
-        {exercises?.map((exercise) => (
-          <ExerciseCard
-            key={exercise.id}
-            exercise={exercise}
-            onSelect={() =>
-              navigate({
-                to: "/library/exercises/$exerciseId",
-                params: { exerciseId: exercise.id },
-              })
-            }
-          />
-        ))}
-      </div>
+  return (
+    <>
+      <LibraryToolbar
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder={t("library.searchExercise")}
+        tags={tags ?? []}
+        tag={tagFilter}
+        onTag={setTagFilter}
+        scope={sharing ? scope : null}
+        onScope={setScope}
+      />
+      {body()}
     </>
   );
 }
