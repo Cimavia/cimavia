@@ -1,6 +1,7 @@
 import { LibraryScope, type SessionDto, searchMatcher, sessionTags } from "@cmv/shared";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
 import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
 import { LibraryToolbar, NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
@@ -47,21 +48,20 @@ export function SessionList({ onCreate, onEdit }: Readonly<SessionListProps>) {
 
   /** Même ordre que les exercices ; une séance ne se crée pas depuis une recherche vaine. */
   function emptyState() {
-    if (filters.search !== "") {
-      return <CmvEmptyState title={t("library.session.noMatch", { search: filters.search })} />;
-    }
-    if (filters.tag !== NO_TAG_FILTER) {
-      return <CmvEmptyState title={t("library.noFilterMatch")} />;
-    }
-    if (filters.scope === LibraryScope.SHARED) {
-      return <CmvEmptyState title={t("library.access.session.sharedEmpty")} />;
-    }
     return (
-      <CmvEmptyState
-        title={t("library.session.listEmpty.title")}
-        description={t("library.session.listEmpty.description")}
-        action={<CmvButton onClick={onCreate}>{t("library.newSession")}</CmvButton>}
-      />
+      <LibraryEmptyState
+        search={filters.search}
+        tag={filters.tag}
+        sharedOnly={filters.scope === LibraryScope.SHARED}
+        noMatch={t("library.session.noMatch", { search: filters.search })}
+        sharedEmpty={t("library.access.session.sharedEmpty")}
+      >
+        <CmvEmptyState
+          title={t("library.session.listEmpty.title")}
+          description={t("library.session.listEmpty.description")}
+          action={<CmvButton onClick={onCreate}>{t("library.newSession")}</CmvButton>}
+        />
+      </LibraryEmptyState>
     );
   }
 

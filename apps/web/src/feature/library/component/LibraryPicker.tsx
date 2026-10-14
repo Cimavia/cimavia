@@ -1,6 +1,8 @@
 import { type CustomMetric, type ExerciseDto, LibraryScope, searchMatcher } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
+import { NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { ownerRightText } from "@/feature/library/util/access-text.util";
@@ -14,9 +16,6 @@ import {
   CmvTextField,
   CmvToggleChip,
 } from "@/shared/component";
-
-// "" = pas de filtre : un tag ne peut pas être vide, la valeur est donc libre de toute collision.
-const NO_TAG = "";
 
 /** Ce que le sélecteur propose : les exercices du Coach, ceux qu'on lui partage — ou les deux. */
 type Shown = { mine: boolean; shared: boolean };
@@ -55,14 +54,14 @@ export function LibraryPicker({
 }: Readonly<LibraryPickerProps>) {
   const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
-  const [tag, setTag] = useState(NO_TAG);
+  const [tag, setTag] = useState(NO_TAG_FILTER);
   const [shown, setShown] = useState<Shown>({ mine: true, shared: true });
   // `null` tant que les entreprises ne se lisent pas : le propriétaire, que chaque exercice
   // porte, se montre quand même — seules les bascules, qui demandent une portée, attendent.
   const sharing = sharesLibrary(useMyOrganizations().data);
   const scope = sharing === true ? scopeOf(shown) : LibraryScope.ALL;
 
-  const { data: exercises } = useExercises({ ...(tag === NO_TAG ? {} : { tag }), scope });
+  const { data: exercises } = useExercises({ ...(tag === NO_TAG_FILTER ? {} : { tag }), scope });
   const { data: tags } = useExerciseTags();
 
   // Filtrage du titre côté client : la liste d'un coach tient en mémoire, et `searchMatcher` rend
@@ -90,7 +89,7 @@ export function LibraryPicker({
           value={tag}
           onChange={setTag}
           options={[
-            { value: NO_TAG, label: t("library.filterAllTags") },
+            { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
             ...tags.map((name) => ({ value: name, label: name })),
           ]}
         />
@@ -150,11 +149,7 @@ type PickerEmptyProps = {
   isSaving: boolean;
 };
 
-/**
- * Le sélecteur vide, dans l'ordre des onglets de la bibliothèque : recherche, tag, partagés, rien.
- * Seule la recherche vaine propose de créer — et pas parmi les seuls partagés : ce qui manque
- * n'est pas au Coach de le faire (frame 4).
- */
+/** Le sélecteur vide, selon la même règle que les onglets de la bibliothèque (`libraryEmpty`). */
 function PickerEmpty({
   search,
   tag,
@@ -163,23 +158,22 @@ function PickerEmpty({
   isSaving,
 }: Readonly<PickerEmptyProps>) {
   const { t } = useTranslation();
-  if (search !== "") {
-    return (
-      <CmvEmptyState
-        title={t("library.noMatch.title", { search })}
-        action={
-          sharedOnly ? undefined : (
-            <CmvButton onClick={() => onCreateMissing(search)} disabled={isSaving}>
-              {t("library.noMatch.create", { search })}
-            </CmvButton>
-          )
-        }
-      />
-    );
-  }
-  if (tag !== NO_TAG) return <CmvEmptyState title={t("library.noFilterMatch")} />;
-  if (sharedOnly) return <CmvEmptyState title={t("library.access.exercise.sharedEmpty")} />;
-  return <CmvEmptyState title={t("library.empty.title")} />;
+  return (
+    <LibraryEmptyState
+      search={search}
+      tag={tag}
+      sharedOnly={sharedOnly}
+      noMatch={t("library.noMatch.title", { search })}
+      create={
+        <CmvButton onClick={() => onCreateMissing(search)} disabled={isSaving}>
+          {t("library.noMatch.create", { search })}
+        </CmvButton>
+      }
+      sharedEmpty={t("library.access.exercise.sharedEmpty")}
+    >
+      <CmvEmptyState title={t("library.empty.title")} />
+    </LibraryEmptyState>
+  );
 }
 
 type ShownTogglesProps = { shown: Shown; onChange: (shown: Shown) => void };

@@ -1,6 +1,7 @@
 import { LibraryScope } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
 import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
 import { LibraryToolbar, NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
@@ -38,47 +39,36 @@ export function ExerciseList() {
   /**
    * Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
    * bibliothèque neuve, le second constate qu'une recherche ne trouve rien — et propose de créer
-   * l'exercice manquant. « Partagés avec moi » n'appelle aucune création, recherche comprise : ce
-   * qui manque n'est pas au Coach de le faire (frame 4).
+   * l'exercice manquant (`libraryEmpty`).
    */
   function emptyState() {
-    const sharedOnly = filters.scope === LibraryScope.SHARED;
-    if (filters.search !== "") {
-      return (
-        <CmvEmptyState
-          title={t("library.noMatch.title", { search: filters.search })}
-          action={
-            sharedOnly ? undefined : (
-              <CmvButton
-                onClick={() =>
-                  navigate({ to: "/library/exercises/new", search: { title: filters.search } })
-                }
-              >
-                {t("library.noMatch.create", { search: filters.search })}
-              </CmvButton>
-            )
-          }
-        />
-      );
-    }
-    // Le tag avant la portée : « rien n'est partagé avec toi » serait faux s'il ne manquait que
-    // des exercices partagés PORTANT ce tag.
-    if (filters.tag !== NO_TAG_FILTER) {
-      return <CmvEmptyState title={t("library.noFilterMatch")} />;
-    }
-    if (sharedOnly) {
-      return <CmvEmptyState title={t("library.access.exercise.sharedEmpty")} />;
-    }
     return (
-      <CmvEmptyState
-        title={t("library.empty.title")}
-        description={t("library.empty.description")}
-        action={
-          <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
-            {t("library.newExercise")}
+      <LibraryEmptyState
+        search={filters.search}
+        tag={filters.tag}
+        sharedOnly={filters.scope === LibraryScope.SHARED}
+        noMatch={t("library.noMatch.title", { search: filters.search })}
+        create={
+          <CmvButton
+            onClick={() =>
+              navigate({ to: "/library/exercises/new", search: { title: filters.search } })
+            }
+          >
+            {t("library.noMatch.create", { search: filters.search })}
           </CmvButton>
         }
-      />
+        sharedEmpty={t("library.access.exercise.sharedEmpty")}
+      >
+        <CmvEmptyState
+          title={t("library.empty.title")}
+          description={t("library.empty.description")}
+          action={
+            <CmvButton onClick={() => navigate({ to: "/library/exercises/new" })}>
+              {t("library.newExercise")}
+            </CmvButton>
+          }
+        />
+      </LibraryEmptyState>
     );
   }
 
