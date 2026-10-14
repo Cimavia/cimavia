@@ -102,7 +102,7 @@ describe("LibraryPicker", () => {
     const { titles } = await setup();
 
     expect(titles()).toEqual(["Échauffement", "Tractions", "Gainage"]);
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
 
   it("ne propose rien tant que la bibliothèque n'est pas chargée", async () => {
@@ -128,10 +128,10 @@ describe("LibraryPicker", () => {
     const { user, getByRole } = await setup();
 
     await user.click(getByRole("button", { name: "force" }));
-    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force" });
+    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force", scope: LibraryScope.ALL });
 
     await user.click(getByRole("button", { name: "library.filterAllTags" }));
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
 
   it.each([
@@ -226,8 +226,8 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
     served(library);
     const { user, getByRole } = await setup();
 
-    // Les deux : la portée par défaut de l'API, qu'il est inutile d'écrire.
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    // Les deux : tout ce que le Coach lit, la portée par défaut de l'API.
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
     await user.click(getByRole("button", { name: "library.picker.shared" }));
 
     expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.MINE });
@@ -259,7 +259,7 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
 
     expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("library.access.grant");
     expect(queryByRole("button", { name: "library.picker.shared" })).not.toBeInTheDocument();
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
 
   it("parmi les seuls partagés, une recherche vaine ne propose pas de créer (frame 4)", async () => {

@@ -62,11 +62,7 @@ export function LibraryPicker({
   const sharing = sharesLibrary(useMyOrganizations().data);
   const scope = sharing === true ? scopeOf(shown) : LibraryScope.ALL;
 
-  const { data: exercises } = useExercises({
-    ...(tag === NO_TAG ? {} : { tag }),
-    // Sans portée choisie, celle de l'API par défaut — tout ce que le Coach lit — suffit.
-    ...(scope === LibraryScope.ALL ? {} : { scope }),
-  });
+  const { data: exercises } = useExercises({ ...(tag === NO_TAG ? {} : { tag }), scope });
   const { data: tags } = useExerciseTags();
 
   // Filtrage du titre côté client : la liste d'un coach tient en mémoire, et `searchMatcher` rend
