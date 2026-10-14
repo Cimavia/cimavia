@@ -254,20 +254,6 @@ function SessionBuilder({
   const drag = useReorderDrag(draft.moveItem);
   const adjustedItems = draft.items.filter((item) => item.adjustments.length > 0).length;
 
-  /**
-   * Enregistre, le dit, et rend la séance enregistrée — ou `null` quand il faut rester : échec
-   * (déjà annoncé), ou séance sans titre.
-   *
-   * Le titre est vérifié ICI parce que deux gestes enregistrent sans passer par le bouton, qui,
-   * lui, reste fermé sans titre : « Dupliquer en variante » et « Créer l'exercice manquant »
-   * (#303). Ils quittent la séance pour l'éditeur d'exercice, et l'enregistrent d'abord — sans
-   * ça tout ce que le coach vient de composer disparaît, et le geste qui devait l'aider lui coûte
-   * son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un échec du serveur
-   * qui ne dirait pas pourquoi.
-   *
-   * Une saisie refusée retient de même (#566) : ces deux gestes enregistreraient l'ANCIENNE
-   * valeur, puis quitteraient la séance — la saisie disparaîtrait sans que rien ne l'ait dit.
-   */
   /** Le titre manque ou une saisie est refusée : la séance ne s'enregistrerait pas, et le dit. */
   function cannotSave(): boolean {
     if (draft.trimmedTitle === "") {
@@ -279,6 +265,20 @@ function SessionBuilder({
     return refused.hasRefused;
   }
 
+  /**
+   * Enregistre, le dit, et rend la séance enregistrée — ou `null` quand il faut rester : échec
+   * (déjà annoncé), ou séance sans titre.
+   *
+   * Le titre est vérifié ICI (`cannotSave`) parce que deux gestes enregistrent sans passer par le
+   * bouton, qui, lui, reste fermé sans titre : « Dupliquer en variante » et « Créer l'exercice
+   * manquant » (#303). Ils quittent la séance pour l'éditeur d'exercice, et l'enregistrent
+   * d'abord — sans ça tout ce que le coach vient de composer disparaît, et le geste qui devait
+   * l'aider lui coûte son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un
+   * échec du serveur qui ne dirait pas pourquoi.
+   *
+   * Une saisie refusée retient de même (#566) : ces deux gestes enregistreraient l'ANCIENNE
+   * valeur, puis quitteraient la séance — la saisie disparaîtrait sans que rien ne l'ait dit.
+   */
   async function save(successKey: string): Promise<SessionDto | null> {
     if (cannotSave()) return null;
     try {
