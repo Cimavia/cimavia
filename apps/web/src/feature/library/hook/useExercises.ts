@@ -1,4 +1,9 @@
-import type { ChangeAccessInput, ExerciseBlocks, ExerciseDto } from "@cmv/shared";
+import {
+  type ChangeAccessInput,
+  type ExerciseBlocks,
+  type ExerciseDto,
+  LibraryScope,
+} from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   changeExerciseAccess,
@@ -12,9 +17,19 @@ import {
 } from "@/feature/library/api";
 
 export function useExercises(filters: ExerciseFilters) {
+  const scope = filters.scope ?? LibraryScope.ALL;
   return useQuery<ExerciseDto[]>({
     queryKey: exerciseKeys.list(filters),
     queryFn: () => listExercises(filters),
+    meta: { scope },
+    // Une recherche ou un tag affinent la MÊME liste : la précédente reste affichée le temps de la
+    // réponse, sans quoi chaque frappe démonterait le tableau, et sa sélection avec. Une autre
+    // portée est une autre liste : elle ne se montre pas sous la nouvelle. Une liste vide non
+    // plus : elle ferait dire « aucun résultat » à la recherche suivante avant sa réponse.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.meta?.scope === scope && previous != null && previous.length > 0
+        ? previous
+        : undefined,
   });
 }
 

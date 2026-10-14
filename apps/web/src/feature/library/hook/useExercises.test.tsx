@@ -1,7 +1,7 @@
-import type { ExerciseDto } from "@cmv/shared";
+import { type ExerciseDto, LibraryScope } from "@cmv/shared";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exerciseKeys } from "@/feature/library/api";
+import { type ExerciseFilters, exerciseKeys } from "@/feature/library/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import {
   useChangeExerciseAccess,
@@ -62,6 +62,55 @@ describe("useExercises", () => {
 
     await waitFor(() => expect(result.current.data).toEqual([source]));
     expect(apiMock.listExercises).toHaveBeenCalledWith({ tag: "force" });
+  });
+
+  // Chaque frappe est une clé neuve : sans la liste précédente, le tableau se démonterait le temps
+  // de la réponse, et sa sélection avec.
+  it("garde la liste précédente pendant qu'une recherche se lit", async () => {
+    apiMock.listExercises.mockResolvedValueOnce([source]).mockReturnValue(new Promise(() => {}));
+    const { wrapper } = renderWithQueryClient();
+    const { result, rerender } = renderHook((filters: ExerciseFilters) => useExercises(filters), {
+      wrapper,
+      initialProps: {},
+    });
+    await waitFor(() => expect(result.current.data).toEqual([source]));
+
+    rerender({ search: "trac" });
+
+    await waitFor(() => expect(result.current.isPlaceholderData).toBe(true));
+    expect(result.current.data).toEqual([source]);
+  });
+
+  // Gardée, une liste vide ferait dire « aucun résultat » à la recherche suivante, et proposer de
+  // créer ce qui existe peut-être.
+  it("ne garde pas une liste vide pendant qu'une recherche se lit", async () => {
+    apiMock.listExercises.mockResolvedValueOnce([]).mockReturnValue(new Promise(() => {}));
+    const { wrapper } = renderWithQueryClient();
+    const { result, rerender } = renderHook((filters: ExerciseFilters) => useExercises(filters), {
+      wrapper,
+      initialProps: { search: "xyz" },
+    });
+    await waitFor(() => expect(result.current.data).toEqual([]));
+
+    rerender({ search: "Tractions" });
+
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it("ne montre pas la liste d'une autre portée sous la nouvelle", async () => {
+    apiMock.listExercises.mockResolvedValueOnce([source]).mockReturnValue(new Promise(() => {}));
+    const { wrapper } = renderWithQueryClient();
+    const { result, rerender } = renderHook((filters: ExerciseFilters) => useExercises(filters), {
+      wrapper,
+      initialProps: {},
+    });
+    await waitFor(() => expect(result.current.data).toEqual([source]));
+
+    rerender({ scope: LibraryScope.SHARED });
+
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(result.current.data).toBeUndefined();
   });
 });
 
