@@ -90,8 +90,8 @@ function toEditorRow(exercise: ExerciseDto): Omit<EditorItem, "key"> {
     baselineAdjustments: [],
     snapshot: {
       instructions: exercise.instructions,
-      // `ExerciseDto` ne porte pas les définitions maison : le serveur les résout depuis les
-      // métriques du coach, comme il le fait à la diffusion.
+      // `null` : le serveur les résout chez le PROPRIÉTAIRE de l'exercice source (#605), sur les
+      // seules colonnes que son dosage cite, comme il le fait à la diffusion.
       customMetrics: null,
     },
   };
