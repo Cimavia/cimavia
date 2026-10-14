@@ -1,6 +1,7 @@
-import type { ExerciseBlocks, ExerciseDto } from "@cmv/shared";
+import type { ChangeAccessInput, ExerciseBlocks, ExerciseDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  changeExerciseAccess,
   deleteExercise,
   duplicateExercise,
   type ExerciseFilters,
@@ -82,6 +83,18 @@ export function useDuplicateExercise() {
         ...(blocks == null ? {} : { blocks }),
       });
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
+  });
+}
+
+/**
+ * Change les droits des exercices sélectionnés (#606). Toute la racine est invalidée : la colonne
+ * Accès des listes ET le panneau d'un exercice ouvert lisent `grants`.
+ */
+export function useChangeExerciseAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ChangeAccessInput) => changeExerciseAccess(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
   });
 }

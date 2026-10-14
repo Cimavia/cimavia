@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exerciseKeys } from "@/feature/library/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import {
+  useChangeExerciseAccess,
   useDeleteExercise,
   useDuplicateExercise,
   useExercise,
@@ -14,6 +15,7 @@ import {
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listExercises: vi.fn(),
+    changeExerciseAccess: vi.fn(),
     getExercise: vi.fn(),
     listExerciseTags: vi.fn(),
     deleteExercise: vi.fn(),
@@ -168,5 +170,30 @@ describe("useDuplicateExercise", () => {
     );
 
     expect(apiMock.duplicateExercise).not.toHaveBeenCalled();
+  });
+});
+
+describe("useChangeExerciseAccess", () => {
+  const input = { ids: ["ex-1"], changes: [{ organizationId: "org-f", level: null }] };
+
+  it("envoie les seuls changements, puis invalide toute la bibliothèque d'exercices", async () => {
+    apiMock.changeExerciseAccess.mockResolvedValue([]);
+    const { wrapper, invalidate } = spyInvalidate();
+
+    const { result } = renderHook(() => useChangeExerciseAccess(), { wrapper });
+    await result.current.mutateAsync(input);
+
+    expect(apiMock.changeExerciseAccess).toHaveBeenCalledExactlyOnceWith(input);
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: exerciseKeys.all });
+  });
+
+  it("n'invalide rien quand le changement est refusé", async () => {
+    apiMock.changeExerciseAccess.mockRejectedValue(new Error("409"));
+    const { wrapper, invalidate } = spyInvalidate();
+
+    const { result } = renderHook(() => useChangeExerciseAccess(), { wrapper });
+    await expect(result.current.mutateAsync(input)).rejects.toThrow("409");
+
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,13 @@
-import { METRIC_CATALOG, MetricFamily, type MetricKey, MetricUnit } from "@cmv/shared";
+import {
+  type CustomMetric,
+  METRIC_CATALOG,
+  MetricFamily,
+  type MetricKey,
+  MetricUnit,
+} from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { fakeT } from "../../../../test/translator";
-import { catalogByFamily, metricHint } from "./metric-catalog.util";
+import { catalogByFamily, mergeCatalogs, metricHint } from "./metric-catalog.util";
 
 describe("catalogByFamily", () => {
   it("n'égare aucune métrique du catalogue", () => {
@@ -47,5 +53,25 @@ describe("metricHint", () => {
     );
     expect(withoutUnit).toBeDefined();
     if (withoutUnit != null) expect(metricHint(withoutUnit, fakeT)).toBeNull();
+  });
+});
+
+describe("mergeCatalogs", () => {
+  const metric = (id: string, label: string) => ({ id, label }) as CustomMetric;
+
+  it("réunit les catalogues sans doublon, le premier qui connaît un id l'emporte", () => {
+    expect(
+      mergeCatalogs(
+        [metric("m-1", "Cotation")],
+        [metric("m-1", "Ancienne cotation"), metric("m-2", "Prises de M")],
+      ),
+    ).toEqual([metric("m-1", "Cotation"), metric("m-2", "Prises de M")]);
+  });
+
+  it("un catalogue encore en chargement ne compte pas", () => {
+    expect(mergeCatalogs(undefined, [metric("m-2", "Prises de M")])).toEqual([
+      metric("m-2", "Prises de M"),
+    ]);
+    expect(mergeCatalogs()).toEqual([]);
   });
 });

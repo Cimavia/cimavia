@@ -1,6 +1,12 @@
-import type { CreateSessionInput, SessionDto } from "@cmv/shared";
+import {
+  type ChangeAccessInput,
+  type CreateSessionInput,
+  LibraryScope,
+  type SessionDto,
+} from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  changeSessionAccess,
   createSession,
   deleteSession,
   getSession,
@@ -10,10 +16,10 @@ import {
   updateSession,
 } from "@/feature/library/api";
 
-export function useSessions() {
+export function useSessions(scope: LibraryScope = LibraryScope.ALL) {
   return useQuery<SessionDto[]>({
-    queryKey: sessionKeys.list(),
-    queryFn: listSessions,
+    queryKey: sessionKeys.list(scope),
+    queryFn: () => listSessions(scope),
   });
 }
 
@@ -86,6 +92,15 @@ export function useReloadSessionExercise() {
       reloadSessionExercise(session.id, sessionExerciseId, {
         expectedUpdatedAt: session.updatedAt,
       }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
+  });
+}
+
+/** Change les droits des séances sélectionnées (#606), sur le modèle des exercices. */
+export function useChangeSessionAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ChangeAccessInput) => changeSessionAccess(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 }

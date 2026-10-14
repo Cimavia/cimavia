@@ -1,40 +1,58 @@
-import type {
-  AttachDocumentInput,
-  CreateCustomMetricInput,
-  CreateExerciseInput,
-  CreateSessionInput,
-  CustomMetric,
-  DuplicateExerciseInput,
-  ExerciseDocumentDto,
-  ExerciseDto,
-  ReloadSessionExerciseInput,
-  RequestUploadUrlInput,
-  SessionDto,
-  UpdateCustomMetricInput,
-  UpdateExerciseInput,
-  UpdateSessionInput,
-  UploadUrlDto,
-  VersionQuery,
+import {
+  type AttachDocumentInput,
+  type ChangeAccessInput,
+  type CoachOrganizationDto,
+  type CreateCustomMetricInput,
+  type CreateExerciseInput,
+  type CreateSessionInput,
+  type CustomMetric,
+  type DuplicateExerciseInput,
+  type ElementAccessDto,
+  type ExerciseDocumentDto,
+  type ExerciseDto,
+  LibraryScope,
+  type ReloadSessionExerciseInput,
+  type RequestUploadUrlInput,
+  type SessionDto,
+  type UpdateCustomMetricInput,
+  type UpdateExerciseInput,
+  type UpdateSessionInput,
+  type UploadUrlDto,
+  type VersionQuery,
 } from "@cmv/shared";
 import { api } from "@/shared/lib/api";
 
 export type ExerciseFilters = {
   tag?: string;
   search?: string;
+  /** Absent = `all` : tout ce que le Coach peut lire (#605). */
+  scope?: LibraryScope;
 };
 
 // Clés de cache TanStack Query — une seule racine pour invalider toute la bibliothèque.
 export const exerciseKeys = {
   all: ["exercises"] as const,
-  list: (filters: ExerciseFilters) => ["exercises", "list", filters] as const,
+  // `all` explicite et `all` implicite sont la même requête (cf. `listExercises`) : une seule clé,
+  // sinon la liste se relit à l'identique dès que le Coach se découvre une entreprise.
+  list: ({ scope, ...filters }: ExerciseFilters) =>
+    [
+      "exercises",
+      "list",
+      scope == null || scope === LibraryScope.ALL ? filters : { ...filters, scope },
+    ] as const,
   detail: (id: string) => ["exercises", "detail", id] as const,
   tags: () => ["exercises", "tags"] as const,
+  customMetrics: (id: string) => ["exercises", "custom-metrics", id] as const,
 };
 
 export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> {
   const params = new URLSearchParams();
   if (filters.tag) params.set("tag", filters.tag);
   if (filters.search) params.set("search", filters.search);
+  // `all` est la valeur par défaut de l'API : l'écrire ne changerait rien à la réponse.
+  if (filters.scope != null && filters.scope !== LibraryScope.ALL) {
+    params.set("scope", filters.scope);
+  }
   const query = params.toString();
   const path = query ? `/exercises?${query}` : "/exercises";
   return api.get<ExerciseDto[]>(path);
@@ -57,6 +75,15 @@ export function getExercise(id: string): Promise<ExerciseDto> {
   return api.get<ExerciseDto>(`/exercises/${id}`);
 }
 
+/**
+ * Le catalogue de métriques du PROPRIÉTAIRE de l'exercice (#605) : dans l'exercice d'un autre
+ * Coach, le sélecteur de colonnes ne propose que le sien — ce que l'acteur a chez lui n'y existe
+ * pas, et l'API refuserait de l'y citer.
+ */
+export function listExerciseCustomMetrics(id: string): Promise<CustomMetric[]> {
+  return api.get<CustomMetric[]>(`/exercises/${id}/custom-metrics`);
+}
+
 export function createExercise(input: CreateExerciseInput): Promise<ExerciseDto> {
   return api.post<ExerciseDto>("/exercises", input);
 }
@@ -73,6 +100,14 @@ export function updateExercise(id: string, input: UpdateExerciseInput): Promise<
 // Sous la version affichée (#605, MC-8) : un autre Coach a pu écrire l'exercice depuis.
 export function deleteExercise(id: string, query: VersionQuery): Promise<void> {
   return api.delete<void>(`/exercises/${id}?${new URLSearchParams(query)}`);
+}
+
+/**
+ * Les droits de plusieurs exercices d'un coup (#605) : seules les entreprises CHANGÉES partent,
+ * une ligne laissée « Mixte » garde la valeur de chaque exercice (tranché en #597).
+ */
+export function changeExerciseAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
+  return api.patch<ElementAccessDto[]>("/exercises/access", input);
 }
 
 // Étape 1 du flux d'upload : obtenir l'URL PUT signée (le binaire ne passe pas par l'API).
@@ -126,12 +161,15 @@ export function deleteCustomMetric(id: string): Promise<void> {
 
 export const sessionKeys = {
   all: ["sessions"] as const,
-  list: () => ["sessions", "list"] as const,
+  list: (scope: LibraryScope) => ["sessions", "list", scope] as const,
   detail: (id: string) => ["sessions", "detail", id] as const,
 };
 
-export function listSessions(): Promise<SessionDto[]> {
-  return api.get<SessionDto[]>("/sessions");
+export function listSessions(scope: LibraryScope): Promise<SessionDto[]> {
+  // Comme pour les exercices : `all` est le défaut de l'API, inutile de l'écrire.
+  return api.get<SessionDto[]>(
+    scope === LibraryScope.ALL ? "/sessions" : `/sessions?scope=${scope}`,
+  );
 }
 
 export function getSession(id: string): Promise<SessionDto> {
@@ -165,4 +203,23 @@ export function updateSession(id: string, input: UpdateSessionInput): Promise<Se
 // Sous la version affichée (#605, MC-8) : un autre Coach a pu écrire la séance depuis.
 export function deleteSession(id: string, query: VersionQuery): Promise<void> {
   return api.delete<void>(`/sessions/${id}?${new URLSearchParams(query)}`);
+}
+
+/** Les droits de plusieurs séances d'un coup, sur le même contrat que les exercices. */
+export function changeSessionAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
+  return api.patch<ElementAccessDto[]>("/sessions/access", input);
+}
+
+// ── Entreprises du coach ─────────────────────────────────────────────────────
+
+export const myOrganizationKeys = {
+  all: ["me", "organizations"] as const,
+};
+
+/**
+ * Les entreprises du Coach et leurs Coachs (#605). Liste vide = Coach sans entreprise : la
+ * bibliothèque n'affiche alors rien du partage (tranché en #597).
+ */
+export function listMyOrganizations(): Promise<CoachOrganizationDto[]> {
+  return api.get<CoachOrganizationDto[]>("/me/organizations");
 }

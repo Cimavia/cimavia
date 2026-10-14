@@ -1,9 +1,10 @@
-import type { CreateSessionInput, SessionDto } from "@cmv/shared";
+import { type CreateSessionInput, LibraryScope, type SessionDto } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sessionKeys } from "@/feature/library/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import {
+  useChangeSessionAccess,
   useDeleteSession,
   useReloadSessionExercise,
   useSaveSession,
@@ -14,6 +15,7 @@ import {
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listSessions: vi.fn(),
+    changeSessionAccess: vi.fn(),
     getSession: vi.fn(),
     createSession: vi.fn(),
     updateSession: vi.fn(),
@@ -57,6 +59,18 @@ describe("useSessions", () => {
     const { result } = renderHook(() => useSessions(), { wrapper });
 
     await waitFor(() => expect(result.current.data).toEqual([session]));
+    expect(apiMock.listSessions).toHaveBeenCalledWith(LibraryScope.ALL);
+  });
+
+  it("lit la portée demandée, sous sa propre clé", async () => {
+    apiMock.listSessions.mockResolvedValue([]);
+    const { wrapper, queryClient } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useSessions(LibraryScope.SHARED), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiMock.listSessions).toHaveBeenCalledWith(LibraryScope.SHARED);
+    expect(queryClient.getQueryData(sessionKeys.list(LibraryScope.SHARED))).toEqual([]);
   });
 });
 
@@ -186,5 +200,20 @@ describe("useReloadSessionExercise", () => {
       expectedUpdatedAt: session.updatedAt,
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
+  });
+});
+
+describe("useChangeSessionAccess", () => {
+  const input = { ids: ["s-1"], changes: [{ organizationId: "org-f", level: "READ" as const }] };
+
+  it("envoie les seuls changements, puis invalide les séances", async () => {
+    apiMock.changeSessionAccess.mockResolvedValue([]);
+    const { wrapper, invalidate } = spyInvalidate();
+
+    const { result } = renderHook(() => useChangeSessionAccess(), { wrapper });
+    await act(() => result.current.mutateAsync(input));
+
+    expect(apiMock.changeSessionAccess).toHaveBeenCalledExactlyOnceWith(input);
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: sessionKeys.all });
   });
 });

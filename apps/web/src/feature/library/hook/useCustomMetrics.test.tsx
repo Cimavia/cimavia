@@ -1,4 +1,4 @@
-import type { CustomMetric } from "@cmv/shared";
+import { type CustomMetric, type ExerciseDto, MyAccessLevel } from "@cmv/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Mock } from "vitest";
@@ -9,12 +9,14 @@ import {
   useCreateCustomMetric,
   useCustomMetrics,
   useDeleteCustomMetric,
+  useExerciseCatalog,
   useUpdateCustomMetric,
 } from "./useCustomMetrics";
 
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listCustomMetrics: vi.fn(),
+    listExerciseCustomMetrics: vi.fn(),
     createCustomMetric: vi.fn(),
     updateCustomMetric: vi.fn(),
     deleteCustomMetric: vi.fn(),
@@ -88,5 +90,38 @@ describe("écritures", () => {
 
   it("suppression : relit la liste après un succès, jamais après un échec", async () => {
     await expectWriteThenReload(useDeleteCustomMetric, "m-1", apiMock.deleteCustomMetric, ["m-1"]);
+  });
+});
+
+describe("useExerciseCatalog", () => {
+  const ownersMetric = { id: "m-9", label: "Prises de M" } as unknown as CustomMetric;
+  const exerciseOf = (level: MyAccessLevel) =>
+    ({ id: "ex-1", myAccess: { level, via: null } }) as unknown as ExerciseDto;
+
+  it.each([
+    ["un exercice qui naît", null],
+    ["son propre exercice", exerciseOf(MyAccessLevel.OWNER)],
+  ])("%s : le catalogue du Coach, et lui seul", async (_case, exercise) => {
+    apiMock.listCustomMetrics.mockResolvedValue([metric]);
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useExerciseCatalog(exercise), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toEqual([metric]));
+    expect(apiMock.listExerciseCustomMetrics).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    MyAccessLevel.READ,
+    MyAccessLevel.WRITE,
+  ])("l'exercice d'un autre Coach, en %s : le catalogue du propriétaire, et lui seul", async (level) => {
+    apiMock.listExerciseCustomMetrics.mockResolvedValue([ownersMetric]);
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => useExerciseCatalog(exerciseOf(level)), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toEqual([ownersMetric]));
+    expect(apiMock.listExerciseCustomMetrics).toHaveBeenCalledExactlyOnceWith("ex-1");
+    expect(apiMock.listCustomMetrics).not.toHaveBeenCalled();
   });
 });
