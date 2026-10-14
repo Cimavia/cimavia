@@ -24,7 +24,7 @@
 # Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
 # base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
 # réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS base
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # pnpm épinglé : la même version que `packageManager` (`package.json` racine), à monter ensemble.
