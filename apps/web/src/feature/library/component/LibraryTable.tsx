@@ -3,7 +3,7 @@ import {
   type ChangeAccessInput,
   type CoachOrganizationDto,
   type ElementAccessDto,
-  MyAccessLevel,
+  isOwner,
 } from "@cmv/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
@@ -209,12 +209,12 @@ export function LibraryTable<T extends LibraryTableRow>({
 
 /** Le propriétaire reçoit toujours ses droits (#605) : leur absence est une réponse incomplète. */
 function isMissingGrants(row: LibraryTableRow) {
-  return row.myAccess.level === MyAccessLevel.OWNER && row.grants == null;
+  return isOwner(row.myAccess) && row.grants == null;
 }
 
 /** Ce dont le Coach peut régler les accès : le sien, droits connus. */
 function manageable(row: LibraryTableRow) {
-  return row.myAccess.level === MyAccessLevel.OWNER && row.grants != null;
+  return isOwner(row.myAccess) && row.grants != null;
 }
 
 function HeadCell({ label }: Readonly<{ label: string }>) {

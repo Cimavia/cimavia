@@ -2,8 +2,9 @@ import {
   type AccessLabelSubject,
   type AccessLevel,
   accessLabel,
+  isOwner,
   type MyAccess,
-  MyAccessLevel,
+  type MyAccessLevel,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 
@@ -32,9 +33,7 @@ export function accessText(subject: AccessLabelSubject, t: TFunction): string {
 
 /** La colonne Propriétaire : « Moi » pour ce qui est à l'acteur, le nom de l'autre Coach sinon. */
 export function ownerText(subject: Pick<AccessLabelSubject, "owner" | "myAccess">, t: TFunction) {
-  return subject.myAccess.level === MyAccessLevel.OWNER
-    ? t("library.access.me")
-    : subject.owner.name;
+  return isOwner(subject.myAccess) ? t("library.access.me") : subject.owner.name;
 }
 
 /**
@@ -45,7 +44,7 @@ export function ownerRightText(
   subject: Pick<AccessLabelSubject, "owner" | "myAccess">,
   t: TFunction,
 ): string {
-  return subject.myAccess.level === MyAccessLevel.OWNER
+  return isOwner(subject.myAccess)
     ? ownerText(subject, t)
     : grantText(subject.owner.name, subject.myAccess.level, t);
 }
