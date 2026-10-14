@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { InvoiceSharedBy } from "@/feature/invoice/component/InvoiceSharedBy";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { CmvText } from "@/shared/component";
 import { formatDate, formatInstantDate } from "@/shared/util/date.util";
@@ -64,6 +65,8 @@ export function InvoiceHistoryList({ invoices, onOpenInvoice }: Readonly<Invoice
             <InvoiceStatusBadge invoice={invoice} />
           </View>
           <DueLine invoice={invoice} />
+          {/* La facture suit son cycle (#607) : celle d'un cycle partagé nomme son propriétaire. */}
+          <InvoiceSharedBy invoice={invoice} />
         </Pressable>
       ))}
 

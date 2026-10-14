@@ -1,4 +1,4 @@
-import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
+import { type InvoiceDto, InvoiceStatus, MyAccessLevel } from "@cmv/shared";
 import { screen } from "@testing-library/react";
 import { Linking } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,7 +38,7 @@ function invoice(overrides: Partial<InvoiceDto> = {}): InvoiceDto {
     id: "inv-1",
     coachId: "c-1",
     coachName: "Dual Curl",
-    myAccess: null,
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: "a-1",
     athleteName: "Léa Bonnet",
     planId: "p-1",
@@ -208,5 +208,33 @@ describe("InvoiceDetail", () => {
     expect(screen.queryByText("invoice.coach.markPaid")).toBeNull();
     expect(screen.queryByText("invoice.coach.cancel")).toBeNull();
     expect(screen.queryByText("reminder.schedule")).toBeNull();
+  });
+
+  describe("la facture du cycle d'un autre Coach (#607)", () => {
+    const shared = (level: MyAccessLevel) =>
+      invoice({ coachName: "M", myAccess: { level, via: { id: "org-f", name: "F" } } });
+
+    it("en Lecture : son propriétaire se dit, et aucun geste ne s'offre", () => {
+      setup(shared(MyAccessLevel.READ));
+
+      expect(screen.getByText("invoice.coach.sharedBy")).toBeTruthy();
+      expect(screen.queryByText("invoice.coach.markPaid")).toBeNull();
+      expect(screen.queryByText("invoice.coach.cancel")).toBeNull();
+      expect(screen.queryByText("reminder.schedule")).toBeNull();
+    });
+
+    it("en Écriture : le statut se tient, la relance reste au propriétaire", () => {
+      setup(shared(MyAccessLevel.WRITE));
+
+      expect(screen.getByText("invoice.coach.markPaid")).toBeTruthy();
+      expect(screen.getByText("invoice.coach.cancel")).toBeTruthy();
+      expect(screen.queryByText("reminder.schedule")).toBeNull();
+    });
+
+    it("rien à dire sur la sienne", () => {
+      setup(invoice());
+
+      expect(screen.queryByText("invoice.coach.sharedBy")).toBeNull();
+    });
   });
 });

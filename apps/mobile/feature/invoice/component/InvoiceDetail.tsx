@@ -1,10 +1,13 @@
 import {
+  canWrite,
   type InvoiceDto,
   InvoiceFooter,
   InvoiceState,
   InvoiceStatus,
   invoiceFooter,
+  isOwner,
   ReminderEntityType,
+  required,
   resolveInvoiceState,
   todayIsoDate,
 } from "@cmv/shared";
@@ -13,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Modal, Pressable, ScrollView, View } from "react-native";
+import { InvoiceSharedBy } from "@/feature/invoice/component/InvoiceSharedBy";
 import { InvoiceStatusBadge } from "@/feature/invoice/component/InvoiceStatusBadge";
 import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
 import { ScheduleReminderButton } from "@/feature/reminder";
@@ -33,7 +37,8 @@ import { formatMoney, formatPeriod } from "@/shared/util/money.util";
  * motif — `ScheduleReminderButton`, `CmvImageViewer` — et il se teste.
  *
  * Servi aux deux titres, comme l'écran : l'athlète y lit sa facture et son PDF, le coach y agit.
- * `canManage` gouverne le pied, et lui seul — la lecture est identique des deux côtés.
+ * `canManage` et le droit du Coach sur la facture (#607) gouvernent le pied, et lui seul — la
+ * lecture est identique des deux côtés.
  */
 
 type InvoiceDetailProps = {
@@ -61,6 +66,9 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
   const isCancelled = invoice.status === InvoiceStatus.CANCELLED;
   // L'échéance dépassée se colore : c'est l'information qui appelle une action.
   const isOverdue = resolveInvoiceState(invoice, todayIsoDate()) === InvoiceState.OVERDUE;
+  // Le Coach tient la facture s'il écrit son cycle, et seul son propriétaire en planifie la
+  // relance (#607). `canManage` dit le titre exercé ; le droit, lui, vient de la facture.
+  const access = canManage ? required(invoice.myAccess, "droit du coach sur sa facture") : null;
   // Une constante : son test de nullité tient jusque dans le gestionnaire du bouton.
   const { documentUrl } = invoice;
 
@@ -101,6 +109,7 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
             </CmvText>
             <InvoiceStatusBadge invoice={invoice} />
           </View>
+          <InvoiceSharedBy invoice={invoice} />
 
           <Field
             label={t("invoice.panel.dueDate")}
@@ -155,7 +164,8 @@ export function InvoiceDetail({ invoice, canManage, onClose }: Readonly<InvoiceD
 
         <InvoiceActions
           invoice={invoice}
-          canManage={canManage}
+          canManage={access != null && canWrite(access)}
+          canRemind={access != null && isOwner(access)}
           busy={busy}
           onMarkPaid={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PAID })}
           onReopen={() => updateStatus.mutate({ id: invoice.id, status: InvoiceStatus.PENDING })}
@@ -192,7 +202,10 @@ function Stacked({ label, children }: Readonly<{ label: string; children: ReactN
 
 type InvoiceActionsProps = {
   invoice: InvoiceDto;
+  /** Le statut se tient en Écriture : un droit de Lecture ne propose rien (#607). */
   canManage: boolean;
+  /** La relance se planifie au nom du propriétaire, et par lui seul. */
+  canRemind: boolean;
   busy: boolean;
   onMarkPaid: () => void;
   onReopen: () => void;
@@ -203,6 +216,7 @@ type InvoiceActionsProps = {
 function InvoiceActions({
   invoice,
   canManage,
+  canRemind,
   busy,
   onMarkPaid,
   onReopen,
@@ -236,11 +250,13 @@ function InvoiceActions({
       {/* Rappel contextuel (#46), offert sur les factures qui restent à régler SEULEMENT : se
           rappeler de relancer une facture payée ou annulée n'a aucun sens. La période nomme la
           cible, comme dans la liste des rappels. */}
-      <ScheduleReminderButton
-        entityType={ReminderEntityType.INVOICE}
-        entityId={invoice.id}
-        targetLabel={formatPeriod(invoice.period)}
-      />
+      {canRemind ? (
+        <ScheduleReminderButton
+          entityType={ReminderEntityType.INVOICE}
+          entityId={invoice.id}
+          targetLabel={formatPeriod(invoice.period)}
+        />
+      ) : null}
       {/* Tertiaire, et discret AU REPOS : sous « Marquer payée », un bouton rouge crierait plus
           fort que l'action qu'on vient chercher ici neuf fois sur dix. Sa gravité apparaît à
           l'armement — d'où `ghost`, et d'où l'avertissement, que le retour arrière n'a pas :
