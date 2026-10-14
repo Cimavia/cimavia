@@ -127,9 +127,12 @@ describe("Requêtes SQL des listes du Coach : 1 athlète puis 4 (#629)", () => {
   expectBudget(
     {
       "/athletes": 4,
-      "/plans": 5,
+      // +4 (#607) : le droit du Coach sur chaque cycle — ses entreprises, puis les lignes d'accès,
+      // leur entreprise et son nom. Un lot par relation, pas une requête par cycle.
+      "/plans": 9,
       "/feedbacks": 6,
-      "/invoices": 5,
+      // +5 (#607) : le même droit, lu sur le cycle de chaque facture — et son propriétaire.
+      "/invoices": 10,
       "/conversations": 6,
       "/reminders": 5,
       "/reminders/summary": 4,

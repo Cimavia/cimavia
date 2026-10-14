@@ -1,4 +1,4 @@
-import type { InvoiceCurrency, InvoiceDto, InvoiceStatusType } from "@cmv/shared";
+import type { InvoiceCurrency, InvoiceDto, InvoiceStatusType, MyAccess } from "@cmv/shared";
 import { required } from "@cmv/shared";
 import type { Invoice } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
@@ -16,6 +16,7 @@ export async function toInvoiceDto(
   invoice: Invoice,
   names: Map<string, string>,
   planTitles: Map<string, string>,
+  myAccess: MyAccess | null,
   storage: StorageService,
 ): Promise<InvoiceDto> {
   // Les deux sont garantis par des FK : une absence signale une incohérence de données, pas un
@@ -27,6 +28,7 @@ export async function toInvoiceDto(
     id: invoice.id,
     coachId: invoice.coachId,
     coachName,
+    myAccess,
     athleteId: invoice.athleteId,
     athleteName,
     planId: invoice.planId,

@@ -2,6 +2,7 @@ import {
   INVOICE_HISTORY_PAGE_SIZE,
   type InvoiceDto,
   InvoiceStatus,
+  MyAccessLevel,
   shiftIsoDate,
   sortAthleteInvoices,
   todayIsoDate,
@@ -21,6 +22,7 @@ function invoice(over: Partial<InvoiceDto> & Pick<InvoiceDto, "id">): InvoiceDto
   return {
     coachId: "usr_coach",
     coachName: "Marc Keller",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: "usr_lea",
     athleteName: "Léa Bonnet",
     planId: "pln_1",

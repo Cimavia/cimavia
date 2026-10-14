@@ -1,4 +1,10 @@
-import { type InvoiceDto, InvoiceStatus, shiftIsoDate, todayIsoDate } from "@cmv/shared";
+import {
+  type InvoiceDto,
+  InvoiceStatus,
+  MyAccessLevel,
+  shiftIsoDate,
+  todayIsoDate,
+} from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -52,6 +58,7 @@ function invoice(over: Partial<InvoiceDto> & Pick<InvoiceDto, "id">): InvoiceDto
   return {
     coachId: "usr_coach",
     coachName: "Marc Keller",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: "usr_lea",
     athleteName: "Léa Bonnet",
     planId: "pln_1",

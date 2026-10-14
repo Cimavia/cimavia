@@ -1,4 +1,4 @@
-import { type InvoiceDto, InvoiceStatus } from "@cmv/shared";
+import { type InvoiceDto, InvoiceStatus, MyAccessLevel } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { formatDate } from "@/shared/util/date.util";
 import { renderWithProviders } from "../../../../test/render";
@@ -8,6 +8,7 @@ const OVERDUE: InvoiceDto = {
   id: "inv_1",
   coachId: "usr_coach",
   coachName: "Marc Keller",
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
   athleteId: "usr_lea",
   athleteName: "Léa Bonnet",
   planId: "pln_1",

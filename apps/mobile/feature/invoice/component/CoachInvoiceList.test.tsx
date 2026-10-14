@@ -3,6 +3,7 @@ import {
   type InvoiceAthleteRow,
   type InvoiceDto,
   InvoiceStatus,
+  MyAccessLevel,
 } from "@cmv/shared";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -24,6 +25,7 @@ function invoice(overrides: Partial<InvoiceDto>): InvoiceDto {
     id: "inv-1",
     coachId: "c-1",
     coachName: "Dual Curl",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
     athleteId: "a-1",
     athleteName: "Léa Bonnet",
     planId: "p-1",

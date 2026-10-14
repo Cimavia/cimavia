@@ -10,6 +10,7 @@ function invoice(id: string, status: InvoiceStatus = InvoiceStatus.PENDING): Inv
     id,
     coachId: "c-1",
     coachName: "Dual Curl",
+    myAccess: null,
     athleteId: "a-1",
     athleteName: "Léa Bonnet",
     planId: "p-1",
