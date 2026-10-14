@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type AccessGrantDto, AccessLevel, MyAccessLevel } from "../dto/access.schema";
-import { canWrite, effectiveAccess } from "./access.util";
+import { canWrite, effectiveAccess, isOwner } from "./access.util";
 
 const F = { id: "org-f", name: "F" };
 const G = { id: "org-g", name: "G" };
@@ -75,5 +75,15 @@ describe("canWrite", () => {
     [MyAccessLevel.READ, false],
   ] as const)("%s → %s", (level, expected) => {
     expect(canWrite({ level, via: null })).toBe(expected);
+  });
+});
+
+describe("isOwner", () => {
+  it.each([
+    [MyAccessLevel.OWNER, true],
+    [MyAccessLevel.WRITE, false],
+    [MyAccessLevel.READ, false],
+  ] as const)("%s → %s", (level, expected) => {
+    expect(isOwner({ level, via: null })).toBe(expected);
   });
 });
