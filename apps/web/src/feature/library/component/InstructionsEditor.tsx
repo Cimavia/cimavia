@@ -51,9 +51,10 @@ export function InstructionsEditor({
   const { t } = useTranslation();
   // Le document tel qu'il est À L'ÉCRAN, pour ses bornes : un éditeur riche ne se borne pas par
   // `maxLength`. Une consigne trop longue est une saisie refusée, comme une cellule illisible
-  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer.
+  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer. En
+  // Lecture, rien ne se saisit : rien n'est refusé, et quitter n'a rien à perdre.
   const [blocks, setBlocks] = useState<RichDocument>(() => initialValue ?? []);
-  const tooLong = isRichDocumentTooLong(blocks);
+  const tooLong = !readOnly && isRichDocumentTooLong(blocks);
   useReportRefused(tooLong);
 
   const editor = useEditor({
