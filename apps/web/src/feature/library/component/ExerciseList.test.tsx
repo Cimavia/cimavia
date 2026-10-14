@@ -220,6 +220,17 @@ describe("ExerciseList — états", () => {
     expect(queryByRole("table")).not.toBeInTheDocument();
   });
 
+  // Une relecture de fond qui échoue garde la liste en cache : l'effacer démonterait le tableau,
+  // sa sélection et le panneau des accès avec.
+  it("garde la liste déjà lue quand une relecture échoue", async () => {
+    organizations([F], true);
+    state({ data: [exercise("ex-1", "Tractions")], isError: true });
+    const { getByRole, queryByRole } = await setup();
+
+    expect(getByRole("table")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "common.retry" })).not.toBeInTheDocument();
+  });
+
   // Une lecture ratée n'est pas « aucune entreprise » : la liste ne s'affiche pas sans partage.
   it("des entreprises illisibles se disent en erreur, et se relisent seules", async () => {
     organizations(undefined, true);

@@ -13,8 +13,13 @@ type LibraryListStateProps<T> = {
 
 /**
  * Ce qu'un onglet de la bibliothèque montre avant sa liste. Les entreprises comptent autant que la
- * liste : sans elles, on ne sait pas s'il faut les colonnes du partage. Une lecture ratée n'est pas
- * « aucune entreprise » (règle dure n°5) — elle se dit en erreur, et seule elle se relit.
+ * liste : sans elles, on ne sait pas s'il faut les colonnes du partage. Une PREMIÈRE lecture ratée
+ * n'est pas « aucune entreprise » (règle dure n°5) — elle se dit en erreur, et seule elle se relit.
+ *
+ * Sur la DONNÉE, pas sur l'état de la requête : une relecture de fond qui échoue (retour sur
+ * l'onglet, invalidation après un changement d'accès) garde la liste en cache, et l'effacer
+ * démonterait le tableau — sa sélection et le panneau des accès avec. Elle se retente au
+ * prochain retour sur l'onglet, comme celle des constructeurs.
  */
 export function LibraryListState<T>({
   list,
@@ -23,6 +28,9 @@ export function LibraryListState<T>({
 }: Readonly<LibraryListStateProps<T>>) {
   const { t } = useTranslation();
 
+  if (list.data != null && organizations.data != null) {
+    return children(list.data, organizations.data);
+  }
   if (list.isError || organizations.isError) {
     return (
       <CmvErrorState
@@ -36,8 +44,5 @@ export function LibraryListState<T>({
       />
     );
   }
-  if (list.data == null || organizations.data == null) {
-    return <p className="text-cmv-text-mid">{t("common.loading")}</p>;
-  }
-  return children(list.data, organizations.data);
+  return <p className="text-cmv-text-mid">{t("common.loading")}</p>;
 }
