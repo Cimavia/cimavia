@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvConfirmButton, CmvFormError } from "@/shared/component";
+import { isStaleWriteError } from "@/shared/lib/api";
 
 type BuilderActionsProps = {
   /** Lecture (#606) : « Fermer », à la place d'Enregistrer et Supprimer (frame 12). */
@@ -11,7 +12,10 @@ type BuilderActionsProps = {
    */
   onDelete: (() => void) | null;
   isDeleting: boolean;
-  /** Le refus de la suppression, à lire sous les actions ; `null` quand il se dit ailleurs. */
+  /**
+   * Le refus de la suppression, à lire sous les actions — sauf un conflit d'édition : l'écran le
+   * dit par son bandeau, comme pour l'enregistrement, avec de quoi recharger.
+   */
   deleteError: unknown;
   isSaving: boolean;
   /**
@@ -73,7 +77,7 @@ export function BuilderActions({
       >
         {submitLabel}
       </CmvButton>
-      <CmvFormError error={deleteError} />
+      <CmvFormError error={isStaleWriteError(deleteError) ? null : deleteError} />
     </>
   );
 }

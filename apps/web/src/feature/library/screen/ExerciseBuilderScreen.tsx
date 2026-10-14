@@ -166,7 +166,6 @@ function ExerciseBuilder({
   const toast = useToast();
   const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
-  const removeExercise = useDeleteExercise();
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
@@ -218,11 +217,10 @@ function ExerciseBuilder({
 
   const heading = builderHeading(edited, t);
   // Supprimer : l'exercice enregistré, et à soi.
-  const deletable = foreign == null ? edited : null;
-  // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit dans
-  // `removeExercise.error`, pas en rejet non capturé.
-  const onDelete =
-    deletable == null ? null : () => removeExercise.mutate(deletable, { onSuccess: onDeleted });
+  const removal = useExerciseRemoval(foreign == null ? edited : null, onDeleted);
+  // Un conflit se dit par le bandeau, que l'enregistrement OU la suppression l'ait rencontré : les
+  // deux citent la version affichée, et recharger les débloque l'un comme l'autre.
+  const staleMessage = staleMessageOf(draft.isStale, removal.isStale);
 
   return (
     <CmvAppShell
@@ -232,9 +230,9 @@ function ExerciseBuilder({
         <BuilderActions
           readOnly={readOnly}
           deleteLabel={t("library.builder.deleteExercise")}
-          onDelete={onDelete}
-          isDeleting={removeExercise.isPending}
-          deleteError={removeExercise.error}
+          onDelete={removal.onDelete}
+          isDeleting={removal.isPending}
+          deleteError={removal.error}
           isSaving={draft.isSaving}
           isWriting={draft.isSaving}
           submitLabel={submitLabel(draft.isSaving, edited != null, t)}
@@ -256,10 +254,10 @@ function ExerciseBuilder({
           que de le comprimer — une grille de dosage étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
-      {draft.isStale && edited != null ? (
+      {staleMessage != null && edited != null ? (
         <div className="mb-cmv-xl">
           <CmvStaleBanner
-            message={t("library.builder.stale")}
+            message={t(staleMessage)}
             onReload={() => onReload(edited.id)}
             isReloading={isReloading}
           />
@@ -385,6 +383,32 @@ function builderHeading(exercise: ExerciseDto | null, t: TFunction) {
       used == null
         ? t("library.builder.ofOwner", ofOwner)
         : t("library.builder.ofOwnerUsed", { ...ofOwner, used }),
+  };
+}
+
+/**
+ * Ce que dit le bandeau de conflit, ou `null` sans conflit. Un enregistrement refusé garde une
+ * saisie ; une suppression refusée n'en a pas, elle invite à voir ce qui a changé avant de retirer.
+ */
+function staleMessageOf(isSaveStale: boolean, isDeleteStale: boolean): string | null {
+  if (isSaveStale) return "library.builder.stale";
+  return isDeleteStale ? "library.builder.staleDelete" : null;
+}
+
+/** La suppression de l'exercice affiché — `onDelete` à `null` quand elle n'est pas offerte. */
+function useExerciseRemoval(
+  deletable: Pick<ExerciseDto, "id" | "updatedAt"> | null,
+  onDeleted: () => void,
+) {
+  const removeExercise = useDeleteExercise();
+  return {
+    // `mutate` et non `mutateAsync` : le 409 « exercice utilisé dans N séances » atterrit dans
+    // `error`, pas en rejet non capturé.
+    onDelete:
+      deletable == null ? null : () => removeExercise.mutate(deletable, { onSuccess: onDeleted }),
+    isPending: removeExercise.isPending,
+    error: removeExercise.error,
+    isStale: isStaleWriteError(removeExercise.error),
   };
 }
 

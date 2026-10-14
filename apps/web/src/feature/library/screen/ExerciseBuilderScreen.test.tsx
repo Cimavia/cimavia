@@ -516,6 +516,36 @@ describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
     expect(await view.findByText("common.staleReloadFailed")).toBeInTheDocument();
   });
 
+  // La suppression cite la version affichée, elle aussi : son conflit ouvre le même bandeau, et
+  // la suppression qui suit le rechargement cite la dernière version.
+  it("dit un conflit à la suppression par le bandeau, et supprime ensuite la version rechargée", async () => {
+    api.deleteExercise.mockRejectedValueOnce(stale());
+    const view = await edit();
+    await view.user.click(
+      await view.findByRole("button", { name: "library.builder.deleteExercise" }),
+    );
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+
+    await view.findByText("library.builder.staleDelete");
+    // Une seule fois : le bandeau, pas un second message sous les actions.
+    expect(view.queryByText("common.staleWrite")).not.toBeInTheDocument();
+    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+
+    api.getExercise.mockResolvedValue(saved({ updatedAt: LATEST }));
+    await view.user.click(view.getByRole("button", { name: "common.staleReload" }));
+    await waitFor(() =>
+      expect(view.queryByText("library.builder.staleDelete")).not.toBeInTheDocument(),
+    );
+
+    api.deleteExercise.mockResolvedValue(undefined);
+    await view.user.click(view.getByRole("button", { name: "library.builder.deleteExercise" }));
+    await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
+    await waitFor(() =>
+      expect(api.deleteExercise).toHaveBeenLastCalledWith("ex-1", { expectedUpdatedAt: LATEST }),
+    );
+  });
+
   // L'exercice créé par un enregistrement interrompu est celui qu'on recharge : l'écran reste en
   // édition sur lui, sans recréer quoi que ce soit.
   it("recharge l'exercice créé quand le conflit survient au réessai d'une création", async () => {

@@ -187,10 +187,14 @@ describe("useDeleteSession", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
 
-  it("oublie la séance supprimée plutôt que de la relire", async () => {
+  // La séance est AFFICHÉE — son constructeur l'observe : sans observateur, l'invalidation ne la
+  // relirait pas de toute façon, et le test ne prouverait rien.
+  it("oublie la séance supprimée, même affichée, plutôt que de la relire", async () => {
+    apiMock.getSession.mockResolvedValue(session);
     apiMock.deleteSession.mockResolvedValue(undefined);
     const { wrapper, queryClient } = renderWithQueryClient();
-    queryClient.setQueryData(sessionKeys.detail("s-1"), session);
+    const shownSession = renderHook(() => useSession("s-1"), { wrapper });
+    await waitFor(() => expect(shownSession.result.current.isSuccess).toBe(true));
 
     const { result } = renderHook(() => useDeleteSession(), { wrapper });
     await act(() =>
@@ -198,7 +202,7 @@ describe("useDeleteSession", () => {
     );
 
     expect(queryClient.getQueryState(sessionKeys.detail("s-1"))).toBeUndefined();
-    expect(apiMock.getSession).not.toHaveBeenCalled();
+    expect(apiMock.getSession).toHaveBeenCalledOnce();
   });
 });
 

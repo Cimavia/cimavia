@@ -139,12 +139,23 @@ function useSessionWrites(draft: ReturnType<typeof useSessionDraft>) {
   return {
     reload,
     removeSession,
-    isStale:
-      draft.isStale || isStaleWriteError(reload.error) || isStaleWriteError(removeSession.error),
+    staleMessage: staleMessageOf(
+      draft.isStale || isStaleWriteError(reload.error),
+      isStaleWriteError(removeSession.error),
+    ),
     // Une écriture à la fois : lancées ensemble, elles citeraient la même version, et la seconde
     // prendrait pour un conflit l'écriture du coach lui-même.
     isWriting: draft.isSaving || reload.isPending || removeSession.isPending,
   };
+}
+
+/**
+ * Ce que dit le bandeau de conflit, ou `null` sans conflit. Une écriture refusée garde une saisie ;
+ * une suppression refusée n'en a pas, elle invite à voir ce qui a changé avant de retirer.
+ */
+function staleMessageOf(isWriteStale: boolean, isDeleteStale: boolean): string | null {
+  if (isWriteStale) return "library.session.stale";
+  return isDeleteStale ? "library.session.staleDelete" : null;
 }
 
 type SessionBuilderProps = {
@@ -177,7 +188,7 @@ function SessionBuilder({
   const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
   const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
-  const { reload, removeSession, isStale, isWriting } = useSessionWrites(draft);
+  const { reload, removeSession, staleMessage, isWriting } = useSessionWrites(draft);
   const edited = draft.edited;
   const duplicate = useDuplicateExercise();
   const [titleTouched, setTitleTouched] = useState(false);
@@ -286,8 +297,7 @@ function SessionBuilder({
           deleteLabel={t("library.session.deleteSession")}
           onDelete={onDelete}
           isDeleting={removeSession.isPending}
-          // Un conflit se dit par le bandeau, comme pour l'enregistrement.
-          deleteError={unlessStale(removeSession.error)}
+          deleteError={removeSession.error}
           isSaving={draft.isSaving}
           isWriting={isWriting}
           submitLabel={submitLabel(draft.isSaving, edited != null, t)}
@@ -305,10 +315,10 @@ function SessionBuilder({
           />
         </div>
       ) : null}
-      {isStale && edited != null ? (
+      {staleMessage != null && edited != null ? (
         <div className="mb-cmv-xl">
           <CmvStaleBanner
-            message={t("library.session.stale")}
+            message={t(staleMessage)}
             onReload={() => onReload(edited.id)}
             isReloading={isReloading}
           />
@@ -535,11 +545,6 @@ function EmptyComposition({ readOnly }: Readonly<{ readOnly: boolean }>) {
       description={t("library.session.emptyDescription")}
     />
   );
-}
-
-/** L'erreur à dire sous le formulaire : un conflit d'édition, lui, se dit par le bandeau. */
-function unlessStale(error: unknown): unknown {
-  return isStaleWriteError(error) ? null : error;
 }
 
 /** Enregistrement en cours · création · édition — trois libellés, un seul endroit pour les lire. */

@@ -124,6 +124,22 @@ describe("useDeleteExercise", () => {
 
     expect(invalidate).not.toHaveBeenCalled();
   });
+
+  // L'exercice est AFFICHÉ — son constructeur l'observe : sans observateur, l'invalidation ne le
+  // relirait pas de toute façon, et le test ne prouverait rien.
+  it("oublie l'exercice supprimé, même affiché, plutôt que de le relire", async () => {
+    apiMock.getExercise.mockResolvedValue(source);
+    apiMock.deleteExercise.mockResolvedValue(undefined);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const shownExercise = renderHook(() => useExercise("ex-1"), { wrapper });
+    await waitFor(() => expect(shownExercise.result.current.isSuccess).toBe(true));
+
+    const { result } = renderHook(() => useDeleteExercise(), { wrapper });
+    await result.current.mutateAsync(shown);
+
+    expect(queryClient.getQueryState(exerciseKeys.detail("ex-1"))).toBeUndefined();
+    expect(apiMock.getExercise).toHaveBeenCalledOnce();
+  });
 });
 
 describe("useDuplicateExercise", () => {

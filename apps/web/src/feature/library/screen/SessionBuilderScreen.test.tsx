@@ -1114,7 +1114,9 @@ describe("SessionBuilderScreen — suppression", () => {
     await view.user.click(view.getByRole("button", { name: DELETE }));
     await view.user.click(view.getByRole("button", { name: "common.confirmDelete" }));
 
-    expect(await view.findByText("library.session.stale")).toBeInTheDocument();
+    expect(await view.findByText("library.session.staleDelete")).toBeInTheDocument();
+    // Une seule fois : le bandeau, pas un second message sous les actions.
+    expect(view.queryByText("common.staleWrite")).not.toBeInTheDocument();
     expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
     expect(view.getByRole("button", { name: "common.staleReload" })).toBeInTheDocument();
   });

@@ -45,7 +45,12 @@ export function useDeleteExercise() {
     // La version affichée voyage avec l'id (#605, MC-8) : supprimer ce qu'on n'a pas vu est un 409.
     mutationFn: ({ id, updatedAt }: Pick<ExerciseDto, "id" | "updatedAt">) =>
       deleteExercise(id, { expectedUpdatedAt: updatedAt }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
+    onSuccess: (_, { id }) => {
+      // L'exercice supprimé ne se relit pas : le constructeur qui le montre s'en va, et sa
+      // relecture — un 404, retenté — retiendrait la navigation qui suit.
+      queryClient.removeQueries({ queryKey: exerciseKeys.detail(id) });
+      return queryClient.invalidateQueries({ queryKey: exerciseKeys.all });
+    },
   });
 }
 

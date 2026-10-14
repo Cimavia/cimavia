@@ -177,6 +177,7 @@
     "session": {
       "createTitle": "Nouvelle séance",
       "stale": "Cette séance a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "staleDelete": "Cette séance a été modifiée depuis que tu l'as ouverte : recharge-la pour voir sa dernière version avant de la supprimer.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Force haut du corps, Endurance…",
       "notesLabel": "Notes de séance",
@@ -430,6 +431,7 @@
       "saved": "Exercice enregistré.",
       "saveFailed": "L'enregistrement a échoué.",
       "stale": "Cet exercice a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "staleDelete": "Cet exercice a été modifié depuis que tu l'as ouvert : recharge-le pour voir sa dernière version avant de le supprimer.",
       "imageWidth": {
         "SMALL": "Petite",
         "MEDIUM": "Moyenne",
