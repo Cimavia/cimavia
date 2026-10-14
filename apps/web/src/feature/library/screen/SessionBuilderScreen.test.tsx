@@ -33,6 +33,7 @@ const api = vi.hoisted(() => ({
   listCustomMetrics: vi.fn(),
   getExercise: vi.fn(),
   duplicateExercise: vi.fn(),
+  listMyOrganizations: vi.fn(),
 }));
 
 // Les appels sont remplacés, les hooks et les clés de cache restent les VRAIS.
@@ -121,6 +122,8 @@ const planche = {
   tags: ["gainage"],
   blocks: series("p-b", 3),
   customMetrics: [],
+  owner: { id: "coach-1", name: "Cédric" },
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
 } as unknown as ExerciseDto;
 
 beforeEach(() => {
@@ -131,6 +134,7 @@ beforeEach(() => {
   api.listExercises.mockResolvedValue([planche]);
   api.listExerciseTags.mockResolvedValue([]);
   api.listCustomMetrics.mockResolvedValue([]);
+  api.listMyOrganizations.mockResolvedValue([]);
 });
 
 const LINKS = [

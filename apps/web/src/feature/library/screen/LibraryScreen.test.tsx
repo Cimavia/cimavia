@@ -16,7 +16,10 @@ vi.mock("@/feature/library/hook/useExercises", () => ({
   useExerciseTags: vi.fn(),
   useChangeExerciseAccess: vi.fn(),
 }));
-vi.mock("@/feature/library/hook/useMyOrganizations", () => ({ useMyOrganizations: vi.fn() }));
+vi.mock("@/feature/library/hook/useMyOrganizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/library/hook/useMyOrganizations")>()),
+  useMyOrganizations: vi.fn(),
+}));
 vi.mock("@/feature/library/hook/useSessions", () => ({
   useSessions: vi.fn(),
   useChangeSessionAccess: vi.fn(),

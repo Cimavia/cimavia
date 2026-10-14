@@ -15,7 +15,10 @@ vi.mock("@/feature/library/hook/useSessions", () => ({
   useSessions: vi.fn(),
   useChangeSessionAccess: vi.fn(),
 }));
-vi.mock("@/feature/library/hook/useMyOrganizations", () => ({ useMyOrganizations: vi.fn() }));
+vi.mock("@/feature/library/hook/useMyOrganizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/library/hook/useMyOrganizations")>()),
+  useMyOrganizations: vi.fn(),
+}));
 
 const refetch = vi.fn();
 const refetchOrganizations = vi.fn();

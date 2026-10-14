@@ -1,7 +1,7 @@
 import { AccessLevel, type MyAccess, MyAccessLevel } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { fakeT } from "../../../../test/translator";
-import { accessText, myRightText, ownerText } from "./access-text.util";
+import { accessText, myRightText, ownerRightText, ownerText } from "./access-text.util";
 
 const C = { id: "c", name: "C" };
 const M = { id: "m", name: "M" };
@@ -49,6 +49,18 @@ describe("ownerText", () => {
     expect(ownerText({ owner: M, myAccess: { level: MyAccessLevel.WRITE, via: F } }, fakeT)).toBe(
       "M",
     );
+  });
+});
+
+describe("ownerRightText", () => {
+  it("« Moi » pour ce qui est à l'acteur", () => {
+    expect(ownerRightText({ owner: C, myAccess: OWNER }, fakeT)).toBe("library.access.me");
+  });
+
+  it("le propriétaire et le droit de l'acteur, sans dire d'où il le tient", () => {
+    expect(
+      ownerRightText({ owner: M, myAccess: { level: MyAccessLevel.WRITE, via: F } }, fakeT),
+    ).toBe('library.access.grant({"name":"M","level":"library.access.level.WRITE"})');
   });
 });
 

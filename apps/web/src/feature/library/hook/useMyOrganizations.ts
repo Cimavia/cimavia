@@ -12,3 +12,13 @@ export function useMyOrganizations() {
     queryFn: listMyOrganizations,
   });
 }
+
+/**
+ * Le Coach partage-t-il sa bibliothèque ? `null` tant que ses entreprises ne sont pas lues — ou ne
+ * se lisent pas : l'inconnu n'est pas « aucune entreprise » (règle dure n°5).
+ */
+export function sharesLibrary(
+  organizations: readonly CoachOrganizationDto[] | undefined,
+): boolean | null {
+  return organizations == null ? null : organizations.length > 0;
+}

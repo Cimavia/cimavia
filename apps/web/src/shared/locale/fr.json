@@ -500,6 +500,11 @@
       "mine": "Les miens",
       "shared": "Partagés avec moi"
     },
+    "picker": {
+      "shown": "Exercices proposés",
+      "shared": "Partagés",
+      "lastShown": "Au moins une provenance reste affichée."
+    },
     "table": {
       "title": "Titre",
       "tags": "Tags",

@@ -1,4 +1,10 @@
-import { type AccessLabelSubject, accessLabel, type MyAccess, MyAccessLevel } from "@cmv/shared";
+import {
+  type AccessLabelSubject,
+  type AccessLevel,
+  accessLabel,
+  type MyAccess,
+  MyAccessLevel,
+} from "@cmv/shared";
 import type { TFunction } from "i18next";
 
 // i18n-values library.access.level: AccessLevel
@@ -15,14 +21,7 @@ export function accessText(subject: AccessLabelSubject, t: TFunction): string {
     case "private":
       return t("library.access.private");
     case "granted":
-      return label.grants
-        .map((grant) =>
-          t("library.access.grant", {
-            name: grant.name,
-            level: t(`library.access.level.${grant.level}`),
-          }),
-        )
-        .join(", ");
+      return label.grants.map((grant) => grantText(grant.name, grant.level, t)).join(", ");
     case "sharedBy":
       return t("library.access.sharedBy", {
         owner: label.owner,
@@ -36,6 +35,24 @@ export function ownerText(subject: Pick<AccessLabelSubject, "owner" | "myAccess"
   return subject.myAccess.level === MyAccessLevel.OWNER
     ? t("library.access.me")
     : subject.owner.name;
+}
+
+/**
+ * Le propriétaire d'un exercice à ajouter, et ce que l'acteur en peut (frame 8) : « Moi », ou
+ * « M · Écriture ». Le sélecteur ne dit pas d'où vient le droit : la Lecture suffit à ajouter.
+ */
+export function ownerRightText(
+  subject: Pick<AccessLabelSubject, "owner" | "myAccess">,
+  t: TFunction,
+): string {
+  return subject.myAccess.level === MyAccessLevel.OWNER
+    ? ownerText(subject, t)
+    : grantText(subject.owner.name, subject.myAccess.level, t);
+}
+
+/** « F · Écriture » : un nom et un niveau, côté propriétaire comme côté lecteur. */
+function grantText(name: string, level: AccessLevel | MyAccessLevel, t: TFunction): string {
+  return t("library.access.grant", { name, level: t(`library.access.level.${level}`) });
 }
 
 /**
