@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
 import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
-import { LibraryToolbar, NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
+import { LibraryToolbar } from "@/feature/library/component/LibraryToolbar";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import {
   useChangeExerciseAccess,
   useExercises,

@@ -2,7 +2,7 @@ import { type CustomMetric, type ExerciseDto, LibraryScope, searchMatcher } from
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
-import { NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { ownerRightText } from "@/feature/library/util/access-text.util";

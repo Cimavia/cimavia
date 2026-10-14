@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { libraryEmpty } from "@/feature/library/util/library-empty.util";
 import { CmvEmptyState } from "@/shared/component";
 

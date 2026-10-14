@@ -1,6 +1,6 @@
 import { LibraryScope } from "@cmv/shared";
 import { useState } from "react";
-import { NO_TAG_FILTER } from "@/feature/library/component/LibraryToolbar";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 
 /**
@@ -11,7 +11,7 @@ import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyO
 export function useLibraryFilters() {
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState(NO_TAG_FILTER);
-  const [chosenScope, setScope] = useState<LibraryScope>(LibraryScope.ALL);
+  const [chosenScope, setChosenScope] = useState<LibraryScope>(LibraryScope.ALL);
   const organizations = useMyOrganizations();
   // Inconnu, le partage attend : `LibraryListState` dit le chargement ou l'erreur.
   const sharing = sharesLibrary(organizations.data) === true;
@@ -28,8 +28,8 @@ export function useLibraryFilters() {
       onSearch: setSearch,
       tag,
       onTag: setTag,
-      scope: sharing ? scope : null,
-      onScope: setScope,
+      scope: sharing ? chosenScope : null,
+      onScope: setChosenScope,
     },
   };
 }

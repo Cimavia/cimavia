@@ -5,3 +5,6 @@ export const ACCEPTED_DOCUMENT_ATTR = DOCUMENT_MIME_TYPES.join(",");
 
 // `accept` de l'input d'image de consigne — sous-ensemble images du même contrat partagé.
 export const INSTRUCTION_IMAGE_ACCEPT = INSTRUCTION_IMAGE_MIME_TYPES.join(",");
+
+/** "" = pas de filtre : un tag ne peut pas être vide (`exerciseTagSchema`), la valeur est libre. */
+export const NO_TAG_FILTER = "";

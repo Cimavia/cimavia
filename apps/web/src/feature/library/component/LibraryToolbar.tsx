@@ -1,11 +1,9 @@
 import { LibraryScope } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { CmvChoiceChips, CmvSegmented, CmvTextField } from "@/shared/component";
 
 // i18n-values library.scope: LibraryScope
-
-/** "" = pas de filtre : un tag ne peut pas être vide (`exerciseTagSchema`), la valeur est libre. */
-export const NO_TAG_FILTER = "";
 
 type LibraryToolbarProps = {
   search: string;
