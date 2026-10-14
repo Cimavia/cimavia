@@ -188,7 +188,7 @@
       "moveDown": "Descendre l'exercice",
       "remove": "Retirer de la séance",
       "emptyTitle": "Compose ta séance",
-      "emptyDescription": "Choisis un exercice dans ta bibliothèque, à droite.",
+      "emptyDescription": "Ajoute un exercice de ta bibliothèque, juste en dessous.",
       "listEmpty": {
         "title": "Aucune séance",
         "description": "Compose ta première séance à partir de tes exercices : elle sera réutilisable dans toutes tes planifications."
