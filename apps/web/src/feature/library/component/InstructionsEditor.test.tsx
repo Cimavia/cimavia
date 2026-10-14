@@ -64,12 +64,12 @@ describe("InstructionsEditor — bornes de texte (#319)", () => {
   const COUNT = "common.charCount";
   const thousand = () => paragraph("x".repeat(1000));
 
-  function mount(initialValue: RichDocument) {
+  function mount(initialValue: RichDocument, readOnly = false) {
     const report = vi.fn();
     const view = renderWithProviders(
       <RefusedFieldsContext value={report}>
         <InstructionMediaProvider media={fakeMedia()}>
-          <InstructionsEditor initialValue={initialValue} onChange={vi.fn()} />
+          <InstructionsEditor initialValue={initialValue} onChange={vi.fn()} readOnly={readOnly} />
         </InstructionMediaProvider>
       </RefusedFieldsContext>,
     );
@@ -103,6 +103,15 @@ describe("InstructionsEditor — bornes de texte (#319)", () => {
 
     expect(getByText(TOO_LONG)).toBeInTheDocument();
     expect(report).toHaveBeenCalledWith(expect.any(String), true);
+  });
+
+  // En Lecture, rien ne se saisit : un refus fermerait l'enregistrement et demanderait, en
+  // partant, de quitter une saisie qui n'existe pas.
+  it("ne refuse rien en Lecture, même au-delà du cumul", () => {
+    const { queryByText, report } = mount(Array.from({ length: 6 }, thousand), true);
+
+    expect(queryByText(TOO_LONG)).not.toBeInTheDocument();
+    expect(report).not.toHaveBeenCalled();
   });
 
   it("ne refuse pas un long paragraphe d'un seul tenant tant que le cumul tient", () => {
@@ -463,6 +472,42 @@ describe("InstructionsEditor — une image posée", () => {
     await user.click(await findByRole("button", { name: "library.builder.image.remove" }));
 
     expect(last()).toEqual([paragraph("Avant"), paragraph("Après")]);
+  });
+});
+
+describe("InstructionsEditor — en lecture (#606)", () => {
+  function readOnly(initialValue: RichDocument, rerenderAs?: boolean) {
+    const ui = (locked: boolean) => (
+      <InstructionMediaProvider media={fakeMedia()}>
+        <InstructionsEditor initialValue={initialValue} onChange={vi.fn()} readOnly={locked} />
+      </InstructionMediaProvider>
+    );
+    const view = renderWithProviders(ui(true));
+    if (rerenderAs != null) view.rerender(ui(rerenderAs));
+    return view;
+  }
+
+  it("ni outil, ni compteur, et le texte ne s'édite pas", () => {
+    const { container, queryByRole } = readOnly([paragraph("Prise pronation")]);
+
+    expect(queryByRole("button", { name: "library.builder.tool.bold" })).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  });
+
+  it("une image n'offre que sa légende, sans réglage ni retrait", () => {
+    const { getByText, queryByRole } = readOnly([
+      { type: RichBlockType.IMAGE, mediaId: "doc_1", caption: "Prise pince" },
+    ] as RichDocument);
+
+    expect(getByText("Prise pince")).toBeInTheDocument();
+    expect(queryByRole("combobox")).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.builder.image.remove" })).not.toBeInTheDocument();
+  });
+
+  it("suit le droit s'il change sans remontage", () => {
+    const { container } = readOnly([paragraph("Prise pronation")], false);
+
+    expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "true");
   });
 });
 

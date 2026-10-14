@@ -1,6 +1,9 @@
+import { LibraryScope } from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   attachDocument,
+  changeExerciseAccess,
+  changeSessionAccess,
   createCustomMetric,
   createExercise,
   createSession,
@@ -12,11 +15,14 @@ import {
   getExercise,
   getSession,
   listCustomMetrics,
+  listExerciseCustomMetrics,
   listExercises,
   listExerciseTags,
+  listMyOrganizations,
   listSessions,
   reloadSessionExercise,
   requestUploadUrl,
+  sessionKeys,
   updateCustomMetric,
   updateExercise,
   updateSession,
@@ -67,6 +73,19 @@ describe("listExercises", () => {
     expect(apiMock.get).toHaveBeenCalledWith("/exercises?search=tirage+%C3%A0+1+bras");
   });
 
+  it("passe une portée autre que « all »", async () => {
+    await listExercises({ scope: LibraryScope.SHARED, tag: "force" });
+
+    expect(apiMock.get).toHaveBeenCalledWith("/exercises?tag=force&scope=shared");
+  });
+
+  // `all` est le défaut de l'API : l'écrire allongerait l'url sans rien changer à la réponse.
+  it("n'écrit pas la portée « all »", async () => {
+    await listExercises({ scope: LibraryScope.ALL });
+
+    expect(apiMock.get).toHaveBeenCalledWith("/exercises");
+  });
+
   it("combine tag et recherche", async () => {
     await listExercises({ tag: "force", search: "poutre" });
 
@@ -80,8 +99,20 @@ describe("exerciseKeys", () => {
     expect(exerciseKeys.list({ tag: "a" })).not.toEqual(exerciseKeys.list({ tag: "b" }));
   });
 
+  it("range la portée « tous » sous la clé sans portée : c'est la même requête", () => {
+    expect(exerciseKeys.list({ tag: "a", scope: LibraryScope.ALL })).toEqual(
+      exerciseKeys.list({ tag: "a" }),
+    );
+    expect(exerciseKeys.list({ scope: LibraryScope.MINE })).not.toEqual(exerciseKeys.list({}));
+  });
+
   it("garde toutes les clés sous la racine commune, pour une invalidation d'un seul geste", () => {
-    for (const key of [exerciseKeys.list({}), exerciseKeys.detail("ex-1"), exerciseKeys.tags()]) {
+    for (const key of [
+      exerciseKeys.list({}),
+      exerciseKeys.detail("ex-1"),
+      exerciseKeys.tags(),
+      exerciseKeys.customMetrics("ex-1"),
+    ]) {
       expect(key.slice(0, 1)).toEqual(exerciseKeys.all);
     }
   });
@@ -144,7 +175,27 @@ describe.each([
     ["/custom-metrics/m-1", { label: "Prises" }],
   ],
   ["deleteCustomMetric", () => deleteCustomMetric("m-1"), "delete", ["/custom-metrics/m-1"]],
-  ["listSessions", () => listSessions(), "get", ["/sessions"]],
+  ["listSessions", () => listSessions(LibraryScope.ALL), "get", ["/sessions"]],
+  ["listSessions (portée)", () => listSessions(LibraryScope.MINE), "get", ["/sessions?scope=mine"]],
+  [
+    "listExerciseCustomMetrics",
+    () => listExerciseCustomMetrics("ex-1"),
+    "get",
+    ["/exercises/ex-1/custom-metrics"],
+  ],
+  [
+    "changeExerciseAccess",
+    () => changeExerciseAccess({ ids: ["ex-1"], changes: [] } as never),
+    "patch",
+    ["/exercises/access", { ids: ["ex-1"], changes: [] }],
+  ],
+  [
+    "changeSessionAccess",
+    () => changeSessionAccess({ ids: ["s-1"], changes: [] } as never),
+    "patch",
+    ["/sessions/access", { ids: ["s-1"], changes: [] }],
+  ],
+  ["listMyOrganizations", () => listMyOrganizations(), "get", ["/me/organizations"]],
   ["getSession", () => getSession("s-1"), "get", ["/sessions/s-1"]],
   [
     "reloadSessionExercise",
@@ -175,5 +226,13 @@ describe.each([
     await expect(call()).resolves.toBe("réponse");
 
     expect(apiMock[verb]).toHaveBeenCalledExactlyOnceWith(...args);
+  });
+});
+
+describe("sessionKeys", () => {
+  // La liste « Les miens » et la liste « Tous » ne doivent pas se servir l'une l'autre.
+  it("range deux portées sous deux clés, sous la racine commune", () => {
+    expect(sessionKeys.list(LibraryScope.MINE)).not.toEqual(sessionKeys.list(LibraryScope.ALL));
+    expect(sessionKeys.list(LibraryScope.MINE).slice(0, 1)).toEqual(sessionKeys.all);
   });
 });

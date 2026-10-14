@@ -256,7 +256,8 @@ describe("ScheduledSessionPanel", () => {
 
     /**
      * L'exercice piocché est une COPIE : pas d'id — c'est le serveur qui en créera un —, sa
-     * bibliothèque en trace, et aucune métrique maison, qu'il résoudra lui-même.
+     * bibliothèque en trace, et aucune métrique maison, qu'il résoudra lui-même — pas même celles
+     * que l'exercice apporte pour s'afficher.
      */
     it("ajoute un exercice de la bibliothèque comme une copie neuve", async () => {
       updateMock.mockResolvedValue(session());
@@ -268,6 +269,7 @@ describe("ScheduledSessionPanel", () => {
           tags: ["core"],
           instructions: null,
           blocks: [],
+          customMetrics: [{ id: "cm-9", label: "Prises" }],
         },
       ]);
       const { user, getByRole, findByRole } = setup({ session: session() });
@@ -732,6 +734,45 @@ describe("ScheduledSessionPanel — dosage ajusté pour l'athlète (#518)", () =
 
     expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
     expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
+  });
+
+  // L'exercice d'un autre Coach cite SON catalogue (#605), que celui du lecteur ignore.
+  it("nomme les colonnes d'un exercice ajouté par les métriques de son propriétaire", async () => {
+    listCustomMetricsMock.mockResolvedValue([]);
+    listExercisesMock.mockResolvedValue([
+      {
+        id: "lib-m",
+        title: "Pan Güllich",
+        description: null,
+        tags: [],
+        instructions: null,
+        blocks: [
+          {
+            id: "blk-m",
+            label: null,
+            structure: { type: BlockType.FREE },
+            metrics: [
+              {
+                id: "c-m",
+                source: MetricSource.CUSTOM,
+                customMetricId: "cm-m",
+                label: null,
+                collapsed: false,
+              },
+            ],
+            rows: [{ id: "r-m", values: { "c-m": 12 } }],
+          },
+        ],
+        customMetrics: [
+          { id: "cm-m", label: "Prises", unit: null, valueType: "NUMBER", scale: null },
+        ],
+      },
+    ]);
+    const view = setup({ session: forLea({ exercises: [] }) });
+    await view.user.click(await view.findByRole("button", { name: /Pan Güllich/ }));
+    await view.user.click(view.getByRole("button", { name: "Pan Güllich", expanded: false }));
+
+    expect(within(view.getByRole("table")).getByText(/Prises/)).toBeInTheDocument();
   });
 });
 

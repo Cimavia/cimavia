@@ -1,6 +1,15 @@
-import { BlockType, type ExerciseDto } from "@cmv/shared";
+import {
+  BlockType,
+  type CoachOrganizationDto,
+  type ExerciseDto,
+  LibraryScope,
+  MetricSource,
+  MetricValueType,
+  MyAccessLevel,
+} from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
+import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { renderInRoute } from "../../../../test/render";
 import { LibraryPicker } from "./LibraryPicker";
 
@@ -8,11 +17,33 @@ vi.mock("@/feature/library/hook/useExercises", () => ({
   useExercises: vi.fn(),
   useExerciseTags: vi.fn(),
 }));
+vi.mock("@/feature/library/hook/useMyOrganizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/library/hook/useMyOrganizations")>()),
+  useMyOrganizations: vi.fn(),
+}));
+
+const F: CoachOrganizationDto = { id: "org-f", name: "F", coaches: [] };
+
+/** Les entreprises du Coach : aucune par défaut, `undefined` = pas lues. */
+function organizations(data: CoachOrganizationDto[] | undefined) {
+  vi.mocked(useMyOrganizations).mockReturnValue({ data } as unknown as ReturnType<
+    typeof useMyOrganizations
+  >);
+}
 
 const SEARCH = "library.searchLabel";
 
 const exercise = (id: string, title: string, overrides: Partial<ExerciseDto> = {}) =>
-  ({ id, title, tags: [], blocks: [], ...overrides }) as unknown as ExerciseDto;
+  ({
+    id,
+    title,
+    tags: [],
+    blocks: [],
+    customMetrics: [],
+    owner: { id: "coach-c", name: "C" },
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
+    ...overrides,
+  }) as unknown as ExerciseDto;
 
 const series = [
   {
@@ -62,6 +93,7 @@ async function setup({ isSaving = false } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  organizations([]);
 });
 
 describe("LibraryPicker", () => {
@@ -70,7 +102,7 @@ describe("LibraryPicker", () => {
     const { titles } = await setup();
 
     expect(titles()).toEqual(["Échauffement", "Tractions", "Gainage"]);
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
 
   it("ne propose rien tant que la bibliothèque n'est pas chargée", async () => {
@@ -96,10 +128,10 @@ describe("LibraryPicker", () => {
     const { user, getByRole } = await setup();
 
     await user.click(getByRole("button", { name: "force" }));
-    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force" });
+    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force", scope: LibraryScope.ALL });
 
     await user.click(getByRole("button", { name: "library.filterAllTags" }));
-    expect(useExercises).toHaveBeenLastCalledWith({});
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
 
   it.each([
@@ -157,10 +189,136 @@ describe("LibraryPicker", () => {
   });
 
   // Une bibliothèque vide sans recherche n'appelle pas « créer l'exercice “” ».
-  it("ne propose rien à créer sans recherche", async () => {
+  it("ne propose rien à créer sans recherche, et dit la bibliothèque vide", async () => {
     served([]);
-    const { queryByRole } = await setup();
+    const { queryByRole, getByText } = await setup();
 
     expect(queryByRole("button", { name: "library.noMatch.create" })).not.toBeInTheDocument();
+    expect(getByText("library.empty.title")).toBeInTheDocument();
+  });
+});
+
+describe("LibraryPicker — partage (#606, frame 8)", () => {
+  const ofM = exercise("ex-m", "Gainage", {
+    owner: { id: "coach-m", name: "M" },
+    myAccess: { level: MyAccessLevel.READ, via: F },
+  });
+
+  it("sans entreprise : ni propriétaire, ni bascule", async () => {
+    served(library);
+    const { queryByText, queryByRole } = await setup();
+
+    expect(queryByText("library.access.me")).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.picker.shared" })).not.toBeInTheDocument();
+  });
+
+  it("dit à qui est chaque exercice, et le droit qu'on a sur celui d'un autre", async () => {
+    organizations([F]);
+    served([exercise("ex-1", "Échauffement"), ofM]);
+    const { getByRole } = await setup();
+
+    expect(getByRole("button", { name: /^Échauffement/ })).toHaveTextContent("library.access.me");
+    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("library.access.grant");
+  });
+
+  it("propose les deux provenances au départ, et demande celle qui reste", async () => {
+    organizations([F]);
+    served(library);
+    const { user, getByRole } = await setup();
+
+    // Les deux : tout ce que le Coach lit, la portée par défaut de l'API.
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
+    await user.click(getByRole("button", { name: "library.picker.shared" }));
+
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.MINE });
+    expect(getByRole("button", { name: "library.scope.mine" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("garde le tag choisi en changeant de provenance", async () => {
+    organizations([F]);
+    served(library);
+    const { user, getByRole } = await setup();
+
+    await user.click(getByRole("button", { name: "force" }));
+    await user.click(getByRole("button", { name: "library.scope.mine" }));
+
+    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force", scope: LibraryScope.SHARED });
+    expect(getByRole("button", { name: "library.picker.shared" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("entreprises inconnues : le propriétaire se dit quand même, les bascules attendent", async () => {
+    organizations(undefined);
+    served([ofM]);
+    const { getByRole, queryByRole } = await setup();
+
+    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("library.access.grant");
+    expect(queryByRole("button", { name: "library.picker.shared" })).not.toBeInTheDocument();
+    expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
+  });
+
+  it("parmi les seuls partagés, une recherche vaine ne propose pas de créer (frame 4)", async () => {
+    organizations([F]);
+    served([]);
+    const { user, getByRole, getByLabelText, getByText, queryByRole } = await setup();
+
+    await user.click(getByRole("button", { name: "library.scope.mine" }));
+    expect(getByText("library.access.exercise.sharedEmpty")).toBeInTheDocument();
+    await user.type(getByLabelText(SEARCH), "Projet");
+
+    expect(getByText("library.noMatch.title")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "library.noMatch.create" })).not.toBeInTheDocument();
+  });
+
+  it("un tag sans exercice le dit, plutôt qu'une grille vide", async () => {
+    served([]);
+    const { user, getByRole, getByText } = await setup();
+
+    await user.click(getByRole("button", { name: "force" }));
+
+    expect(getByText("library.noFilterMatch")).toBeInTheDocument();
+  });
+
+  // Le résumé dit la valeur ET son unité, que seule la définition du propriétaire connaît.
+  it("résume l'exercice d'un autre avec les métriques de son propriétaire", async () => {
+    organizations([F]);
+    served([
+      exercise("ex-m", "Gainage", {
+        blocks: [
+          {
+            id: "b-m",
+            label: null,
+            structure: { type: BlockType.FREE },
+            metrics: [
+              {
+                id: "c-m",
+                source: MetricSource.CUSTOM,
+                customMetricId: "cm-m",
+                label: null,
+                collapsed: true,
+              },
+            ],
+            rows: [{ id: "r-m", values: { "c-m": 12 } }],
+          },
+        ] as unknown as ExerciseDto["blocks"],
+        customMetrics: [
+          {
+            id: "cm-m",
+            label: "Prises",
+            unit: "prises",
+            valueType: MetricValueType.NUMBER,
+            scale: null,
+          },
+        ],
+      }),
+    ]);
+    const { getByRole } = await setup();
+
+    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("12 prises");
   });
 });

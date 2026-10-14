@@ -45,7 +45,12 @@ export const ImageExtension = Node.create({
   },
 });
 
-function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<NodeViewProps>) {
+function InstructionImageView({
+  node,
+  editor,
+  updateAttributes,
+  deleteNode,
+}: Readonly<NodeViewProps>) {
   const { t } = useTranslation();
   const media = useInstructionMediaContext();
 
@@ -80,40 +85,46 @@ function InstructionImageView({ node, updateAttributes, deleteNode }: Readonly<N
           )}
         </div>
 
-        <div className="flex items-center gap-cmv-xs">
-          {/* Trois paliers plutôt qu'une poignée de redimensionnement : la même image doit se
+        {/* En lecture (#606), la légende seule : régler, légender ou retirer n'y a pas de sens. */}
+        {!editor.isEditable && caption !== "" ? (
+          <figcaption className="text-cmv-caption text-cmv-text-mid">{caption}</figcaption>
+        ) : null}
+        {editor.isEditable ? (
+          <div className="flex items-center gap-cmv-xs">
+            {/* Trois paliers plutôt qu'une poignée de redimensionnement : la même image doit se
               rendre identiquement sur le web et en React Native, ce qu'un pourcentage libre
               interdirait. */}
-          <select
-            value={width}
-            onChange={(event) => updateAttributes({ width: event.target.value })}
-            aria-label={t("library.builder.image.width")}
-            className="rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-xs py-cmv-xs text-cmv-caption text-cmv-text-mid outline-none focus:border-cmv-accent"
-          >
-            {IMAGE_WIDTHS.map((value) => (
-              <option key={value} value={value}>
-                {t(`library.builder.imageWidth.${value}`)}
-              </option>
-            ))}
-          </select>
-          <input
-            value={caption}
-            maxLength={RICH_IMAGE_CAPTION_MAX_LENGTH}
-            onChange={(event) => updateAttributes({ caption: event.target.value })}
-            placeholder={t("library.builder.image.captionPlaceholder")}
-            aria-label={t("library.builder.image.caption")}
-            className="flex-1 bg-transparent text-cmv-caption text-cmv-text-mid outline-none"
-          />
-          <button
-            type="button"
-            onClick={deleteNode}
-            aria-label={t("library.builder.image.remove")}
-            title={t("library.builder.image.remove")}
-            className="rounded-cmv-sm px-cmv-xs py-cmv-xs text-cmv-text-mid hover:text-cmv-error"
-          >
-            <IoTrashOutline />
-          </button>
-        </div>
+            <select
+              value={width}
+              onChange={(event) => updateAttributes({ width: event.target.value })}
+              aria-label={t("library.builder.image.width")}
+              className="rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-xs py-cmv-xs text-cmv-caption text-cmv-text-mid outline-none focus:border-cmv-accent"
+            >
+              {IMAGE_WIDTHS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`library.builder.imageWidth.${value}`)}
+                </option>
+              ))}
+            </select>
+            <input
+              value={caption}
+              maxLength={RICH_IMAGE_CAPTION_MAX_LENGTH}
+              onChange={(event) => updateAttributes({ caption: event.target.value })}
+              placeholder={t("library.builder.image.captionPlaceholder")}
+              aria-label={t("library.builder.image.caption")}
+              className="flex-1 bg-transparent text-cmv-caption text-cmv-text-mid outline-none"
+            />
+            <button
+              type="button"
+              onClick={deleteNode}
+              aria-label={t("library.builder.image.remove")}
+              title={t("library.builder.image.remove")}
+              className="rounded-cmv-sm px-cmv-xs py-cmv-xs text-cmv-text-mid hover:text-cmv-error"
+            >
+              <IoTrashOutline />
+            </button>
+          </div>
+        ) : null}
       </figure>
     </NodeViewWrapper>
   );

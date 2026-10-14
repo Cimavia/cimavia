@@ -49,6 +49,16 @@ function rank(level: AccessGrantDto["level"]): number {
   return level === AccessLevel.WRITE ? 2 : 1;
 }
 
+/** Gérer les accès, supprimer, puiser dans son propre catalogue : le propriétaire seul. */
+export function isOwner(access: MyAccess): boolean {
+  return access.level === MyAccessLevel.OWNER;
+}
+
+/** L'élément s'il est à un autre que l'acteur ; `null` pour le sien, ou pour celui qui naît. */
+export function foreignOf<T extends { myAccess: MyAccess }>(element: T | null): T | null {
+  return element != null && !isOwner(element.myAccess) ? element : null;
+}
+
 /** Modifier le contenu : le propriétaire, ou un droit d'Écriture. */
 export function canWrite(access: MyAccess): boolean {
   return access.level !== MyAccessLevel.READ;

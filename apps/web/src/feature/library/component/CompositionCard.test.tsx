@@ -50,6 +50,7 @@ const item = (over: Partial<CompositionItem> = {}): CompositionItem => ({
   blocks,
   baseline: blocks,
   adjustments: [],
+  customMetrics: [],
   ...over,
 });
 
@@ -77,7 +78,7 @@ function setup(over: Partial<Parameters<typeof CompositionCard>[0]> = {}) {
     <CompositionCard
       item={item()}
       customMetrics={[]}
-      isReloading={false}
+      isWriting={false}
       dragHandle={null}
       isDropTarget={false}
       isFirst={false}
@@ -276,13 +277,14 @@ describe("CompositionCard", () => {
       expect(queryByRole("button", { name: RESET_ALL })).not.toBeInTheDocument();
     });
 
-    // Un rechargement déjà en cours : le relancer doublerait la requête.
-    it("ferme le rechargement pendant qu'il tourne", async () => {
-      const { user, getByRole } = setup({ isReloading: true });
+    // Une écriture déjà en cours : en lancer une seconde, à la même version, la ferait refuser.
+    it("ferme le rechargement et la variante pendant une écriture", async () => {
+      const { user, getByRole } = setup({ isWriting: true });
 
       await user.click(getByRole("button", { name: MENU }));
 
       expect(getByRole("button", { name: "library.session.reload" })).toBeDisabled();
+      expect(getByRole("button", { name: "library.session.duplicate" })).toBeDisabled();
     });
 
     it("renonce au rechargement sans rien recharger", async () => {

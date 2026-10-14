@@ -1,4 +1,5 @@
 import {
+  type CustomMetric,
   METRIC_CATALOG,
   METRIC_UNIT_LABEL_KEY,
   MetricFamily,
@@ -35,4 +36,20 @@ export function metricHint(key: MetricKey, t: TFunction): string | null {
   const units = METRIC_CATALOG[key].units.filter((unit) => unit !== MetricUnit.NONE);
   if (units.length === 0) return null;
   return units.map((unit) => t(METRIC_UNIT_LABEL_KEY[unit])).join(" · ");
+}
+
+/**
+ * Les définitions où se résolvent des colonnes, réunies par identifiant : le catalogue VIVANT du
+ * Coach d'abord, puis celles qu'un exercice ou une ligne de séance embarque (#605). L'exercice
+ * d'un autre Coach cite son catalogue, que le lecteur n'a pas : sans les définitions embarquées,
+ * sa cotation se lirait comme une colonne inconnue. La première qui connaît un id l'emporte.
+ */
+export function mergeCatalogs(
+  ...catalogs: readonly (readonly CustomMetric[] | undefined)[]
+): CustomMetric[] {
+  const byId = new Map<string, CustomMetric>();
+  for (const metric of catalogs.flatMap((catalog) => catalog ?? [])) {
+    if (!byId.has(metric.id)) byId.set(metric.id, metric);
+  }
+  return [...byId.values()];
 }

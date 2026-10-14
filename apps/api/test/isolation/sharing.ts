@@ -15,6 +15,7 @@ import {
 } from "../support/actors";
 import { app } from "../support/app";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import { required } from "../support/required";
 import { deleteAtLatest, patchAtLatest, putAtLatest, versionOf } from "../support/version";
 
 /**
@@ -464,6 +465,61 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect(owners.body).toMatchObject({ coachId: cId, customMetrics: [{ id: gradeId }] });
 
     await grantF("READ", { exerciseId: voieId });
+  });
+
+  /**
+   * Les images de la consigne de C sont relues sous l'exercice déjà prouvé (#605) : elles sont à la
+   * ligne que M écrit, pas à M — celles de C comme celle que M y envoie. Une image d'un autre
+   * exercice reste refusée, même ouvert à F : la règle est la ligne écrite, pas ce que M lit (#315).
+   */
+  it("en Écriture, M illustre la consigne de C ; l'image d'un autre exercice, même ouvert, reste refusée", async () => {
+    const traversee = await c.post("/exercises").send({ title: "Traversée" });
+    const ailleurs = await c.post("/exercises").send({ title: "Ailleurs" });
+    expect([traversee.status, ailleurs.status]).toEqual([201, 201]);
+    const path = `/exercises/${traversee.body.id}`;
+    const illustrated = (text: string, mediaId: string) => [
+      { type: "IMAGE", mediaId, width: "MEDIUM" },
+      { type: "PARAGRAPH", content: [{ text }] },
+    ];
+    const byC = await uploadInstructionImage(c, traversee.body.id);
+    const elsewhere = await uploadInstructionImage(c, ailleurs.body.id);
+    const first = await patchAtLatest(c, path, { instructions: illustrated("Pieds bas.", byC) });
+    expect(first.status).toBe(200);
+    await grantF("WRITE", { exerciseId: traversee.body.id });
+    await grantF("READ", { exerciseId: ailleurs.body.id });
+
+    const byM = await uploadInstructionImage(m, traversee.body.id);
+    const instructions = [
+      ...illustrated("Pieds bas.", byC),
+      ...illustrated("Hanches au mur.", byM),
+    ];
+    expect((await patchAtLatest(m, path, { instructions })).status).toBe(200);
+    const read = await m.get(path);
+    expect(read.body).toMatchObject({ coachId: cId, instructions });
+    for (const id of [byC, byM]) {
+      const shown = required(
+        read.body.documents.find((document: { id: string }) => document.id === id),
+        `image ${id} de la consigne, relue par M`,
+      );
+      expect((await fetch(shown.url)).status).toBe(200);
+    }
+
+    const foreign = await m.patch(path).send({
+      expectedUpdatedAt: read.body.updatedAt,
+      instructions: illustrated("Ailleurs.", elsewhere),
+    });
+    expect(foreign.status).toBe(400);
+    expect(foreign.body.message).toBe(
+      "La consigne cite une image qui n'appartient pas à cet exercice",
+    );
+    // Rien de l'écriture refusée ne passe.
+    expect((await m.get(path)).body).toMatchObject({
+      updatedAt: read.body.updatedAt,
+      instructions,
+    });
+
+    expect((await deleteAtLatest(c, path)).status).toBe(204);
+    expect((await deleteAtLatest(c, `/exercises/${ailleurs.body.id}`)).status).toBe(204);
   });
 
   it("C ne supprime pas l'exercice qu'une séance de M cite, et le message les compte à part", async () => {

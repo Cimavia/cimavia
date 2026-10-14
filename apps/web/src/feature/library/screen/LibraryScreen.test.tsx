@@ -1,16 +1,29 @@
-import type { ExerciseDto, SessionDto } from "@cmv/shared";
+import { type ExerciseDto, MyAccessLevel, type SessionDto } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
-import { useSessions } from "@/feature/library/hook/useSessions";
+import {
+  useChangeExerciseAccess,
+  useExercises,
+  useExerciseTags,
+} from "@/feature/library/hook/useExercises";
+import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
+import { useChangeSessionAccess, useSessions } from "@/feature/library/hook/useSessions";
 import { renderInRoute } from "../../../../test/render";
 import { LibraryScreen } from "./LibraryScreen";
 
 vi.mock("@/feature/library/hook/useExercises", () => ({
   useExercises: vi.fn(),
   useExerciseTags: vi.fn(),
+  useChangeExerciseAccess: vi.fn(),
 }));
-vi.mock("@/feature/library/hook/useSessions", () => ({ useSessions: vi.fn() }));
+vi.mock("@/feature/library/hook/useMyOrganizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/library/hook/useMyOrganizations")>()),
+  useMyOrganizations: vi.fn(),
+}));
+vi.mock("@/feature/library/hook/useSessions", () => ({
+  useSessions: vi.fn(),
+  useChangeSessionAccess: vi.fn(),
+}));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: "coach-1", name: "Cédric" } } }),
@@ -27,13 +40,19 @@ const session = {
   title: "Force max",
   notes: null,
   exercises: [],
+  owner: { id: "coach-1", name: "Cédric" },
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
+  grants: [],
+  updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as SessionDto;
 const exercise = {
   id: "ex-1",
   title: "Tractions",
-  description: null,
   tags: [],
-  documents: [],
+  owner: { id: "coach-1", name: "Cédric" },
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
+  grants: [],
+  updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as ExerciseDto;
 
 function served({
@@ -58,6 +77,16 @@ function served({
   vi.mocked(useExerciseTags).mockReturnValue({ data: [] } as unknown as ReturnType<
     typeof useExerciseTags
   >);
+  vi.mocked(useChangeExerciseAccess).mockReturnValue({
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useChangeExerciseAccess>);
+  vi.mocked(useChangeSessionAccess).mockReturnValue({
+    reset: vi.fn(),
+  } as unknown as ReturnType<typeof useChangeSessionAccess>);
+  vi.mocked(useMyOrganizations).mockReturnValue({
+    data: [],
+    isError: false,
+  } as unknown as ReturnType<typeof useMyOrganizations>);
 }
 
 function setup() {

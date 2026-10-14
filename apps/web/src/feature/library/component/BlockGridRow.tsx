@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
 import { GridCell } from "@/feature/library/component/GridCell";
 import type { useBlockRows } from "@/feature/library/hook/useBlockRows";
-import { CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
+import { CMV_EDIT, CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 /**
@@ -38,7 +38,7 @@ export function BlockGridHead({
           )}
         </th>
         {children}
-        <th className={cn("w-10", CMV_TABLE.headCell)} scope="col">
+        <th className={cn("w-10", CMV_TABLE.headCell, CMV_EDIT.only)} scope="col">
           <span className="sr-only">{t("library.builder.grid.rowActions")}</span>
         </th>
       </tr>
@@ -103,11 +103,13 @@ export function BlockGridRow({
       <td className={CMV_TABLE.cell}>
         <div className="flex items-center gap-cmv-xs">
           {row == null ? null : (
-            <CmvDragHandle
-              label={`${t("library.builder.grid.moveRow")} ${index + 1}`}
-              {...rows.drag.handleProps(index)}
-              onMove={(direction) => rows.moveRow(index, index + direction)}
-            />
+            <span className={CMV_EDIT.only}>
+              <CmvDragHandle
+                label={`${t("library.builder.grid.moveRow")} ${index + 1}`}
+                {...rows.drag.handleProps(index)}
+                onMove={(direction) => rows.moveRow(index, index + direction)}
+              />
+            </span>
           )}
           <span className={cn(CMV_TABLE.index, isMuted(slot) && "opacity-60")}>{index + 1}</span>
           <RowNote slot={slot} />
@@ -131,7 +133,7 @@ export function BlockGridRow({
         </td>
       ))}
 
-      <td className={CMV_TABLE.cell}>
+      <td className={cn(CMV_TABLE.cell, CMV_EDIT.only)}>
         {row == null ? null : (
           <CmvButton
             variant="ghost"

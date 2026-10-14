@@ -48,7 +48,7 @@ export function upcomingDueDate(monday = mondayOfThisWeek()): string {
  * Une réponse en échec arrête le parcours ICI, avec la route et le corps : sans quoi un `body.id`
  * absent ferait échouer le test trois étapes plus loin, sur un écran vide qui n'explique rien.
  */
-async function json<T>(response: APIResponse, what: string): Promise<T> {
+export async function json<T>(response: APIResponse, what: string): Promise<T> {
   if (!response.ok()) {
     throw new Error(`Jeu de données — ${what} : ${response.status()} ${await response.text()}`);
   }
@@ -69,7 +69,10 @@ export class Seed {
 
   constructor(private readonly request: APIRequest) {}
 
-  async account(label: string, capabilities: { isCoach: boolean; isAthlete: boolean }) {
+  async account(
+    label: string,
+    capabilities: { isCoach: boolean; isAthlete: boolean; isCompany?: boolean },
+  ) {
     const api = await this.request.newContext({ baseURL: API_URL });
     this.apis.push(api);
     const name = `${label} ${this.run}`;
@@ -89,6 +92,39 @@ export class Seed {
 
   athlete(label = "Athlete"): Promise<Account> {
     return this.account(label, { isCoach: false, isAthlete: true });
+  }
+
+  /**
+   * Un compte Entreprise : il ne coache ni ne s'entraîne, il réunit des Coachs (#596). Rend aussi
+   * son id, que citent les droits d'accès (#605).
+   */
+  async company(label = "Entreprise"): Promise<Account & { id: string }> {
+    const account = await this.account(label, {
+      isCoach: false,
+      isAthlete: false,
+      isCompany: true,
+    });
+    const session = await json<{ user: { id: string } }>(
+      await account.api.get("/api/auth/get-session"),
+      "session de l'entreprise",
+    );
+    return { ...account, id: session.user.id };
+  }
+
+  /** L'entreprise invite le Coach dans son équipe, et il accepte (#601). */
+  async join(company: Account, coach: Account): Promise<void> {
+    const invitation = await json<{ id: string }>(
+      await company.api.post("/organization/invitations", {
+        data: { email: coach.email, role: "COACH" },
+      }),
+      "invitation dans l'entreprise",
+    );
+    const accepted = await coach.api.post(`/organization-invitations/${invitation.id}/accept`);
+    if (!accepted.ok()) {
+      throw new Error(
+        `Jeu de données — entrée dans l'entreprise : ${accepted.status()} ${await accepted.text()}`,
+      );
+    }
   }
 
   /** Le coach invite l'adresse de l'athlète, qui accepte. Rend l'id de l'athlète. */

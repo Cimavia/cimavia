@@ -17,13 +17,17 @@ import {
 import { DosageEditor } from "@/feature/library/component/DosageEditor";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
-import { CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
+import { CMV_EDIT, CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 type CompositionCardProps = {
   item: CompositionItem;
   customMetrics: readonly CustomMetric[];
-  isReloading: boolean;
+  /**
+   * Une écriture de la séance est en cours : recharger ou dupliquer en lanceraient une seconde,
+   * à la même version — et la seconde prendrait la première pour un conflit.
+   */
+  isWriting: boolean;
   onNoteChange: (note: string) => void;
   onCellChange: (blockId: string, rowId: string, metricId: string, value: MetricValue) => void;
   onStructureChange: (blockId: string, structure: ExerciseBlock["structure"]) => void;
@@ -40,6 +44,11 @@ type CompositionCardProps = {
   onMove: (direction: -1 | 1) => void;
   isFirst: boolean;
   isLast: boolean;
+  /**
+   * La séance d'un autre Coach, en Lecture (#606) : la carte se déplie, rien ne s'y modifie — ni
+   * ordre, ni menu, ni dosage, ni note.
+   */
+  readOnly?: boolean;
 };
 
 /**
@@ -49,7 +58,7 @@ type CompositionCardProps = {
 export function CompositionCard({
   item,
   customMetrics,
-  isReloading,
+  isWriting,
   onNoteChange,
   onCellChange,
   onStructureChange,
@@ -65,6 +74,7 @@ export function CompositionCard({
   onMove,
   isFirst,
   isLast,
+  readOnly = false,
 }: Readonly<CompositionCardProps>) {
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -99,64 +109,75 @@ export function CompositionCard({
           </CmvBadge>
         )}
 
-        {/* Les flèches doublent le glisser : celui-ci est inaccessible au clavier, et le
-            constructeur d'exercice les propose déjà sur ses blocs. */}
-        <CmvButton
-          variant="ghost"
-          title={t("library.session.moveUp")}
-          disabled={isFirst}
-          onClick={() => onMove(-1)}
-        >
-          <IoArrowUp />
-        </CmvButton>
-        <CmvButton
-          variant="ghost"
-          title={t("library.session.moveDown")}
-          disabled={isLast}
-          onClick={() => onMove(1)}
-        >
-          <IoArrowDown />
-        </CmvButton>
+        {readOnly ? null : (
+          <>
+            {/* Les flèches doublent le glisser : celui-ci est inaccessible au clavier, et le
+              constructeur d'exercice les propose déjà sur ses blocs. */}
+            <CmvButton
+              variant="ghost"
+              title={t("library.session.moveUp")}
+              disabled={isFirst}
+              onClick={() => onMove(-1)}
+            >
+              <IoArrowUp />
+            </CmvButton>
+            <CmvButton
+              variant="ghost"
+              title={t("library.session.moveDown")}
+              disabled={isLast}
+              onClick={() => onMove(1)}
+            >
+              <IoArrowDown />
+            </CmvButton>
 
-        <div className="relative">
-          <CmvButton
-            variant="ghost"
-            title={t("library.session.cardMenu")}
-            onClick={() => setMenuOpen((current) => !current)}
-          >
-            <IoEllipsisHorizontal />
-          </CmvButton>
-          {menuOpen ? (
-            <div className="absolute right-0 z-10 mt-cmv-xs flex w-72 flex-col items-start gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-sm shadow-lg">
+            <div className="relative">
               <CmvButton
                 variant="ghost"
-                disabled={adjustedCount === 0}
-                onClick={() => {
-                  onResetAll();
-                  setMenuOpen(false);
-                }}
+                title={t("library.session.cardMenu")}
+                onClick={() => setMenuOpen((current) => !current)}
               >
-                {t("library.session.resetAll")}
+                <IoEllipsisHorizontal />
               </CmvButton>
-              <CmvButton
-                variant="ghost"
-                disabled={item.id == null || isReloading}
-                onClick={() => {
-                  setConfirmReload(true);
-                  setMenuOpen(false);
-                }}
-              >
-                {t("library.session.reload")}
-              </CmvButton>
-              <CmvButton variant="ghost" onClick={onDuplicate}>
-                {t("library.session.duplicate")}
-              </CmvButton>
-              <CmvButton variant="danger" onClick={onRemove}>
-                {t("library.session.remove")}
-              </CmvButton>
+              {menuOpen ? (
+                <div className="absolute right-0 z-10 mt-cmv-xs flex w-72 flex-col items-start gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-sm shadow-lg">
+                  <CmvButton
+                    variant="ghost"
+                    disabled={adjustedCount === 0}
+                    onClick={() => {
+                      onResetAll();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {t("library.session.resetAll")}
+                  </CmvButton>
+                  <CmvButton
+                    variant="ghost"
+                    disabled={item.id == null || isWriting}
+                    onClick={() => {
+                      setConfirmReload(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {t("library.session.reload")}
+                  </CmvButton>
+                  <CmvButton
+                    variant="ghost"
+                    disabled={isWriting}
+                    onClick={() => {
+                      onDuplicate();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {t("library.session.duplicate")}
+                  </CmvButton>
+                  <CmvButton variant="danger" onClick={onRemove}>
+                    {t("library.session.remove")}
+                  </CmvButton>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </>
+        )}
       </header>
 
       {/* Le rechargement ÉCRASE et perd les ajustements : il se confirme, et la confirmation dit
@@ -184,8 +205,13 @@ export function CompositionCard({
 
       {summary == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{summary}</p>}
 
+      {/* Le fieldset fige le dosage et la note d'un geste, et efface ce qui ne sert qu'à éditer
+          (`CMV_EDIT`) ; le dépli, hors de lui, reste ouvert. */}
       {open ? (
-        <div className="flex flex-col gap-cmv-lg">
+        <fieldset
+          disabled={readOnly}
+          className={cn("flex min-w-0 flex-col gap-cmv-lg", CMV_EDIT.group)}
+        >
           <DosageEditor
             dosage={item}
             level={AdjustmentLevel.SESSION}
@@ -205,7 +231,7 @@ export function CompositionCard({
             onChange={(event) => onNoteChange(event.target.value)}
             placeholder={t("library.session.notePlaceholder")}
           />
-        </div>
+        </fieldset>
       ) : null}
     </article>
   );

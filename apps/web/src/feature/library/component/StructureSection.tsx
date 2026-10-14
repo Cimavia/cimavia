@@ -16,19 +16,33 @@ import { BlockTypePicker } from "@/feature/library/component/BlockTypePicker";
 import { CollapsedColumns } from "@/feature/library/component/CollapsedColumns";
 import { MetricPicker } from "@/feature/library/component/MetricPicker";
 import { createBlock } from "@/feature/library/util/block-factory.util";
-import { CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
+import { CMV_EDIT, CmvBadge, CmvButton, CmvEmptyState } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 // i18n-values library.builder.blockType: BlockType
 
 type StructureSectionProps = {
   blocks: ExerciseBlocks;
+  /** Où se résolvent les colonnes : le catalogue, et les définitions que l'exercice embarque. */
   customMetrics: readonly CustomMetric[];
+  /**
+   * Ce qui se POSE en colonne : le catalogue vivant seul. Une définition embarquée a pu le
+   * quitter — supprimée, elle nomme encore sa colonne, mais posée, l'enregistrement la refuserait.
+   */
+  pickable: readonly CustomMetric[] | null;
+  /**
+   * Le Coach à qui appartient `customMetrics`, quand ce n'est pas l'acteur (#606) : ce catalogue
+   * se choisit, mais ne se gère que chez son propriétaire. `null` = celui de l'acteur.
+   */
+  catalogOwner?: string | null;
   onChange: (blocks: ExerciseBlocks) => void;
 };
 
 export function StructureSection({
   blocks,
   customMetrics,
+  pickable,
+  catalogOwner = null,
   onChange,
 }: Readonly<StructureSectionProps>) {
   const { t } = useTranslation();
@@ -66,15 +80,22 @@ export function StructureSection({
       <span className="text-cmv-caption text-cmv-text-mid">{t("library.builder.structure")}</span>
 
       {blocks.length === 0 && !picking ? (
-        <CmvEmptyState
-          title={t("library.builder.noBlockTitle")}
-          description={t("library.builder.noBlockDescription")}
-          action={
-            <CmvButton variant="secondary" onClick={() => setPicking(true)}>
-              {t("library.builder.addBlock")}
-            </CmvButton>
-          }
-        />
+        <>
+          <div className={CMV_EDIT.only}>
+            <CmvEmptyState
+              title={t("library.builder.noBlockTitle")}
+              description={t("library.builder.noBlockDescription")}
+              action={
+                <CmvButton variant="secondary" onClick={() => setPicking(true)}>
+                  {t("library.builder.addBlock")}
+                </CmvButton>
+              }
+            />
+          </div>
+          <p className={cn(CMV_EDIT.readOnly, "text-cmv-body text-cmv-text-lo")}>
+            {t("library.builder.noBlockReadOnly")}
+          </p>
+        </>
       ) : null}
 
       {blocks.map((block, index) => (
@@ -82,6 +103,8 @@ export function StructureSection({
           key={block.id}
           block={block}
           customMetrics={customMetrics}
+          pickable={pickable}
+          catalogOwner={catalogOwner}
           index={index}
           isFirst={index === 0}
           isLast={index === blocks.length - 1}
@@ -105,7 +128,7 @@ export function StructureSection({
       ) : null}
 
       {blocks.length > 0 && !picking ? (
-        <div>
+        <div className={CMV_EDIT.only}>
           <CmvButton variant="secondary" onClick={() => setPicking(true)} disabled={isFull}>
             {t("library.builder.addBlock")}
           </CmvButton>
@@ -118,6 +141,8 @@ export function StructureSection({
 type BlockCardProps = {
   block: ExerciseBlock;
   customMetrics: readonly CustomMetric[];
+  pickable: readonly CustomMetric[] | null;
+  catalogOwner: string | null;
   index: number;
   isFirst: boolean;
   isLast: boolean;
@@ -131,6 +156,8 @@ type BlockCardProps = {
 function BlockCard({
   block,
   customMetrics,
+  pickable,
+  catalogOwner,
   index,
   isFirst,
   isLast,
@@ -151,9 +178,11 @@ function BlockCard({
           {t(`library.builder.blockType.${block.structure.type}`)}
         </CmvBadge>
 
-        <CmvButton variant="secondary" onClick={() => setPickingMetrics(true)}>
-          {t("library.builder.metrics.edit")}
-        </CmvButton>
+        <span className={CMV_EDIT.only}>
+          <CmvButton variant="secondary" onClick={() => setPickingMetrics(true)}>
+            {t("library.builder.metrics.edit")}
+          </CmvButton>
+        </span>
 
         <input
           value={block.label ?? ""}
@@ -167,28 +196,33 @@ function BlockCard({
           }
           placeholder={t("library.builder.blockLabelPlaceholder")}
           aria-label={t("library.builder.blockLabel")}
-          className="flex-1 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+          className={cn(
+            "flex-1 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent",
+            CMV_EDIT.emptyField,
+          )}
         />
 
-        <CmvButton
-          variant="ghost"
-          title={t("library.builder.moveBlockUp")}
-          disabled={isFirst}
-          onClick={() => onMove(-1)}
-        >
-          <IoArrowUp />
-        </CmvButton>
-        <CmvButton
-          variant="ghost"
-          title={t("library.builder.moveBlockDown")}
-          disabled={isLast}
-          onClick={() => onMove(1)}
-        >
-          <IoArrowDown />
-        </CmvButton>
-        <CmvButton variant="danger" title={t("library.builder.removeBlock")} onClick={onRemove}>
-          <IoTrashOutline />
-        </CmvButton>
+        <span className={cn("flex items-center gap-cmv-sm", CMV_EDIT.only)}>
+          <CmvButton
+            variant="ghost"
+            title={t("library.builder.moveBlockUp")}
+            disabled={isFirst}
+            onClick={() => onMove(-1)}
+          >
+            <IoArrowUp />
+          </CmvButton>
+          <CmvButton
+            variant="ghost"
+            title={t("library.builder.moveBlockDown")}
+            disabled={isLast}
+            onClick={() => onMove(1)}
+          >
+            <IoArrowDown />
+          </CmvButton>
+          <CmvButton variant="danger" title={t("library.builder.removeBlock")} onClick={onRemove}>
+            <IoTrashOutline />
+          </CmvButton>
+        </span>
       </header>
 
       <BlockBandeau
@@ -200,6 +234,8 @@ function BlockCard({
         open={pickingMetrics}
         block={block}
         customMetrics={customMetrics}
+        pickable={pickable}
+        catalogOwner={catalogOwner}
         onChange={onChange}
         onClose={() => setPickingMetrics(false)}
       />

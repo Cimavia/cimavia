@@ -1,4 +1,4 @@
-import type { PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
+import type { ExerciseDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
 import {
   planWeekDays,
   required,
@@ -7,11 +7,12 @@ import {
   SESSION_TITLE_MAX_LENGTH,
   sameJson,
 } from "@cmv/shared";
-import { type SyntheticEvent, useState } from "react";
+import { type SyntheticEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
+import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import { CompositionEditor } from "@/feature/plan/component/CompositionEditor";
 import { ExercisePicker } from "@/feature/plan/component/ExercisePicker";
 import {
@@ -309,6 +310,7 @@ export function ScheduledSessionPanel({
                 notes={notes}
                 onNotesChange={setNotes}
                 composition={composition}
+                library={exercises}
               />
             ) : null}
           </section>
@@ -330,6 +332,8 @@ type EditedSessionFieldsProps = {
   notes: string;
   onNotesChange: (notes: string) => void;
   composition: ReturnType<typeof useSessionComposition>;
+  /** Les exercices où le sélecteur pioche : ceux d'autres Coachs apportent leurs métriques. */
+  library: readonly ExerciseDto[] | undefined;
 };
 
 /**
@@ -342,9 +346,18 @@ function EditedSessionFields({
   notes,
   onNotesChange,
   composition,
+  library,
 }: Readonly<EditedSessionFieldsProps>) {
   const { t } = useTranslation();
   const { data: customMetrics } = useCustomMetrics();
+  // Une ligne ajoutée n'a pas encore de définitions figées — le serveur les résoudra chez le
+  // propriétaire de sa source. D'ici là, elle se lit avec celles que son exercice apporte (#605) :
+  // le catalogue du Coach ignore celles d'un autre.
+  const libraryMetrics = useMemo(
+    () =>
+      mergeCatalogs(customMetrics, ...(library ?? []).map((exercise) => exercise.customMetrics)),
+    [customMetrics, library],
+  );
   const forWhom = athleteName ?? t("plan.session.dosage.theAthlete");
 
   return (
@@ -371,7 +384,7 @@ function EditedSessionFields({
         onMoveTo={composition.moveTo}
         onRemove={composition.removeItem}
         onNoteChange={composition.setNote}
-        detail={scheduledDosageDetail(forWhom, customMetrics ?? [], composition.dosage)}
+        detail={scheduledDosageDetail(forWhom, libraryMetrics, composition.dosage)}
       />
     </>
   );

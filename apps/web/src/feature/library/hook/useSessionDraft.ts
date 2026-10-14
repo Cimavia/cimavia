@@ -5,6 +5,7 @@ import {
   adjustRows,
   adjustStructure,
   type CreateSessionInput,
+  type CustomMetric,
   type DosageScope,
   type ExerciseBlock,
   type ExerciseBlocks,
@@ -47,6 +48,12 @@ export type CompositionItem = {
   blocks: ExerciseBlocks;
   baseline: ExerciseBlocks;
   adjustments: Adjustments;
+  /**
+   * Les métriques maison que cite l'exercice, chez SON propriétaire (#605) : une séance compose
+   * les exercices d'autres Coachs, et leurs colonnes ne se résolvent pas dans le catalogue du
+   * lecteur.
+   */
+  customMetrics: CustomMetric[];
 };
 
 const fromSession = (session: SessionDto | null): CompositionItem[] =>
@@ -60,6 +67,7 @@ const fromSession = (session: SessionDto | null): CompositionItem[] =>
     blocks: composed.blocks,
     baseline: composed.baseline,
     adjustments: composed.adjustments,
+    customMetrics: composed.customMetrics,
   }));
 
 /** Une ligne neuve, copiée de la bibliothèque. */
@@ -74,7 +82,11 @@ const fromExercise = (exercise: ExerciseDto): CompositionItem => ({
   blocks: exercise.blocks,
   baseline: exercise.blocks,
   adjustments: [],
+  customMetrics: exercise.customMetrics,
 });
+
+/** Le brouillon d'une séance, tel que les gestes du constructeur le reçoivent. */
+export type SessionDraft = ReturnType<typeof useSessionDraft>;
 
 /**
  * Toute la composition d'une séance et les gestes qui la modifient.
@@ -236,6 +248,7 @@ export function useSessionDraft(session: SessionDto | null, added: ExerciseDto |
               blocks: fresh.blocks,
               baseline: fresh.baseline,
               adjustments: fresh.adjustments,
+              customMetrics: fresh.customMetrics,
             }
           : item,
       ),

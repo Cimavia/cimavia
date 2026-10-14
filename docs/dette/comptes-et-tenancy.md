@@ -602,6 +602,8 @@ liste des domaines vivent dans l'index.
 | MC-6 | **Le débrief peut faire avancer la version, au troisième essai** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `markDoneKeepingVersion` passe la séance en DONE en réécrivant la version lue, sous condition qu'elle n'ait pas bougé ; après trois écritures du Coach glissées entre sa lecture et son écriture, il écrit sans condition. Le Coach prend alors un conflit de trop, jamais une perte. | 🟢 | — *(déclencheur : un 409 inexpliqué juste après un débrief ; trois écritures concurrentes en quelques millisecondes ne se voient pas avec des humains)* |
 | MC-7 | **Supprimer un brouillon emporte les semaines qu'un autre Coach vient d'y poser** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : la suppression cite la version du cycle, qui est celle de son en-tête ; ajouter une semaine ou une séance ne la fait pas avancer. Le geste vise le cycle entier, après confirmation. | 🟢 | — *(déclencheur : une perte de travail rapportée par un Coach d'entreprise ; la sortie serait de citer aussi la plus récente version de ses semaines)* |
 | MC-9 | **Une appartenance qui change pendant une lecture fait un 500** ([#605](https://github.com/Cimavia/cimavia/issues/605)) : l'élément et les entreprises de l'acteur se lisent en parallèle, hors d'un même instantané. Si M quitte F entre les deux, l'élément a été lu par F mais `effectiveAccess` ne trouve plus de droit, et `toAccessView` lève : M reçoit un 500 au lieu d'un 404. Rien ne fuit, la réponse échoue. | 🟢 | — *(déclencheur : un 500 « lu sans droit » dans Sentry ; la sortie serait de lire les deux dans une transaction `REPEATABLE READ`, ou de traiter ce désaccord en 404)* |
+| MC-10 | **Le panneau planifié ne dit pas à qui sont les exercices et les séances qu'il propose** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : `ExercisePicker` propose tout ce que le Coach lit, partagés compris, et le choix du « Modèle » toutes ses séances lisibles, sans la ligne propriétaire ni les bascules « Les miens · Partagés » du sélecteur de la bibliothèque. L'ajout fonctionne — le serveur résout les métriques chez le propriétaire —, seul le repère manque. | 🟢 | — *(déclencheur : un Coach d'entreprise qui part de l'exercice ou de la séance d'un collègue en les prenant pour les siens ; la sortie serait de leur donner la ligne de `LibraryPicker`, `ownerRightText`)* |
+| MC-11 | **Le panneau des accès ne montre que les entreprises actuelles du propriétaire** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : ses lignes viennent de `GET /me/organizations`. Un droit accordé à une entreprise que le Coach a quittée resterait lisible dans la colonne « Accès », mais aucune ligne ne permettrait de le retirer, alors que l'API l'accepte. Sans plus aucune entreprise, la colonne et le panneau disparaîtraient même, et ce droit avec eux. Rien ne permet encore de quitter une entreprise. | 🟢 | — *(déclencheur : une route pour quitter une entreprise, hors de l'épic et dépendante de [#213](https://github.com/Cimavia/cimavia/issues/213) ; il faudra alors ajouter au panneau une ligne pour chaque entreprise citée par les droits, sous le nom qu'ils lui donnent)* |
 
 *Résolues, à l'[archive](archive.md) : MC-8.*
 
@@ -683,7 +685,9 @@ liste des domaines vivent dans l'index.
 >   d'auteur. La question laissée ouverte en #440 est close.
 > - **Modifier les droits de plusieurs éléments n'écrit que les bénéficiaires changés** : une
 >   ligne restée « Mixte » garde la valeur de chaque élément. Remplacer tous les droits de chaque
->   élément, comme l'écrivait #605, écraserait ces valeurs.
+>   élément, comme l'écrivait #605, écraserait ces valeurs. Une ligne partie de « Mixte » le garde
+>   parmi ses choix : y revenir ne demande pas d'annuler tout le panneau (écart à la frame 6, où
+>   « Mixte » n'était qu'un badge).
 
 > **Tranché en [#599](https://github.com/Cimavia/cimavia/issues/599)** (un athlète suivi par plusieurs Coachs, absorbant
 > [#364](https://github.com/Cimavia/cimavia/issues/364)) : ce que le cadrage de #593 ne disait pas.
@@ -946,3 +950,51 @@ liste des domaines vivent dans l'index.
 >   passerait, et resterait lisible par le point précédent.
 > - **`GET /me/organizations`** lit les collègues par le client de base, sur les seules
 >   entreprises dont l'appartenance vient d'être lue par le scope du Coach.
+
+> **Tranché en [#606](https://github.com/Cimavia/cimavia/issues/606)** (la bibliothèque en
+> tableaux, avec propriétaire et droits d'accès, côté web) :
+>
+> - **Le tableau ne montre que ce que dessinent les frames 1 et 3** : ni description ni pièces
+>   jointes d'un exercice, ni note ni aperçu des exercices d'une séance, que les anciennes cartes
+>   citaient. Le builder garde les pièces jointes, la note et la composition ; la description, que
+>   le builder n'édite plus depuis la consigne, ne s'affiche plus nulle part sur le web.
+>   Le propriétaire s'écrit sans pastille d'initiale — `CmvAvatar` fait 36 px, trop pour une ligne
+>   de tableau —, et la date porte l'année (`formatInstantDate`), là où la maquette écrit
+>   « 6 oct. » : une bibliothèque dure plus d'un an.
+> - **Entreprises inconnues ≠ aucune entreprise** (`sharesLibrary` : `null`, `false`, `true`) :
+>   le tableau attend `GET /me/organizations` comme sa liste, et dit son échec de la même façon ;
+>   le sélecteur du builder de séance, lui, montre le propriétaire que chaque exercice porte sans
+>   l'attendre — seules ses bascules, qui demandent une portée, attendent, et ne viennent pas si la
+>   lecture échoue : il propose alors tout ce que le Coach lit. Sans entreprise, rien ne se
+>   partage : ni ligne propriétaire, ni filtre « Partagés avec moi », ni bascule (frame 14).
+> - **Le sélecteur du builder de séance reste en cartes**, pas en lignes de tableau comme la
+>   frame 8 : il occupe la largeur du centre, et une carte y porte titre, tags,
+>   propriétaire et dosage. Ses bascules « Les miens · Partagés » ne s'éteignent pas toutes les
+>   deux : la dernière active est verrouillée (`aria-disabled`, atteignable au clavier, l'infobulle
+>   dit pourquoi). « Les deux » demande la portée « toutes », que le client n'écrit pas dans l'URL :
+>   c'est celle de l'API par défaut. Une recherche vaine parmi les seuls partagés ne propose pas de créer l'exercice manquant.
+> - **Lecture = des `fieldset disabled`, et « Fermer » seul** (frame 12) : le formulaire se fige
+>   d'un geste, et chaque carte de composition porte le sien, son dépli restant hors de lui pour
+>   s'ouvrir encore. Ce que le fieldset ne fige pas suit `readOnly` : le menu d'une carte, la
+>   poignée de glisser et l'ajout d'exercice disparaissent, et la consigne (TipTap, un
+>   `contenteditable`) passe par `setEditable`. Un champ ajouté hors de ces fieldsets doit le lire
+>   aussi. Figé ne suffit pas : la frame 12 montre une fiche, pas un formulaire grisé. Ces
+>   fieldsets portent `CMV_EDIT.group`, et ce qui ne sert qu'à éditer — ajouter, retirer, déplacer,
+>   les textes d'aide — s'efface par le CSS (`CMV_EDIT.only`) plutôt que par un `readOnly` descendu
+>   dans chaque composant ; la grille reste, et ses valeurs. En Écriture tout se modifie, et la
+>   suppression reste au propriétaire.
+> - **Les métriques d'un élément d'un autre Coach sont celles de son propriétaire** :
+>   `mergeCatalogs` réunit le catalogue lu et les définitions que l'élément embarque, la première
+>   rencontrée l'emportant. Une ligne ajoutée à une séance planifiée n'envoie pas les siennes : le
+>   serveur les résout chez le propriétaire de la source, et le panneau les lit dans la
+>   bibliothèque qu'il a déjà chargée.
+> - **Un conflit de version à la suppression ouvre le bandeau « Recharger »**, avec un message à
+>   lui, même si une saisie est en cours : supprimer, c'est déjà y renoncer. Prendre le message de
+>   l'enregistrement en ce cas ferait changer le bandeau à chaque frappe. L'élément supprimé est
+>   retiré du cache au lieu d'être relu — sa relecture, un 404 retenté, retenait la navigation qui
+>   suit.
+> - **« Dupliquer en variante » reste au menu** d'un exercice d'un autre Coach : le cacher
+>   demanderait le droit de chaque ligne, que la séance ne porte pas. Le geste relit l'exercice,
+>   sans cache, AVANT d'enregistrer la séance : s'il n'est pas au Coach, un toast nomme son
+>   propriétaire, et la séance n'avance pas d'une version pour rien. Le 403 de l'API (#605, jusqu'à
+>   #609) reste la garde.

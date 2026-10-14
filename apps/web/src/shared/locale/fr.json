@@ -164,6 +164,7 @@
     "newExercise": "Nouvel exercice",
     "searchLabel": "Rechercher",
     "searchExercise": "Rechercher un exercice…",
+    "searchSession": "Rechercher une séance…",
     "tabs": {
       "exercises": "Exercices",
       "sessions": "Séances"
@@ -176,6 +177,7 @@
     "session": {
       "createTitle": "Nouvelle séance",
       "stale": "Cette séance a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "staleDelete": "Cette séance a été modifiée depuis que tu l'as ouverte : recharge-la pour voir sa dernière version avant de la supprimer.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Force haut du corps, Endurance…",
       "notesLabel": "Notes de séance",
@@ -185,19 +187,24 @@
       "moveUp": "Monter l'exercice",
       "moveDown": "Descendre l'exercice",
       "remove": "Retirer de la séance",
-      "exerciseCount": "{{count}} exercice",
-      "exerciseCount_other": "{{count}} exercices",
-      "more": "+{{count}} autre",
-      "more_other": "+{{count}} autres",
       "emptyTitle": "Compose ta séance",
-      "emptyDescription": "Choisis un exercice dans ta bibliothèque, à droite.",
+      "emptyDescription": "Ajoute un exercice de ta bibliothèque, juste en dessous.",
+      "listEmpty": {
+        "title": "Aucune séance",
+        "description": "Compose ta première séance à partir de tes exercices : elle sera réutilisable dans toutes tes planifications."
+      },
+      "noMatch": "Aucune séance ne correspond à « {{search}} »",
       "submitCreate": "Créer la séance",
       "submitEdit": "Enregistrer la séance",
+      "deleteSession": "Supprimer la séance",
       "noteLabel": "Note",
       "notePlaceholder": "Ex. Épaule sensible, reste prudent…",
       "loadingTitle": "Séance",
       "subtitle": "{{count}} exercice · {{adjusted}} ajusté pour cette séance",
       "subtitle_other": "{{count}} exercices · {{adjusted}} ajustés pour cette séance",
+      "ofOwner": "Séance de {{owner}} · {{right}} · {{composition}}",
+      "readOnly": "Lecture seule : séance de {{owner}}. Tu peux l'utiliser dans tes planifications, pas la modifier.",
+      "readOnlyEmpty": "Cette séance ne compte encore aucun exercice.",
       "titleRequired": "Le titre est requis pour enregistrer la séance.",
       "moveExercise": "Déplacer l'exercice",
       "pickerSearch": "Chercher dans ta bibliothèque…",
@@ -219,6 +226,7 @@
       "saveFailed": "L'enregistrement a échoué.",
       "variantSuffix": "(variante)",
       "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
+      "variantOwnerOnly": "Seul {{owner}} peut dupliquer cet exercice en variante : ajuste-le dans la séance, ou demande-lui la variante.",
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
       "titleBeforeLeaving": "Donne un titre à la séance : elle doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
@@ -239,6 +247,9 @@
       "editTitle": "Modifier l'exercice",
       "loadingTitle": "Exercice",
       "subtitle": "Réutilisable dans toutes tes séances.",
+      "ofOwner": "Exercice de {{owner}} · {{right}}",
+      "ofOwnerUsed": "Exercice de {{owner}} · {{right}} · {{used}}",
+      "readOnly": "Lecture seule : exercice de {{owner}}. Tu peux l'utiliser dans tes séances, pas le modifier.",
       "usedInSessions": "Utilisé dans {{count}} séance.",
       "usedInSessions_other": "Utilisé dans {{count}} séances.",
       "titleLabel": "Titre",
@@ -280,6 +291,7 @@
       "addBlock": "Ajouter une structure",
       "noBlockTitle": "Aucune structure",
       "noBlockDescription": "C'est un état valide — tu peux enregistrer. Ajoute une structure si l'exercice se dose.",
+      "noBlockReadOnly": "Cet exercice n'a pas de structure.",
       "blockLabel": "Libellé du bloc",
       "blockLabelPlaceholder": "Ex. Échauffement, Travail…",
       "moveBlockUp": "Monter le bloc",
@@ -363,7 +375,9 @@
       "custom": {
         "title": "Métrique personnalisée",
         "mine": "Mes métriques",
+        "ofOwner": "Métriques de {{owner}}",
         "none": "Aucune métrique maison pour l'instant.",
+        "unavailable": "Métriques maison indisponibles pour l'instant.",
         "label": "Nom",
         "labelPlaceholder": "Ex. Cotation maison",
         "labelTooLong": "Nom trop long.",
@@ -404,6 +418,7 @@
       "deleteExercise": "Supprimer l'exercice",
       "attachment": {
         "title": "Pièces jointes et liens",
+        "none": "Aucune pièce jointe.",
         "add": "Ajouter un fichier",
         "hint": "PDF, PNG, JPEG, WebP · 20 Mo max",
         "file": "Fichier",
@@ -420,6 +435,7 @@
       "saved": "Exercice enregistré.",
       "saveFailed": "L'enregistrement a échoué.",
       "stale": "Cet exercice a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "staleDelete": "Cet exercice a été modifié depuis que tu l'as ouvert : recharge-le pour voir sa dernière version avant de le supprimer.",
       "imageWidth": {
         "SMALL": "Petite",
         "MEDIUM": "Moyenne",
@@ -430,9 +446,84 @@
       "title": "Aucun exercice ne correspond à « {{search}} »",
       "create": "Créer « {{search}} »"
     },
-    "card": {
-      "documentCount": "{{count}} pièce jointe",
-      "documentCount_other": "{{count}} pièces jointes"
+    "access": {
+      "title": "Accès",
+      "private": "Privé",
+      "grant": "{{name}} · {{level}}",
+      "sharedBy": "Partagé par {{owner}} · {{level}}",
+      "me": "Moi",
+      "level": {
+        "NONE": "Aucun",
+        "READ": "Lecture",
+        "WRITE": "Écriture"
+      },
+      "via": "{{level}} via {{organization}}",
+      "mixed": "Mixte",
+      "organizations": "Entreprises",
+      "organizationCoaches": "Entreprise · {{coaches}} et toi",
+      "organizationCoaches_zero": "Entreprise · toi seul",
+      "organizationCoaches_other": "Entreprise · {{coaches}} et toi",
+      "ownerOnly": "Supprimer et gérer les accès restent réservés au propriétaire.",
+      "owner": "Propriétaire",
+      "myRight": "Ton droit",
+      "save": "Enregistrer",
+      "saved": "Accès enregistrés.",
+      "exercise": {
+        "mine": "Exercice · à toi",
+        "ofOwner": "Exercice de {{owner}}",
+        "count": "{{count}} exercice",
+        "count_other": "{{count}} exercices",
+        "applyTo": "Appliquer à l'exercice",
+        "applyTo_other": "Appliquer aux {{count}} exercices",
+        "readMeans": "Voir l'exercice et l'utiliser dans ses séances et planifications.",
+        "writeMeans": "Voir l'exercice, l'utiliser dans ses séances et planifications, et en modifier le contenu.",
+        "open": "Ouvrir l'exercice",
+        "canRead": "Tu peux voir cet exercice et l'utiliser dans tes séances et planifications.",
+        "canWrite": "Tu peux voir cet exercice, l'utiliser dans tes séances et planifications, et en modifier le contenu.",
+        "selected": "{{count}} exercice sélectionné",
+        "selected_other": "{{count}} exercices sélectionnés",
+        "sharedEmpty": "Aucun exercice n'est partagé avec toi pour l'instant."
+      },
+      "session": {
+        "mine": "Séance · à toi",
+        "ofOwner": "Séance de {{owner}}",
+        "count": "{{count}} séance",
+        "count_other": "{{count}} séances",
+        "applyTo": "Appliquer à la séance",
+        "applyTo_other": "Appliquer aux {{count}} séances",
+        "readMeans": "Voir la séance et l'utiliser dans ses planifications.",
+        "writeMeans": "Voir la séance, l'utiliser dans ses planifications, et en modifier le contenu.",
+        "open": "Ouvrir la séance",
+        "canRead": "Tu peux voir cette séance et l'utiliser dans tes planifications.",
+        "canWrite": "Tu peux voir cette séance, l'utiliser dans tes planifications, et en modifier le contenu.",
+        "selected": "{{count}} séance sélectionnée",
+        "selected_other": "{{count}} séances sélectionnées",
+        "sharedEmpty": "Aucune séance n'est partagée avec toi pour l'instant."
+      }
+    },
+    "noFilterMatch": "Rien ne correspond à ces filtres.",
+    "scope": {
+      "all": "Tous",
+      "mine": "Les miens",
+      "shared": "Partagés avec moi"
+    },
+    "picker": {
+      "shown": "Exercices proposés",
+      "shared": "Partagés",
+      "lastShown": "Au moins une provenance reste affichée."
+    },
+    "table": {
+      "title": "Titre",
+      "tags": "Tags",
+      "owner": "Propriétaire",
+      "access": "Accès",
+      "exercises": "Exercices",
+      "updatedAt": "Modifié le",
+      "select": "Sélectionner « {{title}} »",
+      "selectAll": "Tout sélectionner",
+      "clearSelection": "Désélectionner",
+      "tooMany": "{{max}} au plus à la fois : désélectionne-en quelques-uns.",
+      "editAccess": "Modifier les accès ({{count}})"
     }
   },
   "plan": {

@@ -9,7 +9,7 @@ import {
 } from "@cmv/shared";
 import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   IoAttach,
@@ -39,18 +39,26 @@ type InstructionsEditorProps = {
   /** Document initial. NON repoussé dans l'éditeur ensuite : le remonter déplacerait le curseur. */
   initialValue: RichDocument | null;
   onChange: (blocks: RichDocument) => void;
+  /** Consultation seule (#606) : ni barre d'outils, ni compteur — rien qui invite à écrire. */
+  readOnly?: boolean;
 };
 
-export function InstructionsEditor({ initialValue, onChange }: Readonly<InstructionsEditorProps>) {
+export function InstructionsEditor({
+  initialValue,
+  onChange,
+  readOnly = false,
+}: Readonly<InstructionsEditorProps>) {
   const { t } = useTranslation();
   // Le document tel qu'il est À L'ÉCRAN, pour ses bornes : un éditeur riche ne se borne pas par
   // `maxLength`. Une consigne trop longue est une saisie refusée, comme une cellule illisible
-  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer.
+  // (#566) : le message est sous le champ, et l'enregistrement se ferme au lieu d'échouer. En
+  // Lecture, rien ne se saisit : rien n'est refusé, et quitter n'a rien à perdre.
   const [blocks, setBlocks] = useState<RichDocument>(() => initialValue ?? []);
-  const tooLong = isRichDocumentTooLong(blocks);
+  const tooLong = !readOnly && isRichDocumentTooLong(blocks);
   useReportRefused(tooLong);
 
   const editor = useEditor({
+    editable: !readOnly,
     extensions: [
       StarterKit.configure({
         // Un seul niveau : une consigne d'exercice ne se hiérarchise pas davantage.
@@ -81,6 +89,12 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
       },
     },
   });
+  // `editable` n'est lu qu'à la création de l'éditeur : un changement de droit sans remontage
+  // doit suivre, sinon la barre disparaîtrait sur un contenu resté modifiable.
+  // `false` : aucun `onUpdate`, le contenu n'a pas changé — le brouillon ne doit pas se croire modifié.
+  useEffect(() => {
+    editor?.setEditable(!readOnly, false);
+  }, [editor, readOnly]);
 
   return (
     <div className="flex flex-col gap-cmv-xs">
@@ -91,13 +105,15 @@ export function InstructionsEditor({ initialValue, onChange }: Readonly<Instruct
           lui, déborde des angles arrondis du cadre — c'est le cadre qui découpe, pas chaque
           enfant qui devine quels angles arrondir. */}
       <div className="overflow-hidden rounded-cmv-md border border-cmv-border focus-within:border-cmv-accent">
-        <EditorToolbar editor={editor} />
+        {readOnly ? null : <EditorToolbar editor={editor} />}
         <EditorContent editor={editor} />
       </div>
-      <CmvCharCount
-        length={richDocumentTextLength(blocks)}
-        maxLength={RICH_DOCUMENT_MAX_TEXT_LENGTH}
-      />
+      {readOnly ? null : (
+        <CmvCharCount
+          length={richDocumentTextLength(blocks)}
+          maxLength={RICH_DOCUMENT_MAX_TEXT_LENGTH}
+        />
+      )}
       {tooLong ? (
         <p className="text-cmv-caption text-cmv-error">
           {t("library.builder.instructionsTooLong", { max: RICH_DOCUMENT_MAX_TEXT_LENGTH })}

@@ -1,95 +1,65 @@
+import { LibraryScope } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExerciseCard } from "@/feature/library/component/ExerciseCard";
-import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
+import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
+import { LibraryListState } from "@/feature/library/component/LibraryListState";
+import { LibraryTable } from "@/feature/library/component/LibraryTable";
+import { LibraryToolbar } from "@/feature/library/component/LibraryToolbar";
+import { NO_TAG_FILTER } from "@/feature/library/constant";
 import {
-  CmvButton,
-  CmvChoiceChips,
-  CmvEmptyState,
-  CmvErrorState,
-  CmvTextField,
-} from "@/shared/component";
-
-// "" = pas de filtre. Un tag ne peut pas être vide (`exerciseTagSchema` impose min 1), la valeur
-// est donc libre de toute collision — pas besoin d'une sentinelle qui pourrait être un vrai tag.
-const NO_TAG_FILTER = "";
+  useChangeExerciseAccess,
+  useExercises,
+  useExerciseTags,
+} from "@/feature/library/hook/useExercises";
+import { useLibraryFilters } from "@/feature/library/hook/useLibraryFilters";
+import { CmvButton, CmvEmptyState } from "@/shared/component";
 
 /**
- * La liste n'ouvre plus de panneau : le constructeur est une PAGE, parce qu'il porte la consigne
- * structurée, les blocs de dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne
- * peut pas montrer côte à côte.
+ * L'onglet Exercices (#606, maquette #597, frames 1, 2, 4 et 14). La liste n'ouvre pas de panneau
+ * de détail : le constructeur est une PAGE, parce qu'il porte la consigne structurée, les blocs de
+ * dosage et l'aperçu athlète — trois choses qu'un tiroir de 480 px ne peut pas montrer côte à côte.
  */
 export function ExerciseList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [tagFilter, setTagFilter] = useState(NO_TAG_FILTER);
-  const [search, setSearch] = useState("");
-
-  const filters = {
-    ...(tagFilter === NO_TAG_FILTER ? {} : { tag: tagFilter }),
-    ...(search.trim() ? { search: search.trim() } : {}),
-  };
-  const { data: exercises, isPending, isError, refetch } = useExercises(filters);
-  // Tous les tags du coach, pas ceux des exercices affichés : dérivés de la liste filtrée, ils
-  // rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
+  const filters = useLibraryFilters();
+  const exercises = useExercises({
+    ...(filters.tag === NO_TAG_FILTER ? {} : { tag: filters.tag }),
+    ...(filters.search === "" ? {} : { search: filters.search }),
+    scope: filters.scope,
+  });
+  // Les tags existants de tout ce que le Coach lit, pas ceux des exercices affichés : dérivés de la
+  // liste filtrée, ils rétréciraient à chaque clic et le filtre deviendrait un aller sans retour.
   const { data: tags } = useExerciseTags();
+  const change = useChangeExerciseAccess();
 
-  return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-cmv-lg">
-        <div className="w-full max-w-xs">
-          <CmvTextField
-            label={t("library.searchLabel")}
-            name="search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("library.searchExercise")}
-          />
-        </div>
-        {/* Aucun tag chez le coach : pas de filtre à un seul bouton « Tous », qui ne filtrerait rien. */}
-        {tags == null || tags.length === 0 ? null : (
-          <CmvChoiceChips
-            value={tagFilter}
-            onChange={setTagFilter}
-            options={[
-              { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
-              ...tags.map((tag) => ({ value: tag, label: tag })),
-            ]}
-          />
-        )}
-      </div>
+  function open(exerciseId: string) {
+    navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId } });
+  }
 
-      {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
-      {isError ? (
-        <CmvErrorState
-          title={t("common.errorTitle")}
-          description={t("common.errorDescription")}
-          retryLabel={t("common.retry")}
-          onRetry={() => refetch()}
-        />
-      ) : null}
-
-      {/* Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
-          bibliothèque neuve, le second constate qu'une recherche ne trouve rien alors que la
-          bibliothèque est pleine — et propose de créer l'exercice manquant. */}
-      {exercises?.length === 0 && search.trim() !== "" ? (
-        <CmvEmptyState
-          title={t("library.noMatch.title", { search: search.trim() })}
-          action={
-            <CmvButton
-              onClick={() =>
-                navigate({ to: "/library/exercises/new", search: { title: search.trim() } })
-              }
-            >
-              {t("library.noMatch.create", { search: search.trim() })}
-            </CmvButton>
-          }
-        />
-      ) : null}
-
-      {exercises?.length === 0 && search.trim() === "" ? (
+  /**
+   * Le vide de DÉPART et le vide de FILTRE ne se ressemblent pas : le premier amorce une
+   * bibliothèque neuve, le second constate qu'une recherche ne trouve rien — et propose de créer
+   * l'exercice manquant (`libraryEmpty`).
+   */
+  function emptyState() {
+    return (
+      <LibraryEmptyState
+        search={filters.search}
+        tag={filters.tag}
+        sharedOnly={filters.scope === LibraryScope.SHARED}
+        noMatch={t("library.noMatch.title", { search: filters.search })}
+        create={
+          <CmvButton
+            onClick={() =>
+              navigate({ to: "/library/exercises/new", search: { title: filters.search } })
+            }
+          >
+            {t("library.noMatch.create", { search: filters.search })}
+          </CmvButton>
+        }
+        sharedEmpty={t("library.access.exercise.sharedEmpty")}
+      >
         <CmvEmptyState
           title={t("library.empty.title")}
           description={t("library.empty.description")}
@@ -99,22 +69,34 @@ export function ExerciseList() {
             </CmvButton>
           }
         />
-      ) : null}
+      </LibraryEmptyState>
+    );
+  }
 
-      <div className="grid gap-cmv-lg sm:grid-cols-2 lg:grid-cols-3">
-        {exercises?.map((exercise) => (
-          <ExerciseCard
-            key={exercise.id}
-            exercise={exercise}
-            onSelect={() =>
-              navigate({
-                to: "/library/exercises/$exerciseId",
-                params: { exerciseId: exercise.id },
-              })
-            }
-          />
-        ))}
-      </div>
+  return (
+    <>
+      <LibraryToolbar
+        {...filters.toolbar}
+        searchPlaceholder={t("library.searchExercise")}
+        tags={tags ?? []}
+      />
+      <LibraryListState list={exercises} organizations={filters.organizations}>
+        {(rows, organizations) =>
+          rows.length === 0 ? (
+            emptyState()
+          ) : (
+            <LibraryTable
+              // Une autre portée est une autre liste : la sélection ne la traverse pas.
+              key={filters.scope}
+              rows={rows}
+              organizations={organizations}
+              copyPrefix="library.access.exercise"
+              mutation={change}
+              onOpen={(exercise) => open(exercise.id)}
+            />
+          )
+        }
+      </LibraryListState>
     </>
   );
 }

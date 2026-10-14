@@ -9,7 +9,7 @@ import {
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { GridCell } from "@/feature/library/component/GridCell";
-import { CmvButton } from "@/shared/component";
+import { CMV_EDIT, CmvButton } from "@/shared/component";
 
 type CollapsedColumnsProps = {
   block: ExerciseBlock;
@@ -58,19 +58,21 @@ export function CollapsedColumns({
                   onCommitLine={() => undefined}
                 />
               </div>
-              <CmvButton
-                variant="ghost"
-                onClick={() =>
-                  onChange({
-                    ...block,
-                    metrics: block.metrics.map((current) =>
-                      current.id === metric.id ? { ...current, collapsed: false } : current,
-                    ),
-                  })
-                }
-              >
-                {t("library.builder.column.expand")}
-              </CmvButton>
+              <span className={CMV_EDIT.only}>
+                <CmvButton
+                  variant="ghost"
+                  onClick={() =>
+                    onChange({
+                      ...block,
+                      metrics: block.metrics.map((current) =>
+                        current.id === metric.id ? { ...current, collapsed: false } : current,
+                      ),
+                    })
+                  }
+                >
+                  {t("library.builder.column.expand")}
+                </CmvButton>
+              </span>
             </div>
           </div>
         );
