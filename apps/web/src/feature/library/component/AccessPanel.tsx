@@ -44,6 +44,8 @@ type AccessPanelProps<T extends AccessElement> = {
   copyPrefix: string;
   mutation: UseMutationResult<ElementAccessDto[], Error, ChangeAccessInput>;
   onClose: () => void;
+  /** Les accès sont enregistrés — avant la fermeture, qui suit. */
+  onSaved: () => void;
   /** Lecture seule : « Ouvrir l'exercice ». */
   onOpen: (element: T) => void;
 };
@@ -71,6 +73,7 @@ function OwnerAccess<T extends AccessElement>({
   copyPrefix,
   mutation,
   onClose,
+  onSaved,
 }: Readonly<AccessPanelProps<T>>) {
   const { t } = useTranslation();
   const toast = useToast();
@@ -103,6 +106,7 @@ function OwnerAccess<T extends AccessElement>({
       {
         onSuccess: () => {
           toast.success(t("library.access.saved"));
+          onSaved();
           onClose();
         },
       },

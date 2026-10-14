@@ -200,6 +200,15 @@ export function LibraryTable<T extends LibraryTableRow>({
           copyPrefix={copyPrefix}
           mutation={mutation}
           onClose={() => setPanel(null)}
+          // Le geste est fait : ses lignes quittent la sélection, qui inviterait à le refaire. Les
+          // autres y restent — enregistrer une seule ligne, par sa cellule, ne défait pas le reste.
+          onSaved={() =>
+            setSelected((current) => {
+              const next = new Set(current);
+              for (const row of panel) next.delete(row.id);
+              return next;
+            })
+          }
           onOpen={onOpen}
         />
       )}

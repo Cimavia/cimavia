@@ -182,6 +182,36 @@ describe("LibraryTable — sélection", () => {
     expect(screen.queryByText("Tractions, Gainage")).not.toBeInTheDocument();
     expect(select().map((box) => (box as HTMLInputElement).checked)).toEqual([true, true]);
   });
+
+  // Le geste est fait : garder la sélection inviterait à le refaire.
+  it("se vide une fois les accès enregistrés", async () => {
+    const { user } = setup({ rows: [mine("ex-1", "Tractions"), mine("ex-2", "Gainage")] });
+
+    await user.click(selectAll());
+    await user.click(screen.getByRole("button", { name: "library.table.editAccess" }));
+    await user.click(screen.getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(screen.getByRole("button", { name: "library.access.exercise.applyTo" }));
+
+    await waitFor(() =>
+      expect(screen.queryByText("library.access.exercise.selected")).not.toBeInTheDocument(),
+    );
+    expect(select().map((box) => (box as HTMLInputElement).checked)).toEqual([false, false]);
+  });
+
+  it("garde les autres lignes quand une seule s'enregistre, par sa cellule", async () => {
+    const { user } = setup({ rows: [mine("ex-1", "Tractions"), mine("ex-2", "Gainage")] });
+
+    await user.click(selectAll());
+    await user.click(
+      screen.getAllByRole("button", { name: "library.access.private" })[1] as HTMLElement,
+    );
+    await user.click(screen.getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+
+    await waitFor(() =>
+      expect(select().map((box) => (box as HTMLInputElement).checked)).toEqual([true, false]),
+    );
+  });
 });
 
 describe("LibraryTable — limites", () => {

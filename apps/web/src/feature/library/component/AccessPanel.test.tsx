@@ -42,6 +42,7 @@ function setup(
   change: (input: ChangeAccessInput) => Promise<ElementAccessDto[]> = async () => [],
 ) {
   const onClose = vi.fn();
+  const onSaved = vi.fn();
   const onOpen = vi.fn();
   const send = vi.fn(change);
   function Harness() {
@@ -53,11 +54,12 @@ function setup(
         copyPrefix="library.access.exercise"
         mutation={mutation}
         onClose={onClose}
+        onSaved={onSaved}
         onOpen={onOpen}
       />
     );
   }
-  return { ...renderWithProviders(<Harness />), onClose, onOpen, send };
+  return { ...renderWithProviders(<Harness />), onClose, onSaved, onOpen, send };
 }
 
 /** La ligne d'une entreprise : son nom, et son sélecteur. */
@@ -90,8 +92,8 @@ describe("AccessPanel — propriétaire", () => {
     expect(screen.getByRole("button", { name: "library.access.save" })).toBeDisabled();
   });
 
-  it("n'envoie que la ligne changée, puis se ferme", async () => {
-    const { user, send, onClose } = setup([
+  it("n'envoie que la ligne changée, le dit enregistré, puis se ferme", async () => {
+    const { user, send, onClose, onSaved } = setup([
       mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }]),
     ]);
 
@@ -99,6 +101,7 @@ describe("AccessPanel — propriétaire", () => {
     await user.click(screen.getByRole("button", { name: "library.access.save" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(onSaved).toHaveBeenCalledOnce();
     expect(send.mock.calls[0]?.[0]).toEqual({
       ids: ["ex-1"],
       changes: [{ organizationId: "org-g", level: AccessLevel.READ }],
