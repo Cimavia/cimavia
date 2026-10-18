@@ -128,11 +128,13 @@ describe("Requêtes SQL des listes du Coach : 1 athlète puis 4 (#629)", () => {
     {
       "/athletes": 4,
       // +4 (#607) : le droit du Coach sur chaque cycle — ses entreprises, puis les lignes d'accès,
-      // leur entreprise et son nom. Un lot par relation, pas une requête par cycle.
-      "/plans": 9,
+      // leur entreprise et son nom. Un lot par relation, pas une requête par cycle. +1 (#608) : le
+      // Coach de chaque ligne, qui peut l'emporter sur son entreprise.
+      "/plans": 10,
       "/feedbacks": 6,
       // +5 (#607) : le même droit, lu sur le cycle de chaque facture — et son propriétaire.
-      "/invoices": 10,
+      // +1 (#608) : le Coach de chaque ligne.
+      "/invoices": 11,
       "/conversations": 6,
       "/reminders": 5,
       "/reminders/summary": 4,
