@@ -48,8 +48,7 @@ function message(overrides: Partial<MessageDto>): MessageDto {
     senderId: "coach-1",
     type: "TEXT",
     content: "bien joué",
-    readAt: null,
-    createdAt: new Date().toISOString(),
+    createdAt: "2026-10-18T10:00:00.000Z",
     ...overrides,
   } as MessageDto;
 }
@@ -87,6 +86,7 @@ beforeEach(() => {
 
 const base = {
   conversationId: "cv-1",
+  lastReadAt: null,
   isResolving: false,
   hasResolveError: false,
   onRetryResolve: vi.fn(),
@@ -143,7 +143,7 @@ describe("ConversationThread", () => {
   });
 
   it("marque lu dès qu'un message entrant n'est pas lu", async () => {
-    mockMessages({ data: [message({ senderId: "coach-1", readAt: null })] });
+    mockMessages({ data: [message({ senderId: "coach-1" })] });
     renderRn(<ConversationThread {...base} />);
     await waitFor(() => {
       expect(markRead).toHaveBeenCalledOnce();
@@ -159,10 +159,11 @@ describe("ConversationThread", () => {
     });
 
     mockMessages({
-      data: [message({ id: "m-1", readAt: new Date().toISOString() }), message({ id: "m-2" })],
+      data: [message({ id: "m-1" }), message({ id: "m-2", createdAt: "2026-10-18T10:05:00.000Z" })],
       dataUpdatedAt: 2,
     });
-    rerender(<ConversationThread {...base} />);
+    // La liste a relu ma marque, posée sur m-1 : m-2 est arrivé après.
+    rerender(<ConversationThread {...base} lastReadAt="2026-10-18T10:00:00.000Z" />);
     await waitFor(() => {
       expect(markRead).toHaveBeenCalledTimes(2);
     });
@@ -197,9 +198,19 @@ describe("ConversationThread", () => {
     });
   });
 
+  // #611 : ce qui précède ma marque de lecture est lu, quel que soit le message.
+  it("ne marque rien quand ma marque couvre déjà le dernier entrant", async () => {
+    mockMessages({ data: [message({ id: "m-1" })] });
+    renderRn(<ConversationThread {...base} lastReadAt="2026-10-18T10:00:00.000Z" />);
+    await waitFor(() => {
+      expect(vi.mocked(useMessages)).toHaveBeenCalled();
+    });
+    expect(markRead).not.toHaveBeenCalled();
+  });
+
   it("ne marque rien tant que la session n'est pas connue", async () => {
     sessionMock.mockReturnValue({ data: null });
-    mockMessages({ data: [message({ readAt: null })] });
+    mockMessages({ data: [message({})] });
     renderRn(<ConversationThread {...base} />);
     await waitFor(() => {
       expect(vi.mocked(useMessages)).toHaveBeenCalled();
@@ -207,8 +218,8 @@ describe("ConversationThread", () => {
     expect(markRead).not.toHaveBeenCalled();
   });
 
-  it("ne marque pas lu ses PROPRES messages non lus", async () => {
-    mockMessages({ data: [message({ id: "m-2", senderId: "me", readAt: null })] });
+  it("ne marque pas lu ses PROPRES messages", async () => {
+    mockMessages({ data: [message({ id: "m-2", senderId: "me" })] });
     renderRn(<ConversationThread {...base} />);
     await waitFor(() => {
       expect(vi.mocked(useMessages)).toHaveBeenCalled();
@@ -217,7 +228,7 @@ describe("ConversationThread", () => {
   });
 
   it("ne marque pas lu sans fil, même avec des messages en cache", async () => {
-    mockMessages({ data: [message({ readAt: null })] });
+    mockMessages({ data: [message({})] });
     renderRn(<ConversationThread {...base} conversationId={undefined} />);
     await waitFor(() => {
       expect(vi.mocked(useMessages)).toHaveBeenCalled();

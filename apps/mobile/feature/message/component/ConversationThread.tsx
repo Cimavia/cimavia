@@ -25,6 +25,12 @@ type ConversationThreadProps = {
    * l'API refuse à un coach.
    */
   conversationId: string | undefined;
+  /**
+   * MA marque de lecture sur ce fil (#611), `null` si je ne l'ai jamais lu : ce qui la précède est
+   * lu, quel que soit son auteur. Lue dans la liste des fils, que `markRead` invalide — pas dans le
+   * fil résolu, figé pour ne pas rejouer le get-or-create.
+   */
+  lastReadAt: string | null;
   isResolving: boolean;
   hasResolveError: boolean;
   onRetryResolve: () => void;
@@ -37,12 +43,13 @@ type ConversationThreadProps = {
 };
 
 /**
- * Un fil 1:1, quel que soit le bout par lequel on le regarde (CDC §5.8). Asynchrone : les nouveaux
+ * Un fil, quel que soit le bout par lequel on le regarde (CDC §5.8). Asynchrone : les nouveaux
  * messages remontent par polling (10 s au premier plan) + push. Écrire exige le réseau — pas
  * d'envoi différé en MVP, et un échec se dit plutôt que de se masquer.
  */
 export function ConversationThread({
   conversationId,
+  lastReadAt,
   isResolving,
   hasResolveError,
   onRetryResolve,
@@ -80,7 +87,7 @@ export function ConversationThread({
   // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
   // dans `message-read.util`. `markRead` n'invalide que la conversation (pas les messages) : pas
   // de boucle.
-  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null);
+  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null, lastReadAt);
   const [readMarker] = useState(createReadMarker);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {

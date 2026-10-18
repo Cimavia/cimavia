@@ -14,6 +14,7 @@ vi.mock("@/feature/message/component/ConversationThread", () => ({
   ConversationThread: (
     props: Readonly<{
       conversationId?: string;
+      lastReadAt: string | null;
       isResolving: boolean;
       hasResolveError: boolean;
       onRetryResolve: () => void;
@@ -22,6 +23,7 @@ vi.mock("@/feature/message/component/ConversationThread", () => ({
     <button
       type="button"
       data-thread={props.conversationId ?? "none"}
+      data-last-read={props.lastReadAt ?? "never"}
       data-resolving={String(props.isResolving)}
       data-error={String(props.hasResolveError)}
       onClick={props.onRetryResolve}
@@ -30,7 +32,10 @@ vi.mock("@/feature/message/component/ConversationThread", () => ({
 }));
 vi.mock("@/feature/message/api", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/feature/message/api")>();
-  return { ...original, messageApi: { ...original.messageApi, openConversation: vi.fn() } };
+  return {
+    ...original,
+    messageApi: { ...original.messageApi, createConversation: vi.fn(), listConversations: vi.fn() },
+  };
 });
 
 vi.mock("@/shared/hook/useExercisedCapability", async (importOriginal) => ({
@@ -38,14 +43,16 @@ vi.mock("@/shared/hook/useExercisedCapability", async (importOriginal) => ({
   useActingCapability: vi.fn(),
 }));
 
-const openConversation = vi.mocked(messageApi.openConversation);
+const createConversation = vi.mocked(messageApi.createConversation);
+const listConversations = vi.mocked(messageApi.listConversations);
 
 const thread = (container: HTMLElement) => container.querySelector("[data-thread]") as HTMLElement;
 
 beforeEach(() => {
   vi.mocked(useLocalSearchParams).mockReturnValue({ counterpartId: "ath-1" });
   vi.mocked(useActingCapability).mockReturnValue("coach");
-  openConversation.mockResolvedValue({ id: "conv-1" } as ConversationDto);
+  createConversation.mockResolvedValue({ id: "conv-1", lastReadAt: null } as ConversationDto);
+  listConversations.mockResolvedValue([]);
 });
 
 describe("CounterpartConversationScreen", () => {
@@ -53,8 +60,11 @@ describe("CounterpartConversationScreen", () => {
     const { container } = renderRn(<CounterpartConversationScreen />);
 
     await waitFor(() => expect(thread(container).getAttribute("data-thread")).toBe("conv-1"));
-    expect(openConversation).toHaveBeenCalledOnce();
-    expect(openConversation).toHaveBeenCalledWith({ athleteId: "ath-1" }, "coach");
+    expect(createConversation).toHaveBeenCalledOnce();
+    expect(createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "ath-1", capability: "athlete" }] },
+      "coach",
+    );
   });
 
   /** Un get-or-create sans cible créerait un fil au hasard : rien ne part sans athlète désigné. */
@@ -63,7 +73,7 @@ describe("CounterpartConversationScreen", () => {
     const { container } = renderRn(<CounterpartConversationScreen />);
 
     expect(thread(container).getAttribute("data-thread")).toBe("none");
-    expect(openConversation).not.toHaveBeenCalled();
+    expect(createConversation).not.toHaveBeenCalled();
   });
 
   // #599 : l'athlète a un fil par coach, et c'est l'url qui désigne lequel — à son titre d'athlète.
@@ -73,18 +83,52 @@ describe("CounterpartConversationScreen", () => {
     const { container } = renderRn(<CounterpartConversationScreen />);
 
     await waitFor(() => expect(thread(container).getAttribute("data-thread")).toBe("conv-1"));
-    expect(openConversation).toHaveBeenCalledOnce();
-    expect(openConversation).toHaveBeenCalledWith({ coachId: "coa-2" }, "athlete");
+    expect(createConversation).toHaveBeenCalledOnce();
+    expect(createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "coa-2", capability: "coach" }] },
+      "athlete",
+    );
   });
 
   it("rejoue la résolution après un échec", async () => {
-    openConversation.mockRejectedValue(new ApiError(500, "boom", null));
+    createConversation.mockRejectedValue(new ApiError(500, "boom", null));
     const { container } = renderRn(<CounterpartConversationScreen />);
     await waitFor(() => expect(thread(container).getAttribute("data-error")).toBe("true"));
 
-    openConversation.mockResolvedValue({ id: "conv-1" } as ConversationDto);
+    createConversation.mockResolvedValue({ id: "conv-1", lastReadAt: null } as ConversationDto);
     press(thread(container));
 
     await waitFor(() => expect(thread(container).getAttribute("data-thread")).toBe("conv-1"));
+  });
+
+  /**
+   * Ma marque de lecture se lit dans la liste, que `markRead` invalide (#611) : le fil résolu est
+   * figé, et sa marque aurait l'âge de l'ouverture.
+   */
+  it("transmet la marque de lecture de la liste plutôt que celle de la résolution", async () => {
+    createConversation.mockResolvedValue({
+      id: "conv-1",
+      lastReadAt: "2026-10-01T08:00:00.000Z",
+    } as ConversationDto);
+    listConversations.mockResolvedValue([
+      { id: "conv-1", lastReadAt: "2026-10-02T08:00:00.000Z" } as ConversationDto,
+    ]);
+    const { container } = renderRn(<CounterpartConversationScreen />);
+
+    await waitFor(() =>
+      expect(thread(container).getAttribute("data-last-read")).toBe("2026-10-02T08:00:00.000Z"),
+    );
+  });
+
+  it("garde la marque lue à la résolution tant que la liste ne porte pas le fil", async () => {
+    createConversation.mockResolvedValue({
+      id: "conv-1",
+      lastReadAt: "2026-10-01T08:00:00.000Z",
+    } as ConversationDto);
+    const { container } = renderRn(<CounterpartConversationScreen />);
+
+    await waitFor(() =>
+      expect(thread(container).getAttribute("data-last-read")).toBe("2026-10-01T08:00:00.000Z"),
+    );
   });
 });

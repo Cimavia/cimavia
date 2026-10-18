@@ -29,7 +29,6 @@ function message(attachment: MessageDto["attachment"]): MessageDto {
     senderId: "coach-1",
     type: "TEXT",
     content: "bien joué",
-    readAt: null,
     attachment,
     createdAt: new Date().toISOString(),
   } as MessageDto;

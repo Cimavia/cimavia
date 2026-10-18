@@ -27,7 +27,6 @@ function message(id: string, type: "AUDIO" | "TEXT"): MessageDto {
     content: type === "TEXT" ? "bien joué" : null,
     media: type === "AUDIO" ? { url: url(id), durationSeconds: 5 } : null,
     attachment: null,
-    readAt: null,
     createdAt: "2026-10-16T19:42:00.000Z",
   } as MessageDto;
 }

@@ -45,7 +45,6 @@ const voiceNote = (signedAt: number): MessageDto => ({
   scheduledSessionId: null,
   sessionFeedbackId: null,
   attachment: null,
-  readAt: null,
   createdAt: "2026-09-25T12:00:00.000Z",
 });
 
