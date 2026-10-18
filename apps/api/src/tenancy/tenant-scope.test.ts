@@ -1,17 +1,20 @@
 import { type CapabilityName, required } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import {
+  actorJoinsOrThrow,
   type CapabilityScope,
   childOf,
   coachesOfPlanAthlete,
   column,
   grantedTo,
+  membershipFrozenOrThrow,
   type OperationClass,
   operationKindOf,
   optionalChild,
   ownerColumnOrThrow,
   type ParentLink,
   parentIdsOrThrow,
+  participation,
   scopeFor,
   sharedChild,
   sharedRoot,
@@ -277,6 +280,109 @@ describe("parentIdsOrThrow", () => {
   });
 });
 
+describe("participation", () => {
+  it.each([
+    "COACH",
+    "ATHLETE",
+  ] as const)("ouvre ce à quoi l'acteur participe, à ce titre seul (%s)", (capability) => {
+    for (const operation of CLASSES) {
+      expect(participation(capability).where(ACTOR, operation)).toEqual({
+        participants: { some: { userId: ACTOR, capability } },
+      });
+    }
+  });
+
+  // Aucune colonne ne dit à qui est une conversation : elle se crée avec ses participants.
+  it("ne se crée qu'en comptant l'acteur parmi ses participants", () => {
+    const scope = participation("COACH");
+    expect(scope.owner).toBeNull();
+    expect(scope.membership).toEqual({
+      relation: "participants",
+      capability: "COACH",
+      frozen: ["participantKey", "kind"],
+    });
+  });
+});
+
+const MEMBERSHIP = {
+  relation: "participants",
+  capability: "COACH",
+  frozen: ["participantKey", "kind"],
+} as const;
+
+describe("actorJoinsOrThrow", () => {
+  const membership = MEMBERSHIP;
+  const join = (participants: unknown) => () =>
+    actorJoinsOrThrow({ participants }, membership, "Conversation", ACTOR);
+  const refusal =
+    "[tenancy] Conversation se crée avec l'acteur parmi ses participants, au titre COACH";
+
+  it("admet une création où l'acteur figure, à son titre", () => {
+    expect(
+      join({
+        create: [
+          { userId: "autre", capability: "ATHLETE" },
+          { userId: ACTOR, capability: "COACH" },
+        ],
+      }),
+    ).not.toThrow();
+  });
+
+  // Un compte à double capacité : se joindre comme athlète n'est pas participer en Coach.
+  it("refuse l'acteur sous l'autre capacité, ou absent", () => {
+    expect(join({ create: [{ userId: ACTOR, capability: "ATHLETE" }] })).toThrow(refusal);
+    expect(join({ create: [{ userId: "autre", capability: "COACH" }] })).toThrow(refusal);
+  });
+
+  it("refuse des participants qui ne passent pas par une création imbriquée", () => {
+    expect(join(undefined)).toThrow(refusal);
+    expect(join({ connect: [{ id: "p1" }] })).toThrow(refusal);
+    expect(join({ create: { userId: ACTOR, capability: "COACH" } })).toThrow(refusal);
+  });
+
+  // L'acteur figure bien dans `create` : ce qu'on glisse à côté, lui, ne serait jamais vu.
+  it("refuse une création imbriquée accompagnée d'une autre écriture", () => {
+    const create = [{ userId: ACTOR, capability: "COACH" }];
+    expect(join({ create, createMany: { data: [{ userId: "x", capability: "COACH" }] } })).toThrow(
+      refusal,
+    );
+    expect(join({ create, connect: [{ id: "p1" }] })).toThrow(refusal);
+  });
+
+  it("refuse une création en lot", () => {
+    expect(() =>
+      actorJoinsOrThrow(
+        [{ participants: { create: [{ userId: ACTOR, capability: "COACH" }] } }],
+        membership,
+        "Conversation",
+        ACTOR,
+      ),
+    ).toThrow(refusal);
+  });
+});
+
+describe("membershipFrozenOrThrow", () => {
+  const freeze = (data: unknown) => () => membershipFrozenOrThrow(data, MEMBERSHIP, "Conversation");
+
+  it("laisse passer une écriture qui ne touche pas aux participants", () => {
+    expect(freeze({ lastMessageAt: new Date() })).not.toThrow();
+    // Une suppression n'a pas de données.
+    expect(freeze(undefined)).not.toThrow();
+  });
+
+  it("refuse d'y joindre quelqu'un après coup", () => {
+    expect(freeze({ participants: { create: { userId: "x", capability: "COACH" } } })).toThrow(
+      "[tenancy] Conversation ne modifie pas participants après sa création",
+    );
+  });
+
+  it("refuse de réécrire ce qui dérive des participants", () => {
+    expect(freeze({ participantKey: "COACH:x", kind: "GROUP" })).toThrow(
+      "[tenancy] Conversation ne modifie pas participantKey, kind après sa création",
+    );
+  });
+});
+
 describe("operationKindOf", () => {
   const child = scopeOf("ExerciseDocument");
 
@@ -399,8 +505,61 @@ describe("scopeFor", () => {
     expect(scope.athlete?.owner).toBeNull();
   });
 
+  /**
+   * La participation (#611) : la conversation se lit, s'écrit et s'administre par la même
+   * participation ; ses messages et ses participations se lisent par elle, mais l'acteur n'écrit
+   * que les siens.
+   */
+  const OWN_WRITES = ["Message", "ConversationParticipant"];
+
+  it.each([
+    ["coach", "COACH"],
+    ["athlete", "ATHLETE"],
+  ] as const)("une conversation se lit par participation, au titre exercé (%s)", (capability, title) => {
+    const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
+    for (const operation of CLASSES) {
+      expect(whereOf(scopeOf("Conversation"), capability, operation)).toEqual(conversation);
+    }
+    expect(whereOf(scopeOf("Message"), capability)).toEqual({ conversation });
+    expect(whereOf(scopeOf("ConversationParticipant"), capability)).toEqual({ conversation });
+  });
+
+  it.each([
+    ["coach", "COACH"],
+    ["athlete", "ATHLETE"],
+  ] as const)("l'acteur n'écrit que ses messages et sa participation (%s)", (capability, title) => {
+    const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
+    for (const operation of ["write", "admin"] as const) {
+      expect(whereOf(scopeOf("Message"), capability, operation)).toEqual({
+        senderId: ACTOR,
+        conversation,
+      });
+      expect(whereOf(scopeOf("ConversationParticipant"), capability, operation)).toEqual({
+        userId: ACTOR,
+        capability: title,
+      });
+    }
+  });
+
+  // L'auteur remplit le message ; la conversation n'est que vérifiée. La participation ne se crée
+  // qu'imbriquée dans sa conversation.
+  it("crée un message au nom de son auteur, après avoir vérifié sa conversation", () => {
+    for (const capability of ["coach", "athlete"] as const) {
+      const message = scopeFor(scopeOf("Message"), capability);
+      expect(message?.owner).toBe("senderId");
+      expect(message?.parent).toEqual({
+        model: "Conversation",
+        key: "conversationId",
+        checkOnly: true,
+      });
+      expect(scopeFor(scopeOf("ConversationParticipant"), capability)?.owner).toBeNull();
+    }
+  });
+
   it.each(
-    Object.entries(TENANT_SCOPES).filter(([model]) => !SHARED.includes(model)),
+    Object.entries(TENANT_SCOPES).filter(
+      ([model]) => !SHARED.includes(model) && !OWN_WRITES.includes(model),
+    ),
   )("%s pose le même filtre pour les trois classes", (_, scope) => {
     for (const capability of ["coach", "athlete", "company", null] as const) {
       const read = whereOf(scope, capability, "read");
