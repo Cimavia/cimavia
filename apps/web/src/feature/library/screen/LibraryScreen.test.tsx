@@ -43,6 +43,7 @@ const session = {
   owner: { id: "coach-1", name: "Cédric" },
   myAccess: { level: MyAccessLevel.OWNER, via: null },
   grants: [],
+  coachGrants: [],
   updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as SessionDto;
 const exercise = {
@@ -52,6 +53,7 @@ const exercise = {
   owner: { id: "coach-1", name: "Cédric" },
   myAccess: { level: MyAccessLevel.OWNER, via: null },
   grants: [],
+  coachGrants: [],
   updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as ExerciseDto;
 

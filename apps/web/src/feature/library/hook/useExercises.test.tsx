@@ -224,7 +224,11 @@ describe("useDuplicateExercise", () => {
 });
 
 describe("useChangeExerciseAccess", () => {
-  const input = { ids: ["ex-1"], changes: [{ organizationId: "org-f", level: null }] };
+  const input = {
+    ids: ["ex-1"],
+    changes: [{ organizationId: "org-f", level: null }],
+    coachChanges: [],
+  };
 
   it("envoie les seuls changements, puis invalide toute la bibliothèque d'exercices", async () => {
     apiMock.changeExerciseAccess.mockResolvedValue([]);

@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listMyOrganizations } from "@/feature/library/api";
 import { changePlanAccess, listPlanOrganizations } from "@/feature/plan/api";
 import { renderWithProviders } from "../../../../test/render";
-import { PlanAccessButton, planFraming } from "./PlanAccessButton";
+import { PlanAccessButton, planFraming, staleCoaches } from "./PlanAccessButton";
 
 vi.mock("@/feature/library/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/library/api")>()),
@@ -43,6 +43,7 @@ const plan = (over: Partial<PlanDto> = {}): PlanDto =>
     coachName: "C",
     myAccess: { level: MyAccessLevel.OWNER, via: null },
     grants: [],
+    coachGrants: [],
     athleteId: "ath_ti",
     athleteName: "TI",
     athleteEmail: null,
@@ -103,6 +104,7 @@ describe("PlanAccessButton", () => {
       expect(vi.mocked(changePlanAccess).mock.calls[0]?.[0]).toEqual({
         ids: ["pln_1"],
         changes: [{ organizationId: "org_f", level: AccessLevel.READ }],
+        coachChanges: [],
       }),
     );
     await waitFor(() => expect(screen.queryByText("plan.access.coachesOf")).toBeNull());
@@ -141,6 +143,53 @@ describe("PlanAccessButton", () => {
       expect(vi.mocked(changePlanAccess).mock.calls[0]?.[0]).toEqual({
         ids: ["pln_1"],
         changes: [{ organizationId: "org_f", level: null }],
+        coachChanges: [],
+      }),
+    );
+  });
+
+  it("M, Coach de TI, se règle sous F ; « Écriture » part pour lui seul (#608)", async () => {
+    vi.mocked(changePlanAccess).mockResolvedValue([]);
+    const { user } = await openPanel([F], { grants: [F_WRITE] });
+
+    const row = (await screen.findByText("M", { selector: "span" })).closest("div.rounded-cmv-md");
+    await user.click(
+      within(row as HTMLElement).getByRole("button", { name: "library.access.level.NONE" }),
+    );
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+
+    await waitFor(() =>
+      expect(vi.mocked(changePlanAccess).mock.calls[0]?.[0]).toEqual({
+        ids: ["pln_1"],
+        changes: [],
+        coachChanges: [{ coachId: "coach_m", level: AccessLevel.NONE }],
+      }),
+    );
+  });
+
+  it("la ligne d'un Coach qui ne suit plus TI se montre, et ne propose que de la rendre", async () => {
+    vi.mocked(changePlanAccess).mockResolvedValue([]);
+    const B = { id: "coach_b", name: "B" };
+    const { user } = await openPanel([F], {
+      coachGrants: [{ coach: B, level: AccessLevel.WRITE }],
+    });
+
+    expect(await screen.findByText("plan.access.staleCoach")).toBeTruthy();
+    const row = screen.getByText("B", { selector: "span" }).closest("div.rounded-cmv-md");
+    const options = within(row as HTMLElement)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(options).toEqual(["library.access.inherited", "library.access.level.WRITE"]);
+
+    await user.click(
+      within(row as HTMLElement).getByRole("button", { name: "library.access.inherited" }),
+    );
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+    await waitFor(() =>
+      expect(vi.mocked(changePlanAccess).mock.calls[0]?.[0]).toEqual({
+        ids: ["pln_1"],
+        changes: [],
+        coachChanges: [{ coachId: "coach_b", level: null }],
       }),
     );
   });
@@ -165,7 +214,7 @@ const t = ((key: string, values?: object) =>
   values == null ? key : `${key} ${JSON.stringify(values)}`) as unknown as TFunction;
 
 describe("planFraming", () => {
-  const owner = { coachId: "coach_c", athleteId: "ath_ti", grants: [F_WRITE] };
+  const owner = { coachId: "coach_c", athleteId: "ath_ti", grants: [F_WRITE], coachGrants: [] };
 
   it("sans athlète, le cycle se partage comme un exercice : rien à rappeler", () => {
     expect(planFraming({ ...owner, athleteId: null }, null, [F], null, t)).toEqual({
@@ -176,6 +225,7 @@ describe("planFraming", () => {
       empty: "plan.access.emptyUnassigned",
       ownerOnly: "plan.access.ownerOnly",
       stale: null,
+      staleCoaches: null,
     });
   });
 
@@ -215,5 +265,46 @@ describe("planFraming", () => {
     expect(planFraming(owner, "TE", [], "F", t).caption).toBe(
       `plan.access.followedAlone ${JSON.stringify({ athlete: "TE" })}`,
     );
+  });
+});
+
+describe("staleCoaches (#608)", () => {
+  const B = { id: "coach_b", name: "B" };
+  const line = (coach: { id: string; name: string }, level: AccessLevel) => ({ coach, level });
+
+  it("les lignes ouvertes d'un Coach qui ne suit plus l'athlète, sans entreprise", () => {
+    expect(
+      staleCoaches({ athleteId: "ath_ti", coachGrants: [line(B, AccessLevel.READ)] }, [F]),
+    ).toEqual([{ coachId: "coach_b", name: "B", organizationIds: [] }]);
+  });
+
+  it("ni un Coach proposé, ni une ligne « Aucun », ni un cycle sans athlète", () => {
+    const M_LINE = line({ id: "coach_m", name: "M" }, AccessLevel.WRITE);
+    expect(staleCoaches({ athleteId: "ath_ti", coachGrants: [M_LINE] }, [F])).toEqual([]);
+    expect(
+      staleCoaches({ athleteId: "ath_ti", coachGrants: [line(B, AccessLevel.NONE)] }, [F]),
+    ).toEqual([]);
+    expect(
+      staleCoaches({ athleteId: null, coachGrants: [line(B, AccessLevel.READ)] }, [F]),
+    ).toEqual([]);
+  });
+
+  it("planFraming le dit à part", () => {
+    const framing = planFraming(
+      {
+        coachId: "coach_c",
+        athleteId: "ath_ti",
+        grants: [],
+        coachGrants: [line(B, AccessLevel.READ)],
+      },
+      "TI",
+      [F],
+      null,
+      t,
+    );
+    expect(framing.staleCoaches).toEqual({
+      coaches: [{ coachId: "coach_b", name: "B", organizationIds: [] }],
+      caption: `plan.access.staleCoach ${JSON.stringify({ athlete: "TI" })}`,
+    });
   });
 });

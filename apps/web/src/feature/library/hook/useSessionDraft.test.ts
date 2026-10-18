@@ -90,6 +90,7 @@ const session = (exercises: SessionExerciseDto[] = [TRACTIONS, GAINAGE]): Sessio
   owner: { id: "coach-1", name: "Coach" },
   myAccess: { level: "OWNER", via: null },
   grants: [],
+  coachGrants: [],
   title: "Force",
   notes: null,
   exercises,

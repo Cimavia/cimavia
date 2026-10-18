@@ -459,6 +459,8 @@
       },
       "via": "{{level}} via {{organization}}",
       "mixed": "Mixte",
+      "inherited": "Hérité",
+      "coachOf": "Coach de {{organizations}}",
       "organizations": "Entreprises",
       "organizationCoaches": "Entreprise · {{coaches}} et toi",
       "organizationCoaches_zero": "Entreprise · toi seul",
@@ -482,7 +484,8 @@
         "canWrite": "Tu peux voir cet exercice, l'utiliser dans tes séances et planifications, et en modifier le contenu.",
         "selected": "{{count}} exercice sélectionné",
         "selected_other": "{{count}} exercices sélectionnés",
-        "sharedEmpty": "Aucun exercice n'est partagé avec toi pour l'instant."
+        "sharedEmpty": "Aucun exercice n'est partagé avec toi pour l'instant.",
+        "inheritsMixed": "Suit la ligne de {{organizations}} sur chaque exercice"
       },
       "session": {
         "mine": "Séance · à toi",
@@ -498,7 +501,8 @@
         "canWrite": "Tu peux voir cette séance, l'utiliser dans tes planifications, et en modifier le contenu.",
         "selected": "{{count}} séance sélectionnée",
         "selected_other": "{{count}} séances sélectionnées",
-        "sharedEmpty": "Aucune séance n'est partagée avec toi pour l'instant."
+        "sharedEmpty": "Aucune séance n'est partagée avec toi pour l'instant.",
+        "inheritsMixed": "Suit la ligne de {{organizations}} sur chaque séance"
       }
     },
     "noFilterMatch": "Rien ne correspond à ces filtres.",
@@ -727,6 +731,8 @@
       "defaultWrite": "Par défaut, la planification d'un athlète de {{organization}} est ouverte en écriture à {{organization}}.",
       "empty": "Seuls les coachs de {{athlete}} peuvent y accéder, et tu es son seul coach.",
       "stale": "Plus aucun de ses coachs ne suit {{athlete}} : ce droit n'ouvre plus rien, tu peux le retirer.",
+      "staleCoach": "Ne suit plus {{athlete}} : ce droit n'ouvre plus rien, tu peux le retirer.",
+      "inheritsMixed": "Suit la ligne de {{organizations}} sur chaque planification",
       "emptyUnassigned": "Tu n'as aucune entreprise à qui ouvrir cette planification."
     },
     "toast": {

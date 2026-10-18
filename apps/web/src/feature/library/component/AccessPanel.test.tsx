@@ -29,17 +29,23 @@ const ORGANIZATIONS: CoachOrganizationDto[] = [
   { id: "org-g", name: "G", coaches: [{ coachId: "c", name: "C" }] },
 ];
 
-const mine = (id: string, grants: AccessElement["grants"]): AccessElement => ({
+const mine = (
+  id: string,
+  grants: AccessElement["grants"],
+  coachGrants: AccessElement["coachGrants"] = [],
+): AccessElement => ({
   id,
   title: `Exercice ${id}`,
   owner: C,
   myAccess: { level: MyAccessLevel.OWNER, via: null },
   grants,
+  coachGrants,
 });
 
 function setup(
   elements: AccessElement[],
   change: (input: ChangeAccessInput) => Promise<ElementAccessDto[]> = async () => [],
+  organizations: CoachOrganizationDto[] = ORGANIZATIONS,
 ) {
   const onClose = vi.fn();
   const onSaved = vi.fn();
@@ -50,7 +56,7 @@ function setup(
     return (
       <AccessPanel
         elements={elements}
-        organizations={ORGANIZATIONS}
+        organizations={organizations}
         copyPrefix="library.access.exercise"
         mutation={mutation}
         onClose={onClose}
@@ -119,6 +125,7 @@ describe("AccessPanel — propriétaire", () => {
     expect(send.mock.calls[0]?.[0]).toEqual({
       ids: ["ex-1"],
       changes: [{ organizationId: "org-g", level: AccessLevel.READ }],
+      coachChanges: [],
     });
   });
 
@@ -148,6 +155,7 @@ describe("AccessPanel — propriétaire", () => {
     expect(send.mock.calls[0]?.[0]).toEqual({
       ids: ["ex-1", "ex-2"],
       changes: [{ organizationId: "org-g", level: AccessLevel.WRITE }],
+      coachChanges: [],
     });
   });
 
@@ -238,6 +246,97 @@ describe("AccessPanel — propriétaire", () => {
   });
 });
 
+describe("AccessPanel — lignes des Coachs (#608)", () => {
+  const lineOfM = (level: AccessLevel) => [{ coach: M, level }];
+
+  it("M en retrait sous F, en « Hérité », avec le droit qui découle de F", () => {
+    setup([mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }])]);
+
+    expect(pressed("M")).toEqual(["library.access.inherited"]);
+    expect(row("M").getByText("library.access.coachOf")).toBeInTheDocument();
+    expect(row("M").getByText("library.access.via")).toBeInTheDocument();
+    // Le propriétaire n'a pas de ligne : rien ne se règle pour lui.
+    expect(screen.queryByText("C", { selector: "span.text-cmv-body" })).toBeNull();
+  });
+
+  it("le droit hérité suit F à l'instant, et se dit « Aucun » quand rien ne l'ouvre", async () => {
+    const { user } = setup([mine("ex-1", [{ organization: F, level: AccessLevel.READ }])]);
+
+    await user.click(row("F").getByRole("button", { name: "library.access.level.NONE" }));
+
+    expect(row("M").queryByText("library.access.via")).toBeNull();
+    expect(row("M").getAllByText("library.access.level.NONE")).toHaveLength(2);
+  });
+
+  it("« Aucun » sur M part en ligne NONE, sans toucher F", async () => {
+    const { user, send } = setup([mine("ex-1", [{ organization: F, level: AccessLevel.WRITE }])]);
+
+    await user.click(row("M").getByRole("button", { name: "library.access.level.NONE" }));
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      ids: ["ex-1"],
+      changes: [],
+      coachChanges: [{ coachId: "m", level: AccessLevel.NONE }],
+    });
+  });
+
+  it("une ligne posée s'affiche sans note, et « Hérité » la retire", async () => {
+    const { user, send } = setup([mine("ex-1", [], lineOfM(AccessLevel.WRITE))]);
+
+    expect(pressed("M")).toEqual(["library.access.level.WRITE"]);
+    expect(row("M").queryByText("library.access.via")).toBeNull();
+    await user.click(row("M").getByRole("button", { name: "library.access.inherited" }));
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0]).toEqual({
+      ids: ["ex-1"],
+      changes: [],
+      coachChanges: [{ coachId: "m", level: null }],
+    });
+  });
+
+  it("sur plusieurs éléments, une ligne de M qui diffère reste « Mixte » et ne part pas", async () => {
+    const { user, send } = setup([
+      mine("ex-1", [], lineOfM(AccessLevel.READ)),
+      mine("ex-2", [{ organization: F, level: AccessLevel.READ }]),
+    ]);
+
+    expect(pressed("M")).toEqual(["library.access.mixed"]);
+    // F diffère aussi : ce que M hérite change d'un exercice à l'autre.
+    await user.click(row("M").getByRole("button", { name: "library.access.inherited" }));
+    expect(row("M").getByText("library.access.exercise.inheritsMixed")).toBeInTheDocument();
+    await user.click(row("G").getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(row("M").getByRole("button", { name: "library.access.mixed" }));
+    await user.click(screen.getByRole("button", { name: /library\.access\.exercise\.applyTo/ }));
+
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ coachChanges: [] });
+  });
+
+  it("un Coach de deux entreprises n'apparaît qu'une fois, et hérite de la plus large", () => {
+    const both: CoachOrganizationDto[] = [
+      { id: "org-f", name: "F", coaches: [{ coachId: "m", name: "M" }] },
+      { id: "org-g", name: "G", coaches: [{ coachId: "m", name: "M" }] },
+    ];
+    setup(
+      [
+        mine("ex-1", [
+          { organization: F, level: AccessLevel.READ },
+          { organization: G, level: AccessLevel.WRITE },
+        ]),
+      ],
+      async () => [],
+      both,
+    );
+
+    expect(screen.getAllByText("M", { selector: "span.text-cmv-body" })).toHaveLength(1);
+    expect(row("M").getByText("library.access.via")).toBeInTheDocument();
+  });
+});
+
 describe("AccessPanel — lecture seule", () => {
   const shared: AccessElement = {
     id: "ex-9",
@@ -245,6 +344,7 @@ describe("AccessPanel — lecture seule", () => {
     owner: M,
     myAccess: { level: MyAccessLevel.WRITE, via: G },
     grants: null,
+    coachGrants: null,
   };
 
   it("dit le propriétaire et le droit de l'acteur, sans aucun sélecteur (frame 7)", async () => {

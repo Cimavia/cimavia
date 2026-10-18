@@ -64,6 +64,7 @@ const plan = (id: string, title: string, sessions: ScheduledSessionSummaryDto[])
   coachName: "Julie Renaud",
   myAccess: null,
   grants: null,
+  coachGrants: null,
   athleteId: "ath_1",
   athleteName: "Léa Moreau",
   athleteEmail: "lea@example.test",

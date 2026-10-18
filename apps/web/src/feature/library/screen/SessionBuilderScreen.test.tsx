@@ -107,6 +107,7 @@ const saved = (over: Partial<SessionDto> = {}) =>
     owner: { id: "coach-1", name: "Cédric" },
     myAccess: { level: MyAccessLevel.OWNER, via: null },
     grants: [],
+    coachGrants: [],
     updatedAt: READ,
     exercises: [
       composed("se-1", "ex-1", "Tractions"),
@@ -1240,6 +1241,7 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
       owner: { id: "coach-m", name: "M" },
       myAccess: { level, via: { id: "org-f", name: "F" } },
       grants: null,
+      coachGrants: null,
       exercises: [
         composed("se-1", "ex-1", "Tractions"),
         ofMExercise,

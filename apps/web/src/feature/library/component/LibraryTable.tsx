@@ -216,14 +216,17 @@ export function LibraryTable<T extends LibraryTableRow>({
   );
 }
 
-/** Le propriétaire reçoit toujours ses droits (#605) : leur absence est une réponse incomplète. */
+/**
+ * Le propriétaire reçoit toujours ses droits (#605), ceux de ses Coachs compris (#608) : leur
+ * absence est une réponse incomplète.
+ */
 function isMissingGrants(row: LibraryTableRow) {
-  return isOwner(row.myAccess) && row.grants == null;
+  return isOwner(row.myAccess) && (row.grants == null || row.coachGrants == null);
 }
 
 /** Ce dont le Coach peut régler les accès : le sien, droits connus. */
 function manageable(row: LibraryTableRow) {
-  return isOwner(row.myAccess) && row.grants != null;
+  return isOwner(row.myAccess) && !isMissingGrants(row);
 }
 
 function HeadCell({ label }: Readonly<{ label: string }>) {

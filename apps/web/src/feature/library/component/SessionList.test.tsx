@@ -36,6 +36,7 @@ const session = (id: string, title: string, tags: string[][] = [], owner = "C") 
       via: owner === "C" ? null : F,
     },
     grants: owner === "C" ? [] : null,
+    coachGrants: owner === "C" ? [] : null,
     updatedAt: "2026-10-06T08:00:00.000Z",
   }) as unknown as SessionDto;
 
