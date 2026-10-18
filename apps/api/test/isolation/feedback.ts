@@ -68,7 +68,6 @@ describe("Débrief de séance (P4)", () => {
       scheduledSessionId: sessionId,
       athleteId: a1Id,
       content: "Bonne séance, épaule un peu sensible sur les tractions.",
-      coachReadAt: null,
       media: [],
     });
 
