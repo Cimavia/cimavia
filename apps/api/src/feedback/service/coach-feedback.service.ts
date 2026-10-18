@@ -3,6 +3,7 @@ import { FEEDBACK_EVENT_MESSAGE_TYPES, required } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { ScheduledSession } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { ownedBy } from "../../access/access.mapper";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -33,7 +34,7 @@ export class CoachFeedbackService {
    */
   async list(): Promise<CoachFeedbackSummaryDto[]> {
     const feedbacks = await this.db.sessionFeedback.findMany({
-      where: { coachId: this.ownerId() },
+      where: ownedBy(this.ownerId()),
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { media: true } } },
     });
@@ -133,7 +134,7 @@ export class CoachFeedbackService {
   async markRead(id: string): Promise<CoachFeedbackSummaryDto> {
     // Hors de la boîte, introuvable — même lisible par un cycle ouvert (#607).
     const feedback = await this.db.sessionFeedback.findFirst({
-      where: { id, coachId: this.ownerId() },
+      where: { id, ...ownedBy(this.ownerId()) },
     });
     if (feedback == null) {
       throw new NotFoundException("Débrief introuvable");

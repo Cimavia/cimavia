@@ -14,6 +14,7 @@ import {
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, Reminder } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { ownedBy } from "../../access/access.mapper";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
@@ -308,7 +309,7 @@ export class ReminderService {
    * ouvert reçoit donc le même 400 qu'un cycle inconnu.
    */
   private async assertTargetOwned(entityType: ReminderEntityType, entityId: string): Promise<void> {
-    const where = { id: entityId, coachId: currentActor(this.cls).userId };
+    const where = { id: entityId, ...ownedBy(currentActor(this.cls).userId) };
     const count =
       entityType === ReminderEntityType.PLAN
         ? await this.db.plan.count({ where })

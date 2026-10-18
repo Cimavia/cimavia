@@ -10,6 +10,7 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { ownedBy } from "../../access/access.mapper";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -154,25 +155,6 @@ export class ReminderTickService {
   }
 
   /**
-   * Le push à l'échéance (#47) — la dette **R-1**. Sans lui, un rappel qui devient dû n'émettait
-   * aucun signal : il n'apparaissait qu'au prochain chargement du centre.
-   *
-   * `pushedAt: null` est ce qui rend le tick idempotent : la sélection ne voit que ce qui n'est pas
-   * encore parti, deux passages rapprochés ne poussent donc pas deux fois, et un tick manqué
-   * rattrape au suivant. Rien n'est persisté côté notifications — l'entrée du centre reste
-   * CALCULÉE, sinon le rappel apparaîtrait en double (cf. `NotificationService.notifyReminderDue`).
-   *
-   * L'estampille est posée APRÈS l'envoi, en un seul `updateMany`. Le compromis se lit dans cet
-   * ordre : un arrêt brutal entre les deux fait repartir le push au tick suivant. Un doublon vaut
-   * mieux qu'un rappel silencieux — et `push()` ne lève jamais (règle 2 de `NotificationService`),
-   * donc le cas ne peut venir que d'un process tué.
-   *
-   * L'estampille ne vaut que pour l'échéance LUE (#295) : le coach peut repousser un rappel pendant
-   * que les envois défilent, et son report remet `pushedAt` à `null`. Estampiller par `id` seul
-   * marquerait alors la NOUVELLE échéance comme poussée sans que rien ne soit parti pour elle — le
-   * rappel resterait muet le jour venu. Le couple `(id, dueAt)` laisse ce report intact.
-   */
-  /**
    * Clôt le rappel « facture en retard » d'une facture que le coach ne doit plus relancer (#607).
    *
    * Quand il la règle lui-même, `ReminderService.closeInvoiceOverdue` le clôt dans la transaction.
@@ -210,6 +192,25 @@ export class ReminderTickService {
     });
   }
 
+  /**
+   * Le push à l'échéance (#47) — la dette **R-1**. Sans lui, un rappel qui devient dû n'émettait
+   * aucun signal : il n'apparaissait qu'au prochain chargement du centre.
+   *
+   * `pushedAt: null` est ce qui rend le tick idempotent : la sélection ne voit que ce qui n'est pas
+   * encore parti, deux passages rapprochés ne poussent donc pas deux fois, et un tick manqué
+   * rattrape au suivant. Rien n'est persisté côté notifications — l'entrée du centre reste
+   * CALCULÉE, sinon le rappel apparaîtrait en double (cf. `NotificationService.notifyReminderDue`).
+   *
+   * L'estampille est posée APRÈS l'envoi, en un seul `updateMany`. Le compromis se lit dans cet
+   * ordre : un arrêt brutal entre les deux fait repartir le push au tick suivant. Un doublon vaut
+   * mieux qu'un rappel silencieux — et `push()` ne lève jamais (règle 2 de `NotificationService`),
+   * donc le cas ne peut venir que d'un process tué.
+   *
+   * L'estampille ne vaut que pour l'échéance LUE (#295) : le coach peut repousser un rappel pendant
+   * que les envois défilent, et son report remet `pushedAt` à `null`. Estampiller par `id` seul
+   * marquerait alors la NOUVELLE échéance comme poussée sans que rien ne soit parti pour elle — le
+   * rappel resterait muet le jour venu. Le couple `(id, dueAt)` laisse ce report intact.
+   */
   private async pushDue(coachId: string, now: Date): Promise<number> {
     const due = await this.db.reminder.findMany({
       where: { status: ReminderStatus.PENDING, dueAt: { lte: now }, pushedAt: null },
@@ -264,10 +265,10 @@ export class ReminderTickService {
      */
     const [plans, weekCounts] = await Promise.all([
       this.db.plan.findMany({
-        where: { coachId, status: PlanStatus.PUBLISHED },
+        where: { ...ownedBy(coachId), status: PlanStatus.PUBLISHED },
         select: { id: true, startDate: true },
       }),
-      this.db.planWeek.groupBy({ by: ["planId"], where: { coachId }, _count: { _all: true } }),
+      this.db.planWeek.groupBy({ by: ["planId"], where: ownedBy(coachId), _count: { _all: true } }),
     ]);
 
     const weeksByPlan = new Map(weekCounts.map((row) => [row.planId, row._count._all]));
@@ -304,7 +305,7 @@ export class ReminderTickService {
    */
   private async invoiceOverdueRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     const invoices = await this.db.invoice.findMany({
-      where: { coachId, status: InvoiceStatus.PENDING },
+      where: { ...ownedBy(coachId), status: InvoiceStatus.PENDING },
       select: { id: true, dueDate: true },
     });
 

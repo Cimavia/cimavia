@@ -90,6 +90,16 @@ export function toAccessView(row: AccessRow, context: AccessContext): AccessView
 }
 
 /**
+ * Ce qui est À l'acteur, parmi ce qu'il lit (#607). Lire un modèle partageable ouvre aussi ce qu'on
+ * lui partage ; ce filtre le ramène à ce qu'il possède — « Les miens » de la bibliothèque, la boîte
+ * des débriefs, les rappels et leurs cibles. Jamais un élargissement : le filtre de l'extension
+ * s'ajoute à celui-ci.
+ */
+export function ownedBy(actorId: string): { coachId: string } {
+  return { coachId: actorId };
+}
+
+/**
  * La portée d'une liste de la bibliothèque (`?scope=`), sur ce que l'acteur peut déjà lire : tout,
  * ses propres éléments, ou ceux que d'autres Coachs lui ouvrent. Jamais un élargissement — le
  * filtre de l'extension s'ajoute à celui-ci.
@@ -98,7 +108,7 @@ export function libraryScopeWhere(
   scope: LibraryScope,
   actorId: string,
 ): { coachId?: string | { not: string } } {
-  if (scope === LibraryScope.MINE) return { coachId: actorId };
+  if (scope === LibraryScope.MINE) return ownedBy(actorId);
   if (scope === LibraryScope.SHARED) return { coachId: { not: actorId } };
   return {};
 }
