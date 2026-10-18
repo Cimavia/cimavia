@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialsOf } from "./name.util";
+import { initialsOf, joinNames } from "./name.util";
 
 describe("initialsOf", () => {
   it("prend la première lettre du prénom et du nom", () => {
@@ -40,5 +40,17 @@ describe("initialsOf", () => {
   it("rend une chaîne vide sur un nom vide", () => {
     expect(initialsOf("")).toBe("");
     expect(initialsOf("   ")).toBe("");
+  });
+});
+
+describe("joinNames", () => {
+  it("joint les noms par des virgules, la conjonction avant le dernier", () => {
+    expect(joinNames(["C", "M", "TI"], "et")).toBe("C, M et TI");
+    expect(joinNames(["TE", "TI"], "ni")).toBe("TE ni TI");
+  });
+
+  it("rend un nom seul tel quel, et rien sans nom", () => {
+    expect(joinNames(["M"], "et")).toBe("M");
+    expect(joinNames([], "et")).toBe("");
   });
 });

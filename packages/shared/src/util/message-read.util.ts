@@ -1,4 +1,4 @@
-import type { ConversationDto, MessageDto } from "../dto/message.schema";
+import type { MessageDto } from "../dto/message.schema";
 
 /**
  * Le message qui déclenche le marquage lu d'un fil : le DERNIER entrant créé après sa marque de
@@ -26,24 +26,6 @@ export function lastUnreadIncomingId(
       (lastReadAt == null || Date.parse(message.createdAt) > Date.parse(lastReadAt)),
   );
   return unread.at(-1)?.id ?? null;
-}
-
-type ReadMarkSource = Pick<ConversationDto, "lastReadAt">;
-
-/**
- * MA marque de lecture sur le fil ouvert (#611), à donner à `lastUnreadIncomingId`. Celle de la
- * liste des fils d'abord : `markRead` l'invalide, elle suit donc mes lectures. Le fil RÉSOLU
- * (get-or-create) est figé, pour ne pas rejouer la résolution : sa marque a l'âge de l'ouverture,
- * et ne sert que tant que la liste ne porte pas encore le fil — créé à l'instant, ou par l'autre
- * depuis le dernier sondage.
- *
- * `null` : rien lu encore, ou aucun des deux chargé — et sans fil résolu, rien ne se marque.
- */
-export function readMarkOf(
-  listed: ReadMarkSource | null | undefined,
-  resolved: ReadMarkSource | undefined,
-): string | null {
-  return (listed ?? resolved)?.lastReadAt ?? null;
 }
 
 /**
