@@ -1,7 +1,13 @@
-import { type CoachFeedbackSummaryDto, comparableText, searchMatcher } from "@cmv/shared";
+import {
+  type CoachFeedbackSummaryDto,
+  comparableText,
+  replyBadge,
+  searchMatcher,
+} from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { CmvAvatar, CmvBadge, CmvEmptyState, CmvSegmented, CmvTextField } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { authClient } from "@/shared/lib/auth";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
 
@@ -43,6 +49,7 @@ export function FeedbackInboxList({
 }: Readonly<FeedbackInboxListProps>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
+  const viewerId = authClient.useSession().data?.user.id;
 
   const unreadCount = feedbacks.filter((feedback) => feedback.coachReadAt == null).length;
 
@@ -126,11 +133,9 @@ export function FeedbackInboxList({
                   <CmvBadge variant="accent">{t("feedback.unread")}</CmvBadge>
                 ) : null}
                 {/* « Répondu » est un BADGE, pas un troisième segment : c'est une information sur
-                    la ligne, pas un axe de tri de plus. Dérivé côté serveur (`repliedAt`), donc
-                    jamais à tenir cohérent ici. */}
-                {feedback.repliedAt != null ? (
-                  <CmvBadge variant="success">{t("feedback.replied")}</CmvBadge>
-                ) : null}
+                    la ligne, pas un axe de tri de plus. Dérivé côté serveur (`firstReply`), donc
+                    jamais à tenir cohérent ici — et nommé quand un autre Coach a répondu (#610). */}
+                <ReplyBadge feedback={feedback} viewerId={viewerId} />
               </div>
 
               <span className="truncate text-cmv-caption text-cmv-text-mid">
@@ -153,5 +158,20 @@ export function FeedbackInboxList({
         ))}
       </div>
     </div>
+  );
+}
+
+/** « Répondu », ou « Répondu par M » quand la première réponse est celle d'un autre Coach (#610). */
+function ReplyBadge({
+  feedback,
+  viewerId,
+}: Readonly<{ feedback: CoachFeedbackSummaryDto; viewerId: string | undefined }>) {
+  const { t } = useTranslation();
+  const badge = replyBadge(feedback, viewerId);
+  if (badge == null) return null;
+  return (
+    <CmvBadge variant="success">
+      {badge.by == null ? t("feedback.replied") : t("feedback.repliedBy", { name: badge.by })}
+    </CmvBadge>
   );
 }

@@ -1177,6 +1177,7 @@
       }
     },
     "replied": "Répondu",
+    "repliedBy": "Répondu par {{name}}",
     "reply": {
       "title": "Réponses",
       "threadError": "Impossible d'ouvrir la conversation. Réessaie dans un instant.",
