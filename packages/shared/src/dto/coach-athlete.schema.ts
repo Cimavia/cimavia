@@ -70,7 +70,10 @@ export type CoachAthleteDto = z.infer<typeof coachAthleteDtoSchema>;
  * la ligne, et l'entrée synthétique de `GET /athletes` (#14) ne passe pas par ici.
  */
 export const counterpartsDtoSchema = z.object({
-  /** Au moins un athlète TIERS actif — l'entrée synthétique de l'auto-coaching ne compte pas. */
+  /**
+   * Quelqu'un à qui écrire en Coach : un athlète TIERS actif, ou un autre Coach de l'une de ses
+   * entreprises (#611). L'entrée synthétique de l'auto-coaching ne compte pas.
+   */
   asCoach: z.boolean(),
   /** Un coach actif. Faux pour un athlète autonome comme pour un compte qui se coache seul. */
   asAthlete: z.boolean(),

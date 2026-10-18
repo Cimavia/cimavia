@@ -43,7 +43,24 @@ const FULL: AthleteRowsInput = {
       createdAt: "2026-10-23T08:00:00Z",
     },
   ],
-  conversations: [{ counterpartId: LEA.athleteId, unreadCount: 3 }],
+  conversations: [
+    {
+      kind: "DIRECT",
+      participants: [
+        { userId: LEA.athleteId, name: "Léa", capability: "athlete", lastReadAt: null },
+      ],
+      unreadCount: 3,
+    },
+    // Un groupe où Léa figure n'est pas SON fil : ses non-lus ne vont pas sur sa ligne (#611).
+    {
+      kind: "GROUP",
+      participants: [
+        { userId: LEA.athleteId, name: "Léa", capability: "athlete", lastReadAt: null },
+        { userId: "coach_m", name: "M", capability: "coach", lastReadAt: null },
+      ],
+      unreadCount: 7,
+    },
+  ],
   invoices: [
     {
       id: "inv_1",
@@ -146,11 +163,10 @@ describe("buildAthleteRows", () => {
   });
 
   /**
-   * La conversation désigne son interlocuteur par `counterpartId` (elle est vue depuis le coach) :
-   * c'est le seul point de jointure qui change de nom, donc le seul où une inversion passerait
-   * inaperçue.
+   * La conversation ne nomme pas son athlète : il se lit parmi ses participants. C'est le seul
+   * point de jointure qui change de forme, donc le seul où un groupe se glisserait inaperçu.
    */
-  it("rattache les messages non lus par counterpartId", () => {
+  it("rattache les messages non lus du seul fil à deux avec l'athlète", () => {
     const [lea, noah] = buildAthleteRows(FULL) ?? [];
     expect(lea?.unreadMessages).toBe(3);
     // Aucun fil ouvert = 0 non lu, pas « inconnu » : la liste a répondu.

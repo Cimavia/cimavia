@@ -1,24 +1,29 @@
 import type { MessageDto } from "../dto/message.schema";
 
 /**
- * Le message qui déclenche le marquage lu d'un fil : le DERNIER entrant non lu, par son id.
+ * Le message qui déclenche le marquage lu d'un fil : le DERNIER entrant créé après sa marque de
+ * lecture (`lastReadAt`, #611), par son id.
  *
- * POURQUOI un id et pas « y a-t-il un entrant non lu ? » (#305). `markRead` ne recharge pas les
- * messages : le `readAt` du premier entrant reste `null` dans le cache jusqu'au sondage suivant.
- * Un second entrant arrivé entre-temps rend `[m1 lu, m2 non lu]` — un booléen resté `true`, que
- * l'écran ne voit pas changer, donc un m2 jamais marqué. Et un non-lu qui reste éteint le push de
- * ce fil côté API (`unreadFromMe`). L'id, lui, change à chaque nouvel entrant.
+ * POURQUOI un id et pas « y a-t-il un entrant non lu ? » (#305). `markRead` ne recharge ni les
+ * messages ni le fil ouvert : la marque reste celle d'avant dans le cache jusqu'au sondage suivant.
+ * Un second entrant arrivé entre-temps laisse un booléen resté `true`, que l'écran ne voit pas
+ * changer, donc un m2 jamais marqué. Et un non-lu qui reste éteint la trace de ce fil côté API.
+ * L'id, lui, change à chaque nouvel entrant.
  *
- * `null` pour « rien à marquer », mais aussi pour une session inconnue : sans savoir qui lit, on ne
- * sait pas ce qui est entrant — ses propres messages ne sont pas « à lire ».
+ * `lastReadAt` à `null` : rien n'a encore été lu, tout l'entrant est à lire. `null` en sortie pour
+ * « rien à marquer », mais aussi pour une session inconnue : sans savoir qui lit, on ne sait pas ce
+ * qui est entrant — ses propres messages ne sont pas « à lire ».
  */
 export function lastUnreadIncomingId(
   messages: readonly MessageDto[],
   currentUserId: string | null,
+  lastReadAt: string | null,
 ): string | null {
   if (currentUserId == null) return null;
   const unread = messages.filter(
-    (message) => message.senderId !== currentUserId && message.readAt == null,
+    (message) =>
+      message.senderId !== currentUserId &&
+      (lastReadAt == null || Date.parse(message.createdAt) > Date.parse(lastReadAt)),
   );
   return unread.at(-1)?.id ?? null;
 }

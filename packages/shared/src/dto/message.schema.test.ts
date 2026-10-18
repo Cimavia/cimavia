@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  createConversationSchema,
   FEEDBACK_EVENT_LABEL_KEY,
   FEEDBACK_EVENT_MESSAGE_TYPES,
   isAllowedMessageAudioMime,
   isFeedbackEventMessage,
+  MAX_CONVERSATION_PARTICIPANTS,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MESSAGE_TEXT_MAX_LENGTH,
   MessageAttachmentType,
   MessageType,
   messageDtoSchema,
-  openConversationSchema,
   requestMessageUploadUrlSchema,
   sendMessageSchema,
 } from "./message.schema";
@@ -121,25 +122,43 @@ describe("requestMessageUploadUrlSchema", () => {
   });
 });
 
-describe("openConversationSchema", () => {
-  it("accepte une ouverture côté athlète (aucun champ)", () => {
-    expect(openConversationSchema.safeParse({}).success).toBe(true);
+describe("createConversationSchema", () => {
+  const coach = (userId: string) => ({ userId, capability: "coach" as const });
+
+  it("accepte un participant, à deux, et plusieurs, à plusieurs", () => {
+    expect(createConversationSchema.safeParse({ participants: [coach("c_1")] }).success).toBe(true);
+    const group = { participants: [coach("c_1"), { userId: "a_1", capability: "athlete" }] };
+    expect(createConversationSchema.safeParse(group).success).toBe(true);
   });
 
-  it("accepte une ouverture côté coach (athleteId)", () => {
-    expect(openConversationSchema.safeParse({ athleteId: "ath_1" }).success).toBe(true);
+  it("refuse une conversation sans personne en face", () => {
+    expect(createConversationSchema.safeParse({ participants: [] }).success).toBe(false);
   });
 
-  it("accepte une ouverture côté athlète vers un de ses coachs (coachId)", () => {
-    expect(openConversationSchema.safeParse({ coachId: "c_1" }).success).toBe(true);
+  it("borne le nombre d'autres participants", () => {
+    const at = (count: number) => Array.from({ length: count }, (_, index) => coach(`c_${index}`));
+
+    expect(
+      createConversationSchema.safeParse({ participants: at(MAX_CONVERSATION_PARTICIPANTS) })
+        .success,
+    ).toBe(true);
+    expect(
+      createConversationSchema.safeParse({ participants: at(MAX_CONVERSATION_PARTICIPANTS + 1) })
+        .success,
+    ).toBe(false);
   });
 
-  it("refuse un champ inconnu (schéma strict)", () => {
-    expect(openConversationSchema.safeParse({ counterpartId: "c_1" }).success).toBe(false);
+  // Une même personne sous deux capacités ferait deux participants d'un seul compte.
+  it("refuse un participant nommé deux fois, même sous deux capacités", () => {
+    const twice = { participants: [coach("u_1"), { userId: "u_1", capability: "athlete" }] };
+    expect(createConversationSchema.safeParse(twice).success).toBe(false);
   });
 
-  it("refuse un identifiant vide", () => {
-    expect(openConversationSchema.safeParse({ coachId: "" }).success).toBe(false);
+  it("refuse le compte Entreprise, un identifiant vide et un champ inconnu", () => {
+    const company = { participants: [{ userId: "o_1", capability: "company" }] };
+    expect(createConversationSchema.safeParse(company).success).toBe(false);
+    expect(createConversationSchema.safeParse({ participants: [coach("")] }).success).toBe(false);
+    expect(createConversationSchema.safeParse({ athleteId: "a_1" }).success).toBe(false);
   });
 });
 
@@ -151,7 +170,6 @@ describe("messageDtoSchema — le rattachement résolu", () => {
     type: MessageType.TEXT,
     content: "J'ai lu ton débrief",
     media: null,
-    readAt: null,
     createdAt: "2026-10-16T19:42:00.000Z",
   };
 
@@ -236,7 +254,6 @@ describe("avis de débrief", () => {
       scheduledSessionId: null,
       sessionFeedbackId: "f1",
       attachment: null,
-      readAt: null,
       createdAt: "2026-09-07T10:00:00.000Z",
     });
     expect(result.success).toBe(true);

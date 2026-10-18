@@ -4,6 +4,7 @@ import {
   type ConversationRelation,
   conversationRows,
   counterpartOfConversation,
+  directCounterpartId,
 } from "./conversation-row.util";
 
 const relation = (coachId: string, athleteId: string, isSelf = false): ConversationRelation => ({
@@ -14,18 +15,53 @@ const relation = (coachId: string, athleteId: string, isSelf = false): Conversat
   isSelf,
 });
 
-const thread = (
+const participant = (userId: string, capability: "coach" | "athlete") => ({
+  userId,
+  name: userId,
+  capability,
+  lastReadAt: null,
+});
+
+const conversation = (
   id: string,
-  counterpartId: string,
+  participants: ConversationDto["participants"],
   lastMessageAt: string | null,
+  createdAt = "2026-09-01T08:00:00.000Z",
 ): ConversationDto => ({
   id,
-  counterpartId,
-  counterpartName: counterpartId,
+  kind: participants.length === 1 ? "DIRECT" : "GROUP",
+  participants,
+  lastReadAt: null,
   lastMessageAt,
+  lastMessageSenderId: null,
   lastMessageType: null,
   lastMessagePreview: null,
   unreadCount: 0,
+  createdAt,
+});
+
+// Le fil à deux vu de l'athlète : son interlocuteur est un coach.
+const thread = (id: string, coachId: string, lastMessageAt: string | null) =>
+  conversation(id, [participant(coachId, "coach")], lastMessageAt);
+
+describe("directCounterpartId", () => {
+  it("rend l'interlocuteur d'un fil à deux, s'il participe à ce titre", () => {
+    const direct = thread("t1", "c1", null);
+
+    expect(directCounterpartId(direct, "coach")).toBe("c1");
+    // C ↔ M est un fil entre Coachs : il n'est celui d'aucun athlète.
+    expect(directCounterpartId(direct, "athlete")).toBeNull();
+  });
+
+  it("ne rend personne pour une conversation à plusieurs", () => {
+    const group = conversation(
+      "g1",
+      [participant("c1", "coach"), participant("c2", "coach")],
+      null,
+    );
+
+    expect(directCounterpartId(group, "coach")).toBeNull();
+  });
 });
 
 describe("conversationRows", () => {
@@ -53,6 +89,30 @@ describe("conversationRows", () => {
     expect(rows.map((row) => row.counterpartId)).toEqual(["c3", "c1", "c2"]);
     expect(rows[0]?.conversation?.id).toBe("t3");
     expect(rows[2]?.conversation).toBeNull();
+  });
+
+  // Une conversation vide a été créée : elle passe devant un fil plus ancien (#611).
+  it("range un fil encore vide à sa création", () => {
+    const relations = [relation("c1", "a1"), relation("c2", "a1")];
+    const threads = [
+      thread("t1", "c1", "2026-10-01T08:00:00.000Z"),
+      conversation("t2", [participant("c2", "coach")], null, "2026-10-03T08:00:00.000Z"),
+    ];
+
+    const rows = conversationRows(relations, threads, "athlete");
+
+    expect(rows.map((row) => row.counterpartId)).toEqual(["c2", "c1"]);
+  });
+
+  // Les écrans à plusieurs arrivent avec #612 : d'ici là, un groupe n'emprunte pas une ligne.
+  it("ne rattache à une relation ni un groupe, ni un fil entre Coachs", () => {
+    const relations = [relation("c1", "a1")];
+    const threads = [
+      conversation("g1", [participant("a1", "athlete"), participant("c2", "coach")], null),
+      conversation("t1", [participant("a1", "coach")], null),
+    ];
+
+    expect(conversationRows(relations, threads, "coach")[0]?.conversation).toBeNull();
   });
 
   // Le fil (soi, soi) ne peut pas exister : la ligne menait à un écran d'erreur (#198).
