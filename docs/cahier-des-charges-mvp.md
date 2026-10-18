@@ -154,7 +154,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 - **Pas d'historique** des modifications en MVP.
 
 ### 5.8 Messagerie intégrée
-- Conversation **à participants** *(cible — #611 ; aujourd'hui coach ↔ athlète)* : à deux ou à plusieurs, chacun avec sa marque de lecture. Une conversation est unique par ensemble de participants, à deux comme à plusieurs : en recréer une rouvre l'existante.
+- Conversation **à participants** (#611) : à deux ou à plusieurs (jusqu'à 20 autres participants), chacun avec sa marque de lecture. Une conversation est unique par ensemble de participants, à deux comme à plusieurs : en recréer une rouvre l'existante.
 - Un athlète écrit à ses coachs ; un coach à ses athlètes et aux coachs de ses entreprises. Participants fixés à la création, sans nom de groupe ; le compte Entreprise n'est dans aucune conversation.
 - Messages **texte, audio, photo, vidéo**.
 - **Asynchrone** : pas de temps réel strict ; les nouveaux messages remontent via **notification push + polling** (TanStack Query). WebSocket temps réel (NestJS Gateway + Redis) **différé post-MVP**.
@@ -175,7 +175,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 
 | Domaine | Exigence |
 |--------|----------|
-| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès (#605) ou participation *(cible — #611)*. Refus d'une version périmée (409) sur un exercice, une séance ou un cycle partagé (#604). |
+| **Sécurité** | Auth robuste (Better Auth), HTTPS, médias en buckets privés (URLs signées), **isolation des données scopée à l'acteur courant** (tenancy guard + Prisma Client Extension) — par propriété, droit d'accès (#605) ou participation (#611). Refus d'une version périmée (409) sur un exercice, une séance ou un cycle partagé (#604). |
 | **RGPD / hébergement** | Données perso + médias : consentement, droit à l'effacement. **Hébergement en France** (résidence MVP, souveraineté visée — voir §7.5). Caveat : si les données sont qualifiées de **santé**, hébergeur **HDS** requis. |
 | **i18n** | Toutes les chaînes externalisées dès le MVP (FR), EN activable en v1.0. |
 | **Médias** | Compression côté client avant upload. Plafonds : vidéo **180 s** / 720p / **1 Go**, **10 vidéos** + **20 photos** (100 Mo, ≤1600 px) + **20 notes vocales** par débrief. Vidéo = principal poste de coût. |
@@ -317,13 +317,13 @@ Deux niveaux à ne pas confondre :
 - `session_feedback_id`, `storage_path`, `media_type` enum(`image`,`video`)
 
 **conversations**
-- `coach_id`, `athlete_id`, `last_message_at` — *(cible — #611)* : `kind` (`direct` / `group`), `participant_key` unique sur toutes les conversations, plus de `coach_id` / `athlete_id`
+- `kind` (`direct` / `group`), `participant_key` unique sur toutes les conversations, `last_message_at` — plus de `coach_id` / `athlete_id` (#611)
 
-**conversation_participants** *(cible — #611)*
+**conversation_participants** (#611)
 - `conversation_id`, `user_id`, capacité de participation, `last_read_at`
 
 **messages**
-- `conversation_id`, `sender_id`, `type` enum(`text`,`audio`,`image`,`video`), `content` text (nullable), `storage_path` (nullable), `read_at` (remplacé par `last_read_at` du participant *(cible — #611)*)
+- `conversation_id`, `sender_id`, `type` enum(`text`,`audio`,`image`,`video`), `content` text (nullable), `storage_path` (nullable) — plus de `read_at`, remplacé par le `last_read_at` du participant (#611)
 
 **invoices**
 - `coach_id`, `athlete_id`, `period` (ex. `2026-07`), `amount_cents` int, `currency`, `status` enum(`pending`,`paid`), `issued_at`, `due_date`, `paid_at`, `note`
@@ -342,10 +342,10 @@ Deux niveaux à ne pas confondre :
 L'isolation des données est garantie **à la couche données**, dans l'API NestJS — **pas** par RLS Postgres (tous les accès passent par Prisma, donc l'extension suffit et reste portable).
 
 - **Tenancy guard** (NestJS) : à partir de la session Better Auth, résout l'acteur courant (`User`) et la capacité exercée par la route, puis les injecte dans le contexte de requête.
-- **Prisma Client Extension** : applique automatiquement le scope tenant à **toute** requête métier, sous trois formes — colonne directe, élément partageable (propriétaire ou droit d'accès, selon l'opération : lire, écrire, administrer — le droit d'accès (#605)), participation à une conversation *(cible — #611)*. Aucune query ne s'exécute hors scope.
+- **Prisma Client Extension** : applique automatiquement le scope tenant à **toute** requête métier, sous trois formes — colonne directe, élément partageable (propriétaire ou droit d'accès, selon l'opération : lire, écrire, administrer — le droit d'accès (#605)), participation à une conversation (#611). Aucune query ne s'exécute hors scope.
 - **Invariant** : un coach ne lit/écrit que ce qu'il possède ou ce qu'un droit d'accès lui ouvre (#605), et ne touche que SES athlètes ; un athlète (lié ou autonome) que SES données ; un compte Entreprise, aucun contenu d'entraînement. Deux capacités, deux scopes, jamais un `OR` entre elles. Toute nouvelle entité métier doit être rattachée au tenant.
 - **Médias** : buckets **privés** en object storage ; accès uniquement via **URLs signées** générées par l'API après contrôle du scope (jamais d'accès direct au bucket).
-- **Messagerie** : un utilisateur ne lit que les messages des conversations dont il est participant *(cible — #611 ; aujourd'hui scopées par la relation)*.
+- **Messagerie** : un utilisateur ne lit que les messages des conversations dont il est participant, au titre de la capacité exercée (#611).
 - **Tests e2e d'isolation obligatoires** : vérifier qu'un coach A ne peut jamais lire/écrire les données d'un athlète du coach B, ni un élément qu'on ne lui a pas ouvert.
 
 > Décidé dès le départ plutôt que de gérer l'autorisation au cas par cas dans chaque service. Détail dans `architecture-choice.md` §6.

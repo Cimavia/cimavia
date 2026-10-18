@@ -17,7 +17,7 @@ cimavia outille la relation **coach ↔ athlète**, quel que soit le sport. Bouc
 
 Tout le reste (auth, capacités, notifications) sert cette boucle. Des Coachs peuvent s'associer dans une **entreprise**, suivre ensemble un même athlète et s'ouvrir leurs exercices, séances et planifications (épic #593).
 
-> Un *(cible — #N)* marque ce que le code ne tient pas encore : la PR de #N le rend vrai et retire le marqueur (dette **MC-1**).
+> Un *(cible — #N)* marque ce que le code ne tient pas encore : la PR de #N le rend vrai et retire le marqueur (« Tranché en #593 » ; dette MC-1, close en #611 avec le dernier marqueur de l'épic).
 
 ---
 
@@ -170,13 +170,13 @@ Ce qui est réellement appliqué, et où :
 - **le 720p** n'est ni appliqué ni vérifié (pas de transcodage — dette P4-1), et la **durée est déclarative** (le serveur ne décode pas le fichier — dette P4-2).
 
 ### Conversation / Message
-Échange entre **participants**, à deux ou à plusieurs *(cible — #611 ; aujourd'hui un fil coach ↔ athlète, `Conversation(coachId, athleteId)` unique par couple)*. Une conversation est **unique par ensemble de participants**, à deux comme à plusieurs *(cible — #611)* — et par capacité : un compte à double capacité peut avoir deux fils avec la même personne, un par espace. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief **si tous les participants y ont accès**. Asynchrone (polling TanStack Query + push) ; WebSocket temps réel **différé**.
+Échange entre **participants**, à deux (`DIRECT`) ou à plusieurs (`GROUP`, jusqu'à 20 autres participants — #611). Une conversation est **unique par ensemble de participants**, à deux comme à plusieurs (`participantKey`) — et par capacité : un compte à double capacité peut avoir deux fils avec la même personne, un par espace. `Message` = texte / audio / image / vidéo, rattachable à une séance ou un débrief **si tous les participants y ont accès** — et un débrief, seulement si son athlète participe. Asynchrone (polling TanStack Query + push) ; WebSocket temps réel **différé**.
 
 - **Qui écrit à qui** : un athlète à ses Coachs ; un Coach à ses athlètes et aux Coachs de ses entreprises. Le compte Entreprise n'est dans aucune conversation.
 - **Participants fixés à la création**, sans nom de groupe : le titre liste les autres participants. D'où l'unicité par ensemble : deux conversations aux mêmes participants porteraient le même titre.
 
 ### ConversationParticipant (participant)
-Un `User` dans une conversation, **au titre d'une capacité**, avec sa propre marque de lecture (`lastReadAt`) — elle remplace le `Message.readAt` unique *(cible — #611)*. C'est la troisième forme de scope : on lit une conversation et ses messages si l'on en est participant.
+Un `User` dans une conversation, **au titre d'une capacité**, avec sa propre marque de lecture (`lastReadAt`) — elle remplace le `Message.readAt` unique (#611). Tout message créé jusqu'à elle est lu, quel que soit son auteur. C'est la troisième forme de scope : on lit une conversation et ses messages si l'on en est participant.
 
 ### Invoice (facture)
 Émise par le coach pour un athlète (période, montant, échéance, note). Statut `PENDING` / `PAID` (**marquage manuel** en MVP). Paiement réel **externe** (virement) ; PSP intégré (Stripe) en v1.0.
@@ -220,7 +220,7 @@ Trois règles à connaître :
 ## Multi-tenant (frontière de données)
 
 - **Invariant** : 1 `Athlete` = **0..N `Coach`**, un lien par couple, en direct ou via une entreprise. 1 `Coach` = N `Athlete`, et 0..N entreprises. Le compte Entreprise n'a accès à **aucun** contenu d'entraînement.
-- **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe**, **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises (#605) —, **participation** à une conversation *(cible — #611)*.
+- **Trois formes de scope**, toujours au sein de la capacité exercée — jamais un `OR` entre les deux : **colonne directe**, **élément partageable** — propriétaire, ou droit d'accès qui vise l'acteur ou l'une de ses entreprises (#605) —, **participation** à une conversation (#611).
 - Presque toute entité par couple (`Plan`, `SessionFeedback`, `Invoice`, `AthleteSheet`…) est **scopée à la relation `CoachAthlete`**.
 - La **bibliothèque** (`Exercise`, `ExerciseDocument`, `Session`, `SessionExercise`) appartient à **un coach** (`coachId`), qui peut l'ouvrir aux Coachs de ses entreprises (#605) : l'athlète n'y a aucun accès direct — il ne voit que ce que la planification lui expose (P3), via des copies.
 - La **planification** (`Plan`, `PlanWeek`, `ScheduledSession`…) est le premier objet lu par les **deux capacités** : chaque table porte donc `coachId` ET `athleteId` en direct. L'extension n'ouvre pourtant la clé `athlete` que sur les tables que l'athlète lit **à plat** — `Plan`, `ScheduledSession`, `ScheduledSessionExercise` (#626) ; ses semaines et les rattachements de ses exercices lui arrivent **imbriqués**, et une lecture à plat de ces tables sous sa capacité échoue (fail closed, comme `Reminder`). La **fiche** (`AthleteSheet`) n'est qu'au coach.
@@ -244,7 +244,7 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 | Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre (#607) | lecture (les siennes, de chaque Coach) | — |
 | Débrief de séance | lecture + marquage « lu » (le sien, par Coach — #610) | écriture (le sien) | — |
 | Fiche athlète | CRUD (une par couple) | — | — |
-| Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
+| Messagerie | avec ses athlètes et les Coachs de ses entreprises (#611) | avec ses Coachs | — *(dans aucune conversation)* |
 | Facture | émission + statut ; suit le droit de sa planification (#607) | lecture | — |
 | Rappel | CRUD (les siens) | — *(aucun accès : 403)* | — |
 | Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne), athlètes compris (#602) |

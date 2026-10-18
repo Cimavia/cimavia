@@ -594,7 +594,6 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| MC-1 | **Les docs décrivent la cible avant le code** ([#594](https://github.com/Cimavia/cimavia/issues/594)) : règle dure n°1, `architecture-choice.md` §6, `CONTEXT.cimavia.md` et le cahier des charges posent déjà les règles de l'épic. Chaque affirmation que le code ne tient pas encore porte un marqueur *(cible — #N)* ; la PR de #N le retire en rendant la règle vraie. | 🟡 | [#593](https://github.com/Cimavia/cimavia/issues/593) — résolue au dernier marqueur retiré (`grep -rnE "cible — #[0-9]" CLAUDE.md docs/`) |
 | MC-2 | **Une notification d'invitation mène toujours côté coach un compte à double capacité** : la cloche et le push routent `INVITATION` par capacité, pas par type. Invité par une entreprise (`INVITATION_RECEIVED`) ou rejoint par l'un de ses Coachs (`ORGANIZATION_COACH_JOINED`, #602), un compte coach et athlète arrive sur son tableau de bord de coach, et non dans « Mes coachs ». Déjà vrai de l'invitation d'un Coach depuis #146. | 🟢 | — *(déclencheur : un retour beta d'un compte à double capacité perdu ; le correctif lirait `capabilityOfNotification` dans les deux tables de routage)* |
 | MC-3 | **La lecture du parent à la création passe par un paramètre interne de Prisma** ([#603](https://github.com/Cimavia/cimavia/issues/603)) : `__internalParams.transaction`, absent de ses types, relayé par `requestTransaction`. C'est le seul moyen de lire, depuis une extension de requête, le parent qu'une transaction interactive vient de créer. Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent y serait invisible, la création refusée (500), jamais une fuite — et l'e2e « lit le parent dans la transaction qui vient de le créer » tomberait. | 🟢 | — *(déclencheur : une montée de version de Prisma ; la sortie serait une transaction portée par le CLS, `@nestjs-cls/transactional`, au prix des ~24 `$transaction` des services)* |
 | MC-4 | **Les versions avancent à la main, pas par un trigger** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : une semaine n'est pas réécrite quand l'une de ses séances change, et c'est `touchWeeks` qui fait avancer sa version, appelé chemin par chemin (création, retouche et retrait de séance, décalage du début). Un nouveau chemin qui écrirait une séance sans l'appeler laisserait passer un collage ou un glisser périmé, sans 409. | 🟢 | — *(déclencheur : un nouveau chemin d'écriture de séance planifiée — import, déplacement groupé, script ; la sortie serait un trigger Postgres sur `scheduled_session` qui ignore les colonnes du débrief, ou un écrivain unique)* |
@@ -609,8 +608,10 @@ liste des domaines vivent dans l'index.
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 | MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
 | MC-17 | **Effacer un compte bute sur les séances des autres Coachs** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : `User → Exercise` est en `Cascade`, mais `SessionExercise.exerciseId` en `Restrict` — effacer C, dont un exercice est cité par une séance de M, échouerait. L'effacement devra d'abord passer par `ExerciseCopyService.freezeFor` pour chaque Coach citant, comme la suppression d'un exercice. Les copies déjà gardées survivent, elles : `frozenFromCoachId` passe à `NULL` et le badge dit « Copie figée » seul. | 🟢 | [#285](https://github.com/Cimavia/cimavia/issues/285) |
+| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant : la conversation reste aux autres, et un fil `DIRECT` n'a plus qu'un participant. Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. | 🟢 | [#213](https://github.com/Cimavia/cimavia/issues/213) · [#285](https://github.com/Cimavia/cimavia/issues/285) — *à leur livraison, décider si la conversation se ferme, se quitte ou reste en lecture* |
+| MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
 
-*Résolues, à l'[archive](archive.md) : MC-8, MC-13.*
+*Résolues, à l'[archive](archive.md) : MC-1, MC-8, MC-13.*
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -1146,3 +1147,42 @@ liste des domaines vivent dans l'index.
 >   perdu l'accès depuis — elle a été écrite.
 > - **« Répondu par M » sur web et mobile**, « Répondu » seul quand c'est soi (`replyBadge`) ; le
 >   badge est arrivé sur la liste mobile à cette occasion.
+
+> **Tranché en [#611](https://github.com/Cimavia/cimavia/issues/611)** (conversations à
+> participants, à deux ou à plusieurs) :
+>
+> - **Le contrat casse plutôt que de survivre** : on ouvre une conversation par
+>   `{ participants: [{ userId, capability }] }`, sans `athleteId` ni `coachId`, et
+>   `ConversationDto` perd `counterpartId` / `counterpartName` au profit de `kind`, de
+>   `participants` (les AUTRES, chacun avec sa marque) et de `lastReadAt` (la mienne). Un ancien
+>   APK ne lit plus la messagerie : le nouveau part avec la promotion du NAS.
+> - **Vingt autres participants au plus** (`MAX_CONVERSATION_PARTICIPANTS`). Deux participants
+>   font un fil `DIRECT`, trois ou plus un `GROUP` — c'est l'API qui en décide.
+> - **On réunit ceux qu'on atteint, à leur titre** : un athlète réunit ses Coachs actifs, et
+>   aucun autre athlète ; un Coach réunit ses athlètes actifs et les Coachs de ses entreprises
+>   (`GET /conversations/candidates`). Nommer quelqu'un à un autre titre — un collègue comme
+>   athlète — est refusé (400). Un Coach qui n'a que des collègues a la messagerie
+>   (`/me/counterparts`).
+> - **Ceux que suivent les collègues ne sortent qu'en ids**, et parmi les athlètes de l'acteur
+>   seulement (`followedAthleteIds`) : de quoi prévenir qu'un Coach choisi ne suit pas un
+>   athlète choisi (#598), sans rien révéler d'autre. Lus par le client de base, sur des
+>   collègues prouvés par `myOrganizations`. `null` côté athlète : la question ne se pose pas.
+> - **La marque de lecture est celle du dernier message VU**, jamais l'heure du marquage :
+>   `markRead` pose le `createdAt` du dernier message visible, ne recule jamais, et ne fait rien
+>   sur un fil vide. Un message arrivé entre la lecture et le marquage reste non lu (course
+>   résiduelle : MC-19). La migration reprend le dernier message reçu et lu de chacun : les
+>   compteurs ne bougent pas.
+> - **Un débrief ne se cite que devant son athlète** : citer un débrief, c'est lui répondre. Entre
+>   Coachs, le message compterait « Répondu » (#610) et s'afficherait dans le débrief que
+>   l'athlète lit, sans qu'il puisse voir le fil. « Débrief hors de ce fil » (400).
+> - **Les participants sont figés par l'extension**, pas par la seule route : toute écriture
+>   imbriquée sur `participants`, `participantKey` ou `kind` est refusée en mise à jour, et la
+>   création exige l'acteur parmi les participants, à son titre.
+> - **Le push et sa trace se jugent par destinataire** : mon message ouvre une série chez X si X
+>   a lu mon précédent, ou si je n'avais jamais écrit — la lecture de M n'éteint pas la série
+>   chez TI.
+> - **Hors du périmètre** : l'écran de création et ses avertissements, le titre d'une conversation
+>   à plusieurs ([#612](https://github.com/Cimavia/cimavia/issues/612)). Les écrans actuels ne
+>   montrent que les fils `DIRECT` entre un Coach et un athlète (`directCounterpartId`) : une
+>   conversation à plusieurs ou entre Coachs existe par l'API, et sa notification mène à la liste
+>   sans l'ouvrir. Rien ne la crée encore depuis une interface : elle s'affiche avec #612.
