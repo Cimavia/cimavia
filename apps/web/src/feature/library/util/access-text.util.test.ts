@@ -17,7 +17,7 @@ const OWNER: MyAccess = { level: MyAccessLevel.OWNER, via: null };
 
 describe("accessText", () => {
   it("« Privé » pour ce qui n'est ouvert à personne", () => {
-    expect(accessText({ owner: C, myAccess: OWNER, grants: [] }, fakeT)).toBe(
+    expect(accessText({ owner: C, myAccess: OWNER, grants: [], coachGrants: [] }, fakeT)).toBe(
       "library.access.private",
     );
   });
@@ -27,7 +27,7 @@ describe("accessText", () => {
       { organization: G, level: AccessLevel.READ },
       { organization: F, level: AccessLevel.WRITE },
     ];
-    expect(accessText({ owner: C, myAccess: OWNER, grants }, fakeT)).toBe(
+    expect(accessText({ owner: C, myAccess: OWNER, grants, coachGrants: [] }, fakeT)).toBe(
       [
         'library.access.grant({"name":"F","level":"library.access.level.WRITE"})',
         'library.access.grant({"name":"G","level":"library.access.level.READ"})',
@@ -35,17 +35,35 @@ describe("accessText", () => {
     );
   });
 
+  it("la ligne d'un Coach suit celles des entreprises : « F · Écriture, M · Aucun » (#608)", () => {
+    const grants = [{ organization: F, level: AccessLevel.WRITE }];
+    const coachGrants = [{ coach: M, level: AccessLevel.NONE }];
+    expect(accessText({ owner: C, myAccess: OWNER, grants, coachGrants }, fakeT)).toBe(
+      [
+        'library.access.grant({"name":"F","level":"library.access.level.WRITE"})',
+        'library.access.grant({"name":"M","level":"library.access.level.NONE"})',
+      ].join(", "),
+    );
+  });
+
   it("l'élément d'un autre Coach dit qui le partage et le droit de l'acteur", () => {
     expect(
       accessText(
-        { owner: M, myAccess: { level: MyAccessLevel.READ, via: F }, grants: null },
+        {
+          owner: M,
+          myAccess: { level: MyAccessLevel.READ, via: F },
+          grants: null,
+          coachGrants: null,
+        },
         fakeT,
       ),
     ).toBe('library.access.sharedBy({"owner":"M","level":"library.access.level.READ"})');
   });
 
   it("un accès qui ne se dit pas rend un tiret, jamais « Privé »", () => {
-    expect(accessText({ owner: C, myAccess: OWNER, grants: null }, fakeT)).toBe("—");
+    expect(accessText({ owner: C, myAccess: OWNER, grants: null, coachGrants: null }, fakeT)).toBe(
+      "—",
+    );
   });
 });
 

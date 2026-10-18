@@ -19,6 +19,13 @@ export const organizationAccessLevelSchema = z.enum([AccessLevel.READ, AccessLev
 export type OrganizationAccessLevel = z.infer<typeof organizationAccessLevelSchema>;
 
 /**
+ * Les niveaux de la ligne d'un Coach (#608) : `NONE` y ferme ce que ses entreprises lui ouvrent.
+ * « Hérité » est l'absence de ligne : le Coach suit alors ses entreprises.
+ */
+export const coachAccessLevelSchema = z.enum(AccessLevel);
+export type CoachAccessLevel = z.infer<typeof coachAccessLevelSchema>;
+
+/**
  * Ce que l'acteur peut faire d'un élément de la bibliothèque. `OWNER` seul supprime l'élément et
  * gère ses accès ; `WRITE` en modifie le contenu ; `READ` le consulte et l'utilise.
  */
@@ -33,7 +40,8 @@ const organizationRefSchema = z.object({ id: z.string(), name: z.string() });
 
 /**
  * Le droit de l'acteur, et d'où il vient : `via` est l'entreprise qui le lui ouvre (« Écriture via
- * F »), `null` pour le propriétaire, qui ne le tient de personne.
+ * F »), `null` pour le propriétaire, qui ne le tient de personne, et pour un droit accordé à
+ * l'acteur lui-même (#608).
  */
 export const myAccessSchema = z.object({
   level: z.enum(MyAccessLevel),
@@ -51,6 +59,16 @@ export const accessGrantDtoSchema = z.object({
   level: organizationAccessLevelSchema,
 });
 export type AccessGrantDto = z.infer<typeof accessGrantDtoSchema>;
+
+/**
+ * Un droit accordé à un Coach (#608), prioritaire sur ceux de ses entreprises — `NONE` compris, qui
+ * lui ferme ce qu'elles lui ouvrent.
+ */
+export const coachGrantDtoSchema = z.object({
+  coach: z.object({ id: z.string(), name: z.string() }),
+  level: coachAccessLevelSchema,
+});
+export type CoachGrantDto = z.infer<typeof coachGrantDtoSchema>;
 
 /**
  * Ce qu'une liste de la bibliothèque montre : tout ce qui est lisible, ses propres éléments, ou ce
@@ -74,18 +92,40 @@ export type LibraryScopeQuery = z.infer<typeof libraryScopeQuerySchema>;
 export const ACCESS_MAX_TARGETS = 200;
 
 /**
- * Les entreprises changées d'un coup. Chacune coûte des écritures, et un retrait (« Aucun ») ne
+ * Les bénéficiaires changés d'un coup, par liste. Chacun coûte des écritures, et un retrait ne
  * vérifie pas l'appartenance : sans plafond, une requête pourrait en citer autant qu'elle veut.
  */
 export const ACCESS_MAX_CHANGES = 50;
+
+/** Une liste de changements sans doublon de bénéficiaire, plafonnée, vide par défaut. */
+function changeList<T extends z.ZodObject>(
+  item: T,
+  beneficiaryOf: (change: z.infer<T>) => string,
+  message: string,
+) {
+  return z
+    .array(item)
+    .max(ACCESS_MAX_CHANGES)
+    .refine((changes) => new Set(changes.map(beneficiaryOf)).size === changes.length, { message })
+    .default([]);
+}
+
+const organizationChangeSchema = z
+  .object({ organizationId: z.string().min(1), level: organizationAccessLevelSchema.nullable() })
+  .strict();
+const coachChangeSchema = z
+  .object({ coachId: z.string().min(1), level: coachAccessLevelSchema.nullable() })
+  .strict();
 
 /**
  * Changer les droits de plusieurs éléments à la fois (#597) : seuls les bénéficiaires CHANGÉS sont
  * envoyés. Une ligne restée « Mixte » n'est pas dans `changes`, et chaque élément garde sa valeur.
  * Remplacer tous les droits de chaque élément l'aurait écrasée.
  *
- * `level: null` dit « Aucun » : la ligne de l'entreprise disparaît. Les deux listes sont sans
- * doublon, une entreprise citée deux fois laisserait l'ordre décider.
+ * `changes` vise les entreprises : `level: null` y dit « Aucun », et la ligne disparaît.
+ * `coachChanges` vise les Coachs (#608) : `null` y dit « Hérité », et la ligne disparaît — `NONE`
+ * en est une, qui ferme. Une des deux listes au moins n'est pas vide. Toutes sont sans doublon : un
+ * bénéficiaire cité deux fois laisserait l'ordre décider.
  */
 export const changeAccessSchema = z
   .object({
@@ -96,28 +136,30 @@ export const changeAccessSchema = z
       .refine((ids) => new Set(ids).size === ids.length, {
         message: "Un élément ne peut pas être cité deux fois.",
       }),
-    changes: z
-      .array(
-        z
-          .object({
-            organizationId: z.string().min(1),
-            level: organizationAccessLevelSchema.nullable(),
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(ACCESS_MAX_CHANGES)
-      .refine((changes) => new Set(changes.map((c) => c.organizationId)).size === changes.length, {
-        message: "Une entreprise ne peut pas être citée deux fois.",
-      }),
+    changes: changeList(
+      organizationChangeSchema,
+      (change) => change.organizationId,
+      "Une entreprise ne peut pas être citée deux fois.",
+    ),
+    coachChanges: changeList(
+      coachChangeSchema,
+      (change) => change.coachId,
+      "Un Coach ne peut pas être cité deux fois.",
+    ),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.changes.length + input.coachChanges.length > 0, {
+    message: "Aucun changement à appliquer.",
+  });
 export type ChangeAccessInput = z.infer<typeof changeAccessSchema>;
+export type OrganizationChange = z.infer<typeof organizationChangeSchema>;
+export type CoachChange = z.infer<typeof coachChangeSchema>;
 
 /** Les droits d'un élément, après un changement : la réponse que le panneau relit. */
 export const elementAccessDtoSchema = z.object({
   id: z.string(),
   grants: z.array(accessGrantDtoSchema),
+  coachGrants: z.array(coachGrantDtoSchema),
 });
 export type ElementAccessDto = z.infer<typeof elementAccessDtoSchema>;
 

@@ -81,6 +81,7 @@ const saved = (over: Partial<ExerciseDto> = {}) =>
     owner: { id: "coach-1", name: "Cédric" },
     myAccess: { level: MyAccessLevel.OWNER, via: null },
     grants: [],
+    coachGrants: [],
     ...over,
   }) as unknown as ExerciseDto;
 
@@ -866,6 +867,7 @@ describe("ExerciseBuilderScreen — exercice d'un autre Coach (#606)", () => {
       owner: { id: "coach-m", name: "M" },
       myAccess: { level, via: { id: "org-f", name: "F" } },
       grants: null,
+      coachGrants: null,
     });
 
   beforeEach(() => {

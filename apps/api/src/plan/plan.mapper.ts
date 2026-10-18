@@ -1,5 +1,6 @@
 import type {
   AccessGrantDto,
+  CoachGrantDto,
   MyAccess,
   PlanDto,
   PlanSummaryDto,
@@ -59,11 +60,16 @@ export const COACH_PLAN_DETAIL_INCLUDE = {
 } satisfies Prisma.PlanInclude;
 
 /**
- * Ce que le DTO dit des accès au cycle : le droit du Coach courant, et les droits accordés pour le
- * propriétaire seul. `ATHLETE_PLAN_ACCESS` pour l'athlète, qui n'a ni l'un ni les autres.
+ * Ce que le DTO dit des accès au cycle : le droit du Coach courant, et les droits accordés — aux
+ * entreprises et aux Coachs (#608) — pour le propriétaire seul. `ATHLETE_PLAN_ACCESS` pour
+ * l'athlète, qui n'a ni l'un ni les autres.
  */
-export type PlanAccess = { myAccess: MyAccess | null; grants: AccessGrantDto[] | null };
-export const ATHLETE_PLAN_ACCESS: PlanAccess = { myAccess: null, grants: null };
+export type PlanAccess = {
+  myAccess: MyAccess | null;
+  grants: AccessGrantDto[] | null;
+  coachGrants: CoachGrantDto[] | null;
+};
+export const ATHLETE_PLAN_ACCESS: PlanAccess = { myAccess: null, grants: null, coachGrants: null };
 
 type ScheduledSessionWithCount = PlanWithWeeks["weeks"][number]["sessions"][number];
 
@@ -135,6 +141,7 @@ export function toPlanDto(plan: PlanWithWeeks, access: PlanAccess): PlanDto {
   return {
     ...toPlanSummaryDto(plan, access),
     grants: access.grants,
+    coachGrants: access.coachGrants,
     weeks: plan.weeks.map((week) => toPlanWeekDto(week, plan.startDate)),
   };
 }

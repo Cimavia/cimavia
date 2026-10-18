@@ -684,6 +684,6 @@ function assertHeaderWritable(plan: Plan, input: UpdatePlanInput): void {
 
 /** Le droit du Coach courant sur un cycle lu, et ses droits accordés pour le propriétaire seul. */
 function planAccessOf(plan: AccessRow, context: AccessContext): PlanAccess {
-  const { myAccess, grants } = toAccessView(plan, context);
-  return { myAccess, grants };
+  const { myAccess, grants, coachGrants } = toAccessView(plan, context);
+  return { myAccess, grants, coachGrants };
 }

@@ -136,7 +136,7 @@ Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: Se
 La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ### AccessGrant (droit d'accès)
-Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises. Exercices et séances s'ouvrent aux entreprises (#605), planifications aussi — aux seuls Coachs de leur athlète (#607) ; lignes Coach *(cible — #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre, ou pour l'entreprise qu'un propriétaire a fermée exprès sur un cycle (#607).
+Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises. Exercices et séances s'ouvrent aux entreprises (#605), planifications aussi — aux seuls Coachs de leur athlète (#607). Tous trois s'ouvrent aussi à un Coach seul, dont la ligne l'emporte sur celles de ses entreprises (#608). Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre, ou pour l'entreprise qu'un propriétaire a fermée exprès sur un cycle (#607).
 
 - **Un droit accordé à F vaut pour ses Coachs**, pas pour le compte Entreprise. La ligne d'un Coach l'emporte sur celle de son entreprise, `NONE` compris ; un Coach de plusieurs entreprises hérite du droit le plus large.
 - **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris. **Supprimer** l'élément, **gérer ses accès** et **réaffecter** une planification à un autre athlète restent au propriétaire.

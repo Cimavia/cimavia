@@ -105,6 +105,7 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
     coachName: "Camille",
     myAccess: { level: MyAccessLevel.OWNER, via: null },
     grants: [],
+    coachGrants: [],
     athleteId: "ath_lea",
     athleteName: "Léa Moreau",
     athleteEmail: "lea@example.test",
@@ -744,6 +745,7 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     coachName: "C",
     myAccess: { level, via: VIA_F },
     grants: null,
+    coachGrants: null,
     weeks: [week],
   });
 

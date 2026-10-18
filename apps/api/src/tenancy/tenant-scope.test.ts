@@ -77,25 +77,11 @@ describe("sharedRoot", () => {
   const owned = { coachId: ACTOR };
 
   it.each([
-    ["read", ["READ", "WRITE"]],
-    ["write", ["WRITE"]],
-  ] as const)("en %s : propriétaire, ou droit d'une de ses entreprises (%o)", (operation, levels) => {
+    "read",
+    "write",
+  ] as const)("en %s : propriétaire, ou un droit qui le vise", (operation) => {
     expect(scope.where(ACTOR, operation)).toEqual({
-      AND: [
-        {
-          OR: [
-            owned,
-            {
-              accessGrants: {
-                some: {
-                  level: { in: levels },
-                  organization: { coaches: { some: { coachId: ACTOR } } },
-                },
-              },
-            },
-          ],
-        },
-      ],
+      AND: [{ OR: [owned, grantedTo(ACTOR, operation)] }],
     });
   });
 
@@ -109,10 +95,27 @@ describe("sharedRoot", () => {
     expect(scope.parent).toBeNull();
   });
 
-  it("le filtre d'un droit se lit par entreprise de l'acteur, au niveau demandé", () => {
-    expect(grantedTo(ACTOR, "write")).toEqual({
-      level: { in: ["WRITE"] },
-      organization: { coaches: { some: { coachId: ACTOR } } },
+  it.each([
+    ["read", ["READ", "WRITE"]],
+    ["write", ["WRITE"]],
+  ] as const)("en %s, sa ligne l'emporte sur ses entreprises (%o, #608)", (operation, levels) => {
+    expect(grantedTo(ACTOR, operation)).toEqual({
+      OR: [
+        { accessGrants: { some: { coachId: ACTOR, level: { in: levels } } } },
+        {
+          AND: [
+            { accessGrants: { none: { coachId: ACTOR } } },
+            {
+              accessGrants: {
+                some: {
+                  level: { in: levels },
+                  organization: { coaches: { some: { coachId: ACTOR } } },
+                },
+              },
+            },
+          ],
+        },
+      ],
     });
   });
 });
@@ -128,7 +131,7 @@ describe("sharedRoot avec une audience", () => {
           OR: [
             { coachId: ACTOR },
             {
-              AND: [{ accessGrants: { some: grantedTo(ACTOR, operation) } }, { follows: ACTOR }],
+              AND: [grantedTo(ACTOR, operation), { follows: ACTOR }],
             },
           ],
         },

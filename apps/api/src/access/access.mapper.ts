@@ -3,6 +3,7 @@ import {
   AccessLevel,
   type AccessOwner,
   type ChangeAccessInput,
+  type CoachGrantDto,
   effectiveAccess,
   LibraryScope,
   type MyAccess,
@@ -11,22 +12,25 @@ import {
 } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 
+/** Ce qu'une ligne de droit dit de son bénéficiaire : une entreprise, ou un Coach (#608). */
+export const GRANT_BENEFICIARY_SELECT = {
+  level: true,
+  organization: { select: { id: true, user: { select: { name: true } } } },
+  coach: { select: { id: true, name: true } },
+} satisfies Prisma.AccessGrantSelect;
+
 /**
  * Ce qu'un exercice, une séance ou une planification (#607) doit charger pour dire qui le possède
- * et ce que l'acteur peut en faire (#605). Imbriqué, donc hors du scope de l'extension (piège n°2) — c'est voulu : ce sont
- * les droits de l'élément déjà prouvé lisible, et seul son propriétaire les recevra tels quels.
+ * et ce que l'acteur peut en faire (#605). Imbriqué, donc hors du scope de l'extension (piège
+ * n°2) — c'est voulu : ce sont les droits de l'élément déjà prouvé lisible, et seul son
+ * propriétaire les recevra tels quels.
  *
- * Les lignes d'entreprise seulement : celle d'un Coach arrive avec #608.
+ * Toutes les lignes, celles des Coachs comprises (#608) : la ligne de l'acteur l'emporte sur ses
+ * entreprises, et il faut la lire pour le savoir.
  */
 export const ACCESS_INCLUDE = {
   coach: { select: { id: true, name: true } },
-  accessGrants: {
-    where: { organizationId: { not: null } },
-    select: {
-      level: true,
-      organization: { select: { id: true, user: { select: { name: true } } } },
-    },
-  },
+  accessGrants: { select: GRANT_BENEFICIARY_SELECT },
 } satisfies Prisma.ExerciseInclude & Prisma.SessionInclude & Prisma.PlanInclude;
 
 /**
@@ -48,10 +52,14 @@ export type AccessView = {
   myAccess: MyAccess;
   /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
   grants: AccessGrantDto[] | null;
+  /** Ceux des Coachs (#608), pour le même panneau ; `null` pour tout autre lecteur. */
+  coachGrants: CoachGrantDto[] | null;
 };
 
+type GrantRow = Pick<AccessRow["accessGrants"][number], "level" | "organization" | "coach">;
+
 /** Les droits d'entreprise de l'élément, triés par nom : l'ordre du panneau. */
-export function toGrantDtos(rows: AccessRow["accessGrants"]): AccessGrantDto[] {
+export function toGrantDtos(rows: readonly GrantRow[]): AccessGrantDto[] {
   return rows
     .flatMap(({ level, organization }) =>
       organization == null || level === AccessLevel.NONE
@@ -65,6 +73,15 @@ export function toGrantDtos(rows: AccessRow["accessGrants"]): AccessGrantDto[] {
     );
 }
 
+/** Les droits des Coachs de l'élément (#608), `NONE` compris, triés par nom. */
+export function toCoachGrantDtos(rows: readonly GrantRow[]): CoachGrantDto[] {
+  return rows
+    .flatMap(({ level, coach }) => (coach == null ? [] : [{ coach, level }]))
+    .sort(
+      (a, b) => a.coach.name.localeCompare(b.coach.name) || a.coach.id.localeCompare(b.coach.id),
+    );
+}
+
 /**
  * Le propriétaire, le droit de l'acteur et, pour le propriétaire seul, les droits accordés.
  *
@@ -73,19 +90,23 @@ export function toGrantDtos(rows: AccessRow["accessGrants"]): AccessGrantDto[] {
  */
 export function toAccessView(row: AccessRow, context: AccessContext): AccessView {
   const grants = toGrantDtos(row.accessGrants);
+  const coachGrants = toCoachGrantDtos(row.accessGrants);
   const myAccess = required(
     effectiveAccess({
       ownerId: row.coach.id,
       actorId: context.actorId,
       grants,
+      coachGrants,
       actorOrganizationIds: context.organizationIds,
     }),
     `[access] ${row.id} lu sans droit par ${context.actorId}`,
   );
+  const isOwn = myAccess.level === MyAccessLevel.OWNER;
   return {
     owner: row.coach,
     myAccess,
-    grants: myAccess.level === MyAccessLevel.OWNER ? grants : null,
+    grants: isOwn ? grants : null,
+    coachGrants: isOwn ? coachGrants : null,
   };
 }
 
@@ -113,21 +134,38 @@ export function libraryScopeWhere(
   return {};
 }
 
+/** Les droits d'un élément, entreprises et Coachs : ce que lit `effectiveAccess`. */
+export type ElementGrants = {
+  grants: readonly AccessGrantDto[];
+  coachGrants: readonly CoachGrantDto[];
+};
+
 /**
- * Les entreprises qui ont encore une ligne sur l'élément une fois `changes` appliqués : celles qui
- * en avaient une et n'ont pas reçu « Aucun », plus celles qui en reçoivent une. Lecture et Écriture
- * ouvrent toutes deux la lecture : seule la présence de la ligne compte ici.
+ * Les droits de l'élément une fois les changements appliqués : `null` retire la ligne (« Aucun »
+ * d'une entreprise, « Hérité » d'un Coach), un niveau la pose ou la remplace. Une ligne qui naît
+ * prend l'id pour nom : le nom ne sert qu'à départager la provenance (`via`), que les appelants ne
+ * lisent pas.
  */
-export function organizationsReadingAfter(
-  current: readonly AccessGrantDto[],
-  changes: readonly ChangeAccessInput["changes"][number][],
-): Set<string> {
-  const reading = new Set(current.map((grant) => grant.organization.id));
+export function grantsAfter(
+  current: ElementGrants,
+  { changes, coachChanges }: Pick<ChangeAccessInput, "changes" | "coachChanges">,
+): ElementGrants {
+  const organizations = new Map(current.grants.map((grant) => [grant.organization.id, grant]));
   for (const { organizationId, level } of changes) {
-    if (level == null) reading.delete(organizationId);
-    else reading.add(organizationId);
+    const organization = organizations.get(organizationId)?.organization ?? {
+      id: organizationId,
+      name: organizationId,
+    };
+    if (level == null) organizations.delete(organizationId);
+    else organizations.set(organizationId, { organization, level });
   }
-  return reading;
+  const coaches = new Map(current.coachGrants.map((grant) => [grant.coach.id, grant]));
+  for (const { coachId, level } of coachChanges) {
+    const coach = coaches.get(coachId)?.coach ?? { id: coachId, name: coachId };
+    if (level == null) coaches.delete(coachId);
+    else coaches.set(coachId, { coach, level });
+  }
+  return { grants: [...organizations.values()], coachGrants: [...coaches.values()] };
 }
 
 /** Une séance qui cite un exercice, et le Coach qui la possède. */
@@ -135,21 +173,28 @@ export type Citation = { sessionId: string; coachId: string };
 
 /**
  * Les séances d'autres Coachs dont le propriétaire perdrait la lecture de l'exercice qu'elles
- * citent si `changes` s'appliquaient (#605, écart assumé jusqu'à #609) : il la tenait d'une de ses
- * entreprises, et n'en garderait aucune. Passer d'Écriture à Lecture ne retire rien ; un Coach qui
- * ne lisait déjà plus l'exercice ne perd rien non plus, et ne doit pas tout bloquer.
+ * citent si les changements s'appliquaient (#605, écart assumé jusqu'à #609) : il le lisait, et ne
+ * le lirait plus. La règle est celle d'`effectiveAccess`, avant et après : sa ligne de Coach mise à
+ * « Aucun » le prive (#608), une ligne qui lui reste le protège du retrait de son entreprise.
+ * Passer d'Écriture à Lecture ne retire rien ; un Coach qui ne lisait déjà plus l'exercice ne perd
+ * rien non plus, et ne doit pas tout bloquer.
  */
 export function citationsLosingRead(
-  current: readonly AccessGrantDto[],
-  changes: readonly ChangeAccessInput["changes"][number][],
+  ownerId: string,
+  current: ElementGrants,
+  input: Pick<ChangeAccessInput, "changes" | "coachChanges">,
   citations: readonly Citation[],
   organizationsOf: (coachId: string) => ReadonlySet<string>,
 ): string[] {
-  const before = organizationsReadingAfter(current, []);
-  const after = organizationsReadingAfter(current, changes);
-  const readsThrough = (coachId: string, reading: ReadonlySet<string>) =>
-    [...organizationsOf(coachId)].some((id) => reading.has(id));
+  const after = grantsAfter(current, input);
+  const reads = (coachId: string, state: ElementGrants) =>
+    effectiveAccess({
+      ownerId,
+      actorId: coachId,
+      ...state,
+      actorOrganizationIds: organizationsOf(coachId),
+    }) != null;
   return citations
-    .filter(({ coachId }) => readsThrough(coachId, before) && !readsThrough(coachId, after))
+    .filter(({ coachId }) => reads(coachId, current) && !reads(coachId, after))
     .map(({ sessionId }) => sessionId);
 }

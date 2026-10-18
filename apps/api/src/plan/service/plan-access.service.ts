@@ -56,6 +56,11 @@ export class PlanAccessService {
    * « Aucun » s'écrit `NONE` sur une entreprise dont le propriétaire est membre : fermée exprès, le
    * droit par défaut ne la rouvre pas à la réaffectation. Celle d'une entreprise quittée disparaît,
    * comme dans la bibliothèque : il n'y a plus rien à protéger.
+   *
+   * La ligne d'un Coach (#608) qu'on OUVRE — Lecture ou Écriture — doit viser un Coach de l'athlète
+   * de chaque cycle : 400 sinon, elle n'ouvrirait rien. « Aucun » et « Hérité » ferment ou rendent
+   * la main aux entreprises : ils ne regardent que les entreprises du propriétaire, comme dans la
+   * bibliothèque.
    */
   async changeAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
     const plans = await this.db.plan.findMany({
@@ -69,12 +74,22 @@ export class PlanAccessService {
       athletesOf(plans),
     );
     const opened = input.changes.filter((change) => change.level != null);
+    const openedCoaches = input.coachChanges.filter(
+      (change) => change.level === AccessLevel.READ || change.level === AccessLevel.WRITE,
+    );
     for (const plan of plans) {
-      const eligibleIds = new Set(eligible(plan.athleteId).map((organization) => organization.id));
+      const organizations = eligible(plan.athleteId);
+      const eligibleIds = new Set(organizations.map((organization) => organization.id));
       if (opened.some((change) => !eligibleIds.has(change.organizationId))) {
         throw new BadRequestException(
           "Personne d'autre dans cette entreprise ne suit l'athlète de ce cycle",
         );
+      }
+      const coachIds = new Set(
+        organizations.flatMap((organization) => organization.coaches.map((coach) => coach.coachId)),
+      );
+      if (openedCoaches.some((change) => !coachIds.has(change.coachId))) {
+        throw new BadRequestException("Ce Coach ne suit pas l'athlète de ce cycle");
       }
     }
 
@@ -83,7 +98,11 @@ export class PlanAccessService {
       organizationId,
       level: level ?? (organizationIds.has(organizationId) ? AccessLevel.NONE : null),
     }));
-    return this.grants.apply("planId", { ids: input.ids, changes });
+    return this.grants.apply("planId", {
+      ids: input.ids,
+      changes,
+      coachChanges: input.coachChanges,
+    });
   }
 
   /**
@@ -136,8 +155,8 @@ export class PlanAccessService {
   /**
    * Changer d'athlète change l'audience du cycle (#607) : les droits ouverts pour l'ancien ne valent
    * pas pour le nouveau, que le propriétaire n'a pas choisi de leur ouvrir. Lecture et Écriture
-   * partent, « Aucun » reste — fermer n'élargit jamais. Dans la transaction de la réaffectation,
-   * avant le défaut du nouvel athlète.
+   * partent, celles des Coachs comprises (#608), « Aucun » reste — fermer n'élargit jamais. Dans
+   * la transaction de la réaffectation, avant le défaut du nouvel athlète.
    */
   async resetOpened(tx: TenantTx, planId: string): Promise<void> {
     await tx.accessGrant.deleteMany({ where: { planId, level: { not: AccessLevel.NONE } } });

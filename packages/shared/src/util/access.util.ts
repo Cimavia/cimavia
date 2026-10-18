@@ -1,6 +1,7 @@
 import {
   type AccessGrantDto,
   AccessLevel,
+  type CoachGrantDto,
   type MyAccess,
   MyAccessLevel,
 } from "../dto/access.schema";
@@ -9,26 +10,36 @@ import {
 export type AccessSubject = {
   ownerId: string;
   actorId: string;
-  /** Les droits de l'élément, tous bénéficiaires confondus. */
+  /** Les droits d'entreprise de l'élément. */
   grants: readonly AccessGrantDto[];
+  /** Les droits accordés à des Coachs (#608) ; seul celui de l'acteur compte ici. */
+  coachGrants: readonly Pick<CoachGrantDto, "coach" | "level">[];
   /** Les entreprises dont l'acteur est Coach. */
   actorOrganizationIds: ReadonlySet<string>;
 };
 
 /**
- * Le droit effectif de l'acteur sur un élément (#605), ou `null` s'il n'en a aucun.
+ * Le droit effectif de l'acteur sur un élément (#605, #608), ou `null` s'il n'en a aucun :
  *
- * Le propriétaire a tout. Sinon, le plus large des droits accordés à ses entreprises : un Coach
- * membre de deux entreprises, l'une en Lecture et l'autre en Écriture, écrit. À niveau égal, `via`
- * nomme la première entreprise par ordre alphabétique, pour que le panneau ne change pas de
- * provenance d'une lecture à l'autre.
+ * 1. le propriétaire a tout ;
+ * 2. sinon, la ligne de l'acteur, s'il en a une, l'emporte sur ses entreprises — `NONE`
+ *    compris, qui lui ferme ce qu'elles lui ouvrent. Elle ne doit rien à une entreprise : `via`
+ *    est `null` ;
+ * 3. sinon, le plus large des droits accordés à ses entreprises : un Coach membre de deux
+ *    entreprises, l'une en Lecture et l'autre en Écriture, écrit. À niveau égal, `via` nomme la
+ *    première par ordre alphabétique, pour que le panneau ne change pas de provenance d'une
+ *    lecture à l'autre.
  *
- * La ligne d'un Coach, prioritaire sur celle de son entreprise, arrivera avec #608. Le filtre de
- * la couche d'isolation traduit la même règle : les deux doivent rester d'accord.
+ * Le filtre de la couche d'isolation (`sharedRoot`) traduit la même règle, et un e2e les confronte
+ * sur la même table de cas : les deux doivent rester d'accord.
  */
 export function effectiveAccess(subject: AccessSubject): MyAccess | null {
   if (subject.actorId === subject.ownerId) {
     return { level: MyAccessLevel.OWNER, via: null };
+  }
+  const own = subject.coachGrants.find((grant) => grant.coach.id === subject.actorId);
+  if (own != null) {
+    return own.level === AccessLevel.NONE ? null : { level: asMyLevel(own.level), via: null };
   }
   const best = subject.grants
     .filter((grant) => subject.actorOrganizationIds.has(grant.organization.id))
@@ -39,10 +50,13 @@ export function effectiveAccess(subject: AccessSubject): MyAccess | null {
         a.organization.id.localeCompare(b.organization.id),
     )[0];
   if (best == null) return null;
-  return {
-    level: best.level === AccessLevel.WRITE ? MyAccessLevel.WRITE : MyAccessLevel.READ,
-    via: best.organization,
-  };
+  return { level: asMyLevel(best.level), via: best.organization };
+}
+
+function asMyLevel(
+  level: AccessGrantDto["level"],
+): typeof MyAccessLevel.READ | typeof MyAccessLevel.WRITE {
+  return level === AccessLevel.WRITE ? MyAccessLevel.WRITE : MyAccessLevel.READ;
 }
 
 function rank(level: AccessGrantDto["level"]): number {

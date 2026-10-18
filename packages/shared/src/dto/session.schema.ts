@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { accessGrantDtoSchema, accessOwnerSchema, myAccessSchema } from "./access.schema";
+import {
+  accessGrantDtoSchema,
+  accessOwnerSchema,
+  coachGrantDtoSchema,
+  myAccessSchema,
+} from "./access.schema";
 import { adjustmentsSchema } from "./dosage-override.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
@@ -103,6 +108,8 @@ export const sessionDtoSchema = z.object({
   myAccess: myAccessSchema,
   /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
   grants: z.array(accessGrantDtoSchema).nullable(),
+  /** Ceux des Coachs (#608), pour le même panneau ; `null` pour tout autre lecteur. */
+  coachGrants: z.array(coachGrantDtoSchema).nullable(),
   title: z.string(),
   notes: z.string().nullable(),
   exercises: z.array(sessionExerciseDtoSchema),

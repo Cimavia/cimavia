@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { accessGrantDtoSchema, accessOwnerSchema, myAccessSchema } from "./access.schema";
+import {
+  accessGrantDtoSchema,
+  accessOwnerSchema,
+  coachGrantDtoSchema,
+  myAccessSchema,
+} from "./access.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
@@ -201,6 +206,8 @@ export const exerciseDtoSchema = z.object({
   myAccess: myAccessSchema,
   /** Les droits accordés, pour le panneau du propriétaire ; `null` pour tout autre lecteur. */
   grants: z.array(accessGrantDtoSchema).nullable(),
+  /** Ceux des Coachs (#608), pour le même panneau ; `null` pour tout autre lecteur. */
+  coachGrants: z.array(coachGrantDtoSchema).nullable(),
   title: z.string(),
   description: z.string().nullable(),
   instructions: richDocumentSchema.nullable(),

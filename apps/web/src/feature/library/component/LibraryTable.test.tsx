@@ -4,6 +4,7 @@ import {
   type CoachOrganizationDto,
   type ElementAccessDto,
   MyAccessLevel,
+  required,
 } from "@cmv/shared";
 import { useMutation } from "@tanstack/react-query";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -35,6 +36,7 @@ const mine = (id: string, title: string, tags: string[] = []): LibraryTableRow =
   owner: C,
   myAccess: { level: MyAccessLevel.OWNER, via: null },
   grants: [],
+  coachGrants: [],
   updatedAt: "2026-10-06T08:00:00.000Z",
 });
 const shared: LibraryTableRow = {
@@ -44,8 +46,13 @@ const shared: LibraryTableRow = {
   owner: M,
   myAccess: { level: MyAccessLevel.READ, via: { id: "org-f", name: "F" } },
   grants: null,
+  coachGrants: null,
   updatedAt: "2026-10-06T08:00:00.000Z",
 };
+
+/** « Lecture » sur la ligne de F : la première du panneau, avant celle de son Coach M (#608). */
+const readOfF = () =>
+  required(screen.getAllByRole("button", { name: "library.access.level.READ" })[0], "Lecture de F");
 
 function setup({
   rows,
@@ -189,7 +196,7 @@ describe("LibraryTable — sélection", () => {
 
     await user.click(selectAll());
     await user.click(screen.getByRole("button", { name: "library.table.editAccess" }));
-    await user.click(screen.getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(readOfF());
     await user.click(screen.getByRole("button", { name: "library.access.exercise.applyTo" }));
 
     await waitFor(() =>
@@ -205,7 +212,7 @@ describe("LibraryTable — sélection", () => {
     await user.click(
       screen.getAllByRole("button", { name: "library.access.private" })[1] as HTMLElement,
     );
-    await user.click(screen.getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(readOfF());
     await user.click(screen.getByRole("button", { name: "library.access.save" }));
 
     await waitFor(() =>
@@ -268,13 +275,14 @@ describe("LibraryTable — cellule Accès", () => {
     await user.click(
       screen.getAllByRole("button", { name: "library.access.private" })[1] as HTMLElement,
     );
-    await user.click(screen.getByRole("button", { name: "library.access.level.READ" }));
+    await user.click(readOfF());
     await user.click(screen.getByRole("button", { name: "library.access.save" }));
 
     await waitFor(() => expect(send).toHaveBeenCalledOnce());
     expect(send.mock.calls[0]?.[0]).toEqual({
       ids: ["ex-2"],
       changes: [{ organizationId: "org-f", level: AccessLevel.READ }],
+      coachChanges: [],
     });
   });
 

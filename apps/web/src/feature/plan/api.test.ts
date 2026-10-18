@@ -65,9 +65,9 @@ describe.each([
   ],
   [
     "changePlanAccess",
-    () => changePlanAccess({ ids: ["p-1"], changes: [] }),
+    () => changePlanAccess({ ids: ["p-1"], changes: [], coachChanges: [] }),
     "patch",
-    ["/plans/access", { ids: ["p-1"], changes: [] }],
+    ["/plans/access", { ids: ["p-1"], changes: [], coachChanges: [] }],
   ],
   [
     "createPlan",

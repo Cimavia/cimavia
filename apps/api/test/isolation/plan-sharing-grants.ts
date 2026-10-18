@@ -78,6 +78,7 @@ describe("Droits d'une planification : entreprises éligibles, changement, défa
         grants: [
           { organization: { id: world.ids.organization, name: expect.any(String) }, level: "READ" },
         ],
+        coachGrants: [],
       },
     ]);
     const read = await world.m.get(`/plans/${world.planTi.id}`);
@@ -97,7 +98,7 @@ describe("Droits d'une planification : entreprises éligibles, changement, défa
   it("« Aucun » ferme le cycle et s'écrit, que le panneau ne montre pas", async () => {
     const closed = await changeAccess(world.c, [world.planTi.id], null);
     expect(closed.status).toBe(200);
-    expect(closed.body).toEqual([{ id: world.planTi.id, grants: [] }]);
+    expect(closed.body).toEqual([{ id: world.planTi.id, grants: [], coachGrants: [] }]);
     expect(await levelsOf(world.planTi.id)).toEqual([AccessLevel.NONE]);
     expect((await world.m.get(`/plans/${world.planTi.id}`)).status).toBe(404);
   });

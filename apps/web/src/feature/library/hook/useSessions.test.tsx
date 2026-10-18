@@ -222,7 +222,11 @@ describe("useReloadSessionExercise", () => {
 });
 
 describe("useChangeSessionAccess", () => {
-  const input = { ids: ["s-1"], changes: [{ organizationId: "org-f", level: "READ" as const }] };
+  const input = {
+    ids: ["s-1"],
+    changes: [{ organizationId: "org-f", level: "READ" as const }],
+    coachChanges: [],
+  };
 
   it("envoie les seuls changements, puis invalide les séances", async () => {
     apiMock.changeSessionAccess.mockResolvedValue([]);

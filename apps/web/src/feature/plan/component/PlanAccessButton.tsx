@@ -1,4 +1,10 @@
-import { AccessLevel, type CoachOrganizationDto, type PlanDto, required } from "@cmv/shared";
+import {
+  AccessLevel,
+  type CoachOrganizationDto,
+  type PanelCoach,
+  type PlanDto,
+  required,
+} from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -83,6 +89,7 @@ function asAccessElement(plan: PlanDto): AccessElement {
     owner: { id: plan.coachId, name: plan.coachName },
     myAccess: required(plan.myAccess, "droit du coach sur son cycle"),
     grants: plan.grants,
+    coachGrants: plan.coachGrants,
   };
 }
 
@@ -104,11 +111,33 @@ export function staleOrganizations(
 }
 
 /**
+ * Les Coachs qu'une ligne ouvre encore sur le cycle sans qu'ils suivent plus son athlète (#608) —
+ * le lien de M a pris fin. Comme pour l'entreprise, la ligne n'ouvre plus rien mais se réveillerait
+ * avec un nouveau lien : le panneau la montre pour qu'elle se rende. Une ligne « Aucun » ne
+ * s'y montre pas : elle ne ferme que ce qui serait ouvert, et se réveillerait à bon droit.
+ */
+export function staleCoaches(
+  plan: Pick<PlanDto, "athleteId" | "coachGrants">,
+  eligible: readonly CoachOrganizationDto[],
+): PanelCoach[] {
+  if (plan.athleteId == null) return [];
+  const proposed = new Set(
+    eligible.flatMap((organization) => organization.coaches.map((coach) => coach.coachId)),
+  );
+  return required(plan.coachGrants, "droits des Coachs d'un cycle à soi").flatMap(
+    ({ coach, level }) =>
+      level === AccessLevel.NONE || proposed.has(coach.id)
+        ? []
+        : [{ coachId: coach.id, name: coach.name, organizationIds: [] }],
+  );
+}
+
+/**
  * Ce que le panneau dit du cycle. Sans athlète, il se partage comme un exercice : à toutes les
  * entreprises du propriétaire, sans rien à rappeler. Avec, le droit ne vaut que pour ses Coachs.
  */
 export function planFraming(
-  plan: Pick<PlanDto, "coachId" | "athleteId" | "grants">,
+  plan: Pick<PlanDto, "coachId" | "athleteId" | "grants" | "coachGrants">,
   athleteName: string | null,
   eligible: readonly CoachOrganizationDto[],
   linkOrganization: string | null,
@@ -124,6 +153,7 @@ export function planFraming(
       empty: t("plan.access.emptyUnassigned"),
       ownerOnly,
       stale: null,
+      staleCoaches: null,
     };
   }
   const others = [
@@ -145,6 +175,7 @@ export function planFraming(
       (grant) => grant.organization.id === linked.id && grant.level === AccessLevel.WRITE,
     );
   const stale = staleOrganizations(plan, eligible);
+  const coaches = staleCoaches(plan, eligible);
   return {
     caption:
       others.length === 0
@@ -168,5 +199,9 @@ export function planFraming(
             ids: new Set(stale.map((organization) => organization.id)),
             caption: t("plan.access.stale", { athlete: athleteName }),
           },
+    staleCoaches:
+      coaches.length === 0
+        ? null
+        : { coaches, caption: t("plan.access.staleCoach", { athlete: athleteName }) },
   };
 }

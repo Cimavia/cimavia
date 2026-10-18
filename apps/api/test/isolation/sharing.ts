@@ -158,14 +158,17 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
     await expect(as(bId, () => db.session.count({ where: { id: sessionId } }))).resolves.toBe(0);
   });
 
-  // La ligne d'un Coach viendra avec #608 : d'ici là, aucune n'est écrite, et le filtre l'ignore.
-  it("une ligne de Coach n'ouvre rien avant #608", async () => {
+  // La ligne d'un Coach (#608) ne demande pas d'entreprise commune : l'API ne la pose que pour un
+  // Coach des entreprises du propriétaire, le filtre ne fait que la lire. Ce qu'elle ouvre, elle
+  // l'ouvre à lui seul.
+  it("une ligne de Coach ouvre l'élément à ce Coach, et à lui seul", async () => {
     await grantF(null);
     await prisma.accessGrant.create({
       data: { ownerId: cId, exerciseId, coachId: bId, level: "WRITE" },
     });
 
-    await expect(readExercise(bId)).resolves.toBeNull();
+    await expect(readExercise(bId)).resolves.not.toBeNull();
+    await expect(readExercise(mId)).resolves.toBeNull();
     await prisma.accessGrant.deleteMany({ where: { coachId: bId } });
   });
 
@@ -729,7 +732,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         changes: [{ organizationId, level: "READ" }],
       });
       expect(opened.status).toBe(200);
-      expect(opened.body).toEqual([{ id: panId, grants: [f("READ")] }]);
+      expect(opened.body).toEqual([{ id: panId, grants: [f("READ")], coachGrants: [] }]);
 
       const batch = await changeAccess(c, "exercises", {
         ids: [campusId, panId],
@@ -738,8 +741,8 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       expect(batch.status).toBe(200);
       // Dans l'ordre des ids reçus ; F reste en Lecture sur Pan et n'apparaît pas sur Campus.
       expect(batch.body).toEqual([
-        { id: campusId, grants: [g("WRITE")] },
-        { id: panId, grants: [f("READ"), g("WRITE")] },
+        { id: campusId, grants: [g("WRITE")], coachGrants: [] },
+        { id: panId, grants: [f("READ"), g("WRITE")], coachGrants: [] },
       ]);
 
       const removed = await changeAccess(c, "exercises", {
@@ -747,8 +750,8 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         changes: [{ organizationId, level: null }],
       });
       expect(removed.body).toEqual([
-        { id: panId, grants: [g("WRITE")] },
-        { id: campusId, grants: [g("WRITE")] },
+        { id: panId, grants: [g("WRITE")], coachGrants: [] },
+        { id: campusId, grants: [g("WRITE")], coachGrants: [] },
       ]);
       expect((await c.get(`/exercises/${panId}`)).body.grants).toEqual([g("WRITE")]);
       // Hors de G, M ne lit plus Pan.
@@ -839,7 +842,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         changes: [{ organizationId, level: null }],
       });
       expect(closed.status).toBe(200);
-      expect(closed.body).toEqual([{ id: grimpeId, grants: [] }]);
+      expect(closed.body).toEqual([{ id: grimpeId, grants: [], coachGrants: [] }]);
       expect((await m.get(`/sessions/${grimpeId}`)).status).toBe(404);
       expect((await m.get(`/scheduled-sessions/${plannedId}`)).status).toBe(200);
 

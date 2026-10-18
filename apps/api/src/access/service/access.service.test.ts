@@ -11,6 +11,7 @@ const view = (level: AccessView["myAccess"]["level"]): AccessView => ({
   owner: { id: "c", name: "C" },
   myAccess: { level, via: null },
   grants: null,
+  coachGrants: null,
 });
 
 function serviceWith(
@@ -106,14 +107,18 @@ describe("AccessService.loadFor", () => {
   const voie: AccessRow = {
     id: "voie",
     coach: { id: "c", name: "Camille" },
-    accessGrants: [{ level: "READ", organization: { id: "org-f", user: { name: "F" } } }],
+    accessGrants: [
+      { level: "READ", organization: { id: "org-f", user: { name: "F" } }, coach: null },
+    ],
   };
 
   it("rend l'élément et le contexte quand le droit couvre le geste", async () => {
     const { service } = serviceWith(["org-f"], []);
     const writable: AccessRow = {
       ...voie,
-      accessGrants: [{ level: "WRITE", organization: { id: "org-f", user: { name: "F" } } }],
+      accessGrants: [
+        { level: "WRITE", organization: { id: "org-f", user: { name: "F" } }, coach: null },
+      ],
     };
     const { row, context } = await service.loadFor(Promise.resolve(writable), "write");
     expect(row).toBe(writable);
