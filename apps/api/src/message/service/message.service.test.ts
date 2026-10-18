@@ -2,6 +2,7 @@ import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType, type SendMessageInput } from
 import type { Conversation } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
+import type { PrismaService } from "../../infra/prisma/prisma.service";
 import type { StorageService } from "../../infra/storage/storage.service";
 import type { NotificationService } from "../../notification/notification.service";
 import type { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -53,6 +54,7 @@ function build(unreadFromMe: number) {
     {} as AthletePlanService,
     { resolve: vi.fn().mockResolvedValue(new Map()) } as unknown as MessageAttachmentResolver,
     { get: () => ATHLETE } as unknown as ClsService,
+    {} as PrismaService,
   );
   return { service, count, notifyMessageReceived };
 }

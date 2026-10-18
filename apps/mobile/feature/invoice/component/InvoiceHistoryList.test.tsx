@@ -1,4 +1,4 @@
-import { type InvoiceDto, InvoiceStatus, sortAthleteInvoices } from "@cmv/shared";
+import { type InvoiceDto, InvoiceStatus, MyAccessLevel, sortAthleteInvoices } from "@cmv/shared";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { InvoiceHistoryList } from "@/feature/invoice/component/InvoiceHistoryList";
@@ -15,6 +15,7 @@ function invoice(overrides: Partial<InvoiceDto> & { id: string }): InvoiceDto {
   return {
     coachId: "c-1",
     coachName: "Dual Curl",
+    myAccess: null,
     athleteId: "a-1",
     athleteName: "Léa Bonnet",
     planId: "p-1",
@@ -115,5 +116,19 @@ describe("InvoiceHistoryList", () => {
 
     pressButton(container, "août 2026");
     expect(onOpenInvoice).toHaveBeenCalledWith("i-1");
+  });
+
+  it("nomme le propriétaire de la seule facture d'un cycle partagé (#607)", () => {
+    setup([
+      invoice({ id: "inv-a", myAccess: { level: MyAccessLevel.OWNER, via: null } }),
+      invoice({
+        id: "inv-b",
+        period: "2026-07",
+        coachName: "M",
+        myAccess: { level: MyAccessLevel.WRITE, via: null },
+      }),
+    ]);
+
+    expect(screen.getAllByText("invoice.coach.sharedBy")).toHaveLength(1);
   });
 });

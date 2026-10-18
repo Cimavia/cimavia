@@ -1,6 +1,7 @@
 import { type VersionQuery, versionQuerySchema } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { ChangeAccessDto } from "../../access/dto/change-access.dto";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { AddPlanWeekDto } from "../dto/add-plan-week.dto";
@@ -8,12 +9,16 @@ import { CreatePlanDto } from "../dto/create-plan.dto";
 import { PublishPlanDto } from "../dto/publish-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
 import { type ListPlansFilters, PlanService } from "../service/plan.service";
+import { PlanAccessService } from "../service/plan-access.service";
 
 @ApiTags("plans")
 @RequireCapability("coach")
 @Controller("plans")
 export class PlanController {
-  constructor(private readonly plans: PlanService) {}
+  constructor(
+    private readonly plans: PlanService,
+    private readonly planAccess: PlanAccessService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreatePlanDto) {
@@ -30,6 +35,18 @@ export class PlanController {
   @Get(":id")
   get(@Param("id") id: string) {
     return this.plans.get(id);
+  }
+
+  // Les entreprises à qui ouvrir le cycle, réduites aux Coachs de son athlète (#607).
+  @Get(":id/organizations")
+  organizations(@Param("id") id: string) {
+    return this.plans.organizations(id);
+  }
+
+  // Avant `:id` : `PATCH /plans/access` serait pris pour la mise à jour d'un cycle « access ».
+  @Patch("access")
+  changeAccess(@Body() dto: ChangeAccessDto) {
+    return this.planAccess.changeAccess(dto);
   }
 
   @Patch(":id")

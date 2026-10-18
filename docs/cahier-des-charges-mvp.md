@@ -57,7 +57,7 @@ Centraliser dans une seule application l'ensemble du parcours : planification, e
   - Une chaîne est possible (A coache B, B coache C) mais **jamais une boucle** : anti-cycle et anti-self à l'acceptation d'une invitation.
 - Un coach a **N athlètes** et appartient à **0..N entreprises** (#601).
 - Un compte **Entreprise** est **exclusif** : ni coach ni athlète. Un athlète qu'il invite est suivi par **chacun** de ses coachs (un lien par coach, marqué « via » l'entreprise) (#602).
-- Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) — exercices et séances (#605), planifications *(cible — #607)* ; supprimer, gérer les accès et réaffecter restent au propriétaire.
+- Les coachs d'une même entreprise s'ouvrent leurs exercices, séances et planifications par des **droits d'accès** (Lecture ou Écriture) — exercices et séances (#605), planifications (#607) ; supprimer, gérer les accès et réaffecter restent au propriétaire.
 - **Les deux capacités accèdent aux deux clients** (web et mobile) — l'usage diffère, pas les droits d'accès aux plateformes.
 
 ---

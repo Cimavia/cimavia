@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { CmvButton, CmvConfirmButton } from "@/shared/component";
 
 type SessionPanelFooterProps = {
+  /** La séance d'un cycle ouvert en Lecture (#607) : « Fermer », rien d'autre. */
+  readOnly: boolean;
   /** Édition : la séance existe déjà, donc elle peut être supprimée. */
   isEditing: boolean;
   /**
@@ -23,6 +25,7 @@ type SessionPanelFooterProps = {
 
 // Pied du panneau de séance : supprimer (édition seulement), annuler, enregistrer.
 export function SessionPanelFooter({
+  readOnly,
   isEditing,
   isDebriefed,
   isPublished,
@@ -34,6 +37,14 @@ export function SessionPanelFooter({
   onSubmit,
 }: Readonly<SessionPanelFooterProps>) {
   const { t } = useTranslation();
+  if (readOnly) {
+    return (
+      <>
+        <div className="flex-1" />
+        <CmvButton onClick={onClose}>{t("common.close")}</CmvButton>
+      </>
+    );
+  }
   // Omis plutôt qu'`undefined` (`exactOptionalPropertyTypes`) : un brouillon n'a rien à annoncer.
   const deleteHint = isPublished ? { confirmHint: t("plan.session.deleteHintPublished") } : {};
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).

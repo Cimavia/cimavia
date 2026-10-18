@@ -24,6 +24,7 @@ const props = {
   athleteId: null,
   isPublished: false,
   hasInvoiceDocument: false,
+  isOwnerOnly: false,
   isBusy: false,
   onChange: vi.fn(),
 };
@@ -113,5 +114,25 @@ describe("PlanAthletePicker", () => {
     );
 
     expect(queryByText("plan.header.athleteLockedDocument")).toBeNull();
+  });
+});
+
+describe("PlanAthletePicker — réaffecter reste au propriétaire (#607)", () => {
+  it("figé sur un cycle ouvert en Écriture, et dit pourquoi", () => {
+    const { getByRole, getByText } = renderWithProviders(
+      <PlanAthletePicker {...props} athleteId="ath_lea" isOwnerOnly hasInvoiceDocument />,
+    );
+
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    // Une seule raison sous le champ : le justificatif ne se retire pas pour autant.
+    expect(getByText("plan.header.athleteOwnerOnly")).toBeTruthy();
+  });
+
+  it("diffusé, l'en-tête le dit déjà : rien de plus sous le champ", () => {
+    const { queryByText } = renderWithProviders(
+      <PlanAthletePicker {...props} athleteId="ath_lea" isPublished isOwnerOnly />,
+    );
+
+    expect(queryByText("plan.header.athleteOwnerOnly")).toBeNull();
   });
 });

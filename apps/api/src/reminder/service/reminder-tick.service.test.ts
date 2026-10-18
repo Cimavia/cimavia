@@ -1,4 +1,4 @@
-import { ReminderEntityType, ReminderReason, ReminderStatus } from "@cmv/shared";
+import { InvoiceStatus, ReminderEntityType, ReminderReason, ReminderStatus } from "@cmv/shared";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../../infra/prisma/prisma.service";
@@ -202,5 +202,68 @@ describe("ReminderTickService — échéances à l'heure du produit", () => {
         dueAt: new Date("2026-10-03T22:00:00.000Z"),
       }),
     ]);
+  });
+});
+
+/**
+ * Une facture réglée par un autre Coach que le propriétaire du cycle (#607) : sa transaction n'a
+ * pas vu le rappel du propriétaire, c'est le tick de ce dernier qui le clôt.
+ */
+describe("ReminderTickService — clôture des retards réglés ailleurs", () => {
+  function buildClosing(settledIds: string[]) {
+    const updateMany = vi.fn();
+    const invoiceFindMany = vi.fn(async ({ where }: { where: { status: unknown } }) =>
+      // La génération lit les factures `PENDING` ; la clôture, celles qui ne le sont plus.
+      where.status === InvoiceStatus.PENDING ? [] : settledIds.map((id) => ({ id })),
+    );
+    const db = {
+      plan: { findMany: vi.fn().mockResolvedValue([]) },
+      planWeek: { groupBy: vi.fn().mockResolvedValue([]) },
+      invoice: { findMany: invoiceFindMany },
+      reminder: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([{ entityId: "inv1" }, { entityId: "inv2" }])
+          .mockResolvedValue([]),
+        createMany: vi.fn(),
+        updateMany,
+      },
+    } as unknown as TenantPrisma;
+    const service = new ReminderTickService(
+      { user: { findMany: vi.fn().mockResolvedValue([{ id: "c1" }]) } } as unknown as PrismaService,
+      db,
+      { run: (fn: () => unknown) => fn(), set: vi.fn() } as unknown as ClsService,
+      { notifyReminderDue: vi.fn() } as unknown as NotificationService,
+    );
+    return { service, updateMany, invoiceFindMany };
+  }
+
+  it("clôt le rappel d'une facture qui n'est plus en attente", async () => {
+    const { service, updateMany, invoiceFindMany } = buildClosing(["inv2"]);
+
+    await service.run(NOW);
+
+    expect(invoiceFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["inv1", "inv2"] }, status: { not: InvoiceStatus.PENDING } },
+      }),
+    );
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        entityType: ReminderEntityType.INVOICE,
+        reason: ReminderReason.INVOICE_OVERDUE,
+        status: ReminderStatus.PENDING,
+        entityId: { in: ["inv2"] },
+      },
+      data: { status: ReminderStatus.DONE },
+    });
+  });
+
+  it("ne touche à rien si toutes ses factures sont encore en attente", async () => {
+    const { service, updateMany } = buildClosing([]);
+
+    await service.run(NOW);
+
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });

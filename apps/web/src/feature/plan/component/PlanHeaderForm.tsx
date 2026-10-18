@@ -20,6 +20,10 @@ type PlanHeaderFormProps = {
   plan: PlanDto;
   /** Un justificatif est joint à la facturation : le destinataire est figé (#472). */
   hasInvoiceDocument: boolean;
+  /** Le cycle d'un autre Coach, ouvert en Lecture (#607) : rien ne se saisit, rien ne part. */
+  readOnly: boolean;
+  /** Réaffecter le cycle reste au propriétaire (#607) : en Écriture, le destinataire est figé. */
+  canReassign: boolean;
   isSaving: boolean;
   /** `onSaved` reçoit le cycle tel qu'enregistré : sa version est celle que NOUS avons écrite. */
   onSave: (input: UpdatePlanInput, onSaved: (saved: PlanDto) => void) => void;
@@ -47,6 +51,8 @@ type PlanHeaderFormProps = {
 export function PlanHeaderForm({
   plan,
   hasInvoiceDocument,
+  readOnly,
+  canReassign,
   isSaving,
   onSave,
   isStale,
@@ -137,9 +143,11 @@ export function PlanHeaderForm({
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
+  // Figé, diffusé ou en Lecture : les champs se lisent, aucun ne se saisit.
+  const isLocked = isPublished || readOnly;
   const hasChanges = Object.keys(changedFields()).length > 0;
   const canSubmit =
-    !isPublished && !isSaving && hasChanges && title.trim() !== "" && effectiveStartDate != null;
+    !isLocked && !isSaving && hasChanges && title.trim() !== "" && effectiveStartDate != null;
   /**
    * Plus large que `hasChanges` : une date effacée ou illisible n'entre pas dans ce qui part, mais
    * l'écran ne montre plus la date enregistrée — diffuser maintenant partirait sur une valeur que
@@ -165,7 +173,7 @@ export function PlanHeaderForm({
               qu'un cycle ne se nomme pas, alors qu'il ne se renomme plus. Même grammaire que
               « Coller ici », « Supprimer le cycle » et le sélecteur de destinataire. */}
           <p className="text-cmv-caption text-cmv-text-lo">
-            {t(isPublished ? "plan.header.lockedPublished" : "plan.header.hint")}
+            {t(headerHintKey(isPublished, readOnly))}
           </p>
         </div>
 
@@ -185,7 +193,7 @@ export function PlanHeaderForm({
             value={title}
             onChange={(event) => edit({ title: event.target.value })}
             placeholder={t("plan.header.titlePlaceholder")}
-            disabled={isPublished}
+            disabled={isLocked}
             required
             requiredMark
           />
@@ -194,6 +202,7 @@ export function PlanHeaderForm({
             athleteId={athleteId}
             isPublished={isPublished}
             hasInvoiceDocument={hasInvoiceDocument}
+            isOwnerOnly={!canReassign}
             isBusy={isSaving}
             onChange={(next) => edit({ athleteId: next })}
           />
@@ -207,7 +216,7 @@ export function PlanHeaderForm({
             value={startDate}
             onChange={(event) => edit({ startDate: event.target.value })}
             onBlur={snapToMonday}
-            disabled={isPublished}
+            disabled={isLocked}
             required
             requiredMark
           />
@@ -233,11 +242,11 @@ export function PlanHeaderForm({
           value={description}
           onChange={(event) => edit({ description: event.target.value })}
           placeholder={t("plan.header.descriptionPlaceholder")}
-          disabled={isPublished}
+          disabled={isLocked}
           rows={3}
         />
 
-        {isPublished ? null : (
+        {isLocked ? null : (
           <div className="flex items-center gap-cmv-sm">
             <CmvButton type="submit" onClick={onSubmit} disabled={!canSubmit}>
               {isSaving ? t("plan.header.submitting") : t("plan.header.submit")}
@@ -248,6 +257,12 @@ export function PlanHeaderForm({
       </form>
     </CmvCard>
   );
+}
+
+/** Ce que l'en-tête dit de lui-même : diffusé, il ne se réécrit plus ; en Lecture, il se lit. */
+function headerHintKey(isPublished: boolean, readOnly: boolean): string {
+  if (isPublished) return "plan.header.lockedPublished";
+  return readOnly ? "plan.header.lockedReadOnly" : "plan.header.hint";
 }
 
 /** Ce qui part : les champs changés, la version s'y ajoute à l'envoi. */

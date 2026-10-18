@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AccessModule } from "../access/access.module";
 import { AccountModule } from "../account/account.module";
 import { StorageModule } from "../infra/storage/storage.module";
 import { ReminderModule } from "../reminder/reminder.module";
@@ -11,10 +12,11 @@ import { InvoiceService } from "./service/invoice.service";
 // AccountModule : résolution des noms coach/athlète (User est hors scope tenant).
 // StorageModule : justificatif PDF servi en URL GET signée (bucket privé).
 // ReminderModule : payer ou annuler une facture clôt son rappel « en retard » (#349).
+// AccessModule : la facture suit son cycle — la gérer demande d'y avoir l'Écriture (#607).
 // InvoiceService est exporté : PlanService l'appelle au publish pour émettre la facture.
 // NotificationService (push) et ClsService (acteur courant) sont globaux — pas d'import ici.
 @Module({
-  imports: [AccountModule, StorageModule, ReminderModule],
+  imports: [AccessModule, AccountModule, StorageModule, ReminderModule],
   controllers: [InvoiceController, PlanBillingController],
   providers: [InvoiceService],
   exports: [InvoiceService],

@@ -20,6 +20,7 @@ function invoice(overrides: Partial<InvoiceDto>): InvoiceDto {
     id: "inv-1",
     coachId: "c-1",
     coachName: "Dual Curl",
+    myAccess: null,
     athleteId: "a-1",
     athleteName: "Léa Bonnet",
     planId: "p-1",

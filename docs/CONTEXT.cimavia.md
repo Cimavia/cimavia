@@ -136,7 +136,7 @@ Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: Se
 La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 
 ### AccessGrant (droit d'accès)
-Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises. Exercices et séances s'ouvrent aux entreprises (#605) ; planifications *(cible — #607)*, lignes Coach *(cible — #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre.
+Ce qu'un propriétaire ouvre de **son** élément — exercice, séance ou planification — à une **entreprise** ou à un **Coach** de ses entreprises. Exercices et séances s'ouvrent aux entreprises (#605), planifications aussi — aux seuls Coachs de leur athlète (#607) ; lignes Coach *(cible — #608)*. Niveau `READ` (Lecture) ou `WRITE` (Écriture), et `NONE` pour une ligne de Coach qui ferme ce que son entreprise ouvre, ou pour l'entreprise qu'un propriétaire a fermée exprès sur un cycle (#607).
 
 - **Un droit accordé à F vaut pour ses Coachs**, pas pour le compte Entreprise. La ligne d'un Coach l'emporte sur celle de son entreprise, `NONE` compris ; un Coach de plusieurs entreprises hérite du droit le plus large.
 - **Écrire n'est pas posséder** : `WRITE` modifie le contenu, enfants et publication compris. **Supprimer** l'élément, **gérer ses accès** et **réaffecter** une planification à un autre athlète restent au propriétaire.
@@ -241,11 +241,11 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 | Donnée | isCoach | isAthlete | Entreprise |
 |---|---|---|---|
 | Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre (#605) | — | — |
-| Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre *(cible — #607)* | lecture (les siennes, de chaque Coach) | — |
+| Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre (#607) | lecture (les siennes, de chaque Coach) | — |
 | Débrief de séance | lecture + marquage « lu » (le sien, par Coach *(cible — #610)*) | écriture (le sien) | — |
 | Fiche athlète | CRUD (une par couple) | — | — |
 | Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
-| Facture | émission + statut ; suit le droit de sa planification *(cible — #607)* | lecture | — |
+| Facture | émission + statut ; suit le droit de sa planification (#607) | lecture | — |
 | Rappel | CRUD (les siens) | — *(aucun accès : 403)* | — |
 | Entreprise : Coachs, athlètes, invitations | — | — | gestion (la sienne), athlètes compris (#602) |
 | Notifications | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) | lecture + marquage lu (les siennes) |

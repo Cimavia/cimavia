@@ -12,8 +12,8 @@ import {
 import type { Prisma } from "@prisma/client";
 
 /**
- * Ce qu'un exercice ou une séance doit charger pour dire qui le possède et ce que l'acteur peut en
- * faire (#605). Imbriqué, donc hors du scope de l'extension (piège n°2) — c'est voulu : ce sont
+ * Ce qu'un exercice, une séance ou une planification (#607) doit charger pour dire qui le possède
+ * et ce que l'acteur peut en faire (#605). Imbriqué, donc hors du scope de l'extension (piège n°2) — c'est voulu : ce sont
  * les droits de l'élément déjà prouvé lisible, et seul son propriétaire les recevra tels quels.
  *
  * Les lignes d'entreprise seulement : celle d'un Coach arrive avec #608.
@@ -27,9 +27,13 @@ export const ACCESS_INCLUDE = {
       organization: { select: { id: true, user: { select: { name: true } } } },
     },
   },
-} satisfies Prisma.ExerciseInclude & Prisma.SessionInclude;
+} satisfies Prisma.ExerciseInclude & Prisma.SessionInclude & Prisma.PlanInclude;
 
-/** Un élément de la bibliothèque — exercice ou séance —, chargé avec `ACCESS_INCLUDE`. */
+/**
+ * Un élément partageable — exercice, séance ou planification —, chargé avec `ACCESS_INCLUDE`. Les
+ * lignes `NONE` d'une planification (#607) y arrivent, et `toGrantDtos` les écarte : elles ne
+ * disent qu'au droit par défaut de ne pas rouvrir l'entreprise.
+ */
 export type AccessRow = Pick<
   Prisma.ExerciseGetPayload<{ include: typeof ACCESS_INCLUDE }>,
   "id" | "coach" | "accessGrants"
@@ -86,6 +90,16 @@ export function toAccessView(row: AccessRow, context: AccessContext): AccessView
 }
 
 /**
+ * Ce qui est À l'acteur, parmi ce qu'il lit (#607). Lire un modèle partageable ouvre aussi ce qu'on
+ * lui partage ; ce filtre le ramène à ce qu'il possède — « Les miens » de la bibliothèque, la boîte
+ * des débriefs, les rappels et leurs cibles. Jamais un élargissement : le filtre de l'extension
+ * s'ajoute à celui-ci.
+ */
+export function ownedBy(actorId: string): { coachId: string } {
+  return { coachId: actorId };
+}
+
+/**
  * La portée d'une liste de la bibliothèque (`?scope=`), sur ce que l'acteur peut déjà lire : tout,
  * ses propres éléments, ou ceux que d'autres Coachs lui ouvrent. Jamais un élargissement — le
  * filtre de l'extension s'ajoute à celui-ci.
@@ -94,7 +108,7 @@ export function libraryScopeWhere(
   scope: LibraryScope,
   actorId: string,
 ): { coachId?: string | { not: string } } {
-  if (scope === LibraryScope.MINE) return { coachId: actorId };
+  if (scope === LibraryScope.MINE) return ownedBy(actorId);
   if (scope === LibraryScope.SHARED) return { coachId: { not: actorId } };
   return {};
 }

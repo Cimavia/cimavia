@@ -495,7 +495,11 @@
       "noMatch": {
         "title": "Aucun athlète ne correspond",
         "description": "Reviens à « Tous » pour revoir toute ta facturation."
-      }
+      },
+      "sharedBy": "Partagé par {{owner}} · {{right}}",
+      "rightRead": "Lecture",
+      "rightWrite": "Écriture",
+      "rightVia": "{{right}} via {{organization}}"
     },
     "panel": {
       "dueDate": "Échéance",

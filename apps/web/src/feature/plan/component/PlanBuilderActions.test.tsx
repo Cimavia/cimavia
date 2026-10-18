@@ -29,6 +29,7 @@ const READY: ComponentProps<typeof PlanBuilderActions> = {
   planId: "pln_1",
   version: "2026-10-12T08:00:00.000Z",
   isPublished: false,
+  canDelete: true,
   hasWeeks: true,
   hasAthlete: true,
   isBillingFilled: true,
@@ -200,6 +201,15 @@ describe("PlanBuilderActions — diffuser", () => {
   it("ne réclame pas de facturation sur un cycle écrit pour soi", async () => {
     const { getByText } = await mount({ isBillingFilled: false, requiresBilling: false });
 
+    expect((getByText("plan.builder.publish") as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("PlanBuilderActions — le cycle d'un autre Coach (#607)", () => {
+  it("ouvert en Écriture, il se diffuse mais ne se supprime pas", async () => {
+    const { getByText, queryByText } = await mount({ canDelete: false });
+
+    expect(queryByText("plan.builder.delete")).toBeNull();
     expect((getByText("plan.builder.publish") as HTMLButtonElement).disabled).toBe(false);
   });
 });

@@ -54,6 +54,21 @@ export function isOwner(access: MyAccess): boolean {
   return access.level === MyAccessLevel.OWNER;
 }
 
+/** Le droit que l'acteur tient sur ce qui n'est pas à lui : Lecture ou Écriture, et d'où. */
+export type SharedRight = Omit<MyAccess, "level"> & {
+  level: typeof MyAccessLevel.READ | typeof MyAccessLevel.WRITE;
+};
+
+/**
+ * Ce qu'une vue agrégée dit sous ce qui n'est pas à l'acteur (#607) — « Partagé par M · Lecture
+ * via F » : le droit qu'il en tient. `null` sur le sien, et pour l'athlète, qui n'a pas de droit :
+ * il en est le destinataire. La règle vit ici ; web et mobile n'en font que la traduction.
+ */
+export function sharedRight(access: MyAccess | null): SharedRight | null {
+  if (access == null || access.level === MyAccessLevel.OWNER) return null;
+  return { level: access.level, via: access.via };
+}
+
 /** L'élément s'il est à un autre que l'acteur ; `null` pour le sien, ou pour celui qui naît. */
 export function foreignOf<T extends { myAccess: MyAccess }>(element: T | null): T | null {
   return element != null && !isOwner(element.myAccess) ? element : null;

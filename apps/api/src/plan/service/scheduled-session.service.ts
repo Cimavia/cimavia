@@ -23,6 +23,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+import { AccessService } from "../../access/service/access.service";
 import { citedCustomMetrics } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
@@ -100,19 +101,20 @@ export class ScheduledSessionService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
-    // Contrôles d'appartenance du plan et de la semaine : source unique (PlanService).
+    // Contrôles d'accès au plan et à la semaine : source unique (PlanService).
     private readonly plans: PlanService,
     private readonly notifications: NotificationService,
     private readonly library: ExerciseService,
     private readonly metrics: CustomMetricService,
+    private readonly access: AccessService,
   ) {}
 
   async create(
     planWeekId: string,
     input: CreateScheduledSessionInput,
   ): Promise<ScheduledSessionDto> {
-    const week = await this.plans.getWeekOwnedOrThrow(planWeekId);
-    const plan = await this.plans.getOwnedOrThrow(week.planId);
+    const week = await this.plans.getWeekOrThrow(planWeekId);
+    const { plan } = await this.plans.getForOrThrow(week.planId, "write");
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
     const { draft, library: copied } = await this.buildDraft(input);
@@ -182,13 +184,15 @@ export class ScheduledSessionService {
    * Sous la version de la séance ouverte (#604) : un autre Coach a pu l'ajuster depuis.
    */
   async update(id: string, input: UpdateScheduledSessionInput): Promise<ScheduledSessionDto> {
-    const session = await this.getOwnedOrThrow(id);
+    const session = await this.getReadableOrThrow(id);
+    // Le droit avant la version : un lecteur prend son 403, pas un 409 qui l'inviterait à
+    // recharger pour réessayer ce qu'il ne pourra jamais faire (#607).
+    const { plan } = await this.plans.getForOrThrow(session.planId, "write");
     const expected = new Date(input.expectedUpdatedAt);
     // Avant de juger la composition contre un état que la saisie n'a pas vu : une ligne retirée
     // par l'autre Coach ferait un 400 au lieu de proposer de recharger.
     assertReadAtVersion(session.updatedAt, expected);
-    const week = await this.plans.getWeekOwnedOrThrow(session.planWeekId);
-    const plan = await this.plans.getOwnedOrThrow(session.planId);
+    const week = await this.plans.getWeekOrThrow(session.planWeekId);
     this.assertDateInWeek(plan, week, input.scheduledDate);
 
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
@@ -267,12 +271,12 @@ export class ScheduledSessionService {
     isoDate: string,
     input: ReorderPlanDayInput,
   ): Promise<PlanDto> {
-    const week = await this.plans.getWeekOwnedOrThrow(planWeekId);
+    const week = await this.plans.getWeekOrThrow(planWeekId);
+    const { plan } = await this.plans.getForOrThrow(week.planId, "write");
     const expected = new Date(input.expectedUpdatedAt);
     // Avant de juger le tableau : fondé sur une grille périmée, il ne correspond plus à la journée,
     // et le refus serait un 400 « contenu invalide » au lieu de proposer de relire (#604).
     assertReadAtVersion(week.updatedAt, expected);
-    const plan = await this.plans.getOwnedOrThrow(week.planId);
     this.assertDateInWeek(plan, week, isoDate);
 
     // Toute la SEMAINE, et non la seule journée : le tableau peut citer une séance d'un autre jour.
@@ -351,9 +355,9 @@ export class ScheduledSessionService {
 
   /** Sous la version de la séance ouverte (#604) : la retirer ne se fait pas sur ce qu'on n'a pas vu. */
   async delete(id: string, query: VersionQuery): Promise<void> {
-    const session = await this.getOwnedOrThrow(id);
+    const session = await this.getReadableOrThrow(id);
     const expected = new Date(query.expectedUpdatedAt);
-    const plan = await this.plans.getOwnedOrThrow(session.planId);
+    const { plan } = await this.plans.getForOrThrow(session.planId, "write");
 
     await this.db.$transaction(async (tx) => {
       // La semaine d'abord : l'ordre des verrous de `touchWeeks`. Un refus plus bas l'annule.
@@ -396,7 +400,8 @@ export class ScheduledSessionService {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  async getOwnedOrThrow(
+  // Une séance que l'acteur peut LIRE — d'un cycle à lui, ou qu'on lui ouvre (#607) —, ou 404.
+  async getReadableOrThrow(
     id: string,
     db: TenantPrisma | TenantTx = this.db,
   ): Promise<ScheduledSessionWithExercises> {
@@ -414,7 +419,7 @@ export class ScheduledSessionService {
     id: string,
     db: TenantPrisma | TenantTx = this.db,
   ): Promise<ScheduledSessionDto> {
-    return toScheduledSessionDto(await this.getOwnedOrThrow(id, db), this.storage);
+    return toScheduledSessionDto(await this.getReadableOrThrow(id, db), this.storage);
   }
 
   // Une séance ne peut pas être posée hors de la plage de sa semaine (sinon la vue calendrier
@@ -529,17 +534,20 @@ export class ScheduledSessionService {
    * diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
    *
    * Une ligne AJOUTÉE les prend chez le propriétaire de son exercice source (piège n°9), déjà
-   * prouvé accessible dans `library` ; sans source, chez le Coach de la séance, qui l'a composée.
-   * Une ligne REPRISE garde celles qu'elle porte : sa forme est verrouillée, ses citations aussi.
+   * prouvé accessible dans `library` ; sans source, chez le Coach qui l'a composée : l'acteur, dont
+   * le panneau propose le catalogue — pas le propriétaire du cycle, quand un rédacteur compose
+   * (#607). Une ligne REPRISE garde celles qu'elle porte : sa forme est verrouillée, ses citations
+   * aussi.
    */
   private async withCustomMetrics(
     session: ScheduledSessionWithExercises,
     rows: ExerciseRows<ScheduledSessionExerciseInput>,
     library: LibrarySources,
   ): Promise<ExerciseRows<ScheduledSessionExerciseInput>> {
+    const composer = this.access.actorId();
     const ownerOf = (exercise: ScheduledSessionExerciseInput): string =>
       exercise.sourceExerciseId == null
-        ? session.coachId
+        ? composer
         : required(library.get(exercise.sourceExerciseId), "source non chargée").coachId;
     const pending = rows.added.filter((row) => row.item.customMetrics == null);
     const catalogOf = await this.metrics.catalogOf(pending.map((row) => ownerOf(row.item)));
@@ -629,7 +637,7 @@ async function assertDeleted(tx: TenantTx, id: string, count: number): Promise<v
       "Cette séance a été débriefée par l'athlète : elle ne peut plus être supprimée, mais reste modifiable",
     );
   }
-  await assertWrittenAtVersion(count, async () => current != null, SESSION_NOT_FOUND);
+  await assertWrittenAtVersion(count, () => Promise.resolve(current != null), SESSION_NOT_FOUND);
 }
 
 /**

@@ -601,9 +601,13 @@ liste des domaines vivent dans l'index.
 | MC-5 | **Ranger une journée fait avancer ses séances** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `writeDay` et `compactDay` réécrivent la position des séances voisines, et avec elle leur `updatedAt`. Un Coach dont le panneau est ouvert sur l'une d'elles prend un « modifiée pendant que tu l'éditais » alors que seul son rang a bougé. Le faux conflit est rare et sans perte : la saisie reste, « Recharger » repart de la dernière version. | 🟢 | — *(déclencheur : un retour beta d'un conflit inexpliqué ; la sortie serait une position écrite sans faire avancer la version, comme le débrief)* |
 | MC-6 | **Le débrief peut faire avancer la version, au troisième essai** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `markDoneKeepingVersion` passe la séance en DONE en réécrivant la version lue, sous condition qu'elle n'ait pas bougé ; après trois écritures du Coach glissées entre sa lecture et son écriture, il écrit sans condition. Le Coach prend alors un conflit de trop, jamais une perte. | 🟢 | — *(déclencheur : un 409 inexpliqué juste après un débrief ; trois écritures concurrentes en quelques millisecondes ne se voient pas avec des humains)* |
 | MC-7 | **Supprimer un brouillon emporte les semaines qu'un autre Coach vient d'y poser** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : la suppression cite la version du cycle, qui est celle de son en-tête ; ajouter une semaine ou une séance ne la fait pas avancer. Le geste vise le cycle entier, après confirmation. | 🟢 | — *(déclencheur : une perte de travail rapportée par un Coach d'entreprise ; la sortie serait de citer aussi la plus récente version de ses semaines)* |
-| MC-9 | **Une appartenance qui change pendant une lecture fait un 500** ([#605](https://github.com/Cimavia/cimavia/issues/605)) : l'élément et les entreprises de l'acteur se lisent en parallèle, hors d'un même instantané. Si M quitte F entre les deux, l'élément a été lu par F mais `effectiveAccess` ne trouve plus de droit, et `toAccessView` lève : M reçoit un 500 au lieu d'un 404. Rien ne fuit, la réponse échoue. | 🟢 | — *(déclencheur : un 500 « lu sans droit » dans Sentry ; la sortie serait de lire les deux dans une transaction `REPEATABLE READ`, ou de traiter ce désaccord en 404)* |
+| MC-9 | **Une appartenance qui change pendant une lecture fait un 500** ([#605](https://github.com/Cimavia/cimavia/issues/605)) : l'élément et les entreprises de l'acteur se lisent en parallèle, hors d'un même instantané. Si M quitte F entre les deux, l'élément a été lu par F mais `effectiveAccess` ne trouve plus de droit, et `toAccessView` lève : M reçoit un 500 au lieu d'un 404. Rien ne fuit, la réponse échoue. Les factures ont la même fenêtre ([#607](https://github.com/Cimavia/cimavia/issues/607)) : une facture se lit, puis son cycle, et un droit retiré entre les deux fait lever `resolvePlans`. | 🟢 | — *(déclencheur : un 500 « lu sans droit » dans Sentry ; la sortie serait de lire les deux dans une transaction `REPEATABLE READ`, ou de traiter ce désaccord en 404)* |
 | MC-10 | **Le panneau planifié ne dit pas à qui sont les exercices et les séances qu'il propose** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : `ExercisePicker` propose tout ce que le Coach lit, partagés compris, et le choix du « Modèle » toutes ses séances lisibles, sans la ligne propriétaire ni les bascules « Les miens · Partagés » du sélecteur de la bibliothèque. L'ajout fonctionne — le serveur résout les métriques chez le propriétaire —, seul le repère manque. | 🟢 | — *(déclencheur : un Coach d'entreprise qui part de l'exercice ou de la séance d'un collègue en les prenant pour les siens ; la sortie serait de leur donner la ligne de `LibraryPicker`, `ownerRightText`)* |
 | MC-11 | **Le panneau des accès ne montre que les entreprises actuelles du propriétaire** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : ses lignes viennent de `GET /me/organizations`. Un droit accordé à une entreprise que le Coach a quittée resterait lisible dans la colonne « Accès », mais aucune ligne ne permettrait de le retirer, alors que l'API l'accepte. Sans plus aucune entreprise, la colonne et le panneau disparaîtraient même, et ce droit avec eux. Rien ne permet encore de quitter une entreprise. | 🟢 | — *(déclencheur : une route pour quitter une entreprise, hors de l'épic et dépendante de [#213](https://github.com/Cimavia/cimavia/issues/213) ; il faudra alors ajouter au panneau une ligne pour chaque entreprise citée par les droits, sous le nom qu'ils lui donnent)* |
+| MC-12 | **Tout ce que porte une planification se filtre par la planification** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : semaines, séances, exercices planifiés, leurs documents et tags, débriefs et médias se lisent à travers une chaîne de relations jusqu'à `Plan`, puis ses droits et les liens de son athlète — jusqu'à quatre niveaux de sous-requêtes, même pour le propriétaire, là où leur `coachId` dénormalisé suffisait. Rien n'est plus lent de façon mesurable aux volumes de la bêta. | 🟢 | — *(déclencheur : une lecture de planification ou de débriefs lente dans Axiom ; la sortie serait un `OR` qui teste d'abord la colonne `coachId` de l'enfant — égale à celle de sa racine, piège n°7 —, dans `sharedChild`, pour la bibliothèque aussi)* |
+| MC-13 | **La boîte des débriefs reste celle du propriétaire du cycle** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachFeedbackService` filtre `GET /feedbacks` et « marquer lu » sur le `coachId` du débrief. Un Coach à qui le cycle est ouvert lit le débrief dans le cycle, pas dans sa boîte, et n'en est pas notifié. « Lu » est un état unique sur le débrief, que deux lecteurs se disputeraient. | 🟢 | [#610](https://github.com/Cimavia/cimavia/issues/610) |
+| MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
+| MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 
 *Résolues, à l'[archive](archive.md) : MC-8.*
 
@@ -830,9 +834,10 @@ liste des domaines vivent dans l'index.
 >   `where` (« Tranché en #626 ») — un filtre de relation n'est pas dans la ligne rendue, ce tri
 >   est à reprouver par un e2e concurrent avant de s'y fier.
 > - **Réaffecter une planification est de l'administration, mais c'est un `update`** : l'opération
->   Prisma ne le dit pas, et l'extension ne lit pas les données pour le deviner. Laissé à #607, qui
->   ouvre l'écriture des planifications à d'autres Coachs. Supprimer une racine (exercice, séance,
->   planification) est, lui, classé `admin` par modèle (`root: true`).
+>   Prisma ne le dit pas, et l'extension ne lit pas les données pour le deviner. Tenu par le
+>   service depuis #607 (`assertCan(…, "reassign")`, 403 à un rédacteur) ; pour l'extension, c'est
+>   une écriture. Supprimer une racine (exercice, séance, planification) est, lui, classé `admin`
+>   par modèle (`root: true`).
 >
 > Une création refusée par l'extension est une **erreur** (500), comme ses autres refus : chaque
 > service vérifie le parent avant d'écrire et répond 404 ; l'extension est la dernière ligne, pas
@@ -998,3 +1003,53 @@ liste des domaines vivent dans l'index.
 >   sans cache, AVANT d'enregistrer la séance : s'il n'est pas au Coach, un toast nomme son
 >   propriétaire, et la séance n'avance pas d'une version pour rien. Le 403 de l'API (#605, jusqu'à
 >   #609) reste la garde.
+
+> **Tranché en [#607](https://github.com/Cimavia/cimavia/issues/607)** (droits d'accès sur les
+> planifications et leurs factures) :
+>
+> - **Un droit ne vaut que pour les Coachs de l'athlète**, par un lien actif
+>   (`coachesOfPlanAthlete`) : un Coach de F qui ne suit pas TE ne voit pas son cycle, même si F a
+>   un droit, et le perd le jour où son lien prend fin. La condition vit dans le filtre ET dans
+>   l'octroi : ouvrir le cycle à une entreprise où personne d'autre ne suit l'athlète est refusé
+>   (400). Sans athlète, un cycle se partage comme un exercice.
+> - **`NONE` s'écrit sur la ligne entreprise d'un cycle, et dit « fermée exprès »** : « Aucun »
+>   choisi pour une entreprise dont le propriétaire est membre devient une ligne `NONE`, que le
+>   droit par défaut ne rouvre pas à la réaffectation. Ailleurs (exercice, séance), « Aucun » reste
+>   l'absence de ligne ; une entreprise quittée perd sa ligne. Les `NONE` ne ressortent pas dans
+>   `grants`. Écart à la note de la maquette #597, corrigée.
+> - **Le défaut s'applique à la naissance et à l'affectation, jamais rétroactivement** : un cycle
+>   né pour un athlète suivi via F, ou affecté à cet athlète, reçoit l'Écriture pour F
+>   (`defaultPlanGrant`), sauf si F y est déjà réglée. Aucune migration de données : les cycles
+>   créés avant #607 restent fermés tant que leur propriétaire ne les ouvre pas.
+> - **Changer d'athlète remet les droits ouverts à plat** : réaffecté ou détaché, un cycle perd
+>   ses lignes Lecture et Écriture, décidées pour l'audience d'avant ; il garde ses « Aucun », puis
+>   reçoit le défaut du nouvel athlète. Détaché, il redevient privé — sans quoi il s'ouvrirait à
+>   toute l'entreprise. Un brouillon qui n'avait pas d'athlète garde les siennes : son audience ne
+>   fait que se restreindre aux Coachs du nouveau.
+> - **Restent au propriétaire** : supprimer le cycle, gérer ses accès (`GET /plans/:id/organizations`
+>   et `PATCH /plans/access`, 403 sinon) et le réaffecter — changer d'athlète, c'est changer qui
+>   le voit. Un rédacteur ne choisit donc pas le destinataire d'un cycle qui n'en a pas : il ne
+>   peut pas le diffuser. Renvoyer le même athlète passe en Écriture.
+> - **La facture suit son cycle** : on la lit si on lit le cycle, on en tient le statut et on
+>   l'annule en Écriture ; elle reste émise au nom du propriétaire, quel que soit le Coach qui
+>   diffuse. Sans cycle, elle reste privée. Ses rappels restent au propriétaire : le web et le
+>   mobile ne proposent la relance qu'à lui, et le rappel « en retard » d'une facture réglée par un
+>   autre se clôt au tick suivant (MC-14).
+> - **Copier une semaine reste permis en Lecture** : la source se lit, seule la cible doit
+>   s'écrire. Le rédacteur ne pose pas de rappel sur le cycle, pour la même raison que la facture.
+> - **La boîte des débriefs reste celle du propriétaire** jusqu'à #610 (MC-13) : un Coach à qui le
+>   cycle est ouvert en lit les débriefs dans le cycle, pas dans sa boîte. Un fil cite une séance ou
+>   un débrief de son athlète si **le Coach du fil** le lit — relu sous son filtre quand c'est
+>   l'athlète qui écrit.
+> - **Les vues agrégées nomment ce qui n'est pas à soi**, et seulement cela : « Partagé par M ·
+>   Lecture via F » sous le cycle ou la facture (planifications, tableau de bord, factures web et
+>   mobile). « Moi » sur chaque ligne noierait les quelques-unes qui comptent ; l'athlète, sans
+>   droit, ne voit rien de tel.
+> - **Le builder se fige en Lecture comme celui de la bibliothèque** (#606) : bandeau, champs
+>   désactivés, « Fermer » seul, ni ajout ni glisser ; la facturation se lit sans s'enregistrer.
+>   En Écriture tout se modifie, sauf ce qui reste au propriétaire. « Accès » n'apparaît qu'au
+>   propriétaire membre d'une entreprise ; le panneau ne propose que les entreprises éligibles, et
+>   dit qu'il n'y en a pas plutôt que d'afficher un tableau vide (frame 10). Une entreprise qu'un
+>   droit cite encore sans plus y être éligible — le lien de M a pris fin — y a sa ligne, qui ne
+>   propose que « Aucun » : le droit n'ouvre plus rien, mais se réveillerait au premier Coach de F
+>   qui suivrait l'athlète. La note « par défaut » ne s'affiche que si F a reçu l'Écriture.

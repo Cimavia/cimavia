@@ -11,6 +11,8 @@ type PlanBuilderActionsProps = {
    */
   version: string;
   isPublished: boolean;
+  /** Supprimer le cycle reste au propriétaire (#607) : ouvert en Écriture, il se diffuse seulement. */
+  canDelete: boolean;
   hasWeeks: boolean;
   /** Un cycle sans destinataire n'a personne à qui être diffusé (#144) — l'API refuse en 400. */
   hasAthlete: boolean;
@@ -70,6 +72,7 @@ export function PlanBuilderActions({
   planId,
   version,
   isPublished,
+  canDelete,
   hasWeeks,
   hasAthlete,
   isBillingFilled,
@@ -103,24 +106,26 @@ export function PlanBuilderActions({
     <>
       {/* Un cycle diffusé ne se supprime pas : sa facture est émise et l'athlète s'entraîne dessus.
           Le span qui portait la raison restait muet : le bouton y posait son propre `title`. */}
-      <CmvConfirmButton
-        label={t("plan.builder.delete")}
-        confirmLabel={t("common.confirmDelete")}
-        cancelLabel={t("common.cancel")}
-        disabled={isBusy}
-        {...deleteBlocked}
-        onConfirm={() =>
-          removePlan.mutate(atVersion, {
-            onSuccess: () => {
-              onDeleted();
-              navigate({
-                to: "/plans",
-                search: { q: undefined, state: undefined, athlete: undefined },
-              });
-            },
-          })
-        }
-      />
+      {canDelete ? (
+        <CmvConfirmButton
+          label={t("plan.builder.delete")}
+          confirmLabel={t("common.confirmDelete")}
+          cancelLabel={t("common.cancel")}
+          disabled={isBusy}
+          {...deleteBlocked}
+          onConfirm={() =>
+            removePlan.mutate(atVersion, {
+              onSuccess: () => {
+                onDeleted();
+                navigate({
+                  to: "/plans",
+                  search: { q: undefined, state: undefined, athlete: undefined },
+                });
+              },
+            })
+          }
+        />
+      ) : null}
 
       {/* La diffusion est irréversible et exige au moins une semaine ET une facturation saisie
           (l'API refuse sinon), et ne part pas sur une saisie non enregistrée ni pendant une

@@ -8,10 +8,10 @@ import type { Prisma } from "@prisma/client";
  *   retirer une semaine ou un document ;
  * - `admin` : supprimer une RACINE (exercice, séance, planification), qui reste au propriétaire.
  *
- * Gérer les accès d'un élément et réaffecter une planification (#607) sont aussi de
- * l'administration, mais l'opération Prisma ne les dit pas. Gérer les accès vise un autre modèle,
- * `AccessGrant`, que seul le propriétaire atteint (#605) ; réaffecter est un `update` comme un
- * autre, et se décidera avec #607.
+ * Gérer les accès d'un élément et réaffecter une planification sont aussi de l'administration, mais
+ * l'opération Prisma ne les dit pas. Gérer les accès vise un autre modèle, `AccessGrant`, que seul
+ * le propriétaire atteint (#605) ; réaffecter est un `update` comme un autre, que `PlanService`
+ * réserve au propriétaire avant d'écrire (#607).
  */
 export type OperationClass = "read" | "write" | "admin";
 
@@ -84,37 +84,54 @@ export function grantedTo(actorId: string, operation: "read" | "write"): TenantF
 }
 
 /**
- * Une RACINE d'élément partageable (#605) — exercice, séance : l'acteur en est propriétaire, ou un
- * droit le vise au niveau qu'exige l'opération. L'administration (supprimer l'élément) ne regarde
- * que la colonne.
+ * Une RACINE d'élément partageable (#605) — exercice, séance, planification : l'acteur en est
+ * propriétaire, ou un droit le vise au niveau qu'exige l'opération. L'administration (supprimer
+ * l'élément) ne regarde que la colonne.
+ *
+ * `audience` borne ceux qu'un droit peut atteindre, au-delà de leurs entreprises : pour une
+ * planification, les seuls Coachs de son athlète (#607). Le propriétaire n'y est pas soumis.
  *
  * Le composé passe sous `AND` : posé à plat, son `OR` écraserait celui de l'appelant, et sa
  * recherche ou son filtre de tags deviendraient le filtre tenant — ou l'inverse.
  */
-export function sharedRoot(ownerColumn: string): CapabilityScope {
+export function sharedRoot(
+  ownerColumn: string,
+  audience?: (actorId: string) => TenantFilter,
+): CapabilityScope {
+  const granted = (actorId: string, operation: "read" | "write"): TenantFilter => {
+    const grant = { accessGrants: { some: grantedTo(actorId, operation) } };
+    return audience == null ? grant : { AND: [grant, audience(actorId)] };
+  };
   return {
     where: (actorId, operation) =>
       operation === "admin"
         ? { [ownerColumn]: actorId }
-        : {
-            AND: [
-              {
-                OR: [
-                  { [ownerColumn]: actorId },
-                  { accessGrants: { some: grantedTo(actorId, operation) } },
-                ],
-              },
-            ],
-          },
+        : { AND: [{ OR: [{ [ownerColumn]: actorId }, granted(actorId, operation)] }] },
     owner: ownerColumn,
     parent: null,
   };
 }
 
 /**
+ * Ceux qu'un droit sur une planification peut atteindre (#607) : les Coachs de son athlète, par un
+ * lien actif — un Coach de F qui ne suit pas l'athlète n'y voit rien, même si F a un droit. Sans
+ * athlète (#144), la planification se partage comme un exercice.
+ */
+export function coachesOfPlanAthlete(actorId: string): TenantFilter {
+  return {
+    OR: [
+      { athleteId: null },
+      { athlete: { athleteRelations: { some: { coachId: actorId, status: "ACTIVE" } } } },
+    ],
+  };
+}
+
+/**
  * Un enfant d'élément partageable (#605) : filtré à travers sa racine, créé avec le propriétaire de
- * son parent. Documents et tags suivent l'exercice, exercices de séance suivent la séance — un
- * rédacteur y écrit, la ligne reste chez le propriétaire (piège n°7).
+ * son parent. Documents et tags suivent l'exercice, exercices de séance suivent la séance, et tout
+ * ce que porte une planification la suit (#607) — un rédacteur y écrit, la ligne reste chez le
+ * propriétaire (piège n°7). `root` est le scope du parent DIRECT : le petit-enfant s'y filtre à
+ * travers lui, jusqu'à la racine.
  */
 export function sharedChild(
   relation: string,
@@ -122,6 +139,28 @@ export function sharedChild(
   parent: ParentLink,
 ): CapabilityScope {
   return childOf({ ...throughRoot(relation, root), owner: root.owner }, parent);
+}
+
+/**
+ * Un enfant à parent OPTIONNEL (#607) — la facture : sans parent, privée à son propriétaire ; avec,
+ * elle suit son parent pour la même classe, et se crée chez le propriétaire de ce parent.
+ */
+export function optionalChild(
+  relation: string,
+  root: CapabilityScope,
+  parent: ParentLink & { optional: true },
+): CapabilityScope {
+  const owner = ownerColumnOrThrow(root, parent.model);
+  const withParent = throughRoot(relation, root);
+  return {
+    where: (actorId, operation) => ({
+      AND: [
+        { OR: [{ [parent.key]: null, [owner]: actorId }, withParent.where(actorId, operation)] },
+      ],
+    }),
+    owner,
+    parent,
+  };
 }
 
 /**
@@ -159,18 +198,27 @@ const coachOwner = column("coachId");
 const athleteOwner = column("athleteId");
 const issuingOrganization = column("organizationId");
 
-// Exercices et séances s'ouvrent aux entreprises (#605) ; les planifications suivront avec #607.
+// Exercices et séances s'ouvrent aux entreprises (#605), les planifications aux Coachs de leur
+// athlète (#607).
 const sharedExercise = sharedRoot("coachId");
 const sharedSession = sharedRoot("coachId");
+const sharedPlan = sharedRoot("coachId", coachesOfPlanAthlete);
 const ofExercise = sharedChild("exercise", sharedExercise, {
   model: "Exercise",
   key: "exerciseId",
 });
-const ofPlan = childOf(coachOwner, { model: "Plan", key: "planId" });
-const ofScheduledExercise = childOf(coachOwner, {
+const ofPlan = sharedChild("plan", sharedPlan, { model: "Plan", key: "planId" });
+const ofScheduledSession = sharedChild("scheduledSession", ofPlan, {
+  model: "ScheduledSession",
+  key: "scheduledSessionId",
+});
+const ofScheduledExercise = sharedChild("scheduledSessionExercise", ofScheduledSession, {
   model: "ScheduledSessionExercise",
   key: "scheduledSessionExerciseId",
 });
+// Le débrief et ses médias, créés par l'athlète : le Coach les lit à travers la séance, ne les
+// crée pas (`owner` à `null`).
+const feedbackOfSession = throughRoot("scheduledSession", ofPlan);
 
 /**
  * Le MÊME scope pour les deux capacités : c'est ce qui ouvre le modèle à une route sans capacité
@@ -206,24 +254,24 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   // Les droits accordés (#605) : le propriétaire seul les lit et les gère. Celui qui en bénéficie
   // ne les lit pas ici : son droit se calcule sur l'élément qu'il ouvre.
   AccessGrant: { coach: column("ownerId") },
-  Plan: { coach: coachOwner, athlete: athleteOwner, root: true },
+  Plan: { coach: sharedPlan, athlete: athleteOwner, root: true },
   PlanWeek: { coach: ofPlan },
   ScheduledSession: { coach: ofPlan, athlete: athleteOwner },
-  ScheduledSessionExercise: {
-    coach: childOf(coachOwner, { model: "ScheduledSession", key: "scheduledSessionId" }),
-    athlete: athleteOwner,
-  },
+  ScheduledSessionExercise: { coach: ofScheduledSession, athlete: athleteOwner },
   ScheduledSessionExerciseDocument: { coach: ofScheduledExercise },
   ScheduledSessionExerciseTag: { coach: ofScheduledExercise },
-  SessionFeedback: { coach: coachOwner, athlete: athleteOwner },
+  SessionFeedback: { coach: feedbackOfSession, athlete: athleteOwner },
   // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
   // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
-  FeedbackMedia: { coach: coachOwner, athlete: athleteOwner },
+  FeedbackMedia: {
+    coach: throughRoot("sessionFeedback", feedbackOfSession),
+    athlete: athleteOwner,
+  },
   Conversation: { coach: coachOwner, athlete: athleteOwner },
   Message: { coach: coachOwner, athlete: athleteOwner },
-  // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593).
+  // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593, #607).
   Invoice: {
-    coach: childOf(coachOwner, { model: "Plan", key: "planId", optional: true }),
+    coach: optionalChild("plan", sharedPlan, { model: "Plan", key: "planId", optional: true }),
     athlete: athleteOwner,
   },
   PushToken: sameForBoth(column("userId")),

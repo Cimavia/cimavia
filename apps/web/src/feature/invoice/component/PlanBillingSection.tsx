@@ -32,6 +32,11 @@ type PlanBillingSectionProps = {
    */
   billing: InvoiceDto | null | undefined;
   /**
+   * Le cycle d'un autre Coach, ouvert en Lecture (#607) : ses termes et son justificatif se lisent,
+   * rien ne s'y saisit ni ne s'y joint. En Écriture, la facturation se saisit comme la sienne.
+   */
+  readOnly: boolean;
+  /**
    * La saisie diffère des termes enregistrés : « Diffuser » émet la facture ENREGISTRÉE, et se
    * ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
    */
@@ -89,6 +94,7 @@ export function PlanBillingSection({
   isPublished,
   hasAthlete,
   billing,
+  readOnly,
   onDirtyChange,
 }: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
@@ -169,7 +175,9 @@ export function PlanBillingSection({
       <form onSubmit={onSubmit} className="flex flex-col gap-cmv-md">
         <div className="flex flex-col gap-cmv-xs">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("invoice.billing.title")}</h2>
-          <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.hint")}</p>
+          <p className="text-cmv-caption text-cmv-text-lo">
+            {t(readOnly ? "invoice.billing.readOnlyHint" : "invoice.billing.hint")}
+          </p>
         </div>
 
         <div className="grid gap-cmv-md md:grid-cols-2">
@@ -182,7 +190,8 @@ export function PlanBillingSection({
             placeholder={t("invoice.billing.amountPlaceholder")}
             min={0}
             required
-            requiredMark
+            requiredMark={!readOnly}
+            disabled={readOnly}
           />
           <CmvTextField
             label={t("invoice.billing.dueDate")}
@@ -191,11 +200,14 @@ export function PlanBillingSection({
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
             required
-            requiredMark
+            requiredMark={!readOnly}
+            disabled={readOnly}
           />
         </div>
 
-        <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+        {readOnly ? null : (
+          <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
+        )}
 
         <CmvTextArea
           label={t("invoice.billing.note")}
@@ -205,28 +217,62 @@ export function PlanBillingSection({
           onChange={(event) => setNote(event.target.value)}
           placeholder={t("invoice.billing.notePlaceholder")}
           rows={2}
+          disabled={readOnly}
         />
 
-        <div>
-          <CmvButton type="submit" variant="secondary" disabled={!canSubmit || save.isPending}>
-            {save.isPending ? t("invoice.billing.saving") : t("invoice.billing.save")}
-          </CmvButton>
-        </div>
+        {readOnly ? null : (
+          <div>
+            <CmvButton type="submit" variant="secondary" disabled={!canSubmit || save.isPending}>
+              {save.isPending ? t("invoice.billing.saving") : t("invoice.billing.save")}
+            </CmvButton>
+          </div>
+        )}
       </form>
 
       {/* Justificatif PDF : disponible une fois les termes enregistrés (l'API le rattache à la
           facture DRAFT). Tant que rien n'est saisi, on invite à enregistrer d'abord. */}
       <div className="mt-cmv-md flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-md">
         <h3 className="text-cmv-body text-cmv-text-hi">{t("invoice.billing.document")}</h3>
-        {billing == null ? (
-          <p className="text-cmv-caption text-cmv-text-lo">
-            {t("invoice.billing.documentAfterSave")}
-          </p>
-        ) : (
-          <BillingDocument planId={planId} billing={billing} />
-        )}
+        <BillingDocumentSlot planId={planId} billing={billing} readOnly={readOnly} />
       </div>
     </CmvCard>
+  );
+}
+
+/**
+ * Le justificatif, ou ce qui en tient lieu. Tant que rien n'est saisi, on invite à enregistrer
+ * d'abord ; en Lecture, on dit seulement ce qui est joint — ou que rien ne l'est.
+ */
+function BillingDocumentSlot({
+  planId,
+  billing,
+  readOnly,
+}: Readonly<{ planId: string; billing: InvoiceDto | null | undefined; readOnly: boolean }>) {
+  const { t } = useTranslation();
+  if (readOnly) {
+    return billing?.documentUrl == null || billing.documentFileName == null ? (
+      <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.documentNone")}</p>
+    ) : (
+      <DocumentLink url={billing.documentUrl} fileName={billing.documentFileName} />
+    );
+  }
+  return billing == null ? (
+    <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.documentAfterSave")}</p>
+  ) : (
+    <BillingDocument planId={planId} billing={billing} />
+  );
+}
+
+function DocumentLink({ url, fileName }: Readonly<{ url: string; fileName: string }>) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-cmv-body text-cmv-accent hover:underline"
+    >
+      {fileName}
+    </a>
   );
 }
 
@@ -276,14 +322,7 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-cmv-sm">
-          <a
-            href={billing.documentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-cmv-body text-cmv-accent hover:underline"
-          >
-            {billing.documentFileName}
-          </a>
+          <DocumentLink url={billing.documentUrl} fileName={billing.documentFileName} />
           <CmvButton variant="ghost" disabled={busy} onClick={() => inputRef.current?.click()}>
             {t("invoice.billing.documentReplace")}
           </CmvButton>

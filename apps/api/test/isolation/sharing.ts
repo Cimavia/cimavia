@@ -1,10 +1,8 @@
 import { Role, STALE_WRITE } from "@cmv/shared";
-import { ClsService } from "nestjs-cls";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../src/tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../src/tenancy/tenancy.module";
-import { TENANT_CLS_KEY, type TenantContext } from "../../src/tenancy/tenant-context.type";
 import {
   type Agent,
   idOf,
@@ -16,6 +14,7 @@ import {
 import { app } from "../support/app";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { required } from "../support/required";
+import { asCoach } from "../support/tenant";
 import { deleteAtLatest, patchAtLatest, putAtLatest, versionOf } from "../support/version";
 
 /**
@@ -34,7 +33,6 @@ const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
 describe("Extension tenant : un droit accordé à une entreprise ouvre l'élément à ses Coachs", () => {
   let db: TenantPrisma;
   let prisma: PrismaService;
-  let cls: ClsService;
   let cId: string;
   let mId: string;
   let bId: string;
@@ -42,17 +40,7 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
   let exerciseId: string;
   let sessionId: string;
 
-  function as<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-    const actor: TenantContext = {
-      userId,
-      capabilities: { isCoach: true, isAthlete: false, isCompany: false },
-      exercised: "coach",
-    };
-    return cls.run(async () => {
-      cls.set(TENANT_CLS_KEY, actor);
-      return await fn();
-    });
-  }
+  const as = asCoach;
 
   /** Pose le droit de F sur l'exercice et la séance de C, ou le retire (`null`). */
   async function grantF(level: "READ" | "WRITE" | null): Promise<void> {
@@ -69,7 +57,6 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
   beforeAll(async () => {
     db = app.get<TenantPrisma>(TENANT_PRISMA);
     prisma = app.get(PrismaService);
-    cls = app.get(ClsService);
 
     const company = await signUpWith("share-ext-f@cmv.test", COMPANY);
     const c = await signUp("share-ext-c@cmv.test", Role.COACH);

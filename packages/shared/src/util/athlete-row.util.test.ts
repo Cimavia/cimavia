@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MyAccessLevel } from "../dto/access.schema";
 import { InvoiceStatus } from "../dto/invoice.schema";
 import { PlanStatus } from "../dto/plan.schema";
 import {
@@ -25,6 +26,8 @@ const LEA_PLAN = {
   startDate: "2026-10-19",
   weekCount: 4,
   status: PlanStatus.PUBLISHED,
+  coachName: "C",
+  myAccess: { level: MyAccessLevel.OWNER, via: null },
 };
 
 const FULL: AthleteRowsInput = {
@@ -76,6 +79,8 @@ describe("buildAthleteRows", () => {
       phase: "ONGOING",
       startDate: "2026-10-19",
       endDate: "2026-11-15",
+      coachName: "C",
+      myAccess: { level: MyAccessLevel.OWNER, via: null },
     });
   });
 
@@ -320,6 +325,8 @@ function planOf(phase: AthleteRowPlan["phase"]): AthleteRowPlan {
     phase,
     startDate: "2026-10-19",
     endDate: "2026-11-15",
+    coachName: "C",
+    myAccess: { level: MyAccessLevel.OWNER, via: null },
   };
 }
 
@@ -347,6 +354,18 @@ describe("currentAthletePlan", () => {
 
   it("élit le cycle diffusé de l'athlète", () => {
     expect(currentAthletePlan([LEA_PLAN], TODAY)?.id).toBe("pln_lea");
+  });
+
+  it("garde le propriétaire du cycle élu, et ce que l'acteur en peut (#607)", () => {
+    const shared = {
+      ...LEA_PLAN,
+      coachName: "M",
+      myAccess: { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } },
+    };
+    expect(currentAthletePlan([shared], TODAY)).toMatchObject({
+      coachName: "M",
+      myAccess: shared.myAccess,
+    });
   });
 });
 

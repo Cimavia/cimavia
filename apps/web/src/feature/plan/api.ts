@@ -1,7 +1,10 @@
 import type {
+  ChangeAccessInput,
+  CoachOrganizationDto,
   CopyPlanWeekInput,
   CreatePlanInput,
   CreateScheduledSessionInput,
+  ElementAccessDto,
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
@@ -21,6 +24,8 @@ export const planKeys = {
   all: ["plans"] as const,
   list: () => ["plans", "list"] as const,
   detail: (planId: string) => ["plans", "detail", planId] as const,
+  // Sous la racine : changer les droits, réaffecter ou supprimer le cycle la rend périmée.
+  organizations: (planId: string) => ["plans", "organizations", planId] as const,
 };
 
 // Racine distincte : une séance planifiée n'est PAS un plan — mêmes clés = cache écrasé.
@@ -56,6 +61,17 @@ export function deletePlan(planId: string, query: VersionQuery): Promise<void> {
 // cycle affiché (#604) : réaffecté depuis, il ne part pas chez un athlète que l'écran ne montrait pas.
 export function publishPlan(planId: string, input: PublishPlanInput): Promise<PlanDto> {
   return api.post<PlanDto>(`/plans/${planId}/publish`, input);
+}
+
+// ── Accès (#607) ─────────────────────────────────────────────────────────────
+
+// Les entreprises à qui ouvrir le cycle, réduites aux Coachs de son athlète. Propriétaire seul.
+export function listPlanOrganizations(planId: string): Promise<CoachOrganizationDto[]> {
+  return api.get<CoachOrganizationDto[]>(`/plans/${planId}/organizations`);
+}
+
+export function changePlanAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
+  return api.patch<ElementAccessDto[]>("/plans/access", input);
 }
 
 // ── Semaines ─────────────────────────────────────────────────────────────────

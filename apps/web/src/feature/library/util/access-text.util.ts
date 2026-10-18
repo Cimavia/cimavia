@@ -5,6 +5,8 @@ import {
   isOwner,
   type MyAccess,
   type MyAccessLevel,
+  type SharedRight,
+  sharedRight,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 
@@ -58,9 +60,20 @@ function grantText(name: string, level: AccessLevel | MyAccessLevel, t: TFunctio
  * Le droit de l'acteur sur l'élément d'un autre, et d'où il le tient : « Lecture via F ». Sans
  * provenance (droit direct, #608), le niveau seul.
  */
-export function myRightText({ level, via }: MyAccess, t: TFunction): string {
+export function myRightText({ level, via }: MyAccess | SharedRight, t: TFunction): string {
   const levelText = t(`library.access.level.${level}`);
   return via == null
     ? levelText
     : t("library.access.via", { level: levelText, organization: via.name });
+}
+
+/**
+ * Sous un cycle ou une facture dans une liste (#607) : « Partagé par M · Lecture via F ». Ce qui
+ * s'en dit, et quand, est décidé par `sharedRight` ; ici, seule la traduction.
+ */
+export function sharedByText(owner: string, myAccess: MyAccess | null, t: TFunction) {
+  const right = sharedRight(myAccess);
+  return right == null
+    ? null
+    : t("library.access.sharedBy", { owner, level: myRightText(right, t) });
 }

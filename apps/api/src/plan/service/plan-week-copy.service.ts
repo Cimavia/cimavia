@@ -34,17 +34,18 @@ import { PlanService } from "./plan.service";
 export class PlanWeekCopyService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
-    // Contrôles d'appartenance du cycle et de la semaine : source unique (PlanService).
+    // Contrôles d'accès au cycle et à la semaine : source unique (PlanService).
     private readonly plans: PlanService,
   ) {}
 
   async copyWeek(targetWeekId: string, input: CopyPlanWeekInput): Promise<PlanDto> {
-    const target = await this.plans.getWeekOwnedOrThrow(targetWeekId);
+    const target = await this.plans.getWeekOrThrow(targetWeekId);
+    // Coller écrit dans le cycle CIBLE : il faut pouvoir l'écrire (#607). La source, elle, se lit.
+    const { plan: targetPlan } = await this.plans.getForOrThrow(target.planId, "write");
     const expected = new Date(input.expectedUpdatedAt);
     // Coller REMPLACE le contenu de la cible : sur une semaine qu'un autre Coach a garnie depuis
     // qu'on l'a vue, ce serait effacer son travail sans l'avoir vu (#604).
     assertReadAtVersion(target.updatedAt, expected);
-    const targetPlan = await this.plans.getOwnedOrThrow(target.planId);
 
     /**
      * Coller dans un cycle DIFFUSÉ est refusé (#4). Ce n'est pas une limite technique : chaque
@@ -65,15 +66,16 @@ export class PlanWeekCopyService {
 
     /**
      * La source est une référence ENTRANTE (elle vient du corps de la requête) : une FK n'impose
-     * pas le tenant, donc elle se valide comme possédée avant toute écriture. La requête étant
-     * scopée, la semaine d'un autre coach ne remonte pas — et se signale par un **400 « inconnue »**
+     * pas le tenant, donc elle se valide comme lisible avant toute écriture — la sienne, ou celle
+     * d'un cycle qu'on lui ouvre (#607). La requête étant scopée, une semaine illisible ne remonte
+     * pas — et se signale par un **400 « inconnue »**
      * plutôt qu'un 404, qui confirmerait au passage l'existence de l'id (architecture-choice §6).
      */
     const source = await this.db.planWeek.findFirst({ where: { id: input.sourcePlanWeekId } });
     if (source == null) {
       throw new BadRequestException("Semaine source inconnue");
     }
-    const sourcePlan = await this.plans.getOwnedOrThrow(source.planId);
+    const sourcePlan = await this.plans.getReadableOrThrow(source.planId);
 
     // Deux semaines lues en base : `weekNumber` ≥ 1 et `startDate` valide des deux côtés.
     const shiftDays = required(
@@ -86,7 +88,7 @@ export class PlanWeekCopyService {
 
     // Les `include` imbriqués ne sont pas scopés (architecture-choice §6, piège n°2) : ici ils
     // pendent à des séances déjà filtrées par le tenant, et portent le même tenant par
-    // construction — même lecture que `ScheduledSessionService.getOwnedOrThrow`.
+    // construction — même lecture que `ScheduledSessionService.getReadableOrThrow`.
     const sessions = await this.db.scheduledSession.findMany({
       where: { planWeekId: source.id },
       include: SESSION_DETAIL_INCLUDE,

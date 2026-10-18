@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addPlanWeek,
+  changePlanAccess,
   copyPlanWeek,
   createPlan,
   createScheduledSession,
@@ -9,6 +10,7 @@ import {
   deleteScheduledSession,
   getPlan,
   getScheduledSession,
+  listPlanOrganizations,
   listPlans,
   planKeys,
   publishPlan,
@@ -35,7 +37,7 @@ beforeEach(() => {
 
 describe("planKeys et scheduledSessionKeys", () => {
   it("garde les clés de cycle sous une racine commune, invalidée d'un seul geste", () => {
-    for (const key of [planKeys.list(), planKeys.detail("p-1")]) {
+    for (const key of [planKeys.list(), planKeys.detail("p-1"), planKeys.organizations("p-1")]) {
       expect(key.slice(0, 1)).toEqual(planKeys.all);
     }
   });
@@ -55,6 +57,18 @@ describe("planKeys et scheduledSessionKeys", () => {
 describe.each([
   ["listPlans", () => listPlans(), "get", ["/plans"]],
   ["getPlan", () => getPlan("p-1"), "get", ["/plans/p-1"]],
+  [
+    "listPlanOrganizations",
+    () => listPlanOrganizations("p-1"),
+    "get",
+    ["/plans/p-1/organizations"],
+  ],
+  [
+    "changePlanAccess",
+    () => changePlanAccess({ ids: ["p-1"], changes: [] }),
+    "patch",
+    ["/plans/access", { ids: ["p-1"], changes: [] }],
+  ],
   [
     "createPlan",
     () => createPlan({ title: "Bloc" } as never),

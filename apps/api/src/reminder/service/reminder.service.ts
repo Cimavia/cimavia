@@ -13,8 +13,11 @@ import {
 } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma, Reminder } from "@prisma/client";
+import { ClsService } from "nestjs-cls";
+import { ownedBy } from "../../access/access.mapper";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { currentActor } from "../../tenancy/tenant-context.type";
 import { type ReminderTargetLabels, toReminderDto } from "../reminder.mapper";
 
 /**
@@ -30,7 +33,10 @@ import { type ReminderTargetLabels, toReminderDto } from "../reminder.mapper";
  */
 @Injectable()
 export class ReminderService {
-  constructor(@Inject(TENANT_PRISMA) private readonly db: TenantPrisma) {}
+  constructor(
+    @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
+    private readonly cls: ClsService,
+  ) {}
 
   /**
    * Les rappels du coach : ceux **à traiter** d'abord (le plus en retard en tête), puis les traités
@@ -297,12 +303,17 @@ export class ReminderService {
    *
    * Une facture DRAFT est une cible valide : un rappel posé dans le builder reste légitime, et la
    * purge le nettoie si le cycle est supprimé.
+   *
+   * Appartenir, et non seulement se lire (#607) : un Coach lit aussi les cycles qu'on lui ouvre,
+   * mais les rappels restent au propriétaire — c'est lui que la purge du cycle nettoie. Un cycle
+   * ouvert reçoit donc le même 400 qu'un cycle inconnu.
    */
   private async assertTargetOwned(entityType: ReminderEntityType, entityId: string): Promise<void> {
+    const where = { id: entityId, ...ownedBy(currentActor(this.cls).userId) };
     const count =
       entityType === ReminderEntityType.PLAN
-        ? await this.db.plan.count({ where: { id: entityId } })
-        : await this.db.invoice.count({ where: { id: entityId } });
+        ? await this.db.plan.count({ where })
+        : await this.db.invoice.count({ where });
 
     if (count === 0) {
       throw new BadRequestException("Cible du rappel introuvable");

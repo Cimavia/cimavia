@@ -1,6 +1,7 @@
 import type {
   AttachInvoiceDocumentInput,
   InvoiceDto,
+  MyAccess,
   PlanBillingInput,
   RequestInvoiceDocumentUploadUrlInput,
   UpdateInvoiceStatusInput,
@@ -9,7 +10,9 @@ import type {
 import {
   DEFAULT_INVOICE_CURRENCY,
   InvoiceStatus,
+  MyAccessLevel,
   PlanStatus,
+  required,
   SIGNED_URL_TTL_SECONDS,
 } from "@cmv/shared";
 import {
@@ -20,12 +23,21 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Invoice, Plan, Prisma } from "@prisma/client";
+import { ClsService } from "nestjs-cls";
+import {
+  ACCESS_INCLUDE,
+  type AccessContext,
+  type AccessRow,
+  toAccessView,
+} from "../../access/access.mapper";
+import { AccessService } from "../../access/service/access.service";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { currentActor, exercisedOrThrow } from "../../tenancy/tenant-context.type";
 import { toDbDate, toIsoDate } from "../../util/date.util";
 import { toInvoiceDto } from "../invoice.mapper";
 
@@ -40,6 +52,10 @@ import { toInvoiceDto } from "../invoice.mapper";
  * Les lectures `list`/`get` ne servent QUE des factures émises (DRAFT exclu — il ne vit que dans le
  * builder). Le scope tenant filtre par coachId ou athleteId selon l'acteur ; `upsert` étant interdit
  * par le client tenant, `saveDraft` fait findFirst + create/update.
+ *
+ * La facture SUIT son cycle (#607) : un Coach qui lit le cycle d'un autre en lit la facture, et
+ * l'Écriture lui en ouvre la gestion — termes, justificatif, statut. Elle reste émise au nom du
+ * propriétaire du cycle (`coachId`, recopié du cycle par l'extension).
  */
 /**
  * Un cycle dont on peut facturer les termes : brouillon, et surtout ADRESSÉ à quelqu'un. Depuis
@@ -55,6 +71,8 @@ export class InvoiceService {
     private readonly users: UserDirectoryService,
     private readonly storage: StorageService,
     private readonly reminders: ReminderService,
+    private readonly access: AccessService,
+    private readonly cls: ClsService,
   ) {}
 
   // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
@@ -70,7 +88,7 @@ export class InvoiceService {
    * `null` par construction, et un 400 disait seulement « tu n'avais pas le droit de demander ».
    */
   async getDraftByPlan(planId: string): Promise<InvoiceDto | null> {
-    await this.getOwnedPlanOrThrow(planId);
+    await this.getReadablePlanOrThrow(planId);
     const draft = await this.db.invoice.findFirst({
       where: { planId, status: InvoiceStatus.DRAFT },
     });
@@ -223,14 +241,7 @@ export class InvoiceService {
       orderBy: { issuedAt: "desc" },
     });
     if (invoices.length === 0) return [];
-
-    const [names, planTitles] = await Promise.all([
-      this.resolveNames(invoices),
-      this.resolvePlanTitles(invoices),
-    ]);
-    return Promise.all(
-      invoices.map((invoice) => toInvoiceDto(invoice, names, planTitles, this.storage)),
-    );
+    return this.toDtos(invoices);
   }
 
   async get(id: string): Promise<InvoiceDto> {
@@ -318,24 +329,23 @@ export class InvoiceService {
    * s'affiche de nouveau en retard.
    */
   async updateStatus(id: string, input: UpdateInvoiceStatusInput): Promise<InvoiceDto> {
-    const invoice = await this.getIssuedOrThrow(id);
+    const { invoice, plan } = await this.getWritableIssuedOrThrow(id);
     // Une annulation est définitive : la rouvrir par le toggle contournerait la garde de `cancel`.
     if (invoice.status === InvoiceStatus.CANCELLED) {
       throw new ConflictException("Facture annulée : son statut ne change plus");
     }
+    if (invoice.status === input.status) return this.toDto(invoice, plan);
 
-    if (invoice.status !== input.status) {
-      const paid = input.status === InvoiceStatus.PAID;
-      await this.db.$transaction(async (tx) => {
-        await tx.invoice.update({
-          where: { id },
-          data: { status: input.status, paidAt: paid ? new Date() : null },
-        });
-        if (paid) await this.reminders.closeInvoiceOverdue(tx, id);
+    const paid = input.status === InvoiceStatus.PAID;
+    const updated = await this.db.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { status: input.status, paidAt: paid ? new Date() : null },
       });
-    }
-
-    return this.get(id);
+      if (paid) await this.reminders.closeInvoiceOverdue(tx, id);
+      return row;
+    });
+    return this.toDto(updated, plan);
   }
 
   /**
@@ -345,28 +355,34 @@ export class InvoiceService {
    * de route inverse. Son rappel « en retard » est clos dans la même transaction (#349).
    */
   async cancel(id: string): Promise<InvoiceDto> {
-    const invoice = await this.getIssuedOrThrow(id);
+    const { invoice, plan } = await this.getWritableIssuedOrThrow(id);
     if (invoice.status !== InvoiceStatus.PENDING) {
       throw new ConflictException("Seule une facture en attente de règlement peut être annulée");
     }
 
-    await this.db.$transaction(async (tx) => {
-      await tx.invoice.update({ where: { id }, data: { status: InvoiceStatus.CANCELLED } });
+    const cancelled = await this.db.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.CANCELLED },
+      });
       await this.reminders.closeInvoiceOverdue(tx, id);
+      return row;
     });
-    return this.get(id);
+    return this.toDto(cancelled, plan);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /**
-   * Le cycle du coach courant, et rien de plus. Le scope tenant fait le tri : le cycle d'un autre
-   * coach est introuvable, pas interdit.
+   * Un cycle que le Coach peut LIRE — le sien, ou un cycle qu'on lui ouvre (#607). Le scope tenant
+   * fait le tri : un cycle illisible est introuvable, pas interdit.
    *
    * Séparé des refus de saisie (#211) pour que la LECTURE des termes puisse s'y appuyer seule.
    */
-  private async getOwnedPlanOrThrow(planId: string): Promise<Plan> {
-    const plan = await this.db.plan.findFirst({ where: { id: planId } });
+  private async getReadablePlanOrThrow(
+    planId: string,
+  ): Promise<Prisma.PlanGetPayload<{ include: typeof ACCESS_INCLUDE }>> {
+    const plan = await this.db.plan.findFirst({ where: { id: planId }, include: ACCESS_INCLUDE });
     if (plan == null) {
       throw new NotFoundException("Cycle introuvable");
     }
@@ -374,12 +390,12 @@ export class InvoiceService {
   }
 
   /**
-   * Le cycle du coach courant sur lequel on peut SAISIR des termes : brouillon, adressé, et pas à
-   * soi-même. Les trois refus sont des règles d'écriture — la lecture, elle, passe par
-   * `getOwnedPlanOrThrow` (#211).
+   * Le cycle sur lequel on peut SAISIR des termes : ouvert en écriture au Coach (403 en Lecture,
+   * #607), brouillon, adressé, et pas à soi-même. Ces refus sont des règles d'écriture — la
+   * lecture, elle, passe par `getReadablePlanOrThrow` (#211).
    */
   private async getDraftablePlanOrThrow(planId: string): Promise<BillablePlan> {
-    const plan = await this.getOwnedPlanOrThrow(planId);
+    const { row: plan } = await this.access.loadFor(this.getReadablePlanOrThrow(planId), "write");
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
     }
@@ -407,6 +423,24 @@ export class InvoiceService {
     return { ...plan, athleteId: plan.athleteId };
   }
 
+  /**
+   * Une facture émise dont le Coach peut changer le statut : la sienne, ou celle d'un cycle qu'on
+   * lui ouvre en écriture (#607) — 403 en Lecture. Hors cycle, la lire c'est déjà en être le
+   * propriétaire : elle reste privée.
+   *
+   * Rend le cycle et le contexte qui ont jugé du droit : la réponse en tire le DTO sans les relire.
+   */
+  private async getWritableIssuedOrThrow(
+    id: string,
+  ): Promise<{ invoice: Invoice; plan: LoadedPlan | null }> {
+    const invoice = await this.getIssuedOrThrow(id);
+    const plan =
+      invoice.planId == null
+        ? null
+        : await this.access.loadFor(this.getReadablePlanOrThrow(invoice.planId), "write");
+    return { invoice, plan };
+  }
+
   // Une facture ÉMISE (DRAFT exclu) : le brouillon se lit via getDraftByPlan, pas par id.
   private async getIssuedOrThrow(id: string): Promise<Invoice> {
     const invoice = await this.db.invoice.findFirst({
@@ -430,28 +464,93 @@ export class InvoiceService {
     return draft;
   }
 
-  private async toDto(invoice: Invoice): Promise<InvoiceDto> {
-    const [names, planTitles] = await Promise.all([
-      this.resolveNames([invoice]),
-      this.resolvePlanTitles([invoice]),
+  /** `plan` : son cycle, déjà lu avec le contexte qui a jugé du droit — rien n'est relu. */
+  private async toDto(invoice: Invoice, plan?: LoadedPlan | null): Promise<InvoiceDto> {
+    const [dto] = await this.toDtos([invoice], plan);
+    return required(dto, "[invoice] une facture, un DTO");
+  }
+
+  private async toDtos(invoices: Invoice[], plan?: LoadedPlan | null): Promise<InvoiceDto[]> {
+    const [names, plans] = await Promise.all([
+      this.resolveNames(invoices),
+      this.resolvePlans(invoices, plan),
     ]);
-    return toInvoiceDto(invoice, names, planTitles, this.storage);
+    return Promise.all(
+      invoices.map((invoice) =>
+        toInvoiceDto(invoice, names, plans.titles, plans.accessOf(invoice), this.storage),
+      ),
+    );
   }
 
   private resolveNames(invoices: Invoice[]): Promise<Map<string, string>> {
     return this.users.namesByIds(invoices.flatMap((i) => [i.coachId, i.athleteId]));
   }
 
-  // Titres des cycles facturés, en une requête scopée (jamais un include imbriqué).
-  private async resolvePlanTitles(invoices: Invoice[]): Promise<Map<string, string>> {
-    const planIds = invoices.map((i) => i.planId).filter((id): id is string => id != null);
-    if (planIds.length === 0) return new Map();
-    const plans = await this.db.plan.findMany({
-      where: { id: { in: planIds } },
-      select: { id: true, title: true },
-    });
-    return new Map(plans.map((plan) => [plan.id, plan.title]));
+  /**
+   * Titres des cycles facturés, en une requête scopée (jamais un include imbriqué), et le droit du
+   * Coach sur chaque facture : celui qu'il a sur son cycle (#607).
+   *
+   * L'athlète n'a pas de droit à dire — il est le destinataire de ses factures —, et ne charge que
+   * les titres : les droits accordés aux entreprises ne le regardent pas.
+   *
+   * `loaded` : le cycle d'une facture seule, déjà lu par sa garde d'écriture.
+   */
+  private async resolvePlans(
+    invoices: Invoice[],
+    loaded?: LoadedPlan | null,
+  ): Promise<InvoicePlans> {
+    const planIds = [
+      ...new Set(invoices.map((i) => i.planId).filter((id): id is string => id != null)),
+    ];
+    const where = { id: { in: planIds } };
+    if (exercisedOrThrow(currentActor(this.cls)) === "athlete") {
+      const plans =
+        planIds.length === 0
+          ? []
+          : await this.db.plan.findMany({ where, select: { id: true, title: true } });
+      return { titles: titlesOf(plans), accessOf: () => null };
+    }
+
+    const [plans, context] =
+      loaded == null
+        ? await Promise.all([
+            planIds.length === 0
+              ? []
+              : this.db.plan.findMany({
+                  where,
+                  select: { id: true, title: true, ...ACCESS_INCLUDE },
+                }),
+            this.access.context(),
+          ])
+        : [[loaded.row], loaded.context];
+    const byId = new Map(plans.map((plan) => [plan.id, plan]));
+    return {
+      titles: titlesOf(plans),
+      accessOf: (invoice) => {
+        // Hors cycle, la facture reste privée : la lire, c'est en être le propriétaire.
+        if (invoice.planId == null) return { level: MyAccessLevel.OWNER, via: null };
+        // Lisible, la facture l'est par son cycle (`optionalChild`) : le cycle l'est donc aussi.
+        const plan = required(
+          byId.get(invoice.planId),
+          `[invoice] cycle ${invoice.planId} illisible`,
+        );
+        return toAccessView(plan, context).myAccess;
+      },
+    };
   }
+}
+
+/** Le cycle d'une facture, lu par sa garde d'écriture avec le contexte qui en a jugé. */
+type LoadedPlan = { row: AccessRow & { title: string }; context: AccessContext };
+
+/** Les cycles d'un lot de factures : leurs titres, et le droit du lecteur sur chaque facture. */
+type InvoicePlans = {
+  titles: Map<string, string>;
+  accessOf: (invoice: Invoice) => MyAccess | null;
+};
+
+function titlesOf(plans: readonly { id: string; title: string }[]): Map<string, string> {
+  return new Map(plans.map((plan) => [plan.id, plan.title]));
 }
 
 // Mois civil facturé "YYYY-MM", dérivé du début du cycle. Source unique de la dérivation.

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { IoArrowDown, IoArrowUp, IoChevronDown, IoChevronForward } from "react-icons/io5";
 import type { CompositionRow } from "@/feature/plan/hook/useComposition";
 import {
+  CMV_EDIT,
   CmvButton,
   CmvDragHandle,
   CmvEmptyState,
@@ -28,6 +29,11 @@ type CompositionEditorProps<T extends CompositionRow> = {
   onNoteChange: (key: string, value: string) => void;
   /** Sans lui, la ligne ne se déplie pas : elle n'a que son ordre et sa note. */
   detail?: (item: T) => CompositionDetail;
+  /**
+   * La séance d'un cycle ouvert en Lecture (#607) : chaque ligne se déplie encore pour qu'on lise
+   * son dosage, rien ne s'y déplace, ne s'y retire ni ne s'y saisit.
+   */
+  readOnly?: boolean;
 };
 
 // La liste ordonnée des exercices d'une séance : ordre, note, retrait — et, dépliée, son détail.
@@ -38,6 +44,7 @@ export function CompositionEditor<T extends CompositionRow>({
   onRemove,
   onNoteChange,
   detail,
+  readOnly = false,
 }: Readonly<CompositionEditorProps<T>>) {
   const { t } = useTranslation();
   const drag = useReorderDrag(onMoveTo);
@@ -69,12 +76,16 @@ export function CompositionEditor<T extends CompositionRow>({
           rowProps={drag.rowProps(index)}
           isDropTarget={drag.isOver(index)}
           isDragging={drag.isDragging(index)}
+          readOnly={readOnly}
           dragHandle={
-            <CmvDragHandle
-              label={`${moveLabel} ${index + 1}`}
-              {...drag.handleProps(index)}
-              onMove={(direction) => onMove(index, direction)}
-            />
+            // Sans poignée, rien ne se glisse : les lignes n'ont rien à recevoir.
+            readOnly ? null : (
+              <CmvDragHandle
+                label={`${moveLabel} ${index + 1}`}
+                {...drag.handleProps(index)}
+                onMove={(direction) => onMove(index, direction)}
+              />
+            )
           }
         />
       ))}
@@ -96,6 +107,7 @@ type CompositionEditorRowProps = {
   /** La cible de dépôt se teinte ICI : le fond de la ligne masquerait une teinte posée au-dessus. */
   isDropTarget: boolean;
   isDragging: boolean;
+  readOnly: boolean;
 };
 
 function CompositionEditorRow({
@@ -111,6 +123,7 @@ function CompositionEditorRow({
   dragHandle,
   isDropTarget,
   isDragging,
+  readOnly,
 }: Readonly<CompositionEditorRowProps>) {
   const { t } = useTranslation();
   // Replié par défaut, comme la carte du constructeur : six grilles dépliées sont illisibles.
@@ -146,28 +159,37 @@ function CompositionEditorRow({
 
         {/* Les flèches doublent le glisser, inaccessible au clavier — même dispositif que la
             carte de composition du constructeur de séance. */}
-        <CmvButton
-          variant="ghost"
-          title={t("plan.session.moveUp")}
-          disabled={isFirst}
-          onClick={() => onMove(index, -1)}
-        >
-          <IoArrowUp />
-        </CmvButton>
-        <CmvButton
-          variant="ghost"
-          title={t("plan.session.moveDown")}
-          disabled={isLast}
-          onClick={() => onMove(index, 1)}
-        >
-          <IoArrowDown />
-        </CmvButton>
-        <CmvButton variant="danger" onClick={() => onRemove(item.key)}>
-          {t("plan.session.remove")}
-        </CmvButton>
+        {readOnly ? null : (
+          <>
+            <CmvButton
+              variant="ghost"
+              title={t("plan.session.moveUp")}
+              disabled={isFirst}
+              onClick={() => onMove(index, -1)}
+            >
+              <IoArrowUp />
+            </CmvButton>
+            <CmvButton
+              variant="ghost"
+              title={t("plan.session.moveDown")}
+              disabled={isLast}
+              onClick={() => onMove(index, 1)}
+            >
+              <IoArrowDown />
+            </CmvButton>
+            <CmvButton variant="danger" onClick={() => onRemove(item.key)}>
+              {t("plan.session.remove")}
+            </CmvButton>
+          </>
+        )}
       </div>
 
-      {open ? detail?.body : null}
+      {/* Déplié en Lecture, le dosage se lit sans se saisir : le `fieldset` fige sa grille. */}
+      {open ? (
+        <fieldset disabled={readOnly} className={CMV_EDIT.group}>
+          {detail?.body}
+        </fieldset>
+      ) : null}
 
       <CmvTextField
         label={t("plan.session.noteLabel")}
@@ -176,6 +198,7 @@ function CompositionEditorRow({
         value={item.note}
         onChange={(event) => onNoteChange(item.key, event.target.value)}
         placeholder={t("plan.session.notePlaceholder")}
+        disabled={readOnly}
       />
     </div>
   );

@@ -54,6 +54,7 @@ function Week({
           date={date}
           sessions={sessions}
           isBusy={false}
+          readOnly={false}
           drag={drag}
           onAddSession={vi.fn()}
           onEditSession={onEditSession}
