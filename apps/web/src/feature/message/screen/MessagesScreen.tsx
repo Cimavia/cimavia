@@ -1,8 +1,10 @@
 import {
+  type ConversationDto,
   type ConversationRelation,
   type ConversationRow,
   conversationRows,
   counterpartOfConversation,
+  readMarkOf,
   type TrainingCapability,
 } from "@cmv/shared";
 import type { UseQueryResult } from "@tanstack/react-query";
@@ -64,6 +66,7 @@ function CoachMessages() {
           key={row.counterpartId}
           athleteId={row.counterpartId}
           athleteName={row.counterpartName}
+          listed={row.conversation}
         />
       )}
     />
@@ -102,6 +105,7 @@ function AthleteMessages() {
           key={row.counterpartId}
           coachId={row.counterpartId}
           coachName={row.counterpartName}
+          listed={row.conversation}
         />
       )}
     />
@@ -209,17 +213,25 @@ function ConversationsView({
   );
 }
 
+/**
+ * `listed` : le fil tel que la liste sondée le porte, `null` si elle ne le porte pas encore. C'est
+ * elle qui suit ma marque de lecture (#611) — `readMarkOf` dit pourquoi.
+ */
+type ThreadProps = Readonly<{ listed: ConversationDto | null }>;
+
 // Résout le fil avec l'athlète sélectionné (get-or-create) avant de le rendre.
 function CoachThread({
   athleteId,
   athleteName,
-}: Readonly<{ athleteId: string; athleteName: string }>) {
+  listed,
+}: ThreadProps & Readonly<{ athleteId: string; athleteName: string }>) {
   const conversation = useConversationWith(athleteId);
 
   return (
     <MessageThread
       conversationId={conversation.data?.id}
       counterpartName={athleteName}
+      lastReadAt={readMarkOf(listed, conversation.data)}
       hasResolveError={conversation.isError}
       onRetry={() => conversation.refetch()}
     />
@@ -227,13 +239,18 @@ function CoachThread({
 }
 
 // Résout le fil avec le coach sélectionné (get-or-create) avant de le rendre (#599).
-function AthleteThread({ coachId, coachName }: Readonly<{ coachId: string; coachName: string }>) {
+function AthleteThread({
+  coachId,
+  coachName,
+  listed,
+}: ThreadProps & Readonly<{ coachId: string; coachName: string }>) {
   const conversation = useConversationWithCoach(coachId);
 
   return (
     <MessageThread
       conversationId={conversation.data?.id}
       counterpartName={coachName}
+      lastReadAt={readMarkOf(listed, conversation.data)}
       hasResolveError={conversation.isError}
       onRetry={() => conversation.refetch()}
     />

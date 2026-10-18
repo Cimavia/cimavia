@@ -57,7 +57,6 @@ const debrief = (signedAt: string): SessionFeedbackDto => ({
       scheduledSessionId: null,
       sessionFeedbackId: "f1",
       attachment: null,
-      readAt: null,
       createdAt: "2026-09-25T12:00:00.000Z",
     },
   ],

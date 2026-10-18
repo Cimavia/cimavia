@@ -20,6 +20,11 @@ type MessageThreadProps = {
    */
   conversationId: string | undefined;
   counterpartName: string;
+  /**
+   * MA marque de lecture dans ce fil (#611), lue dans la liste sondée — pas dans le fil résolu,
+   * dont la résolution ne se rejoue pas. `null` : rien n'est encore lu.
+   */
+  lastReadAt: string | null;
   /** La résolution du fil a échoué — distinct d'un échec de chargement des messages. */
   hasResolveError: boolean;
   onRetry: () => void;
@@ -32,6 +37,7 @@ type MessageThreadProps = {
 export function MessageThread({
   conversationId,
   counterpartName,
+  lastReadAt,
   hasResolveError,
   onRetry,
 }: Readonly<MessageThreadProps>) {
@@ -54,7 +60,7 @@ export function MessageThread({
   // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
   // dans `message-read.util`. `markRead` n'invalide que la liste de fils (pas les messages) : pas
   // de boucle.
-  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null);
+  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null, lastReadAt);
   const [readMarker] = useState(createReadMarker);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {

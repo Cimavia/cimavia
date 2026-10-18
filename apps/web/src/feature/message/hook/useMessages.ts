@@ -33,7 +33,11 @@ export function useConversationWith(athleteId: string | null) {
   // à ce titre, quel que soit l'univers où il a atterri.
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId ?? ""),
-    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
+    queryFn: () =>
+      messageApi.createConversation(
+        { participants: [{ userId: athleteId as string, capability: "athlete" }] },
+        "coach",
+      ),
     enabled: athleteId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -47,7 +51,11 @@ export function useConversationWith(athleteId: string | null) {
 export function useConversationWithCoach(coachId: string | null) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWithCoach(coachId ?? ""),
-    queryFn: () => messageApi.openConversation({ coachId: coachId as string }, "athlete"),
+    queryFn: () =>
+      messageApi.createConversation(
+        { participants: [{ userId: coachId as string, capability: "coach" }] },
+        "athlete",
+      ),
     enabled: coachId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });

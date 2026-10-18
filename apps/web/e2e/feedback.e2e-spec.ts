@@ -74,7 +74,9 @@ test.describe("Le débrief d'un cycle partagé", () => {
     // M répond depuis son fil avec l'athlète, rattaché au débrief.
     const [feedback] = await json<{ id: string }[]>(await m.api.get("/feedbacks"), "boîte de M");
     const thread = await json<{ id: string }>(
-      await m.api.post("/conversations", { data: { athleteId } }),
+      await m.api.post("/conversations", {
+        data: { participants: [{ userId: athleteId, capability: "athlete" }] },
+      }),
       "fil de M",
     );
     await json(

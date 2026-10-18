@@ -887,7 +887,7 @@ export {
 } from "./util/message-attachment.util";
 export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
-export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export { createReadMarker, lastUnreadIncomingId, readMarkOf } from "./util/message-read.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export { adoptMetrics, remapCustomMetrics } from "./util/metric-adoption.util";
 export {

@@ -5,10 +5,10 @@ import { messageKeys } from "@/feature/message/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useConversations, useConversationWith, useThreadMessages } from "./useMessages";
 
-const { getMessagesMock, listConversationsMock, openConversationMock } = vi.hoisted(() => ({
+const { getMessagesMock, listConversationsMock, createConversationMock } = vi.hoisted(() => ({
   getMessagesMock: vi.fn(),
   listConversationsMock: vi.fn(),
-  openConversationMock: vi.fn(),
+  createConversationMock: vi.fn(),
 }));
 
 vi.mock("@/feature/message/api", async (importOriginal) => ({
@@ -16,7 +16,7 @@ vi.mock("@/feature/message/api", async (importOriginal) => ({
   messageApi: {
     getMessages: getMessagesMock,
     listConversations: listConversationsMock,
-    openConversation: openConversationMock,
+    createConversation: createConversationMock,
   },
 }));
 
@@ -39,14 +39,13 @@ const voiceNote = (signedAt: string): MessageDto => ({
   scheduledSessionId: null,
   sessionFeedbackId: null,
   attachment: null,
-  readAt: null,
   createdAt: "2026-09-25T12:00:00.000Z",
 });
 
 beforeEach(() => {
   getMessagesMock.mockReset();
   listConversationsMock.mockReset().mockResolvedValue([]);
-  openConversationMock.mockReset();
+  createConversationMock.mockReset();
 });
 
 describe("useThreadMessages", () => {
@@ -95,6 +94,6 @@ describe("useConversationWith", () => {
     const { result } = renderHook(() => useConversationWith(null), { wrapper });
 
     expect(result.current.fetchStatus).toBe("idle");
-    expect(openConversationMock).not.toHaveBeenCalled();
+    expect(createConversationMock).not.toHaveBeenCalled();
   });
 });

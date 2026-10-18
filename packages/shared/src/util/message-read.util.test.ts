@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MessageDto } from "../dto/message.schema";
-import { createReadMarker, lastUnreadIncomingId } from "./message-read.util";
+import { createReadMarker, lastUnreadIncomingId, readMarkOf } from "./message-read.util";
 
 const at = (minute: number) => `2026-09-27T10:${String(minute).padStart(2, "0")}:00.000Z`;
 
@@ -74,5 +74,26 @@ describe("createReadMarker", () => {
     marker.claim("m2");
     marker.release("m1");
     expect(marker.claim("m2")).toBe(false);
+  });
+});
+
+describe("readMarkOf", () => {
+  // La liste suit mes lectures ; le fil résolu garde la marque de son ouverture.
+  it("prend la marque de la liste plutôt que celle du fil résolu", () => {
+    expect(readMarkOf({ lastReadAt: at(5) }, { lastReadAt: at(1) })).toBe(at(5));
+  });
+
+  // Même `null` dans la liste : « rien lu » est une marque, pas une absence.
+  it("garde un « rien lu » de la liste", () => {
+    expect(readMarkOf({ lastReadAt: null }, { lastReadAt: at(1) })).toBeNull();
+  });
+
+  it("retombe sur le fil résolu tant que la liste ne le porte pas", () => {
+    expect(readMarkOf(undefined, { lastReadAt: at(1) })).toBe(at(1));
+    expect(readMarkOf(null, { lastReadAt: at(1) })).toBe(at(1));
+  });
+
+  it("ne rend rien tant que rien n'est chargé", () => {
+    expect(readMarkOf(undefined, undefined)).toBeNull();
   });
 });

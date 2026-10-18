@@ -534,7 +534,7 @@ function resolveMediaError(error: unknown, manualKey: string | null, t: TFunctio
  * ⚠️ **Lire ici ne marque RIEN comme lu.** `markRead` est par FIL, pas par message : l'appeler
  * depuis le débrief éteindrait le compteur de toute la messagerie, y compris pour des messages que
  * l'athlète n'a jamais vus. Le badge reste donc allumé jusqu'à l'ouverture du fil — conséquence
- * voulue, et cohérente avec « `Message.readAt` reste le seul marqueur ».
+ * voulue, et cohérente avec « la marque de lecture du participant reste le seul marqueur » (#611).
  *
  * Le fil est celui du coach DE LA SÉANCE (#599) : un athlète suivi par plusieurs coachs répond à
  * celui qui a programmé ce qu'il débriefe, pas à un coach choisi au hasard. `null` tant que la
