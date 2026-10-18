@@ -1,5 +1,6 @@
-import type { MessageDto } from "@cmv/shared";
+import type { ConversationDto, MessageDto } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
+import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationThread } from "@/feature/message/component/ConversationThread";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
@@ -84,21 +85,44 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof useSendMessageMedia>);
 });
 
-const base = {
-  conversationId: "cv-1",
-  lastReadAt: null,
-  isResolving: false,
-  hasResolveError: false,
-  onRetryResolve: vi.fn(),
-};
+function conversation(overrides: Partial<ConversationDto> = {}): ConversationDto {
+  return {
+    id: "cv-1",
+    kind: "DIRECT",
+    participants: [
+      { userId: "coach-1", name: "Chloé Caron", capability: "coach", lastReadAt: null },
+    ],
+    lastReadAt: null,
+    lastMessageAt: null,
+    lastMessageSenderId: null,
+    lastMessageType: null,
+    lastMessagePreview: null,
+    unreadCount: 0,
+    createdAt: "2026-10-18T09:00:00.000Z",
+    ...overrides,
+  };
+}
 
-describe("ConversationThread", () => {
-  it("attend tant que le fil n'est pas résolu, même si les messages sont là", () => {
-    const { queryByText } = renderRn(<ConversationThread {...base} isResolving />);
-    // Ni fil vide, ni composer : rien n'est encore décidé.
-    expect(queryByText("messages.empty.title")).toBeNull();
+// « M, TI » vu par C (planche M3) : TI a lu jusqu'à 10:40, M jamais.
+const group = (overrides: Partial<ConversationDto> = {}) =>
+  conversation({
+    kind: "GROUP",
+    participants: [
+      { userId: "m", name: "Marc Morel", capability: "coach", lastReadAt: null },
+      {
+        userId: "ti",
+        name: "Tia Iris",
+        capability: "athlete",
+        lastReadAt: "2026-10-18T10:40:00.000Z",
+      },
+    ],
+    ...overrides,
   });
 
+const base = { conversation: conversation() };
+const readTo = (lastReadAt: string) => ({ conversation: conversation({ lastReadAt }) });
+
+describe("ConversationThread", () => {
   // Les hooks du fil tournent AVANT le retour du chargement : ils lisent alors une liste vide,
   // pas un `undefined` — et rien n'est marqué lu tant que rien n'est arrivé (#512).
   it("ne marque rien et ne dit pas le fil vide pendant le chargement", () => {
@@ -109,37 +133,13 @@ describe("ConversationThread", () => {
     expect(markRead).not.toHaveBeenCalled();
   });
 
-  it("propose de recommencer la RÉSOLUTION quand il n'y a pas encore de fil", () => {
-    const onRetryResolve = vi.fn();
-    // Sans fil, la requête des messages est désactivée : TanStack la rend `isPending`, pas
-    // finie. C'est l'état réel, et c'est lui qui masquait l'erreur derrière un chargement.
-    mockMessages({ data: undefined, isPending: true });
-    const { container } = renderRn(
-      <ConversationThread
-        {...base}
-        conversationId={undefined}
-        hasResolveError
-        onRetryResolve={onRetryResolve}
-      />,
-    );
-
-    pressRetry(container);
-
-    expect(onRetryResolve).toHaveBeenCalledOnce();
-    expect(refetch).not.toHaveBeenCalled();
-  });
-
-  it("propose de recharger les MESSAGES quand le fil existe", () => {
-    const onRetryResolve = vi.fn();
+  it("propose de recharger les messages en échec", () => {
     mockMessages({ isError: true });
-    const { container } = renderRn(
-      <ConversationThread {...base} onRetryResolve={onRetryResolve} />,
-    );
+    const { container } = renderRn(<ConversationThread {...base} />);
 
     pressRetry(container);
 
     expect(refetch).toHaveBeenCalledOnce();
-    expect(onRetryResolve).not.toHaveBeenCalled();
   });
 
   it("marque lu dès qu'un message entrant n'est pas lu", async () => {
@@ -163,7 +163,7 @@ describe("ConversationThread", () => {
       dataUpdatedAt: 2,
     });
     // La liste a relu ma marque, posée sur m-1 : m-2 est arrivé après.
-    rerender(<ConversationThread {...base} lastReadAt="2026-10-18T10:00:00.000Z" />);
+    rerender(<ConversationThread {...readTo("2026-10-18T10:00:00.000Z")} />);
     await waitFor(() => {
       expect(markRead).toHaveBeenCalledTimes(2);
     });
@@ -201,7 +201,7 @@ describe("ConversationThread", () => {
   // #611 : ce qui précède ma marque de lecture est lu, quel que soit le message.
   it("ne marque rien quand ma marque couvre déjà le dernier entrant", async () => {
     mockMessages({ data: [message({ id: "m-1" })] });
-    renderRn(<ConversationThread {...base} lastReadAt="2026-10-18T10:00:00.000Z" />);
+    renderRn(<ConversationThread {...readTo("2026-10-18T10:00:00.000Z")} />);
     await waitFor(() => {
       expect(vi.mocked(useMessages)).toHaveBeenCalled();
     });
@@ -221,15 +221,6 @@ describe("ConversationThread", () => {
   it("ne marque pas lu ses PROPRES messages", async () => {
     mockMessages({ data: [message({ id: "m-2", senderId: "me" })] });
     renderRn(<ConversationThread {...base} />);
-    await waitFor(() => {
-      expect(vi.mocked(useMessages)).toHaveBeenCalled();
-    });
-    expect(markRead).not.toHaveBeenCalled();
-  });
-
-  it("ne marque pas lu sans fil, même avec des messages en cache", async () => {
-    mockMessages({ data: [message({})] });
-    renderRn(<ConversationThread {...base} conversationId={undefined} />);
     await waitFor(() => {
       expect(vi.mocked(useMessages)).toHaveBeenCalled();
     });
@@ -363,15 +354,6 @@ function pressIcon(container: HTMLElement, name: string): void {
 }
 
 describe("ConversationThread — autour du fil", () => {
-  /** L'écran pose ce qu'il veut au-dessus du fil — le sélecteur d'espace de l'athlète (#129). */
-  it("rend l'en-tête fourni par l'écran au-dessus du fil", () => {
-    const { queryByText } = renderRn(
-      <ConversationThread {...base} header={<span>sélecteur</span>} />,
-    );
-
-    expect(queryByText("sélecteur")).not.toBeNull();
-  });
-
   it("dit l'échec de l'envoi d'un texte", () => {
     vi.mocked(useSendMessage).mockReturnValue({
       mutate: vi.fn(),
@@ -381,5 +363,89 @@ describe("ConversationThread — autour du fil", () => {
     const { queryByText } = renderRn(<ConversationThread {...base} />);
 
     expect(queryByText("messages.sendError")).not.toBeNull();
+  });
+});
+
+describe("ConversationThread — en-tête (#612)", () => {
+  // La capacité, pas la provenance : « via F » reste dans le sélecteur (tranché en #598).
+  it("nomme l'autre et sa capacité dans un fil à deux", () => {
+    const { queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByText("Chloé Caron")).not.toBeNull();
+    expect(queryByText("messages.capability.coach")).not.toBeNull();
+  });
+
+  it("liste les participants et les compte, moi compris, à plusieurs", () => {
+    const { queryByText } = renderRn(<ConversationThread conversation={group()} />);
+
+    expect(queryByText("Marc Morel, Tia Iris")).not.toBeNull();
+    expect(queryByText("messages.participantCount")).not.toBeNull();
+  });
+
+  // Un fil dont l'autre compte a été effacé (MC-18) : on ne devine pas un nom.
+  it("rend « — » quand plus personne n'y figure", () => {
+    const { queryAllByText } = renderRn(
+      <ConversationThread conversation={conversation({ participants: [] })} />,
+    );
+
+    expect(queryAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("revient à la liste", () => {
+    const { container } = renderRn(<ConversationThread {...base} />);
+
+    pressIcon(container, "chevron-back");
+
+    expect(router.back).toHaveBeenCalled();
+  });
+
+  it("invite au premier message d'une conversation vide", () => {
+    const { queryByText } = renderRn(<ConversationThread conversation={group()} />);
+
+    expect(queryByText("messages.empty.title")).not.toBeNull();
+    expect(queryByText("messages.empty.description")).not.toBeNull();
+  });
+});
+
+describe("ConversationThread — à plusieurs (#612)", () => {
+  it("nomme l'auteur des bulles reçues, pas des miennes", () => {
+    mockMessages({
+      data: [
+        message({ id: "m-1", senderId: "m", content: "de M" }),
+        message({ id: "m-2", senderId: "me", content: "de moi" }),
+      ],
+    });
+    const { queryAllByText } = renderRn(<ConversationThread conversation={group()} />);
+
+    // Le titre porte « Marc Morel, Tia Iris » d'un tenant : le nom seul est celui de la bulle.
+    expect(queryAllByText("Marc Morel")).toHaveLength(1);
+    expect(queryAllByText("Tia Iris")).toHaveLength(0);
+  });
+
+  it("ne nomme personne dans un fil à deux", () => {
+    mockMessages({ data: [message({ id: "m-1", senderId: "coach-1" })] });
+    const { queryAllByText } = renderRn(<ConversationThread {...base} />);
+
+    // « Chloé Caron » n'apparaît que dans l'en-tête.
+    expect(queryAllByText("Chloé Caron")).toHaveLength(1);
+  });
+
+  // M3 : TI a lu mon dernier message, M non.
+  it("dit qui a lu mon dernier message", () => {
+    mockMessages({
+      data: [message({ id: "m-1", senderId: "me", createdAt: "2026-10-18T10:40:00.000Z" })],
+    });
+    const { queryByText } = renderRn(<ConversationThread conversation={group()} />);
+
+    expect(queryByText("messages.readBy")).not.toBeNull();
+  });
+
+  it("ne dit rien tant que personne ne l'a lu", () => {
+    mockMessages({
+      data: [message({ id: "m-1", senderId: "me", createdAt: "2026-10-18T11:00:00.000Z" })],
+    });
+    const { queryByText } = renderRn(<ConversationThread conversation={group()} />);
+
+    expect(queryByText("messages.readBy")).toBeNull();
   });
 });

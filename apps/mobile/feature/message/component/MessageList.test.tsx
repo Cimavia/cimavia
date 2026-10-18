@@ -1,4 +1,4 @@
-import type { MessageDto, VoiceNoteCue } from "@cmv/shared";
+import type { ConversationDto, MessageDto, VoiceNoteCue } from "@cmv/shared";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageList } from "@/feature/message/component/MessageList";
@@ -34,9 +34,21 @@ function message(id: string, type: "AUDIO" | "TEXT"): MessageDto {
 // La fin d'une note, telle que son lecteur l'annonce au fil.
 const finish = (id: string) => act(() => cues.get(url(id))?.onFinish());
 
+const DIRECT = {
+  id: "cv-1",
+  kind: "DIRECT",
+  participants: [{ userId: "athlete-1", name: "Léa", capability: "athlete", lastReadAt: null }],
+} as ConversationDto;
+
 function renderThread(messages: MessageDto[]) {
   return renderRn(
-    <MessageList messages={messages} currentUserId="coach-1" resolveMediaUrl={vi.fn()} />,
+    <MessageList
+      conversation={DIRECT}
+      messages={messages}
+      currentUserId="coach-1"
+      readBy={null}
+      resolveMediaUrl={vi.fn()}
+    />,
   );
 }
 
