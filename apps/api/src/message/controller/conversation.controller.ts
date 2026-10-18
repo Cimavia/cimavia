@@ -1,4 +1,4 @@
-import { type OpenConversationInput, openConversationSchema } from "@cmv/shared";
+import { type CreateConversationInput, createConversationSchema } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
@@ -15,19 +15,26 @@ export class ConversationController {
     private readonly messages: MessageService,
   ) {}
 
-  // Get-or-create : le client l'appelle à l'ouverture d'un fil pour obtenir un id stable.
+  // Get-or-create : mêmes participants, même conversation — le client l'appelle à l'ouverture
+  // d'un fil pour obtenir un id stable.
   @Post()
-  open(@Body(new ZodSchemaPipe(openConversationSchema)) dto: OpenConversationInput) {
-    return this.conversations.open(dto);
+  create(@Body(new ZodSchemaPipe(createConversationSchema)) dto: CreateConversationInput) {
+    return this.conversations.create(dto);
   }
 
-  // Liste des fils existants (surtout le coach, qui en a N).
+  // Liste des conversations de l'acteur, au titre exercé.
   @Get()
   list() {
     return this.conversations.list();
   }
 
-  // Marque lus les messages entrants du fil (appelé à l'ouverture de l'écran de conversation).
+  // Ceux que l'acteur peut réunir dans une conversation (#611).
+  @Get("candidates")
+  candidates() {
+    return this.conversations.candidatesOf();
+  }
+
+  // Pose la marque de lecture de l'acteur (appelé à l'ouverture de l'écran de conversation).
   @Post(":conversationId/read")
   @HttpCode(204)
   markRead(@Param("conversationId") conversationId: string) {

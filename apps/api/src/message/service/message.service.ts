@@ -1,7 +1,7 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
 import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { Conversation, Prisma } from "@prisma/client";
+import type { ConversationParticipant, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { assertKeyUnder } from "../../infra/storage/object-key";
@@ -17,7 +17,7 @@ import {
   type TenantContext,
 } from "../../tenancy/tenant-context.type";
 import { toMessageDto } from "../message.mapper";
-import { ConversationService } from "./conversation.service";
+import { ConversationService, type JoinedConversation } from "./conversation.service";
 import { MessageAttachmentResolver } from "./message-attachment.resolver";
 import { messageMediaKeyPrefix } from "./message-media.service";
 
@@ -26,7 +26,7 @@ type ResolvedAttachment = { scheduledSessionId: string | null; sessionFeedbackId
 
 /**
  * Messages d'un fil : lecture, envoi (texte ou média), marquage lu. Le fil est toujours résolu via
- * ConversationService (scope tenant → 404 si le fil n'appartient pas à l'acteur).
+ * ConversationService (scope tenant → 404 si l'acteur n'y participe pas).
  */
 @Injectable()
 export class MessageService {
@@ -41,15 +41,15 @@ export class MessageService {
     // Le « à propos de… » du message, résolu en lot et sous scope tenant.
     private readonly attachments: MessageAttachmentResolver,
     private readonly cls: ClsService,
-    // Client de BASE, pour une seule lecture : ce que le coach du fil lit, quand c'est l'athlète
-    // qui écrit (`assertCoachReads`).
+    // Client de BASE, pour une seule lecture : ce que les AUTRES Coachs du fil lisent
+    // (`coachesRead`).
     private readonly prisma: PrismaService,
   ) {}
 
   // Fil chronologique (du plus ancien au plus récent). Pas de pagination en MVP (dette P2-2) : le
-  // volume d'un fil 1:1 reste modeste ; à cursoriser si un fil devient très long.
+  // volume d'un fil reste modeste ; à cursoriser si un fil devient très long.
   async listMessages(conversationId: string): Promise<MessageDto[]> {
-    await this.conversations.getOwnedOrThrow(conversationId);
+    await this.conversations.getJoinedOrThrow(conversationId);
     const messages = await this.db.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: "asc" },
@@ -65,30 +65,35 @@ export class MessageService {
   // Envoi d'un message (texte ou média déjà uploadé). Le média a transité par l'object storage via
   // une URL PUT signée ; ici on ne persiste que la clé + les métadonnées, jamais le binaire.
   async send(conversationId: string, input: SendMessageInput): Promise<MessageDto> {
-    const conversation = await this.conversations.getOwnedOrThrow(conversationId);
+    const conversation = await this.conversations.getJoinedOrThrow(conversationId);
     const actor = currentActor(this.cls);
     // La clé du média vient du client : elle doit désigner un objet de CE fil (#293).
     if (input.type !== MessageType.TEXT) {
       assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
     }
 
-    // Le message ouvre-t-il une SÉRIE ? Oui si le destinataire n'a aucun non-lu de ma part dans ce
-    // fil — le passage « tout lu » → « non lu ». C'est le rythme de la trace (entrée de centre,
-    // e-mail), pas celui du push (#537).
+    // Le message ouvre-t-il une SÉRIE chez ce destinataire ? Oui s'il a lu mon dernier message —
+    // le passage « tout lu » → « non lu ». C'est le rythme de la trace (entrée de centre, e-mail),
+    // pas celui du push (#537), et il se lit destinataire par destinataire (#611) : chacun lit à
+    // son heure.
     //
     // Les AVIS de débrief ne comptent pas : posés au nom de l'athlète, ils restaient non lus chez
     // un coach qui travaille depuis la page Débriefs — et éteignaient le fil entier (#539).
-    const unreadFromMe = await this.db.message.count({
+    const latestFromMe = await this.db.message.findFirst({
       where: {
         conversationId,
         senderId: actor.userId,
-        readAt: null,
         type: { notIn: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
       },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
     });
+    const opensSeries = (recipient: ConversationParticipant) =>
+      latestFromMe == null ||
+      (recipient.lastReadAt != null && recipient.lastReadAt >= latestFromMe.createdAt);
 
     const attachment = await this.resolveAttachment(conversation, actor, input);
-    const data = buildMessageData(conversation, actor, input, attachment);
+    const data = buildMessageData(conversation.id, actor, input, attachment);
     const message = await this.db.$transaction(async (tx) => {
       const created = await tx.message.create({ data });
       // `lastMessageAt` sert au tri de la liste de fils, sans agréger les messages.
@@ -101,47 +106,67 @@ export class MessageService {
 
     // Un push par message, comme dans une messagerie — sauf la suite d'un lot de médias : six
     // photos d'une même sélection font un push, celui de la première arrivée (#537).
-    const channels = {
-      push: input.type === MessageType.TEXT || input.continuesBatch !== true,
-      trace: unreadFromMe === 0,
-    };
-    if (channels.push || channels.trace) {
-      const recipientId =
-        exercisedOrThrow(actor) === "coach" ? conversation.athleteId : conversation.coachId;
-      // L'id du destinataire vient d'un fil DÉJÀ scopé (jamais du client) : sûr pour le
-      // NotificationService, qui lit ses tokens hors tenant. Un échec de push ne remonte pas ici.
-      await this.notifications.notifyMessageReceived(
-        { recipientId, senderId: actor.userId, conversationId: conversation.id },
-        channels,
-      );
-    }
+    const push = input.type === MessageType.TEXT || input.continuesBatch !== true;
+    const recipients = conversation.participants.filter((p) => p.userId !== actor.userId);
+    // Les ids des destinataires viennent d'un fil DÉJÀ scopé (jamais du client) : sûrs pour le
+    // NotificationService, qui lit ses tokens hors tenant. Un échec de push ne remonte pas ici.
+    await Promise.all(
+      recipients.map(async (recipient) => {
+        const channels = { push, trace: opensSeries(recipient) };
+        if (!channels.push && !channels.trace) return;
+        await this.notifications.notifyMessageReceived(
+          {
+            recipientId: recipient.userId,
+            senderId: actor.userId,
+            conversationId: conversation.id,
+          },
+          channels,
+        );
+      }),
+    );
 
     const attachments = await this.attachments.resolve([message]);
     return toMessageDto(message, this.storage, attachments.get(message.id) ?? null);
   }
 
-  // Marque lus les messages ENTRANTS (envoyés par l'autre) encore non lus. Idempotent. Réarme la
-  // trace : après lecture, le prochain message du fil ouvre une nouvelle série.
+  /**
+   * Pose la marque de lecture de l'acteur (#611) sur le dernier message qu'il peut voir — pas sur
+   * l'horloge du serveur : un message déjà daté mais pas encore validé, ou daté par une autre
+   * instance, passerait pour lu sans avoir été montré. Idempotente, et jamais à reculons. Réarme la
+   * trace : après lecture, le prochain message ouvre une nouvelle série chez lui.
+   *
+   * Le scope d'écriture ne touche que SA ligne (`userId` + titre) : les autres participants
+   * gardent leur marque — chacun lit à son heure.
+   */
   async markRead(conversationId: string): Promise<void> {
-    await this.conversations.getOwnedOrThrow(conversationId);
-    const actor = currentActor(this.cls);
-    await this.db.message.updateMany({
-      where: { conversationId, senderId: { not: actor.userId }, readAt: null },
-      data: { readAt: new Date() },
+    await this.conversations.getJoinedOrThrow(conversationId);
+    const latest = await this.db.message.findFirst({
+      where: { conversationId },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    // Rien à lire : la marque reste ce qu'elle est.
+    if (latest == null) return;
+    await this.db.conversationParticipant.updateMany({
+      where: {
+        conversationId,
+        OR: [{ lastReadAt: null }, { lastReadAt: { lt: latest.createdAt } }],
+      },
+      data: { lastReadAt: latest.createdAt },
     });
   }
 
   /**
    * Valide le rattachement optionnel (« à propos de… ») : la FK n'impose pas le tenant, donc un id
    * entrant doit être prouvé lisible AVANT écriture. Deux gardes :
-   * - la cible doit tenir au fil : être de SON athlète (un coach a N athlètes : sa séance d'un
-   *   autre athlète n'a rien à faire ici), et lisible par SON coach — la sienne, ou celle d'un
-   *   cycle qu'on lui ouvre (#607) ;
+   * - la cible doit tenir au fil : TOUS ses participants la lisent (#611). Un athlète ne lit que
+   *   ses séances — sa séance d'un autre athlète n'a rien à faire ici —, un Coach les siennes et
+   *   celles d'un cycle qu'on lui ouvre (#607) ;
    * - côté athlète, une séance passe par AthletePlanService (filtre PUBLISHED) — le scope tenant,
    *   lui, laisserait référencer un brouillon du coach.
    */
   private async resolveAttachment(
-    conversation: Conversation,
+    conversation: JoinedConversation,
     actor: TenantContext,
     input: SendMessageInput,
   ): Promise<ResolvedAttachment> {
@@ -160,7 +185,7 @@ export class MessageService {
   }
 
   private async validateSession(
-    conversation: Conversation,
+    conversation: JoinedConversation,
     actor: TenantContext,
     id: string | null,
   ): Promise<string | null> {
@@ -173,9 +198,7 @@ export class MessageService {
     if (session == null) {
       throw new BadRequestException("Séance inconnue");
     }
-    const inThread =
-      session.athleteId === conversation.athleteId &&
-      (await this.coachReads(conversation, actor, "ScheduledSession", id));
+    const inThread = await this.everyoneReads(conversation, actor, session, "ScheduledSession");
     if (!inThread) {
       throw new BadRequestException("Séance hors de ce fil");
     }
@@ -183,7 +206,7 @@ export class MessageService {
   }
 
   private async validateFeedback(
-    conversation: Conversation,
+    conversation: JoinedConversation,
     actor: TenantContext,
     id: string | null,
   ): Promise<string | null> {
@@ -194,9 +217,16 @@ export class MessageService {
     if (feedback == null) {
       throw new BadRequestException("Débrief inconnu");
     }
-    const inThread =
-      feedback.athleteId === conversation.athleteId &&
-      (await this.coachReads(conversation, actor, "SessionFeedback", id));
+    // Un message rattaché à un débrief est une RÉPONSE à son athlète : il compte au « répondu » de
+    // la boîte (#610) et s'affiche dans le débrief. Deux Coachs qui en parlent entre eux ne lui
+    // répondent pas — le débrief ne se cite que là où il est.
+    const withItsAthlete = conversation.participants.some(
+      (p) => p.capability === "ATHLETE" && p.userId === feedback.athleteId,
+    );
+    if (!withItsAthlete) {
+      throw new BadRequestException("Débrief hors de ce fil");
+    }
+    const inThread = await this.everyoneReads(conversation, actor, feedback, "SessionFeedback");
     if (!inThread) {
       throw new BadRequestException("Débrief hors de ce fil");
     }
@@ -204,38 +234,44 @@ export class MessageService {
   }
 
   /**
-   * Le coach du fil lit-il la cible ? Écrite par lui, la lecture scopée qui vient de la trouver le
-   * prouve : il EST l'acteur. Écrite par l'athlète, rien ne le dit — l'athlète lit tous ses cycles,
-   * pas seulement ceux que ce coach-là partage. On relit alors la cible sous le filtre du coach du
-   * fil (`coachesWhoRead`).
+   * Tous les participants lisent-ils la cible (#611) ? L'acteur, oui : la lecture scopée qui vient
+   * de la trouver le prouve. Un athlète ne lit que les siennes — deux athlètes réunis ne peuvent
+   * donc rien citer. Un AUTRE Coach, rien ne le dit : l'athlète lit tous ses cycles, et C ne lit pas
+   * forcément ce que M partage. On relit alors la cible sous le filtre de chacun
+   * (`coachesWhoRead`).
    */
-  private async coachReads(
-    conversation: Conversation,
+  private async everyoneReads(
+    conversation: JoinedConversation,
     actor: TenantContext,
+    target: { id: string; athleteId: string | null },
     model: CoachReadModel,
-    id: string,
   ): Promise<boolean> {
-    if (exercisedOrThrow(actor) === "coach") return true;
-    const readers = await coachesWhoRead(this.prisma, model, id, [conversation.coachId]);
-    return readers.length > 0;
+    const others = conversation.participants.filter((p) => p.userId !== actor.userId);
+    const athletesRead = others
+      .filter((p) => p.capability === "ATHLETE")
+      .every((athlete) => athlete.userId === target.athleteId);
+    if (!athletesRead) return false;
+
+    const coachIds = others.filter((p) => p.capability === "COACH").map((p) => p.userId);
+    if (coachIds.length === 0) return true;
+    const readers = await coachesWhoRead(this.prisma, model, target.id, coachIds);
+    return readers.length === coachIds.length;
   }
 }
 
 /**
- * Champs Prisma d'un message. Les deux champs tenant sont recopiés du fil (l'extension n'injecte
- * que celui de l'acteur), `senderId` = l'auteur courant. Le rattachement a déjà été validé
- * (`resolveAttachment`) : on ne persiste ici que des ids possédés, ou null.
+ * Champs Prisma d'un message. `senderId` = l'auteur courant — l'extension l'injecte de toute façon,
+ * le fil n'est que vérifié (#611). Le rattachement a déjà été validé (`resolveAttachment`) : on ne
+ * persiste ici que des ids lisibles par tous, ou null.
  */
 function buildMessageData(
-  conversation: Conversation,
+  conversationId: string,
   actor: TenantContext,
   input: SendMessageInput,
   attachment: ResolvedAttachment,
 ): Prisma.MessageUncheckedCreateInput {
   const base = {
-    coachId: conversation.coachId,
-    athleteId: conversation.athleteId,
-    conversationId: conversation.id,
+    conversationId,
     senderId: actor.userId,
     scheduledSessionId: attachment.scheduledSessionId,
     sessionFeedbackId: attachment.sessionFeedbackId,

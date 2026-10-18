@@ -1,5 +1,9 @@
-import type { ConversationDto, OpenConversationInput } from "@cmv/shared";
-import { CoachAthleteStatus, MessageType, required } from "@cmv/shared";
+import type {
+  ConversationCandidatesDto,
+  ConversationDto,
+  CreateConversationInput,
+} from "@cmv/shared";
+import { MessageType, required } from "@cmv/shared";
 import {
   BadRequestException,
   ConflictException,
@@ -7,158 +11,183 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Conversation } from "@prisma/client";
+import type { Conversation, ConversationParticipant, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { currentActor, type TenantContext } from "../../tenancy/tenant-context.type";
 import {
-  currentActor,
-  exercisedOrThrow,
-  type TenantContext,
-} from "../../tenancy/tenant-context.type";
+  actorMemberOf,
+  byName,
+  type ConversationMember,
+  conversationKindOf,
+  directMembers,
+  participantCapabilityOf,
+  participantKeyOf,
+  trainingCapabilityOf,
+} from "../participant-key";
+import { ConversationCandidateService } from "./conversation-candidate.service";
+
+/** Une conversation et TOUS ses participants, l'acteur compris. */
+export type JoinedConversation = Conversation & { participants: ConversationParticipant[] };
+
+const iso = (date: Date | null) => date?.toISOString() ?? null;
 
 /**
- * Fil 1:1 coach ↔ athlète (CDC §5.8). Les DEUX rôles lisent et écrivent : le tenancy layer scope
- * par `coachId` OU `athleteId` selon l'acteur, et l'unicité `[coachId, athleteId]` garantit un
- * seul fil par relation — un athlète suivi par plusieurs coachs a donc un fil avec chacun (#599).
+ * Conversations à participants (#611), à deux ou à plusieurs : l'acteur ne voit que celles où il
+ * participe, AU TITRE qu'il exerce — la troisième forme de scope, par participation. Mêmes
+ * participants, même conversation : `participantKey` en est l'unicité, capacités comprises.
  *
- * La contrepartie (l'autre partie du fil) dépend de qui interroge : elle est résolue à partir de
- * l'acteur courant, lu dans le CLS — la conversation elle-même est symétrique.
+ * La vue dépend de qui interroge : `participants` nomme les autres, `lastReadAt` est la sienne.
  */
 @Injectable()
 export class ConversationService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly users: UserDirectoryService,
+    private readonly candidates: ConversationCandidateService,
     private readonly cls: ClsService,
   ) {}
 
   /**
-   * Ouvre le fil et le crée s'il n'existe pas. Idempotent : le client l'appelle à chaque ouverture
-   * d'écran pour obtenir un `conversationId` stable. Coach → cible un de SES athlètes ; athlète →
-   * un de SES coachs.
+   * Crée la conversation avec ces participants, ou rend celle qui les réunit déjà. Idempotent : le
+   * client l'appelle à l'ouverture d'un fil pour obtenir un `conversationId` stable.
+   *
+   * Deux refus, deux états (#198). Se nommer soi-même est **impossible** — on ne s'écrit pas, et
+   * l'auto-coaching n'a pas de lien : 409. Nommer quelqu'un que l'acteur ne peut pas réunir reste
+   * un 400 « inconnu », qui dit vrai : un lien ABSENT, qui apparaîtra le jour où il existe.
    */
-  async open(input: OpenConversationInput): Promise<ConversationDto> {
+  async create(input: CreateConversationInput): Promise<ConversationDto> {
     const actor = currentActor(this.cls);
-    const { coachId, athleteId } = await this.resolvePair(actor, input);
-    const conversation = await this.ensure(coachId, athleteId);
+    const others = input.participants.map(
+      (participant): ConversationMember => ({
+        userId: participant.userId,
+        capability: participantCapabilityOf(participant.capability),
+      }),
+    );
+    if (others.some((other) => other.userId === actor.userId)) {
+      throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
+    }
+    if (!(await this.candidates.reachesAll(others))) {
+      throw new BadRequestException("Participant inconnu");
+    }
+
+    const conversation = await this.ensureFor([actorMemberOf(actor), ...others]);
     const [dto] = await this.toDtos([conversation], actor);
-    return required(dto, "[message] conversation ouverte mais non mappable");
+    return required(dto, "[message] conversation créée mais non mappable");
   }
 
-  // Fils existants, du plus récemment actif au plus ancien (l'ordre utile au coach). Pas de
-  // pagination (cf. dette P2-2) — un coach a des dizaines d'athlètes, pas des milliers.
+  /** Ceux que l'acteur peut réunir — le sélecteur de #612. */
+  candidatesOf(): Promise<ConversationCandidatesDto> {
+    return this.candidates.list();
+  }
+
+  /**
+   * Conversations de l'acteur, de la plus récemment active à la plus ancienne : une conversation
+   * sans message se range à sa création. Pas de pagination (cf. dette P2-2).
+   */
   async list(): Promise<ConversationDto[]> {
     const actor = currentActor(this.cls);
-    const conversations = await this.db.conversation.findMany({
-      orderBy: { lastMessageAt: "desc" },
-    });
-    return this.toDtos(conversations, actor);
+    const conversations = await this.withParticipants(await this.db.conversation.findMany());
+    const dtos = await this.toDtos(conversations, actor);
+    const activity = (dto: ConversationDto) => dto.lastMessageAt ?? dto.createdAt;
+    return dtos.sort((a, b) => activity(b).localeCompare(activity(a)));
   }
 
-  // La conversation possédée par l'acteur courant, ou 404. Point d'entrée du MessageService : le
-  // scope tenant garantit qu'un fil d'un autre tenant ne remonte jamais.
-  async getOwnedOrThrow(conversationId: string): Promise<Conversation> {
+  /**
+   * La conversation où l'acteur participe, ou 404. Point d'entrée du MessageService : le scope
+   * tenant garantit qu'une conversation où il n'est pas ne remonte jamais.
+   */
+  async getJoinedOrThrow(conversationId: string): Promise<JoinedConversation> {
     const conversation = await this.db.conversation.findFirst({ where: { id: conversationId } });
     if (conversation == null) {
       throw new NotFoundException("Conversation introuvable");
     }
-    return conversation;
+    const [joined] = await this.withParticipants([conversation]);
+    return required(joined, `[message] conversation ${conversationId} sans participants`);
+  }
+
+  /** Le fil direct d'un Coach et d'un athlète, s'il existe — sans le créer. */
+  findDirect(coachId: string, athleteId: string): Promise<JoinedConversation | null> {
+    return this.findByKey(participantKeyOf(directMembers(coachId, athleteId)));
   }
 
   /**
-   * Résout le couple (coach, athlète) du fil selon l'acteur. La FK n'impose pas le tenant : on
-   * VÉRIFIE que l'autre bout est bien lié à l'acteur (relation active), dans les deux sens — le
-   * coach vise un de SES athlètes, l'athlète un de SES coachs (#599). Un athlète autonome (0 coach)
-   * n'a pas de messagerie.
-   *
-   * Trois refus, et trois ÉTATS distincts (#198). Se viser soi-même est **impossible** : le CHECK
-   * `coach_athlete_not_self` (#11) interdit la relation, donc aucune requête ne pourra jamais la
-   * trouver — c'est un 409, le même que le refus d'auto-relation, et pour la même raison. Viser un
-   * tiers qui n'est pas lié reste un 400 « inconnu », qui dit vrai — l'athlète sans coach compris :
-   * une relation ABSENTE, pas une relation impossible, qui apparaîtra le jour où il en rejoint un.
+   * Le fil direct d'un Coach et d'un athlète, créé s'il n'existe pas. Public parce que l'ouverture
+   * par un utilisateur n'est pas le seul chemin : le serveur y pose aussi les avis de débrief (#96),
+   * pour un athlète qui n'a peut-être jamais ouvert la messagerie.
    */
-  private async resolvePair(
-    actor: TenantContext,
-    input: OpenConversationInput,
-  ): Promise<{ coachId: string; athleteId: string }> {
-    if (exercisedOrThrow(actor) === "coach") {
-      if (input.athleteId == null) {
-        throw new BadRequestException("athleteId requis pour ouvrir un fil");
-      }
-      await this.assertLinked(actor, { athleteId: input.athleteId }, "Athlète inconnu");
-      return { coachId: actor.userId, athleteId: input.athleteId };
-    }
-
-    // L'athlète a 0..N coachs (#599) : sans désigner lequel, il n'y a pas de fil à résoudre.
-    if (input.coachId == null) {
-      throw new BadRequestException("coachId requis pour ouvrir un fil");
-    }
-    await this.assertLinked(actor, { coachId: input.coachId }, "Coach inconnu");
-    return { coachId: input.coachId, athleteId: actor.userId };
+  ensure(coachId: string, athleteId: string): Promise<JoinedConversation> {
+    return this.ensureFor(directMembers(coachId, athleteId));
   }
 
   /**
-   * L'autre bout du fil est-il lié à l'acteur ? Le filtre tenant ajoute l'acteur à sa colonne
-   * (`coachId` ou `athleteId` selon la capacité) : il ne reste qu'à nommer l'autre.
+   * `findUnique` + `create` (l'`upsert` Prisma est interdit par le client tenant). La course entre
+   * deux ouvertures simultanées est inoffensive : le second `create` viole `participantKey` (P2002)
+   * → on relit la conversation déjà posée.
    *
-   * Soi-même AVANT la relation, et pas à la place du `null` qu'elle rendrait : chercher `moi` dans
-   * l'autre colonne ne peut rien trouver, et le refus tomberait en « inconnu » — un état faux.
-   * L'autre bout est parfaitement connu, c'est soi.
+   * L'extension n'admet la création que si l'acteur est parmi les participants, à son titre ; les
+   * autres viennent de l'appelant, qui les a vérifiés (`create`) ou choisis (`ensure`).
    */
-  private async assertLinked(
-    actor: TenantContext,
-    other: { athleteId: string } | { coachId: string },
-    unknown: string,
-  ): Promise<void> {
-    if (Object.values(other).includes(actor.userId)) {
-      throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
-    }
-    const relation = await this.db.coachAthlete.findFirst({
-      where: { ...other, status: CoachAthleteStatus.ACTIVE },
-    });
-    if (relation == null) {
-      throw new BadRequestException(unknown);
-    }
-  }
-
-  /**
-   * Le fil d'une relation, créé s'il n'existe pas. Public parce que l'ouverture par un utilisateur
-   * n'est plus le seul chemin : le serveur y pose aussi les avis de débrief (#96), pour un athlète
-   * qui n'a peut-être jamais ouvert la messagerie — donc dont le fil n'existe pas encore.
-   *
-   * `findFirst` + `create` (l'`upsert` Prisma est interdit par le client tenant). La course entre
-   * deux ouvertures simultanées est inoffensive : le second `create` viole `[coachId, athleteId]`
-   * (P2002) → on relit le fil déjà posé.
-   */
-  async ensure(coachId: string, athleteId: string): Promise<Conversation> {
-    const existing = await this.db.conversation.findFirst({ where: { coachId, athleteId } });
+  private async ensureFor(members: readonly ConversationMember[]): Promise<JoinedConversation> {
+    const participantKey = participantKeyOf(members);
+    const existing = await this.findByKey(participantKey);
     if (existing != null) return existing;
 
+    const data: Prisma.ConversationCreateInput = {
+      kind: conversationKindOf(members),
+      participantKey,
+      participants: {
+        create: members.map((member) => ({ userId: member.userId, capability: member.capability })),
+      },
+    };
     try {
-      // Les deux champs tenant sont fournis explicitement (l'extension n'injecte que celui de
-      // l'acteur) — même dénormalisation que PlanWeek / le débrief.
-      return await this.db.conversation.create({ data: { coachId, athleteId } });
+      const [created] = await this.withParticipants([await this.db.conversation.create({ data })]);
+      return required(created, "[message] conversation créée sans participants");
     } catch (error) {
       if (isUniqueViolation(error)) {
-        const raced = await this.db.conversation.findFirst({ where: { coachId, athleteId } });
+        const raced = await this.findByKey(participantKey);
         if (raced != null) return raced;
       }
       throw error;
     }
   }
 
+  private async findByKey(participantKey: string): Promise<JoinedConversation | null> {
+    const conversation = await this.db.conversation.findUnique({ where: { participantKey } });
+    if (conversation == null) return null;
+    const [joined] = await this.withParticipants([conversation]);
+    return required(joined, `[message] conversation ${conversation.id} sans participants`);
+  }
+
+  /**
+   * Les participants de ces conversations, en une requête scopée — pas un `include`, que
+   * l'extension tenant ne filtre pas : elle ne voit que la requête de tête.
+   */
+  private async withParticipants(conversations: Conversation[]): Promise<JoinedConversation[]> {
+    if (conversations.length === 0) return [];
+    const participants = await this.db.conversationParticipant.findMany({
+      where: { conversationId: { in: conversations.map((conversation) => conversation.id) } },
+    });
+    return conversations.map((conversation) => ({
+      ...conversation,
+      participants: participants.filter((p) => p.conversationId === conversation.id),
+    }));
+  }
+
   private async toDtos(
-    conversations: Conversation[],
+    conversations: JoinedConversation[],
     actor: TenantContext,
   ): Promise<ConversationDto[]> {
     if (conversations.length === 0) return [];
     const ids = conversations.map((conversation) => conversation.id);
-    const asCoach = exercisedOrThrow(actor) === "coach";
-    const counterpartId = (conversation: Conversation) =>
-      asCoach ? conversation.athleteId : conversation.coachId;
+    const mine = (conversation: JoinedConversation) =>
+      required(
+        conversation.participants.find((participant) => participant.userId === actor.userId),
+        `[message] l'acteur ne participe pas à ${conversation.id}`,
+      );
 
     // Dernier message de chaque fil (aperçu) : `distinct` garde la 1re ligne par conversation dans
     // l'ordre demandé — donc la plus récente.
@@ -169,35 +198,55 @@ export class ConversationService {
     });
     const lastByConversation = new Map(lastMessages.map((m) => [m.conversationId, m]));
 
-    // Non-lus DU point de vue de l'acteur : messages entrants (envoyés par l'autre) sans `readAt`.
+    // Non-lus DU point de vue de l'acteur : les messages des autres, créés après SA marque de
+    // lecture — tous, s'il n'a encore rien lu.
     const unread = await this.db.message.groupBy({
       by: ["conversationId"],
-      where: { conversationId: { in: ids }, readAt: null, senderId: { not: actor.userId } },
+      where: {
+        senderId: { not: actor.userId },
+        OR: conversations.map((conversation) => {
+          const lastReadAt = mine(conversation).lastReadAt;
+          return lastReadAt == null
+            ? { conversationId: conversation.id }
+            : { conversationId: conversation.id, createdAt: { gt: lastReadAt } };
+        }),
+      },
       _count: { _all: true },
     });
     const unreadByConversation = new Map(
       unread.map((row) => [row.conversationId, row._count._all]),
     );
 
-    // Un seul aller-retour pour les noms de contrepartie (User est hors scope tenant).
-    const names = await this.users.namesByIds(conversations.map(counterpartId));
+    // Un seul aller-retour pour les noms des autres (User est hors scope tenant).
+    const others = (conversation: JoinedConversation) =>
+      conversation.participants.filter((participant) => participant.userId !== actor.userId);
+    const names = await this.users.namesByIds(
+      conversations.flatMap((conversation) => others(conversation).map((p) => p.userId)),
+    );
 
     return conversations.map((conversation) => {
-      const otherId = counterpartId(conversation);
-      const name = required(
-        names.get(otherId),
-        `[message] fil ${conversation.id} sans contrepartie résolue`,
-      );
       const last = lastByConversation.get(conversation.id) ?? null;
+      const participants = others(conversation).map((participant) => ({
+        userId: participant.userId,
+        name: required(
+          names.get(participant.userId),
+          `[message] participant ${participant.userId} de ${conversation.id} sans nom`,
+        ),
+        capability: trainingCapabilityOf(participant.capability),
+        lastReadAt: iso(participant.lastReadAt),
+      }));
       return {
         id: conversation.id,
-        counterpartId: otherId,
-        counterpartName: name,
-        lastMessageAt: conversation.lastMessageAt?.toISOString() ?? null,
+        kind: conversation.kind,
+        participants: participants.sort(byName),
+        lastReadAt: iso(mine(conversation).lastReadAt),
+        lastMessageAt: iso(conversation.lastMessageAt),
+        lastMessageSenderId: last?.senderId ?? null,
         lastMessageType: last?.type ?? null,
         // Aperçu = texte brut ; pour un média le client fabrique le libellé i18n depuis le type.
         lastMessagePreview: last?.type === MessageType.TEXT ? last.content : null,
         unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+        createdAt: conversation.createdAt.toISOString(),
       };
     });
   }

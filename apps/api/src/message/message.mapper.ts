@@ -40,7 +40,6 @@ export async function toMessageDto(
     scheduledSessionId: message.scheduledSessionId,
     sessionFeedbackId: message.sessionFeedbackId,
     attachment,
-    readAt: message.readAt?.toISOString() ?? null,
     createdAt: message.createdAt.toISOString(),
   };
 }
