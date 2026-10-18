@@ -3,7 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { type AccessRow, toAccessView, toGrantDtos } from "../access.mapper";
+import { type AccessContext, type AccessRow, toAccessView, toGrantDtos } from "../access.mapper";
 import { AccessService } from "./access.service";
 
 /** La colonne de `AccessGrant` qui désigne la cible : un exercice, une séance ou un cycle. */
@@ -45,11 +45,12 @@ export class AccessGrantService {
    * propriétaire n'est pas membre, 400 — on n'ouvre son travail qu'à ses associés.
    *
    * Retirer la ligne d'une entreprise quittée reste permis : ce n'est pas un accès qu'on ouvre.
+   * Rend le contexte lu, ses entreprises comprises : l'appelant n'a pas à les relire.
    */
   async assertCanShare(
     { ids, changes }: ChangeAccessInput,
     rows: readonly AccessRow[],
-  ): Promise<void> {
+  ): Promise<AccessContext> {
     const found = new Set(rows.map((row) => row.id));
     if (ids.some((id) => !found.has(id))) {
       throw new NotFoundException("Un ou plusieurs éléments sont introuvables");
@@ -61,6 +62,7 @@ export class AccessGrantService {
         "Tu ne peux ouvrir un accès qu'à une entreprise dont tu es membre",
       );
     }
+    return context;
   }
 
   /**

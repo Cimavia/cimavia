@@ -15,7 +15,10 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 
 /** Les entreprises éligibles d'un cycle, selon son athlète (`null` : pas encore d'athlète). */
-type Eligibility = (athleteId: string | null) => CoachOrganizationDto[];
+type Eligibility<O> = (athleteId: string | null) => O[];
+
+/** Une entreprise et ses Coachs : les noms ne servent qu'au panneau. */
+type OrganizationCoaches = { id: string; coaches: readonly { coachId: string }[] };
 
 /**
  * Les droits d'accès d'une planification (#607) : à qui le propriétaire peut l'ouvrir, ce qu'il
@@ -38,7 +41,10 @@ export class PlanAccessService {
 
   /** Les entreprises auxquelles le propriétaire peut ouvrir ce cycle — déjà prouvé à lui. */
   async eligibleFor(plan: { athleteId: string | null }): Promise<CoachOrganizationDto[]> {
-    const eligible = await this.eligibility(plan.athleteId == null ? [] : [plan.athleteId]);
+    const eligible = await this.eligibility(
+      this.access.myOrganizations(),
+      plan.athleteId == null ? [] : [plan.athleteId],
+    );
     return eligible(plan.athleteId);
   }
 
@@ -56,9 +62,12 @@ export class PlanAccessService {
       where: { id: { in: input.ids } },
       include: ACCESS_INCLUDE,
     });
-    await this.grants.assertCanShare(input, plans);
+    const { organizationIds } = await this.grants.assertCanShare(input, plans);
 
-    const eligible = await this.eligibility(athletesOf(plans));
+    const eligible = await this.eligibility(
+      this.access.organizationsOf(organizationIds),
+      athletesOf(plans),
+    );
     const opened = input.changes.filter((change) => change.level != null);
     for (const plan of plans) {
       const eligibleIds = new Set(eligible(plan.athleteId).map((organization) => organization.id));
@@ -69,11 +78,10 @@ export class PlanAccessService {
       }
     }
 
-    // Membre ou pas, c'est la liste de SES entreprises qui le dit — la même que l'éligibilité.
-    const memberOf = new Set(eligible(null).map((organization) => organization.id));
+    // Membre ou pas, ce sont SES entreprises qui le disent, que la garde vient de lire.
     const changes: GrantChange[] = input.changes.map(({ organizationId, level }) => ({
       organizationId,
-      level: level ?? (memberOf.has(organizationId) ? AccessLevel.NONE : null),
+      level: level ?? (organizationIds.has(organizationId) ? AccessLevel.NONE : null),
     }));
     return this.grants.apply("planId", { ids: input.ids, changes });
   }
@@ -91,12 +99,19 @@ export class PlanAccessService {
     settled: ReadonlySet<string>,
   ): Promise<string | null> {
     // Le lien du propriétaire (scope `coachOwner`) ; aucun pour l'auto-coaching (#14).
-    const link = await this.db.coachAthlete.findFirst({
-      where: { athleteId, status: CoachAthleteStatus.ACTIVE },
-      select: { organizationId: true },
-    });
-    if (link?.organizationId == null) return null;
-    const eligible = await this.eligibility([athleteId]);
+    const [link, { organizationIds }] = await Promise.all([
+      this.db.coachAthlete.findFirst({
+        where: { athleteId, status: CoachAthleteStatus.ACTIVE },
+        select: { organizationId: true },
+      }),
+      this.access.context(),
+    ]);
+    // Une entreprise qu'il a quittée ne s'ouvre pas : on n'ouvre son travail qu'à ses associés.
+    if (link?.organizationId == null || !organizationIds.has(link.organizationId)) return null;
+    // Celle du lien seule : c'est la seule que le défaut peut ouvrir, et ses noms sont inutiles.
+    const eligible = await this.eligibility(this.access.organizationsOf([link.organizationId]), [
+      athleteId,
+    ]);
     return defaultPlanGrant(link.organizationId, eligible(athleteId), settled);
   }
 
@@ -119,12 +134,25 @@ export class PlanAccessService {
   }
 
   /**
-   * Les entreprises du propriétaire, et de quoi les réduire aux Coachs de chaque athlète. Les
+   * Changer d'athlète change l'audience du cycle (#607) : les droits ouverts pour l'ancien ne valent
+   * pas pour le nouveau, que le propriétaire n'a pas choisi de leur ouvrir. Lecture et Écriture
+   * partent, « Aucun » reste — fermer n'élargit jamais. Dans la transaction de la réaffectation,
+   * avant le défaut du nouvel athlète.
+   */
+  async resetOpened(tx: TenantTx, planId: string): Promise<void> {
+    await tx.accessGrant.deleteMany({ where: { planId, level: { not: AccessLevel.NONE } } });
+  }
+
+  /**
+   * Des entreprises du propriétaire, et de quoi les réduire aux Coachs de chaque athlète. Les
    * `athleteIds` doivent être ceux de cycles ou de liens déjà prouvés à lui.
    */
-  private async eligibility(athleteIds: readonly string[]): Promise<Eligibility> {
+  private async eligibility<O extends OrganizationCoaches>(
+    organizationsOf: Promise<O[]>,
+    athleteIds: readonly string[],
+  ): Promise<Eligibility<O>> {
     const [organizations, links] = await Promise.all([
-      this.access.myOrganizations(),
+      organizationsOf,
       athleteIds.length === 0
         ? []
         : this.prisma.coachAthlete.findMany({
@@ -144,11 +172,17 @@ export class PlanAccessService {
   }
 }
 
-/** Les entreprises déjà réglées sur un cycle, « Aucun » compris : le défaut ne les rouvre pas. */
-export function settledOrganizations(plan: AccessRow): Set<string> {
+/**
+ * Les entreprises déjà réglées sur un cycle, « Aucun » compris : le défaut ne les rouvre pas.
+ * `reset` : le cycle change d'athlète, ses lignes ouvertes partent (`resetOpened`), et seul
+ * « Aucun » reste réglé.
+ */
+export function settledOrganizations(plan: AccessRow, reset: boolean): Set<string> {
   return new Set(
     plan.accessGrants.flatMap((grant) =>
-      grant.organization == null ? [] : [grant.organization.id],
+      grant.organization == null || (reset && grant.level !== AccessLevel.NONE)
+        ? []
+        : [grant.organization.id],
     ),
   );
 }

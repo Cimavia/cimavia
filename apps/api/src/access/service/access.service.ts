@@ -87,29 +87,44 @@ export class AccessService {
    * membre par une lecture scopée : jamais un id reçu du client.
    */
   async myOrganizations(): Promise<CoachOrganizationDto[]> {
-    const organizationIds = await this.organizationIds();
-    if (organizationIds.length === 0) return [];
+    const organizations = await this.organizationsOf(await this.organizationIds());
+    if (organizations.length === 0) return [];
 
+    const names = await this.users.namesByIds(
+      organizations.flatMap(({ id, coaches }) => [id, ...coaches.map((coach) => coach.coachId)]),
+    );
+    const nameOf = (id: string) => required(names.get(id), `[access] compte ${id} sans nom`);
+
+    return organizations
+      .map(({ id, coaches }) => ({
+        id,
+        name: nameOf(id),
+        coaches: coaches.map(({ coachId }) => ({ coachId, name: nameOf(coachId) })),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  }
+
+  /**
+   * Des entreprises et leurs Coachs, sans les noms : de quoi juger d'une éligibilité (#607). Les
+   * `organizationIds` sont celles de l'acteur, lues par son scope (`context`) — leurs membres, eux,
+   * ne sont pas à lui, d'où le client de base.
+   */
+  async organizationsOf(
+    organizationIds: Iterable<string>,
+  ): Promise<{ id: string; coaches: { coachId: string }[] }[]> {
+    const ids = [...organizationIds];
+    if (ids.length === 0) return [];
     const members = await this.prisma.organizationCoach.findMany({
-      where: { organizationId: { in: organizationIds } },
+      where: { organizationId: { in: ids } },
       select: { organizationId: true, coachId: true },
       orderBy: { createdAt: "asc" },
     });
-    const names = await this.users.namesByIds([
-      ...organizationIds,
-      ...members.map((member) => member.coachId),
-    ]);
-    const nameOf = (id: string) => required(names.get(id), `[access] compte ${id} sans nom`);
-
-    return organizationIds
-      .map((id) => ({
-        id,
-        name: nameOf(id),
-        coaches: members
-          .filter((member) => member.organizationId === id)
-          .map((member) => ({ coachId: member.coachId, name: nameOf(member.coachId) })),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return ids.map((id) => ({
+      id,
+      coaches: members
+        .filter((member) => member.organizationId === id)
+        .map((member) => ({ coachId: member.coachId })),
+    }));
   }
 
   // Scopé au Coach courant (`coachOwner`) : ses seules appartenances.

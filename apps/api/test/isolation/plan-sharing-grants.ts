@@ -130,4 +130,38 @@ describe("Droits d'une planification : entreprises éligibles, changement, défa
     expect(await levelsOf(closed.id)).toEqual([AccessLevel.NONE]);
     expect((await world.m.get(`/plans/${closed.id}`)).status).toBe(404);
   });
+
+  it("réaffecté, le cycle laisse ses droits ouverts à l'athlète d'avant — « Aucun » reste", async () => {
+    // Né pour TF, le cycle s'ouvre à F ; confié à TI, que C suit en direct, il n'ouvre plus rien,
+    // même si M suit aussi TI.
+    const moved = await createPlan(tfId, "Cycle de TF confié à TI");
+    const reassigned = await patchAtLatest(world.c, `/plans/${moved.id}`, {
+      athleteId: world.ids.ti,
+    });
+    expect(reassigned.status).toBe(200);
+    expect(reassigned.body.grants).toEqual([]);
+    expect(await levelsOf(moved.id)).toEqual([]);
+    expect((await world.m.get(`/plans/${moved.id}`)).status).toBe(404);
+
+    const closed = await createPlan(tfId, "Cycle de TF fermé");
+    expect((await changeAccess(world.c, [closed.id], null)).status).toBe(200);
+    expect(
+      (await patchAtLatest(world.c, `/plans/${closed.id}`, { athleteId: world.ids.ti })).status,
+    ).toBe(200);
+    expect(await levelsOf(closed.id)).toEqual([AccessLevel.NONE]);
+  });
+
+  it("détaché, le cycle redevient privé, puis se rouvre à F par défaut", async () => {
+    const plan = await createPlan(tfId, "Cycle de TF détaché");
+    const detached = await patchAtLatest(world.c, `/plans/${plan.id}`, { athleteId: null });
+    expect(detached.status).toBe(200);
+    expect(detached.body.grants).toEqual([]);
+    // N est Coach de F : sans le retrait, le cycle sans athlète s'ouvrirait à lui.
+    expect((await world.n.get(`/plans/${plan.id}`)).status).toBe(404);
+
+    const back = await patchAtLatest(world.c, `/plans/${plan.id}`, { athleteId: tfId });
+    expect(back.body.grants).toEqual([
+      { organization: { id: world.ids.organization, name: expect.any(String) }, level: "WRITE" },
+    ]);
+  });
 });

@@ -149,14 +149,18 @@ export class PlanService {
    * Changer de destinataire reste au propriétaire (#607) : c'est changer l'audience du cycle, les
    * Coachs qui peuvent le lire. Renvoyer le MÊME athlète n'en change rien, et passe en Écriture.
    * Affecté à un athlète suivi via F, le cycle s'ouvre à F en Écriture, sauf si F y est déjà
-   * réglée — « Aucun » compris.
+   * réglée — « Aucun » compris. Remplacé ou retiré, l'athlète emporte les droits ouverts pour lui
+   * (`resetOpened`) : ni le suivant ni toute l'entreprise n'en héritent. Un brouillon qui n'avait
+   * pas d'athlète garde les siens — son audience ne fait que se restreindre aux Coachs du nouveau.
    */
   async update(id: string, input: UpdatePlanInput): Promise<PlanDto> {
     const { plan, context } = await this.getForOrThrow(id, "write");
     const reassigned = input.athleteId !== undefined;
-    if (reassigned && (input.athleteId ?? null) !== plan.athleteId) {
+    const athleteChanged = reassigned && (input.athleteId ?? null) !== plan.athleteId;
+    if (athleteChanged) {
       this.access.assertCan(toAccessView(plan, context), "reassign");
     }
+    const audienceChanged = athleteChanged && plan.athleteId != null;
     const expected = new Date(input.expectedUpdatedAt);
     // Le premier refus : une saisie périmée n'a pas vu l'état qu'on jugerait ensuite — un cycle
     // diffusé entre-temps, un destinataire déjà changé. « Recharger » le lui montrera.
@@ -191,7 +195,7 @@ export class PlanService {
       if (input.athleteId != null && input.athleteId !== plan.athleteId) {
         opened = await this.planAccess.defaultOrganization(
           input.athleteId,
-          settledOrganizations(plan),
+          settledOrganizations(plan, audienceChanged),
         );
       }
     }
@@ -210,6 +214,7 @@ export class PlanService {
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
+        if (audienceChanged) await this.planAccess.resetOpened(tx, id);
         await this.planAccess.grantDefault(tx, id, opened);
       }
       // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte

@@ -1,4 +1,8 @@
-import type { CoachOrganizationDto } from "../dto/access.schema";
+/**
+ * Une entreprise et ses Coachs, de quoi juger d'une éligibilité. Les noms ne servent qu'au panneau
+ * (`CoachOrganizationDto`) : le défaut et la garde de l'octroi s'en passent (#607).
+ */
+type OrganizationCoaches = { id: string; coaches: readonly { coachId: string }[] };
 
 /**
  * Les entreprises auxquelles le propriétaire peut ouvrir une planification (#607) : les siennes,
@@ -9,11 +13,11 @@ import type { CoachOrganizationDto } from "../dto/access.schema";
  * `athleteCoachIds` à `null` : la planification n'a pas encore d'athlète (#144). Elle se partage
  * alors comme un exercice, à toutes les entreprises du propriétaire, Coachs compris.
  */
-export function eligibleOrganizations(
-  organizations: readonly CoachOrganizationDto[],
+export function eligibleOrganizations<O extends OrganizationCoaches>(
+  organizations: readonly O[],
   athleteCoachIds: ReadonlySet<string> | null,
   ownerId: string,
-): CoachOrganizationDto[] {
+): O[] {
   if (athleteCoachIds == null) return [...organizations];
   return organizations.flatMap((organization) => {
     const coaches = organization.coaches.filter((coach) => athleteCoachIds.has(coach.coachId));
@@ -31,7 +35,7 @@ export function eligibleOrganizations(
  */
 export function defaultPlanGrant(
   linkOrganizationId: string | null,
-  eligible: readonly CoachOrganizationDto[],
+  eligible: readonly Pick<OrganizationCoaches, "id">[],
   settledOrganizationIds: ReadonlySet<string>,
 ): string | null {
   if (linkOrganizationId == null || settledOrganizationIds.has(linkOrganizationId)) return null;
