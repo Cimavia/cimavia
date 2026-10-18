@@ -608,6 +608,8 @@ liste des domaines vivent dans l'index.
 | MC-13 | **La boîte des débriefs reste celle du propriétaire du cycle** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachFeedbackService` filtre `GET /feedbacks` et « marquer lu » sur le `coachId` du débrief. Un Coach à qui le cycle est ouvert lit le débrief dans le cycle, pas dans sa boîte, et n'en est pas notifié. « Lu » est un état unique sur le débrief, que deux lecteurs se disputeraient. | 🟢 | [#610](https://github.com/Cimavia/cimavia/issues/610) |
 | MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
+| MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
+| MC-17 | **Effacer un compte bute sur les séances des autres Coachs** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : `User → Exercise` est en `Cascade`, mais `SessionExercise.exerciseId` en `Restrict` — effacer C, dont un exercice est cité par une séance de M, échouerait. L'effacement devra d'abord passer par `ExerciseCopyService.freezeFor` pour chaque Coach citant, comme la suppression d'un exercice. Les copies déjà gardées survivent, elles : `frozenFromCoachId` passe à `NULL` et le badge dit « Copie figée » seul. | 🟢 | [#285](https://github.com/Cimavia/cimavia/issues/285) |
 
 *Résolues, à l'[archive](archive.md) : MC-8.*
 
@@ -937,12 +939,13 @@ liste des domaines vivent dans l'index.
 >   (`customMetrics`). À l'écriture, seules les citations **nouvelles** doivent exister au
 >   catalogue du propriétaire : une métrique supprimée depuis ne bloque pas l'enregistrement.
 > - **`usedInSessionCount` compte les séances de tous les Coachs**, et la suppression refuse en
->   409 en comptant à part celles des autres, que C ne peut pas retirer lui-même.
+>   409 en comptant à part celles des autres, que C ne peut pas retirer lui-même. *Levé en #609 :
+>   seules les séances de C refusent, celles des autres gardent une copie figée.*
 > - **`coachId` reste dans les DTO** à côté d'`owner`, qu'il redonde (`owner.id`) : le retirer
 >   changerait le contrat de l'API en plein épic, pour un champ qui ne ment pas.
 > - **Le droit dit le geste, la lecture dit l'existence** : 404 sur un élément illisible, 403 sur
 >   un geste que le droit ne couvre pas. Dupliquer en variante reste au propriétaire (403), jusqu'à
->   la recopie des métriques de #609. `grants` n'est rendu qu'au propriétaire (`null` sinon) ;
+>   la recopie des métriques de #609 — *levé en #609 : la lecture suffit.* `grants` n'est rendu qu'au propriétaire (`null` sinon) ;
 >   `myAccess.via` nomme l'entreprise qui ouvre le droit, la première par nom à niveau égal.
 > - **Un seul geste d'écriture des accès, groupé** (`PATCH /exercises/access`,
 >   `PATCH /sessions/access`) : pas de remplacement unitaire, qui n'en serait qu'un cas. N'ouvrir
@@ -952,7 +955,8 @@ liste des domaines vivent dans l'index.
 >   lecture** : passer d'Écriture à Lecture, ou retirer une entreprise dont il n'est pas membre,
 >   passe. Les séances-types n'ont pas ce refus : une planification RECOPIE la séance. Le contrôle
 >   et l'écriture ne sont pas sérialisés : une séance qui cite l'exercice à la même milliseconde
->   passerait, et resterait lisible par le point précédent.
+>   passerait, et resterait lisible par le point précédent. *Levé en #609 : ce Coach garde une
+>   copie figée au lieu du refus ; la fenêtre non sérialisée reste (MC-16).*
 > - **`GET /me/organizations`** lit les collègues par le client de base, sur les seules
 >   entreprises dont l'appartenance vient d'être lue par le scope du Coach.
 
@@ -1002,7 +1006,8 @@ liste des domaines vivent dans l'index.
 >   demanderait le droit de chaque ligne, que la séance ne porte pas. Le geste relit l'exercice,
 >   sans cache, AVANT d'enregistrer la séance : s'il n'est pas au Coach, un toast nomme son
 >   propriétaire, et la séance n'avance pas d'une version pour rien. Le 403 de l'API (#605, jusqu'à
->   #609) reste la garde.
+>   #609) reste la garde. *Levé en #609 : la variante de tout exercice lisible se crée ; la
+>   relecture reste, sans le toast.*
 
 > **Tranché en [#607](https://github.com/Cimavia/cimavia/issues/607)** (droits d'accès sur les
 > planifications et leurs factures) :
@@ -1078,8 +1083,37 @@ liste des domaines vivent dans l'index.
 >   apparaît. « Aucun » si aucune ne l'ouvre, « Suit la ligne de F » si l'une est « Mixte ».
 > - **Le refus de réduire (409) se juge sur le droit effectif avant et après** : fermer M sur un
 >   exercice que sa séance cite est refusé même si F l'ouvre encore ; une ligne de M qui garde la
->   Lecture le protège du retrait de F.
+>   Lecture le protège du retrait de F. *Depuis #609, le même jugement désigne qui reçoit une copie
+>   figée, au lieu de refuser.*
 > - **La colonne Accès cite les Coachs après les entreprises** : « F · Écriture, M · Aucun ». Un
 >   « Aucun » qui ne ferme rien d'ouvert — aucune entreprise n'a de ligne — n'est pas cité, et
 >   l'élément reste « Privé ». Le droit qu'un lecteur tient de sa propre ligne se dit sans
 >   provenance : « Partagé par C · Écriture ».
+
+> **Tranché en [#609](https://github.com/Cimavia/cimavia/issues/609)** (une séance garde une copie
+> figée de l'exercice qu'elle perd) :
+>
+> - **Une copie par Coach, pas par séance** : toutes les séances de M qui citaient l'exercice
+>   pointent la même copie, qu'il possède. Elle garde le titre de la source, sans suffixe — le
+>   badge la distingue —, et tout ce qu'elle porte : consigne, blocs, tags, et TOUS les documents,
+>   liens compris, sous la même clé objet. La variante, elle, ne reprend que les images de consigne.
+> - **Écrite au nom de M, par son scope** : `runAsCoach` donne à l'extension l'acteur M le temps
+>   de la copie, dans la transaction de C — comme le tick des rappels. M est prouvé par une séance
+>   lue hors scope (piège n°8) ; son scope borne ensuite ce que la copie touche, ses seules
+>   séances. Les séances planifiées ne bougent pas : ce sont déjà des copies.
+> - **La ligne repointée garde son dosage**, ses métriques réécrites vers le catalogue de M, et sa
+>   séance avance d'une version : un builder resté ouvert sur l'ancienne reçoit « Recharger ».
+> - **Une métrique citée se reprend si M en a une de même libellé ET de même nature** (type,
+>   unité, paliers) ; sinon elle se crée, sous son libellé s'il est libre, puis « libellé (C) »,
+>   « libellé (C 2) »… La même règle sert à la variante, qui s'ouvre à tout exercice lisible.
+> - **Le badge reste après modification** : « Copie figée — d'après C » dit d'où vient
+>   l'exercice, pas qu'il est resté identique ; la date passe en infobulle. Le compte de C effacé,
+>   « Copie figée » seul (`SET NULL`, et un `CHECK` qui interdit une provenance sans date).
+> - **La confirmation de suppression annonce les copies** : `foreignSessionCount`, rendu au seul
+>   propriétaire (`null` pour tout autre lecteur), compte les séances des autres Coachs. Les
+>   séances de C gardent le 409, compté sur elles seules.
+> - **« Dupliquer en variante » dans le builder d'exercice**, pour tout exercice d'un autre
+>   Coach, en Lecture comme en Écriture ; pas pour le sien, qui se duplique depuis la séance qui le
+>   compose. Elle part de la version enregistrée : une saisie en cours ferme le bouton. Depuis la
+>   séance, l'exercice se relit encore avant d'enregistrer : une ligne peut citer un exercice que
+>   seule la séance rend lisible (piège n°2), dont la variante serait un 404.

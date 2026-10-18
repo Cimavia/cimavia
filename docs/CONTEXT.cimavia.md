@@ -58,7 +58,7 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** (#605). Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si l'accès disparaît ou si l'exercice est supprimé *(cible — #609)*.
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** (#605). Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si leur lecture disparaît ou si l'exercice est supprimé (#609) : un exercice à leur nom, complet, qui dit d'après qui (`frozenFromCoachId`, `frozenAt`).
 
 ### Document
 Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :

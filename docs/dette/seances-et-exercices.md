@@ -56,7 +56,9 @@ liste des domaines vivent dans l'index.
 >   frame 14, dans l'éditeur d'exercice, n'est pas implémentée : absente de la liste « À faire » de
 >   l'issue, donc laissée de côté plutôt qu'ajoutée d'autorité. Le geste de la séance, lui, est
 >   arrivé avec le constructeur de séance, et copie côté serveur depuis
->   [#315](https://github.com/Cimavia/cimavia/issues/315).
+>   [#315](https://github.com/Cimavia/cimavia/issues/315). *Depuis
+>   [#609](https://github.com/Cimavia/cimavia/issues/609), l'éditeur d'exercice l'offre pour
+>   l'exercice d'un autre Coach (voir le journal, comptes et tenancy).*
 > - **`2:75` vaut `3'15` au lieu d'être refusé.** Les secondes au-delà de 59 débordent sur les
 >   minutes. Le refus protégeait mieux de la faute de frappe, mais le rendu canonique montre
 >   aussitôt ce qui a été compris — ce qui la rattrape sans bloquer la saisie.
