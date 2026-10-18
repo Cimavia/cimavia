@@ -91,7 +91,7 @@ const SUMMARY = {
   sessionTitle: "Voie & projet 7b",
   scheduledDate: "2026-10-16",
   coachReadAt: null,
-  repliedAt: null,
+  firstReply: null,
 } as CoachFeedbackSummaryDto;
 
 function message(overrides: Partial<MessageDto> = {}): MessageDto {

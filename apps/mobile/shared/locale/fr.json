@@ -308,6 +308,8 @@
       "title": "Débriefs à relire",
       "unreadCount": "{{count}} débrief(s) non lu(s)",
       "alreadyRead": "Déjà lus",
+      "replied": "Répondu",
+      "repliedBy": "Répondu par {{name}}",
       "mediaOnly": "Débrief sans texte.",
       "mediaCount": "{{count}} média(s)",
       "media": "Médias joints",

@@ -41,7 +41,6 @@ const debrief = (signedAt: number): SessionFeedbackDto => ({
   scheduledSessionId: "s1",
   athleteId: "a1",
   content: null,
-  coachReadAt: null,
   media: [
     {
       id: videoId(),
