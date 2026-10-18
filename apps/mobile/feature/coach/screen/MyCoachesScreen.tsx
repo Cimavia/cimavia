@@ -1,11 +1,12 @@
-import { type CoachAthleteDto, coachPresence, initialsOf } from "@cmv/shared";
+import { type CoachAthleteDto, coachPresence } from "@cmv/shared";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
 import { useMyCoaches, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
-import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useOpenCoachConversation } from "@/feature/message/hook/useConversation";
+import { CmvAvatar, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 import { authClient } from "@/shared/lib/auth";
 import { formatInstantDate } from "@/shared/util/date.util";
@@ -97,15 +98,19 @@ function CoachList({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
 function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   const { t } = useTranslation();
   const { current, select } = useCapabilitySwitch();
+  const open = useOpenCoachConversation();
 
   /**
    * Écrire à son coach est un geste d'ATHLÈTE : le fil se résout et se lit à ce titre. Un compte à
-   * double capacité arrivé ici depuis son espace coach y bascule d'abord — sinon le fil
-   * chercherait un athlète du nom de son coach.
+   * double capacité arrivé ici depuis son espace coach y bascule d'abord — sinon la conversation
+   * se chercherait dans sa liste de coach. Depuis #612 un fil s'ouvre par son id : on résout la
+   * conversation à deux, puis on y va.
    */
   function openThread() {
     if (current === "coach") select("athlete");
-    router.push(`/messages/${coach.coachId}`);
+    open.mutate(coach.coachId, {
+      onSuccess: (conversation) => router.push(`/messages/${conversation.id}`),
+    });
   }
 
   // Le bouton SOUS l'identité, comme sur la carte d'invitation : `CmvButton` prend toute la
@@ -113,11 +118,7 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   return (
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3">
       <View className="flex-row items-center gap-3">
-        <View className="h-9 w-9 items-center justify-center rounded-md bg-cmv-surface-hi">
-          <CmvText className="font-cmv-display text-cmv-text-mid text-xs">
-            {initialsOf(coach.coachName)}
-          </CmvText>
-        </View>
+        <CmvAvatar name={coach.coachName} />
         <View className="flex-1 gap-1">
           <CmvText className="text-cmv-text-hi" numberOfLines={1}>
             {coach.coachName}
@@ -137,7 +138,10 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           </CmvText>
         </View>
       </View>
-      <CmvButton label={t("coach.message")} onPress={openThread} />
+      {open.isError ? (
+        <CmvText className="text-cmv-error text-sm">{t("coach.messageError")}</CmvText>
+      ) : null}
+      <CmvButton label={t("coach.message")} onPress={openThread} disabled={open.isPending} />
     </View>
   );
 }

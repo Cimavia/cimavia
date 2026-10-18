@@ -20,6 +20,10 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
   };
 });
 
+// Ouvrir le fil d'un coach résout la conversation à deux (#612) : seul l'appel est remplacé.
+const { createConversation } = vi.hoisted(() => ({ createConversation: vi.fn() }));
+vi.mock("@/feature/message/api", () => ({ messageApi: { createConversation } }));
+
 // `useFocusEffect` capturé plutôt qu'exécuté : le test du premier plan le rejoue quand il veut.
 const focus = vi.hoisted(() => ({ effect: null as (() => void) | null }));
 vi.mock("expo-router", () => ({
@@ -312,7 +316,8 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     expect(screen.queryByText("—")).toBeNull();
   });
 
-  it("ouvre le fil du coach touché", async () => {
+  it("ouvre le fil à deux avec le coach touché, par son id", async () => {
+    createConversation.mockResolvedValue({ id: "cv-marc" });
     myCoaches.mockResolvedValue([RELATION, MARC]);
     const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("Marc Keller");
@@ -320,8 +325,24 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     // Un nœud par bouton, dans l'ordre des lignes : le second est celui de Marc.
     press(within(container).getAllByText("coach.message")[1] as HTMLElement);
 
-    expect(router.push).toHaveBeenCalledWith("/messages/u_marc");
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/messages/cv-marc"));
+    expect(createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "u_marc", capability: "coach" }] },
+      "athlete",
+    );
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("dit l'échec de l'ouverture, sans naviguer", async () => {
+    createConversation.mockRejectedValue(new Error("réseau"));
+    myCoaches.mockResolvedValue([RELATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    pressButton(container, "coach.message");
+
+    expect(await screen.findByText("coach.messageError")).toBeTruthy();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   // Écrire à son coach est un geste d'athlète : depuis l'espace coach, on y bascule d'abord.
@@ -331,10 +352,11 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     const { container } = renderRn(<MyCoachesScreen />);
     await screen.findByText("Julie Renaud");
 
+    createConversation.mockResolvedValue({ id: "cv-julie" });
     pressButton(container, "coach.message");
 
     expect(select).toHaveBeenCalledWith("athlete");
-    expect(router.push).toHaveBeenCalledWith("/messages/u_coach");
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/messages/cv-julie"));
   });
 });
 

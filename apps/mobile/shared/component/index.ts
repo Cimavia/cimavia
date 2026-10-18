@@ -1,5 +1,6 @@
 export { CmvAudioPlayer } from "./CmvAudioPlayer";
 export { CmvAudioRecorder, type RecordedAudio } from "./CmvAudioRecorder";
+export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";
 export { CmvCapabilityGate } from "./CmvCapabilityGate";
