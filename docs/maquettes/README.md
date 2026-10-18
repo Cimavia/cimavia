@@ -277,7 +277,8 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
   - **tranchés en #607** : ce que la planche ne dessine pas — le builder d'un cycle en Lecture,
     figé comme la frame 12, et la ligne « Partagé par M · Lecture via F » des listes de cycles et
     de factures. La note « par défaut » des frames 9 n'apparaît que si l'entreprise du lien est
-    proposée.
+    proposée et que le cycle l'a reçue en Écriture. Une entreprise qu'un droit cite encore sans
+    plus y être éligible a sa ligne, qui ne propose que « Aucun ».
 
 ## Constructeur d'exercice — modèle et changements requis
 

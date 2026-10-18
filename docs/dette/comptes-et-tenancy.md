@@ -1021,6 +1021,11 @@ liste des domaines vivent dans l'index.
 >   né pour un athlète suivi via F, ou affecté à cet athlète, reçoit l'Écriture pour F
 >   (`defaultPlanGrant`), sauf si F y est déjà réglée. Aucune migration de données : les cycles
 >   créés avant #607 restent fermés tant que leur propriétaire ne les ouvre pas.
+> - **Changer d'athlète remet les droits ouverts à plat** : réaffecté ou détaché, un cycle perd
+>   ses lignes Lecture et Écriture, décidées pour l'audience d'avant ; il garde ses « Aucun », puis
+>   reçoit le défaut du nouvel athlète. Détaché, il redevient privé — sans quoi il s'ouvrirait à
+>   toute l'entreprise. Un brouillon qui n'avait pas d'athlète garde les siennes : son audience ne
+>   fait que se restreindre aux Coachs du nouveau.
 > - **Restent au propriétaire** : supprimer le cycle, gérer ses accès (`GET /plans/:id/organizations`
 >   et `PATCH /plans/access`, 403 sinon) et le réaffecter — changer d'athlète, c'est changer qui
 >   le voit. Un rédacteur ne choisit donc pas le destinataire d'un cycle qui n'en a pas : il ne
@@ -1044,4 +1049,7 @@ liste des domaines vivent dans l'index.
 >   désactivés, « Fermer » seul, ni ajout ni glisser ; la facturation se lit sans s'enregistrer.
 >   En Écriture tout se modifie, sauf ce qui reste au propriétaire. « Accès » n'apparaît qu'au
 >   propriétaire membre d'une entreprise ; le panneau ne propose que les entreprises éligibles, et
->   dit qu'il n'y en a pas plutôt que d'afficher un tableau vide (frame 10).
+>   dit qu'il n'y en a pas plutôt que d'afficher un tableau vide (frame 10). Une entreprise qu'un
+>   droit cite encore sans plus y être éligible — le lien de M a pris fin — y a sa ligne, qui ne
+>   propose que « Aucun » : le droit n'ouvre plus rien, mais se réveillerait au premier Coach de F
+>   qui suivrait l'athlète. La note « par défaut » ne s'affiche que si F a reçu l'Écriture.
