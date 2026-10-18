@@ -22,6 +22,12 @@ type MessageBubbleProps = {
   message: MessageDto;
   mine: boolean;
   /**
+   * L'auteur à nommer en tête de bulle, dans une conversation à plusieurs (`messageAuthorOf`) :
+   * `null` pour n'en nommer aucun, `{ name: null }` pour un auteur qu'on ne connaît plus — « — ».
+   * Neutre (`text-mid`) : c'est le nom qui distingue les auteurs, pas une couleur (#598).
+   */
+  author?: { name: string | null } | null;
+  /**
    * Masque la puce « à propos de… » — pour les surfaces qui SONT la cible citée.
    *
    * Dans un débrief, tous les messages rattachés pointent ce même débrief : la puce y répéterait
@@ -167,6 +173,7 @@ function FeedbackEventNotice({
 export function MessageBubble({
   message,
   mine,
+  author = null,
   hideAttachment = false,
   resolveMediaUrl,
   voiceNoteCue,
@@ -184,6 +191,10 @@ export function MessageBubble({
           : "self-start bg-cmv-surface text-cmv-text-hi",
       )}
     >
+      {author == null ? null : (
+        <span className="mb-cmv-xs text-cmv-caption text-cmv-text-mid">{author.name ?? "—"}</span>
+      )}
+
       {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
           Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
       {message.attachment == null || hideAttachment ? null : (
