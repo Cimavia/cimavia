@@ -1,13 +1,25 @@
-import type { MediaRecapLine } from "@cmv/shared";
-import { createReadMarker, lastUnreadIncomingId, mediaRecapText } from "@cmv/shared";
-import type { ReactNode } from "react";
+import {
+  type ConversationDto,
+  conversationSubtitleText,
+  conversationTitle,
+  createReadMarker,
+  emptyThreadText,
+  lastUnreadIncomingId,
+  type MediaRecapLine,
+  mediaRecapText,
+  readByOf,
+} from "@cmv/shared";
+import { cmvColors } from "@cmv/tokens";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { messageKeys } from "@/feature/message/api";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageList } from "@/feature/message/component/MessageList";
+import { ParticipantAvatars } from "@/feature/message/component/ParticipantAvatars";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
@@ -19,54 +31,69 @@ import { mediaErrorMessage } from "@/shared/util/media.util";
 
 type ConversationThreadProps = {
   /**
-   * Le fil DÉJÀ résolu par l'appelant. C'est lui qui sait comment : l'athlète ouvre celui d'un de
-   * ses coachs, le coach celui d'un de ses athlètes. Résoudre ici obligerait ce composant à
-   * connaître les deux rôles pour n'en servir qu'un à la fois — et à appeler `GET /me/coaches`, que
-   * l'API refuse à un coach.
+   * La conversation telle que la liste la porte, DÉJÀ trouvée par l'écran : ses participants font
+   * l'en-tête, et c'est elle qui suit MA marque de lecture (#611) — `markRead` l'invalide.
    */
-  conversationId: string | undefined;
-  /**
-   * MA marque de lecture sur ce fil (#611), `null` si je ne l'ai jamais lu : ce qui la précède est
-   * lu, quel que soit son auteur. Lue dans la liste des fils, que `markRead` invalide — pas dans le
-   * fil résolu, figé pour ne pas rejouer le get-or-create.
-   */
-  lastReadAt: string | null;
-  isResolving: boolean;
-  hasResolveError: boolean;
-  onRetryResolve: () => void;
-  /**
-   * Bandeau facultatif rendu au-dessus du fil. Sert au sélecteur de titre côté athlète (#129) :
-   * l'onglet Messages y montre le fil directement, sans liste intermédiaire, donc sans autre
-   * endroit où le poser.
-   */
-  header?: ReactNode;
+  conversation: ConversationDto;
 };
 
 /**
- * Un fil, quel que soit le bout par lequel on le regarde (CDC §5.8). Asynchrone : les nouveaux
- * messages remontent par polling (10 s au premier plan) + push. Écrire exige le réseau — pas
- * d'envoi différé en MVP, et un échec se dit plutôt que de se masquer.
+ * L'en-tête d'un fil (#612, planche M3) : le retour à la liste, les pastilles, le titre et ce qui le
+ * qualifie. Sans conversation (elle charge, ou n'a pas été trouvée), le retour seul — on ne devine
+ * ni titre ni participants.
  */
-export function ConversationThread({
-  conversationId,
-  lastReadAt,
-  isResolving,
-  hasResolveError,
-  onRetryResolve,
-  header,
-}: Readonly<ConversationThreadProps>) {
+export function ThreadHeader({ conversation }: Readonly<{ conversation: ConversationDto | null }>) {
+  const { t } = useTranslation();
+
+  return (
+    <View className="flex-row items-center gap-3 border-cmv-border border-b px-4 py-3">
+      <Pressable
+        onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel={t("messages.back")}
+        className="rounded-lg border border-cmv-border bg-cmv-surface p-2"
+      >
+        <Ionicons name="chevron-back" size={18} color={cmvColors.text.hi} />
+      </Pressable>
+      {conversation == null ? null : (
+        <>
+          <ParticipantAvatars participants={conversation.participants} max={3} />
+          <View className="flex-1">
+            <CmvText className="font-cmv-display text-cmv-text-hi" numberOfLines={1}>
+              {conversationTitle(conversation) ?? "—"}
+            </CmvText>
+            <CmvText className="text-cmv-text-mid text-xs">
+              {conversationSubtitleText(conversation, t) ?? "—"}
+            </CmvText>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Une conversation, à deux ou à plusieurs, quel que soit le bout par lequel on la regarde
+ * (CDC §5.8). Asynchrone : les nouveaux messages remontent par polling (10 s au premier plan) +
+ * push. Écrire exige le réseau — pas d'envoi différé en MVP, et un échec se dit plutôt que de se
+ * masquer.
+ *
+ * À plusieurs (#612), chaque bulle reçue porte son auteur, et « Lu par » suit mon dernier message.
+ */
+export function ConversationThread({ conversation }: Readonly<ConversationThreadProps>) {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
 
+  const conversationId = conversation.id;
   const messages = useMessages(conversationId);
   const freshMediaUrl = useFreshMediaUrl(
-    messageKeys.thread(conversationId ?? "", useExercisedCapability()),
+    messageKeys.thread(conversationId, useExercisedCapability()),
   );
-  const send = useSendMessage(conversationId ?? "");
+  const send = useSendMessage(conversationId);
   // On ne garde que `mutate`, garanti stable par TanStack Query : la stabilité devient vérifiable
   // par le linter au lieu de reposer sur un commentaire.
   const { mutate: markRead } = useMarkRead(conversationId);
-  const media = useSendMessageMedia(conversationId ?? "");
+  const media = useSendMessageMedia(conversationId);
 
   // Refus qui précède l'upload (permission galerie, permission/erreur micro) : porté à la main car
   // il ne passe pas par la mutation. Réinitialisé à chaque nouvelle tentative.
@@ -75,7 +102,7 @@ export function ConversationThread({
   // Ce qui n'a pas été envoyé au dernier lot, fichier par fichier (#156).
   const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);
 
-  const currentUserId = session?.user.id ?? "";
+  const currentUserId = session?.user.id ?? null;
   const items = messages.data ?? [];
   const mediaError = mediaErrorMessage(
     media.audioError,
@@ -87,30 +114,30 @@ export function ConversationThread({
   // Marque lu à CHAQUE nouvel entrant, repéré par son id (#305) : la règle et son pourquoi vivent
   // dans `message-read.util`. `markRead` n'invalide que la conversation (pas les messages) : pas
   // de boucle.
-  const unreadTarget = lastUnreadIncomingId(items, session?.user.id ?? null, lastReadAt);
+  const unreadTarget = lastUnreadIncomingId(items, currentUserId, conversation.lastReadAt);
+  const readBy = readByOf(conversation, items, currentUserId);
   const [readMarker] = useState(createReadMarker);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {
-    if (conversationId == null || unreadTarget == null || !readMarker.claim(unreadTarget)) return;
+    if (unreadTarget == null || !readMarker.claim(unreadTarget)) return;
     markRead(undefined, { onError: () => readMarker.release(unreadTarget) });
   }, [conversationId, unreadTarget, readMarker, markRead, messages.dataUpdatedAt]);
 
-  // L'échec AVANT le chargement : une résolution en échec laisse le fil sans id, donc sa requête
-  // de messages désactivée — et une requête désactivée sans données reste `isPending`. Dans
-  // l'autre ordre, l'erreur se cachait derrière un chargement sans fin.
-  if (hasResolveError || messages.isError) {
+  if (messages.isError) {
     return (
       <CmvScreen>
-        <CmvErrorState
-          onRetry={() => (conversationId == null ? onRetryResolve() : messages.refetch())}
-        />
+        <ThreadHeader conversation={conversation} />
+        <View className="p-4">
+          <CmvErrorState onRetry={() => messages.refetch()} />
+        </View>
       </CmvScreen>
     );
   }
 
-  if (isResolving || messages.isPending) {
+  if (messages.isPending) {
     return (
       <CmvScreen>
+        <ThreadHeader conversation={conversation} />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator />
         </View>
@@ -126,21 +153,23 @@ export function ConversationThread({
           `style` (et non className) : la vue vient d'une lib tierce, on ne dépend pas de NativeWind
           pour un simple flex:1 (aucune couleur/token ici). */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-        {header != null && <View className="flex-row justify-end px-4 pt-4">{header}</View>}
+        <ThreadHeader conversation={conversation} />
         {items.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-2 p-6">
             <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
               {t("messages.empty.title")}
             </CmvText>
             <CmvText className="text-center text-cmv-text-mid">
-              {t("messages.empty.description")}
+              {emptyThreadText(conversation, t)}
             </CmvText>
           </View>
         ) : (
           <View className="flex-1">
             <MessageList
+              conversation={conversation}
               messages={items}
               currentUserId={currentUserId}
+              readBy={readBy}
               resolveMediaUrl={freshMediaUrl}
             />
           </View>

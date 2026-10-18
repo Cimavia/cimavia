@@ -1,4 +1,4 @@
-import type { MessageDto } from "@cmv/shared";
+import type { ConversationDto, MessageDto } from "@cmv/shared";
 import { act, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "@/feature/message/component/Composer";
@@ -51,13 +51,35 @@ function mockThread(data: MessageDto[], dataUpdatedAt = 1): void {
   } as unknown as ReturnType<typeof useThreadMessages>);
 }
 
-const props = {
-  conversationId: "cv-1",
-  counterpartName: "Léa",
-  lastReadAt: null,
-  hasResolveError: false,
-  onRetry: vi.fn(),
-};
+function conversation(overrides: Partial<ConversationDto> = {}): ConversationDto {
+  return {
+    id: "cv-1",
+    kind: "DIRECT",
+    participants: [{ userId: "athlete-1", name: "Léa", capability: "athlete", lastReadAt: null }],
+    lastReadAt: null,
+    lastMessageAt: null,
+    lastMessageSenderId: null,
+    lastMessageType: null,
+    lastMessagePreview: null,
+    unreadCount: 0,
+    createdAt: READ_AT,
+    ...overrides,
+  };
+}
+
+// « M, TI » vu par C (planche M3).
+const group = (overrides: Partial<ConversationDto> = {}) =>
+  conversation({
+    kind: "GROUP",
+    participants: [
+      { userId: "m", name: "M", capability: "coach", lastReadAt: null },
+      { userId: "ti", name: "TI", capability: "athlete", lastReadAt: "2026-09-27T10:40:00.000Z" },
+    ],
+    ...overrides,
+  });
+
+const props = { conversation: conversation() };
+const readTo = (lastReadAt: string) => ({ conversation: conversation({ lastReadAt }) });
 
 beforeAll(() => {
   // jsdom ne défile pas : le fil colle au dernier message à chaque arrivée.
@@ -100,14 +122,14 @@ describe("MessageThread — marquage lu", () => {
 
     // La liste a relu ma marque (m1), m2 est arrivé après.
     mockThread([message("m1"), message("m2", { createdAt: "2026-09-27T10:05:00.000Z" })], 2);
-    rerender(<MessageThread {...props} lastReadAt={READ_AT} />);
+    rerender(<MessageThread {...readTo(READ_AT)} />);
     await waitFor(() => expect(markRead).toHaveBeenCalledTimes(2));
   });
 
   // #611 : ce qui précède ma marque de lecture est lu, quel que soit le message.
   it("ne marque rien quand ma marque couvre déjà le dernier entrant", () => {
     mockThread([message("m1")]);
-    renderWithProviders(<MessageThread {...props} lastReadAt={READ_AT} />);
+    renderWithProviders(<MessageThread {...readTo(READ_AT)} />);
     expect(markRead).not.toHaveBeenCalled();
   });
 
@@ -146,12 +168,6 @@ describe("MessageThread — marquage lu", () => {
     renderWithProviders(<MessageThread {...props} />);
     expect(markRead).not.toHaveBeenCalled();
   });
-
-  it("ne marque pas lu sans fil, même avec des messages en cache", () => {
-    mockThread([message("m1")]);
-    renderWithProviders(<MessageThread {...props} conversationId={undefined} />);
-    expect(markRead).not.toHaveBeenCalled();
-  });
 });
 
 describe("MessageThread — notes vocales enchaînées (#529)", () => {
@@ -180,18 +196,86 @@ describe("MessageThread — notes vocales enchaînées (#529)", () => {
 describe("MessageThread — barre d'envoi", () => {
   const composerProps = () => vi.mocked(Composer).mock.lastCall?.[0];
 
-  it("ouvre la barre sur un fil résolu", () => {
+  it("ouvre la barre, et la ferme le temps d'un envoi", () => {
     renderWithProviders(<MessageThread {...props} />);
-
     expect(composerProps()).toMatchObject({ sending: false, mediaBusy: false });
+
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: true,
+    } as unknown as ReturnType<typeof useSendMessage>);
+    renderWithProviders(<MessageThread {...props} />);
+    expect(composerProps()).toMatchObject({ sending: true });
+  });
+});
+
+describe("MessageThread — en-tête (#612)", () => {
+  // La capacité, pas la provenance : « via F » reste dans le sélecteur (tranché en #598).
+  it("nomme l'autre et sa capacité dans un fil à deux", () => {
+    const view = renderWithProviders(<MessageThread {...props} />);
+
+    expect(view.getByRole("heading", { name: "Léa" })).toBeInTheDocument();
+    expect(view.getByText("messages.capability.athlete")).toBeInTheDocument();
   });
 
-  // #339 : sans fil, le texte partait vers `/conversations//messages` et se perdait.
-  it("ferme la barre tant que le fil n'est pas résolu, comme quand il a échoué", () => {
-    renderWithProviders(<MessageThread {...props} conversationId={undefined} />);
-    expect(composerProps()).toMatchObject({ sending: true, mediaBusy: true });
+  it("liste les participants et les compte, moi compris, à plusieurs", () => {
+    const view = renderWithProviders(<MessageThread conversation={group()} />);
 
-    renderWithProviders(<MessageThread {...props} conversationId={undefined} hasResolveError />);
-    expect(composerProps()).toMatchObject({ sending: true, mediaBusy: true });
+    expect(view.getByRole("heading", { name: "M, TI" })).toBeInTheDocument();
+    expect(view.getByText("messages.participantCount")).toBeInTheDocument();
+  });
+
+  // Un fil dont l'autre compte a été effacé (MC-18) : on ne devine pas un nom.
+  it("rend « — » quand plus personne n'y figure", () => {
+    const view = renderWithProviders(
+      <MessageThread conversation={conversation({ participants: [] })} />,
+    );
+
+    expect(view.getByRole("heading", { name: "—" })).toBeInTheDocument();
+  });
+
+  it("invite au premier message d'une conversation vide", () => {
+    const view = renderWithProviders(<MessageThread conversation={group()} />);
+
+    expect(view.getByText("messages.empty.title")).toBeInTheDocument();
+    expect(view.getByText("messages.empty.description")).toBeInTheDocument();
+  });
+});
+
+describe("MessageThread — à plusieurs (#612)", () => {
+  const bubbleOf = (id: string) =>
+    vi
+      .mocked(MessageBubble)
+      .mock.calls.filter(([bubble]) => bubble.message.id === id)
+      .at(-1)?.[0];
+
+  it("nomme l'auteur des bulles reçues, pas des miennes", () => {
+    mockThread([message("m1", { senderId: "m" }), message("m2", { senderId: "me" })]);
+    renderWithProviders(<MessageThread conversation={group()} />);
+
+    expect(bubbleOf("m1")?.author).toEqual({ name: "M" });
+    expect(bubbleOf("m2")?.author).toBeNull();
+  });
+
+  it("ne nomme personne dans un fil à deux", () => {
+    mockThread([message("m1")]);
+    renderWithProviders(<MessageThread {...props} />);
+
+    expect(bubbleOf("m1")?.author).toBeNull();
+  });
+
+  // M3 : TI a lu mon dernier message, M non.
+  it("dit qui a lu mon dernier message", () => {
+    mockThread([message("m1", { senderId: "me", createdAt: "2026-09-27T10:40:00.000Z" })]);
+    const view = renderWithProviders(<MessageThread conversation={group()} />);
+
+    expect(view.getByText("messages.readBy")).toBeInTheDocument();
+  });
+
+  it("ne dit rien tant que personne ne l'a lu", () => {
+    mockThread([message("m1", { senderId: "me", createdAt: "2026-09-27T11:00:00.000Z" })]);
+    const view = renderWithProviders(<MessageThread conversation={group()} />);
+
+    expect(view.queryByText("messages.readBy")).toBeNull();
   });
 });

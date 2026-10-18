@@ -23,3 +23,18 @@ export function initialsOf(name: string): string {
   const initials = last == null ? first.charAt(0) : first.charAt(0) + last.charAt(0);
   return initials.toLocaleUpperCase();
 }
+
+/**
+ * Une liste de noms dans une phrase : « M », « M et TI », « C, M et TI ». La conjonction est
+ * passée par l'appelant, traduite — « et », « ni », « and » — : la règle de ponctuation est la
+ * même, le mot ne l'est pas.
+ *
+ * Pas d'`Intl.ListFormat` : le moteur du mobile ne le garantit pas, et la règle des deux
+ * plateformes doit être la même.
+ */
+export function joinNames(names: readonly string[], conjunction: string): string {
+  const last = names.at(-1);
+  if (last == null) return "";
+  const head = names.slice(0, -1);
+  return head.length === 0 ? last : `${head.join(", ")} ${conjunction} ${last}`;
+}

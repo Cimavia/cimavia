@@ -720,6 +720,8 @@ liste des domaines vivent dans l'index.
 >   conversation, alors que la route d'un fil attend l'interlocuteur. La liste reçoit l'id et le
 >   traduit ; « le » fil de l'athlète, qui suffisait à un seul coach, aurait ouvert celui d'un
 >   autre.
+>   *Dépassé en [#612](https://github.com/Cimavia/cimavia/issues/612) : la route d'un fil prend
+>   l'id de la conversation, il n'y a plus rien à traduire.*
 
 > **Tranché en [#600](https://github.com/Cimavia/cimavia/issues/600)** (compte Entreprise, inscription
 > et espace dédié) : ce que le code ne dit pas seul.
@@ -1185,4 +1187,39 @@ liste des domaines vivent dans l'index.
 >   à plusieurs ([#612](https://github.com/Cimavia/cimavia/issues/612)). Les écrans actuels ne
 >   montrent que les fils `DIRECT` entre un Coach et un athlète (`directCounterpartId`) : une
 >   conversation à plusieurs ou entre Coachs existe par l'API, et sa notification mène à la liste
->   sans l'ouvrir. Rien ne la crée encore depuis une interface : elle s'affiche avec #612.
+>   sans l'ouvrir. Rien ne la crée encore depuis une interface : elle s'affiche avec #612. *Livré
+>   en #612, ci-dessous.*
+
+> **Tranché en [#612](https://github.com/Cimavia/cimavia/issues/612)** (créer et suivre des
+> conversations à plusieurs, web et mobile) :
+>
+> - **Une ligne par conversation, plus par interlocuteur** : la liste ne montre que les
+>   conversations existantes, une conversation vide comprise (« — »). Un athlète ou un Coach jamais
+>   contacté n'y a pas de ligne : on lui écrit par « Nouvelle conversation ». Fusionner les liens et
+>   les conversations, comme #599, aurait mis côte à côte un fil à deux et des groupes où la même
+>   personne figure, sans dire lequel ouvrir.
+> - **Un fil s'ouvre par l'id de sa conversation** : `?conversation=` sur le web,
+>   `/messages/<id>` sur mobile — la route `/messages/<interlocuteur>` disparaît. Les entrées par
+>   personne restent là où elles ont un sens : `?athlete=` (tableau de suivi) et `?coach=`
+>   (« Mes coachs ») ouvrent le fil à deux, créé au besoin, puis l'URL passe à `?conversation=`.
+>   **Seulement vers un candidat** : un lien périmé (athlète parti, coach quitté) n'ouvre rien,
+>   plutôt qu'un refus de l'API. « Mes coachs » sur mobile résout le fil à deux, puis y navigue.
+> - **La conversation se lit dans MA liste**, jamais par une requête de plus : elle porte ses
+>   participants et ma marque de lecture, et `markRead` l'invalide. Une conversation tout juste
+>   ouverte y est posée aussitôt (`withConversation`) ; sur mobile, une conversation absente d'une
+>   liste chargée la fait relire une fois, puis se dit en panne — un fil vide inviterait à écrire
+>   dans une conversation qu'on n'a pas.
+> - **Une notification n'ouvre que ce que la liste relue porte** (mobile) : notifiée à l'autre
+>   titre, la conversation n'est pas de cet espace, et le fil dirait une panne. On reste sur la
+>   liste, où le sélecteur d'espace montre sa pastille.
+> - **Un compte ne se choisit qu'à un titre** : cocher M athlète décoche M coach. L'API refuse un
+>   même compte deux fois (`createConversationSchema`) ; le sélecteur ne laisse pas le demander.
+> - **« Nouvelle conversation » n'est proposée qu'avec quelqu'un à réunir**, et seulement une fois
+>   les candidats lus : sinon les états vides E1 (athlète sans coach, avec « Mes coachs ») et
+>   « aucun athlète » côté Coach.
+> - **« Vous : »** préfixe l'aperçu de mon dernier message — un auteur nommé, pas un vouvoiement :
+>   `messages.previewSelf` est exempté du contrôle de registre (`scripts/check-i18n-keys.mjs`).
+> - **Le Coach crée aussi depuis son téléphone**, avec la recherche, les sections et les deux
+>   avertissements du web : la planche M2 ne montrait que l'athlète.
+> - **La pastille d'un espace compte toutes ses conversations**, à plusieurs comprises, sans code
+>   client : elle se lit dans les notifications, posées pour chaque destinataire depuis #611.

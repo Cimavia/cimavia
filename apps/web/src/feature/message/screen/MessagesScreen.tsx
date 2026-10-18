@@ -1,180 +1,82 @@
 import {
+  type ConversationCandidatesDto,
   type ConversationDto,
-  type ConversationRelation,
-  type ConversationRow,
-  conversationRows,
-  counterpartOfConversation,
-  readMarkOf,
+  hasCandidates as hasAnyone,
   type TrainingCapability,
 } from "@cmv/shared";
-import type { UseQueryResult } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAthletes } from "@/feature/athlete/hook/useAthletes";
-import { useMyCoaches } from "@/feature/coach";
 import { ConversationList } from "@/feature/message/component/ConversationList";
 import { MessageThread } from "@/feature/message/component/MessageThread";
+import { NewConversationPanel } from "@/feature/message/component/NewConversationPanel";
 import {
+  seedConversation,
+  useConversationCandidates,
   useConversations,
   useConversationWith,
   useConversationWithCoach,
 } from "@/feature/message/hook/useMessages";
-import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
-import { useActingCapability } from "@/shared/hook/useCapabilities";
+import type { MessagesSearch } from "@/routes/messages";
+import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { useActingCapability, useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { authClient } from "@/shared/lib/auth";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle. Le typage des search params est conservé.
 const route = getRouteApi("/messages");
 
+// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
+// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
+// i18n-values messages.noConversations: coach, athlete
+
 /**
- * Messagerie (CDC §5.8), ouverte aux deux rôles depuis #29.
+ * Messagerie (CDC §5.8), ouverte aux deux rôles depuis #29 : la liste des conversations à gauche,
+ * celle qu'on a choisie à droite, à deux ou à plusieurs (#612).
  *
- * Les deux côtés ont la même forme depuis #599 — une liste de fils à gauche, le fil choisi à
- * droite — puisqu'un athlète peut être suivi par plusieurs coachs. Seules changent la source des
- * interlocuteurs et la façon d'ouvrir un fil.
+ * Une ligne par CONVERSATION, plus par interlocuteur (tranché en #612) : on écrit à quelqu'un de
+ * nouveau par « Nouvelle conversation ». Les candidats (`GET /conversations/candidates`) et la
+ * liste servent les deux titres par les mêmes routes — un seul écran, là où #599 en tenait deux.
  *
- * DEUX composants d'entrée plutôt qu'un seul avec des conditions, et ce n'est pas du style : le
- * coach lit la liste de SES athlètes (`GET /athletes`, coach seul) et l'athlète SES coachs
- * (`GET /me/coaches`, athlète seul). Les hooks React s'exécutent inconditionnellement — un `if` à
- * l'intérieur d'un composant unique ferait partir les deux requêtes et donnerait un 403 à chacun
- * sur sa propre messagerie.
+ * Le fil ouvert est porté par l'URL (`?conversation=`) et non par un `useState` : une notification
+ * l'ouvre directement, et recharger la page ou revenir en arrière ne perd pas le fil.
  */
 export function MessagesScreen() {
-  // Le titre EXERCÉ décide de l'écran : un compte qui cumule a des fils des deux côtés.
-  const isCoach = useActingCapability() === "coach";
-  return isCoach ? <CoachMessages /> : <AthleteMessages />;
-}
-
-function CoachMessages() {
   const { t } = useTranslation();
-
-  return (
-    <ConversationsView
-      as="coach"
-      relations={useAthletes()}
-      subtitle={t("messages.subtitle")}
-      pickTitle={t("messages.pickThread.title")}
-      empty={
-        <CmvEmptyState
-          title={t("messages.noAthletes.title")}
-          description={t("messages.noAthletes.description")}
-        />
-      }
-      renderThread={(row) => (
-        <CoachThread
-          key={row.counterpartId}
-          athleteId={row.counterpartId}
-          athleteName={row.counterpartName}
-          listed={row.conversation}
-        />
-      )}
-    />
-  );
-}
-
-/**
- * Sans coach, il n'y a pas de fil à ouvrir du tout (l'API refuserait). On le dit, et on renvoie
- * vers l'écran où une invitation s'accepte — plutôt qu'une messagerie vide sans explication.
- */
-function AthleteMessages() {
-  const { t } = useTranslation();
-
-  return (
-    <ConversationsView
-      as="athlete"
-      relations={useMyCoaches()}
-      subtitle={t("messages.athlete.subtitle")}
-      pickTitle={t("messages.athlete.pickThread")}
-      empty={
-        <CmvEmptyState
-          title={t("messages.athlete.noCoach.title")}
-          description={t("messages.athlete.noCoach.description")}
-          action={
-            <Link
-              to="/my-coach"
-              className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-body text-cmv-accent-fg transition-colors hover:bg-cmv-accent-hi"
-            >
-              {t("messages.athlete.noCoach.action")}
-            </Link>
-          }
-        />
-      }
-      renderThread={(row) => (
-        <AthleteThread
-          key={row.counterpartId}
-          coachId={row.counterpartId}
-          coachName={row.counterpartName}
-          listed={row.conversation}
-        />
-      )}
-    />
-  );
-}
-
-type ConversationsViewProps = {
-  as: TrainingCapability;
-  relations: UseQueryResult<ConversationRelation[]>;
-  subtitle: string;
-  pickTitle: string;
-  empty: ReactNode;
-  /** Monté avec une `key` sur l'interlocuteur : changer de fil remonte un fil neuf plutôt que de
-   * recycler l'état du précédent (défilement, marquage lu). */
-  renderThread: (row: ConversationRow) => ReactNode;
-};
-
-/**
- * La liste des interlocuteurs (enrichie du dernier message et des non-lus) et le fil sélectionné.
- * Sélectionner un interlocuteur jamais contacté crée le fil à la volée.
- *
- * Le fil ouvert est porté par l'URL et non par un `useState` : c'est ce qui permet d'arriver
- * directement sur une conversation depuis le tableau de suivi (#113), « Mes coachs » ou une
- * notification, et ça évite de tenir deux sources de vérité en phase. `replace: true` — parcourir
- * ses fils ne doit pas empiler vingt entrées d'historique à remonter une par une.
- */
-function ConversationsView({
-  as,
-  relations,
-  subtitle,
-  pickTitle,
-  empty,
-  renderThread,
-}: Readonly<ConversationsViewProps>) {
-  const { t } = useTranslation();
+  const as = useActingCapability();
+  const exercised = useExercisedCapability();
   const navigate = useNavigate();
-  const conversations = useConversations();
   const search = route.useSearch();
-
-  const rows = useMemo(
-    () => conversationRows(relations.data ?? [], conversations.data ?? [], as),
-    [relations.data, conversations.data, as],
-  );
-
-  // L'interlocuteur nommé par l'URL, sinon celui du fil qu'une notification désigne.
-  const requested =
-    (as === "coach" ? search.athlete : search.coach) ??
-    counterpartOfConversation(rows, search.conversation);
-  const selected = rows.find((row) => row.counterpartId === requested) ?? null;
+  const { data: session } = authClient.useSession();
+  const conversations = useConversations();
+  const candidates = useConversationCandidates();
+  const [creating, setCreating] = useState(false);
 
   // Changer de fil ne change pas le TITRE auquel on lit : `as` est préservé, sinon un compte à
-  // double capacité basculerait d'univers en cliquant sur une ligne.
-  const select = (counterpartId: string) =>
-    navigate({
-      to: "/messages",
-      search: {
-        athlete: as === "coach" ? counterpartId : undefined,
-        coach: as === "athlete" ? counterpartId : undefined,
-        conversation: undefined,
-        as: search.as,
-      },
-      replace: true,
-    });
+  // double capacité basculerait d'univers en cliquant sur une ligne. `replace: true` — parcourir
+  // ses fils ne doit pas empiler vingt entrées d'historique à remonter une par une.
+  const select = (conversationId: string) =>
+    navigate({ to: "/messages", search: searchOf(conversationId, search.as), replace: true });
 
-  const isPending = relations.isPending || conversations.isPending;
-  const isError = relations.isError || conversations.isError;
+  const entry = useCounterpartEntry(as, exercised, search, candidates.data);
+
+  const hasCandidates = hasAnyone(candidates.data);
+  const isPending = conversations.isPending || candidates.isPending || entry.isLoading;
+  const isError = conversations.isError || candidates.isError || entry.isError;
+  const list = conversations.data ?? [];
 
   return (
-    <CmvAppShell title={t("messages.title")} subtitle={subtitle}>
+    <CmvAppShell
+      title={t("messages.title")}
+      subtitle={t(as === "coach" ? "messages.subtitle" : "messages.athlete.subtitle")}
+      actions={
+        // Sans personne à réunir, il n'y a rien à créer (#598, E1) : le bouton n'est pas proposé.
+        hasCandidates ? (
+          <CmvButton onClick={() => setCreating(true)}>{t("messages.newConversation")}</CmvButton>
+        ) : null
+      }
+    >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {/* Trois états distincts, jamais confondus : « personne à qui écrire » sur une panne réseau
@@ -185,74 +87,156 @@ function ConversationsView({
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => {
-            relations.refetch();
             conversations.refetch();
+            candidates.refetch();
+            if (entry.isError) entry.refetch();
           }}
         />
       ) : null}
 
-      {!isPending && !isError && rows.length === 0 ? empty : null}
+      {!isPending && !isError && list.length === 0 ? (
+        <NoConversation as={as} hasCandidates={hasCandidates} />
+      ) : null}
 
-      {!isPending && !isError && rows.length > 0 ? (
-        <div className="flex h-[calc(100vh-11rem)] overflow-hidden rounded-cmv-lg border border-cmv-border bg-cmv-bg-1">
-          <ConversationList
-            rows={rows}
-            selectedId={selected?.counterpartId ?? null}
-            onSelect={select}
-          />
-          {selected == null ? (
-            <div className="flex flex-1 items-center justify-center p-cmv-lg">
-              <CmvEmptyState title={pickTitle} />
-            </div>
-          ) : (
-            renderThread(selected)
-          )}
-        </div>
+      {!isPending && !isError && list.length > 0 ? (
+        <ConversationsPane
+          conversations={list}
+          currentUserId={session?.user.id ?? null}
+          selectedId={search.conversation}
+          onSelect={select}
+        />
+      ) : null}
+
+      {creating && candidates.data != null ? (
+        <NewConversationPanel
+          as={as}
+          candidates={candidates.data}
+          onClose={() => setCreating(false)}
+          onOpened={(conversationId) => {
+            setCreating(false);
+            select(conversationId);
+          }}
+        />
       ) : null}
     </CmvAppShell>
   );
 }
 
-/**
- * `listed` : le fil tel que la liste sondée le porte, `null` si elle ne le porte pas encore. C'est
- * elle qui suit ma marque de lecture (#611) — `readMarkOf` dit pourquoi.
- */
-type ThreadProps = Readonly<{ listed: ConversationDto | null }>;
-
-// Résout le fil avec l'athlète sélectionné (get-or-create) avant de le rendre.
-function CoachThread({
-  athleteId,
-  athleteName,
-  listed,
-}: ThreadProps & Readonly<{ athleteId: string; athleteName: string }>) {
-  const conversation = useConversationWith(athleteId);
+/** La liste et le fil choisi — ou l'invitation à en choisir un. */
+function ConversationsPane({
+  conversations,
+  currentUserId,
+  selectedId,
+  onSelect,
+}: Readonly<{
+  conversations: readonly ConversationDto[];
+  currentUserId: string | null;
+  selectedId: string | undefined;
+  onSelect: (conversationId: string) => void;
+}>) {
+  const { t } = useTranslation();
+  const selected = conversations.find((listed) => listed.id === selectedId) ?? null;
 
   return (
-    <MessageThread
-      conversationId={conversation.data?.id}
-      counterpartName={athleteName}
-      lastReadAt={readMarkOf(listed, conversation.data)}
-      hasResolveError={conversation.isError}
-      onRetry={() => conversation.refetch()}
-    />
+    <div className="flex h-[calc(100vh-11rem)] overflow-hidden rounded-cmv-lg border border-cmv-border bg-cmv-bg-1">
+      <ConversationList
+        conversations={conversations}
+        currentUserId={currentUserId}
+        selectedId={selected?.id ?? null}
+        onSelect={onSelect}
+      />
+      {selected == null ? (
+        <div className="flex flex-1 items-center justify-center p-cmv-lg">
+          <CmvEmptyState title={t("messages.pickThread.title")} />
+        </div>
+      ) : (
+        // Une `key` sur la conversation : changer de fil remonte un fil neuf plutôt que de recycler
+        // l'état du précédent (défilement, marquage lu).
+        <MessageThread key={selected.id} conversation={selected} />
+      )}
+    </div>
   );
 }
 
-// Résout le fil avec le coach sélectionné (get-or-create) avant de le rendre (#599).
-function AthleteThread({
-  coachId,
-  coachName,
-  listed,
-}: ThreadProps & Readonly<{ coachId: string; coachName: string }>) {
-  const conversation = useConversationWithCoach(coachId);
+/** Le fil désigné par son id, au titre déjà précisé par l'URL. */
+function searchOf(conversationId: string, as: TrainingCapability | undefined): MessagesSearch {
+  return { athlete: undefined, coach: undefined, conversation: conversationId, as };
+}
 
+/**
+ * Les entrées par interlocuteur — `?athlete=` depuis le tableau de suivi (#113), `?coach=` depuis
+ * « Mes coachs » — ouvrent le fil À DEUX avec lui, créé au besoin, puis l'URL passe à
+ * `?conversation=` : la liste ne sélectionne que par conversation.
+ *
+ * Seulement vers un CANDIDAT, au titre qui le permet : désigner un athlète, c'est agir en Coach. Un
+ * lien périmé (athlète parti, coach quitté) n'ouvre rien, plutôt qu'un refus de l'API. Les deux
+ * résolutions sont appelées inconditionnellement (règle des hooks), l'autre restant à `null`.
+ */
+function useCounterpartEntry(
+  as: TrainingCapability,
+  exercised: TrainingCapability | null,
+  search: MessagesSearch,
+  candidates: ConversationCandidatesDto | undefined,
+) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const pool = as === "coach" ? candidates?.athletes : candidates?.coaches;
+  const requested = as === "coach" ? search.athlete : search.coach;
+  const target = pool?.some((person) => person.userId === requested) ? (requested ?? null) : null;
+  const withAthlete = useConversationWith(as === "coach" ? target : null);
+  const withCoach = useConversationWithCoach(as === "athlete" ? target : null);
+  const entry = as === "coach" ? withAthlete : withCoach;
+  const resolved = entry.data;
+
+  const asSearch = search.as;
+  useEffect(() => {
+    if (resolved == null) return;
+    seedConversation(queryClient, exercised, resolved);
+    void navigate({ to: "/messages", search: searchOf(resolved.id, asSearch), replace: true });
+  }, [resolved, queryClient, exercised, navigate, asSearch]);
+
+  return entry;
+}
+
+/**
+ * Aucune conversation : sans personne à réunir, le dire et renvoyer vers ce qui y remédie ; sinon,
+ * inviter à la première (#598, E1 et E2).
+ */
+function NoConversation({
+  as,
+  hasCandidates,
+}: Readonly<{ as: TrainingCapability; hasCandidates: boolean }>) {
+  const { t } = useTranslation();
+
+  if (hasCandidates) {
+    return (
+      <CmvEmptyState
+        title={t("messages.noConversations.title")}
+        description={t(`messages.noConversations.${as}`)}
+      />
+    );
+  }
+  if (as === "coach") {
+    return (
+      <CmvEmptyState
+        title={t("messages.noAthletes.title")}
+        description={t("messages.noAthletes.description")}
+      />
+    );
+  }
+  // On garde le chemin vers « Mes coachs », seul accès aux invitations — la planche l'avait retiré.
   return (
-    <MessageThread
-      conversationId={conversation.data?.id}
-      counterpartName={coachName}
-      lastReadAt={readMarkOf(listed, conversation.data)}
-      hasResolveError={conversation.isError}
-      onRetry={() => conversation.refetch()}
+    <CmvEmptyState
+      title={t("messages.athlete.noCoach.title")}
+      description={t("messages.athlete.noCoach.description")}
+      action={
+        <Link
+          to="/my-coach"
+          className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-body text-cmv-accent-fg transition-colors hover:bg-cmv-accent-hi"
+        >
+          {t("messages.athlete.noCoach.action")}
+        </Link>
+      }
     />
   );
 }

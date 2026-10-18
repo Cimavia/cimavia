@@ -36,6 +36,11 @@ type MessageBubbleProps = {
   resolveMediaUrl: ResolveMediaUrl;
   /** Enchaîne la note vocale de ce message à celles du fil (#529) — sans effet sur un autre type. */
   voiceNoteCue?: VoiceNoteCue | undefined;
+  /**
+   * L'auteur d'une bulle REÇUE dans une conversation à plusieurs (#612) — `null` à deux ou pour
+   * mes propres messages (`messageAuthorOf`). Son nom `null` : un compte effacé, rendu « — ».
+   */
+  author?: { name: string | null } | null;
 };
 
 export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
@@ -160,6 +165,7 @@ export function MessageBubble({
   hideAttachment = false,
   resolveMediaUrl,
   voiceNoteCue,
+  author = null,
 }: Readonly<MessageBubbleProps>) {
   if (isFeedbackEventMessage(message.type)) {
     return <FeedbackEventNotice type={message.type} attachment={message.attachment} />;
@@ -171,6 +177,10 @@ export function MessageBubble({
         mine ? "self-end bg-cmv-accent" : "self-start bg-cmv-surface"
       }`}
     >
+      {author == null ? null : (
+        <CmvText className="mb-1 text-cmv-text-mid text-xs">{author.name ?? "—"}</CmvText>
+      )}
+
       {/* `null` couvre DEUX cas : le message ne porte sur rien, ou sa cible a disparu (SetNull).
           Les deux se rendent pareil — une bulle ordinaire, pas un « à propos de quelque chose ». */}
       {message.attachment == null || hideAttachment ? null : (

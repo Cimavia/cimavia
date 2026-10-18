@@ -340,11 +340,12 @@
     "sendError": "Message non envoyé. Vérifie ta connexion.",
     "empty": {
       "title": "Aucun message",
-      "description": "Démarre la conversation avec ton coach."
+      "description": "Écris le premier message à {{names}}."
     },
     "noCoach": {
-      "title": "Pas encore de coach",
-      "description": "Rejoins un coach pour échanger avec lui en messagerie."
+      "title": "Rejoins un coach pour lui écrire",
+      "description": "Quand un coach ou une entreprise t'invite par e-mail, accepte l'invitation dans « Mes coachs » : tu pourras ensuite écrire à tes coachs ici.",
+      "action": "Aller à « Mes coachs »"
     },
     "media": {
       "uploading": "Envoi en cours…",
@@ -368,7 +369,6 @@
       "recordError": "L'enregistrement a échoué. Réessaie."
     },
     "title": "Messages",
-    "noMessageYet": "Pas encore de message",
     "noAthletes": {
       "title": "Aucun athlète pour l'instant",
       "description": "Invite un premier athlète depuis l'accueil pour commencer à échanger."
@@ -387,6 +387,44 @@
     "attachment": {
       "session": "À propos de : {{title}} · {{date}}",
       "feedback": "À propos du débrief : {{title}} · {{date}}"
+    },
+    "noConversations": {
+      "title": "Aucune conversation",
+      "coach": "Écris à un ou plusieurs de tes athlètes, ou aux coachs de tes entreprises, pour démarrer.",
+      "athlete": "Écris à un ou plusieurs de tes coachs pour démarrer."
+    },
+    "newConversation": "Nouvelle conversation",
+    "back": "Retour aux conversations",
+    "capability": {
+      "coach": "Coach",
+      "athlete": "Athlète"
+    },
+    "participantCount": "{{count}} participant",
+    "participantCount_other": "{{count}} participants",
+    "previewSelf": "Vous : {{preview}}",
+    "previewAuthor": "{{name}} : {{preview}}",
+    "readBy": "Lu par {{names}}",
+    "and": "et",
+    "new": {
+      "athleteDescription": "Choisis un ou plusieurs de tes coachs.",
+      "coachDescription": "Choisis un ou plusieurs de tes athlètes, ou des coachs de tes entreprises.",
+      "searchLabel": "Rechercher",
+      "searchPlaceholder": "Rechercher un athlète ou un coach…",
+      "chosen": "Participants",
+      "myCoaches": "Tes coachs",
+      "athletes": "Athlètes",
+      "coachesOf": "Coachs de {{organization}}",
+      "colleagues": "Coachs de tes entreprises",
+      "viaOrganizations": "Coach · via {{organizations}}",
+      "ofOrganizations": "Coach · {{organizations}}",
+      "noResult": "Personne ne correspond à cette recherche.",
+      "athletesWarning": "Les athlètes de cette conversation verront les noms et les messages des autres.",
+      "unfollowedWarning": "{{coach}} ne suit pas {{athletes}} et verra ses messages.",
+      "unfollowedWarning_other": "{{coach}} ne suit pas {{athletes}} et verra leurs messages.",
+      "nor": "ni",
+      "fixed": "Les participants ne pourront plus être modifiés après la création.",
+      "create": "Créer",
+      "createError": "La conversation n'a pas pu être créée. Vérifie ta connexion, puis réessaie."
     }
   },
   "coach": {
@@ -394,6 +432,7 @@
     "since": "Suivi depuis le {{date}}",
     "sinceUnknown": "Date de rattachement —",
     "message": "Message",
+    "messageError": "La conversation n'a pas pu s'ouvrir. Vérifie ta connexion, puis réessaie.",
     "via": "via {{name}}",
     "missing": {
       "title": "Tu n'as pas encore de coach",

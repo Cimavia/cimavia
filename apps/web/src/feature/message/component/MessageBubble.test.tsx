@@ -262,3 +262,35 @@ describe("MessageBubble — le bord", () => {
     expect(container.textContent).toBe("messages.feedback.created");
   });
 });
+
+describe("MessageBubble — l'auteur, à plusieurs (#612)", () => {
+  const renderWithAuthor = (author: { name: string | null } | null) =>
+    renderInRoute(
+      <MessageBubble
+        message={message(null)}
+        mine={false}
+        author={author}
+        resolveMediaUrl={noResolve}
+      />,
+      { path: "/messages", links: LINKS },
+    );
+
+  it("nomme l'auteur en tête de bulle", async () => {
+    const view = await renderWithAuthor({ name: "M" });
+
+    expect(view.getByText("M")).toBeInTheDocument();
+  });
+
+  // Un auteur dont la ligne de participant est partie avec son compte (MC-18).
+  it("rend « — » pour un auteur qu'on ne connaît plus", async () => {
+    const view = await renderWithAuthor({ name: null });
+
+    expect(view.getByText("—")).toBeInTheDocument();
+  });
+
+  it("ne nomme personne quand on ne le lui demande pas", async () => {
+    const view = await renderWithAuthor(null);
+
+    expect(view.queryByText("—")).toBeNull();
+  });
+});

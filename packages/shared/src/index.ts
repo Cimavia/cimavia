@@ -754,16 +754,37 @@ export {
 export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
 export type { CoachPresence } from "./util/coach-presence.util";
 export { coachPresence } from "./util/coach-presence.util";
-export type {
-  ConversationRelation,
-  ConversationRow,
-  DirectConversationSource,
-} from "./util/conversation-row.util";
 export {
-  conversationRows,
-  counterpartOfConversation,
-  directCounterpartId,
-} from "./util/conversation-row.util";
+  candidateCaption,
+  coachSectionTitle,
+  conversationPreviewText,
+  conversationSubtitleText,
+  emptyThreadText,
+  hasCandidates,
+  readByText,
+} from "./util/conversation-label.util";
+export type { DirectConversationSource } from "./util/conversation-row.util";
+export { directCounterpartId } from "./util/conversation-row.util";
+export type {
+  CandidateRow,
+  ParticipantRef,
+  ReadBy,
+  SelectionWarnings,
+  UnfollowedWarning,
+} from "./util/conversation-view.util";
+export {
+  candidateRows,
+  conversationTitle,
+  filterCandidates,
+  isSameParticipant,
+  messageAuthorOf,
+  readByOf,
+  selectedCandidates,
+  selectionWarnings,
+  singleOrganizationName,
+  toggleParticipant,
+  withConversation,
+} from "./util/conversation-view.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -887,7 +908,7 @@ export {
 } from "./util/message-attachment.util";
 export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
-export { createReadMarker, lastUnreadIncomingId, readMarkOf } from "./util/message-read.util";
+export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export { adoptMetrics, remapCustomMetrics } from "./util/metric-adoption.util";
 export {
@@ -914,7 +935,7 @@ export {
   runMultipartUpload,
   uploadPercentOf,
 } from "./util/multipart-upload.util";
-export { initialsOf } from "./util/name.util";
+export { initialsOf, joinNames } from "./util/name.util";
 export {
   capabilityOfMessage,
   capabilityOfNotification,

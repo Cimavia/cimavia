@@ -15,7 +15,13 @@ import { IoPencil, IoTrashOutline } from "react-icons/io5";
 import { CustomMetricForm } from "@/feature/library/component/CustomMetricForm";
 import { useDeleteCustomMetric } from "@/feature/library/hook/useCustomMetrics";
 import { catalogByFamily, metricHint } from "@/feature/library/util/metric-catalog.util";
-import { CmvButton, CmvConfirmButton, CmvDragHandle, CmvPanel } from "@/shared/component";
+import {
+  CmvButton,
+  CmvCheckmark,
+  CmvConfirmButton,
+  CmvDragHandle,
+  CmvPanel,
+} from "@/shared/component";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { cn } from "@/shared/util/cn.util";
 
@@ -182,7 +188,7 @@ export function MetricPicker({
                 onClick={() => toggleCustom(custom.id)}
                 className="flex flex-1 items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
               >
-                <Checkbox checked={chosenCustomIds.has(custom.id)} />
+                <CmvCheckmark checked={chosenCustomIds.has(custom.id)} />
                 <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
                 {custom.unit == null ? null : (
                   <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
@@ -233,27 +239,6 @@ export function MetricPicker({
   );
 }
 
-/**
- * Une case à cocher DESSINÉE plutôt qu'un `<input type=checkbox>` : la ligne entière est déjà un
- * bouton qui bascule, et imbriquer un contrôle dans un bouton produirait deux cibles de clic
- * pour une seule intention.
- */
-function Checkbox({ checked }: Readonly<{ checked: boolean }>) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-cmv-sm border text-cmv-caption",
-        checked
-          ? "border-cmv-accent-line bg-cmv-accent-soft text-cmv-accent-on"
-          : "border-cmv-border",
-      )}
-    >
-      {checked ? "✓" : null}
-    </span>
-  );
-}
-
 function CatalogRow({
   metricKey,
   chosen,
@@ -271,7 +256,7 @@ function CatalogRow({
       onClick={onToggle}
       className="flex items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
     >
-      <Checkbox checked={chosen} />
+      <CmvCheckmark checked={chosen} />
       <span className="text-cmv-body text-cmv-text-hi">{t(METRIC_LABEL_KEY[metricKey])}</span>
       {hint == null ? null : <span className="text-cmv-caption text-cmv-text-lo">{hint}</span>}
     </button>

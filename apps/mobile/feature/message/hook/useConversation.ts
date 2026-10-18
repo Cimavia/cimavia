@@ -1,4 +1,11 @@
-import type { ConversationDto, MessageDto, SendMessageInput } from "@cmv/shared";
+import {
+  type ConversationCandidatesDto,
+  type ConversationDto,
+  type CreateConversationInput,
+  type MessageDto,
+  type SendMessageInput,
+  withConversation,
+} from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -21,6 +28,49 @@ export function useConversations() {
   return useQuery<ConversationDto[]>({
     queryKey: messageKeys.conversations(as),
     queryFn: () => messageApi.listConversations(as),
+  });
+}
+
+/**
+ * Une conversation de MA liste, par son id : c'est la liste qui porte ses participants et ma
+ * marque de lecture (#611), et `markRead` l'invalide. Pas de requête de plus — la liste, montée
+ * sous le fil dans la pile de l'onglet Messages, la tient déjà. `undefined` tant qu'elle charge,
+ * `null` une fois chargée sans elle (lien périmé, conversation qui n'est pas la mienne).
+ */
+export function useConversation(conversationId: string) {
+  const conversations = useConversations();
+  const conversation =
+    conversations.data == null
+      ? undefined
+      : (conversations.data.find((listed) => listed.id === conversationId) ?? null);
+  return { conversation, conversations };
+}
+
+/** Qui l'acteur peut réunir, au titre qu'il exerce (#611) : de quoi « Nouvelle conversation ». */
+export function useConversationCandidates() {
+  const as = useExercisedCapability();
+  return useQuery<ConversationCandidatesDto>({
+    queryKey: messageKeys.candidates(as),
+    queryFn: () => messageApi.listCandidates(as),
+  });
+}
+
+/**
+ * Crée une conversation, ou rouvre celle qui réunit déjà ces participants (#611) — c'est l'API qui
+ * le décide, l'écran ouvre ce qu'elle rend. Posée aussitôt dans la liste en cache : le fil s'y lit
+ * par son id, et y serait absent jusqu'à la relecture.
+ */
+export function useCreateConversation() {
+  const queryClient = useQueryClient();
+  const as = useExercisedCapability();
+  return useMutation({
+    mutationFn: (input: CreateConversationInput) => messageApi.createConversation(input, as),
+    onSuccess: (conversation) => {
+      queryClient.setQueryData<ConversationDto[]>(messageKeys.conversations(as), (list) =>
+        withConversation(list, conversation),
+      );
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+    },
   });
 }
 
@@ -60,6 +110,23 @@ export function useConversationWithCoach(coachId: string | null) {
       ),
     enabled: coachId != null,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
+ * Ouvre (get-or-create) la conversation À DEUX avec un de mes coachs, depuis « Mes coachs » (#612).
+ * Une mutation et non une query comme `useConversationWithCoach` : c'est un geste, et l'écran
+ * navigue vers ce qu'elle rend. Toujours à titre d'athlète — c'est l'écran qui y bascule un compte
+ * à double capacité —, donc pas de pose dans une liste dont la clé change sous ses pieds : la
+ * conversation la relit si elle n'y est pas.
+ */
+export function useOpenCoachConversation() {
+  return useMutation({
+    mutationFn: (coachId: string) =>
+      messageApi.createConversation(
+        { participants: [{ userId: coachId, capability: "coach" }] },
+        "athlete",
+      ),
   });
 }
 

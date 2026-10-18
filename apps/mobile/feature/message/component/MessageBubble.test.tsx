@@ -235,3 +235,42 @@ describe("MessageBubble — les avis de débrief", () => {
     expect(auteur).toBe(lecteur);
   });
 });
+
+describe("MessageBubble — l'auteur, à plusieurs (#612)", () => {
+  const text = { ...message(null), content: "Comment s'est passé le renfo ?" };
+
+  it("nomme l'auteur d'une bulle reçue", () => {
+    const { queryByText } = renderRn(
+      <MessageBubble
+        message={text}
+        mine={false}
+        author={{ name: "Marc" }}
+        resolveMediaUrl={noResolve}
+      />,
+    );
+
+    expect(queryByText("Marc")).not.toBeNull();
+  });
+
+  // Un compte effacé (MC-18) : on ne devine pas un nom.
+  it("rend « — » pour un auteur qui n'a plus de nom", () => {
+    const { queryByText } = renderRn(
+      <MessageBubble
+        message={text}
+        mine={false}
+        author={{ name: null }}
+        resolveMediaUrl={noResolve}
+      />,
+    );
+
+    expect(queryByText("—")).not.toBeNull();
+  });
+
+  it("ne nomme personne sans auteur à dire", () => {
+    const { container } = renderRn(
+      <MessageBubble message={text} mine={false} resolveMediaUrl={noResolve} />,
+    );
+
+    expect(container.textContent).toBe("Comment s'est passé le renfo ?");
+  });
+});

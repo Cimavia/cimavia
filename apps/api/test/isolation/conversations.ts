@@ -220,6 +220,34 @@ describe("Conversations à participants : à deux ou à plusieurs (#611)", () =>
       expect((await seenBy(world.m, groupId)).unreadCount).toBe(1);
       expect((await seenBy(world.ti, groupId)).unreadCount).toBe(1);
     });
+
+    /**
+     * La pastille d'un espace compte TOUTES ses conversations, à plusieurs comprises (#612) : elle
+     * se lit dans les notifications, posées pour chaque destinataire sauf l'auteur. Un groupe neuf,
+     * où TE écrit pour la première fois : un message n'ouvre une série chez X que si X a lu le
+     * précédent de son auteur (#611), et TI a déjà écrit sans être lu dans `groupId`. En écart
+     * plutôt qu'en absolu — le terrain partagé a déjà ses propres notifications.
+     */
+    it("allume la pastille d'espace de chaque destinataire, pas celle de l'auteur", async () => {
+      type Unread = { coach: number; athlete: number; count: number };
+      const unread = async (agent: Agent) =>
+        (await agent.get("/me/notifications/unread-count")).body as Unread;
+      const snapshot = async () => ({
+        c: await unread(world.c),
+        m: await unread(world.m),
+        te: await unread(world.te),
+      });
+      const opened = await create(world.c, [coach(world.ids.m), athlete(teId)]);
+      expect(opened.status).toBe(201);
+      const before = await snapshot();
+
+      expect((await send(world.te, opened.body.id, "Je pars sur la grimpe")).status).toBe(201);
+
+      const after = await snapshot();
+      expect(after.c.coach - before.c.coach).toBe(1);
+      expect(after.m.coach - before.m.coach).toBe(1);
+      expect(after.te.count).toBe(before.te.count);
+    });
   });
 
   describe("Isolation", () => {

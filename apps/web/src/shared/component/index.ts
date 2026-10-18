@@ -4,6 +4,7 @@ export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";
 export { CmvCard } from "./CmvCard";
 export { CmvCharCount } from "./CmvCharCount";
+export { CmvCheckmark } from "./CmvCheckmark";
 export type { CmvChoiceChip } from "./CmvChoiceChips";
 export { CmvChoiceChips } from "./CmvChoiceChips";
 export { CmvConfirmButton } from "./CmvConfirmButton";

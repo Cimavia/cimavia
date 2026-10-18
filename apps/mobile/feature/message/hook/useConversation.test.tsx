@@ -1,15 +1,39 @@
-import { type MessageDto, messageKeys, type TrainingCapability } from "@cmv/shared";
+import {
+  type ConversationDto,
+  type MessageDto,
+  messageKeys,
+  type TrainingCapability,
+} from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useFocusEffect } from "expo-router";
 import { type EffectCallback, type ReactNode, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useMarkRead, useMessages, useSendMessage } from "./useConversation";
+import {
+  useConversation,
+  useConversationCandidates,
+  useCreateConversation,
+  useMarkRead,
+  useMessages,
+  useOpenCoachConversation,
+  useSendMessage,
+} from "./useConversation";
 
-const { getMessagesMock, markReadMock, sendMessageMock, exercised } = vi.hoisted(() => ({
+const {
+  getMessagesMock,
+  markReadMock,
+  sendMessageMock,
+  listConversationsMock,
+  listCandidatesMock,
+  createConversationMock,
+  exercised,
+} = vi.hoisted(() => ({
   getMessagesMock: vi.fn(),
   markReadMock: vi.fn(),
   sendMessageMock: vi.fn(),
+  listConversationsMock: vi.fn(),
+  listCandidatesMock: vi.fn(),
+  createConversationMock: vi.fn(),
   exercised: { as: null as TrainingCapability | null },
 }));
 
@@ -18,6 +42,9 @@ vi.mock("@/feature/message/api", async () => ({
     getMessages: getMessagesMock,
     markRead: markReadMock,
     sendMessage: sendMessageMock,
+    listConversations: listConversationsMock,
+    listCandidates: listCandidatesMock,
+    createConversation: createConversationMock,
   },
   messageKeys: (await import("@cmv/shared")).messageKeys,
 }));
@@ -164,5 +191,89 @@ describe("invalidation de la liste des fils", () => {
     // Invalider le fil résolu rejouerait le get-or-create à chaque lecture, pour un id qui ne
     // change pas.
     expect(isInvalidated(messageKeys.conversationWithCoach("coach_1"))).toBe(false);
+  });
+});
+
+const listed = (id: string) => ({ id, participants: [] }) as unknown as ConversationDto;
+
+function freshClient() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return { queryClient, wrapper };
+}
+
+describe("useConversation (#612)", () => {
+  // `undefined` charge, `null` est chargé sans elle : l'écran attend l'un, dit la panne de l'autre.
+  it("rend undefined tant que la liste charge, puis la conversation de la liste", async () => {
+    listConversationsMock.mockResolvedValue([listed("cv-1"), listed("cv-2")]);
+    const { wrapper } = freshClient();
+    const { result } = renderHook(() => useConversation("cv-2"), { wrapper });
+
+    expect(result.current.conversation).toBeUndefined();
+    await waitFor(() => expect(result.current.conversation?.id).toBe("cv-2"));
+  });
+
+  it("rend null quand la liste chargée ne la porte pas", async () => {
+    listConversationsMock.mockResolvedValue([listed("cv-1")]);
+    const { wrapper } = freshClient();
+    const { result } = renderHook(() => useConversation("perdue"), { wrapper });
+
+    await waitFor(() => expect(result.current.conversation).toBeNull());
+  });
+});
+
+describe("useConversationCandidates (#612)", () => {
+  afterEach(() => {
+    exercised.as = null;
+  });
+
+  it("demande les candidats au titre exercé", async () => {
+    exercised.as = "coach";
+    listCandidatesMock.mockResolvedValue({ athletes: [], coaches: [] });
+    const { wrapper } = freshClient();
+    const { result } = renderHook(() => useConversationCandidates(), { wrapper });
+
+    await waitFor(() => expect(result.current.data).toEqual({ athletes: [], coaches: [] }));
+    expect(listCandidatesMock).toHaveBeenCalledWith("coach");
+  });
+});
+
+describe("useCreateConversation (#612)", () => {
+  const input = { participants: [{ userId: "m", capability: "coach" as const }] };
+
+  // Le fil se lit par son id DANS la liste : absente, la conversation créée ne s'ouvrirait pas.
+  it("pose la conversation créée en tête de la liste, puis la relit", async () => {
+    createConversationMock.mockResolvedValue(listed("new"));
+    const { queryClient, wrapper } = freshClient();
+    queryClient.setQueryData(messageKeys.conversations(null), [listed("old")]);
+    const { result } = renderHook(() => useCreateConversation(), { wrapper });
+
+    await act(() => result.current.mutateAsync(input));
+
+    expect(createConversationMock).toHaveBeenCalledWith(input, null);
+    const list = queryClient.getQueryData<ConversationDto[]>(messageKeys.conversations(null));
+    expect(list?.map((conversation) => conversation.id)).toEqual(["new", "old"]);
+    expect(queryClient.getQueryState(messageKeys.conversations(null))?.isInvalidated).toBe(true);
+  });
+});
+
+describe("useOpenCoachConversation (#612)", () => {
+  // Désigner un de ses coachs, c'est agir en athlète — quel que soit l'espace d'où l'on vient.
+  it("ouvre le fil à deux avec ce coach, au titre d'athlète", async () => {
+    exercised.as = "coach";
+    createConversationMock.mockResolvedValue(listed("cv-c"));
+    const { wrapper } = freshClient();
+    const { result } = renderHook(() => useOpenCoachConversation(), { wrapper });
+
+    const opened = await act(() => result.current.mutateAsync("coach-1"));
+
+    expect(opened.id).toBe("cv-c");
+    expect(createConversationMock).toHaveBeenCalledWith(
+      { participants: [{ userId: "coach-1", capability: "coach" }] },
+      "athlete",
+    );
+    exercised.as = null;
   });
 });

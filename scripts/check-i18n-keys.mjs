@@ -304,12 +304,12 @@ const IMPERATIF = /(?<!\p{L})\p{L}+ez(?!\p{L})/giu;
 const NON_VERBES = new Set(["assez", "chez", "nez", "rez"]);
 
 /**
- * Les clés où « vous » désigne un TIERS et non le lecteur. Vide aujourd'hui : elle existe pour
- * l'aperçu « Vous : » du fil de conversation, que la maquette prévoit et que `ConversationDto` ne
- * sait pas encore rendre (l'auteur du dernier message n'est pas exposé). Le jour où il arrive, il
- * s'inscrit ICI plutôt que de faire sauter le contrôle.
+ * Les clés où « vous » n'est pas un vouvoiement adressé au lecteur. `messages.previewSelf` : le
+ * préfixe « Vous : » de l'aperçu d'un fil, convention de messagerie que la maquette prévoit
+ * (#612) — il nomme l'auteur du message, il ne s'adresse à personne. Une clé s'inscrit ICI plutôt
+ * que de faire sauter le contrôle.
  */
-const REGISTRE_EXEMPT = new Set([]);
+const REGISTRE_EXEMPT = new Set(["messages.previewSelf"]);
 
 // Les chaînes littérales d'un source TypeScript : doubles quotes et gabarits — Biome normalise les
 // quotes simples, il n'y a rien d'autre à lire. Les commentaires passent au travers, et c'est

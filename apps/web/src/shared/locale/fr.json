@@ -925,13 +925,12 @@
   },
   "messages": {
     "title": "Messages",
-    "subtitle": "Échange avec tes athlètes.",
+    "subtitle": "Échange avec tes athlètes et les coachs de tes entreprises.",
     "placeholder": "Écris un message…",
     "send": "Envoyer",
     "attach": "Joindre des photos ou des vidéos",
     "record": "Enregistrer un message vocal",
     "loadError": "Impossible de charger la conversation.",
-    "noMessages": "Aucun message",
     "media": {
       "uploading": "Envoi en cours… {{percent}} %",
       "retrying": "Connexion interrompue — nouvelle tentative {{attempt}}/{{max}}…",
@@ -953,10 +952,11 @@
       "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté."
     },
     "empty": {
-      "description": "Démarre la conversation."
+      "title": "Aucun message",
+      "description": "Écris le premier message à {{names}}."
     },
     "pickThread": {
-      "title": "Sélectionne un athlète pour ouvrir la conversation."
+      "title": "Aucune conversation sélectionnée"
     },
     "noAthletes": {
       "title": "Aucun athlète",
@@ -971,10 +971,9 @@
     },
     "athlete": {
       "subtitle": "Échange avec tes coachs.",
-      "pickThread": "Sélectionne un coach pour ouvrir la conversation.",
       "noCoach": {
-        "title": "Aucun coach rattaché",
-        "description": "La messagerie n'est disponible qu'avec un coach. Accepte son invitation dans « Mes coachs » pour commencer à échanger.",
+        "title": "Rejoins un coach pour lui écrire",
+        "description": "Quand un coach ou une entreprise t'invite par e-mail, accepte l'invitation dans « Mes coachs » : tu pourras ensuite écrire à tes coachs ici.",
         "action": "Aller à « Mes coachs »"
       }
     },
@@ -985,6 +984,43 @@
     "attachment": {
       "session": "À propos de : {{title}} · {{date}}",
       "feedback": "À propos du débrief : {{title}} · {{date}}"
+    },
+    "noConversations": {
+      "title": "Aucune conversation",
+      "coach": "Écris à un ou plusieurs de tes athlètes, ou aux coachs de tes entreprises, pour démarrer.",
+      "athlete": "Écris à un ou plusieurs de tes coachs pour démarrer."
+    },
+    "newConversation": "Nouvelle conversation",
+    "capability": {
+      "coach": "Coach",
+      "athlete": "Athlète"
+    },
+    "participantCount": "{{count}} participant",
+    "participantCount_other": "{{count}} participants",
+    "previewSelf": "Vous : {{preview}}",
+    "previewAuthor": "{{name}} : {{preview}}",
+    "readBy": "Lu par {{names}}",
+    "and": "et",
+    "new": {
+      "title": "Nouvelle conversation",
+      "athleteDescription": "Choisis un ou plusieurs de tes coachs.",
+      "coachDescription": "Choisis un ou plusieurs de tes athlètes, ou des coachs de tes entreprises.",
+      "searchLabel": "Rechercher",
+      "searchPlaceholder": "Rechercher un athlète ou un coach…",
+      "chosen": "Participants",
+      "myCoaches": "Tes coachs",
+      "athletes": "Athlètes",
+      "coachesOf": "Coachs de {{organization}}",
+      "colleagues": "Coachs de tes entreprises",
+      "viaOrganizations": "Coach · via {{organizations}}",
+      "ofOrganizations": "Coach · {{organizations}}",
+      "noResult": "Personne ne correspond à cette recherche.",
+      "athletesWarning": "Les athlètes de cette conversation verront les noms et les messages des autres.",
+      "unfollowedWarning": "{{coach}} ne suit pas {{athletes}} et verra ses messages.",
+      "unfollowedWarning_other": "{{coach}} ne suit pas {{athletes}} et verra leurs messages.",
+      "nor": "ni",
+      "fixed": "Les participants ne pourront plus être modifiés après la création.",
+      "create": "Créer"
     }
   },
   "athlete": {
