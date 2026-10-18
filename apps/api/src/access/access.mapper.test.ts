@@ -2,7 +2,7 @@ import { LibraryScope, MyAccessLevel } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import {
   type AccessRow,
-  citationsLosingRead,
+  coachesLosingRead,
   grantsAfter,
   libraryScopeWhere,
   toAccessView,
@@ -173,23 +173,19 @@ describe("grantsAfter", () => {
   });
 });
 
-describe("citationsLosingRead", () => {
+describe("coachesLosingRead", () => {
   const memberships: Record<string, string[]> = { m: ["org-f"], n: ["org-f", "org-g"], b: [] };
   const organizationsOf = (coachId: string) => new Set(memberships[coachId] ?? []);
-  const citations = [
-    { sessionId: "s-m", coachId: "m" },
-    { sessionId: "s-n", coachId: "n" },
-    { sessionId: "s-b", coachId: "b" },
-  ];
+  const citing = ["m", "n", "b"];
   const losing = (
     current: { grants: (typeof F | typeof G)[]; coachGrants?: ReturnType<typeof lineOf>[] },
     input: {
       changes?: Parameters<typeof grantsAfter>[1]["changes"];
       coachChanges?: Parameters<typeof grantsAfter>[1]["coachChanges"];
     },
-    cited = citations,
+    cited = citing,
   ) =>
-    citationsLosingRead(
+    coachesLosingRead(
       "c",
       { grants: current.grants, coachGrants: current.coachGrants ?? [] },
       { changes: input.changes ?? [], coachChanges: input.coachChanges ?? [] },
@@ -197,10 +193,10 @@ describe("citationsLosingRead", () => {
       organizationsOf,
     );
 
-  it("retirer F orpheline la séance de M, pas celle de N qui lit encore par G", () => {
+  it("retirer F prive M de l'exercice, pas N qui lit encore par G", () => {
     expect(
       losing({ grants: [F, G] }, { changes: [{ organizationId: "org-f", level: null }] }),
-    ).toEqual(["s-m"]);
+    ).toEqual(["m"]);
   });
 
   it("passer d'Écriture à Lecture ne retire la lecture à personne", () => {
@@ -209,17 +205,15 @@ describe("citationsLosingRead", () => {
     ).toEqual([]);
   });
 
-  it("un Coach qui ne lisait déjà plus l'exercice ne bloque rien", () => {
+  it("un Coach qui ne lisait déjà plus l'exercice ne perd rien", () => {
     expect(
-      losing({ grants: [F] }, { changes: [{ organizationId: "org-f", level: null }] }, [
-        { sessionId: "s-b", coachId: "b" },
-      ]),
+      losing({ grants: [F] }, { changes: [{ organizationId: "org-f", level: null }] }, ["b"]),
     ).toEqual([]);
   });
 
-  it("fermer la ligne de M orpheline sa séance, même si F l'ouvre encore (#608)", () => {
+  it("fermer la ligne de M le prive de l'exercice, même si F l'ouvre encore (#608)", () => {
     expect(losing({ grants: [F] }, { coachChanges: [{ coachId: "m", level: "NONE" }] })).toEqual([
-      "s-m",
+      "m",
     ]);
   });
 
@@ -229,7 +223,7 @@ describe("citationsLosingRead", () => {
         { grants: [F], coachGrants: [lineOf("m", "READ")] },
         { changes: [{ organizationId: "org-f", level: null }] },
       ),
-    ).toEqual(["s-n"]);
+    ).toEqual(["n"]);
   });
 
   it("rendre M à « Hérité » sans entreprise ouverte lui retire la lecture (#608)", () => {
@@ -238,6 +232,6 @@ describe("citationsLosingRead", () => {
         { grants: [], coachGrants: [lineOf("m", "WRITE")] },
         { coachChanges: [{ coachId: "m", level: null }] },
       ),
-    ).toEqual(["s-m"]);
+    ).toEqual(["m"]);
   });
 });

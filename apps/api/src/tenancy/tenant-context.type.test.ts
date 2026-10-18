@@ -1,6 +1,12 @@
 import type { ClsService } from "nestjs-cls";
-import { describe, expect, it } from "vitest";
-import { currentActor, exercisedOrThrow, type TenantContext } from "./tenant-context.type";
+import { describe, expect, it, vi } from "vitest";
+import {
+  currentActor,
+  exercisedOrThrow,
+  runAsCoach,
+  TENANT_CLS_KEY,
+  type TenantContext,
+} from "./tenant-context.type";
 
 const ACTOR: TenantContext = {
   userId: "usr_1",
@@ -38,5 +44,18 @@ describe("exercisedOrThrow", () => {
     expect(() => exercisedOrThrow({ ...ACTOR, exercised: null })).toThrow(
       "[tenancy] capacité exercée inconnue — la route déclare-t-elle @RequireCapability ?",
     );
+  });
+});
+
+describe("runAsCoach", () => {
+  it("pose le Coach choisi, à titre de coach, dans un contexte à lui", async () => {
+    const set = vi.fn();
+    const cls = { run: (fn: () => unknown) => fn(), set } as unknown as ClsService;
+    await expect(runAsCoach(cls, "usr_m", async () => "fait")).resolves.toBe("fait");
+    expect(set).toHaveBeenCalledWith(TENANT_CLS_KEY, {
+      userId: "usr_m",
+      capabilities: { isCoach: true, isAthlete: false, isCompany: false },
+      exercised: "coach",
+    });
   });
 });

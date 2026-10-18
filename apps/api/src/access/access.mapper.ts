@@ -168,22 +168,19 @@ export function grantsAfter(
   return { grants: [...organizations.values()], coachGrants: [...coaches.values()] };
 }
 
-/** Une séance qui cite un exercice, et le Coach qui la possède. */
-export type Citation = { sessionId: string; coachId: string };
-
 /**
- * Les séances d'autres Coachs dont le propriétaire perdrait la lecture de l'exercice qu'elles
- * citent si les changements s'appliquaient (#605, écart assumé jusqu'à #609) : il le lisait, et ne
- * le lirait plus. La règle est celle d'`effectiveAccess`, avant et après : sa ligne de Coach mise à
+ * Les Coachs, parmi ceux dont une séance cite l'exercice, qui en perdraient la lecture si les
+ * changements s'appliquaient : ils le lisaient, et ne le liraient plus. Chacun en garde une copie
+ * figée (#609). La règle est celle d'`effectiveAccess`, avant et après : sa ligne de Coach mise à
  * « Aucun » le prive (#608), une ligne qui lui reste le protège du retrait de son entreprise.
  * Passer d'Écriture à Lecture ne retire rien ; un Coach qui ne lisait déjà plus l'exercice ne perd
- * rien non plus, et ne doit pas tout bloquer.
+ * rien non plus — sa séance le lit par sa propre copie, ou ne le lira plus.
  */
-export function citationsLosingRead(
+export function coachesLosingRead(
   ownerId: string,
   current: ElementGrants,
   input: Pick<ChangeAccessInput, "changes" | "coachChanges">,
-  citations: readonly Citation[],
+  citingCoachIds: readonly string[],
   organizationsOf: (coachId: string) => ReadonlySet<string>,
 ): string[] {
   const after = grantsAfter(current, input);
@@ -194,7 +191,5 @@ export function citationsLosingRead(
       ...state,
       actorOrganizationIds: organizationsOf(coachId),
     }) != null;
-  return citations
-    .filter(({ coachId }) => reads(coachId, current) && !reads(coachId, after))
-    .map(({ sessionId }) => sessionId);
+  return citingCoachIds.filter((coachId) => reads(coachId, current) && !reads(coachId, after));
 }

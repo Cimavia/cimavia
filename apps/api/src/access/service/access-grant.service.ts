@@ -1,7 +1,7 @@
 import type { AccessLevel, ChangeAccessInput, CoachChange, ElementAccessDto } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
   type AccessContext,
@@ -111,10 +111,14 @@ export class AccessGrantService {
    *
    * Le tenant client ne touche que les lignes dont l'acteur est le propriétaire (`ownerId`), et
    * les crée à son nom : à n'appeler qu'après `assertCanShare`.
+   *
+   * `alongside` s'exécute dans la MÊME transaction, après les lignes : la copie figée d'un exercice
+   * fermé (#609) tombe avec elles si l'une échoue.
    */
   async apply(
     target: AccessTarget,
     { ids, changes, coachChanges }: GrantChanges,
+    alongside?: (tx: TenantTx) => Promise<void>,
   ): Promise<ElementAccessDto[]> {
     const lines: { beneficiary: Beneficiary; level: AccessLevel | null }[] = [
       ...changes.map(({ organizationId, level }) => ({ beneficiary: { organizationId }, level })),
@@ -138,6 +142,7 @@ export class AccessGrantService {
         });
         await tx.accessGrant.updateMany({ where, data: { level } });
       }
+      await alongside?.(tx);
     });
     return this.read(target, ids);
   }

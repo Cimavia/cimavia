@@ -21,17 +21,15 @@ import {
 } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import {
-  ACCESS_INCLUDE,
   type AccessContext,
-  type AccessRow,
-  citationsLosingRead,
+  coachesLosingRead,
   libraryScopeWhere,
   toCoachGrantDtos,
   toGrantDtos,
 } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
 import { AccessGrantService } from "../../access/service/access-grant.service";
-import type { CatalogOf } from "../../custom-metric/custom-metric.mapper";
+import type { CatalogOf, CustomMetricCatalog } from "../../custom-metric/custom-metric.mapper";
 import {
   assertCitesCatalog,
   CustomMetricService,
@@ -50,11 +48,13 @@ import {
 import {
   assertInstructionImagesOwned,
   instructionImageIds,
-  withCopiedImages,
 } from "../../util/instruction-images.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
+  citationsOf,
+  EXERCISE_CITATIONS_INCLUDE,
   EXERCISE_DETAIL_INCLUDE,
+  type ExerciseWithCitations,
   type ExerciseWithDocuments,
   LIBRARY_EXERCISE_INCLUDE,
   type LibraryExercise,
@@ -62,9 +62,11 @@ import {
 } from "../exercise.mapper";
 import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
 import { DocumentCleanupService } from "./document-cleanup.service";
+import { ExerciseCopyService } from "./exercise-copy.service";
 
 const EXERCISE_NOT_FOUND = "Exercice introuvable";
 const UNKNOWN_EXERCISES = "Un ou plusieurs exercices sont inconnus";
+const CITED_MEANWHILE = "Une séance vient de citer cet exercice : réessaie la suppression";
 
 @Injectable()
 export class ExerciseService {
@@ -76,6 +78,7 @@ export class ExerciseService {
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly grants: AccessGrantService,
+    private readonly copies: ExerciseCopyService,
   ) {}
 
   private async toDto(
@@ -225,7 +228,8 @@ export class ExerciseService {
   }
 
   /**
-   * « Dupliquer en variante » : une copie indépendante de l'exercice, consigne comprise (#315).
+   * « Dupliquer en variante » : une copie indépendante de l'exercice, consigne comprise (#315),
+   * dans la bibliothèque de l'acteur — de tout exercice qu'il lit, plus seulement des siens (#609).
    *
    * La consigne cite ses images par l'identifiant d'un document de la SOURCE. Recopiée telle
    * quelle, elle désignait des documents que la variante n'a pas : ni l'éditeur ni l'athlète ne
@@ -235,72 +239,32 @@ export class ExerciseService {
    *
    * Seules les images de consigne suivent. Pièces jointes et liens restent à la source : la
    * variante sert à changer structure, colonnes ou consigne, pas les ressources de l'exercice.
+   *
+   * Les blocs reçus viennent d'une ligne de séance qui cite la source : ils citent le catalogue de
+   * son PROPRIÉTAIRE (piège n°9), et la variante les fait passer dans celui de l'acteur.
    */
   async duplicate(sourceId: string, input: DuplicateExerciseInput): Promise<ExerciseDto> {
-    const { exercise: source } = await this.getForOrThrow(sourceId, "duplicate");
+    const source = await this.getReadableOrThrow(sourceId);
     const instructions = parseInstructions(source.instructions);
     const cited = new Set(imageMediaIds(instructions ?? []));
     const owned = instructionImageIds(source.documents);
     const images = source.documents.filter((doc) => cited.has(doc.id) && owned.has(doc.id));
     const sourceBlocks = parseBlocks(source.blocks);
-    if (input.blocks != null) {
-      assertCitesCatalog(input.blocks, sourceBlocks, await this.metrics.ownCatalog());
-    }
-
-    const id = await this.db.$transaction(async (tx) => {
-      const created = await tx.exercise.create({
-        data: {
+    // Lu une fois, hors de la transaction : il juge les blocs reçus, puis la copie l'adopte.
+    const catalog = (await this.metrics.catalogOf([source.coachId]))(source.coachId);
+    if (input.blocks != null) assertCitesCatalog(input.blocks, sourceBlocks, catalog);
+    const id = await this.db.$transaction((tx) =>
+      this.copies.create(
+        tx,
+        { ...source, catalog },
+        {
           title: input.title,
-          titleSearch: comparableText(input.title),
-          description: source.description,
-          blocks: toBlocksInput(input.blocks ?? sourceBlocks),
-        } satisfies Omit<
-          Prisma.ExerciseUncheckedCreateInput,
-          "coachId"
-        > as Prisma.ExerciseUncheckedCreateInput,
-      });
-
-      // Un par un : il faut l'identifiant de chaque copie pour réécrire la consigne.
-      const idByOldId = new Map<string, string>();
-      for (const image of images) {
-        const copy = await tx.exerciseDocument.create({
-          data: {
-            exerciseId: created.id,
-            type: image.type,
-            usage: image.usage,
-            storagePath: image.storagePath,
-            fileName: image.fileName,
-            mimeType: image.mimeType,
-          } satisfies Omit<
-            Prisma.ExerciseDocumentUncheckedCreateInput,
-            "coachId"
-          > as Prisma.ExerciseDocumentUncheckedCreateInput,
-        });
-        idByOldId.set(image.id, copy.id);
-      }
-
-      await tx.exercise.update({
-        where: { id: created.id },
-        data: {
-          instructions: toInstructionsInput(
-            instructions == null ? null : withCopiedImages(instructions, idByOldId),
-          ),
+          blocks: input.blocks ?? sourceBlocks,
+          documents: images,
+          frozen: null,
         },
-      });
-      if (source.tags.length > 0) {
-        await tx.exerciseTag.createMany({
-          data: source.tags.map((tag) => ({
-            exerciseId: created.id,
-            name: tag.name,
-          })) satisfies Omit<
-            Prisma.ExerciseTagUncheckedCreateInput,
-            "coachId"
-          >[] as Prisma.ExerciseTagUncheckedCreateInput[],
-        });
-      }
-      return created.id;
-    });
-
+      ),
+    );
     return this.get(id);
   }
 
@@ -400,116 +364,145 @@ export class ExerciseService {
   /**
    * Sous la version lue (#605, MC-8) : un rédacteur a pu changer l'exercice depuis, et le
    * propriétaire supprimerait ce qu'il n'a pas vu.
+   *
+   * Les séances des AUTRES Coachs qui le citent en gardent chacune une copie figée (#609), dans la
+   * transaction de la suppression : refusée, elle ne laisse aucune copie derrière elle.
    */
   async delete(id: string, query: VersionQuery): Promise<void> {
     const { exercise } = await this.getForOrThrow(id, "delete");
     const expected = new Date(query.expectedUpdatedAt);
     // Avant le décompte des séances : un 409 « utilisé » sur un état périmé dirait le faux.
     assertReadAtVersion(exercise.updatedAt, expected);
-    await this.assertUnused(exercise);
+    const foreign = this.foreignCitersOrThrow(exercise);
+    const source = { ...exercise, catalog: await this.ownerCatalog(exercise, foreign.length > 0) };
 
-    // Un Coach qui lit l'exercice a pu le citer depuis le décompte : la clé étrangère refuse, et
-    // le même 409 le dit plutôt qu'un 500.
+    const at = new Date();
+    // Une séance a pu citer l'exercice depuis le décompte : la clé étrangère refuse, et un 409 le
+    // dit plutôt qu'un 500 — le propriétaire, s'il en est l'auteur, d'abord.
     await explainForeignKeyViolation(
-      () => deleteAtVersion(this.db.exercise, id, expected, EXERCISE_NOT_FOUND),
-      () => this.assertUnused(exercise),
+      () =>
+        this.db.$transaction(async (tx) => {
+          for (const coachId of foreign) await this.copies.freezeFor(tx, source, coachId, at);
+          await deleteAtVersion(tx.exercise, id, expected, EXERCISE_NOT_FOUND);
+        }),
+      async () => {
+        this.foreignCitersOrThrow(await this.getReadableOrThrow(id));
+        throw new ConflictException(CITED_MEANWHILE);
+      },
     );
 
     // Les lignes ExerciseDocument sont parties en cascade, mais PAS les objets en storage : on les
     // supprime explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
-    // séance planifiée affiche encore — ses copies partagent la clé objet (P3). APRÈS la
-    // suppression : refusée, elle ne doit rien avoir purgé.
+    // séance planifiée ou une copie figée affiche encore — elles partagent la clé objet (P3,
+    // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé.
     for (const document of exercise.documents) {
       await this.cleanup.deleteObjectIfUnreferenced(document);
     }
   }
 
   /**
-   * Changer les droits d'exercices (#605). Propriétaire seul ; refusé en 409 si un Coach dont une
-   * séance cite l'exercice en perdait la lecture — sa séance citerait un exercice qu'il ne lit plus.
+   * Changer les droits d'exercices (#605). Propriétaire seul. Un Coach dont une séance cite
+   * l'exercice et qui en perd la lecture en garde une copie figée (#609), écrite dans la
+   * transaction des droits : sa séance ne cite jamais un exercice qu'il ne lit plus.
    */
   async changeAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
     const exercises = await this.db.exercise.findMany({
       where: { id: { in: input.ids } },
-      include: ACCESS_INCLUDE,
+      include: EXERCISE_CITATIONS_INCLUDE,
     });
     await this.grants.assertCanShare(input, exercises);
-    await this.assertNoCitationLosesRead(exercises, input);
-    return this.grants.apply("exerciseId", input);
+    const losing = new Map(
+      [...(await this.coachesLosingRead(exercises, input))].filter(([, ids]) => ids.length > 0),
+    );
+    if (losing.size === 0) return this.grants.apply("exerciseId", input);
+
+    // Le propriétaire est l'acteur, seul à partager : un catalogue, lu hors de la transaction.
+    const catalogOf = await this.metrics.catalogOf(exercises.map((exercise) => exercise.coachId));
+    const at = new Date();
+    return this.grants.apply("exerciseId", input, async (tx) => {
+      // Le contenu à copier se relit DANS la transaction : un rédacteur a pu écrire l'exercice
+      // depuis la lecture des droits, et la copie doit être ce que la séance perd.
+      const sources = await tx.exercise.findMany({
+        where: { id: { in: [...losing.keys()] } },
+        include: EXERCISE_DETAIL_INCLUDE,
+      });
+      for (const exercise of sources) {
+        const source = { ...exercise, catalog: catalogOf(exercise.coachId) };
+        for (const coachId of losing.get(exercise.id) ?? []) {
+          await this.copies.freezeFor(tx, source, coachId, at);
+        }
+      }
+    });
+  }
+
+  /** Le catalogue du propriétaire, que la copie adopte — vide sans copie à écrire. */
+  private async ownerCatalog(
+    exercise: ExerciseWithDocuments,
+    needed: boolean,
+  ): Promise<CustomMetricCatalog> {
+    if (!needed) return [];
+    return (await this.metrics.catalogOf([exercise.coachId]))(exercise.coachId);
   }
 
   /**
-   * Les séances et les appartenances d'AUTRES Coachs, hors du scope de C : par le client de base,
-   * sur les ids d'exercices que C vient de prouver siens. Seul un décompte en sort.
+   * Par exercice, les Coachs dont une séance le cite et qui en perdraient la lecture. Les Coachs
+   * viennent des lignes de séance que l'`include` imbriqué lit chez tous (piège n°8) ; leurs
+   * appartenances, hors du scope de C, par le client de base, sur ces seuls ids.
    */
-  private async assertNoCitationLosesRead(
-    exercises: readonly (AccessRow & { coachId: string })[],
+  private async coachesLosingRead(
+    exercises: readonly ExerciseWithCitations[],
     input: ChangeAccessInput,
-  ): Promise<void> {
-    const citations = await this.prisma.sessionExercise.findMany({
-      where: {
-        exerciseId: { in: exercises.map((exercise) => exercise.id) },
-        session: { coachId: { not: this.access.actorId() } },
-      },
-      select: { exerciseId: true, session: { select: { id: true, coachId: true } } },
-    });
-    if (citations.length === 0) return;
+  ): Promise<Map<string, string[]>> {
+    const citing = new Map(
+      exercises.map((exercise) => [exercise.id, citationsOf(exercise).foreignCoachIds]),
+    );
+    const coachIds = [...new Set([...citing.values()].flat())];
+    if (coachIds.length === 0) return new Map();
 
     const memberships = await this.prisma.organizationCoach.findMany({
-      where: { coachId: { in: [...new Set(citations.map((c) => c.session.coachId))] } },
+      where: { coachId: { in: coachIds } },
       select: { coachId: true, organizationId: true },
     });
-    // Groupées une fois : chaque citation de chaque exercice y cherche son Coach.
+    // Groupées une fois : chaque exercice y cherche ses Coachs.
     const byCoach = new Map<string, Set<string>>();
     for (const { coachId, organizationId } of memberships) {
       byCoach.set(coachId, (byCoach.get(coachId) ?? new Set()).add(organizationId));
     }
     const organizationsOf = (coachId: string) => byCoach.get(coachId) ?? new Set<string>();
-    const losing = new Set(
-      exercises.flatMap((exercise) =>
-        citationsLosingRead(
+    return new Map(
+      exercises.map((exercise) => [
+        exercise.id,
+        coachesLosingRead(
           exercise.coachId,
           {
             grants: toGrantDtos(exercise.accessGrants),
             coachGrants: toCoachGrantDtos(exercise.accessGrants),
           },
           input,
-          citations
-            .filter((citation) => citation.exerciseId === exercise.id)
-            .map(({ session }) => ({ sessionId: session.id, coachId: session.coachId })),
+          citing.get(exercise.id) ?? [],
           organizationsOf,
         ),
-      ),
+      ]),
     );
-    if (losing.size > 0) {
-      throw new ConflictException(
-        `Impossible de réduire cet accès : l'exercice est utilisé dans ${losing.size} séance(s) d'un autre coach`,
-      );
-    }
   }
 
   /**
    * SessionExercise.exercise est en onDelete: Restrict — la bibliothèque ne doit pas se vider sous
-   * les séances qui s'en servent. On renvoie un 409 explicite plutôt que de laisser remonter une
-   * violation de clé étrangère (500), et le client peut afficher le pourquoi.
+   * les séances qui s'en servent. Celles du propriétaire refusent en 409 explicite : c'est à lui
+   * de retirer l'exercice de ses séances, et le client peut afficher le pourquoi. Celles des autres
+   * Coachs ne refusent plus rien (#609) : rend ces Coachs, qui en garderont une copie figée.
    *
-   * Les séances se comptent chez TOUS les Coachs (piège n°8, #605) : celle de M qui cite l'exercice
-   * ouvert par C bloque la clé étrangère comme celle de C, mais le scope de C ne la voit pas. Par
-   * le client de base, donc, sur l'id d'un exercice déjà prouvé lisible ; seul un décompte en sort.
-   * C ne peut pas retirer l'exercice des séances de M : le message les compte à part. La copie
-   * figée de #609 lèvera ce refus.
+   * Les séances se comptent chez TOUS les Coachs (piège n°8, #605), par les lignes que l'`include`
+   * imbriqué lit sur un exercice déjà prouvé lisible ; seuls des décomptes et des ids de Coach en
+   * sortent.
    */
-  private async assertUnused(exercise: { id: string; coachId: string }): Promise<void> {
-    const sessions = await this.prisma.session.findMany({
-      where: { exercises: { some: { exerciseId: exercise.id } } },
-      select: { coachId: true },
-    });
-    if (sessions.length === 0) return;
-    const foreign = sessions.filter((session) => session.coachId !== exercise.coachId).length;
-    throw new ConflictException(
-      foreign === 0
-        ? `Exercice utilisé dans ${sessions.length} séance(s) : retire-le d'abord de ces séances`
-        : `Exercice utilisé dans ${sessions.length} séance(s), dont ${foreign} d'un autre coach`,
-    );
+  private foreignCitersOrThrow(exercise: ExerciseWithDocuments): string[] {
+    const { ownSessionCount, foreignCoachIds } = citationsOf(exercise);
+    if (ownSessionCount > 0) {
+      throw new ConflictException(
+        `Exercice utilisé dans ${ownSessionCount} séance(s) : retire-le d'abord de ces séances`,
+      );
+    }
+    return foreignCoachIds;
   }
 }

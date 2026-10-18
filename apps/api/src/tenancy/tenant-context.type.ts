@@ -96,3 +96,25 @@ export function runAsCapability<T>(
     return await fn();
   });
 }
+
+/**
+ * Exécute `fn` AU NOM d'un Coach choisi par le serveur — un contexte CLS imbriqué, exactement ce que
+ * `TenancyInterceptor` pose pour une requête HTTP. On ne contourne pas l'extension tenant : on lui
+ * donne un acteur, et ce que `fn` écrit est scopé et attribué à ce Coach, jamais à l'appelant.
+ *
+ * Deux usages : le tick des rappels, qui n'a pas d'acteur (#47), et la copie figée (#609), que C
+ * déclenche et que M possède — sa séance est repointée par le scope de M, qui ne touche rien
+ * d'autre. `coachId` ne vient JAMAIS du client : c'est l'appelant qui le prouve.
+ *
+ * Même `await` que `runAsCapability`, pour la même PrismaPromise paresseuse.
+ */
+export function runAsCoach<T>(cls: ClsService, coachId: string, fn: () => Promise<T>): Promise<T> {
+  return cls.run(async () => {
+    cls.set(TENANT_CLS_KEY, {
+      userId: coachId,
+      capabilities: { isCoach: true, isAthlete: false, isCompany: false },
+      exercised: "coach",
+    } satisfies TenantContext);
+    return await fn();
+  });
+}
