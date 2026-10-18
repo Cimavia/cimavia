@@ -41,6 +41,11 @@ export function PlanWeekCard({
   const { t } = useTranslation();
   const { updateWeek, removeWeek, pasteWeek, reorderDay, isBusy } = usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
+  // Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API refuse,
+  // #312) : le geste reste visible, fermé, avec sa raison.
+  const deleteClosed = isPublished
+    ? { disabledReason: t("plan.week.deleteDisabledPublished") }
+    : {};
 
   /**
    * Le bouton « Coller ici » n'apparaît qu'une fois une semaine copiée, et jamais sur celle qui
@@ -174,15 +179,13 @@ export function PlanWeekCard({
         </CmvButton>
         {renderPasteAction()}
 
-        {/* Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API
-            refuse, #312) : le geste reste visible, fermé, avec sa raison. */}
         {readOnly ? null : (
           <CmvConfirmButton
             label={t("plan.week.delete")}
             confirmLabel={t("common.confirmDelete")}
             cancelLabel={t("common.cancel")}
             disabled={isBusy}
-            {...(isPublished ? { disabledReason: t("plan.week.deleteDisabledPublished") } : {})}
+            {...deleteClosed}
             onConfirm={() =>
               removeWeek.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt })
             }
