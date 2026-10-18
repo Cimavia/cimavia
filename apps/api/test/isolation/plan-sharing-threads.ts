@@ -1,6 +1,6 @@
 import { MessageType } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
-import { billAndPublish } from "../support/actors";
+import { billAndPublish, openWith } from "../support/actors";
 import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
 
 /**
@@ -28,7 +28,7 @@ describe("Fils et débriefs d'un cycle partagé : la séance citée doit se lire
     expect(debrief.status).toBe(200);
     feedbackId = debrief.body.id;
 
-    const thread = await world.ti.post("/conversations").send({ coachId: world.ids.m });
+    const thread = await openWith(world.ti, world.ids.m, "coach");
     expect(thread.status).toBe(201);
     threadM = thread.body.id;
   });

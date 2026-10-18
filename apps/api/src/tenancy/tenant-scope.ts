@@ -1,5 +1,5 @@
 import type { CapabilityName } from "@cmv/shared";
-import type { Prisma } from "@prisma/client";
+import type { ParticipantCapability, Prisma } from "@prisma/client";
 
 /**
  * Ce qu'une opération exige de l'acteur sur la ligne qu'elle touche (#603) :
@@ -21,8 +21,30 @@ export type TenantFilter = Record<string, unknown>;
  * Le parent d'un enfant partageable (#603) : son modèle, et la clé étrangère qui le désigne dans
  * les données de création. `optional` : une clé à `null` dit « sans parent » — la facture hors
  * planification, qui reste privée et prend l'acteur pour propriétaire.
+ *
+ * `checkOnly` (#611) : le parent est VÉRIFIÉ en écriture, mais l'enfant n'en hérite pas le
+ * propriétaire — il prend l'acteur. C'est le message : il faut participer à sa conversation pour y
+ * écrire, et c'est son auteur, pas la conversation, qui remplit sa colonne.
  */
-export type ParentLink = { model: Prisma.ModelName; key: string; optional?: true };
+export type ParentLink = {
+  model: Prisma.ModelName;
+  key: string;
+  optional?: true;
+  checkOnly?: true;
+};
+
+/**
+ * Ce qu'exige une ligne à participants (#611). À la création, l'acteur doit figurer parmi ceux
+ * qu'elle crée avec elle, sous `relation`, au titre exercé — sans quoi il créerait une conversation
+ * qu'il ne pourrait pas lire, ou l'ouvrirait à d'autres sans en être. Ensuite, ni `relation` ni les
+ * colonnes `frozen`, qui en dérivent, ne bougent : un participant qui en ajouterait un autre par une
+ * écriture imbriquée échapperait à toute vérification.
+ */
+export type Membership = {
+  relation: string;
+  capability: ParticipantCapability;
+  frozen: readonly string[];
+};
 
 /**
  * Le scope d'UNE capacité sur un modèle : le `where` qu'elle pose, selon la classe d'opération, et
@@ -36,6 +58,7 @@ export type CapabilityScope = {
   where: (actorId: string, operation: OperationClass) => TenantFilter;
   owner: string | null;
   parent: ParentLink | null;
+  membership?: Membership;
 };
 
 /** Une colonne comparée à l'acteur, la même pour les trois classes : la forme de tout modèle non partagé. */
@@ -183,6 +206,59 @@ export function optionalChild(
 }
 
 /**
+ * La PARTICIPATION (#611), troisième forme de scope : on lit une conversation si l'on en est
+ * participant, au titre de la capacité exercée. Un compte qui coache TI et s'entraîne avec C a deux
+ * fils distincts avec chacun : ses conversations de Coach ne s'ouvrent pas dans son espace athlète.
+ *
+ * Aucune colonne ne dit à qui est la conversation : elle se crée avec ses participants, et la
+ * création doit compter l'acteur parmi eux (`membership`).
+ */
+export function participation(capability: ParticipantCapability): CapabilityScope {
+  return {
+    where: (actorId) => ({ participants: { some: { userId: actorId, capability } } }),
+    owner: null,
+    parent: null,
+    // La clé et la nature disent QUI participe : elles se figent avec les participants.
+    membership: { relation: "participants", capability, frozen: ["participantKey", "kind"] },
+  };
+}
+
+/**
+ * Le message d'une conversation (#611) : on lit ceux des conversations dont on est participant, on
+ * n'écrit que les siens. Sa création vérifie la conversation en écriture (`checkOnly`) et injecte
+ * l'acteur comme auteur — l'auteur EST le propriétaire, celui dont la bulle s'aligne à droite.
+ */
+function messageOf(conversation: CapabilityScope): CapabilityScope {
+  const read = throughRoot("conversation", conversation);
+  return {
+    where: (actorId, operation) =>
+      operation === "read"
+        ? read.where(actorId, operation)
+        : { senderId: actorId, ...read.where(actorId, operation) },
+    owner: "senderId",
+    parent: { model: "Conversation", key: "conversationId", checkOnly: true },
+  };
+}
+
+/**
+ * La participation elle-même (#611) : on lit celles de ses conversations — c'est ce qui nomme les
+ * autres et dit « Lu par » —, on n'écrit que la sienne. Elle ne se crée qu'avec sa conversation,
+ * imbriquée : à plat, rien ne dirait à quel titre l'acteur ajoute quelqu'un (`owner` à `null`).
+ */
+function participantOf(
+  conversation: CapabilityScope,
+  capability: ParticipantCapability,
+): CapabilityScope {
+  const read = throughRoot("conversation", conversation);
+  return {
+    where: (actorId, operation) =>
+      operation === "read" ? read.where(actorId, operation) : { userId: actorId, capability },
+    owner: null,
+    parent: null,
+  };
+}
+
+/**
  * Registre du scope tenant par modèle métier : ce que chaque capacité y voit. Un modèle ABSENT
  * d'ici est **refusé** via le client tenant (fail closed) — ce qui force à rattacher explicitement
  * toute nouvelle entité au tenant (règle dure).
@@ -216,6 +292,8 @@ export type TenantScope =
 const coachOwner = column("coachId");
 const athleteOwner = column("athleteId");
 const issuingOrganization = column("organizationId");
+const coachParticipation = participation("COACH");
+const athleteParticipation = participation("ATHLETE");
 
 // Exercices et séances s'ouvrent aux entreprises (#605), les planifications aux Coachs de leur
 // athlète (#607).
@@ -295,8 +373,13 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
     coach: coachOwner,
     athlete: throughRoot("sessionFeedback", athleteOwner),
   },
-  Conversation: { coach: coachOwner, athlete: athleteOwner },
-  Message: { coach: coachOwner, athlete: athleteOwner },
+  // Conversations à participants (#611) : chacun y lit ce à quoi il participe, à SON titre.
+  Conversation: { coach: coachParticipation, athlete: athleteParticipation },
+  ConversationParticipant: {
+    coach: participantOf(coachParticipation, "COACH"),
+    athlete: participantOf(athleteParticipation, "ATHLETE"),
+  },
+  Message: { coach: messageOf(coachParticipation), athlete: messageOf(athleteParticipation) },
   // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593, #607).
   Invoice: {
     coach: optionalChild("plan", sharedPlan, { model: "Plan", key: "planId", optional: true }),
@@ -434,4 +517,56 @@ export function parentIdsOrThrow(
     }
   }
   return [...ids];
+}
+
+/**
+ * Une création à participants (#611) : l'acteur doit figurer, à son titre, parmi ceux que la ligne
+ * crée avec elle. Une seule ligne, ses participants imbriqués en `create` : un `createMany` ne porte
+ * pas de relation, et rien d'autre ne dirait qui en est.
+ *
+ * Les AUTRES participants ne se jugent pas ici : qui l'acteur a le droit de réunir dépend de ses
+ * liens et de ses entreprises, que le service vérifie avant d'écrire. L'extension garantit le seul
+ * invariant qui protège le scope — on ne crée pas une conversation dont on n'est pas.
+ */
+export function actorJoinsOrThrow(
+  data: TenantFilter | TenantFilter[],
+  membership: Membership,
+  model: string,
+  actorId: string,
+): void {
+  const nested = Array.isArray(data)
+    ? undefined
+    : (data[membership.relation] as Record<string, unknown> | undefined);
+  // `create` SEUL : un `createMany` ou un `connect` à côté ajouterait des participants non vus.
+  const members =
+    nested != null && Object.keys(nested).every((key) => key === "create") ? nested.create : null;
+  const joins =
+    Array.isArray(members) &&
+    members.some(
+      (member: TenantFilter) =>
+        member.userId === actorId && member.capability === membership.capability,
+    );
+  if (!joins) {
+    throw new Error(
+      `[tenancy] ${model} se crée avec l'acteur parmi ses ${membership.relation}, au titre ${membership.capability}`,
+    );
+  }
+}
+
+/**
+ * Une écriture sur une ligne à participants (#611) ne touche ni ses participants ni ce qui en
+ * dérive : la liste se fixe à la création, quand le service a vérifié chacun d'eux. Le scope
+ * d'écriture d'une conversation est la participation, et laisserait sinon n'importe quel participant
+ * y en joindre un autre.
+ */
+export function membershipFrozenOrThrow(
+  data: unknown,
+  membership: Membership,
+  model: string,
+): void {
+  if (data == null || typeof data !== "object") return;
+  const touched = [membership.relation, ...membership.frozen].filter((key) => key in data);
+  if (touched.length > 0) {
+    throw new Error(`[tenancy] ${model} ne modifie pas ${touched.join(", ")} après sa création`);
+  }
 }

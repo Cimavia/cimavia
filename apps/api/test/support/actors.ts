@@ -1,4 +1,4 @@
-import { Role } from "@cmv/shared";
+import { Role, type TrainingCapability } from "@cmv/shared";
 import request from "supertest";
 import { expect } from "vitest";
 import { baseURL } from "./app";
@@ -54,6 +54,24 @@ export async function emailOf(agent: Agent): Promise<string> {
 export async function idOf(agent: Agent): Promise<string> {
   const session = await agent.get("/api/auth/get-session");
   return required(session.body?.user?.id, "id de session");
+}
+
+/**
+ * Ouvre — ou rouvre — la conversation de l'acteur avec `userId`, que l'acteur nomme au titre de
+ * `capability` (#611). Le fil direct d'avant, en une ligne : la création à plusieurs se teste à part.
+ */
+export function openWith(
+  agent: Agent,
+  userId: string,
+  capability: TrainingCapability,
+  path = "/conversations",
+): Promise<request.Response> {
+  return agent.post(path).send({ participants: [{ userId, capability }] });
+}
+
+/** Les AUTRES participants d'une conversation telle que l'API la rend, par leur id. */
+export function participantIdsOf(conversation: { participants: { userId: string }[] }): string[] {
+  return conversation.participants.map((participant) => participant.userId);
 }
 
 /** Le coach invite l'adresse de `invited` — la seule forme d'invitation qui la lui destine. */

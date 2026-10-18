@@ -149,15 +149,28 @@ describe("CoachConversationsScreen", () => {
   });
 });
 
-function conversation(overrides: Partial<ConversationDto>): ConversationDto {
+// Un fil DIRECT (#611) : son seul autre participant est l'interlocuteur de la ligne.
+function conversation({
+  counterpartId = "a-1",
+  counterpartAs = "athlete",
+  ...overrides
+}: Partial<ConversationDto> & {
+  counterpartId?: string;
+  counterpartAs?: "coach" | "athlete";
+}): ConversationDto {
   return {
     id: "conv-1",
-    counterpartId: "a-1",
-    counterpartName: "Léa Moreau",
+    kind: "DIRECT",
+    participants: [
+      { userId: counterpartId, name: "Léa Moreau", capability: counterpartAs, lastReadAt: null },
+    ],
+    lastReadAt: null,
     lastMessageAt: "2026-09-29T08:00:00.000Z",
+    lastMessageSenderId: counterpartId,
     lastMessageType: MessageType.TEXT,
     lastMessagePreview: "À demain",
     unreadCount: 0,
+    createdAt: "2026-08-01T10:00:00.000Z",
     ...overrides,
   };
 }
@@ -335,8 +348,8 @@ describe("ConversationsScreen — le fil notifié", () => {
     mockCoaches({ data: [JULIE, MARC] });
     mockConversations({
       data: [
-        conversation({ id: "conv-j", counterpartId: "c-1" }),
-        conversation({ id: "conv-m", counterpartId: "c-2" }),
+        conversation({ id: "conv-j", counterpartId: "c-1", counterpartAs: "coach" }),
+        conversation({ id: "conv-m", counterpartId: "c-2", counterpartAs: "coach" }),
       ],
     });
   });

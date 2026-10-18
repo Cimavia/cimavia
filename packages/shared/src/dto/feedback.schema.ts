@@ -238,7 +238,7 @@ export const sessionFeedbackDtoSchema = z.object({
    *
    * Ce ne sont PAS des messages à part : ce sont les mêmes enregistrements que la messagerie rend,
    * servis par un second chemin. Rien à copier, rien à tenir en phase — et pas de second marqueur
-   * de lecture, `Message.readAt` reste le seul.
+   * de lecture : celle du fil reste la seule (`lastReadAt` de chaque participant, #611).
    *
    * Pas de pagination : les réponses à un débrief se comptent en unités. La messagerie complète a
    * son issue de pagination (#77), qui les absorbera si le besoin apparaît.

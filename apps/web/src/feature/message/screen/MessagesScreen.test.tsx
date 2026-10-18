@@ -42,7 +42,7 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
     messageApi: {
       ...actual.messageApi,
       listConversations: vi.fn(),
-      openConversation: vi.fn(),
+      createConversation: vi.fn(),
       getMessages: vi.fn(),
       markRead: vi.fn(async () => undefined),
       sendMessage: vi.fn(),
@@ -88,14 +88,30 @@ const LEA = relation({});
 const NOAH = relation({ id: "rel-2", athleteId: "a-2", athleteName: "Noah Fontaine" });
 const INES = relation({ id: "rel-3", athleteId: "a-3", athleteName: "Inès Garnier" });
 
-const conversation = (over: Partial<ConversationDto>): ConversationDto => ({
+/**
+ * Un fil DIRECT (#611) : son seul autre participant est l'interlocuteur de la ligne, au titre que
+ * l'écran attend en face — un athlète côté coach, un coach côté athlète.
+ */
+const conversation = ({
+  counterpartId = "a-1",
+  counterpartAs = "athlete",
+  ...over
+}: Partial<ConversationDto> & {
+  counterpartId?: string;
+  counterpartAs?: "coach" | "athlete";
+}): ConversationDto => ({
   id: "c-1",
-  counterpartId: "a-1",
-  counterpartName: "Léa Moreau",
+  kind: "DIRECT",
+  participants: [
+    { userId: counterpartId, name: "Léa Moreau", capability: counterpartAs, lastReadAt: null },
+  ],
+  lastReadAt: null,
   lastMessageAt: null,
+  lastMessageSenderId: null,
   lastMessageType: null,
   lastMessagePreview: null,
   unreadCount: 0,
+  createdAt: "2026-08-01T10:00:00.000Z",
   ...over,
 });
 
@@ -107,7 +123,6 @@ const message = (id: string, over: Partial<MessageDto> = {}): MessageDto =>
     type: "TEXT",
     content: `Message ${id}`,
     media: null,
-    readAt: "2026-09-01T10:00:00.000Z",
     createdAt: "2026-09-01T10:00:00.000Z",
     ...over,
   }) as MessageDto;
@@ -152,7 +167,7 @@ beforeEach(() => {
   // Par défaut, la liste d'athlètes répond ; une panne ne vaut que pour le premier appel.
   vi.mocked(athleteAccountApi.listAthletes).mockResolvedValue([LEA]);
   vi.mocked(messageApi.listConversations).mockResolvedValue([]);
-  vi.mocked(messageApi.openConversation).mockResolvedValue(conversation({}));
+  vi.mocked(messageApi.createConversation).mockResolvedValue(conversation({}));
   vi.mocked(messageApi.getMessages).mockResolvedValue([message("m-1")]);
 });
 
@@ -163,7 +178,7 @@ describe("MessagesScreen — côté coach, la liste", () => {
     expect(threadRow(view, "Léa Moreau")).not.toBeNull();
     expect(view.getByText("messages.pickThread.title")).toBeInTheDocument();
     // Rien n'est résolu tant qu'aucun fil n'est choisi : ouvrir un fil le CRÉE au besoin.
-    expect(messageApi.openConversation).not.toHaveBeenCalled();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
   /**
@@ -264,7 +279,10 @@ describe("MessagesScreen — côté coach, le fil", () => {
 
     expect(await view.findByText("Message m-1")).toBeInTheDocument();
     expect(view.router.state.location.search).toEqual({ athlete: "a-1", as: "coach" });
-    expect(messageApi.openConversation).toHaveBeenCalledWith({ athleteId: "a-1" }, "coach");
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "a-1", capability: "athlete" }] },
+      "coach",
+    );
     expect(threadRow(view, "Léa Moreau")).toHaveClass("bg-cmv-surface");
   });
 
@@ -280,7 +298,7 @@ describe("MessagesScreen — côté coach, le fil", () => {
     const view = await open({}, { athlete: "a-inconnu" });
 
     expect(view.getByText("messages.pickThread.title")).toBeInTheDocument();
-    expect(messageApi.openConversation).not.toHaveBeenCalled();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
   // Une notification ne connaît que le fil : l'écran retrouve l'athlète qui y écrit.
@@ -291,7 +309,10 @@ describe("MessagesScreen — côté coach, le fil", () => {
     );
 
     expect(await view.findByRole("heading", { name: "Noah Fontaine" })).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledWith({ athleteId: "a-2" }, "coach");
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "a-2", capability: "athlete" }] },
+      "coach",
+    );
   });
 
   it("dit un fil sans message", async () => {
@@ -302,18 +323,22 @@ describe("MessagesScreen — côté coach, le fil", () => {
   });
 
   it("dit l'échec de résolution du fil, et le résout de nouveau au réessai", async () => {
-    vi.mocked(messageApi.openConversation).mockRejectedValueOnce(new Error("réseau"));
+    vi.mocked(messageApi.createConversation).mockRejectedValueOnce(new Error("réseau"));
     const view = await open({}, { athlete: "a-1" });
 
     await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 
     expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledTimes(2);
+    expect(messageApi.createConversation).toHaveBeenCalledTimes(2);
   });
 
   it("envoie un texte dans le fil résolu, puis relit le fil et la liste", async () => {
     vi.mocked(messageApi.sendMessage).mockResolvedValue(message("m-2"));
-    const view = await open({}, { athlete: "a-1" });
+    // Fil déjà lu : seul l'envoi relit la liste, pas un marquage.
+    const view = await open(
+      { conversations: [conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" })] },
+      { athlete: "a-1" },
+    );
     await view.findByText("Message m-1");
 
     await view.user.type(view.getByPlaceholderText("messages.placeholder"), "Bien reçu{Enter}");
@@ -341,12 +366,36 @@ describe("MessagesScreen — côté coach, le fil", () => {
 
   // Un entrant non lu se marque lu à l'ouverture, et la liste relit ses compteurs.
   it("marque lu un entrant non lu, et relit la liste", async () => {
-    vi.mocked(messageApi.getMessages).mockResolvedValue([message("m-1", { readAt: null })]);
-    const view = await open({}, { athlete: "a-1" });
+    const view = await open(
+      { conversations: [conversation({ lastReadAt: "2026-09-01T09:00:00.000Z" })] },
+      { athlete: "a-1" },
+    );
 
     await waitFor(() => expect(messageApi.markRead).toHaveBeenCalledWith("c-1", null));
     await waitFor(() => expect(messageApi.listConversations).toHaveBeenCalledTimes(2));
     expect(view.getByText("Message m-1")).toBeInTheDocument();
+  });
+
+  // Ma marque est après le dernier entrant : rien à marquer, aucun appel.
+  it("ne remarque pas lu un fil déjà lu", async () => {
+    const view = await open(
+      { conversations: [conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" })] },
+      { athlete: "a-1" },
+    );
+
+    expect(await view.findByText("Message m-1")).toBeInTheDocument();
+    expect(messageApi.markRead).not.toHaveBeenCalled();
+  });
+
+  // La liste ne porte pas encore le fil : la marque lue à sa résolution vaut, rien ne se remarque.
+  it("lit ma marque dans le fil résolu tant que la liste ne le porte pas", async () => {
+    vi.mocked(messageApi.createConversation).mockResolvedValue(
+      conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" }),
+    );
+    const view = await open({ conversations: [] }, { athlete: "a-1" });
+
+    expect(await view.findByText("Message m-1")).toBeInTheDocument();
+    expect(messageApi.markRead).not.toHaveBeenCalled();
   });
 });
 
@@ -394,7 +443,7 @@ describe("MessagesScreen — côté athlète (#599)", () => {
     expect(threadRow(view, "Julie Renaud")).not.toBeNull();
     expect(threadRow(view, "Marc Keller")).not.toBeNull();
     expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
-    expect(messageApi.openConversation).not.toHaveBeenCalled();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
     // La liste des athlètes est une lecture de coach : un athlète n'a pas à la demander.
     expect(athleteAccountApi.listAthletes).not.toHaveBeenCalled();
   });
@@ -406,26 +455,35 @@ describe("MessagesScreen — côté athlète (#599)", () => {
 
     expect(await view.findByText("Message m-1")).toBeInTheDocument();
     expect(view.router.state.location.search).toEqual({ coach: "c-2", as: "athlete" });
-    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-2" }, "athlete");
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "c-2", capability: "coach" }] },
+      "athlete",
+    );
   });
 
   it("arrive sur le fil du coach désigné par l'url", async () => {
     const view = await openAthlete([JULIE, MARC], { coach: "c-1" });
 
     expect(await view.findByRole("heading", { name: "Julie Renaud" })).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-1" }, "athlete");
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "c-1", capability: "coach" }] },
+      "athlete",
+    );
   });
 
   // Le message de Marc notifié ouvre le fil de Marc — pas « le » fil, il y en a deux.
   it("arrive sur le fil qu'une notification désigne", async () => {
     vi.mocked(messageApi.listConversations).mockResolvedValue([
-      conversation({ id: "c-julie", counterpartId: "c-1" }),
-      conversation({ id: "c-marc", counterpartId: "c-2" }),
+      conversation({ id: "c-julie", counterpartId: "c-1", counterpartAs: "coach" }),
+      conversation({ id: "c-marc", counterpartId: "c-2", counterpartAs: "coach" }),
     ]);
     const view = await openAthlete([JULIE, MARC], { conversation: "c-marc" });
 
     expect(await view.findByRole("heading", { name: "Marc Keller" })).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledWith({ coachId: "c-2" }, "athlete");
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "c-2", capability: "coach" }] },
+      "athlete",
+    );
   });
 
   // Un fil inconnu (coach quitté, lien périmé) ne fait rien deviner.
@@ -433,7 +491,7 @@ describe("MessagesScreen — côté athlète (#599)", () => {
     const view = await openAthlete([JULIE, MARC], { conversation: "c-inconnu" });
 
     expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
-    expect(messageApi.openConversation).not.toHaveBeenCalled();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
   // Sans coach, pas de fil (l'API refuserait) : on dit où en rejoindre un.
@@ -442,7 +500,7 @@ describe("MessagesScreen — côté athlète (#599)", () => {
 
     const link = await view.findByRole("link", { name: "messages.athlete.noCoach.action" });
     expect(link).toHaveAttribute("href", "/my-coach");
-    expect(messageApi.openConversation).not.toHaveBeenCalled();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
   it("dit la panne, et relit ses coachs au réessai", async () => {
@@ -456,12 +514,12 @@ describe("MessagesScreen — côté athlète (#599)", () => {
   });
 
   it("dit l'échec de résolution du fil, et le résout de nouveau au réessai", async () => {
-    vi.mocked(messageApi.openConversation).mockRejectedValueOnce(new Error("réseau"));
+    vi.mocked(messageApi.createConversation).mockRejectedValueOnce(new Error("réseau"));
     const view = await openAthlete([JULIE], { coach: "c-1" });
 
     await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 
     expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.openConversation).toHaveBeenCalledTimes(2);
+    expect(messageApi.createConversation).toHaveBeenCalledTimes(2);
   });
 });

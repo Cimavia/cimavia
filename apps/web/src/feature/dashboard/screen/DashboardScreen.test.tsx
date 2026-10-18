@@ -137,7 +137,12 @@ const OVERDUE = {
   dueDate: "2026-01-15",
 } as InvoiceDto;
 
-const CONVERSATION = { counterpartId: "ath_lea", unreadCount: 2 } as ConversationDto;
+// Le fil DIRECT avec Léa (#611) : seul son participant et ses non-lus comptent ici.
+const CONVERSATION = {
+  kind: "DIRECT",
+  participants: [{ userId: "ath_lea", name: "Léa", capability: "athlete", lastReadAt: null }],
+  unreadCount: 2,
+} as ConversationDto;
 
 const LINKS = ["/feedbacks", "/reminders", "/invoices", "/messages", "/plans"];
 

@@ -24,20 +24,21 @@ function spyClient() {
 
 describe("createMessageApi", () => {
   /**
-   * UNE route d'ouverture pour les deux rôles, distinguée par le seul corps : `athleteId` présent
-   * = le coach cible un athlète, absent = l'athlète et l'API résout son coach. C'est ce qui permet
-   * d'ouvrir la messagerie web à l'athlète sans toucher l'API (#29).
+   * UNE route de création pour les deux rôles et toutes les tailles (#611) : le corps nomme les
+   * autres participants, chacun à son titre — c'est le serveur qui rouvre une conversation qui les
+   * réunit déjà.
    */
-  it("ouvre un fil sur la même route, avec ou sans athleteId", async () => {
+  it("crée ou rouvre une conversation sur la même route, et lit ses candidats", async () => {
     const { api, calls } = spyClient();
     const messages = createMessageApi(api);
+    const participants = [{ userId: "ath_1", capability: "athlete" as const }];
 
-    await messages.openConversation({ athleteId: "ath_1" }, null);
-    await messages.openConversation({}, null);
+    await messages.createConversation({ participants }, null);
+    await messages.listCandidates(null);
 
     expect(calls).toEqual([
-      { method: "POST", path: "/conversations", body: { athleteId: "ath_1" } },
-      { method: "POST", path: "/conversations", body: {} },
+      { method: "POST", path: "/conversations", body: { participants } },
+      { method: "GET", path: "/conversations/candidates", body: undefined },
     ]);
   });
 
@@ -120,15 +121,19 @@ describe("createMessageApi — média découpé", () => {
 describe("createMessageApi — titre exercé", () => {
   /**
    * Un compte à double capacité a des fils des DEUX côtés : coach avec ses athlètes, athlète avec
-   * son coach. Toutes les routes de messagerie portent donc le titre, pas seulement la liste —
-   * le scope tenant filtre `coachId` ou `athleteId` jusque dans le contenu d'un fil.
+   * ses coachs. Toutes les routes de messagerie portent donc le titre, pas seulement la liste —
+   * on participe à un titre (#611), jusque dans le contenu d'un fil.
    */
   it("porte le titre sur toutes les routes du fil", async () => {
     const { api, calls } = spyClient();
     const messages = createMessageApi(api);
 
     await messages.listConversations("coach");
-    await messages.openConversation({ athleteId: "ath_1" }, "coach");
+    await messages.createConversation(
+      { participants: [{ userId: "ath_1", capability: "athlete" }] },
+      "coach",
+    );
+    await messages.listCandidates("coach");
     await messages.getMessages("cnv_1", "athlete");
     await messages.sendMessage("cnv_1", { type: "TEXT", content: "Salut" }, "athlete");
     await messages.markRead("cnv_1", "athlete");
@@ -136,6 +141,7 @@ describe("createMessageApi — titre exercé", () => {
     expect(calls.map((c) => c.path)).toEqual([
       "/conversations?as=coach",
       "/conversations?as=coach",
+      "/conversations/candidates?as=coach",
       "/conversations/cnv_1/messages?as=athlete",
       "/conversations/cnv_1/messages?as=athlete",
       "/conversations/cnv_1/read?as=athlete",

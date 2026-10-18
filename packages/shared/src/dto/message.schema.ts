@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TrainingCapability } from "../capability";
 import type { TypesValuesOf } from "../type/generics.type";
 import {
   feedbackImageMimeTypeSchema,
@@ -10,7 +11,7 @@ import {
 } from "./media.schema";
 
 /**
- * Messagerie 1:1 coach ↔ athlète (CDC §5.8). Un message est SOIT du texte SOIT UN média
+ * Messagerie à participants, à deux ou à plusieurs (CDC §5.8, #611). Un message est SOIT du texte SOIT UN média
  * (audio/image/vidéo) — jamais les deux (pas de légende sur média en MVP). `TEXT` n'étant pas un
  * média, l'enum est distinct du `MediaType` du débrief : le débrief vocal ajoutera `AUDIO` là-bas,
  * pas ici. Image et vidéo réutilisent les bornes du débrief (mêmes plafonds génériques, source
@@ -101,8 +102,9 @@ export {
 
 /**
  * Rattachement optionnel d'un message à une séance ou un débrief (« à propos de… »). Orthogonal au
- * type : ces champs se greffent sur chaque variante ci-dessous. Ids possédés vérifiés au service
- * (la FK n'impose pas le tenant) — côté athlète, une séance passe par le filtre PUBLISHED.
+ * type : ces champs se greffent sur chaque variante ci-dessous. Ids vérifiés au service (la FK
+ * n'impose pas le tenant) : TOUS les participants doivent lire la cible (#611) — côté athlète, une
+ * séance passe en plus par le filtre PUBLISHED.
  */
 const messageAttachmentShape = {
   scheduledSessionId: z.string().min(1).nullable().optional(),
@@ -196,17 +198,46 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
 export type RequestMessageUploadUrlInput = z.infer<typeof requestMessageUploadUrlSchema>;
 
 /**
- * Get-or-create d'un fil. Le coach vise un de SES athlètes (`athleteId`, possédé vérifié) ;
- * l'athlète, un de SES coachs (`coachId`, #599) — il en a 0..N. Lequel des deux est requis dépend
- * de la capacité EXERCÉE, que le schéma ne connaît pas : c'est le service qui refuse le mauvais.
+ * Les deux capacités au titre desquelles on participe à une conversation (#611) — celles
+ * d'ENTRAÎNEMENT : le compte Entreprise n'est dans aucune.
  */
-export const openConversationSchema = z
+export const participantCapabilitySchema = z.enum([
+  "coach",
+  "athlete",
+] as const satisfies readonly TrainingCapability[]);
+
+/**
+ * Combien d'AUTRES participants une conversation réunit au plus (#611). Chaque envoi pousse et
+ * trace à chacun : la borne protège aussi l'envoi. Au-delà, on écrit à plusieurs groupes.
+ */
+export const MAX_CONVERSATION_PARTICIPANTS = 20;
+
+/**
+ * Créer une conversation — ou rouvrir celle qui réunit déjà exactement ces participants, à deux
+ * comme à plusieurs (tranché en #598). On y nomme les AUTRES : l'acteur en est d'office, au titre
+ * de la capacité qu'il exerce.
+ *
+ * La capacité de chacun est dite, pas devinée : un même compte peut être l'athlète du Coach ET un
+ * Coach de son entreprise, et ce sont alors deux conversations distinctes. Ceux qu'on a le droit
+ * de réunir dépendent de l'acteur, que le schéma ne connaît pas : c'est le service qui refuse.
+ */
+export const createConversationSchema = z
   .object({
-    athleteId: z.string().min(1).optional(),
-    coachId: z.string().min(1).optional(),
+    participants: z
+      .array(
+        z.object({ userId: z.string().min(1), capability: participantCapabilitySchema }).strict(),
+      )
+      .min(1)
+      .max(MAX_CONVERSATION_PARTICIPANTS)
+      .refine(
+        (participants) =>
+          new Set(participants.map((participant) => participant.userId)).size ===
+          participants.length,
+        { message: "Un participant ne se nomme qu'une fois" },
+      ),
   })
   .strict();
-export type OpenConversationInput = z.infer<typeof openConversationSchema>;
+export type CreateConversationInput = z.infer<typeof createConversationSchema>;
 
 // ── DTO de sortie ────────────────────────────────────────────────────────────
 
@@ -274,24 +305,88 @@ export const messageDtoSchema = z.object({
    * message « à propos de » ne l'est donc pas à vie.
    */
   attachment: messageAttachmentDtoSchema.nullable(),
-  readAt: z.iso.datetime().nullable(), // lu par le destinataire
   createdAt: z.iso.datetime(),
 });
 export type MessageDto = z.infer<typeof messageDtoSchema>;
 
 /**
- * Vue liste de conversations (surtout le coach, qui en a N). `counterpart*` = l'AUTRE partie du
- * point de vue de l'acteur courant (l'athlète pour le coach, le coach pour l'athlète). L'aperçu du
- * dernier message reste le texte brut ; pour un média, `lastMessageType` porte le type et le client
- * en fait un libellé i18n (pas de string produite côté serveur).
+ * À deux ou à plusieurs (#611). Une conversation à deux est `DIRECT`, à trois ou plus `GROUP` —
+ * fixé à la création, comme ses participants.
+ */
+export const ConversationKind = {
+  DIRECT: "DIRECT",
+  GROUP: "GROUP",
+} as const;
+export type ConversationKind = TypesValuesOf<typeof ConversationKind>;
+export const conversationKindSchema = z.enum(ConversationKind);
+
+/**
+ * Un AUTRE participant, vu de l'acteur. `lastReadAt` est sa marque de lecture : ce qu'il a lu,
+ * c'est tout message créé jusque-là — de quoi dire « Lu par » (#612). `null` = il n'a encore rien
+ * lu, pas une donnée manquante.
+ */
+export const conversationParticipantDtoSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  capability: participantCapabilitySchema,
+  lastReadAt: z.iso.datetime().nullable(),
+});
+export type ConversationParticipantDto = z.infer<typeof conversationParticipantDtoSchema>;
+
+/**
+ * Vue liste de conversations, du point de vue de l'acteur courant : `participants` nomme les
+ * AUTRES — un seul pour une conversation `DIRECT` —, `lastReadAt` est la sienne.
+ *
+ * L'aperçu du dernier message reste le texte brut ; pour un média, `lastMessageType` porte le type
+ * et le client en fait un libellé i18n (pas de string produite côté serveur). `lastMessageSenderId`
+ * dit qui l'a écrit, pour l'aperçu « Vous : » / « M : » (tranché en #598). Les trois sont `null`
+ * tant que la conversation n'a aucun message — elle se trie alors à sa création
+ * (`lastMessageAt ?? createdAt`).
  */
 export const conversationDtoSchema = z.object({
   id: z.string(),
-  counterpartId: z.string(),
-  counterpartName: z.string(),
+  kind: conversationKindSchema,
+  participants: z.array(conversationParticipantDtoSchema),
+  lastReadAt: z.iso.datetime().nullable(),
   lastMessageAt: z.iso.datetime().nullable(),
+  lastMessageSenderId: z.string().nullable(),
   lastMessageType: messageTypeSchema.nullable(),
   lastMessagePreview: z.string().nullable(), // texte du dernier message ; null si média ou vide
   unreadCount: z.number().int(),
+  createdAt: z.iso.datetime(),
 });
 export type ConversationDto = z.infer<typeof conversationDtoSchema>;
+
+/**
+ * Un Coach qu'on peut réunir dans une conversation (#611).
+ *
+ * - `organizationNames` : d'où il vient. Côté athlète, l'entreprise du lien (au plus une, vide pour
+ *   un lien direct) ; côté Coach, les entreprises qu'on partage avec lui.
+ * - `followedAthleteIds` : ceux des athlètes de l'acteur qu'il suit — de quoi prévenir que M ne
+ *   suit pas TE avant de les réunir (#612). Côté athlète, sans objet : `null`.
+ */
+export const coachCandidateDtoSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  organizationNames: z.array(z.string()),
+  followedAthleteIds: z.array(z.string()).nullable(),
+});
+export type CoachCandidateDto = z.infer<typeof coachCandidateDtoSchema>;
+
+/** Un athlète qu'un Coach peut réunir : l'un des siens. */
+export const athleteCandidateDtoSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+});
+export type AthleteCandidateDto = z.infer<typeof athleteCandidateDtoSchema>;
+
+/**
+ * Ceux que l'acteur peut réunir, au titre exercé (#611) : un athlète, ses Coachs ; un Coach, ses
+ * athlètes (`ATHLETE`) et les Coachs de ses entreprises (`COACH`). Jamais soi-même, jamais un compte
+ * Entreprise. Côté athlète, `athletes` est vide : un athlète n'écrit pas à un autre athlète.
+ */
+export const conversationCandidatesDtoSchema = z.object({
+  athletes: z.array(athleteCandidateDtoSchema),
+  coaches: z.array(coachCandidateDtoSchema),
+});
+export type ConversationCandidatesDto = z.infer<typeof conversationCandidatesDtoSchema>;

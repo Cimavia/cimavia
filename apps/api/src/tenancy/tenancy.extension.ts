@@ -3,7 +3,9 @@ import type { PrismaClient } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { TENANT_CLS_KEY, type TenantContext } from "./tenant-context.type";
 import {
+  actorJoinsOrThrow,
   type CapabilityScope,
+  membershipFrozenOrThrow,
   type OperationKind,
   operationKindOf,
   ownerColumnOrThrow,
@@ -116,6 +118,8 @@ function scopeData(args: unknown, ownerOf: (row: Row) => TenantFilter): void {
 /**
  * Le propriétaire de chaque parent, lu avec le filtre d'ÉCRITURE de la capacité exercée (#603) :
  * un parent introuvable, ou que l'acteur ne fait que lire (#605), fait refuser TOUTE la création.
+ * Un parent `checkOnly` (#611) n'a pas de propriétaire à transmettre : il est seulement vérifié, et
+ * chaque enfant prend l'acteur.
  *
  * Par le client de base, avec le filtre posé à la main : le client tenant ne s'atteint pas d'ici.
  * Dans la transaction en cours quand il y en a une — sinon le parent qu'elle vient de créer serait
@@ -138,7 +142,7 @@ async function parentOwnersOrThrow(
     // Stryker disable next-line StringLiteral: invariant du registre, qu'aucune requête n'atteint
     `[tenancy] ${parent.model}, parent de ${child.model}, n'a pas de scope pour cette capacité`,
   );
-  const column = ownerColumnOrThrow(parentScope, parent.model);
+  const column = parent.checkOnly === true ? null : ownerColumnOrThrow(parentScope, parent.model);
   const delegateName = parent.model.charAt(0).toLowerCase() + parent.model.slice(1);
   const delegate = required(
     (prisma as unknown as Record<string, ParentDelegate | undefined>)[delegateName],
@@ -148,7 +152,7 @@ async function parentOwnersOrThrow(
 
   const read = delegate.findMany({
     where: { id: { in: child.ids }, ...parentScope.where(actor.actorId, "write") },
-    select: { id: true, [column]: true },
+    select: column == null ? { id: true } : { id: true, [column]: true },
   });
   const parents = await (transaction == null ? read : read.requestTransaction(transaction));
   if (parents.length !== child.ids.length) {
@@ -156,13 +160,13 @@ async function parentOwnersOrThrow(
       `[tenancy] ${child.model} : son ${parent.model} est introuvable, ou fermé en écriture`,
     );
   }
-  return new Map(parents.map((row) => [row.id, row[column]]));
+  return new Map(parents.map((row) => [row.id, column == null ? actor.actorId : row[column]]));
 }
 
 /**
  * Création : l'acteur dans la colonne du scope, ou — pour un enfant partageable — le propriétaire
  * de son parent (piège n°7). Une ligne sans parent optionnel (facture hors planification) prend
- * l'acteur.
+ * l'acteur. Une ligne à participants (#611) n'a pas de colonne : elle doit compter l'acteur.
  */
 async function scopeCreation(
   prisma: PrismaClient,
@@ -172,6 +176,10 @@ async function scopeCreation(
   transaction: PrismaTransaction | undefined,
 ): Promise<void> {
   const { scope, actorId } = resolved;
+  if (scope.membership != null) {
+    actorJoinsOrThrow((args as { data: Row | Row[] }).data, scope.membership, model, actorId);
+    return;
+  }
   const column = ownerColumnOrThrow(scope, model);
   const parent = scope.parent;
   if (parent == null) {
@@ -207,6 +215,10 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
             const { transaction } = (params as InternalParams).__internalParams ?? {};
             await scopeCreation(prisma, args, model, resolved, transaction);
           } else {
+            const { membership } = resolved.scope;
+            if (membership != null) {
+              membershipFrozenOrThrow((args as { data?: unknown }).data, membership, model);
+            }
             scopeWhere(args, resolved.scope.where(resolved.actorId, resolved.kind.operationClass));
           }
           return query(args);

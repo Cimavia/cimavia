@@ -1,8 +1,9 @@
 import type { TrainingCapability } from "../capability";
 import type {
+  ConversationCandidatesDto,
   ConversationDto,
+  CreateConversationInput,
   MessageDto,
-  OpenConversationInput,
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "../dto/message.schema";
@@ -23,8 +24,8 @@ import type { ApiClient } from "./client";
  * l'argument, pas par la route.
  *
  * Rien ici n'est propre à un rôle : `conversation.controller.ts` et `message.controller.ts` portent
- * `@Roles([COACH, ATHLETE])`, et le scope tenant décide de ce que chacun voit. Un fil est 1:1 ; le
- * coach en a N (un par athlète), l'athlète un par coach qui le suit (#599).
+ * `@RequireCapability("either")`, et le scope tenant décide de ce que chacun voit : les conversations
+ * dont on est participant, au titre exercé (#611) — à deux ou à plusieurs.
  */
 
 /**
@@ -41,6 +42,8 @@ export const messageKeys = {
    * des fils des DEUX côtés, et les confondre servirait à l'un le cache de l'autre (cf. `asKey`). */
   conversations: (as: TrainingCapability | null) =>
     ["messages", "conversations", asKey(as)] as const,
+  /** Ceux qu'on peut réunir dans une conversation, au titre exercé (#611). */
+  candidates: (as: TrainingCapability | null) => ["messages", "candidates", asKey(as)] as const,
   /** Le fil avec UN athlète donné, résolu par get-or-create — côté coach. */
   conversationWith: (athleteId: string) => ["messages", "with", athleteId] as const,
   /**
@@ -48,22 +51,23 @@ export const messageKeys = {
    * compte à double capacité a des fils des deux côtés, et l'id seul ne dit pas de quel côté il est.
    */
   conversationWithCoach: (coachId: string) => ["messages", "with-coach", coachId] as const,
-  /** Le contenu d'un fil dépend du titre : le scope tenant filtre sur `coachId` ou `athleteId`,
-   * donc le même id ne rend pas la même chose selon le côté d'où on le lit. */
+  /** Le contenu d'un fil dépend du titre : on y participe à l'un ou à l'autre (#611), et le même id
+   * ne s'ouvre pas selon le côté d'où on le lit. */
   thread: (conversationId: string, as: TrainingCapability | null) =>
     ["messages", "thread", conversationId, asKey(as)] as const,
 };
 
 export type MessageApi = {
-  /** Les fils existants, du plus récemment actif au plus ancien. Un athlète en a un par coach. */
+  /** Les conversations dont on est participant, de la plus récemment active à la plus ancienne. */
   listConversations: (as: TrainingCapability | null) => Promise<ConversationDto[]>;
+  /** Ceux qu'on peut réunir : ses Coachs côté athlète, ses athlètes et ses collègues côté Coach. */
+  listCandidates: (as: TrainingCapability | null) => Promise<ConversationCandidatesDto>;
   /**
-   * Get-or-create, idempotent. `athleteId` = ouverture côté coach (il cible un athlète) ;
-   * `coachId` = côté athlète, qui désigne lequel de ses coachs (#599). Un seul appel pour les deux,
-   * parce que c'est une seule route.
+   * Crée la conversation de ces participants, ou rouvre celle qui les réunit déjà : idempotent, à
+   * deux comme à plusieurs (#611). On y nomme les AUTRES ; l'acteur en est d'office.
    */
-  openConversation: (
-    input: OpenConversationInput,
+  createConversation: (
+    input: CreateConversationInput,
     as: TrainingCapability | null,
   ) => Promise<ConversationDto>;
   getMessages: (conversationId: string, as: TrainingCapability | null) => Promise<MessageDto[]>;
@@ -72,7 +76,7 @@ export type MessageApi = {
     input: SendMessageInput,
     as: TrainingCapability | null,
   ) => Promise<MessageDto>;
-  /** Marque lus les messages ENTRANTS du fil. 204, pas de corps. */
+  /** Avance sa marque de lecture du fil : tout ce qui y est arrivé est lu. 204, pas de corps. */
   markRead: (conversationId: string, as: TrainingCapability | null) => Promise<void>;
   /**
    * Ticket d'upload (audio/image/vidéo) avant l'envoi direct vers le storage. Son MODE dicte la
@@ -104,7 +108,9 @@ export type MessageApi = {
 export function createMessageApi(api: ApiClient): MessageApi {
   return {
     listConversations: (as) => api.get<ConversationDto[]>(`/conversations${asQuery(as)}`),
-    openConversation: (input, as) =>
+    listCandidates: (as) =>
+      api.get<ConversationCandidatesDto>(`/conversations/candidates${asQuery(as)}`),
+    createConversation: (input, as) =>
       api.post<ConversationDto>(`/conversations${asQuery(as)}`, input),
     getMessages: (conversationId, as) =>
       api.get<MessageDto[]>(`/conversations/${conversationId}/messages${asQuery(as)}`),

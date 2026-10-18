@@ -67,7 +67,6 @@ const COACH_REPLY = {
   content: "Bien joué, on garde cette voie",
   media: null,
   attachment: null,
-  readAt: null,
   createdAt: "2026-10-16T19:42:00.000Z",
 } as MessageDto;
 

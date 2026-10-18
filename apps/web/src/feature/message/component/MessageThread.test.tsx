@@ -36,7 +36,6 @@ function message(id: string, overrides: Partial<MessageDto> = {}): MessageDto {
     senderId: "athlete-1",
     type: "TEXT",
     content: "salut",
-    readAt: null,
     createdAt: READ_AT,
     ...overrides,
   } as MessageDto;
@@ -55,6 +54,7 @@ function mockThread(data: MessageDto[], dataUpdatedAt = 1): void {
 const props = {
   conversationId: "cv-1",
   counterpartName: "Léa",
+  lastReadAt: null,
   hasResolveError: false,
   onRetry: vi.fn(),
 };
@@ -98,9 +98,17 @@ describe("MessageThread — marquage lu", () => {
     const { rerender } = renderWithProviders(<MessageThread {...props} />);
     await waitFor(() => expect(markRead).toHaveBeenCalledOnce());
 
-    mockThread([message("m1", { readAt: READ_AT }), message("m2")], 2);
-    rerender(<MessageThread {...props} />);
+    // La liste a relu ma marque (m1), m2 est arrivé après.
+    mockThread([message("m1"), message("m2", { createdAt: "2026-09-27T10:05:00.000Z" })], 2);
+    rerender(<MessageThread {...props} lastReadAt={READ_AT} />);
     await waitFor(() => expect(markRead).toHaveBeenCalledTimes(2));
+  });
+
+  // #611 : ce qui précède ma marque de lecture est lu, quel que soit le message.
+  it("ne marque rien quand ma marque couvre déjà le dernier entrant", () => {
+    mockThread([message("m1")]);
+    renderWithProviders(<MessageThread {...props} lastReadAt={READ_AT} />);
+    expect(markRead).not.toHaveBeenCalled();
   });
 
   it("ne remarque pas le même entrant à chaque sondage", async () => {

@@ -422,7 +422,13 @@ export {
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
 } from "./dto/media.schema";
 export type {
+  AthleteCandidateDto,
+  CoachCandidateDto,
+  ConversationCandidatesDto,
   ConversationDto,
+  ConversationKind as ConversationKindType,
+  ConversationParticipantDto,
+  CreateConversationInput,
   FeedbackEventMessageType,
   MessageAttachmentDto,
   MessageAttachmentType as MessageAttachmentTypeType,
@@ -430,16 +436,23 @@ export type {
   MessageDto,
   MessageMediaDto,
   MessageType as MessageTypeType,
-  OpenConversationInput,
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "./dto/message.schema";
 export {
+  athleteCandidateDtoSchema,
+  ConversationKind,
+  coachCandidateDtoSchema,
+  conversationCandidatesDtoSchema,
   conversationDtoSchema,
+  conversationKindSchema,
+  conversationParticipantDtoSchema,
+  createConversationSchema,
   FEEDBACK_EVENT_LABEL_KEY,
   FEEDBACK_EVENT_MESSAGE_TYPES,
   isAllowedMessageAudioMime,
   isFeedbackEventMessage,
+  MAX_CONVERSATION_PARTICIPANTS,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
   MAX_MESSAGE_IMAGE_SIZE_BYTES,
@@ -458,7 +471,7 @@ export {
   messageDtoSchema,
   messageMediaDtoSchema,
   messageTypeSchema,
-  openConversationSchema,
+  participantCapabilitySchema,
   requestMessageUploadUrlSchema,
   sendMessageSchema,
 } from "./dto/message.schema";
@@ -741,8 +754,16 @@ export {
 export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
 export type { CoachPresence } from "./util/coach-presence.util";
 export { coachPresence } from "./util/coach-presence.util";
-export type { ConversationRelation, ConversationRow } from "./util/conversation-row.util";
-export { conversationRows, counterpartOfConversation } from "./util/conversation-row.util";
+export type {
+  ConversationRelation,
+  ConversationRow,
+  DirectConversationSource,
+} from "./util/conversation-row.util";
+export {
+  conversationRows,
+  counterpartOfConversation,
+  directCounterpartId,
+} from "./util/conversation-row.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -866,7 +887,7 @@ export {
 } from "./util/message-attachment.util";
 export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
-export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export { createReadMarker, lastUnreadIncomingId, readMarkOf } from "./util/message-read.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export { adoptMetrics, remapCustomMetrics } from "./util/metric-adoption.util";
 export {

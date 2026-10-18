@@ -104,7 +104,13 @@ const invoice = (id: string, dueDate: string) =>
     dueDate,
   }) as InvoiceDto;
 
-const CONVERSATION = { id: "c-1", counterpartId: "ath-1", unreadCount: 1 } as ConversationDto;
+// Le fil DIRECT avec ath-1 (#611) : seul son participant et ses non-lus comptent ici.
+const CONVERSATION = {
+  id: "c-1",
+  kind: "DIRECT",
+  participants: [{ userId: "ath-1", name: "Léa", capability: "athlete", lastReadAt: null }],
+  unreadCount: 1,
+} as ConversationDto;
 
 const calls = {
   athletes: vi.mocked(accountApi.listAthletes),

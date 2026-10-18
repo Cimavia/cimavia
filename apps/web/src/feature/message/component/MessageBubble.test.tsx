@@ -25,7 +25,6 @@ function message(attachment: MessageDto["attachment"]): MessageDto {
     type: "TEXT",
     content: "bien joué",
     media: null,
-    readAt: null,
     attachment,
     createdAt: new Date().toISOString(),
   } as MessageDto;

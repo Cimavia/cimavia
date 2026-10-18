@@ -1,5 +1,6 @@
 import type { MyAccess } from "../dto/access.schema";
 import { PlanStatus } from "../dto/plan.schema";
+import { type DirectConversationSource, directCounterpartId } from "./conversation-row.util";
 import { required } from "./invariant.util";
 import { type InvoiceState, type InvoiceTiming, resolveInvoiceState } from "./invoice.util";
 import {
@@ -48,9 +49,9 @@ export type AthleteFeedbackSource = {
   createdAt: string;
 };
 
-// La conversation nomme son interlocuteur `counterpartId` (elle est vue depuis le coach), pas
-// `athleteId` : c'est le seul point de jointure qui change de nom d'une source à l'autre.
-export type AthleteConversationSource = { counterpartId: string; unreadCount: number };
+// La conversation ne nomme pas son athlète : il se lit parmi ses participants, et seul le fil À
+// DEUX avec lui compte (`directCounterpartId`) — un groupe où il figure n'est pas son fil (#611).
+export type AthleteConversationSource = DirectConversationSource & { unreadCount: number };
 
 export type AthleteInvoiceSource = InvoiceTiming & {
   id: string;
@@ -141,12 +142,11 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
     listOf(input.feedbacks).filter((feedback) => feedback.coachReadAt == null),
     (feedback) => feedback.athleteId,
   );
-  const unreadMessagesByAthlete = new Map(
-    listOf(input.conversations).map((conversation) => [
-      conversation.counterpartId,
-      conversation.unreadCount,
-    ]),
-  );
+  const unreadMessagesByAthlete = new Map<string, number>();
+  for (const conversation of listOf(input.conversations)) {
+    const athleteId = directCounterpartId(conversation, "athlete");
+    if (athleteId != null) unreadMessagesByAthlete.set(athleteId, conversation.unreadCount);
+  }
   const issuedInvoicesOf = groupBy(
     listOf(input.invoices).filter((invoice): invoice is IssuedInvoice => invoice.issuedAt != null),
     (invoice) => invoice.athleteId,

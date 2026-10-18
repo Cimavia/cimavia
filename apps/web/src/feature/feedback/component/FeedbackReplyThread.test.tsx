@@ -29,7 +29,6 @@ function message(overrides: Partial<MessageDto>): MessageDto {
     scheduledSessionId: null,
     sessionFeedbackId: "f-1",
     attachment: null,
-    readAt: null,
     createdAt: "2026-10-16T19:42:00.000Z",
     ...overrides,
   } as MessageDto;

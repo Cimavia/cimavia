@@ -11,7 +11,7 @@ import {
   Role,
 } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
-import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
+import { type Agent, billAndPublish, link, openWith, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest } from "../support/version";
 
@@ -605,7 +605,7 @@ describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
     draftPlanId = draft.body.id;
     await coachA.put(`/plans/${draftPlanId}/billing`).send({ amountCents: 5000, dueDate: monday });
 
-    conversationId = (await coachA.post("/conversations").send({ athleteId: a1Id })).body.id;
+    conversationId = (await openWith(coachA, a1Id, "athlete")).body.id;
     exerciseAId = (await coachA.post("/exercises").send({ title: "Exercice cible" })).body.id;
   });
 

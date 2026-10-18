@@ -11,9 +11,9 @@ import { keepThreadUrls } from "@/shared/lib/signed-url";
 const POLL_INTERVAL_MS = 10_000;
 
 /**
- * Les fils du coach — un par athlète avec qui il a échangé. Le tableau de bord n'en tire que des
- * compteurs de non-lus : pas de sondage, le retour au premier plan et le tirer-pour-rafraîchir
- * suffisent (un intervalle permanent viderait la batterie pour un chiffre qu'on ne regarde pas
+ * Les fils de l'acteur, sous le titre qu'il exerce — chacun porte SA marque de lecture (#611). Pas
+ * de sondage : le retour au premier plan, le tirer-pour-rafraîchir et l'invalidation par `markRead`
+ * suffisent (un intervalle permanent viderait la batterie pour des compteurs qu'on ne regarde pas
  * changer).
  */
 export function useConversations() {
@@ -32,7 +32,11 @@ export function useConversationWith(athleteId: string | null) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWith(athleteId ?? ""),
     // Cibler un athlète, c'est agir en coach : le titre est dans le geste, pas dans le persona.
-    queryFn: () => messageApi.openConversation({ athleteId: athleteId as string }, "coach"),
+    queryFn: () =>
+      messageApi.createConversation(
+        { participants: [{ userId: athleteId as string, capability: "athlete" }] },
+        "coach",
+      ),
     // `null` tant que l'écran n'a pas chargé de quoi désigner l'athlète : un get-or-create sans
     // cible créerait un fil au hasard. Le hook est appelé inconditionnellement (règle des hooks),
     // c'est `enabled` qui décide s'il part.
@@ -49,7 +53,11 @@ export function useConversationWith(athleteId: string | null) {
 export function useConversationWithCoach(coachId: string | null) {
   return useQuery<ConversationDto>({
     queryKey: messageKeys.conversationWithCoach(coachId ?? ""),
-    queryFn: () => messageApi.openConversation({ coachId: coachId as string }, "athlete"),
+    queryFn: () =>
+      messageApi.createConversation(
+        { participants: [{ userId: coachId as string, capability: "coach" }] },
+        "athlete",
+      ),
     enabled: coachId != null,
     staleTime: Number.POSITIVE_INFINITY,
   });

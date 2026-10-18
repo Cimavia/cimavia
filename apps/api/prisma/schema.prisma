@@ -70,14 +70,13 @@ model User {
   athletePlans Plan[] @relation("AthletePlans") // planifs reçues par l'athlète
 
   // Métier — débriefs (P4) : écrits par l'athlète, lus par le coach.
-  athleteFeedback SessionFeedback[] @relation("AthleteFeedback")
-  coachFeedback   SessionFeedback[] @relation("CoachFeedback")
+  athleteFeedback SessionFeedback[]     @relation("AthleteFeedback")
+  coachFeedback   SessionFeedback[]     @relation("CoachFeedback")
   feedbackReads   SessionFeedbackRead[]
 
-  // Métier — messagerie (P5) : fil 1:1 lu et écrit par les DEUX rôles.
-  coachConversations   Conversation[] @relation("CoachConversations")
-  athleteConversations Conversation[] @relation("AthleteConversations")
-  sentMessages         Message[]      @relation("SentMessages")
+  // Métier — messagerie (P5) : conversations à participants, à deux ou à plusieurs (#611).
+  conversationParticipations ConversationParticipant[]
+  sentMessages               Message[]                 @relation("SentMessages")
 
   // Notifications push — les DEUX rôles enregistrent leurs appareils (P4).
   pushTokens PushToken[]
@@ -872,34 +871,66 @@ enum MessageType {
   FEEDBACK_UPDATED
 }
 
+// À deux ou à plusieurs (#611) : fixé à la création, comme les participants.
+enum ConversationKind {
+  DIRECT
+  GROUP
+}
+
+// Le titre auquel on participe à une conversation (#611) : un compte à double capacité peut avoir
+// deux fils avec la même personne, un par espace. Le compte Entreprise n'est dans aucune.
+enum ParticipantCapability {
+  COACH
+  ATHLETE
+}
+
 model Conversation {
-  id            String    @id @default(cuid())
-  coachId       String
-  coach         User      @relation("CoachConversations", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId     String
-  athlete       User      @relation("AthleteConversations", fields: [athleteId], references: [id], onDelete: Cascade)
-  // Dernier message posté : tri de la liste de conversations du coach, sans agréger les messages.
+  id             String           @id @default(cuid())
+  kind           ConversationKind
+  // Les participants et leurs capacités, triés (`ATHLETE:a|COACH:c`) : mêmes participants, même
+  // conversation, à deux comme à plusieurs (#598, #611). L'unicité garde la course du
+  // get-or-create. Calculée à la création — les participants ne changent plus ensuite.
+  participantKey String           @unique
+  // Dernier message posté : tri de la liste de conversations, sans agréger les messages.
   // Nullable tant qu'aucun message n'a été envoyé (pas de fallback silencieux).
-  lastMessageAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  lastMessageAt  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  messages Message[]
+  participants ConversationParticipant[]
+  messages     Message[]
 
-  @@unique([coachId, athleteId]) // 1:1 par relation ; garde la course du get-or-create
-  @@index([coachId])
-  @@index([athleteId])
   @@map("conversation")
+}
+
+// Un compte dans une conversation, au titre d'une capacité (#611). C'est le scope : on lit une
+// conversation et ses messages si l'on y participe, à son titre.
+model ConversationParticipant {
+  id             String                @id @default(cuid())
+  conversationId String
+  conversation   Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capability     ParticipantCapability
+  // Sa marque de lecture : tout message créé jusque-là est lu. Remplace `Message.readAt`, qui ne
+  // savait dire « lu » que pour un seul destinataire. `null` = rien lu encore.
+  lastReadAt     DateTime?
+  createdAt      DateTime              @default(now())
+
+  // Un compte n'y figure qu'une fois : les règles de relation ne permettent pas d'y être à deux
+  // titres (pas d'auto-relation, #11). Préfixe `conversationId` : couvre la FK.
+  @@unique([conversationId, userId])
+  // Le scope : les conversations d'un compte, à un titre.
+  @@index([userId, capability])
+  @@map("conversation_participant")
 }
 
 model Message {
   id                 String            @id @default(cuid())
-  coachId            String // dénormalisé (scope tenant — un include imbriqué n'est pas scopé)
-  athleteId          String // dénormalisé
   conversationId     String
   conversation       Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  // Auteur du message : coachId ou athleteId. Détermine l'alignement des bulles et le destinataire
-  // du push (l'AUTRE partie). Pas de FK relation métier : lu tel quel côté client.
+  // Auteur du message, l'un des participants. Détermine l'alignement des bulles et les
+  // destinataires du push (tous les AUTRES participants, #611).
   senderId           String
   sender             User              @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   type               MessageType
@@ -916,14 +947,10 @@ model Message {
   scheduledSession   ScheduledSession? @relation(fields: [scheduledSessionId], references: [id], onDelete: SetNull)
   sessionFeedbackId  String?
   sessionFeedback    SessionFeedback?  @relation(fields: [sessionFeedbackId], references: [id], onDelete: SetNull)
-  // Lu par le DESTINATAIRE (pas l'auteur) : alimente `unreadCount` et le throttle push
-  // « first-unread » (on ne notifie qu'au passage de « tout lu » à « non lu »).
-  readAt             DateTime?
+  // Lu ou non : chaque participant le dit par sa marque (`ConversationParticipant.lastReadAt`).
   createdAt          DateTime          @default(now())
 
   @@index([conversationId, createdAt]) // fil chronologique
-  @@index([coachId])
-  @@index([athleteId])
   @@index([scheduledSessionId])
   @@index([sessionFeedbackId])
   @@map("message")

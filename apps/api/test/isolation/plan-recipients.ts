@@ -6,6 +6,7 @@ import {
   billAndPublish,
   inviteFor,
   link,
+  openWith,
   required,
   signUp,
   signUpWith,
@@ -626,12 +627,8 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
   });
 
   it("n'ouvre pas de fil de messagerie avec soi-même", async () => {
-    expect((await solo.post("/conversations?as=coach").send({ athleteId: soloId })).status).toBe(
-      409,
-    );
+    expect((await openWith(solo, soloId, "athlete", "/conversations?as=coach")).status).toBe(409);
     // Le même refus des deux côtés : se viser soi-même est impossible, pas inconnu (#198, #599).
-    expect((await solo.post("/conversations?as=athlete").send({ coachId: soloId })).status).toBe(
-      409,
-    );
+    expect((await openWith(solo, soloId, "coach", "/conversations?as=athlete")).status).toBe(409);
   });
 });

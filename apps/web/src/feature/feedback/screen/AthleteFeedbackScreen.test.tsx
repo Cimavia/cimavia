@@ -14,12 +14,12 @@ const {
   addFilesMock,
   addMediaMock,
   removeMock,
-  openConversationMock,
+  createConversationMock,
   selfId,
   reply,
 } = vi.hoisted(() => ({
   reply: { onSent: (): unknown => undefined },
-  openConversationMock: vi.fn(),
+  createConversationMock: vi.fn(),
   selfId: { current: "ath_1" },
   getFeedbackMock: vi.fn(),
   upsertMock: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
 // Le fil où le débrief se discute : celui du coach DE LA SÉANCE (#599), que l'on vérifie ici.
 vi.mock("@/feature/message/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/message/api")>()),
-  messageApi: { openConversation: openConversationMock },
+  messageApi: { createConversation: createConversationMock },
 }));
 
 // Le compte courant décide si la séance a un coach à qui répondre, ou s'il se l'est programmée.
@@ -174,7 +174,7 @@ beforeEach(() => {
   // suivant, qui décrirait une séance déjà remplie sans l'avoir demandé.
   window.localStorage.clear();
   selfId.current = "ath_1";
-  openConversationMock.mockResolvedValue({ id: "conv-1" });
+  createConversationMock.mockResolvedValue({ id: "conv-1" });
   getSessionMock.mockResolvedValue(session());
   getFeedbackMock.mockResolvedValue(null);
   upsertMock.mockResolvedValue(feedback());
@@ -847,7 +847,10 @@ describe("AthleteFeedbackScreen", () => {
     await setup();
 
     await waitFor(() =>
-      expect(openConversationMock).toHaveBeenCalledWith({ coachId: COACH_ID }, "athlete"),
+      expect(createConversationMock).toHaveBeenCalledWith(
+        { participants: [{ userId: COACH_ID, capability: "coach" }] },
+        "athlete",
+      ),
     );
   });
 
@@ -859,7 +862,7 @@ describe("AthleteFeedbackScreen", () => {
 
     // Le fil est monté, et il le dit : la preuve qu'on n'affirme pas l'absence avant son rendu.
     expect(await findByText("feedback.reply.self")).toBeInTheDocument();
-    expect(openConversationMock).not.toHaveBeenCalled();
+    expect(createConversationMock).not.toHaveBeenCalled();
   });
 
   it("ramène à LA séance, pas au planning", async () => {

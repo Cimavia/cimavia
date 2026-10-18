@@ -1,4 +1,4 @@
-import { MessageType } from "@cmv/shared";
+import { type ConversationDto, directCounterpartId, MessageType } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish } from "../support/actors";
 import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
@@ -29,11 +29,8 @@ describe("Débriefs d'un cycle partagé : notifiés à chaque Coach, lus par cha
 
   /** Le fil direct du Coach avec un athlète, ou `undefined` s'il n'en a pas. */
   const threadWith = async (coach: Agent, athleteId: string) => {
-    const threads = (await coach.get("/conversations")).body as {
-      id: string;
-      counterpartId: string;
-    }[];
-    return threads.find((thread) => thread.counterpartId === athleteId);
+    const threads = (await coach.get("/conversations")).body as ConversationDto[];
+    return threads.find((thread) => directCounterpartId(thread, "athlete") === athleteId);
   };
   const messagesOf = async (coach: Agent, threadId: string) =>
     (await coach.get(`/conversations/${threadId}/messages`)).body as ThreadMessage[];

@@ -42,7 +42,7 @@ export class MessageMediaService {
     conversationId: string,
     input: RequestMessageUploadUrlInput,
   ): Promise<MediaUploadTicketDto> {
-    await this.conversations.getOwnedOrThrow(conversationId);
+    await this.conversations.getJoinedOrThrow(conversationId);
 
     const storagePath = buildMessageMediaKey(conversationId, input.fileName);
     return this.storage.createUploadTicket(storagePath, input.mimeType, input.size);
@@ -66,7 +66,7 @@ export class MessageMediaService {
    * clé. L'envoi du message la vérifie aussi (`MessageService.send`, #293).
    */
   private async assertOwnedKey(conversationId: string, storagePath: string): Promise<void> {
-    await this.conversations.getOwnedOrThrow(conversationId);
+    await this.conversations.getJoinedOrThrow(conversationId);
     assertKeyUnder(messageMediaKeyPrefix(conversationId), storagePath);
   }
 }

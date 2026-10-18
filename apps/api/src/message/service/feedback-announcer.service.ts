@@ -1,10 +1,10 @@
-import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType, required } from "@cmv/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, SessionFeedback } from "@prisma/client";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { ConversationService } from "./conversation.service";
+import { ConversationService, type JoinedConversation } from "./conversation.service";
 
 /**
  * L'avis posé dans le fil quand l'athlète dépose ou complète un débrief (#96).
@@ -34,7 +34,7 @@ export class FeedbackAnnouncerService {
    * C'est l'ÉTAT du fil qui tranche, et c'est ce qui empêche vingt photos de faire vingt bulles :
    *
    * - aucun avis pour ce débrief dans ce fil → « déposé » ;
-   * - un avis déjà là, **non lu** → rien. Un second pointeur vers le même débrief n'apprend rien
+   * - un avis déjà là, **non lu** du Coach — créé après sa marque de lecture (#611) → rien. Un second pointeur vers le même débrief n'apprend rien
    *   de plus que le premier, qui pointe déjà l'état courant ;
    * - tous les avis lus → « mis à jour », qui est cette fois une information neuve.
    *
@@ -58,19 +58,26 @@ export class FeedbackAnnouncerService {
 
   private async announceTo(feedback: SessionFeedback, coachId: string): Promise<void> {
     try {
-      const events = await this.db.message.findMany({
-        where: {
-          sessionFeedbackId: feedback.id,
-          coachId,
-          type: { in: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
-        },
-        select: { readAt: true },
-      });
-      if (events.some((event) => event.readAt == null)) return;
+      // Le fil peut ne pas exister : un athlète peut débriefer sans avoir jamais écrit à ce Coach.
+      // On ne le crée qu'au moment d'écrire — se taire ne doit rien ouvrir.
+      const existing = await this.conversations.findDirect(coachId, feedback.athleteId);
+      const events = existing == null ? [] : await this.eventsOf(existing, feedback);
+      const coachReadAt =
+        existing == null
+          ? null
+          : required(
+              existing.participants.find((participant) => participant.userId === coachId),
+              `[message] le Coach ${coachId} absent de son fil direct ${existing.id}`,
+            ).lastReadAt;
+      const unread = (event: { createdAt: Date }) =>
+        coachReadAt == null || event.createdAt > coachReadAt;
+      if (events.some(unread)) return;
 
       const type =
         events.length === 0 ? MessageType.FEEDBACK_CREATED : MessageType.FEEDBACK_UPDATED;
-      await this.post(feedback, coachId, type);
+      const conversation =
+        existing ?? (await this.conversations.ensure(coachId, feedback.athleteId));
+      await this.post(feedback, conversation, type);
     } catch (error) {
       // Un avis manqué ne doit pas faire échouer le débrief : l'athlète a écrit son retour, c'est
       // ça la donnée. Et la règle étant portée par l'ÉTAT, le prochain geste répare tout seul —
@@ -82,16 +89,28 @@ export class FeedbackAnnouncerService {
     }
   }
 
-  private async post(feedback: SessionFeedback, coachId: string, type: MessageType): Promise<void> {
-    // Le fil peut ne pas exister : un athlète peut débriefer sans avoir jamais écrit à ce Coach.
-    const conversation = await this.conversations.ensure(coachId, feedback.athleteId);
+  private eventsOf(
+    conversation: JoinedConversation,
+    feedback: SessionFeedback,
+  ): Promise<{ createdAt: Date }[]> {
+    return this.db.message.findMany({
+      where: {
+        conversationId: conversation.id,
+        sessionFeedbackId: feedback.id,
+        type: { in: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
+      },
+      select: { createdAt: true },
+    });
+  }
 
-    // Les deux champs tenant sont recopiés du fil (l'extension n'injecte que celui de l'acteur), et
-    // l'auteur est l'ATHLÈTE : c'est son geste qu'on annonce, et c'est ce qui aligne la bulle du
+  private async post(
+    feedback: SessionFeedback,
+    conversation: JoinedConversation,
+    type: MessageType,
+  ): Promise<void> {
+    // L'auteur est l'ATHLÈTE : c'est son geste qu'on annonce, et c'est ce qui aligne la bulle du
     // bon côté chez les deux. Ni contenu ni média — le type porte tout le sens.
     const data: Prisma.MessageUncheckedCreateInput = {
-      coachId: conversation.coachId,
-      athleteId: conversation.athleteId,
       conversationId: conversation.id,
       senderId: feedback.athleteId,
       type,

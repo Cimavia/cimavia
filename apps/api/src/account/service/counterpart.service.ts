@@ -32,17 +32,26 @@ export class CounterpartService {
    * `coachId === athleteId`, et l'entrée synthétique de `GET /athletes` (#14) est fabriquée
    * ailleurs. Un compte qui se coache seul rend donc `{ false, false }` — ce qui est exact : il n'a
    * personne à qui écrire.
+   *
+   * Un Coach a aussi pour interlocuteurs les autres Coachs de ses entreprises (#611) : C et M,
+   * réunis par F, s'écrivent sans athlète commun.
    */
   async mine(): Promise<CounterpartsDto> {
     const { userId } = currentActor(this.cls);
-    const [asCoach, asAthlete] = await Promise.all([
+    const [athletes, colleagues, coaches] = await Promise.all([
       this.prisma.coachAthlete.count({
         where: { coachId: userId, status: CoachAthleteStatus.ACTIVE },
+      }),
+      this.prisma.organizationCoach.count({
+        where: {
+          coachId: { not: userId },
+          organization: { coaches: { some: { coachId: userId } } },
+        },
       }),
       this.prisma.coachAthlete.count({
         where: { athleteId: userId, status: CoachAthleteStatus.ACTIVE },
       }),
     ]);
-    return { asCoach: asCoach > 0, asAthlete: asAthlete > 0 };
+    return { asCoach: athletes + colleagues > 0, asAthlete: coaches > 0 };
   }
 }
