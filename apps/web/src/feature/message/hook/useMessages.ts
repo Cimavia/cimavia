@@ -1,5 +1,13 @@
-import type { ConversationDto, MessageDto, SendMessageInput } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type ConversationCandidatesDto,
+  type ConversationDto,
+  type CreateConversationInput,
+  type MessageDto,
+  type SendMessageInput,
+  type TrainingCapability,
+  withConversation,
+} from "@cmv/shared";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -58,6 +66,48 @@ export function useConversationWithCoach(coachId: string | null) {
       ),
     enabled: coachId != null,
     staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
+ * Ceux qu'on peut réunir dans une conversation, au titre exercé (#611) — le sélecteur, et ce qui
+ * dit s'il y a quelqu'un à qui écrire. Pas de sondage : on ne regarde pas cette liste changer.
+ */
+export function useConversationCandidates() {
+  const as = useExercisedCapability();
+  return useQuery<ConversationCandidatesDto>({
+    queryKey: messageKeys.candidates(as),
+    queryFn: () => messageApi.listCandidates(as),
+  });
+}
+
+/**
+ * Pose une conversation ouverte dans la liste en cache (`withConversation`), puis la relit pour la
+ * remettre d'aplomb.
+ */
+export function seedConversation(
+  queryClient: QueryClient,
+  as: TrainingCapability | null,
+  conversation: ConversationDto,
+) {
+  queryClient.setQueryData<ConversationDto[]>(messageKeys.conversations(as), (list) =>
+    withConversation(list, conversation),
+  );
+  void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+}
+
+/**
+ * Crée une conversation, ou rouvre celle qui réunit déjà ces participants (#611) — c'est l'API qui
+ * le décide, le client ouvre ce qu'elle rend.
+ */
+export function useCreateConversation() {
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  const as = useExercisedCapability();
+  return useMutation({
+    mutationFn: (input: CreateConversationInput) => messageApi.createConversation(input, as),
+    onSuccess: (conversation) => seedConversation(queryClient, as, conversation),
+    onError: toast.onError,
   });
 }
 

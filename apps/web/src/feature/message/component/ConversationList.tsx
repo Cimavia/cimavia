@@ -1,58 +1,66 @@
-import type { ConversationRow } from "@cmv/shared";
+import { type ConversationDto, conversationPreviewText, conversationTitle } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { ParticipantAvatars } from "@/feature/message/component/ParticipantAvatars";
 import { CmvBadge } from "@/shared/component";
-
 import { cn } from "@/shared/util/cn.util";
+import { formatRelativeTime } from "@/shared/util/date.util";
 
-// Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
-// `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
-
-// Une ligne = un interlocuteur — un athlète pour le coach, un coach pour l'athlète (#599) —
-// enrichi de son fil s'il existe (aperçu + non-lus). Sans fil, la ligne reste cliquable : la
-// sélectionner crée le fil. Les lignes se construisent dans `conversationRows` (@cmv/shared).
+// Une ligne = une conversation, à deux ou à plusieurs (#612) — l'API les trie, une conversation
+// vide à sa création. Un interlocuteur jamais contacté n'a pas de ligne : on lui écrit par
+// « Nouvelle conversation » (tranché en #612).
 type ConversationListProps = {
-  rows: ConversationRow[];
+  conversations: readonly ConversationDto[];
+  currentUserId: string | null;
   selectedId: string | null;
-  onSelect: (counterpartId: string) => void;
+  onSelect: (conversationId: string) => void;
 };
 
-export function ConversationList({ rows, selectedId, onSelect }: Readonly<ConversationListProps>) {
+export function ConversationList({
+  conversations,
+  currentUserId,
+  selectedId,
+  onSelect,
+}: Readonly<ConversationListProps>) {
   const { t } = useTranslation();
 
   return (
     <div className="flex w-72 shrink-0 flex-col overflow-y-auto border-cmv-border border-r">
-      {rows.map((row) => {
-        const conversation = row.conversation;
-        // Aperçu : le texte du dernier message ; pour un média, un libellé i18n depuis son type.
-        const preview =
-          conversation?.lastMessagePreview ??
-          (conversation?.lastMessageType != null
-            ? t(`messages.preview.${conversation.lastMessageType}`)
-            : t("messages.noMessages"));
-
-        return (
-          <button
-            type="button"
-            key={row.counterpartId}
-            onClick={() => onSelect(row.counterpartId)}
-            className={cn(
-              "flex flex-col gap-cmv-xs border-cmv-border border-b px-cmv-md py-cmv-sm text-left transition-colors",
-              row.counterpartId === selectedId ? "bg-cmv-surface" : "hover:bg-cmv-surface",
-            )}
-          >
-            <div className="flex items-center gap-cmv-sm">
+      {conversations.map((conversation) => (
+        <button
+          type="button"
+          key={conversation.id}
+          onClick={() => onSelect(conversation.id)}
+          aria-current={conversation.id === selectedId ? "true" : undefined}
+          className={cn(
+            "flex items-center gap-cmv-sm border-cmv-border border-b px-cmv-md py-cmv-sm text-left transition-colors",
+            conversation.id === selectedId ? "bg-cmv-surface" : "hover:bg-cmv-surface",
+          )}
+        >
+          <ParticipantAvatars participants={conversation.participants} max={2} />
+          <span className="flex min-w-0 flex-1 flex-col gap-cmv-xs">
+            <span className="flex items-center gap-cmv-sm">
               <span className="flex-1 truncate text-cmv-body text-cmv-text-hi">
-                {row.counterpartName}
+                {conversationTitle(conversation) ?? "—"}
               </span>
-              {conversation != null && conversation.unreadCount > 0 ? (
+              {/* `null` = aucun échange : pas de date inventée. */}
+              <span className="shrink-0 text-cmv-caption text-cmv-text-lo">
+                {conversation.lastMessageAt == null
+                  ? "—"
+                  : formatRelativeTime(conversation.lastMessageAt)}
+              </span>
+            </span>
+            <span className="flex items-center gap-cmv-sm">
+              <span className="flex-1 truncate text-cmv-caption text-cmv-text-mid">
+                {/* `null` : conversation encore vide (#598, E3). */}
+                {conversationPreviewText(conversation, currentUserId, t) ?? "—"}
+              </span>
+              {conversation.unreadCount > 0 ? (
                 <CmvBadge variant="accent">{String(conversation.unreadCount)}</CmvBadge>
               ) : null}
-            </div>
-            <span className="truncate text-cmv-caption text-cmv-text-mid">{preview}</span>
-          </button>
-        );
-      })}
+            </span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

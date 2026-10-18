@@ -1,40 +1,30 @@
-import {
-  type CoachAthleteDto,
-  CoachAthleteStatus,
-  type ConversationDto,
-  type MessageDto,
-  SELF_RELATION_ID,
+import type {
+  ConversationCandidatesDto,
+  ConversationDto,
+  ConversationParticipantDto,
+  MessageDto,
 } from "@cmv/shared";
-import { type RenderResult, waitFor } from "@testing-library/react";
+import { type RenderResult, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { accountApi as athleteAccountApi } from "@/feature/athlete/api";
-import { accountApi as coachAccountApi } from "@/feature/coach/api";
 import { messageApi } from "@/feature/message/api";
 import { MessagesScreen } from "@/feature/message/screen/MessagesScreen";
 import { renderInRoute } from "../../../../test/render";
 
 /**
  * Les VRAIS hooks, seuls les `api.ts` sont bouchonnés (« Tranché en #507 ») : ce qui s'éprouve ici
- * est ce que la messagerie DÉCIDE de réponses réelles — quelles lignes elle construit, quel fil
- * elle résout et à quel titre, ce qu'elle dit quand il n'y a rien ou quand ça tombe.
+ * est ce que la messagerie DÉCIDE de réponses réelles — quelles lignes elle montre, quel fil elle
+ * ouvre et à quel titre, qui elle propose de réunir, ce qu'elle dit quand il n'y a rien ou quand
+ * ça tombe.
  *
- * Le titre exercé se lit de la session, pas d'un mock : un compte coach seul voit la messagerie du
- * coach, un compte athlète seul celle de l'athlète.
+ * Les données de la phase multi-coach (#593) : C et M (entreprise F), TE et TI. C suit TE et TI,
+ * M ne suit que TI. Le titre exercé se lit de la session, pas d'un mock.
  */
 const session = vi.hoisted(() => ({
-  user: { id: "me", name: "Dual Curl", isCoach: true, isAthlete: false },
+  user: { id: "me", name: "C", isCoach: true, isAthlete: false },
 }));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: session.user }, isPending: false }) },
 }));
-vi.mock("@/feature/athlete/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/feature/athlete/api")>();
-  return { ...actual, accountApi: { ...actual.accountApi, listAthletes: vi.fn() } };
-});
-vi.mock("@/feature/coach/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/feature/coach/api")>();
-  return { ...actual, accountApi: { ...actual.accountApi, myCoaches: vi.fn() } };
-});
 vi.mock("@/feature/message/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/feature/message/api")>();
   return {
@@ -42,6 +32,7 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
     messageApi: {
       ...actual.messageApi,
       listConversations: vi.fn(),
+      listCandidates: vi.fn(),
       createConversation: vi.fn(),
       getMessages: vi.fn(),
       markRead: vi.fn(async () => undefined),
@@ -49,103 +40,101 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
     },
   };
 });
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
+// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici. Ses
+// actions, elles, portent « Nouvelle conversation ».
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({ title, children }: Readonly<{ title: string; children?: unknown }>) => (
+  CmvAppShell: ({
+    title,
+    actions,
+    children,
+  }: Readonly<{ title: string; actions?: unknown; children?: unknown }>) => (
     <div>
       <h1>{title}</h1>
+      {actions as never}
       {children as never}
     </div>
   ),
 }));
 
-function relation(overrides: Partial<CoachAthleteDto>): CoachAthleteDto {
-  return {
-    id: "rel-1",
-    coachId: "me",
-    coachName: "Dual Curl",
-    athleteId: "a-1",
-    athleteName: "Léa Moreau",
-    status: CoachAthleteStatus.ACTIVE,
-    invitedAt: "2026-01-01T00:00:00.000Z",
-    joinedAt: "2026-01-02T00:00:00.000Z",
-    organizationName: null,
-    isSelf: false,
-    ...overrides,
-  };
-}
+const person = (
+  userId: string,
+  capability: "coach" | "athlete",
+  lastReadAt: string | null = null,
+): ConversationParticipantDto => ({ userId, name: userId.toUpperCase(), capability, lastReadAt });
 
-/** L'entrée synthétique que `GET /athletes` préfixe à la liste d'un compte qui se coache (#14). */
-const SELF = relation({
-  id: SELF_RELATION_ID,
-  athleteId: "me",
-  athleteName: "Dual Curl",
-  joinedAt: null,
-  isSelf: true,
-});
-const LEA = relation({});
-const NOAH = relation({ id: "rel-2", athleteId: "a-2", athleteName: "Noah Fontaine" });
-const INES = relation({ id: "rel-3", athleteId: "a-3", athleteName: "Inès Garnier" });
-
-/**
- * Un fil DIRECT (#611) : son seul autre participant est l'interlocuteur de la ligne, au titre que
- * l'écran attend en face — un athlète côté coach, un coach côté athlète.
- */
-const conversation = ({
-  counterpartId = "a-1",
-  counterpartAs = "athlete",
-  ...over
-}: Partial<ConversationDto> & {
-  counterpartId?: string;
-  counterpartAs?: "coach" | "athlete";
-}): ConversationDto => ({
-  id: "c-1",
+const conversation = (over: Partial<ConversationDto> = {}): ConversationDto => ({
+  id: "c-ti",
   kind: "DIRECT",
-  participants: [
-    { userId: counterpartId, name: "Léa Moreau", capability: counterpartAs, lastReadAt: null },
-  ],
+  participants: [person("ti", "athlete")],
   lastReadAt: null,
   lastMessageAt: null,
   lastMessageSenderId: null,
   lastMessageType: null,
   lastMessagePreview: null,
   unreadCount: 0,
-  createdAt: "2026-08-01T10:00:00.000Z",
+  createdAt: "2026-10-05T08:00:00.000Z",
   ...over,
+});
+
+const GROUP = conversation({
+  id: "c-group",
+  kind: "GROUP",
+  participants: [person("m", "coach"), person("ti", "athlete")],
 });
 
 const message = (id: string, over: Partial<MessageDto> = {}): MessageDto =>
   ({
     id,
-    conversationId: "c-1",
-    senderId: "a-1",
+    conversationId: "c-ti",
+    senderId: "ti",
     type: "TEXT",
     content: `Message ${id}`,
     media: null,
-    createdAt: "2026-09-01T10:00:00.000Z",
+    createdAt: "2026-10-05T10:00:00.000Z",
     ...over,
   }) as MessageDto;
 
+const COACH_CANDIDATES: ConversationCandidatesDto = {
+  athletes: [
+    { userId: "te", name: "TE" },
+    { userId: "ti", name: "TI" },
+  ],
+  coaches: [{ userId: "m", name: "M", organizationNames: ["F"], followedAthleteIds: ["ti"] }],
+};
+const NOBODY: ConversationCandidatesDto = { athletes: [], coaches: [] };
+
 /**
- * Une ligne de fil est un `<button>`. Interroger le rôle et non le texte est ce qui distingue la
- * ligne du titre du fil ouvert, qui porte le même nom.
+ * Une ligne de la liste est un `<button>`. Interroger le rôle et non le texte est ce qui distingue
+ * la ligne du titre du fil ouvert, qui porte le même nom.
  */
-const threadRow = (view: Pick<RenderResult, "queryByRole">, name: string) =>
-  view.queryByRole("button", { name: new RegExp(name) });
+const row = (view: Pick<RenderResult, "queryByRole">, name: string) =>
+  view.queryByRole("button", { name: new RegExp(`^${name}`) });
 
 type Sources = {
-  athletes?: CoachAthleteDto[] | Error;
   conversations?: ConversationDto[] | Error;
+  /** Ce que rendent les relectures suivantes de la liste, quand elles diffèrent de la première. */
+  thenConversations?: ConversationDto[];
+  candidates?: ConversationCandidatesDto | Error;
 };
 
-async function open({ athletes = [LEA], conversations = [] }: Sources = {}, search = {}) {
-  if (athletes instanceof Error)
-    vi.mocked(athleteAccountApi.listAthletes).mockRejectedValueOnce(athletes);
-  else vi.mocked(athleteAccountApi.listAthletes).mockResolvedValue(athletes);
+async function open(
+  {
+    conversations = [conversation()],
+    thenConversations,
+    candidates = COACH_CANDIDATES,
+  }: Sources = {},
+  search = {},
+) {
   if (conversations instanceof Error)
     vi.mocked(messageApi.listConversations).mockRejectedValueOnce(conversations);
-  else vi.mocked(messageApi.listConversations).mockResolvedValue(conversations);
+  else
+    vi.mocked(messageApi.listConversations)
+      .mockResolvedValue(thenConversations ?? conversations)
+      .mockResolvedValueOnce(conversations);
+  if (candidates instanceof Error)
+    vi.mocked(messageApi.listCandidates).mockRejectedValueOnce(candidates);
+  else vi.mocked(messageApi.listCandidates).mockResolvedValue(candidates);
 
   const view = await renderInRoute(<MessagesScreen />, {
     path: "/messages",
@@ -163,168 +152,150 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  session.user = { id: "me", name: "Dual Curl", isCoach: true, isAthlete: false };
-  // Par défaut, la liste d'athlètes répond ; une panne ne vaut que pour le premier appel.
-  vi.mocked(athleteAccountApi.listAthletes).mockResolvedValue([LEA]);
-  vi.mocked(messageApi.listConversations).mockResolvedValue([]);
-  vi.mocked(messageApi.createConversation).mockResolvedValue(conversation({}));
+  session.user = { id: "me", name: "C", isCoach: true, isAthlete: false };
+  vi.mocked(messageApi.listConversations).mockResolvedValue([conversation()]);
+  vi.mocked(messageApi.listCandidates).mockResolvedValue(COACH_CANDIDATES);
+  vi.mocked(messageApi.createConversation).mockResolvedValue(conversation());
   vi.mocked(messageApi.getMessages).mockResolvedValue([message("m-1")]);
 });
 
-describe("MessagesScreen — côté coach, la liste", () => {
-  it("liste un fil par athlète, en invitant à en choisir un", async () => {
-    const view = await open();
+describe("MessagesScreen — la liste", () => {
+  // Une ligne par conversation, plus par interlocuteur (tranché en #612) : TE, jamais contacté,
+  // n'a pas de ligne.
+  it("liste les conversations, à deux comme à plusieurs, en invitant à en choisir une", async () => {
+    const view = await open({ conversations: [GROUP, conversation()] });
 
-    expect(threadRow(view, "Léa Moreau")).not.toBeNull();
+    expect(row(view, "M, TI")).not.toBeNull();
+    expect(row(view, "TI")).not.toBeNull();
+    expect(row(view, "TE")).toBeNull();
     expect(view.getByText("messages.pickThread.title")).toBeInTheDocument();
-    // Rien n'est résolu tant qu'aucun fil n'est choisi : ouvrir un fil le CRÉE au besoin.
     expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
-  /**
-   * Le cœur de #198 : le compte s'affichait comme son propre interlocuteur, en tête de liste, et
-   * le sélectionner tombait sur un écran d'erreur — le fil `(soi, soi)` ne peut pas exister.
-   */
-  it("ne se montre pas à lui-même dans sa liste de fils", async () => {
-    const view = await open({ athletes: [SELF, LEA] });
-
-    expect(threadRow(view, "Dual Curl")).toBeNull();
-    expect(threadRow(view, "Léa Moreau")).not.toBeNull();
-  });
-
-  // Les fils les plus récemment actifs d'abord, puis les athlètes sans échange, dans leur ordre.
-  it("range les fils actifs par récence, puis les athlètes sans échange", async () => {
+  it("préfixe l'aperçu de son auteur : moi, ou un autre à plusieurs", async () => {
     const view = await open({
-      athletes: [LEA, NOAH, INES],
       conversations: [
-        conversation({ id: "c-1", counterpartId: "a-1", lastMessageAt: "2026-09-01T10:00:00Z" }),
-        conversation({ id: "c-3", counterpartId: "a-3", lastMessageAt: "2026-09-20T10:00:00Z" }),
-      ],
-    });
-
-    const names = view
-      .getAllByRole("button")
-      .map((button) => button.textContent ?? "")
-      .filter((text) => /Léa|Noah|Inès/.test(text))
-      .map((text) => text.match(/Léa Moreau|Noah Fontaine|Inès Garnier/)?.[0]);
-    expect(names).toEqual(["Inès Garnier", "Léa Moreau", "Noah Fontaine"]);
-  });
-
-  // Un média n'a pas de texte à citer : son type se traduit. Un fil vide le dit.
-  it("aperçoit le dernier message, le type d'un média, ou l'absence d'échange", async () => {
-    const view = await open({
-      athletes: [LEA, NOAH, INES],
-      conversations: [
+        {
+          ...GROUP,
+          lastMessageSenderId: "m",
+          lastMessagePreview: "Salut",
+          lastMessageType: "TEXT",
+        },
         conversation({
-          counterpartId: "a-1",
-          lastMessageAt: "2026-09-20T10:00:00Z",
-          lastMessagePreview: "À demain",
-          unreadCount: 3,
-        }),
-        conversation({
-          id: "c-2",
-          counterpartId: "a-2",
-          lastMessageAt: "2026-09-10T10:00:00Z",
-          lastMessageType: "AUDIO",
+          lastMessageSenderId: "me",
+          lastMessageType: "IMAGE",
+          lastMessageAt: "2026-10-05T10:00:00.000Z",
         }),
       ],
     });
 
-    expect(threadRow(view, "Léa Moreau")?.textContent).toContain("À demain");
-    // Les non-lus se comptent sur la ligne.
-    expect(threadRow(view, "Léa Moreau")?.textContent).toContain("3");
-    expect(threadRow(view, "Noah Fontaine")?.textContent).toContain("messages.preview.AUDIO");
-    expect(threadRow(view, "Inès Garnier")?.textContent).toContain("messages.noMessages");
+    expect(row(view, "M, TI")).toHaveTextContent("messages.previewAuthor");
+    expect(row(view, "TI")).toHaveTextContent("messages.previewSelf");
   });
 
-  /**
-   * Le cas le plus visible : un compte auto-coaché SANS athlète tiers. `rows` valait `[soi]`, donc
-   * l'état vide n'était jamais rendu — une ligne morte le remplaçait.
-   */
-  it("dit le vide à un compte qui n'a que lui-même dans sa liste", async () => {
-    const view = await open({ athletes: [SELF] });
+  // E3 : une conversation sans message, en tête de liste — aperçu et date « — ».
+  it("rend « — » pour l'aperçu et la date d'une conversation vide", async () => {
+    const view = await open({ conversations: [GROUP] });
 
-    expect(view.queryByText("messages.noAthletes.title")).not.toBeNull();
-    expect(threadRow(view, "Dual Curl")).toBeNull();
+    expect(within(row(view, "M, TI") as HTMLElement).getAllByText("—")).toHaveLength(2);
   });
 
-  it("dit le vide quand aucun athlète n'a rejoint", async () => {
-    const view = await open({ athletes: [] });
+  it("aperçoit un média par son type, sans préfixe à deux", async () => {
+    const view = await open({
+      conversations: [
+        conversation({ lastMessageSenderId: "ti", lastMessageType: "AUDIO", unreadCount: 2 }),
+      ],
+    });
 
-    expect(view.queryByText("messages.noAthletes.title")).not.toBeNull();
+    expect(row(view, "TI")).toHaveTextContent("messages.preview.AUDIO");
+    expect(row(view, "TI")).not.toHaveTextContent("messages.previewAuthor");
+    expect(row(view, "TI")).toHaveTextContent("2");
   });
 
-  // Trois états distincts, jamais confondus : « aucun athlète » sur une panne réseau serait un
-  // mensonge.
+  it("invite à la première conversation quand il y a quelqu'un à qui écrire", async () => {
+    const view = await open({ conversations: [] });
+
+    expect(view.getByText("messages.noConversations.title")).toBeInTheDocument();
+    expect(view.getByText("messages.noConversations.coach")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "messages.newConversation" })).toBeInTheDocument();
+  });
+
+  // Personne à réunir : rien à créer, le bouton n'est pas proposé (E1).
+  it("dit le vide à un Coach sans athlète ni collègue", async () => {
+    const view = await open({ conversations: [], candidates: NOBODY });
+
+    expect(view.getByText("messages.noAthletes.title")).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "messages.newConversation" })).toBeNull();
+  });
+
   it("dit la panne plutôt que le vide, et relit les deux sources au réessai", async () => {
     const view = await open({ conversations: new Error("réseau") });
 
-    expect(view.queryByText("common.errorTitle")).not.toBeNull();
-    expect(view.queryByText("messages.noAthletes.title")).toBeNull();
+    expect(view.queryByText("messages.noConversations.title")).toBeNull();
+    await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 
-    await view.user.click(view.getByRole("button", { name: "common.retry" }));
-
-    await waitFor(() => expect(threadRow(view, "Léa Moreau")).not.toBeNull());
-    expect(athleteAccountApi.listAthletes).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(row(view, "TI")).not.toBeNull());
     expect(messageApi.listConversations).toHaveBeenCalledTimes(2);
+    expect(messageApi.listCandidates).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("MessagesScreen — côté coach, le fil", () => {
-  // Le fil ouvert vit dans l'url : c'est ce qui permet d'y arriver depuis le suivi (#113).
-  it("ouvre le fil choisi en coach, et l'écrit dans l'url sans perdre le titre", async () => {
+describe("MessagesScreen — le fil", () => {
+  it("ouvre la conversation choisie, et l'écrit dans l'url sans perdre le titre", async () => {
     const view = await open({}, { as: "coach" });
 
-    await view.user.click(threadRow(view, "Léa Moreau") as HTMLElement);
+    await view.user.click(row(view, "TI") as HTMLElement);
 
     expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(view.router.state.location.search).toEqual({ athlete: "a-1", as: "coach" });
+    expect(view.router.state.location.search).toEqual({ conversation: "c-ti", as: "coach" });
+    expect(row(view, "TI")).toHaveClass("bg-cmv-surface");
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
+  });
+
+  // Une notification ne connaît que la conversation : elle suffit, à plusieurs aussi.
+  it("arrive sur la conversation que l'url désigne", async () => {
+    const view = await open(
+      { conversations: [conversation(), GROUP] },
+      { conversation: "c-group" },
+    );
+
+    expect(await view.findByRole("heading", { name: "M, TI" })).toBeInTheDocument();
+  });
+
+  it("invite à choisir quand la conversation de l'url n'est pas dans la liste", async () => {
+    const view = await open({}, { conversation: "c-inconnue" });
+
+    expect(view.getByText("messages.pickThread.title")).toBeInTheDocument();
+  });
+
+  // Le tableau de suivi ouvre le fil d'un athlète (#113) : à deux, créé au besoin, puis l'url passe
+  // à la conversation — même si la liste ne la porte pas encore.
+  it("ouvre le fil à deux avec l'athlète de l'url, en Coach", async () => {
+    // La relecture qui suit l'ouverture porte le fil, comme l'API le ferait.
+    const view = await open(
+      { conversations: [], thenConversations: [conversation()] },
+      { athlete: "ti" },
+    );
+
+    expect(await view.findByText("Message m-1")).toBeInTheDocument();
     expect(messageApi.createConversation).toHaveBeenCalledWith(
-      { participants: [{ userId: "a-1", capability: "athlete" }] },
+      { participants: [{ userId: "ti", capability: "athlete" }] },
       "coach",
     );
-    expect(threadRow(view, "Léa Moreau")).toHaveClass("bg-cmv-surface");
+    expect(view.router.state.location.search).toEqual({ conversation: "c-ti" });
   });
 
-  it("arrive sur le fil désigné par l'url", async () => {
-    const view = await open({}, { athlete: "a-1" });
-
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(view.getByRole("heading", { name: "Léa Moreau" })).toBeInTheDocument();
-  });
-
-  // Un athlète inconnu (lien périmé, athlète parti) ne résout aucun fil.
-  it("invite à choisir quand l'athlète de l'url n'est pas dans la liste", async () => {
+  // Un lien périmé (athlète parti) n'est pas un candidat : rien ne part, l'API refuserait.
+  it("n'ouvre rien vers un athlète qui n'est pas un candidat", async () => {
     const view = await open({}, { athlete: "a-inconnu" });
 
     expect(view.getByText("messages.pickThread.title")).toBeInTheDocument();
     expect(messageApi.createConversation).not.toHaveBeenCalled();
   });
 
-  // Une notification ne connaît que le fil : l'écran retrouve l'athlète qui y écrit.
-  it("arrive sur le fil qu'une notification désigne", async () => {
-    const view = await open(
-      { athletes: [LEA, NOAH], conversations: [conversation({ id: "c-2", counterpartId: "a-2" })] },
-      { conversation: "c-2" },
-    );
-
-    expect(await view.findByRole("heading", { name: "Noah Fontaine" })).toBeInTheDocument();
-    expect(messageApi.createConversation).toHaveBeenCalledWith(
-      { participants: [{ userId: "a-2", capability: "athlete" }] },
-      "coach",
-    );
-  });
-
-  it("dit un fil sans message", async () => {
-    vi.mocked(messageApi.getMessages).mockResolvedValue([]);
-    const view = await open({}, { athlete: "a-1" });
-
-    expect(await view.findByText("messages.empty.description")).toBeInTheDocument();
-  });
-
-  it("dit l'échec de résolution du fil, et le résout de nouveau au réessai", async () => {
+  it("dit l'échec d'ouverture du fil, et l'ouvre de nouveau au réessai", async () => {
     vi.mocked(messageApi.createConversation).mockRejectedValueOnce(new Error("réseau"));
-    const view = await open({}, { athlete: "a-1" });
+    const view = await open({}, { athlete: "ti" });
 
     await view.user.click(await view.findByRole("button", { name: "common.retry" }));
 
@@ -332,12 +303,12 @@ describe("MessagesScreen — côté coach, le fil", () => {
     expect(messageApi.createConversation).toHaveBeenCalledTimes(2);
   });
 
-  it("envoie un texte dans le fil résolu, puis relit le fil et la liste", async () => {
+  it("envoie un texte, puis relit le fil et la liste", async () => {
     vi.mocked(messageApi.sendMessage).mockResolvedValue(message("m-2"));
     // Fil déjà lu : seul l'envoi relit la liste, pas un marquage.
     const view = await open(
-      { conversations: [conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" })] },
-      { athlete: "a-1" },
+      { conversations: [conversation({ lastReadAt: "2026-10-05T11:00:00.000Z" })] },
+      { conversation: "c-ti" },
     );
     await view.findByText("Message m-1");
 
@@ -345,7 +316,7 @@ describe("MessagesScreen — côté coach, le fil", () => {
 
     await waitFor(() =>
       expect(messageApi.sendMessage).toHaveBeenCalledWith(
-        "c-1",
+        "c-ti",
         { type: "TEXT", content: "Bien reçu" },
         null,
       ),
@@ -354,172 +325,187 @@ describe("MessagesScreen — côté coach, le fil", () => {
     expect(messageApi.listConversations).toHaveBeenCalledTimes(2);
   });
 
-  it("dit l'échec d'un envoi", async () => {
-    vi.mocked(messageApi.sendMessage).mockRejectedValue(new Error("réseau"));
-    const view = await open({}, { athlete: "a-1" });
-    await view.findByText("Message m-1");
-
-    await view.user.type(view.getByPlaceholderText("messages.placeholder"), "Bien reçu{Enter}");
-
-    expect(await view.findByRole("status")).toHaveTextContent("common.error");
-  });
-
-  // Un entrant non lu se marque lu à l'ouverture, et la liste relit ses compteurs.
   it("marque lu un entrant non lu, et relit la liste", async () => {
     const view = await open(
-      { conversations: [conversation({ lastReadAt: "2026-09-01T09:00:00.000Z" })] },
-      { athlete: "a-1" },
+      { conversations: [conversation({ lastReadAt: "2026-10-05T09:00:00.000Z" })] },
+      { conversation: "c-ti" },
     );
 
-    await waitFor(() => expect(messageApi.markRead).toHaveBeenCalledWith("c-1", null));
+    await waitFor(() => expect(messageApi.markRead).toHaveBeenCalledWith("c-ti", null));
     await waitFor(() => expect(messageApi.listConversations).toHaveBeenCalledTimes(2));
     expect(view.getByText("Message m-1")).toBeInTheDocument();
   });
-
-  // Ma marque est après le dernier entrant : rien à marquer, aucun appel.
-  it("ne remarque pas lu un fil déjà lu", async () => {
-    const view = await open(
-      { conversations: [conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" })] },
-      { athlete: "a-1" },
-    );
-
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.markRead).not.toHaveBeenCalled();
-  });
-
-  // La liste ne porte pas encore le fil : la marque lue à sa résolution vaut, rien ne se remarque.
-  it("lit ma marque dans le fil résolu tant que la liste ne le porte pas", async () => {
-    vi.mocked(messageApi.createConversation).mockResolvedValue(
-      conversation({ lastReadAt: "2026-09-01T11:00:00.000Z" }),
-    );
-    const view = await open({ conversations: [] }, { athlete: "a-1" });
-
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.markRead).not.toHaveBeenCalled();
-  });
 });
 
-describe("MessagesScreen — côté athlète (#599)", () => {
-  const JULIE = relation({
-    id: "rel-j",
-    coachId: "c-1",
-    coachName: "Julie Renaud",
-    athleteId: "me",
-  });
-  const MARC = relation({ id: "rel-m", coachId: "c-2", coachName: "Marc Keller", athleteId: "me" });
-
-  async function openAthlete(coaches: CoachAthleteDto[] | Error = [JULIE, MARC], search = {}) {
-    if (coaches instanceof Error)
-      vi.mocked(coachAccountApi.myCoaches)
-        .mockRejectedValueOnce(coaches)
-        .mockResolvedValue([JULIE, MARC]);
-    else vi.mocked(coachAccountApi.myCoaches).mockResolvedValue(coaches);
-
-    const view = await renderInRoute(<MessagesScreen />, {
-      path: "/messages",
-      search,
-      links: ["/my-coach"],
-    });
-    await waitFor(() => expect(view.queryByText("common.loading")).toBeNull());
+describe("MessagesScreen — nouvelle conversation, côté Coach (B2)", () => {
+  async function openPanel() {
+    const view = await open();
+    await view.user.click(view.getByRole("button", { name: "messages.newConversation" }));
     return view;
   }
 
-  beforeEach(() => {
-    session.user = { id: "me", name: "Léa Moreau", isCoach: false, isAthlete: true };
+  // Dans le panneau : la liste derrière lui porte aussi une ligne « TI ».
+  const panel = (view: RenderResult) =>
+    within(view.getByRole("complementary", { name: "messages.new.title" }));
+  const candidate = (view: RenderResult, name: string) =>
+    panel(view).getByRole("button", { name: new RegExp(`^${name}`), pressed: false });
+
+  it("propose ses athlètes et les Coachs de son entreprise, « Créer » fermé sans choix", async () => {
+    const view = await openPanel();
+
+    expect(view.getByText("messages.new.athletes")).toBeInTheDocument();
+    expect(view.getByText("messages.new.coachesOf")).toBeInTheDocument();
+    expect(candidate(view, "TE")).toBeInTheDocument();
+    expect(candidate(view, "M")).toHaveTextContent("messages.new.ofOrganizations");
+    expect(view.getByRole("button", { name: "messages.new.create" })).toBeDisabled();
   });
 
-  it("dit qu'il charge tant que ses coachs ne sont pas connus", async () => {
-    vi.mocked(coachAccountApi.myCoaches).mockReturnValue(new Promise(() => {}));
+  it("filtre les candidats par la recherche", async () => {
+    const view = await openPanel();
+
+    await view.user.type(view.getByLabelText("messages.new.searchLabel"), "te");
+
+    expect(panel(view).queryByRole("button", { name: /^TI/ })).toBeNull();
+    expect(candidate(view, "TE")).toBeInTheDocument();
+
+    await view.user.clear(view.getByLabelText("messages.new.searchLabel"));
+    await view.user.type(view.getByLabelText("messages.new.searchLabel"), "zzz");
+    expect(view.getByText("messages.new.noResult")).toBeInTheDocument();
+  });
+
+  // Les deux avertissements, cumulables : prévenir plutôt qu'interdire (tranché en #598).
+  it("prévient que les athlètes se verront, et que M ne suit pas TE", async () => {
+    const view = await openPanel();
+
+    await view.user.click(candidate(view, "TE"));
+    expect(view.queryByText("messages.new.athletesWarning")).toBeNull();
+    await view.user.click(candidate(view, "TI"));
+    expect(view.getByText("messages.new.athletesWarning")).toBeInTheDocument();
+
+    await view.user.click(candidate(view, "M"));
+    expect(view.getByText("messages.new.unfollowedWarning")).toBeInTheDocument();
+    expect(view.getByText("messages.new.chosen")).toBeInTheDocument();
+  });
+
+  it("retire un participant choisi depuis sa pastille", async () => {
+    const view = await openPanel();
+    await view.user.click(candidate(view, "TE"));
+
+    // La pastille, puis la ligne : deux boutons pressés portent le nom.
+    const [chip] = view.getAllByRole("button", { name: /^TE/, pressed: true });
+    await view.user.click(chip as HTMLElement);
+
+    expect(view.getByRole("button", { name: "messages.new.create" })).toBeDisabled();
+  });
+
+  // L'API rouvre la conversation qui réunit déjà ces participants : le panneau ouvre ce qu'elle rend.
+  it("crée la conversation, puis l'ouvre et ferme le panneau", async () => {
+    vi.mocked(messageApi.createConversation).mockResolvedValue(GROUP);
+    const view = await openPanel();
+    vi.mocked(messageApi.listConversations).mockResolvedValue([GROUP, conversation()]);
+
+    await view.user.click(candidate(view, "M"));
+    await view.user.click(candidate(view, "TI"));
+    await view.user.click(view.getByRole("button", { name: "messages.new.create" }));
+
+    expect(await view.findByRole("heading", { name: "M, TI" })).toBeInTheDocument();
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      {
+        participants: [
+          { userId: "m", capability: "coach" },
+          { userId: "ti", capability: "athlete" },
+        ],
+      },
+      null,
+    );
+    expect(view.router.state.location.search).toEqual({ conversation: "c-group" });
+    expect(view.queryByText("messages.new.title")).toBeNull();
+  });
+
+  // Un refus (participant qui n'est plus candidat) se dit, et le choix reste là pour réessayer.
+  it("dit l'échec de la création, panneau ouvert", async () => {
+    vi.mocked(messageApi.createConversation).mockRejectedValue(new Error("refus"));
+    const view = await openPanel();
+
+    await view.user.click(candidate(view, "TE"));
+    await view.user.click(view.getByRole("button", { name: "messages.new.create" }));
+
+    expect(await view.findByText("common.error")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "messages.new.create" })).toBeEnabled();
+  });
+
+  it("referme le panneau sans rien créer", async () => {
+    const view = await openPanel();
+
+    await view.user.click(view.getByRole("button", { name: "common.cancel" }));
+
+    expect(view.queryByText("messages.new.title")).toBeNull();
+    expect(messageApi.createConversation).not.toHaveBeenCalled();
+  });
+});
+
+describe("MessagesScreen — côté athlète", () => {
+  const MY_COACHES: ConversationCandidatesDto = {
+    athletes: [],
+    coaches: [
+      { userId: "c", name: "C", organizationNames: [], followedAthleteIds: null },
+      { userId: "m", name: "M", organizationNames: ["F"], followedAthleteIds: null },
+    ],
+  };
+  const WITH_C = conversation({ id: "c-c", participants: [person("c", "coach")] });
+
+  beforeEach(() => {
+    session.user = { id: "me", name: "TI", isCoach: false, isAthlete: true };
+  });
+
+  it("dit qu'il charge tant que ses conversations ne sont pas connues", async () => {
+    vi.mocked(messageApi.listConversations).mockReturnValue(new Promise(() => {}));
 
     const view = await renderInRoute(<MessagesScreen />, { path: "/messages" });
 
     expect(view.getByText("common.loading")).toBeInTheDocument();
   });
 
-  // Le cœur de #599 : un fil par coach, et c'est à l'athlète de choisir lequel ouvrir.
-  it("liste un fil par coach, en invitant à en choisir un", async () => {
-    const view = await openAthlete();
-
-    expect(threadRow(view, "Julie Renaud")).not.toBeNull();
-    expect(threadRow(view, "Marc Keller")).not.toBeNull();
-    expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
-    expect(messageApi.createConversation).not.toHaveBeenCalled();
-    // La liste des athlètes est une lecture de coach : un athlète n'a pas à la demander.
-    expect(athleteAccountApi.listAthletes).not.toHaveBeenCalled();
-  });
-
-  it("ouvre le fil du coach choisi, en athlète, et l'écrit dans l'url", async () => {
-    const view = await openAthlete([JULIE, MARC], { as: "athlete" });
-
-    await view.user.click(threadRow(view, "Marc Keller") as HTMLElement);
-
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(view.router.state.location.search).toEqual({ coach: "c-2", as: "athlete" });
-    expect(messageApi.createConversation).toHaveBeenCalledWith(
-      { participants: [{ userId: "c-2", capability: "coach" }] },
-      "athlete",
-    );
-  });
-
-  it("arrive sur le fil du coach désigné par l'url", async () => {
-    const view = await openAthlete([JULIE, MARC], { coach: "c-1" });
-
-    expect(await view.findByRole("heading", { name: "Julie Renaud" })).toBeInTheDocument();
-    expect(messageApi.createConversation).toHaveBeenCalledWith(
-      { participants: [{ userId: "c-1", capability: "coach" }] },
-      "athlete",
-    );
-  });
-
-  // Le message de Marc notifié ouvre le fil de Marc — pas « le » fil, il y en a deux.
-  it("arrive sur le fil qu'une notification désigne", async () => {
-    vi.mocked(messageApi.listConversations).mockResolvedValue([
-      conversation({ id: "c-julie", counterpartId: "c-1", counterpartAs: "coach" }),
-      conversation({ id: "c-marc", counterpartId: "c-2", counterpartAs: "coach" }),
-    ]);
-    const view = await openAthlete([JULIE, MARC], { conversation: "c-marc" });
-
-    expect(await view.findByRole("heading", { name: "Marc Keller" })).toBeInTheDocument();
-    expect(messageApi.createConversation).toHaveBeenCalledWith(
-      { participants: [{ userId: "c-2", capability: "coach" }] },
-      "athlete",
-    );
-  });
-
-  // Un fil inconnu (coach quitté, lien périmé) ne fait rien deviner.
-  it("invite à choisir quand le fil notifié n'est pas dans la liste", async () => {
-    const view = await openAthlete([JULIE, MARC], { conversation: "c-inconnu" });
-
-    expect(view.getByText("messages.athlete.pickThread")).toBeInTheDocument();
-    expect(messageApi.createConversation).not.toHaveBeenCalled();
-  });
-
-  // Sans coach, pas de fil (l'API refuserait) : on dit où en rejoindre un.
+  // Sans coach, personne à réunir : on dit où en rejoindre un, coach ou entreprise.
   it("renvoie vers ses coachs quand il n'en a aucun", async () => {
-    const view = await openAthlete([]);
+    const view = await open({ conversations: [], candidates: NOBODY });
 
     const link = await view.findByRole("link", { name: "messages.athlete.noCoach.action" });
     expect(link).toHaveAttribute("href", "/my-coach");
-    expect(messageApi.createConversation).not.toHaveBeenCalled();
+    expect(view.queryByRole("button", { name: "messages.newConversation" })).toBeNull();
   });
 
-  it("dit la panne, et relit ses coachs au réessai", async () => {
-    const view = await openAthlete(new Error("réseau"));
+  it("invite à écrire à ses coachs quand il n'a aucune conversation", async () => {
+    const view = await open({ conversations: [], candidates: MY_COACHES });
 
-    expect(view.queryByText("messages.athlete.noCoach.title")).toBeNull();
-    await view.user.click(await view.findByRole("button", { name: "common.retry" }));
-
-    await waitFor(() => expect(threadRow(view, "Julie Renaud")).not.toBeNull());
-    expect(coachAccountApi.myCoaches).toHaveBeenCalledTimes(2);
+    expect(view.getByText("messages.noConversations.athlete")).toBeInTheDocument();
   });
 
-  it("dit l'échec de résolution du fil, et le résout de nouveau au réessai", async () => {
-    vi.mocked(messageApi.createConversation).mockRejectedValueOnce(new Error("réseau"));
-    const view = await openAthlete([JULIE], { coach: "c-1" });
+  // « Mes coachs » ouvre le fil avec un coach : à deux, en athlète.
+  it("ouvre le fil à deux avec le coach de l'url, en athlète", async () => {
+    vi.mocked(messageApi.createConversation).mockResolvedValue(WITH_C);
+    const view = await open({ conversations: [WITH_C], candidates: MY_COACHES }, { coach: "c" });
 
-    await view.user.click(await view.findByRole("button", { name: "common.retry" }));
+    expect(await view.findByRole("heading", { name: "C" })).toBeInTheDocument();
+    expect(messageApi.createConversation).toHaveBeenCalledWith(
+      { participants: [{ userId: "c", capability: "coach" }] },
+      "athlete",
+    );
+  });
 
-    expect(await view.findByText("Message m-1")).toBeInTheDocument();
-    expect(messageApi.createConversation).toHaveBeenCalledTimes(2);
+  // A2 : ses coachs, avec la provenance de chaque lien ; ni recherche ni avertissement.
+  it("propose ses coachs avec leur provenance, sans recherche", async () => {
+    const view = await open({ conversations: [WITH_C], candidates: MY_COACHES });
+
+    await view.user.click(view.getByRole("button", { name: "messages.newConversation" }));
+
+    expect(view.getByText("messages.new.myCoaches")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: /^M/, pressed: false })).toHaveTextContent(
+      "messages.new.viaOrganizations",
+    );
+    expect(view.getByRole("button", { name: /^C/, pressed: false })).toHaveTextContent(
+      "messages.capability.coach",
+    );
+    expect(view.queryByLabelText("messages.new.searchLabel")).toBeNull();
   });
 });

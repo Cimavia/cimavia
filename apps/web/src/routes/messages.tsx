@@ -5,9 +5,10 @@ import { parseAsSearch } from "@/routes/invoices";
 import { CmvRoleGate } from "@/shared/component";
 
 /**
- * Le fil ouvert vit dans l'URL, pas dans un `useState` : `?athlete=<id>` côté coach, `?coach=<id>`
- * côté athlète (#599), chacun nommant l'interlocuteur. `?conversation=<id>` est la porte des
- * notifications, qui ne connaissent que le fil — l'écran le traduit en interlocuteur.
+ * Le fil ouvert vit dans l'URL, pas dans un `useState` : `?conversation=<id>`, à deux comme à
+ * plusieurs (#612). `?athlete=<id>` côté coach et `?coach=<id>` côté athlète (#599) restent des
+ * ENTRÉES : ils ouvrent le fil à deux avec cet interlocuteur, créé au besoin, puis l'écran les
+ * remplace par `?conversation=`.
  *
  * C'est ce qui permet au tableau de suivi du dashboard d'ouvrir directement la bonne conversation
  * (#113), et accessoirement de recharger la page ou d'utiliser le bouton Retour sans perdre le fil.
@@ -36,8 +37,8 @@ export const Route = createFileRoute("/messages")({
     as: parseAsSearch(search.as),
   }),
   // Les DEUX rôles : `conversation.controller.ts` et `message.controller.ts` portent
-  // `@Roles([COACH, ATHLETE])`, et un fil est 1:1. Ce que chacun y voit diffère (un fil par
-  // athlète, un fil par coach), et c'est l'écran qui le tranche — pas la garde.
+  // `@Roles([COACH, ATHLETE])`. Ce que chacun y voit diffère (ses conversations au titre exercé),
+  // et c'est l'API qui le tranche — pas la garde.
   component: () => (
     <CmvRoleGate capability={["coach", "athlete"]}>
       <MessagesScreen />
