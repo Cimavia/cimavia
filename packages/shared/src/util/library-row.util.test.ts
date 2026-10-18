@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AccessGrantDto,
   AccessLevel,
+  type CoachGrantDto,
   type MyAccess,
   MyAccessLevel,
 } from "../dto/access.schema";
@@ -16,7 +17,9 @@ const OWNER: MyAccess = { level: MyAccessLevel.OWNER, via: null };
 
 describe("accessLabel", () => {
   it("l'élément de l'acteur ouvert à personne est privé", () => {
-    expect(accessLabel({ owner: C, myAccess: OWNER, grants: [] })).toEqual({ kind: "private" });
+    expect(accessLabel({ owner: C, myAccess: OWNER, grants: [], coachGrants: [] })).toEqual({
+      kind: "private",
+    });
   });
 
   it("l'élément de l'acteur dit à qui il l'ouvre, entreprises triées par nom", () => {
@@ -24,7 +27,7 @@ describe("accessLabel", () => {
       { organization: G, level: AccessLevel.READ },
       { organization: F, level: AccessLevel.WRITE },
     ];
-    expect(accessLabel({ owner: C, myAccess: OWNER, grants })).toEqual({
+    expect(accessLabel({ owner: C, myAccess: OWNER, grants, coachGrants: [] })).toEqual({
       kind: "granted",
       grants: [
         { name: "F", level: AccessLevel.WRITE },
@@ -39,7 +42,7 @@ describe("accessLabel", () => {
       { organization: F, level: AccessLevel.READ },
       { organization: twin, level: AccessLevel.WRITE },
     ];
-    expect(accessLabel({ owner: C, myAccess: OWNER, grants })).toEqual({
+    expect(accessLabel({ owner: C, myAccess: OWNER, grants, coachGrants: [] })).toEqual({
       kind: "granted",
       grants: [
         { name: "F", level: AccessLevel.WRITE },
@@ -53,19 +56,74 @@ describe("accessLabel", () => {
       { organization: G, level: AccessLevel.READ },
       { organization: F, level: AccessLevel.WRITE },
     ];
-    accessLabel({ owner: C, myAccess: OWNER, grants });
+    accessLabel({ owner: C, myAccess: OWNER, grants, coachGrants: [] });
     expect(grants.map((grant) => grant.organization.id)).toEqual(["org-g", "org-f"]);
   });
 
   it("sans droits rendus, le propriétaire n'apprend rien : null, pas « Privé »", () => {
-    expect(accessLabel({ owner: C, myAccess: OWNER, grants: null })).toBeNull();
+    expect(accessLabel({ owner: C, myAccess: OWNER, grants: null, coachGrants: [] })).toBeNull();
+  });
+
+  it("sans droits Coach rendus non plus : null", () => {
+    expect(accessLabel({ owner: C, myAccess: OWNER, grants: [], coachGrants: null })).toBeNull();
+  });
+
+  describe("les lignes d'un Coach (#608)", () => {
+    const B = { id: "b", name: "B" };
+    const coach = (who: typeof M, level: CoachGrantDto["level"]): CoachGrantDto => ({
+      coach: who,
+      level,
+    });
+    const label = (grants: AccessGrantDto[], coachGrants: CoachGrantDto[]) =>
+      accessLabel({ owner: C, myAccess: OWNER, grants, coachGrants });
+
+    it("viennent après les entreprises, triées par nom (frame 6)", () => {
+      expect(
+        label(
+          [{ organization: F, level: AccessLevel.READ }],
+          [coach(M, AccessLevel.WRITE), coach(B, AccessLevel.READ)],
+        ),
+      ).toEqual({
+        kind: "granted",
+        grants: [
+          { name: "F", level: AccessLevel.READ },
+          { name: "B", level: AccessLevel.READ },
+          { name: "M", level: AccessLevel.WRITE },
+        ],
+      });
+    });
+
+    it("« Aucun » se dit quand une entreprise ouvre l'élément", () => {
+      expect(
+        label([{ organization: F, level: AccessLevel.WRITE }], [coach(M, AccessLevel.NONE)]),
+      ).toEqual({
+        kind: "granted",
+        grants: [
+          { name: "F", level: AccessLevel.WRITE },
+          { name: "M", level: AccessLevel.NONE },
+        ],
+      });
+    });
+
+    it("« Aucun » sans entreprise ouverte ne ferme rien : l'élément reste privé", () => {
+      expect(label([], [coach(M, AccessLevel.NONE)])).toEqual({ kind: "private" });
+    });
+
+    it("une ligne ouverte suffit à ne plus être privé", () => {
+      expect(label([], [coach(M, AccessLevel.READ)])).toEqual({
+        kind: "granted",
+        grants: [{ name: "M", level: AccessLevel.READ }],
+      });
+    });
   });
 
   it.each([
     MyAccessLevel.READ,
     MyAccessLevel.WRITE,
   ] as const)("l'élément d'un autre Coach dit qui le partage, et le droit %s de l'acteur", (level) => {
-    expect(accessLabel({ owner: M, myAccess: { level, via: F }, grants: null })).toEqual({
+    expect(
+      accessLabel({ owner: M, myAccess: { level, via: F }, grants: null, coachGrants: null }),
+    ).toEqual({
       kind: "sharedBy",
       owner: "M",
       level,

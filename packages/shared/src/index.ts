@@ -78,11 +78,15 @@ export type {
   AccessGrantDto,
   AccessOwner,
   ChangeAccessInput,
+  CoachAccessLevel,
+  CoachChange,
+  CoachGrantDto,
   CoachOrganizationDto,
   ElementAccessDto,
   LibraryScopeQuery,
   MyAccess,
   OrganizationAccessLevel,
+  OrganizationChange,
 } from "./dto/access.schema";
 export {
   ACCESS_MAX_TARGETS,
@@ -90,6 +94,8 @@ export {
   accessGrantDtoSchema,
   accessOwnerSchema,
   changeAccessSchema,
+  coachAccessLevelSchema,
+  coachGrantDtoSchema,
   coachOrganizationDtoSchema,
   elementAccessDtoSchema,
   LibraryScope,
@@ -676,8 +682,16 @@ export {
   isOwner,
   sharedRight,
 } from "./util/access.util";
-export type { PanelAccess } from "./util/access-panel.util";
-export { accessChanges, MIXED_ACCESS, panelAccess } from "./util/access-panel.util";
+export type { CoachPanelAccess, PanelAccess, PanelCoach } from "./util/access-panel.util";
+export {
+  accessChanges,
+  coachAccessChanges,
+  inheritedAccess,
+  MIXED_ACCESS,
+  panelAccess,
+  panelCoachAccess,
+  panelCoaches,
+} from "./util/access-panel.util";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
 export type { AthleteLabelHooks } from "./util/athlete-label.util";

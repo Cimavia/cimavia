@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type AccessGrantDto, AccessLevel, MyAccessLevel } from "../dto/access.schema";
+import {
+  type AccessGrantDto,
+  AccessLevel,
+  type CoachGrantDto,
+  MyAccessLevel,
+} from "../dto/access.schema";
 import { canWrite, effectiveAccess, foreignOf, isOwner, sharedRight } from "./access.util";
 
 const F = { id: "org-f", name: "F" };
@@ -11,11 +16,22 @@ const grant = (
   level: AccessGrantDto["level"],
 ): AccessGrantDto => ({ organization, level });
 
-const subject = (grants: AccessGrantDto[], actorOrganizationIds: string[], actorId = "m") => ({
+const subject = (
+  grants: AccessGrantDto[],
+  actorOrganizationIds: string[],
+  actorId = "m",
+  coachGrants: CoachGrantDto[] = [],
+) => ({
   ownerId: "c",
   actorId,
   grants,
+  coachGrants,
   actorOrganizationIds: new Set(actorOrganizationIds),
+});
+
+const line = (id: string, level: CoachGrantDto["level"]): CoachGrantDto => ({
+  coach: { id, name: id.toUpperCase() },
+  level,
 });
 
 describe("effectiveAccess", () => {
@@ -65,6 +81,47 @@ describe("effectiveAccess", () => {
     const twin = { id: "org-0", name: "F" };
     const grants = [grant(F, AccessLevel.READ), grant(twin, AccessLevel.READ)];
     expect(effectiveAccess(subject(grants, ["org-f", "org-0"]))?.via).toEqual(twin);
+  });
+});
+
+describe("effectiveAccess — la ligne d'un Coach (#608)", () => {
+  const inF = (coachGrants: CoachGrantDto[], grants = [grant(F, AccessLevel.WRITE)]) =>
+    effectiveAccess(subject(grants, ["org-f"], "m", coachGrants));
+
+  it("NONE ferme ce que son entreprise ouvre", () => {
+    expect(inF([line("m", AccessLevel.NONE)])).toBeNull();
+  });
+
+  it.each([
+    [AccessLevel.READ, MyAccessLevel.READ],
+    [AccessLevel.WRITE, MyAccessLevel.WRITE],
+  ] as const)("une ligne %s l'emporte, sans provenance", (level, expected) => {
+    expect(inF([line("m", level)], [grant(F, AccessLevel.READ)])).toEqual({
+      level: expected,
+      via: null,
+    });
+  });
+
+  it("baisser n'est pas élargir : F en Écriture, M en Lecture → Lecture", () => {
+    expect(inF([line("m", AccessLevel.READ)])?.level).toBe(MyAccessLevel.READ);
+  });
+
+  it("ouvre aussi sans aucun droit d'entreprise", () => {
+    expect(inF([line("m", AccessLevel.WRITE)], [])).toEqual({
+      level: MyAccessLevel.WRITE,
+      via: null,
+    });
+  });
+
+  it("la ligne d'un autre Coach ne dit rien de l'acteur", () => {
+    expect(inF([line("b", AccessLevel.NONE)])).toEqual({ level: MyAccessLevel.WRITE, via: F });
+  });
+
+  it("le propriétaire n'est soumis à aucune ligne", () => {
+    expect(effectiveAccess(subject([], [], "c", [line("c", AccessLevel.NONE)]))).toEqual({
+      level: MyAccessLevel.OWNER,
+      via: null,
+    });
   });
 });
 

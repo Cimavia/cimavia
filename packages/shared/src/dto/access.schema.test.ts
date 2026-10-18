@@ -5,6 +5,7 @@ import {
   accessGrantDtoSchema,
   accessOwnerSchema,
   changeAccessSchema,
+  coachGrantDtoSchema,
   coachOrganizationDtoSchema,
   elementAccessDtoSchema,
   LibraryScope,
@@ -40,9 +41,9 @@ describe("changeAccessSchema", () => {
   const valid = { ids: ["e1", "e2"], changes: [{ organizationId: "org-f", level: "WRITE" }] };
 
   it("accepte un changement, et null pour « Aucun »", () => {
-    expect(changeAccessSchema.parse(valid)).toEqual(valid);
+    expect(changeAccessSchema.parse(valid)).toEqual({ ...valid, coachChanges: [] });
     const none = { ...valid, changes: [{ organizationId: "org-f", level: null }] };
-    expect(changeAccessSchema.parse(none)).toEqual(none);
+    expect(changeAccessSchema.parse(none)).toEqual({ ...none, coachChanges: [] });
   });
 
   it("accepte deux entreprises distinctes dans le même lot", () => {
@@ -53,7 +54,7 @@ describe("changeAccessSchema", () => {
         { organizationId: "org-g", level: null },
       ],
     };
-    expect(changeAccessSchema.parse(input)).toEqual(input);
+    expect(changeAccessSchema.parse(input)).toEqual({ ...input, coachChanges: [] });
   });
 
   it.each([
@@ -66,6 +67,29 @@ describe("changeAccessSchema", () => {
     expect(changeAccessSchema.safeParse(input).error?.issues[0]?.message).toBe(message);
   });
 
+  it("une liste absente vaut vide : les entreprises seules, ou les Coachs seuls", () => {
+    const coaches = { ids: ["e1"], coachChanges: [{ coachId: "m", level: "NONE" }] };
+    expect(changeAccessSchema.parse(coaches)).toEqual({ ...coaches, changes: [] });
+  });
+
+  it.each([
+    "NONE",
+    "READ",
+    "WRITE",
+    null,
+  ])("accepte %s sur la ligne d'un Coach (#608), null pour « Hérité »", (level) => {
+    const input = { ids: ["e1"], coachChanges: [{ coachId: "m", level }] };
+    expect(changeAccessSchema.safeParse(input).success).toBe(true);
+  });
+
+  it("dit pourquoi un Coach cité deux fois est refusé", () => {
+    const line = { coachId: "m", level: "READ" };
+    const input = { ids: ["e1"], coachChanges: [line, line] };
+    expect(changeAccessSchema.safeParse(input).error?.issues[0]?.message).toBe(
+      "Un Coach ne peut pas être cité deux fois.",
+    );
+  });
+
   it("refuse NONE sur la ligne d'une entreprise : « Aucun » y est l'absence de ligne", () => {
     const input = { ...valid, changes: [{ organizationId: "f", level: "NONE" }] };
     expect(changeAccessSchema.safeParse(input).success).toBe(false);
@@ -74,6 +98,9 @@ describe("changeAccessSchema", () => {
   it.each([
     ["sans élément", { ...valid, ids: [] }],
     ["sans changement", { ...valid, changes: [] }],
+    ["sans changement d'aucune sorte", { ids: ["e1"], changes: [], coachChanges: [] }],
+    ["un Coach sans identifiant", { ...valid, coachChanges: [{ coachId: "", level: "READ" }] }],
+    ["un niveau inconnu", { ...valid, coachChanges: [{ coachId: "m", level: "ADMIN" }] }],
     [
       "une entreprise sans identifiant",
       { ...valid, changes: [{ organizationId: "", level: "READ" }] },
@@ -120,7 +147,19 @@ describe("schémas de réponse des accès", () => {
       "elementAccessDtoSchema",
       "grants",
       elementAccessDtoSchema,
-      { id: "e1", grants: [{ organization, level: "WRITE" }] },
+      { id: "e1", grants: [{ organization, level: "WRITE" }], coachGrants: [] },
+    ],
+    [
+      "elementAccessDtoSchema",
+      "coachGrants",
+      elementAccessDtoSchema,
+      { id: "e1", grants: [], coachGrants: [{ coach: { id: "m", name: "M" }, level: "NONE" }] },
+    ],
+    [
+      "coachGrantDtoSchema",
+      "coach",
+      coachGrantDtoSchema,
+      { coach: { id: "m", name: "M" }, level: "NONE" },
     ],
     [
       "coachOrganizationDtoSchema",
