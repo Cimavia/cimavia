@@ -26,6 +26,7 @@ import {
   type AccessRow,
   citationsLosingRead,
   libraryScopeWhere,
+  toCoachGrantDtos,
   toGrantDtos,
 } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
@@ -433,7 +434,7 @@ export class ExerciseService {
       include: ACCESS_INCLUDE,
     });
     await this.grants.assertCanShare(input, exercises);
-    await this.assertNoCitationLosesRead(exercises, input.changes);
+    await this.assertNoCitationLosesRead(exercises, input);
     return this.grants.apply("exerciseId", input);
   }
 
@@ -443,7 +444,7 @@ export class ExerciseService {
    */
   private async assertNoCitationLosesRead(
     exercises: readonly (AccessRow & { coachId: string })[],
-    changes: ChangeAccessInput["changes"],
+    input: ChangeAccessInput,
   ): Promise<void> {
     const citations = await this.prisma.sessionExercise.findMany({
       where: {
@@ -467,8 +468,12 @@ export class ExerciseService {
     const losing = new Set(
       exercises.flatMap((exercise) =>
         citationsLosingRead(
-          toGrantDtos(exercise.accessGrants),
-          changes,
+          exercise.coachId,
+          {
+            grants: toGrantDtos(exercise.accessGrants),
+            coachGrants: toCoachGrantDtos(exercise.accessGrants),
+          },
+          input,
           citations
             .filter((citation) => citation.exerciseId === exercise.id)
             .map(({ session }) => ({ sessionId: session.id, coachId: session.coachId })),

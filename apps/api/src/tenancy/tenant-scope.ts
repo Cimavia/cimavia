@@ -72,14 +72,33 @@ export function throughRoot(relation: string, root: CapabilityScope): Capability
 const GRANTED_LEVELS = { read: ["READ", "WRITE"], write: ["WRITE"] } as const;
 
 /**
- * Un droit qui ouvre l'élément à l'acteur pour cette classe : accordé à l'une de ses entreprises,
- * au niveau requis. La ligne d'un Coach, prioritaire sur celle de son entreprise, viendra avec
- * #608 ; d'ici là l'API n'en écrit aucune, et ce filtre l'ignore.
+ * Les droits qui ouvrent l'élément à l'acteur pour cette classe (#605, #608) — la traduction en
+ * `where` d'`effectiveAccess` (`@cmv/shared`), qu'un e2e confronte au filtre sur la même table de
+ * cas :
+ *
+ * - la ligne de l'acteur, au niveau requis ;
+ * - sinon, s'il n'a AUCUNE ligne, celle d'une de ses entreprises au niveau requis. Une ligne à lui,
+ *   même `NONE` ou d'un niveau trop bas, l'emporte sur ce que ses entreprises lui ouvrent.
+ *
+ * Filtre de la racine, pas de `AccessGrant` : la priorité d'une ligne sur une autre ne se dit qu'à
+ * travers l'élément (`none` sur la sienne, `some` sur celle de l'entreprise).
  */
 export function grantedTo(actorId: string, operation: "read" | "write"): TenantFilter {
+  const level = { in: [...GRANTED_LEVELS[operation]] };
   return {
-    level: { in: [...GRANTED_LEVELS[operation]] },
-    organization: { coaches: { some: { coachId: actorId } } },
+    OR: [
+      { accessGrants: { some: { coachId: actorId, level } } },
+      {
+        AND: [
+          { accessGrants: { none: { coachId: actorId } } },
+          {
+            accessGrants: {
+              some: { level, organization: { coaches: { some: { coachId: actorId } } } },
+            },
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -99,7 +118,7 @@ export function sharedRoot(
   audience?: (actorId: string) => TenantFilter,
 ): CapabilityScope {
   const granted = (actorId: string, operation: "read" | "write"): TenantFilter => {
-    const grant = { accessGrants: { some: grantedTo(actorId, operation) } };
+    const grant = grantedTo(actorId, operation);
     return audience == null ? grant : { AND: [grant, audience(actorId)] };
   };
   return {
