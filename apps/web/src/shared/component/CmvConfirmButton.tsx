@@ -16,7 +16,7 @@ type CmvConfirmButtonProps = {
    * Ce que la confirmation engage, écrit UNE FOIS le bouton armé. Au repos il n'y a rien à
    * avertir ; armé, c'est le dernier moment où le dire. Omis, le bouton se comporte comme avant.
    */
-  confirmHint?: string;
+  confirmHint?: string | undefined;
   /**
    * Pourquoi le geste est fermé. Fourni, il désactive le bouton ET l'explique au survol. Un
    * `title` sur un bouton désactivé ne s'affiche pas de façon fiable (le navigateur ne lui passe

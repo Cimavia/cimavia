@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
 import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
+import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { StructureSection } from "@/feature/library/component/StructureSection";
 import { useExerciseCatalog } from "@/feature/library/hook/useCustomMetrics";
@@ -20,6 +21,7 @@ import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
 import {
   exerciseDetailQuery,
   useDeleteExercise,
+  useDuplicateExercise,
   useExercise,
   useExerciseTags,
 } from "@/feature/library/hook/useExercises";
@@ -28,6 +30,7 @@ import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
   CMV_EDIT,
   CmvAppShell,
+  CmvButton,
   CmvErrorState,
   CmvFormError,
   CmvLeaveDialog,
@@ -138,6 +141,9 @@ export function ExerciseBuilderScreen({
       initialTitle={initialTitle}
       onLeave={() => leave(null)}
       onSaved={leave}
+      onVariant={(created) =>
+        navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId: created.id } })
+      }
       onReload={reload}
       isReloading={isReloading}
     />
@@ -150,6 +156,8 @@ type ExerciseBuilderProps = {
   /** Sortie sans enregistrement : Annuler, ou l'exercice supprimé. */
   onLeave: () => void;
   onSaved: (saved: ExerciseDto) => void;
+  /** Ouvre la variante tout juste créée de l'exercice d'un autre Coach (#609). */
+  onVariant: (created: ExerciseDto) => void;
   /** Remplace la saisie par la dernière version de cet exercice, après un conflit (#604). */
   onReload: (id: string) => void;
   isReloading: boolean;
@@ -160,6 +168,7 @@ function ExerciseBuilder({
   initialTitle,
   onLeave,
   onSaved,
+  onVariant,
   onReload,
   isReloading,
 }: Readonly<ExerciseBuilderProps>) {
@@ -226,28 +235,37 @@ function ExerciseBuilder({
   // Un conflit se dit par le bandeau, que l'enregistrement OU la suppression l'ait rencontré : les
   // deux citent la version affichée, et recharger les débloque l'un comme l'autre.
   const staleMessage = staleMessageOf(draft.isStale, removal.isStale);
+  const variant = useVariant(edited, draft.isDirty, (created) => {
+    guard.release();
+    onVariant(created);
+  });
 
   return (
     <CmvAppShell
       title={heading.title}
       subtitle={heading.subtitle}
       actions={
-        <BuilderActions
-          readOnly={readOnly}
-          deleteLabel={t("library.builder.deleteExercise")}
-          onDelete={removal.onDelete}
-          isDeleting={removal.isPending}
-          deleteError={removal.error}
-          isSaving={draft.isSaving}
-          isWriting={draft.isSaving}
-          submitLabel={submitLabel(draft.isSaving, edited != null, t)}
-          canSubmit={draft.trimmedTitle !== ""}
-          blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
-          onCancel={onLeave}
-          onSubmit={onSubmit}
-        />
+        <>
+          <VariantButton variant={variant} />
+          <BuilderActions
+            readOnly={readOnly}
+            deleteLabel={t("library.builder.deleteExercise")}
+            deleteHint={keptCopiesHint(edited, t)}
+            onDelete={removal.onDelete}
+            isDeleting={removal.isPending}
+            deleteError={removal.error}
+            isSaving={draft.isSaving}
+            isWriting={draft.isSaving}
+            submitLabel={submitLabel(draft.isSaving, edited != null, t)}
+            canSubmit={draft.trimmedTitle !== ""}
+            blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
+            onCancel={onLeave}
+            onSubmit={onSubmit}
+          />
+        </>
       }
     >
+      <FrozenBadge frozenFrom={edited?.frozenFrom} className="mb-cmv-lg" />
       {readOnly ? (
         <div className="mb-cmv-xl">
           <CmvReadOnlyBanner
@@ -417,6 +435,61 @@ function useExerciseRemoval(
     error: removeExercise.error,
     isStale: isStaleWriteError(removeExercise.error),
   };
+}
+
+/**
+ * « Dupliquer en variante » depuis le constructeur, pour l'exercice d'un autre Coach (#609), en
+ * Lecture comme en Écriture : la variante est à l'acteur, il en fait ce qu'il veut. `null` quand le
+ * geste n'est pas offert — un exercice à soi se duplique depuis la séance qui le compose.
+ *
+ * La copie part de la version ENREGISTRÉE : une saisie en cours le ferme, sans quoi la variante
+ * naîtrait sans les changements que le coach a sous les yeux.
+ */
+function useVariant(
+  source: ExerciseDto | null,
+  isDirty: boolean,
+  onCreated: (created: ExerciseDto) => void,
+) {
+  const { t } = useTranslation();
+  const { onError } = useMutationToast();
+  const duplicate = useDuplicateExercise();
+  const foreign = foreignOf(source);
+  if (foreign == null) return null;
+  return {
+    blockedBy: isDirty ? t("library.builder.duplicateDirty") : undefined,
+    isPending: duplicate.isPending,
+    onDuplicate: () =>
+      duplicate.mutate(
+        { source: foreign, suffix: t("library.session.variantSuffix") },
+        { onSuccess: onCreated, onError },
+      ),
+  };
+}
+
+/** « Dupliquer en variante », fermé par une saisie en cours ou pendant la copie ; rien sans geste. */
+function VariantButton({ variant }: Readonly<{ variant: ReturnType<typeof useVariant> }>) {
+  const { t } = useTranslation();
+  if (variant == null) return null;
+  return (
+    <CmvButton
+      variant="secondary"
+      disabled={variant.blockedBy != null || variant.isPending}
+      title={variant.blockedBy}
+      onClick={variant.onDuplicate}
+    >
+      {t("library.builder.duplicate")}
+    </CmvButton>
+  );
+}
+
+/**
+ * Ce que la confirmation de suppression annonce : les séances d'autres Coachs qui garderont une
+ * copie figée (#609). Rien à zéro, et rien sans décompte — seul le propriétaire le reçoit.
+ */
+function keptCopiesHint(exercise: ExerciseDto | null, t: TFunction): string | undefined {
+  const count = exercise?.foreignSessionCount ?? null;
+  if (count == null || count === 0) return undefined;
+  return t("library.builder.deleteKeepsCopies", { count });
 }
 
 /** Enregistrement en cours · création · édition — trois libellés, un seul endroit pour les lire. */

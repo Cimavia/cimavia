@@ -6,6 +6,8 @@ type BuilderActionsProps = {
   /** Lecture (#606) : « Fermer », à la place d'Enregistrer et Supprimer (frame 12). */
   readOnly: boolean;
   deleteLabel: string;
+  /** Ce que la suppression engage, écrit une fois le bouton armé — les copies figées (#609). */
+  deleteHint?: string | undefined;
   /**
    * La suppression, ou `null` quand elle n'est pas offerte : l'élément naît, ou il n'est pas à
    * l'acteur — supprimer reste au propriétaire, même à qui a l'Écriture (#605).
@@ -40,6 +42,7 @@ type BuilderActionsProps = {
 export function BuilderActions({
   readOnly,
   deleteLabel,
+  deleteHint,
   onDelete,
   isDeleting,
   deleteError,
@@ -63,6 +66,7 @@ export function BuilderActions({
           label={deleteLabel}
           confirmLabel={t("common.confirmDelete")}
           cancelLabel={t("common.cancel")}
+          confirmHint={deleteHint}
           disabled={isBusy}
           onConfirm={onDelete}
         />

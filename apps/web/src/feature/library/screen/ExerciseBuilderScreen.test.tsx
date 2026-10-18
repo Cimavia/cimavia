@@ -30,6 +30,7 @@ const api = vi.hoisted(() => ({
   createExercise: vi.fn(),
   updateExercise: vi.fn(),
   deleteExercise: vi.fn(),
+  duplicateExercise: vi.fn(),
   requestUploadUrl: vi.fn(),
   attachDocument: vi.fn(),
   deleteDocument: vi.fn(),
@@ -77,6 +78,8 @@ const saved = (over: Partial<ExerciseDto> = {}) =>
     tags: ["force"],
     documents: [],
     usedInSessionCount: 0,
+    foreignSessionCount: 0,
+    frozenFrom: null,
     updatedAt: "2026-10-12T07:00:00.000Z",
     owner: { id: "coach-1", name: "Cédric" },
     myAccess: { level: MyAccessLevel.OWNER, via: null },
@@ -941,5 +944,126 @@ describe("ExerciseBuilderScreen — exercice d'un autre Coach (#606)", () => {
 
     await waitFor(() => expect(api.listExerciseCustomMetrics).toHaveBeenCalledWith("ex-1"));
     expect(api.listCustomMetrics).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExerciseBuilderScreen — copie figée et variante (#609)", () => {
+  const ofM = (level: MyAccessLevel) =>
+    saved({
+      owner: { id: "coach-m", name: "M" },
+      myAccess: { level, via: { id: "org-f", name: "F" } },
+      grants: null,
+      coachGrants: null,
+    });
+  const VARIANT = "library.builder.duplicate";
+
+  beforeEach(() => {
+    api.listExerciseCustomMetrics.mockResolvedValue([prises]);
+    api.duplicateExercise.mockResolvedValue(saved({ id: "ex-new" }));
+  });
+
+  // La variante s'ouvre dès sa création : le constructeur doit savoir aller vers un autre exercice.
+  function editWithExercises() {
+    return renderInRoute(<ExerciseBuilderScreen exerciseId="ex-1" initialTitle={undefined} />, {
+      path: "/library/exercises/ex-1",
+      links: [...SHELL_LINKS, "/library", "/library/exercises/$exerciseId"],
+    });
+  }
+
+  it("dit d'après qui une copie figée a été gardée", async () => {
+    api.getExercise.mockResolvedValue(
+      saved({
+        frozenFrom: { coach: { id: "coach-c", name: "C" }, at: "2026-10-18T09:00:00.000Z" },
+      }),
+    );
+    const view = await edit();
+
+    expect(await view.findByText("library.frozen.badgeFrom")).toBeInTheDocument();
+  });
+
+  // Le compte d'origine supprimé depuis : la copie reste figée, sans auteur à nommer.
+  it("dit « Copie figée » seul quand le Coach d'origine n'existe plus", async () => {
+    api.getExercise.mockResolvedValue(
+      saved({ frozenFrom: { coach: null, at: "2026-10-18T09:00:00.000Z" } }),
+    );
+    const view = await edit();
+
+    expect(await view.findByText("library.frozen.badge")).toBeInTheDocument();
+  });
+
+  it("n'affiche aucun badge sur un exercice ordinaire", async () => {
+    const view = await edit();
+    await view.findByRole("textbox", { name: TITLE });
+
+    expect(view.queryByText(/^library\.frozen\./)).not.toBeInTheDocument();
+  });
+
+  it("en Lecture, crée la variante de l'exercice d'un autre Coach et l'ouvre", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.READ));
+    const view = await editWithExercises();
+
+    await view.user.click(await view.findByRole("button", { name: VARIANT }));
+
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
+    );
+    // Sans blocs : la variante part de l'exercice tel que la bibliothèque le dose.
+    expect(api.duplicateExercise).toHaveBeenCalledWith("ex-1", {
+      title: "Tractions library.session.variantSuffix",
+    });
+  });
+
+  // La variante part de l'exercice ENREGISTRÉ : elle ne doit pas naître sans ce que le coach voit.
+  it("en Écriture, ferme la variante tant qu'une saisie n'est pas enregistrée", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.WRITE));
+    const view = await edit();
+
+    const variant = await view.findByRole("button", { name: VARIANT });
+    expect(variant).toBeEnabled();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), " lestées");
+
+    expect(variant).toBeDisabled();
+    expect(variant).toHaveAttribute("title", "library.builder.duplicateDirty");
+  });
+
+  it("dit pourquoi la variante est refusée, et reste sur l'exercice", async () => {
+    api.getExercise.mockResolvedValue(ofM(MyAccessLevel.READ));
+    api.duplicateExercise.mockRejectedValue(new ApiError(404, "Exercice introuvable", null));
+    const view = await edit();
+
+    await view.user.click(await view.findByRole("button", { name: VARIANT }));
+
+    expect(await view.findByText("Exercice introuvable")).toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
+  });
+
+  // L'exercice à soi se duplique depuis la séance qui le compose, avec le dosage de la séance.
+  it("n'offre pas la variante d'un exercice à soi", async () => {
+    const view = await edit();
+    await view.findByRole("textbox", { name: TITLE });
+
+    expect(view.queryByRole("button", { name: VARIANT })).not.toBeInTheDocument();
+  });
+
+  it("la confirmation de suppression annonce les séances d'autres Coachs qui gardent une copie", async () => {
+    api.getExercise.mockResolvedValue(saved({ foreignSessionCount: 2 }));
+    const view = await edit();
+
+    await view.user.click(
+      await view.findByRole("button", { name: "library.builder.deleteExercise" }),
+    );
+
+    expect(view.getByText("library.builder.deleteKeepsCopies")).toBeInTheDocument();
+  });
+
+  it("ne promet aucune copie quand aucune séance d'un autre Coach ne cite l'exercice", async () => {
+    const view = await edit();
+
+    await view.user.click(
+      await view.findByRole("button", { name: "library.builder.deleteExercise" }),
+    );
+
+    expect(view.getByRole("button", { name: "common.confirmDelete" })).toBeInTheDocument();
+    expect(view.queryByText("library.builder.deleteKeepsCopies")).not.toBeInTheDocument();
   });
 });

@@ -51,6 +51,7 @@ const item = (over: Partial<CompositionItem> = {}): CompositionItem => ({
   baseline: blocks,
   adjustments: [],
   customMetrics: [],
+  frozenFrom: null,
   ...over,
 });
 
@@ -101,6 +102,21 @@ describe("CompositionCard", () => {
       "false",
     );
     expect(queryByLabelText(NOTE_LABEL)).not.toBeInTheDocument();
+  });
+
+  // La ligne cite la copie gardée d'un exercice perdu (#609) : la carte le dit, même repliée.
+  it("dit que l'exercice composé est une copie figée", () => {
+    const { getByText } = setup({
+      item: item({ frozenFrom: { coach: { id: "c", name: "C" }, at: "2026-10-18T09:00:00.000Z" } }),
+    });
+
+    expect(getByText("library.frozen.badgeFrom")).toBeInTheDocument();
+  });
+
+  it("ne dit rien d'un exercice ordinaire", () => {
+    const { queryByText } = setup();
+
+    expect(queryByText("library.frozen.badgeFrom")).toBeNull();
   });
 
   it("montre la note de l'exercice une fois dépliée", async () => {

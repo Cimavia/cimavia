@@ -71,6 +71,7 @@ const composed = (over: Partial<SessionExerciseDto> = {}): SessionExerciseDto =>
   title: "Tractions",
   customMetrics: [],
   tags: ["force"],
+  frozenFrom: null,
   ...over,
 });
 

@@ -2,7 +2,6 @@ import type { CustomMetric, ExerciseBlocks, ExerciseDto, SessionDto } from "@cmv
 import {
   canWrite,
   foreignOf,
-  isOwner,
   required,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
@@ -157,26 +156,25 @@ function useSessionWrites(draft: SessionDraft) {
 }
 
 /**
- * L'exercice dont on veut une variante, lu AVANT d'enregistrer la séance : la variante reste au
- * propriétaire de l'exercice (#605, jusqu'à #609), et la séance n'a pas à avancer d'une version
- * pour un geste voué au 403. `null` quand la variante n'aura pas lieu — et le refus est dit.
+ * L'exercice dont on veut une variante, lu AVANT d'enregistrer la séance. Tout exercice lisible se
+ * duplique (#609), mais une ligne peut citer un exercice que seule la séance rend lisible — celui
+ * de son propriétaire, privé : la variante en serait un 404, et la séance n'a pas à avancer d'une
+ * version pour un geste voué à l'échec. `null` quand la variante n'aura pas lieu — et le refus est
+ * dit.
  *
  * `isReading` compte comme une écriture : la lecture OUVRE un enregistrement, et une autre
  * écriture lancée pendant qu'elle court citerait la même version que lui.
  */
 function useVariantSource() {
-  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const toast = useToast();
   const { onError } = useMutationToast();
   const [isReading, setReading] = useState(false);
   async function read(exerciseId: string): Promise<ExerciseDto | null> {
-    let source: ExerciseDto;
     setReading(true);
     try {
-      // Relu, pas tiré du cache : le titre nomme la variante, et le droit a pu changer depuis.
+      // Relu, pas tiré du cache : le titre nomme la variante, et la lecture a pu se fermer depuis.
       // Sans nouvel essai, qu'un 404 ne ferait que retarder.
-      source = await queryClient.fetchQuery({
+      return await queryClient.fetchQuery({
         ...exerciseDetailQuery(exerciseId),
         staleTime: 0,
         retry: false,
@@ -187,9 +185,6 @@ function useVariantSource() {
     } finally {
       setReading(false);
     }
-    if (isOwner(source.myAccess)) return source;
-    toast.error(t("library.session.variantOwnerOnly", { owner: source.owner.name }));
-    return null;
   }
   return { read, isReading };
 }

@@ -15,6 +15,7 @@ import {
   IoEllipsisHorizontal,
 } from "react-icons/io5";
 import { DosageEditor } from "@/feature/library/component/DosageEditor";
+import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import type { CompositionItem } from "@/feature/library/hook/useSessionDraft";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { CMV_EDIT, CmvBadge, CmvButton, CmvTagList, CmvTextField } from "@/shared/component";
@@ -103,6 +104,7 @@ export function CompositionCard({
           <span className="text-cmv-body text-cmv-text-hi">{item.title}</span>
         </button>
         <CmvTagList tags={item.tags} />
+        <FrozenBadge frozenFrom={item.frozenFrom} />
         {adjustedCount === 0 ? null : (
           <CmvBadge variant="accent">
             {t("library.session.adjustedCount", { count: adjustedCount })}

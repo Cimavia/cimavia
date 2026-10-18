@@ -876,27 +876,27 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
     expect(api.duplicateExercise).not.toHaveBeenCalled();
   });
 
-  // Avant #609, la variante d'un exercice d'un autre Coach reste à son propriétaire : refusée
-  // avant que la séance s'enregistre, qui n'a pas à avancer pour un geste voué au 403.
-  it("refuse la variante d'un exercice d'un autre Coach sans enregistrer la séance", async () => {
+  // Depuis #609, la variante de l'exercice d'un autre Coach, même en Lecture, est à l'acteur.
+  it("crée la variante de l'exercice d'un autre Coach lu en Lecture", async () => {
     api.getExercise.mockResolvedValue({
       ...planche,
       id: "ex-1",
+      title: "Tractions",
       owner: { id: "coach-m", name: "Marc" },
-      myAccess: { level: MyAccessLevel.WRITE, via: { id: "org-f", name: "F" } },
+      myAccess: { level: MyAccessLevel.READ, via: { id: "org-f", name: "F" } },
     });
     const view = await edit();
 
     await view.menu("Tractions", "library.session.duplicate");
 
-    expect(await view.findByText("library.session.variantOwnerOnly")).toBeInTheDocument();
-    // Le menu se referme : un second clic relancerait le même refus.
-    expect(
-      view.queryByRole("button", { name: "library.session.duplicate" }),
-    ).not.toBeInTheDocument();
-    expect(api.updateSession).not.toHaveBeenCalled();
-    expect(api.duplicateExercise).not.toHaveBeenCalled();
-    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
+    );
+    expect(api.updateSession).toHaveBeenCalledOnce();
+    expect(api.duplicateExercise).toHaveBeenCalledWith("ex-1", {
+      title: "Tractions library.session.variantSuffix",
+      blocks: series("se-1-b", 6),
+    });
   });
 
   // La lecture ouvre un enregistrement : une autre écriture lancée pendant qu'elle court citerait
