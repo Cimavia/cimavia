@@ -1,7 +1,7 @@
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { t } from "./support/i18n";
-import { type Account, json, type Seed } from "./support/seed";
+import { type Account, json, mondayOfThisWeek, type Seed } from "./support/seed";
 
 /** Un bloc d'une série, dont la seule colonne est une métrique maison de son propriétaire. */
 const citing = (customMetricId: string) => [
@@ -68,18 +68,28 @@ async function pageOf(seed: Seed, browser: Browser, account: Account): Promise<P
   return context.newPage();
 }
 
-/** Le droit d'une entreprise dans le panneau des accès ouvert. */
-function accessLevel(page: Page, organizationName: string, level: "READ" | "WRITE") {
-  const button = page.getByRole("button", {
-    name: t(`library.access.level.${level}`),
-    exact: true,
+/** Un choix du sélecteur d'une ligne : un niveau, ou « Hérité » sur celle d'un Coach (#608). */
+type Choice = "NONE" | "READ" | "WRITE" | "INHERITED";
+
+/** Le panneau des accès ouvert. */
+const accessPanel = (page: Page) =>
+  page.getByRole("complementary", { name: t("library.access.title") });
+
+/**
+ * La ligne d'un bénéficiaire — entreprise ou Coach — dans le panneau ouvert, par son nom EXACT :
+ * la ligne d'un Coach dit « Coach de F », et un nom cherché comme sous-texte la confondrait avec F.
+ */
+function accessRow(page: Page, name: string) {
+  return accessPanel(page).locator("div.rounded-cmv-md", {
+    has: page.getByText(name, { exact: true }),
   });
-  // La plus petite boîte qui porte le nom ET le choix : la ligne de cette entreprise.
-  return page
-    .getByRole("complementary", { name: t("library.access.title") })
-    .locator("div", { hasText: organizationName, has: button })
-    .last()
-    .locator(button);
+}
+
+/** Un choix sur la ligne d'un bénéficiaire. */
+function accessLevel(page: Page, name: string, choice: Choice) {
+  const label =
+    choice === "INHERITED" ? t("library.access.inherited") : t(`library.access.level.${choice}`);
+  return accessRow(page, name).getByRole("button", { name: label, exact: true });
 }
 
 /** Ouvre le panneau d'UNE ligne, par sa cellule Accès. */
@@ -88,8 +98,11 @@ async function openAccessOf(page: Page, title: string) {
 }
 
 async function saveAccess(page: Page) {
-  await page.getByRole("button", { name: t("library.access.save"), exact: true }).click();
-  await expect(page.getByRole("complementary", { name: t("library.access.title") })).toBeHidden();
+  // Dans le panneau : le builder d'un cycle a son propre « Enregistrer ».
+  await accessPanel(page)
+    .getByRole("button", { name: t("library.access.save"), exact: true })
+    .click();
+  await expect(accessPanel(page)).toBeHidden();
 }
 
 test.describe("Bibliothèque partagée (#606)", () => {
@@ -297,5 +310,132 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await expect(
       page.getByRole("button", { name: t("library.picker.shared"), exact: true }),
     ).toBeHidden();
+  });
+});
+
+test.describe("Droit d'accès par Coach (#608)", () => {
+  test("la ligne de M l'emporte sur F : « Aucun » le ferme, « Écriture » l'ouvre sous F en Lecture", async ({
+    seed,
+    browser,
+  }) => {
+    const world = await sharedLibrary(seed);
+    const n = await seed.coach("Noe");
+    await seed.join(world.company, n);
+    const company = world.company.name;
+    const c = await pageOf(seed, browser, world.c);
+
+    // M et N en retrait sous F, en « Hérité » : rien n'ouvre Voie, le droit hérité est « Aucun ».
+    await c.goto("/library");
+    await openAccessOf(c, "Voie");
+    for (const coach of [world.m, n]) {
+      await expect(accessLevel(c, coach.name, "INHERITED")).toHaveAttribute("aria-pressed", "true");
+      await expect(accessRow(c, coach.name)).toContainText(
+        t("library.access.coachOf", { organizations: company }),
+      );
+    }
+    await expect(accessPanel(c).getByText(world.c.name, { exact: true })).toBeHidden();
+
+    // F en Écriture : le droit hérité suit à l'instant, avant d'enregistrer.
+    await accessLevel(c, company, "WRITE").click();
+    const viaF = t("library.access.via", {
+      level: t("library.access.level.WRITE"),
+      organization: company,
+    });
+    await expect(accessRow(c, world.m.name)).toContainText(viaF);
+    await accessLevel(c, world.m.name, "NONE").click();
+    await expect(accessRow(c, world.m.name)).not.toContainText(viaF);
+    await saveAccess(c);
+    await expect(c.locator("tbody tr", { hasText: "Voie" })).toContainText(
+      [
+        t("library.access.grant", { name: company, level: t("library.access.level.WRITE") }),
+        t("library.access.grant", { name: world.m.name, level: t("library.access.level.NONE") }),
+      ].join(", "),
+    );
+
+    // M ne voit plus Voie ; N, que F ouvre, la modifie.
+    const m = await pageOf(seed, browser, world.m);
+    await m.goto("/library");
+    await expect(m.getByRole("button", { name: "Dalle", exact: true })).toBeHidden();
+    await m.getByRole("button", { name: t("library.scope.shared"), exact: true }).click();
+    await expect(m.getByText(t("library.access.exercise.sharedEmpty"))).toBeVisible();
+    const nPage = await pageOf(seed, browser, n);
+    await nPage.goto(`/library/exercises/${world.voieId}`);
+    await expect(
+      nPage.getByRole("textbox", { name: t("library.builder.titleLabel") }),
+    ).toBeEnabled();
+
+    // F en Lecture, M en Écriture : M modifie, N ne fait plus que lire.
+    await c.reload();
+    await openAccessOf(c, "Voie");
+    await expect(accessLevel(c, world.m.name, "NONE")).toHaveAttribute("aria-pressed", "true");
+    await accessLevel(c, company, "READ").click();
+    await accessLevel(c, world.m.name, "WRITE").click();
+    await saveAccess(c);
+
+    await m.goto(`/library/exercises/${world.voieId}`);
+    const title = m.getByRole("textbox", { name: t("library.builder.titleLabel") });
+    await title.fill("Voie de M");
+    await m.getByRole("button", { name: t("library.builder.submitEdit"), exact: true }).click();
+    await expect(m.getByText(t("library.builder.saved"))).toBeVisible();
+    await nPage.reload();
+    await expect(
+      nPage.getByText(t("library.builder.readOnly", { owner: world.c.name })),
+    ).toBeVisible();
+
+    // Le panneau de M, en lecture seule, dit son droit sans provenance : il ne le tient pas de F.
+    await m.goto("/library");
+    await openAccessOf(m, "Voie de M");
+    await expect(accessPanel(m)).toContainText(t("library.access.level.WRITE"));
+    await expect(accessPanel(m)).not.toContainText(company);
+  });
+
+  test("sur un cycle, seuls les Coachs de l'athlète se règlent ; M en Écriture le modifie", async ({
+    seed,
+    browser,
+  }) => {
+    const company = await seed.company();
+    const c = await seed.coach("Cyril");
+    const m = await seed.coach("Maud");
+    const n = await seed.coach("Noe");
+    for (const coach of [c, m, n]) await seed.join(company, coach);
+    const ti = await seed.athlete("Tiago");
+    const athleteId = await seed.link(c, ti);
+    await seed.link(m, ti);
+    const plan = await json<{ id: string }>(
+      await c.api.post("/plans", {
+        data: {
+          athleteId,
+          title: "Cycle de TI",
+          startDate: mondayOfThisWeek(),
+          weeks: [{ type: "TRAINING" }],
+        },
+      }),
+      "cycle de TI",
+    );
+
+    const cPage = await pageOf(seed, browser, c);
+    await cPage.goto(`/plans/${plan.id}`);
+    await cPage.getByRole("button", { name: t("library.access.title"), exact: true }).click();
+    // N est de F mais ne suit pas TI : il n'a pas de ligne.
+    await expect(accessLevel(cPage, m.name, "INHERITED")).toHaveAttribute("aria-pressed", "true");
+    await expect(accessPanel(cPage).getByText(n.name, { exact: true })).toBeHidden();
+    await accessLevel(cPage, m.name, "WRITE").click();
+    await saveAccess(cPage);
+
+    const mPage = await pageOf(seed, browser, m);
+    await mPage.goto(`/plans/${plan.id}`);
+    await expect(
+      mPage.getByText(
+        t("plan.builder.sharedWrite", { owner: c.name, right: t("library.access.level.WRITE") }),
+      ),
+    ).toBeVisible();
+    await mPage.getByLabel(t("plan.header.titleLabel")).fill("Cycle revu par M");
+    await mPage.getByRole("button", { name: t("plan.header.submit"), exact: true }).click();
+    await expect(mPage.getByRole("heading", { level: 1 })).toContainText("Cycle revu par M");
+
+    // Ce que la ligne de M ouvre, elle l'ouvre à lui seul.
+    const nPage = await pageOf(seed, browser, n);
+    await nPage.goto(`/plans/${plan.id}`);
+    await expect(nPage).toHaveURL(/\/plans$/);
   });
 });
