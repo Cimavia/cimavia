@@ -726,6 +726,7 @@
       "scope": "Seuls les coachs de {{athlete}} peuvent accéder à cette planification.",
       "defaultWrite": "Par défaut, la planification d'un athlète de {{organization}} est ouverte en écriture à {{organization}}.",
       "empty": "Seuls les coachs de {{athlete}} peuvent y accéder, et tu es son seul coach.",
+      "stale": "Plus aucun de ses coachs ne suit {{athlete}} : ce droit n'ouvre plus rien, tu peux le retirer.",
       "emptyUnassigned": "Tu n'as aucune entreprise à qui ouvrir cette planification."
     },
     "toast": {

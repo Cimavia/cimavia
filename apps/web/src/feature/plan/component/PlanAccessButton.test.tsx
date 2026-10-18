@@ -33,6 +33,8 @@ vi.mock("@/feature/athlete/hook/useAthletes", () => ({
 const C = { coachId: "coach_c", name: "C" };
 const M = { coachId: "coach_m", name: "M" };
 const F: CoachOrganizationDto = { id: "org_f", name: "F", coaches: [C, M] };
+// L'Écriture que F a reçue par défaut, à la naissance du cycle.
+const F_WRITE = { organization: { id: "org_f", name: "F" }, level: AccessLevel.WRITE };
 
 const plan = (over: Partial<PlanDto> = {}): PlanDto =>
   ({
@@ -82,7 +84,7 @@ describe("PlanAccessButton", () => {
 
   it("frame 9 : les Coachs de l'athlète, le défaut de F, et l'ouverture enregistrée", async () => {
     vi.mocked(changePlanAccess).mockResolvedValue([]);
-    const { user } = await openPanel([F]);
+    const { user } = await openPanel([F], { grants: [F_WRITE] });
 
     expect(await screen.findByText("plan.access.followedWith")).toBeTruthy();
     expect(screen.getByText("plan.access.coachesOf")).toBeTruthy();
@@ -118,6 +120,31 @@ describe("PlanAccessButton", () => {
     expect(screen.queryByText("plan.access.empty")).toBeNull();
   });
 
+  it("un droit que plus personne n'éclaire se montre, et ne propose que d'être retiré", async () => {
+    vi.mocked(changePlanAccess).mockResolvedValue([]);
+    // Le lien de M avec TI a pris fin : F n'est plus éligible, mais garde son Écriture.
+    const { user } = await openPanel([], { grants: [F_WRITE] });
+
+    expect(await screen.findByText("plan.access.stale")).toBeTruthy();
+    expect(screen.queryByText("plan.access.empty")).toBeNull();
+    const row = screen.getByText("F", { selector: "span" }).closest("div.rounded-cmv-md");
+    const options = within(row as HTMLElement)
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(options).toEqual(["library.access.level.NONE", "library.access.level.WRITE"]);
+
+    await user.click(
+      within(row as HTMLElement).getByRole("button", { name: "library.access.level.NONE" }),
+    );
+    await user.click(screen.getByRole("button", { name: "library.access.save" }));
+    await waitFor(() =>
+      expect(vi.mocked(changePlanAccess).mock.calls[0]?.[0]).toEqual({
+        ids: ["pln_1"],
+        changes: [{ organizationId: "org_f", level: null }],
+      }),
+    );
+  });
+
   it("des entreprises illisibles se disent, et le panneau ne s'ouvre pas sur du vide", async () => {
     vi.mocked(listPlanOrganizations).mockRejectedValue(new ApiError(500, "Panne", null));
     const view = renderWithProviders(<PlanAccessButton plan={plan()} athleteName="TI" />);
@@ -138,16 +165,17 @@ const t = ((key: string, values?: object) =>
   values == null ? key : `${key} ${JSON.stringify(values)}`) as unknown as TFunction;
 
 describe("planFraming", () => {
-  const owner = { coachId: "coach_c" };
+  const owner = { coachId: "coach_c", athleteId: "ath_ti", grants: [F_WRITE] };
 
   it("sans athlète, le cycle se partage comme un exercice : rien à rappeler", () => {
-    expect(planFraming(owner, null, [F], null, t)).toEqual({
+    expect(planFraming({ ...owner, athleteId: null }, null, [F], null, t)).toEqual({
       caption: "plan.access.mine",
       sectionTitle: "library.access.organizations",
       scope: null,
       defaultNote: null,
       empty: "plan.access.emptyUnassigned",
       ownerOnly: "plan.access.ownerOnly",
+      stale: null,
     });
   });
 
@@ -166,6 +194,21 @@ describe("planFraming", () => {
   it("le défaut ne s'annonce pas pour une entreprise qui n'est pas proposée", () => {
     expect(planFraming(owner, "TI", [F], "G", t).defaultNote).toBeNull();
     expect(planFraming(owner, "TI", [F], null, t).defaultNote).toBeNull();
+  });
+
+  it("ni pour une entreprise que le cycle n'a pas reçue en Écriture", () => {
+    // Fermée exprès (« Aucun » ne sort pas parmi les droits), ou cycle né avant #607.
+    expect(planFraming({ ...owner, grants: [] }, "TI", [F], "F", t).defaultNote).toBeNull();
+    const read = { ...F_WRITE, level: AccessLevel.READ };
+    expect(planFraming({ ...owner, grants: [read] }, "TI", [F], "F", t).defaultNote).toBeNull();
+  });
+
+  it("une entreprise qu'un droit cite sans plus y être éligible se dit à part", () => {
+    expect(planFraming(owner, "TI", [], "F", t).stale).toEqual({
+      ids: new Set(["org_f"]),
+      caption: `plan.access.stale ${JSON.stringify({ athlete: "TI" })}`,
+    });
+    expect(planFraming(owner, "TI", [F], "F", t).stale).toBeNull();
   });
 
   it("suivi par le seul propriétaire : il le dit", () => {

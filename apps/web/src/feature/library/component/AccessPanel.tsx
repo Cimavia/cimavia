@@ -48,6 +48,11 @@ export type AccessFraming = {
   empty: string;
   /** Ce qui reste au propriétaire, à la place de la phrase de la bibliothèque. */
   ownerOnly: string;
+  /**
+   * Les entreprises qu'un droit cite encore sans plus y être éligibles : leur ligne ne propose que
+   * de le retirer, et `caption` dit pourquoi, à la place de ses Coachs. `null` : aucune.
+   */
+  stale: { ids: ReadonlySet<string>; caption: string } | null;
 };
 
 type AccessPanelProps<T extends AccessElement> = {
@@ -202,10 +207,7 @@ function OwnerAccess<T extends AccessElement>({
           <SectionTitle>{framing?.sectionTitle ?? t("library.access.organizations")}</SectionTitle>
           {organizations.map((organization) => {
             const value = edited.get(organization.id);
-            // Partie de « Mixte », la ligne le garde parmi ses choix : y revenir rend à chaque
-            // élément sa valeur, sans annuler le reste du panneau.
-            const levels: readonly Segment[] =
-              initial.get(organization.id) === MIXED_ACCESS ? [...LEVELS, MIXED_ACCESS] : LEVELS;
+            const stale = framing?.stale?.ids.has(organization.id) === true;
             const others = organization.coaches
               .filter((coach) => coach.coachId !== ownerId)
               .map((coach) => coach.name);
@@ -217,10 +219,12 @@ function OwnerAccess<T extends AccessElement>({
                 <div className="flex flex-col">
                   <span className="text-cmv-body text-cmv-text-hi">{organization.name}</span>
                   <span className="text-cmv-caption text-cmv-text-mid">
-                    {t("library.access.organizationCoaches", {
-                      count: others.length,
-                      coaches: others.join(", "),
-                    })}
+                    {stale
+                      ? framing?.stale?.caption
+                      : t("library.access.organizationCoaches", {
+                          count: others.length,
+                          coaches: others.join(", "),
+                        })}
                   </span>
                 </div>
                 <CmvSegmented
@@ -229,7 +233,10 @@ function OwnerAccess<T extends AccessElement>({
                   onChange={(next) =>
                     setEdited((current) => new Map(current).set(organization.id, fromSegment(next)))
                   }
-                  options={levels.map((level) => ({ value: level, label: levelLabel(level, t) }))}
+                  options={levelsOf(initial.get(organization.id), stale).map((level) => ({
+                    value: level,
+                    label: levelLabel(level, t),
+                  }))}
                 />
               </div>
             );
@@ -265,6 +272,16 @@ function SectionTitle({ children }: Readonly<{ children: string }>) {
   return (
     <span className="text-cmv-caption uppercase tracking-wide text-cmv-text-lo">{children}</span>
   );
+}
+
+/**
+ * Les choix d'une ligne. Partie de « Mixte », elle le garde : y revenir rend à chaque élément sa
+ * valeur, sans annuler le reste du panneau. Plus éligible (`stale`), elle ne propose que son droit
+ * et « Aucun » — l'API refuserait de l'ouvrir autrement.
+ */
+function levelsOf(initial: PanelAccess | undefined, stale: boolean): readonly Segment[] {
+  if (stale) return LEVELS.filter((level) => level === AccessLevel.NONE || level === initial);
+  return initial === MIXED_ACCESS ? [...LEVELS, MIXED_ACCESS] : LEVELS;
 }
 
 /** « Aucun » est l'absence de ligne de droit, `null` (#605). */
