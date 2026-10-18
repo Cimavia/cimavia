@@ -5,6 +5,7 @@ import {
   billAndPublish,
   link,
   linkRelation,
+  openWith,
   required,
   signUp,
 } from "../support/actors";
@@ -33,49 +34,55 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     await link(coachB, athleteB1);
   });
 
-  it("le coach ouvre un fil avec SON athlète (get-or-create, contrepartie nommée)", async () => {
-    const res = await coachA.post("/conversations").send({ athleteId: a1Id });
+  it("le coach ouvre un fil avec SON athlète (get-or-create, participant nommé)", async () => {
+    const res = await openWith(coachA, a1Id, "athlete");
     expect(res.status).toBe(201);
-    expect(res.body.counterpartId).toBe(a1Id);
-    expect(res.body.counterpartName).toBe("msg-athlete-a1@cmv.test");
+    expect(res.body.kind).toBe("DIRECT");
+    expect(res.body.participants).toEqual([
+      { userId: a1Id, name: "msg-athlete-a1@cmv.test", capability: "athlete", lastReadAt: null },
+    ]);
+    expect(res.body.lastReadAt).toBeNull();
     expect(res.body.lastMessageAt).toBeNull();
     expect(res.body.unreadCount).toBe(0);
     conversationId = res.body.id;
 
     // Idempotent : réouvrir renvoie le MÊME fil, pas un doublon.
-    const again = await coachA.post("/conversations").send({ athleteId: a1Id });
+    const again = await openWith(coachA, a1Id, "athlete");
     expect(again.body.id).toBe(conversationId);
   });
 
-  it("l'athlète ouvre SON fil (même conversation, contrepartie = le coach)", async () => {
-    const res = await athleteA1.post("/conversations").send({ coachId: coachAId });
+  it("l'athlète ouvre SON fil (même conversation, participant = le coach)", async () => {
+    const res = await openWith(athleteA1, coachAId, "coach");
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(conversationId);
-    expect(res.body.counterpartId).toBe(coachAId);
-    expect(res.body.counterpartName).toBe("msg-coach-a@cmv.test");
+    expect(res.body.participants).toEqual([
+      { userId: coachAId, name: "msg-coach-a@cmv.test", capability: "coach", lastReadAt: null },
+    ]);
   });
 
   // Un coach a N athlètes : sans cible, le fil est indéterminé — pas « le premier venu ».
-  it("un coach sans athlète visé ne peut pas ouvrir de fil (400)", async () => {
-    const res = await coachA.post("/conversations").send({});
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe("athleteId requis pour ouvrir un fil");
+  it("un fil sans participant nommé ne s'ouvre pas (400)", async () => {
+    expect((await coachA.post("/conversations").send({})).status).toBe(400);
+    expect((await coachA.post("/conversations").send({ participants: [] })).status).toBe(400);
+  });
+
+  // L'ancien contrat est refusé, pas interprété : un client pas encore à jour le voit tout de suite.
+  it("refuse l'ancien corps d'ouverture (400)", async () => {
+    expect((await coachA.post("/conversations").send({ athleteId: a1Id })).status).toBe(400);
   });
 
   it("le coach ne peut pas ouvrir un fil avec l'athlète d'un autre coach (400)", async () => {
-    const res = await coachA.post("/conversations").send({ athleteId: "unknown-athlete-id" });
+    const res = await openWith(coachA, "unknown-athlete-id", "athlete");
     expect(res.status).toBe(400);
   });
 
-  // Le symétrique côté athlète (#599) : il a 0..N coachs, et le fil se désigne, il ne se devine pas.
-  it("un athlète sans coach visé ne peut pas ouvrir de fil (400)", async () => {
-    const res = await athleteA1.post("/conversations").send({});
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe("coachId requis pour ouvrir un fil");
+  // Un athlète ne nomme pas d'athlète : il n'en lit aucun.
+  it("un athlète ne peut pas ouvrir de fil avec son coach nommé comme athlète (400)", async () => {
+    expect((await openWith(athleteA1, coachAId, "athlete")).status).toBe(400);
   });
 
   it("un athlète autonome (0 coach) n'a pas de messagerie (400)", async () => {
-    const res = await autonome.post("/conversations").send({ coachId: coachAId });
+    const res = await openWith(autonome, coachAId, "coach");
     expect(res.status).toBe(400);
   });
 
@@ -90,8 +97,8 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
       type: "TEXT",
       content: "Salut, prêt pour la séance ?",
       media: null,
-      readAt: null,
     });
+    expect(sent.body).not.toHaveProperty("readAt");
 
     const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
     expect(list.status).toBe(200);
@@ -123,6 +130,12 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
     const list = await athleteA1.get("/conversations");
     const fil = list.body.find((c: { id: string }) => c.id === conversationId);
     expect(fil.unreadCount).toBe(0);
+    // La marque se pose sur le dernier message vu — et le coach la voit (« Lu »).
+    expect(fil.lastReadAt).toBe(fil.lastMessageAt);
+    const seenByCoach = (await coachA.get("/conversations")).body.find(
+      (c: { id: string }) => c.id === conversationId,
+    );
+    expect(seenByCoach.participants[0].lastReadAt).toBe(fil.lastMessageAt);
 
     // Rien à relire une seconde fois.
     expect((await athleteA1.post(`/conversations/${conversationId}/read`)).status).toBe(204);
@@ -210,7 +223,7 @@ describe("Messagerie : médias (P5)", () => {
     coachB = await signUp("msgm-coach-b@cmv.test", Role.COACH);
 
     const a1Id = await link(coachA, athleteA1);
-    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    const opened = await openWith(coachA, a1Id, "athlete");
     conversationId = opened.body.id;
   });
 
@@ -459,7 +472,7 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
     feedbackA1Id = await debrief(athleteA1, sessionA1Id);
     feedbackA2Id = await debrief(athleteA2, sessionA2Id);
 
-    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    const opened = await openWith(coachA, a1Id, "athlete");
     conversationId = opened.body.id;
   });
 
@@ -587,7 +600,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
     sessionB1Id = b.sessionId;
     feedbackB1Id = b.feedbackId;
 
-    const opened = await coachA.post("/conversations").send({ athleteId: a1Id });
+    const opened = await openWith(coachA, a1Id, "athlete");
     conversationAId = opened.body.id;
   });
 

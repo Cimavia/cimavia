@@ -11,7 +11,9 @@ import {
   billAndPublish,
   inviteFor,
   link,
+  openWith,
   PASSWORD,
+  participantIdsOf,
   required,
   signUp,
   signUpWith,
@@ -509,39 +511,37 @@ describe("Parité multi-plateforme : les surfaces restent fermées à l'autre r�
   });
 
   /**
-   * La messagerie est le seul domaine ouvert aux deux rôles de bout en bout. L'ouverture d'un fil
-   * se distingue par le seul CORPS : `athleteId` côté coach, `coachId` côté athlète (#599) — et un
-   * athlète qui tenterait de cibler quelqu'un d'autre ne doit pas y arriver.
+   * La messagerie est le seul domaine ouvert aux deux rôles de bout en bout. Chacun nomme l'autre
+   * à son titre (#611) — le coach un athlète, l'athlète un coach — et retombe sur le même fil.
    */
   it("ouvre la messagerie aux deux rôles, chacun de son côté", async () => {
-    const opened = await coach.post("/conversations").send({ athleteId });
+    const opened = await openWith(coach, athleteId, "athlete");
     expect(opened.status).toBe(201);
-    expect(opened.body.counterpartId).toBe(athleteId);
+    expect(participantIdsOf(opened.body)).toEqual([athleteId]);
 
-    const mine = await athlete.post("/conversations").send({ coachId });
+    const mine = await openWith(athlete, coachId, "coach");
     expect(mine.status).toBe(201);
     expect(mine.body.id).toBe(opened.body.id);
   });
 
   /**
-   * Côté athlète, `athleteId` est **ignoré** — pas refusé : `resolvePair` vérifie le coach désigné
-   * et pose `athleteId: actor.userId`. Un athlète qui viserait quelqu'un d'autre récupère donc SON
-   * propre fil, pas celui d'un tiers. C'est le comportement voulu, et ce test le fige : le jour où
-   * quelqu'un « corrigerait » le service pour honorer le champ, il ouvrirait une fuite entre
+   * Un athlète ne réunit que ses Coachs : il ne lit aucun autre athlète, et nommer un tiers — même
+   * aux côtés de son coach — est refusé en bloc plutôt que d'ouvrir un fil avec quelqu'un qu'il ne
+   * connaît pas. Le jour où le service honorerait ce participant, il ouvrirait une fuite entre
    * tenants.
    */
-  it("ignore un athleteId ciblé par un athlète, au lieu de l'honorer", async () => {
+  it("refuse qu'un athlète réunisse un autre athlète, même avec son coach", async () => {
     const other = await signUp("athlete-parity-2@cmv.test", Role.ATHLETE);
     const otherInvitation = await inviteFor(coach, other);
     const otherAccepted = await other.post(`/invitations/${otherInvitation.body.id}/accept`);
 
-    const hijack = await athlete
-      .post("/conversations")
-      .send({ athleteId: otherAccepted.body[0].athleteId, coachId });
-    expect(hijack.status).toBe(201);
-    // Le fil rendu est celui de l'athlète courant avec SON coach, jamais celui du tiers visé.
-    expect(hijack.body.counterpartId).not.toBe(otherAccepted.body[0].athleteId);
-    expect(hijack.body.counterpartId).toBe(otherAccepted.body[0].coachId);
+    const hijack = await athlete.post("/conversations").send({
+      participants: [
+        { userId: coachId, capability: "coach" },
+        { userId: otherAccepted.body[0].athleteId, capability: "athlete" },
+      ],
+    });
+    expect(hijack.status).toBe(400);
   });
 });
 

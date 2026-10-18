@@ -6,6 +6,7 @@ import {
   type Agent,
   billAndPublish,
   inviteFor,
+  openWith,
   required,
   signUp,
   signUpWith,
@@ -375,7 +376,7 @@ describe("Centre de notifications (#48)", () => {
   });
 
   it("un message notifie le destinataire, avec le nom de l'expéditeur", async () => {
-    const conversation = await coachA.post("/conversations").send({ athleteId: a1Id });
+    const conversation = await openWith(coachA, a1Id, "athlete");
     conversationId = conversation.body.id;
 
     const sent = await coachA
@@ -427,9 +428,16 @@ describe("Centre de notifications (#48)", () => {
    */
   it("un avis de débrief non lu n'éteint pas le message suivant de l'athlète", async () => {
     const thread = await coachA.get(`/conversations/${conversationId}/messages`);
+    // Non lu : posé après la marque de lecture du coach (#611, une marque par participant).
+    const { lastReadAt } = required(
+      (await coachA.get("/conversations")).body.find(
+        (c: { id: string }) => c.id === conversationId,
+      ),
+      "fil du coach",
+    ) as { lastReadAt: string | null };
     const pending = thread.body.filter(
-      (m: { type: string; readAt: string | null }) =>
-        m.type === "FEEDBACK_CREATED" && m.readAt === null,
+      (m: { type: string; createdAt: string }) =>
+        m.type === "FEEDBACK_CREATED" && (lastReadAt == null || m.createdAt > lastReadAt),
     );
     expect(pending).toHaveLength(1);
     const count = async () =>
@@ -572,9 +580,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     expect(accepted.status).toBe(201);
 
     // L'athlète écrit à son coach : le coach (donc `dual`) reçoit un MESSAGE_RECEIVED non lu.
-    const thread = await myAthlete
-      .post("/conversations")
-      .send({ coachId: accepted.body[0].coachId });
+    const thread = await openWith(myAthlete, accepted.body[0].coachId, "coach");
     expect(thread.status).toBe(201);
     expect(
       (
@@ -617,7 +623,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
 
     // Et l'autre moitié : un message reçu par un coach SANS capacité athlète reste côté coach,
     // sans qu'on ait à demander aux fils de quel côté il le tient.
-    const thread = await athlete.post("/conversations").send({ coachId: accepted.body[0].coachId });
+    const thread = await openWith(athlete, accepted.body[0].coachId, "coach");
     expect(
       (
         await athlete

@@ -5,6 +5,7 @@ import {
   billAndPublish,
   inviteFor,
   linkRelation,
+  openWith,
   required,
   signUp,
   signUpWith,
@@ -55,7 +56,7 @@ async function follow(coach: Agent, athlete: Agent): Promise<void> {
     .send({ content: "Faite" });
   expect(debrief.status).toBe(200);
 
-  const thread = await athlete.post("/conversations").send({ coachId });
+  const thread = await openWith(athlete, coachId, "coach");
   const message = await athlete
     .post(`/conversations/${thread.body.id}/messages`)
     .send({ type: "TEXT", content: "Bonjour" });
@@ -137,7 +138,8 @@ describe("Requêtes SQL des listes du Coach : 1 athlète puis 4 (#629)", () => {
       // +5 (#607) : le même droit, lu sur le cycle de chaque facture — et son propriétaire.
       // +1 (#608) : le Coach de chaque ligne.
       "/invoices": 11,
-      "/conversations": 6,
+      // +1 (#611) : les participants de toutes les conversations, en un lot.
+      "/conversations": 7,
       "/reminders": 5,
       "/reminders/summary": 4,
       "/me/notifications": 4,
@@ -172,7 +174,8 @@ describe("Requêtes SQL des listes de l'athlète : 1 Coach puis 4 (#629)", () =>
       "/me/coaches": 4,
       "/invitations/for-me": 5,
       "/invoices": 5,
-      "/conversations": 6,
+      // +1 (#611) : les participants de toutes les conversations, en un lot.
+      "/conversations": 7,
       "/me/notifications": 3,
     },
     async () => {

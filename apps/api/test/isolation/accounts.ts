@@ -7,7 +7,9 @@ import {
   billAndPublish,
   inviteFor,
   linkRelation,
+  openWith,
   PASSWORD,
+  participantIdsOf,
   required,
   signUp,
   signUpWith,
@@ -177,16 +179,16 @@ describe("Plusieurs coachs par athlète (#599)", () => {
   });
 
   it("l'athlète ouvre un fil avec chacun de ses coachs, et ce sont deux fils", async () => {
-    const withC = await athlete.post("/conversations").send({ coachId: cId });
-    const withM = await athlete.post("/conversations").send({ coachId: mId });
+    const withC = await openWith(athlete, cId, "coach");
+    const withM = await openWith(athlete, mId, "coach");
     expect(withC.status).toBe(201);
     expect(withM.status).toBe(201);
-    expect(withC.body.counterpartId).toBe(cId);
-    expect(withM.body.counterpartId).toBe(mId);
+    expect(participantIdsOf(withC.body)).toEqual([cId]);
+    expect(participantIdsOf(withM.body)).toEqual([mId]);
     expect(withC.body.id).not.toBe(withM.body.id);
 
     // Le MÊME fil que celui que le coach ouvre de son côté.
-    const fromCoach = await coachM.post("/conversations").send({ athleteId: tiId });
+    const fromCoach = await openWith(coachM, tiId, "athlete");
     expect(fromCoach.body.id).toBe(withM.body.id);
   });
 
@@ -194,16 +196,16 @@ describe("Plusieurs coachs par athlète (#599)", () => {
     const stranger = await signUp("multi-coach-stranger@cmv.test", Role.COACH);
     const strangerId = (await stranger.get("/api/auth/get-session")).body.user.id;
 
-    const foreign = await athlete.post("/conversations").send({ coachId: strangerId });
+    const foreign = await openWith(athlete, strangerId, "coach");
     expect(foreign.status).toBe(400);
-    expect(foreign.body.message).toBe("Coach inconnu");
+    expect(foreign.body.message).toBe("Participant inconnu");
 
-    const self = await athlete.post("/conversations").send({ coachId: tiId });
+    const self = await openWith(athlete, tiId, "coach");
     expect(self.status).toBe(409);
   });
 
   it("aucun coach ne lit le fil de l'autre — un débrief va au fil du coach de la séance", async () => {
-    const withC = await athlete.post("/conversations").send({ coachId: cId });
+    const withC = await openWith(athlete, cId, "coach");
     const sent = await athlete
       .post(`/conversations/${withC.body.id}/messages`)
       .send({ type: "TEXT", content: "Pour C seulement" });
@@ -217,9 +219,7 @@ describe("Plusieurs coachs par athlète (#599)", () => {
 
     expect((await coachM.get(`/conversations/${withC.body.id}/messages`)).status).toBe(404);
     const threadsOfM = await coachM.get("/conversations");
-    expect(
-      threadsOfM.body.map((thread: { counterpartId: string }) => thread.counterpartId),
-    ).toEqual([tiId]);
+    expect(threadsOfM.body.map(participantIdsOf)).toEqual([[tiId]]);
     const withM = required(threadsOfM.body[0], "fil de M") as { id: string };
     const messagesOfM = await coachM.get(`/conversations/${withM.id}/messages`);
     expect(
