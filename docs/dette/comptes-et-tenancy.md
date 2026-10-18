@@ -605,13 +605,12 @@ liste des domaines vivent dans l'index.
 | MC-10 | **Le panneau planifié ne dit pas à qui sont les exercices et les séances qu'il propose** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : `ExercisePicker` propose tout ce que le Coach lit, partagés compris, et le choix du « Modèle » toutes ses séances lisibles, sans la ligne propriétaire ni les bascules « Les miens · Partagés » du sélecteur de la bibliothèque. L'ajout fonctionne — le serveur résout les métriques chez le propriétaire —, seul le repère manque. | 🟢 | — *(déclencheur : un Coach d'entreprise qui part de l'exercice ou de la séance d'un collègue en les prenant pour les siens ; la sortie serait de leur donner la ligne de `LibraryPicker`, `ownerRightText`)* |
 | MC-11 | **Le panneau des accès ne montre que les entreprises actuelles du propriétaire** ([#606](https://github.com/Cimavia/cimavia/issues/606)) : ses lignes viennent de `GET /me/organizations`. Un droit accordé à une entreprise que le Coach a quittée resterait lisible dans la colonne « Accès », mais aucune ligne ne permettrait de le retirer, alors que l'API l'accepte. Sans plus aucune entreprise, la colonne et le panneau disparaîtraient même, et ce droit avec eux. Rien ne permet encore de quitter une entreprise. | 🟢 | — *(déclencheur : une route pour quitter une entreprise, hors de l'épic et dépendante de [#213](https://github.com/Cimavia/cimavia/issues/213) ; il faudra alors ajouter au panneau une ligne pour chaque entreprise citée par les droits, sous le nom qu'ils lui donnent — et supprimer les lignes Coach ([#608](https://github.com/Cimavia/cimavia/issues/608)) que le partant a posées pour ses collègues, ou qu'il a reçues : le filtre les ouvre sans vérifier qu'il est encore collègue)* |
 | MC-12 | **Tout ce que porte une planification se filtre par la planification** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : semaines, séances, exercices planifiés, leurs documents et tags, débriefs et médias se lisent à travers une chaîne de relations jusqu'à `Plan`, puis ses droits et les liens de son athlète — jusqu'à quatre niveaux de sous-requêtes, même pour le propriétaire, là où leur `coachId` dénormalisé suffisait. Rien n'est plus lent de façon mesurable aux volumes de la bêta. | 🟢 | — *(déclencheur : une lecture de planification ou de débriefs lente dans Axiom ; la sortie serait un `OR` qui teste d'abord la colonne `coachId` de l'enfant — égale à celle de sa racine, piège n°7 —, dans `sharedChild`, pour la bibliothèque aussi)* |
-| MC-13 | **La boîte des débriefs reste celle du propriétaire du cycle** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachFeedbackService` filtre `GET /feedbacks` et « marquer lu » sur le `coachId` du débrief. Un Coach à qui le cycle est ouvert lit le débrief dans le cycle, pas dans sa boîte, et n'en est pas notifié. « Lu » est un état unique sur le débrief, que deux lecteurs se disputeraient. | 🟢 | [#610](https://github.com/Cimavia/cimavia/issues/610) |
 | MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 | MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
 | MC-17 | **Effacer un compte bute sur les séances des autres Coachs** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : `User → Exercise` est en `Cascade`, mais `SessionExercise.exerciseId` en `Restrict` — effacer C, dont un exercice est cité par une séance de M, échouerait. L'effacement devra d'abord passer par `ExerciseCopyService.freezeFor` pour chaque Coach citant, comme la suppression d'un exercice. Les copies déjà gardées survivent, elles : `frozenFromCoachId` passe à `NULL` et le badge dit « Copie figée » seul. | 🟢 | [#285](https://github.com/Cimavia/cimavia/issues/285) |
 
-*Résolues, à l'[archive](archive.md) : MC-8.*
+*Résolues, à l'[archive](archive.md) : MC-8, MC-13.*
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -1042,7 +1041,7 @@ liste des domaines vivent dans l'index.
 >   autre se clôt au tick suivant (MC-14).
 > - **Copier une semaine reste permis en Lecture** : la source se lit, seule la cible doit
 >   s'écrire. Le rédacteur ne pose pas de rappel sur le cycle, pour la même raison que la facture.
-> - **La boîte des débriefs reste celle du propriétaire** jusqu'à #610 (MC-13) : un Coach à qui le
+> - **La boîte des débriefs reste celle du propriétaire** jusqu'à #610 (MC-13, levée depuis) : un Coach à qui le
 >   cycle est ouvert en lit les débriefs dans le cycle, pas dans sa boîte. Un fil cite une séance ou
 >   un débrief de son athlète si **le Coach du fil** le lit — relu sous son filtre quand c'est
 >   l'athlète qui écrit.
@@ -1117,3 +1116,33 @@ liste des domaines vivent dans l'index.
 >   compose. Elle part de la version enregistrée : une saisie en cours ferme le bouton. Depuis la
 >   séance, l'exercice se relit encore avant d'enregistrer : une ligne peut citer un exercice que
 >   seule la séance rend lisible (piège n°2), dont la variante serait un 404.
+
+> **Tranché en [#610](https://github.com/Cimavia/cimavia/issues/610)** (débriefs d'une planification
+> partagée, notifiés à chaque Coach, lus par chacun) :
+>
+> - **« Lu » est une ligne par Coach** (`SessionFeedbackRead`, unique par couple) : la lecture de C
+>   n'éteint pas le débrief chez M. Compléter un débrief efface toutes ses lignes. La migration a
+>   repris chaque `coachReadAt` posé comme la lecture du Coach du débrief, le seul qui pouvait le
+>   marquer lu jusque-là. Les débriefs passés d'un cycle déjà partagé arrivent donc « à relire »
+>   chez M : il ne les a jamais lus, comme ceux d'un cycle qu'on lui ouvrirait demain. Le résumé
+>   garde le nom `coachReadAt` : il dit désormais la lecture du
+>   Coach qui demande. Le détail (`SessionFeedbackDto`), servi aussi à l'athlète, n'en porte plus.
+> - **Destinataires** : le propriétaire du cycle, et chaque Coach lié à l'athlète que le filtre de
+>   lecture de `SessionFeedback` laisse passer — réévalués à chaque annonce, jamais retenus. Ils
+>   reçoivent tout ce que recevait le propriétaire : l'avis dans leur fil direct avec l'athlète
+>   (jamais une conversation à plusieurs), et la notification. L'athlète n'en est jamais (#316).
+>   Il ne voit pas ce qu'un Coach lit : `coachesWhoRead` relit par le client de base, sous le
+>   filtre du registre — le même procédé qui valide un rattachement écrit par l'athlète (#607).
+>   Une lecture en panne se rabat sur le seul propriétaire, journalisée : le débrief est écrit, il
+>   ne doit pas échouer pour un avis.
+> - **La boîte s'ouvre à tout débrief que le Coach lit**, sans nommer le propriétaire du cycle :
+>   le débrief parle de l'athlète, que les deux suivent. Écart assumé à la règle « les vues agrégées
+>   nomment ce qui n'est pas à soi ».
+> - **« Répondu » se lit dans tous les fils** (`firstReply` : date, Coach, nom), par le client de
+>   base : la réponse de M est dans le fil de M, que le scope ferme à C. Deux bornes la rendent
+>   sûre — les débriefs viennent de la liste scopée, et seuls la date et l'auteur sortent, jamais le
+>   contenu, qui reste dans son fil. « D'un Coach » = l'auteur n'est pas l'athlète du débrief :
+>   la règle survit aux conversations à plusieurs (#611). Une réponse compte même si son auteur a
+>   perdu l'accès depuis — elle a été écrite.
+> - **« Répondu par M » sur web et mobile**, « Répondu » seul quand c'est soi (`replyBadge`) ; le
+>   badge est arrivé sur la liste mobile à cette occasion.

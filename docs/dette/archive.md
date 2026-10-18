@@ -36,6 +36,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~MC-8~~ | ~~**Supprimer un exercice ou une séance-type ne cite pas de version**~~ : leur retrait restait inconditionnel, là où celui d'un cycle, d'une semaine ou d'une séance planifiée cite la sienne. | ✅ | résolue en [#605](https://github.com/Cimavia/cimavia/issues/605) — `?expectedUpdatedAt=` requis, `deleteAtVersion`, 409 `STALE_WRITE` ; le builder d'exercice cite la version affichée |
+| ~~MC-13~~ | ~~**La boîte des débriefs reste celle du propriétaire du cycle**~~ ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachFeedbackService` filtre `GET /feedbacks` et « marquer lu » sur le `coachId` du débrief. Un Coach à qui le cycle est ouvert lit le débrief dans le cycle, pas dans sa boîte, et n'en est pas notifié. « Lu » est un état unique sur le débrief, que deux lecteurs se disputeraient. | ✅ | résolue en [#610](https://github.com/Cimavia/cimavia/issues/610) — `SessionFeedbackRead` par Coach, boîte ouverte aux cycles lus, avis et notification à chaque Coach qui lit, « Répondu par M » |
 
 ## Débrief et médias
 

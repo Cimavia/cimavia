@@ -23,7 +23,7 @@ liste des domaines vivent dans l'index.
 > reconstruire, et `sessionFeedbackId` deviendrait du code mort) et un `coachComment` unique sur
 > `SessionFeedback` (ni aller-retour, ni média). Quatre conséquences que le code ne justifie pas
 > seul : **« répondu » est dérivé** (premier message dont `senderId === coachId`), jamais stocké —
-> même dispositif que `resolveInvoiceState` et `isReminderDue` ; **`coachReadAt` ne bouge pas**,
+> même dispositif que `resolveInvoiceState` et `isReminderDue` ; **la lecture du débrief ne bouge pas**,
 > « lu » et « répondu » étant deux axes ; **aucun nouveau `NotificationType`**, l'athlète reçoit
 > `MESSAGE_RECEIVED` et la notification ouvre la conversation ; et **lire une réponse depuis le
 > débrief ne marque rien lu** — `markRead` est par FIL, l'appeler là éteindrait des non-lus que

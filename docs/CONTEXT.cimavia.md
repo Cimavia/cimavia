@@ -156,7 +156,7 @@ Retour de l'athlète sur une `ScheduledSession` : **un champ texte libre** (« r
 Trois règles à connaître :
 - **Le texte est nullable** : un débrief peut n'être que des photos, et l'athlète le complète **en plusieurs fois** (texte puis médias, ou l'inverse). D'où un `PUT` idempotent, et aucune contrainte « texte OU média » — elle interdirait le débrief média-seul, qui commence forcément par un débrief vide. Un débrief vide est un état légitime : « séance faite, rien à signaler ».
 - **Débriefer passe la séance en `DONE`**, sous quelque forme que ce soit (texte, ou premier média rattaché). Transition **sans retour** : un débrief complété ne redevient pas `PLANNED`.
-- **`coachReadAt`** alimente la tuile « Débriefs à relire ». Sur une planification partagée, le débrief est notifié à **chaque Coach** qui y a accès, et « lu » devient propre à chacun *(cible — #610)*. Il repasse à `null` quand l'athlète complète son débrief — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Seule la **création** notifie le coach (un push par ajout serait du harcèlement).
+- **« Lu » est propre à chaque Coach** (`SessionFeedbackRead`, une ligne par Coach lecteur) : il alimente sa tuile « Débriefs à relire ». Le débrief d'une planification partagée est notifié à **chaque Coach qui le lit** — le propriétaire et les Coachs de l'athlète que leur droit y laisse entrer —, chacun dans son fil direct avec l'athlète, et la lecture de l'un ne vaut pas pour l'autre (#610). Quand l'athlète complète son débrief, il redevient « à relire » chez tous — sinon un ajout tardif resterait invisible pour un coach qui l'a déjà ouvert. Le dépôt notifie (centre, push, e-mail) ; un complément ne fait qu'un push, et la suite d'un lot de médias se tait (#537).
 
 ### Media
 Photo / vidéo / **note vocale** rattachée à un `SessionFeedback`. L'**audio** (débrief vocal, CDC §4) a rejoint `MediaType` en P5, avec l'enregistreur/lecteur construits pour la messagerie (promus en `shared/component/` côté mobile) — même flux d'upload que photo/vidéo. Stocké en object storage (URL GET signée), compressé côté client. Limites : vidéo **180 s / 720p / 1 Go**, **10 vidéos + 20 photos (100 Mo) + 20 notes vocales** (m4a, ≤ 5 min / 100 Mo) par débrief. Ces valeurs ont été relevées depuis les plafonds MVP d'origine (60 s, 50 Mo / 10 Mo / 3 notes) : les tailles en P4, la durée avec l'envoi découpé, les comptes en #156 ; elles vivent dans `@cmv/shared` et sont **interpolées** dans les messages de refus.
@@ -242,7 +242,7 @@ deux lit chaque colonne, mais toujours **une à la fois**, selon l'espace où il
 |---|---|---|---|
 | Bibliothèque exercices/séances | CRUD (les siens) ; lecture ou écriture de ce qu'on lui ouvre (#605) | — | — |
 | Planification | CRUD (ses athlètes) ; lecture ou écriture de ce qu'on lui ouvre (#607) | lecture (les siennes, de chaque Coach) | — |
-| Débrief de séance | lecture + marquage « lu » (le sien, par Coach *(cible — #610)*) | écriture (le sien) | — |
+| Débrief de séance | lecture + marquage « lu » (le sien, par Coach — #610) | écriture (le sien) | — |
 | Fiche athlète | CRUD (une par couple) | — | — |
 | Messagerie | avec ses athlètes et les Coachs de ses entreprises *(cible — #611)* | avec ses Coachs | — *(dans aucune conversation)* |
 | Facture | émission + statut ; suit le droit de sa planification (#607) | lecture | — |
