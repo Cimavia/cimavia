@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type AccessGrantDto, AccessLevel, MyAccessLevel } from "../dto/access.schema";
-import { canWrite, effectiveAccess, foreignOf, isOwner } from "./access.util";
+import { canWrite, effectiveAccess, foreignOf, isOwner, sharedRight } from "./access.util";
 
 const F = { id: "org-f", name: "F" };
 const G = { id: "org-g", name: "G" };
@@ -101,5 +101,23 @@ describe("foreignOf", () => {
   it("`null` pour le sien, et pour celui qui naît", () => {
     expect(foreignOf(of(MyAccessLevel.OWNER))).toBeNull();
     expect(foreignOf(null)).toBeNull();
+  });
+});
+
+describe("sharedRight", () => {
+  it("dit le droit tenu sur ce qui est à un autre, et l'entreprise qui le donne", () => {
+    expect(sharedRight({ level: MyAccessLevel.READ, via: F })).toEqual({
+      level: MyAccessLevel.READ,
+      via: F,
+    });
+    expect(sharedRight({ level: MyAccessLevel.WRITE, via: null })).toEqual({
+      level: MyAccessLevel.WRITE,
+      via: null,
+    });
+  });
+
+  it("`null` sur le sien, et pour l'athlète, qui n'a pas de droit", () => {
+    expect(sharedRight({ level: MyAccessLevel.OWNER, via: null })).toBeNull();
+    expect(sharedRight(null)).toBeNull();
   });
 });

@@ -668,8 +668,14 @@ export type { Locale as LocaleType } from "./locale";
 export { Locale } from "./locale";
 export type { Role as RoleType } from "./role";
 export { Role } from "./role";
-export type { AccessSubject } from "./util/access.util";
-export { canWrite, effectiveAccess, foreignOf, isOwner } from "./util/access.util";
+export type { AccessSubject, SharedRight } from "./util/access.util";
+export {
+  canWrite,
+  effectiveAccess,
+  foreignOf,
+  isOwner,
+  sharedRight,
+} from "./util/access.util";
 export type { PanelAccess } from "./util/access-panel.util";
 export { accessChanges, MIXED_ACCESS, panelAccess } from "./util/access-panel.util";
 export type { AppTier } from "./util/app-version.util";
