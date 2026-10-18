@@ -20,6 +20,7 @@ import {
   toSessionFeedbackDto,
   toTrackedExercises,
 } from "../feedback.mapper";
+import { FeedbackAudienceService } from "./feedback-audience.service";
 
 /**
  * Le débrief où l'athlète écrit, et ce que l'écriture en cours en a fait. `created` décide de
@@ -50,6 +51,8 @@ export class FeedbackService {
     private readonly attachments: MessageAttachmentResolver,
     // Déposer un débrief laisse un avis dans le fil (#96) : le coach revient par la messagerie.
     private readonly announcer: FeedbackAnnouncerService,
+    // Qui prévenir : chaque Coach qui lit le débrief (#610).
+    private readonly audience: FeedbackAudienceService,
   ) {}
 
   /**
@@ -185,35 +188,37 @@ export class FeedbackService {
   /**
    * Un envoi de l'athlète vient d'aboutir — texte enregistré, ou média joint (#537).
    *
-   * - Le débrief redevient « à relire » : sinon un ajout tardif resterait invisible dans la tuile
-   *   du coach, qui l'a peut-être déjà ouvert. Vaut pour un média comme pour le texte — une photo
-   *   ajoutée seule ne remontait pas.
-   * - Un avis est posé dans le fil ; c'est l'annonceur qui décide s'il a quelque chose à dire.
-   * - Le coach est prévenu : « nouveau débrief » s'il naît de ce geste, « débrief complété » par
-   *   push seul sinon. La suite d'un lot de médias se tait — six photos font un push, pas six.
-   *   Le dépôt initial ne pousse qu'une fois : l'appel qui crée est aussi le premier du lot.
+   * - Le débrief redevient « à relire » chez TOUS ses lecteurs : sinon un ajout tardif resterait
+   *   invisible dans la tuile d'un coach qui l'a déjà ouvert. Vaut pour un média comme pour le
+   *   texte — une photo ajoutée seule ne remontait pas.
+   * - Chaque Coach qui lit le débrief est prévenu (#610), pas seulement le propriétaire du cycle :
+   *   un avis dans son fil, et une notification — « nouveau débrief » s'il naît de ce geste,
+   *   « débrief complété » par push seul sinon. La suite d'un lot de médias se tait : six photos
+   *   font un push, pas six. Le dépôt initial ne pousse qu'une fois : l'appel qui crée est aussi le
+   *   premier du lot.
    */
   async markSent(writable: WritableFeedback, continuesBatch: boolean): Promise<void> {
     const { feedback, created } = writable;
     if (!created) {
-      await this.db.sessionFeedback.update({
-        where: { id: feedback.id },
-        data: { coachReadAt: null },
-      });
+      await this.db.sessionFeedbackRead.deleteMany({ where: { sessionFeedbackId: feedback.id } });
     }
-    await this.announcer.announce(feedback);
+    const recipients = await this.audience.recipientsOf(feedback);
+    await this.announcer.announce(feedback, recipients);
 
-    const event = {
-      coachId: feedback.coachId,
-      athleteId: feedback.athleteId,
-      scheduledSessionId: feedback.scheduledSessionId,
-      sessionTitle: writable.sessionTitle,
-    };
-    if (created) {
-      await this.notifications.notifyFeedbackReceived(event);
-    } else if (!continuesBatch) {
-      await this.notifications.notifyFeedbackCompleted(event);
-    }
+    if (!created && continuesBatch) return;
+    await Promise.all(
+      recipients.map((coachId) => {
+        const event = {
+          coachId,
+          athleteId: feedback.athleteId,
+          scheduledSessionId: feedback.scheduledSessionId,
+          sessionTitle: writable.sessionTitle,
+        };
+        return created
+          ? this.notifications.notifyFeedbackReceived(event)
+          : this.notifications.notifyFeedbackCompleted(event);
+      }),
+    );
   }
 
   // Lecture du débrief d'une séance. `null` plutôt qu'un débrief vide de complaisance : le rendu

@@ -286,6 +286,15 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
     coach: throughRoot("sessionFeedback", feedbackOfSession),
     athlete: athleteOwner,
   },
+  // La lecture d'un débrief par UN Coach (#610) : chacun pose et lit les siennes. L'athlète les
+  // atteint à travers son débrief, pour les effacer quand il le complète — il n'en crée aucune.
+  // Pas de `parent` : il jugerait le débrief en ÉCRITURE et en hériterait le propriétaire, or M ne
+  // fait que le lire, et la lecture est à lui. C'est donc l'appelant qui prouve le débrief lisible
+  // avant de poser la lecture (`CoachFeedbackService.markRead`, seul à en créer).
+  SessionFeedbackRead: {
+    coach: coachOwner,
+    athlete: throughRoot("sessionFeedback", athleteOwner),
+  },
   Conversation: { coach: coachOwner, athlete: athleteOwner },
   Message: { coach: coachOwner, athlete: athleteOwner },
   // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593, #607).

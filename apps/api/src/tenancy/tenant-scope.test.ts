@@ -389,6 +389,16 @@ describe("scopeFor", () => {
     }
   });
 
+  // « Lu » est à chaque Coach (#610) : le sien, jamais celui d'un autre lecteur du même débrief.
+  // L'athlète les atteint à travers son débrief, sans pouvoir en créer.
+  it("une lecture de débrief est au Coach qui l'a posée, l'athlète l'atteint par son débrief", () => {
+    const scope = scopeOf("SessionFeedbackRead");
+    expect(whereOf(scope, "coach")).toEqual({ coachId: ACTOR });
+    expect(scope.coach?.owner).toBe("coachId");
+    expect(whereOf(scope, "athlete")).toEqual({ sessionFeedback: { athleteId: ACTOR } });
+    expect(scope.athlete?.owner).toBeNull();
+  });
+
   it.each(
     Object.entries(TENANT_SCOPES).filter(([model]) => !SHARED.includes(model)),
   )("%s pose le même filtre pour les trois classes", (_, scope) => {

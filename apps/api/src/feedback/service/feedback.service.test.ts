@@ -8,6 +8,7 @@ import type { NotificationService } from "../../notification/notification.servic
 import type { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { FeedbackService, type WritableFeedback } from "./feedback.service";
+import type { FeedbackAudienceService } from "./feedback-audience.service";
 import { FeedbackMediaService } from "./feedback-media.service";
 
 const FEEDBACK = {
@@ -33,20 +34,22 @@ function writable(created: boolean): WritableFeedback {
  * or le complément d'un débrief ne laisse justement AUCUNE trace (#537). La règle est attaquée ici
  * pour elle-même.
  */
-function build() {
-  const update = vi.fn().mockResolvedValue(undefined);
+function build(recipients: readonly string[] = ["c1"]) {
+  const deleteReads = vi.fn().mockResolvedValue({ count: 1 });
   const announce = vi.fn().mockResolvedValue(undefined);
+  const recipientsOf = vi.fn().mockResolvedValue([...recipients]);
   const notifyFeedbackReceived = vi.fn().mockResolvedValue(undefined);
   const notifyFeedbackCompleted = vi.fn().mockResolvedValue(undefined);
   const service = new FeedbackService(
-    { sessionFeedback: { update } } as unknown as TenantPrisma,
+    { sessionFeedbackRead: { deleteMany: deleteReads } } as unknown as TenantPrisma,
     {} as StorageService,
     {} as AthletePlanService,
     { notifyFeedbackReceived, notifyFeedbackCompleted } as unknown as NotificationService,
     {} as MessageAttachmentResolver,
     { announce } as unknown as FeedbackAnnouncerService,
+    { recipientsOf } as unknown as FeedbackAudienceService,
   );
-  return { service, update, announce, notifyFeedbackReceived, notifyFeedbackCompleted };
+  return { service, deleteReads, announce, notifyFeedbackReceived, notifyFeedbackCompleted };
 }
 
 describe("FeedbackService.markSent", () => {
@@ -58,31 +61,47 @@ describe("FeedbackService.markSent", () => {
     expect(notifyFeedbackReceived).toHaveBeenCalledExactlyOnceWith(EVENT);
     // Le dépôt initial ne pousse qu'une fois : pas de « complété » par-dessus.
     expect(notifyFeedbackCompleted).not.toHaveBeenCalled();
-    expect(announce).toHaveBeenCalledExactlyOnceWith(FEEDBACK);
+    expect(announce).toHaveBeenCalledExactlyOnceWith(FEEDBACK, ["c1"]);
   });
 
-  it("pousse un complément sur un débrief déjà déposé, et le rend à relire", async () => {
-    const { service, update, notifyFeedbackReceived, notifyFeedbackCompleted } = build();
+  // Un débrief neuf n'a encore été lu par personne : rien à effacer.
+  it("n'efface aucune lecture d'un débrief qui vient de naître", async () => {
+    const { service, deleteReads } = build();
+
+    await service.markSent(writable(true), false);
+
+    expect(deleteReads).not.toHaveBeenCalled();
+  });
+
+  it("pousse un complément sur un débrief déjà déposé, et le rend à relire chez tous", async () => {
+    const { service, deleteReads, notifyFeedbackReceived, notifyFeedbackCompleted } = build();
 
     await service.markSent(writable(false), false);
 
     expect(notifyFeedbackCompleted).toHaveBeenCalledExactlyOnceWith(EVENT);
     expect(notifyFeedbackReceived).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledExactlyOnceWith({
-      where: { id: "f1" },
-      data: { coachReadAt: null },
-    });
+    expect(deleteReads).toHaveBeenCalledExactlyOnceWith({ where: { sessionFeedbackId: "f1" } });
+  });
+
+  // C et M lisent le cycle de TI (#610) : chacun reçoit son avis et sa notification.
+  it("prévient chaque Coach qui lit le débrief", async () => {
+    const { service, announce, notifyFeedbackReceived } = build(["c1", "m1"]);
+
+    await service.markSent(writable(true), false);
+
+    expect(announce).toHaveBeenCalledExactlyOnceWith(FEEDBACK, ["c1", "m1"]);
+    expect(notifyFeedbackReceived.mock.calls).toEqual([[EVENT], [{ ...EVENT, coachId: "m1" }]]);
   });
 
   // Six photos d'une même sélection : la première a poussé, les suivantes se taisent — mais le
   // débrief reste « à relire » et l'annonceur garde la main sur le fil.
   it("tait la suite d'un lot, sans renoncer au reste", async () => {
-    const { service, update, announce, notifyFeedbackCompleted } = build();
+    const { service, deleteReads, announce, notifyFeedbackCompleted } = build();
 
     await service.markSent(writable(false), true);
 
     expect(notifyFeedbackCompleted).not.toHaveBeenCalled();
-    expect(update).toHaveBeenCalledTimes(1);
+    expect(deleteReads).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledTimes(1);
   });
 });

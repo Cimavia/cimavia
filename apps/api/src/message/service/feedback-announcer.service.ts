@@ -27,11 +27,13 @@ export class FeedbackAnnouncerService {
   ) {}
 
   /**
-   * Annonce une activité sur ce débrief — dépôt ou complément, l'appelant n'a pas à le dire.
+   * Annonce une activité sur ce débrief à chacun de ces Coachs, dans SON fil direct avec l'athlète
+   * (#610) — dépôt ou complément, l'appelant n'a pas à le dire. Jamais dans une conversation à
+   * plusieurs : chacun lit l'avis à son heure, et sa lecture ne vaut que pour lui.
    *
    * C'est l'ÉTAT du fil qui tranche, et c'est ce qui empêche vingt photos de faire vingt bulles :
    *
-   * - aucun avis pour ce débrief → « déposé » ;
+   * - aucun avis pour ce débrief dans ce fil → « déposé » ;
    * - un avis déjà là, **non lu** → rien. Un second pointeur vers le même débrief n'apprend rien
    *   de plus que le premier, qui pointe déjà l'état courant ;
    * - tous les avis lus → « mis à jour », qui est cette fois une information neuve.
@@ -44,17 +46,22 @@ export class FeedbackAnnouncerService {
    * Conséquence assumée : `markRead` est par FIL (tranché en #190), donc un coach qui ne lit que la
    * page Débriefs laisse son avis non lu et n'en reçoit pas d'autre pour ce débrief. Rien n'est
    * perdu — l'avis qu'il a pointe déjà l'état courant.
+   *
+   * `coachIds` exclut l'athlète (`FeedbackAudienceService`, #316) : on ne s'ouvre pas de fil avec
+   * soi-même.
    */
-  async announce(feedback: SessionFeedback): Promise<void> {
-    // Auto-coaching (#316) : le débrief est le sien, il n'y a personne à prévenir. Sans cette
-    // sortie, `ensure` ouvrait un fil avec soi-même, et l'avis — signé de l'athlète, donc aussi du
-    // coach — faisait passer le débrief pour « Répondu ».
-    if (feedback.coachId === feedback.athleteId) return;
+  async announce(feedback: SessionFeedback, coachIds: readonly string[]): Promise<void> {
+    // Chacun dans son propre filet : le fil de M injoignable ne prive pas C de son avis. Les fils
+    // sont distincts — un par couple —, rien ne s'y croise.
+    await Promise.all(coachIds.map((coachId) => this.announceTo(feedback, coachId)));
+  }
 
+  private async announceTo(feedback: SessionFeedback, coachId: string): Promise<void> {
     try {
       const events = await this.db.message.findMany({
         where: {
           sessionFeedbackId: feedback.id,
+          coachId,
           type: { in: [...FEEDBACK_EVENT_MESSAGE_TYPES] },
         },
         select: { readAt: true },
@@ -63,21 +70,21 @@ export class FeedbackAnnouncerService {
 
       const type =
         events.length === 0 ? MessageType.FEEDBACK_CREATED : MessageType.FEEDBACK_UPDATED;
-      await this.post(feedback, type);
+      await this.post(feedback, coachId, type);
     } catch (error) {
       // Un avis manqué ne doit pas faire échouer le débrief : l'athlète a écrit son retour, c'est
       // ça la donnée. Et la règle étant portée par l'ÉTAT, le prochain geste répare tout seul —
       // un dépôt non annoncé retrouve zéro avis, donc réémet « déposé ».
       this.logger.error(
-        { event: "feedback.announce.failed", sessionFeedbackId: feedback.id, error },
+        { event: "feedback.announce.failed", sessionFeedbackId: feedback.id, coachId, error },
         "Avis de débrief non posé",
       );
     }
   }
 
-  private async post(feedback: SessionFeedback, type: MessageType): Promise<void> {
-    // Le fil peut ne pas exister : un athlète peut débriefer sans avoir jamais ouvert la messagerie.
-    const conversation = await this.conversations.ensure(feedback.coachId, feedback.athleteId);
+  private async post(feedback: SessionFeedback, coachId: string, type: MessageType): Promise<void> {
+    // Le fil peut ne pas exister : un athlète peut débriefer sans avoir jamais écrit à ce Coach.
+    const conversation = await this.conversations.ensure(coachId, feedback.athleteId);
 
     // Les deux champs tenant sont recopiés du fil (l'extension n'injecte que celui de l'acteur), et
     // l'auteur est l'ATHLÈTE : c'est son geste qu'on annonce, et c'est ce qui aligne la bulle du
