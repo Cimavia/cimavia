@@ -783,8 +783,17 @@ export {
   revertRow,
   revertStructureField,
 } from "./util/dosage-edit.util";
-export type { FeedbackMediaSlots, FeedbackReadState } from "./util/feedback.util";
-export { countUnreadFeedbacks, draftAfterLoad, remainingMediaSlots } from "./util/feedback.util";
+export type {
+  FeedbackMediaSlots,
+  FeedbackReadState,
+  FeedbackReplyState,
+} from "./util/feedback.util";
+export {
+  countUnreadFeedbacks,
+  draftAfterLoad,
+  remainingMediaSlots,
+  replyBadge,
+} from "./util/feedback.util";
 export type {
   FeedbackReplyAttachment,
   FeedbackReplyInput,

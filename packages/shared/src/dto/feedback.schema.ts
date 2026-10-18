@@ -221,7 +221,8 @@ export const sessionFeedbackDtoSchema = z.object({
   scheduledSessionId: z.string(),
   athleteId: z.string(),
   content: z.string().nullable(),
-  coachReadAt: z.iso.datetime().nullable(),
+  // Pas de « lu » ici : le détail sert l'athlète comme le Coach, et un débrief de cycle partagé a
+  // autant de lectures que de Coachs (#610). Celle du Coach courant vit dans le résumé.
   media: z.array(feedbackMediaDtoSchema),
   /**
    * Le décompte, RÉSUMÉ exercice par exercice — ce que le coach voit du suivi.
@@ -260,18 +261,27 @@ export const coachFeedbackSummaryDtoSchema = z.object({
   scheduledDate: z.iso.date(),
   content: z.string().nullable(),
   mediaCount: z.number().int(),
+  /**
+   * Quand le Coach COURANT l'a lu (#610) — C et M lisent le même débrief chacun à son heure. Repasse
+   * à `null` chez tous quand l'athlète complète son débrief : « non lu » veut dire « quelque chose
+   * reste à lire », pas « jamais ouvert ».
+   */
   coachReadAt: z.iso.datetime().nullable(),
   /**
-   * Quand le coach a répondu — la date de son PREMIER message rattaché à ce débrief.
+   * La PREMIÈRE réponse d'un Coach à ce débrief, quel que soit son fil (#610) : C voit que M a
+   * répondu, et qui. La date et l'auteur seulement — le contenu reste dans le fil où il a été écrit.
    *
    * DÉRIVÉ, jamais stocké : aucune colonne à tenir cohérente, même dispositif que « en retard »
    * (`resolveInvoiceState`) et « dû » (`isReminderDue`). Distinct de `coachReadAt` : « lu » et
    * « répondu » sont deux axes, et `coachReadAt` repasse à `null` quand l'athlète complète son
    * débrief, ce que « répondu » ne doit pas faire.
    *
-   * `null` = pas encore répondu. Pas de `0`, pas de date de repli (règle dure n°5).
+   * `null` = personne n'a encore répondu. Un seul objet plutôt que trois champs nullables qui
+   * bougeraient ensemble (règle dure n°5).
    */
-  repliedAt: z.iso.datetime().nullable(),
+  firstReply: z
+    .object({ at: z.iso.datetime(), coachId: z.string(), coachName: z.string() })
+    .nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

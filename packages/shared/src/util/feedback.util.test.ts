@@ -5,7 +5,12 @@ import {
   MAX_FEEDBACK_VIDEOS,
   MediaType,
 } from "../dto/feedback.schema";
-import { countUnreadFeedbacks, draftAfterLoad, remainingMediaSlots } from "./feedback.util";
+import {
+  countUnreadFeedbacks,
+  draftAfterLoad,
+  remainingMediaSlots,
+  replyBadge,
+} from "./feedback.util";
 
 describe("countUnreadFeedbacks", () => {
   it("compte les débriefs que le coach n'a pas ouverts", () => {
@@ -32,6 +37,28 @@ describe("countUnreadFeedbacks", () => {
   // Tous lus : le compteur tombe à zéro sans jamais devenir `null` — la donnée est connue.
   it("rend 0 quand tout est lu", () => {
     expect(countUnreadFeedbacks([{ coachReadAt: "2026-07-29T08:00:00.000Z" }])).toBe(0);
+  });
+});
+
+describe("replyBadge", () => {
+  const byM = { firstReply: { coachId: "coach-m", coachName: "M" } };
+
+  it("ne pose aucun badge tant que personne n'a répondu", () => {
+    expect(replyBadge({ firstReply: null }, "coach-c")).toBeNull();
+  });
+
+  // On ne nomme que ce qui n'est pas à soi (#607) : sa propre réponse dit « Répondu », sans nom.
+  it("tait le nom quand la première réponse est celle du lecteur", () => {
+    expect(replyBadge(byM, "coach-m")).toEqual({ by: null });
+  });
+
+  it("nomme le Coach qui a répondu quand ce n'est pas le lecteur", () => {
+    expect(replyBadge(byM, "coach-c")).toEqual({ by: "M" });
+  });
+
+  // Session pas encore lue : nommer à tort ne trompe personne, taire à tort si.
+  it("nomme le Coach tant que le lecteur n'est pas connu", () => {
+    expect(replyBadge(byM, undefined)).toEqual({ by: "M" });
   });
 });
 
