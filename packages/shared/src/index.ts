@@ -156,6 +156,7 @@ export type {
   DuplicateExerciseInput,
   ExerciseDocumentDto,
   ExerciseDto,
+  FrozenFrom,
   InstructionImageMimeType,
   RequestUploadUrlInput,
   UpdateExerciseInput,
@@ -179,6 +180,7 @@ export {
   exerciseDtoSchema,
   exerciseTagSchema,
   exerciseTagsSchema,
+  frozenFromSchema,
   INSTRUCTION_IMAGE_MIME_TYPES,
   isAllowedDocumentMime,
   isInstructionImageMime,
@@ -856,6 +858,8 @@ export {
 export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
 export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export type { MetricAdoption } from "./util/metric-adoption.util";
+export { adoptMetrics, remapCustomMetrics } from "./util/metric-adoption.util";
 export {
   formatMetricValue,
   metricCellText,
