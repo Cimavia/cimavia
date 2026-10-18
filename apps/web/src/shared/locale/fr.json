@@ -226,7 +226,6 @@
       "saveFailed": "L'enregistrement a échoué.",
       "variantSuffix": "(variante)",
       "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
-      "variantOwnerOnly": "Seul {{owner}} peut dupliquer cet exercice en variante : ajuste-le dans la séance, ou demande-lui la variante.",
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
       "titleBeforeLeaving": "Donne un titre à la séance : elle doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
@@ -237,6 +236,11 @@
       "sessionValue": "séance {{value}}"
     },
     "filterAllTags": "Tous",
+    "frozen": {
+      "badge": "Copie figée",
+      "badgeFrom": "Copie figée — d'après {{owner}}",
+      "since": "Copie gardée le {{date}} : l'exercice d'origine a été supprimé, ou ton accès fermé."
+    },
     "tags": {
       "label": "Tags",
       "placeholder": "Ajouter un tag — ex. force, endurance, technique…",
@@ -252,6 +256,10 @@
       "readOnly": "Lecture seule : exercice de {{owner}}. Tu peux l'utiliser dans tes séances, pas le modifier.",
       "usedInSessions": "Utilisé dans {{count}} séance.",
       "usedInSessions_other": "Utilisé dans {{count}} séances.",
+      "duplicate": "Dupliquer en variante",
+      "duplicateDirty": "Enregistre ou annule tes changements : la variante part de l'exercice enregistré.",
+      "deleteKeepsCopies": "{{count}} séance d'un autre coach gardera une copie de cet exercice.",
+      "deleteKeepsCopies_other": "{{count}} séances d'autres coachs garderont une copie de cet exercice.",
       "titleLabel": "Titre",
       "titlePlaceholder": "Ex. Tractions lestées, Gainage 3×30 s…",
       "previewTitle": "Aperçu athlète — mis à jour en direct",

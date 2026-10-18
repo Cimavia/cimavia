@@ -111,6 +111,23 @@ describe("LibraryTable — lignes", () => {
     expect(screen.getAllByText("—")).toHaveLength(1);
   });
 
+  // La copie qu'une séance a gardée d'un exercice perdu se reconnaît dans la liste (#609).
+  it("dit sous son titre qu'un exercice est une copie figée", () => {
+    setup({
+      rows: [
+        {
+          ...mine("ex-1", "Tractions"),
+          frozenFrom: { coach: C, at: "2026-10-18T09:00:00.000Z" },
+        },
+        mine("ex-2", "Gainage"),
+      ],
+    });
+
+    const [, frozen, plain] = screen.getAllByRole("row");
+    expect(within(frozen as HTMLElement).getByText("library.frozen.badgeFrom")).toBeInTheDocument();
+    expect(within(plain as HTMLElement).queryByText("library.frozen.badgeFrom")).toBeNull();
+  });
+
   it("la colonne propre à l'onglet se place avant la date", () => {
     setup({ rows: [mine("s-1", "Force max")], extra: { label: "Exercices", cell: () => "3" } });
 

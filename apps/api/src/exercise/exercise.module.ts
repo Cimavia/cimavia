@@ -6,6 +6,7 @@ import { ExerciseController } from "./controller/exercise.controller";
 import { ExerciseDocumentController } from "./controller/exercise-document.controller";
 import { DocumentCleanupService } from "./service/document-cleanup.service";
 import { ExerciseService } from "./service/exercise.service";
+import { ExerciseCopyService } from "./service/exercise-copy.service";
 import { ExerciseDocumentService } from "./service/exercise-document.service";
 
 // Bibliothèque d'exercices du coach (P2) — cf. architecture-choice §2.
@@ -13,7 +14,12 @@ import { ExerciseDocumentService } from "./service/exercise-document.service";
 @Module({
   imports: [StorageModule, CustomMetricModule, AccessModule],
   controllers: [ExerciseController, ExerciseDocumentController],
-  providers: [ExerciseService, ExerciseDocumentService, DocumentCleanupService],
+  providers: [
+    ExerciseService,
+    ExerciseDocumentService,
+    DocumentCleanupService,
+    ExerciseCopyService,
+  ],
   // `loadAccessibleOrThrow` : la seule garde « ces exercices sont-ils citables ? », que séances et
   // planifications consomment au lieu de la réécrire (#353).
   exports: [ExerciseService],

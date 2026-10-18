@@ -15,17 +15,16 @@ import {
 
 /**
  * Un geste au-delà de la lecture. `write` modifie le contenu (Écriture suffit) ; les autres sont
- * réservés au propriétaire : supprimer, gérer les accès, dupliquer en variante — la variante
- * d'un autre citerait des métriques absentes du catalogue de qui la crée (écart de #605, #609) —,
- * et réaffecter une planification à un autre athlète (#607), qui en change l'audience.
+ * réservés au propriétaire : supprimer, gérer les accès, et réaffecter une planification à un
+ * autre athlète (#607), qui en change l'audience. Dupliquer en variante n'en est plus un : la
+ * lecture suffit, la variante recopie les métriques citées (#609).
  */
-export type AccessGesture = "write" | "delete" | "share" | "duplicate" | "reassign";
+export type AccessGesture = "write" | "delete" | "share" | "reassign";
 
 const DENIED: Record<AccessGesture, string> = {
   write: "Accès en lecture seule : tu ne peux pas modifier cet élément",
   delete: "Seul le propriétaire peut supprimer cet élément",
   share: "Seul le propriétaire peut gérer les accès de cet élément",
-  duplicate: "Seul le propriétaire peut dupliquer cet exercice en variante",
   reassign: "Seul le propriétaire peut confier cette planification à un autre athlète",
 };
 

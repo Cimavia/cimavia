@@ -49,7 +49,6 @@ describe("AccessService.assertCan", () => {
     ["write", "OWNER"],
     ["delete", "OWNER"],
     ["share", "OWNER"],
-    ["duplicate", "OWNER"],
   ] as const)("%s est permis à %s", (gesture, level) => {
     expect(() => service.assertCan(view(level), gesture)).not.toThrow();
   });
@@ -58,7 +57,6 @@ describe("AccessService.assertCan", () => {
     ["write", "READ"],
     ["delete", "WRITE"],
     ["share", "WRITE"],
-    ["duplicate", "WRITE"],
     ["delete", "READ"],
   ] as [
     AccessGesture,

@@ -3,12 +3,14 @@ import {
   type ChangeAccessInput,
   type CoachOrganizationDto,
   type ElementAccessDto,
+  type FrozenFrom,
   isOwner,
 } from "@cmv/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type AccessElement, AccessPanel } from "@/feature/library/component/AccessPanel";
+import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { accessText, ownerText } from "@/feature/library/util/access-text.util";
 import { CMV_TABLE, CmvButton, CmvTagList } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
@@ -18,6 +20,8 @@ import { formatInstantDate } from "@/shared/util/date.util";
 export type LibraryTableRow = AccessElement & {
   tags: readonly string[];
   updatedAt: string;
+  /** La provenance d'un exercice gardé en copie figée (#609) ; une séance n'en a pas. */
+  frozenFrom?: FrozenFrom | null;
 };
 
 type LibraryTableProps<T extends LibraryTableRow> = {
@@ -150,6 +154,11 @@ export function LibraryTable<T extends LibraryTableRow>({
                   >
                     {row.title}
                   </button>
+                  {row.frozenFrom == null ? null : (
+                    <div className="mt-cmv-xs">
+                      <FrozenBadge frozenFrom={row.frozenFrom} />
+                    </div>
+                  )}
                 </td>
                 <td className={CMV_TABLE.cell}>
                   {row.tags.length === 0 ? (

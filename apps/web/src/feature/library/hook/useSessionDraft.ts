@@ -10,6 +10,7 @@ import {
   type ExerciseBlock,
   type ExerciseBlocks,
   type ExerciseDto,
+  type FrozenFrom,
   type MetricValue,
   resetAllAdjustments,
   revertCell,
@@ -54,6 +55,8 @@ export type CompositionItem = {
    * lecteur.
    */
   customMetrics: CustomMetric[];
+  /** L'exercice cité est une copie figée (#609) : la carte le dit. */
+  frozenFrom: FrozenFrom | null;
 };
 
 const fromSession = (session: SessionDto | null): CompositionItem[] =>
@@ -68,6 +71,7 @@ const fromSession = (session: SessionDto | null): CompositionItem[] =>
     baseline: composed.baseline,
     adjustments: composed.adjustments,
     customMetrics: composed.customMetrics,
+    frozenFrom: composed.frozenFrom,
   }));
 
 /** Une ligne neuve, copiée de la bibliothèque. */
@@ -83,6 +87,7 @@ const fromExercise = (exercise: ExerciseDto): CompositionItem => ({
   baseline: exercise.blocks,
   adjustments: [],
   customMetrics: exercise.customMetrics,
+  frozenFrom: exercise.frozenFrom,
 });
 
 /** Le brouillon d'une séance, tel que les gestes du constructeur le reçoivent. */

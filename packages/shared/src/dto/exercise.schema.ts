@@ -197,6 +197,16 @@ export const exerciseDocumentDtoSchema = z.object({
 });
 export type ExerciseDocumentDto = z.infer<typeof exerciseDocumentDtoSchema>;
 
+/**
+ * La provenance d'une copie figée (#609) : le Coach dont l'exercice a disparu ou s'est fermé, et
+ * quand. `coach` à `null` si ce Coach n'existe plus — la copie reste, son auteur ne se nomme plus.
+ */
+export const frozenFromSchema = z.object({
+  coach: accessOwnerSchema.nullable(),
+  at: z.iso.datetime(),
+});
+export type FrozenFrom = z.infer<typeof frozenFromSchema>;
+
 export const exerciseDtoSchema = z.object({
   id: z.string(),
   coachId: z.string(),
@@ -226,6 +236,14 @@ export const exerciseDtoSchema = z.object({
    * effet sur elles (décision structurante P3). Un compteur qui les inclurait mentirait.
    */
   usedInSessionCount: z.number().int().nonnegative(),
+  /**
+   * Celles d'entre elles qui appartiennent à d'AUTRES Coachs (#609) : supprimer l'exercice leur en
+   * laissera une copie figée, et la confirmation le dit. Pour le propriétaire seul — `null` pour
+   * tout autre lecteur, qui ne peut pas supprimer.
+   */
+  foreignSessionCount: z.number().int().nonnegative().nullable(),
+  /** La provenance d'une copie figée (#609) ; `null` pour un exercice qui n'en est pas une. */
+  frozenFrom: frozenFromSchema.nullable(),
   documents: z.array(exerciseDocumentDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

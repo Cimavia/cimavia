@@ -6,6 +6,7 @@ import {
   myAccessSchema,
 } from "./access.schema";
 import { adjustmentsSchema } from "./dosage-override.schema";
+import { frozenFromSchema } from "./exercise.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
@@ -96,6 +97,11 @@ export const sessionExerciseDtoSchema = z.object({
   // Tags de l'exercice RÉFÉRENCÉ, lus à chaque lecture : une séance modèle pointe vers la
   // bibliothèque, elle n'en fige rien (contrairement à la séance planifiée, qui copie).
   tags: z.array(z.string()),
+  /**
+   * La provenance de l'exercice cité quand c'est une copie figée (#609) : la ligne a perdu
+   * l'exercice d'un autre Coach, et en garde la copie. `null` pour un exercice ordinaire.
+   */
+  frozenFrom: frozenFromSchema.nullable(),
 });
 export type SessionExerciseDto = z.infer<typeof sessionExerciseDtoSchema>;
 

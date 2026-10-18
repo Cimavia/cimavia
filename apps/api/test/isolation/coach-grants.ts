@@ -230,7 +230,7 @@ describe("Droits d'accès par Coach, dans la bibliothèque", () => {
     ).toBe(403);
   });
 
-  it("fermer M sur un exercice que sa séance cite est refusé ; l'ouvrir en Lecture, non", async () => {
+  it("une ligne de M en Lecture le protège du retrait de F ; fermée, sa séance garde une copie", async () => {
     const id = await create("Mono-doigt");
     await changeAccess(c, "exercises", {
       ids: [id],
@@ -240,20 +240,27 @@ describe("Droits d'accès par Coach, dans la bibliothèque", () => {
       .post("/sessions")
       .send({ title: "Séance de M", exercises: [{ exerciseId: id }] });
     expect(session.status).toBe(201);
+    const citedBy = async () =>
+      (await m.get(`/sessions/${session.body.id}`)).body.exercises[0].exerciseId;
 
-    const closed = await changeAccess(c, "exercises", {
-      ids: [id],
-      coachChanges: [{ coachId: ids.m, level: "NONE" }],
-    });
-    expect(closed.status).toBe(409);
-    // Une ligne de M qui garde la Lecture le protège du retrait de F.
+    // Une ligne de M qui garde la Lecture le protège du retrait de F : rien à copier.
     const kept = await changeAccess(c, "exercises", {
       ids: [id],
       changes: [{ organizationId: ids.f, level: null }],
       coachChanges: [{ coachId: ids.m, level: "READ" }],
     });
     expect(kept.status).toBe(200);
-    expect((await m.get(`/sessions/${session.body.id}`)).status).toBe(200);
+    expect(await citedBy()).toBe(id);
+
+    // Fermée à « Aucun », elle le prive : sa séance cite désormais sa copie figée (#609).
+    const closed = await changeAccess(c, "exercises", {
+      ids: [id],
+      coachChanges: [{ coachId: ids.m, level: "NONE" }],
+    });
+    expect(closed.status).toBe(200);
+    const copyId = await citedBy();
+    expect(copyId).not.toBe(id);
+    expect((await m.get(`/exercises/${copyId}`)).body.owner.id).toBe(ids.m);
   });
 
   it("une séance s'ouvre aussi à un seul Coach", async () => {

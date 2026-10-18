@@ -192,7 +192,7 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await expect(m.getByRole("button", { name: t("library.builder.grid.removeRow") })).toBeHidden();
   });
 
-  test("le sélecteur dit à qui est chaque exercice ; la variante reste au propriétaire", async ({
+  test("le sélecteur dit à qui est chaque exercice ; M en fait une variante à lui (#609)", async ({
     seed,
     browser,
   }) => {
@@ -231,23 +231,66 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await m.getByRole("button", { name: /^Voie/ }).click();
     await expect(m.getByText("1 série, 6b")).toBeVisible();
 
-    // La variante est refusée AVANT d'enregistrer : la séance ne naît pas pour un geste voué au 403.
+    // La Lecture suffit aussi à la variante (#609) : la séance s'enregistre, puis la variante,
+    // à M, s'ouvre — modifiable, la cotation de C adoptée dans le catalogue de M.
     await m.getByRole("button", { name: t("library.session.cardMenu") }).click();
     await m.getByRole("button", { name: t("library.session.duplicate") }).click();
-    await expect(
-      m.getByText(t("library.session.variantOwnerOnly", { owner: world.c.name })),
-    ).toBeVisible();
-    await expect(m.getByRole("button", { name: t("library.session.duplicate") })).toBeHidden();
-    expect(await json(await world.m.api.get("/sessions?scope=mine"), "séances de M")).toEqual([]);
-
-    // C, propriétaire, la crée depuis sa propre séance.
-    const c = await pageOf(seed, browser, world.c);
-    await c.goto(`/library/sessions/${world.grimpeId}`);
-    await c.getByRole("button", { name: t("library.session.cardMenu") }).click();
-    await c.getByRole("button", { name: t("library.session.duplicate") }).click();
-    await expect(c.getByRole("textbox", { name: t("library.builder.titleLabel") })).toHaveValue(
+    await expect(m.getByRole("textbox", { name: t("library.builder.titleLabel") })).toHaveValue(
       `Voie ${t("library.session.variantSuffix")}`,
     );
+    await expect(m.getByRole("button", { name: t("library.builder.submitEdit") })).toBeVisible();
+    await expect(m.getByText(t("library.builder.readOnly", { owner: world.c.name }))).toBeHidden();
+    const sessions = await json<{ title: string }[]>(
+      await world.m.api.get("/sessions?scope=mine"),
+      "séances de M",
+    );
+    expect(sessions.map((session) => session.title)).toEqual(["Séance de M"]);
+    const metrics = await json<{ label: string }[]>(
+      await world.m.api.get("/custom-metrics"),
+      "métriques de M",
+    );
+    expect(metrics.map((metric) => metric.label)).toEqual(["Cotation"]);
+  });
+
+  test("C supprime un exercice qu'une séance de M cite : prévenu, il le peut ; M garde une copie figée (#609)", async ({
+    seed,
+    browser,
+  }) => {
+    const world = await sharedLibrary(seed);
+    const bloc = await json<{ id: string }>(
+      await world.c.api.post("/exercises", { data: { title: "Bloc", tags: ["grimpe"] } }),
+      "Bloc",
+    );
+    await json(
+      await world.c.api.patch("/exercises/access", {
+        data: { ids: [bloc.id], changes: [{ organizationId: world.company.id, level: "READ" }] },
+      }),
+      "Bloc en Lecture pour F",
+    );
+    const session = await json<{ id: string }>(
+      await world.m.api.post("/sessions", {
+        data: { title: "Séance de M", exercises: [{ exerciseId: bloc.id }] },
+      }),
+      "séance de M",
+    );
+
+    const c = await pageOf(seed, browser, world.c);
+    await c.goto(`/library/exercises/${bloc.id}`);
+    await expect(c.getByRole("textbox", { name: t("library.builder.titleLabel") })).toHaveValue(
+      "Bloc",
+    );
+    await c.getByRole("button", { name: t("library.builder.deleteExercise") }).click();
+    await expect(c.getByText(t("library.builder.deleteKeepsCopies", { count: 1 }))).toBeVisible();
+    await c.getByRole("button", { name: t("common.confirmDelete") }).click();
+    await expect(c).toHaveURL(/\/library$/);
+
+    const badge = t("library.frozen.badgeFrom", { owner: world.c.name });
+    const m = await pageOf(seed, browser, world.m);
+    await m.goto(`/library/sessions/${session.id}`);
+    await expect(m.getByRole("button", { name: "Bloc", exact: true })).toBeVisible();
+    await expect(m.getByText(badge)).toBeVisible();
+    await m.goto("/library");
+    await expect(m.getByRole("row", { name: /Bloc/ }).getByText(badge)).toBeVisible();
   });
 
   test("une suppression qui trouve l'exercice changé ouvre le bandeau ; rechargé, il se supprime", async ({

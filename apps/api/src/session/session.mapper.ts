@@ -2,6 +2,7 @@ import type { SessionDto } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { ACCESS_INCLUDE, type AccessContext, toAccessView } from "../access/access.mapper";
 import { type CatalogOf, citedCustomMetrics } from "../custom-metric/custom-metric.mapper";
+import { FROZEN_FROM_INCLUDE, toFrozenFrom } from "../exercise/exercise.mapper";
 import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 
 /**
@@ -15,7 +16,7 @@ import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 export const SESSION_DETAIL_INCLUDE = {
   exercises: {
     orderBy: { position: "asc" },
-    include: { exercise: { include: { tags: true } } },
+    include: { exercise: { include: { tags: true, ...FROZEN_FROM_INCLUDE } } },
   },
   ...ACCESS_INCLUDE,
 } satisfies Prisma.SessionInclude;
@@ -56,6 +57,7 @@ export function toSessionDto(
         customMetrics: citedCustomMetrics(blocks, catalogOf(composed.exercise.coachId)),
         // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
         tags: composed.exercise.tags.map((tag) => tag.name).sort(),
+        frozenFrom: toFrozenFrom(composed.exercise),
       };
     }),
     createdAt: session.createdAt.toISOString(),

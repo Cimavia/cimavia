@@ -59,6 +59,7 @@ model User {
   exercises     Exercise[]     @relation("CoachExercises") // exercices du coach
   coachSessions Session[]      @relation("CoachSessions") // séances (modèles) du coach
   customMetrics CustomMetric[] @relation("CoachMetrics") // métriques et échelles maison
+  frozenCopies  Exercise[]     @relation("FrozenExerciseCopies") // copies figées de ses exercices (#609)
 
   // Droits d'accès (#605) : ceux qu'il accorde sur ses éléments, et ceux qui le visent (#608).
   ownedAccessGrants    AccessGrant[] @relation("OwnedAccessGrants")
@@ -352,6 +353,14 @@ model Exercise {
   /// cellule, et le snapshot de planification se réduit à la copie du blob.
   blocks       Json  @default("[]")
 
+  /// Copie figée (#609) : l'exercice d'un autre Coach, recopié pour la séance qui le citait quand
+  /// il a été supprimé ou fermé. Le Coach d'origine et la date, que le badge « Copie figée —
+  /// d'après C » rend. `SetNull` : la copie survit à son auteur, qui ne se nomme plus. `frozenAt`
+  /// seul dit qu'il s'agit d'une copie — un CHECK de la migration le garantit.
+  frozenFromCoachId String?
+  frozenFromCoach   User?     @relation("FrozenExerciseCopies", fields: [frozenFromCoachId], references: [id], onDelete: SetNull)
+  frozenAt          DateTime?
+
   documents        ExerciseDocument[]
   tags             ExerciseTag[]
   sessionExercises SessionExercise[]
@@ -361,6 +370,7 @@ model Exercise {
   accessGrants     AccessGrant[]
 
   @@index([coachId])
+  @@index([frozenFromCoachId]) // le `SetNull` d'un compte supprimé ne parcourt pas la table
   @@map("exercise")
 }
 

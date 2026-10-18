@@ -15,7 +15,7 @@ import { PrismaService } from "../../infra/prisma/prisma.service";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { TENANT_CLS_KEY, type TenantContext } from "../../tenancy/tenant-context.type";
+import { runAsCoach } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, startOfProductDay, toDbDate, toIsoDate } from "../../util/date.util";
 
 /**
@@ -113,21 +113,13 @@ export class ReminderTickService {
     return { scannedCoaches: coaches.length, createdReminders, pushedReminders };
   }
 
-  /** Un contexte tenant pour CE coach : tout ce qui suit passe par l'extension, filtré et injecté. */
+  /**
+   * Un contexte tenant pour CE coach (`runAsCoach`) : tout ce qui suit passe par l'extension,
+   * filtré et injecté. Acteur SYNTHÉTIQUE, à titre de coach seulement : les rappels sont un outil
+   * privé du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
+   */
   private runForCoach(coachId: string, now: Date): Promise<{ created: number; pushed: number }> {
-    // Acteur SYNTHÉTIQUE : aucune session derrière, donc aucune capacité à lire — on les pose.
-    // `exercised: "coach"` parce que le tick n'agit qu'à ce titre : les rappels sont un outil privé
-    // du coach (seul modèle sans scope athlète, cf. TENANT_SCOPES).
-    const actor: TenantContext = {
-      userId: coachId,
-      capabilities: { isCoach: true, isAthlete: false, isCompany: false },
-      exercised: "coach",
-    };
-
-    // `run` + `set`, exactement comme `TenancyInterceptor` le fait pour une requête HTTP : c'est le
-    // MÊME contrat, avec un acteur choisi au lieu d'un acteur résolu depuis une session.
-    return this.cls.run(async () => {
-      this.cls.set(TENANT_CLS_KEY, actor);
+    return runAsCoach(this.cls, coachId, async () => {
       // La clôture d'abord : un rappel dont la facture est réglée ne doit plus partir en push.
       await this.closeSettledOverdue();
       // La génération ensuite : un rappel créé par CE tick et déjà dû doit partir en push dans la

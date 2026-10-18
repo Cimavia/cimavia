@@ -512,11 +512,15 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect((await deleteAtLatest(c, `/exercises/${ailleurs.body.id}`)).status).toBe(204);
   });
 
-  it("C ne supprime pas l'exercice qu'une séance de M cite, et le message les compte à part", async () => {
+  it("C ne supprime pas l'exercice que sa propre séance cite, et ne compte que les siennes", async () => {
     const refused = await deleteAtLatest(c, `/exercises/${voieId}`);
 
+    // La séance de M qui le cite aussi garderait une copie (#609) : seule celle de C refuse.
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toBe("Exercice utilisé dans 2 séance(s), dont 1 d'un autre coach");
+    expect(refused.body.message).toBe(
+      "Exercice utilisé dans 1 séance(s) : retire-le d'abord de ces séances",
+    );
+    expect((await c.get(`/exercises/${voieId}`)).body.foreignSessionCount).toBe(1);
   });
 
   it("le document que C retire reste en storage tant que la planification de M le recopie", async () => {
@@ -588,7 +592,6 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         .post(`/exercises/${voieId}/documents/upload-url`)
         .send({ fileName: "a.pdf", mimeType: "application/pdf", size: 1000 }),
       agent.post(`/exercises/${voieId}/documents`).send({ type: "LINK", url: "https://x.test" }),
-      agent.post(`/exercises/${voieId}/duplicate`).send({ title: "Ma variante" }),
       agent.delete(`/exercises/${voieId}`).query({ expectedUpdatedAt: version }),
       agent.put(`/sessions/${grimpeId}`).send({
         expectedUpdatedAt: session.body.updatedAt,
@@ -603,9 +606,13 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     ];
 
     const asReader = await Promise.all(writes(m, exerciseVersion));
-    expect(asReader.map((res) => res.status)).toEqual([403, 403, 403, 403, 403, 403, 403, 403]);
+    expect(asReader.map((res) => res.status)).toEqual([403, 403, 403, 403, 403, 403, 403]);
     const asOutsider = await Promise.all(writes(b, exerciseVersion));
-    expect(asOutsider.map((res) => res.status)).toEqual([404, 404, 404, 404, 404, 404, 404, 404]);
+    expect(asOutsider.map((res) => res.status)).toEqual([404, 404, 404, 404, 404, 404, 404]);
+    // Dupliquer en variante se fait sur lecture (#609) : B, qui ne lit rien, n'apprend rien.
+    expect((await b.post(`/exercises/${voieId}/duplicate`).send({ title: "Volée" })).status).toBe(
+      404,
+    );
     expect((await b.get(`/exercises/${voieId}`)).status).toBe(404);
     expect((await b.get(`/sessions/${grimpeId}`)).status).toBe(404);
 
@@ -614,15 +621,12 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect((await c.get(`/sessions/${grimpeId}`)).body.updatedAt).toBe(session.body.updatedAt);
   });
 
-  it("même en Écriture, M ne supprime pas, ne duplique pas, mais modifie et recharge", async () => {
+  it("même en Écriture, M ne supprime pas, mais modifie et recharge", async () => {
     await grantF("WRITE", { exerciseId: voieId });
     await grantF("WRITE", { sessionId: grimpeId });
 
     const exercisePath = `/exercises/${voieId}`;
     expect((await deleteAtLatest(m, exercisePath)).status).toBe(403);
-    expect((await m.post(`${exercisePath}/duplicate`).send({ title: "Variante" })).status).toBe(
-      403,
-    );
     expect((await deleteAtLatest(m, `/sessions/${grimpeId}`)).status).toBe(403);
 
     const session = await m.get(`/sessions/${grimpeId}`);
@@ -805,17 +809,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       expect(none.status).toBe(400);
     });
 
-    it("C ne retire pas à F l'exercice qu'une séance de M cite ; réduire à Lecture reste permis", async () => {
-      const refused = await changeAccess(c, "exercises", {
-        ids: [voieId],
-        changes: [{ organizationId, level: null }],
-      });
-      expect(refused.status).toBe(409);
-      expect(refused.body.message).toBe(
-        "Impossible de réduire cet accès : l'exercice est utilisé dans 1 séance(s) d'un autre coach",
-      );
-      expect((await m.get(`/exercises/${voieId}`)).status).toBe(200);
-
+    it("réduire à Lecture, ou retirer une entreprise dont M n'est pas membre, ne copie rien", async () => {
       for (const level of ["WRITE", "READ"]) {
         const changed = await changeAccess(c, "exercises", {
           ids: [voieId],
@@ -834,6 +828,11 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         changes: [{ organizationId: gId, level: null }],
       });
       expect(withoutG.status).toBe(200);
+
+      // M lit toujours l'exercice : sa séance le cite en direct, aucune copie figée (#609).
+      expect((await m.get(`/exercises/${voieId}`)).status).toBe(200);
+      const frozen = await prisma.exercise.count({ where: { frozenFromCoachId: cId } });
+      expect(frozen).toBe(0);
     });
 
     it("retirer une séance à F ne touche pas la planification que M en a tirée : c'est une copie", async () => {
