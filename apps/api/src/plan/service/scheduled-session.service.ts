@@ -23,6 +23,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
+import { AccessService } from "../../access/service/access.service";
 import { citedCustomMetrics } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
@@ -105,6 +106,7 @@ export class ScheduledSessionService {
     private readonly notifications: NotificationService,
     private readonly library: ExerciseService,
     private readonly metrics: CustomMetricService,
+    private readonly access: AccessService,
   ) {}
 
   async create(
@@ -532,17 +534,20 @@ export class ScheduledSessionService {
    * diffusion. Une définition déjà envoyée n'est pas retouchée : elle est figée depuis P3.
    *
    * Une ligne AJOUTÉE les prend chez le propriétaire de son exercice source (piège n°9), déjà
-   * prouvé accessible dans `library` ; sans source, chez le Coach de la séance, qui l'a composée.
-   * Une ligne REPRISE garde celles qu'elle porte : sa forme est verrouillée, ses citations aussi.
+   * prouvé accessible dans `library` ; sans source, chez le Coach qui l'a composée : l'acteur, dont
+   * le panneau propose le catalogue — pas le propriétaire du cycle, quand un rédacteur compose
+   * (#607). Une ligne REPRISE garde celles qu'elle porte : sa forme est verrouillée, ses citations
+   * aussi.
    */
   private async withCustomMetrics(
     session: ScheduledSessionWithExercises,
     rows: ExerciseRows<ScheduledSessionExerciseInput>,
     library: LibrarySources,
   ): Promise<ExerciseRows<ScheduledSessionExerciseInput>> {
+    const composer = this.access.actorId();
     const ownerOf = (exercise: ScheduledSessionExerciseInput): string =>
       exercise.sourceExerciseId == null
-        ? session.coachId
+        ? composer
         : required(library.get(exercise.sourceExerciseId), "source non chargée").coachId;
     const pending = rows.added.filter((row) => row.item.customMetrics == null);
     const catalogOf = await this.metrics.catalogOf(pending.map((row) => ownerOf(row.item)));
@@ -632,7 +637,7 @@ async function assertDeleted(tx: TenantTx, id: string, count: number): Promise<v
       "Cette séance a été débriefée par l'athlète : elle ne peut plus être supprimée, mais reste modifiable",
     );
   }
-  await assertWrittenAtVersion(count, async () => current != null, SESSION_NOT_FOUND);
+  await assertWrittenAtVersion(count, () => Promise.resolve(current != null), SESSION_NOT_FOUND);
 }
 
 /**
