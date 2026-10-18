@@ -1,6 +1,7 @@
 import type {
   AttachInvoiceDocumentInput,
   InvoiceDto,
+  MyAccess,
   PlanBillingInput,
   RequestInvoiceDocumentUploadUrlInput,
   UpdateInvoiceStatusInput,
@@ -9,7 +10,6 @@ import type {
 import {
   DEFAULT_INVOICE_CURRENCY,
   InvoiceStatus,
-  type MyAccess,
   MyAccessLevel,
   PlanStatus,
   required,
@@ -24,7 +24,12 @@ import {
 } from "@nestjs/common";
 import type { Invoice, Plan, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
-import { ACCESS_INCLUDE, toAccessView } from "../../access/access.mapper";
+import {
+  ACCESS_INCLUDE,
+  type AccessContext,
+  type AccessRow,
+  toAccessView,
+} from "../../access/access.mapper";
 import { AccessService } from "../../access/service/access.service";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
@@ -324,24 +329,23 @@ export class InvoiceService {
    * s'affiche de nouveau en retard.
    */
   async updateStatus(id: string, input: UpdateInvoiceStatusInput): Promise<InvoiceDto> {
-    const invoice = await this.getWritableIssuedOrThrow(id);
+    const { invoice, plan } = await this.getWritableIssuedOrThrow(id);
     // Une annulation est définitive : la rouvrir par le toggle contournerait la garde de `cancel`.
     if (invoice.status === InvoiceStatus.CANCELLED) {
       throw new ConflictException("Facture annulée : son statut ne change plus");
     }
+    if (invoice.status === input.status) return this.toDto(invoice, plan);
 
-    if (invoice.status !== input.status) {
-      const paid = input.status === InvoiceStatus.PAID;
-      await this.db.$transaction(async (tx) => {
-        await tx.invoice.update({
-          where: { id },
-          data: { status: input.status, paidAt: paid ? new Date() : null },
-        });
-        if (paid) await this.reminders.closeInvoiceOverdue(tx, id);
+    const paid = input.status === InvoiceStatus.PAID;
+    const updated = await this.db.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { status: input.status, paidAt: paid ? new Date() : null },
       });
-    }
-
-    return this.get(id);
+      if (paid) await this.reminders.closeInvoiceOverdue(tx, id);
+      return row;
+    });
+    return this.toDto(updated, plan);
   }
 
   /**
@@ -351,16 +355,20 @@ export class InvoiceService {
    * de route inverse. Son rappel « en retard » est clos dans la même transaction (#349).
    */
   async cancel(id: string): Promise<InvoiceDto> {
-    const invoice = await this.getWritableIssuedOrThrow(id);
+    const { invoice, plan } = await this.getWritableIssuedOrThrow(id);
     if (invoice.status !== InvoiceStatus.PENDING) {
       throw new ConflictException("Seule une facture en attente de règlement peut être annulée");
     }
 
-    await this.db.$transaction(async (tx) => {
-      await tx.invoice.update({ where: { id }, data: { status: InvoiceStatus.CANCELLED } });
+    const cancelled = await this.db.$transaction(async (tx) => {
+      const row = await tx.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.CANCELLED },
+      });
       await this.reminders.closeInvoiceOverdue(tx, id);
+      return row;
     });
-    return this.get(id);
+    return this.toDto(cancelled, plan);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -419,13 +427,18 @@ export class InvoiceService {
    * Une facture émise dont le Coach peut changer le statut : la sienne, ou celle d'un cycle qu'on
    * lui ouvre en écriture (#607) — 403 en Lecture. Hors cycle, la lire c'est déjà en être le
    * propriétaire : elle reste privée.
+   *
+   * Rend le cycle et le contexte qui ont jugé du droit : la réponse en tire le DTO sans les relire.
    */
-  private async getWritableIssuedOrThrow(id: string): Promise<Invoice> {
+  private async getWritableIssuedOrThrow(
+    id: string,
+  ): Promise<{ invoice: Invoice; plan: LoadedPlan | null }> {
     const invoice = await this.getIssuedOrThrow(id);
-    if (invoice.planId != null) {
-      await this.access.loadFor(this.getReadablePlanOrThrow(invoice.planId), "write");
-    }
-    return invoice;
+    const plan =
+      invoice.planId == null
+        ? null
+        : await this.access.loadFor(this.getReadablePlanOrThrow(invoice.planId), "write");
+    return { invoice, plan };
   }
 
   // Une facture ÉMISE (DRAFT exclu) : le brouillon se lit via getDraftByPlan, pas par id.
@@ -451,15 +464,16 @@ export class InvoiceService {
     return draft;
   }
 
-  private async toDto(invoice: Invoice): Promise<InvoiceDto> {
-    const [dto] = await this.toDtos([invoice]);
+  /** `plan` : son cycle, déjà lu avec le contexte qui a jugé du droit — rien n'est relu. */
+  private async toDto(invoice: Invoice, plan?: LoadedPlan | null): Promise<InvoiceDto> {
+    const [dto] = await this.toDtos([invoice], plan);
     return required(dto, "[invoice] une facture, un DTO");
   }
 
-  private async toDtos(invoices: Invoice[]): Promise<InvoiceDto[]> {
+  private async toDtos(invoices: Invoice[], plan?: LoadedPlan | null): Promise<InvoiceDto[]> {
     const [names, plans] = await Promise.all([
       this.resolveNames(invoices),
-      this.resolvePlans(invoices),
+      this.resolvePlans(invoices, plan),
     ]);
     return Promise.all(
       invoices.map((invoice) =>
@@ -478,8 +492,13 @@ export class InvoiceService {
    *
    * L'athlète n'a pas de droit à dire — il est le destinataire de ses factures —, et ne charge que
    * les titres : les droits accordés aux entreprises ne le regardent pas.
+   *
+   * `loaded` : le cycle d'une facture seule, déjà lu par sa garde d'écriture.
    */
-  private async resolvePlans(invoices: Invoice[]): Promise<InvoicePlans> {
+  private async resolvePlans(
+    invoices: Invoice[],
+    loaded?: LoadedPlan | null,
+  ): Promise<InvoicePlans> {
     const planIds = [
       ...new Set(invoices.map((i) => i.planId).filter((id): id is string => id != null)),
     ];
@@ -492,12 +511,18 @@ export class InvoiceService {
       return { titles: titlesOf(plans), accessOf: () => null };
     }
 
-    const [plans, context] = await Promise.all([
-      planIds.length === 0
-        ? []
-        : this.db.plan.findMany({ where, select: { id: true, title: true, ...ACCESS_INCLUDE } }),
-      this.access.context(),
-    ]);
+    const [plans, context] =
+      loaded == null
+        ? await Promise.all([
+            planIds.length === 0
+              ? []
+              : this.db.plan.findMany({
+                  where,
+                  select: { id: true, title: true, ...ACCESS_INCLUDE },
+                }),
+            this.access.context(),
+          ])
+        : [[loaded.row], loaded.context];
     const byId = new Map(plans.map((plan) => [plan.id, plan]));
     return {
       titles: titlesOf(plans),
@@ -514,6 +539,9 @@ export class InvoiceService {
     };
   }
 }
+
+/** Le cycle d'une facture, lu par sa garde d'écriture avec le contexte qui en a jugé. */
+type LoadedPlan = { row: AccessRow & { title: string }; context: AccessContext };
 
 /** Les cycles d'un lot de factures : leurs titres, et le droit du lecteur sur chaque facture. */
 type InvoicePlans = {
