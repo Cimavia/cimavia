@@ -1,5 +1,5 @@
 import type { MessageDto, SendMessageInput } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType, required } from "@cmv/shared";
+import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Conversation, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
@@ -8,6 +8,7 @@ import { assertKeyUnder } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
+import { type CoachReadModel, coachesWhoRead } from "../../tenancy/coach-reads";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
@@ -15,7 +16,6 @@ import {
   exercisedOrThrow,
   type TenantContext,
 } from "../../tenancy/tenant-context.type";
-import { TENANT_SCOPES } from "../../tenancy/tenant-scope";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService } from "./conversation.service";
 import { MessageAttachmentResolver } from "./message-attachment.resolver";
@@ -206,23 +206,18 @@ export class MessageService {
   /**
    * Le coach du fil lit-il la cible ? Écrite par lui, la lecture scopée qui vient de la trouver le
    * prouve : il EST l'acteur. Écrite par l'athlète, rien ne le dit — l'athlète lit tous ses cycles,
-   * pas seulement ceux que ce coach-là partage. On relit alors la cible par le client de base, sous
-   * le filtre que l'extension appliquerait au coach du fil : le même, pas une règle réécrite ici.
+   * pas seulement ceux que ce coach-là partage. On relit alors la cible sous le filtre du coach du
+   * fil (`coachesWhoRead`).
    */
   private async coachReads(
     conversation: Conversation,
     actor: TenantContext,
-    model: "ScheduledSession" | "SessionFeedback",
+    model: CoachReadModel,
     id: string,
   ): Promise<boolean> {
     if (exercisedOrThrow(actor) === "coach") return true;
-    const scope = required(TENANT_SCOPES[model]?.coach, `[message] ${model} sans scope coach`);
-    const where = { AND: [{ id }, scope.where(conversation.coachId, "read")] };
-    const count =
-      model === "ScheduledSession"
-        ? await this.prisma.scheduledSession.count({ where })
-        : await this.prisma.sessionFeedback.count({ where });
-    return count > 0;
+    const readers = await coachesWhoRead(this.prisma, model, id, [conversation.coachId]);
+    return readers.length > 0;
   }
 }
 

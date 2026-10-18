@@ -540,7 +540,8 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
 
   const monday = mondayOfCurrentWeek();
 
-  const byId = (feedbacks: { id: string; repliedAt: string | null }[], id: string) =>
+  type Replied = { id: string; firstReply: { at: string } | null };
+  const byId = (feedbacks: Replied[], id: string) =>
     required(
       feedbacks.find((feedback) => feedback.id === id),
       `débrief ${id} absent de la liste du coach`,
@@ -657,7 +658,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
     expect(athleteFirst.status).toBe(201);
 
     const afterAthlete = await coachA.get("/feedbacks");
-    expect(byId(afterAthlete.body, feedbackA1bisId).repliedAt).toBeNull();
+    expect(byId(afterAthlete.body, feedbackA1bisId).firstReply).toBeNull();
 
     const coachReply = await coachA
       .post(`/conversations/${conversationAId}/messages`)
@@ -666,7 +667,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
 
     const afterCoach = await coachA.get("/feedbacks");
     // La date est celle du message du COACH, pas celle du premier message du fil.
-    expect(byId(afterCoach.body, feedbackA1bisId).repliedAt).toBe(coachReply.body.createdAt);
+    expect(byId(afterCoach.body, feedbackA1bisId).firstReply?.at).toBe(coachReply.body.createdAt);
 
     // Et c'est la PREMIÈRE réponse du coach : une relance ne redate pas « répondu ».
     const followUp = await coachA
@@ -674,7 +675,9 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
       .send({ type: "TEXT", content: "Tu me redis ?", sessionFeedbackId: feedbackA1bisId });
     expect(followUp.status).toBe(201);
     const afterFollowUp = await coachA.get("/feedbacks");
-    expect(byId(afterFollowUp.body, feedbackA1bisId).repliedAt).toBe(coachReply.body.createdAt);
+    expect(byId(afterFollowUp.body, feedbackA1bisId).firstReply?.at).toBe(
+      coachReply.body.createdAt,
+    );
   });
 
   /**
@@ -697,7 +700,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
   it("le débrief jamais répondu n'a ni réponse ni date", async () => {
     const feedbacks = await coachB.get("/feedbacks");
     const untouched = feedbacks.body.find((f: { id: string }) => f.id === feedbackB1Id);
-    expect(untouched.repliedAt).toBeNull();
+    expect(untouched.firstReply).toBeNull();
     expect((await coachB.get(`/scheduled-sessions/${sessionB1Id}/feedback`)).body.messages).toEqual(
       [],
     );

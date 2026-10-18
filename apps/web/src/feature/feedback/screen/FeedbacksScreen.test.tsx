@@ -75,7 +75,7 @@ function summary(overrides: Partial<CoachFeedbackSummaryDto>): CoachFeedbackSumm
     content: "Bien tenu sur les deux premières voies",
     mediaCount: 0,
     coachReadAt: null,
-    repliedAt: null,
+    firstReply: null,
     createdAt: "2026-10-16T19:42:00.000Z",
     updatedAt: "2026-10-16T19:42:00.000Z",
     ...overrides,
@@ -338,7 +338,7 @@ describe("FeedbacksScreen", () => {
     await waitFor(() => expect(queryByText("athlete.sheet.description")).toBeNull());
   });
 
-  // `repliedAt` vit dans la liste : c'est lui qui pose le badge « répondu » sur la ligne traitée.
+  // `firstReply` vit dans la liste : c'est lui qui pose le badge « répondu » sur la ligne traitée.
   it("périme toute la boîte quand une réponse est partie", async () => {
     const { queryClient } = await open("f-1");
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");

@@ -32,7 +32,7 @@ liste des domaines vivent dans l'index.
 > **`ScheduledSessionStatus`** (la copie naît `PLANNED` ; `DONE` est posé par le débrief et la
 > transition est sans retour — une séance collée « déjà faite » serait indébriefable et fausserait
 > les tuiles du dashboard) ; **`SessionFeedback`** (`@unique` sur la séance, et écrit par l'athlète :
-> le copier lui attribuerait un texte qu'il n'a pas écrit, et `coachReadAt: null` ressusciterait une
+> le copier lui attribuerait un texte qu'il n'a pas écrit, et un débrief sans lecture ressusciterait une
 > ligne « à relire ») ; **`FeedbackMedia`** (seul média jamais partagé du projet — sa clé objet
 > n'appartient qu'à lui, donc le copier voudrait dire **dupliquer le binaire**) ; **les messages
 > rattachés** (un message est un événement daté et signé ; le repointer ferait mentir l'historique,

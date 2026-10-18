@@ -1,19 +1,20 @@
-import type { CoachFeedbackSummaryDto } from "@cmv/shared";
+import { type CoachFeedbackSummaryDto, replyBadge } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useCoachFeedbacks } from "@/feature/feedback/hook/useCoachFeedbacks";
-import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvBadge, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { authClient } from "@/shared/lib/auth";
 import { formatRelativeTime } from "@/shared/util/date.util";
 
 /**
  * Débriefs reçus par le coach (#33), en deux groupes : à relire, puis déjà lus.
  *
- * « Non lu » ne veut pas dire « jamais ouvert » : `coachReadAt` repasse à `null` quand l'athlète
- * COMPLÈTE son débrief. Un débrief déjà lu peut donc remonter dans la pile — c'est voulu, sans quoi
+ * « Non lu » ne veut pas dire « jamais ouvert » : `coachReadAt` — la lecture de CE Coach, propre à
+ * chacun sur un cycle partagé (#610) — repasse à `null` quand l'athlète COMPLÈTE son débrief. Un débrief déjà lu peut donc remonter dans la pile — c'est voulu, sans quoi
  * un ajout tardif resterait invisible.
  *
  * Deux groupes plutôt qu'un filtre : ce qui reste à faire doit être visible sans geste, et les
@@ -22,6 +23,8 @@ import { formatRelativeTime } from "@/shared/util/date.util";
 export function CoachFeedbacksScreen() {
   const { t } = useTranslation();
   const { data: feedbacks, isPending, isError, isRefetching, refetch } = useCoachFeedbacks();
+  // Lu une fois pour toute la liste : chaque ligne s'y compare, pour reconnaître sa propre réponse.
+  const viewerId = authClient.useSession().data?.user.id;
 
   const unread = (feedbacks ?? []).filter((feedback) => feedback.coachReadAt == null);
   const read = (feedbacks ?? []).filter((feedback) => feedback.coachReadAt != null);
@@ -65,7 +68,7 @@ export function CoachFeedbacksScreen() {
         ) : null}
 
         {unread.map((feedback) => (
-          <FeedbackRow key={feedback.id} feedback={feedback} />
+          <FeedbackRow key={feedback.id} feedback={feedback} viewerId={viewerId} />
         ))}
 
         {read.length === 0 ? null : (
@@ -74,7 +77,7 @@ export function CoachFeedbacksScreen() {
               {t("feedback.coach.alreadyRead")}
             </CmvText>
             {read.map((feedback) => (
-              <FeedbackRow key={feedback.id} feedback={feedback} />
+              <FeedbackRow key={feedback.id} feedback={feedback} viewerId={viewerId} />
             ))}
           </>
         )}
@@ -85,10 +88,16 @@ export function CoachFeedbacksScreen() {
 
 // Une ligne mène au détail, qui porte le texte complet et les médias — le résumé n'en a que le
 // compte. Un débrief déjà lu est atténué, pas masqué : il reste consultable.
-function FeedbackRow({ feedback }: Readonly<{ feedback: CoachFeedbackSummaryDto }>) {
+function FeedbackRow({
+  feedback,
+  viewerId,
+}: Readonly<{ feedback: CoachFeedbackSummaryDto; viewerId: string | undefined }>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const isRead = feedback.coachReadAt != null;
+  // « Répondu par M » quand un autre Coach a répondu le premier (#610) : C n'y répond pas une
+  // seconde fois sans le savoir.
+  const reply = replyBadge(feedback, viewerId);
 
   return (
     <Pressable
@@ -107,6 +116,19 @@ function FeedbackRow({ feedback }: Readonly<{ feedback: CoachFeedbackSummaryDto 
       <CmvText className="text-cmv-text-mid text-xs" numberOfLines={1}>
         {feedback.sessionTitle}
       </CmvText>
+
+      {reply == null ? null : (
+        <View className="flex-row">
+          <CmvBadge
+            variant="success"
+            label={
+              reply.by == null
+                ? t("feedback.coach.replied")
+                : t("feedback.coach.repliedBy", { name: reply.by })
+            }
+          />
+        </View>
+      )}
 
       {/* Le texte est NULLABLE : un débrief peut n'être que des médias. On le dit plutôt que
           d'afficher une ligne vide. */}

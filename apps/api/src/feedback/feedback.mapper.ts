@@ -79,7 +79,6 @@ export async function toSessionFeedbackDto(
     scheduledSessionId: feedback.scheduledSessionId,
     athleteId: feedback.athleteId,
     content: feedback.content,
-    coachReadAt: feedback.coachReadAt?.toISOString() ?? null,
     media,
     trackedExercises,
     messages,

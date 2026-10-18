@@ -122,7 +122,7 @@ function FeedbackBody({
     feedbackId: feedback?.id ?? null,
     conversationId: conversation.data?.id,
     isThreadError: conversation.isError,
-    // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui
+    // La liste ENTIÈRE et pas seulement ce débrief : `firstReply` y vit aussi, et c'est lui qui
     // dira « répondu » sur la ligne qu'on vient de traiter.
     onSent: () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all }),
   });

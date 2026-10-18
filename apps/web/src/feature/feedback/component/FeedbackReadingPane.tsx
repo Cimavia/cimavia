@@ -51,7 +51,7 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   // (#198) affiché en « réessaie dans un instant » — une panne passagère qui n'en est pas une.
   const conversation = useConversationWith(isSelf ? null : feedback.athleteId);
   const queryClient = useQueryClient();
-  // La liste ENTIÈRE et pas seulement ce débrief : `repliedAt` y vit aussi, et c'est lui qui pose
+  // La liste ENTIÈRE et pas seulement ce débrief : `firstReply` y vit aussi, et c'est lui qui pose
   // le badge « répondu » sur la ligne qu'on vient de traiter.
   const refreshFeedbacks = () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
   // Les notes du débrief s'enchaînent entre elles, jamais vers ses réponses (#529).

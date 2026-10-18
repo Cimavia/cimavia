@@ -542,7 +542,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
       athleteId: soloId,
       content: "Bonnes sensations",
       // Personne n'a répondu : l'avis automatique, signé de soi, ne compte pas (#316).
-      repliedAt: null,
+      firstReply: null,
     });
 
     // Et aucun fil avec soi-même, d'un côté comme de l'autre (#316).

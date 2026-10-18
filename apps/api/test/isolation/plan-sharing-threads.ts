@@ -6,8 +6,8 @@ import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/pla
 /**
  * Les fils et la boîte des débriefs autour d'une planification partagée (#607). Un message peut
  * citer une séance ou un débrief si la cible est de l'athlète du fil et que le coach du fil la lit
- * — qu'il écrive lui-même, ou que l'athlète lui écrive. La boîte des débriefs, elle, reste au
- * propriétaire du cycle jusqu'à #610. Comptes `plan-share-msg-`.
+ * — qu'il écrive lui-même, ou que l'athlète lui écrive. La boîte des débriefs partagée a son
+ * domaine (`plan-sharing-feedback`, #610). Comptes `plan-share-msg-`.
  */
 describe("Fils et débriefs d'un cycle partagé : la séance citée doit se lire du coach du fil", () => {
   let world: SharedPlanWorld;
@@ -64,17 +64,13 @@ describe("Fils et débriefs d'un cycle partagé : la séance citée doit se lire
     expect(titles).toEqual(["Séance de TI", "Séance de TI"]);
   });
 
-  it("M lit le débrief dans le cycle, mais la boîte reste celle de C", async () => {
+  it("M lit le débrief dans le cycle, et dans sa boîte (#610)", async () => {
     const inCycle = await world.m.get(`/scheduled-sessions/${world.planTi.sessionId}/feedback`);
     expect(inCycle.status).toBe(200);
     expect(inCycle.body.id).toBe(feedbackId);
 
     const inboxM = (await world.m.get("/feedbacks")).body as { id: string }[];
-    expect(inboxM.map((feedback) => feedback.id)).not.toContain(feedbackId);
-    expect((await world.m.post(`/feedbacks/${feedbackId}/read`)).status).toBe(404);
-
-    const inboxC = (await world.c.get("/feedbacks")).body as { id: string }[];
-    expect(inboxC.map((feedback) => feedback.id)).toContain(feedbackId);
-    expect((await world.c.post(`/feedbacks/${feedbackId}/read`)).body.coachReadAt).not.toBeNull();
+    expect(inboxM.map((feedback) => feedback.id)).toContain(feedbackId);
+    expect((await world.m.post(`/feedbacks/${feedbackId}/read`)).body.coachReadAt).not.toBeNull();
   });
 });

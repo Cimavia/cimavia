@@ -72,6 +72,7 @@ model User {
   // Métier — débriefs (P4) : écrits par l'athlète, lus par le coach.
   athleteFeedback SessionFeedback[] @relation("AthleteFeedback")
   coachFeedback   SessionFeedback[] @relation("CoachFeedback")
+  feedbackReads   SessionFeedbackRead[]
 
   // Métier — messagerie (P5) : fil 1:1 lu et écrit par les DEUX rôles.
   coachConversations   Conversation[] @relation("CoachConversations")
@@ -762,18 +763,37 @@ model SessionFeedback {
   scheduledSessionId String           @unique // un seul débrief par séance (CDC §5.6)
   scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
   content            String? // texte libre — nullable : un débrief peut n'être que des médias
-  // Marqueur de lecture du coach : alimente la tuile « Débriefs à relire ». Repassé à null
-  // quand l'athlète complète son débrief, sinon un ajout tardif ne serait jamais resignalé.
-  coachReadAt        DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   media    FeedbackMedia[]
   messages Message[] // messages rattachés à ce débrief (P5) — SetNull à la suppression
+  reads    SessionFeedbackRead[]
 
-  @@index([coachId, coachReadAt]) // tuile dashboard : les débriefs non lus du coach
+  @@index([coachId])
   @@index([athleteId])
   @@map("session_feedback")
+}
+
+// La lecture d'un débrief par UN Coach (#610) : elle alimente sa tuile « Débriefs à relire ». C et M
+// suivent la planification de TI, chacun lit le débrief à son heure — une colonne sur le débrief
+// ferait éteindre l'un par la lecture de l'autre. Une ligne absente = « à relire ».
+//
+// Toutes les lignes d'un débrief partent quand l'athlète le complète : un ajout tardif doit
+// ressortir chez chacun, y compris chez qui l'avait déjà lu.
+model SessionFeedbackRead {
+  id                String          @id @default(cuid())
+  sessionFeedbackId String
+  sessionFeedback   SessionFeedback @relation(fields: [sessionFeedbackId], references: [id], onDelete: Cascade)
+  coachId           String
+  coach             User            @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  readAt            DateTime        @default(now())
+
+  // Une lecture par couple : relire ne redate pas. Préfixe sessionFeedbackId : l'effacement au
+  // complément ; l'index sur coachId sert les lectures du Coach courant.
+  @@unique([sessionFeedbackId, coachId])
+  @@index([coachId])
+  @@map("session_feedback_read")
 }
 
 model FeedbackMedia {
@@ -1138,7 +1158,7 @@ model Reminder {
   status     ReminderStatus     @default(PENDING)
   // « Vu dans le centre de notifications » (#51) — DISTINCT du statut : jeter un œil à un rappel dû
   // ne le traite pas. Sans ce champ, le badge d'un rappel dû ne se viderait jamais et le compteur
-  // perdrait toute valeur de signal. Même dédoublement que SessionFeedback.coachReadAt, qui
+  // perdrait toute valeur de signal. Même dédoublement que SessionFeedbackRead, qui
   // coexiste avec le cycle de vie du débrief.
   readAt     DateTime?
   createdAt  DateTime           @default(now())

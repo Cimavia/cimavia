@@ -8,8 +8,9 @@ import { type MediaType, maxFeedbackMediaCount } from "../dto/feedback.schema";
 export type FeedbackReadState = { coachReadAt: string | null };
 
 /**
- * Les débriefs que le coach n'a pas encore ouverts — et ceux que l'athlète a COMPLÉTÉS depuis :
- * l'API repasse alors `coachReadAt` à `null`, ce qui les remet dans la pile. « Non lu » veut donc
+ * Les débriefs que le Coach courant n'a pas encore ouverts — et ceux que l'athlète a COMPLÉTÉS
+ * depuis : l'API repasse alors `coachReadAt` à `null`, ce qui les remet dans la pile. Sur un cycle
+ * partagé, la lecture d'un autre Coach n'y change rien (#610). « Non lu » veut donc
  * dire « quelque chose reste à lire », pas « jamais ouvert ».
  *
  * `null` en entrée → `null` en sortie : tant que la liste n'est pas là (chargement, panne), le
@@ -21,6 +22,30 @@ export function countUnreadFeedbacks(
 ): number | null {
   if (feedbacks == null) return null;
   return feedbacks.filter((feedback) => feedback.coachReadAt == null).length;
+}
+
+/** Ce dont dépend le badge « Répondu » d'une ligne de débrief. */
+export type FeedbackReplyState = { firstReply: { coachId: string; coachName: string } | null };
+
+/**
+ * Le badge « Répondu » d'un débrief, vu par le Coach `viewerId` (#610) :
+ * - `null` : personne n'a répondu, pas de badge ;
+ * - `{ by: null }` : la première réponse est la sienne — « Répondu », sans nom ;
+ * - `{ by: "M" }` : un autre Coach a répondu le premier — « Répondu par M ».
+ *
+ * On ne nomme que ce qui n'est pas à soi, comme « Partagé par M » (#607) : son propre nom sur
+ * chaque ligne noierait celles qui comptent.
+ *
+ * `viewerId` absent (session pas encore lue) : on nomme. Taire un nom à tort ferait passer la
+ * réponse de M pour la sienne ; le nommer à tort ne trompe personne.
+ */
+export function replyBadge(
+  feedback: FeedbackReplyState,
+  viewerId: string | undefined,
+): { by: string | null } | null {
+  const reply = feedback.firstReply;
+  if (reply == null) return null;
+  return { by: reply.coachId === viewerId ? null : reply.coachName };
 }
 
 /**

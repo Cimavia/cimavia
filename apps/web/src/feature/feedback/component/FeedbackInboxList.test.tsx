@@ -20,7 +20,7 @@ function feedback(overrides: Partial<CoachFeedbackSummaryDto>): CoachFeedbackSum
     content: "Bien tenu sur les deux premières voies",
     mediaCount: 0,
     coachReadAt: null,
-    repliedAt: null,
+    firstReply: null,
     createdAt: "2026-10-16T19:42:00.000Z",
     updatedAt: "2026-10-16T19:42:00.000Z",
     ...overrides,
@@ -126,8 +126,9 @@ describe("FeedbackInboxList", () => {
 
   // « Répondu » est un badge sur la ligne, pas un segment de plus.
   it("marque d'un badge le débrief déjà répondu", () => {
+    const mine = { at: "2026-10-17T08:00:00Z", coachId: "coach-1", coachName: "Moi" };
     const { getByRole } = renderList(
-      [READ, feedback({ id: "f-replied", athleteName: "Inès", repliedAt: "2026-10-17T08:00:00Z" })],
+      [READ, feedback({ id: "f-replied", athleteName: "Inès", firstReply: mine })],
       InboxFilter.ALL,
     );
 
@@ -135,6 +136,17 @@ describe("FeedbackInboxList", () => {
     expect(getByRole("button", { name: /Thomas Rey/ }).textContent).not.toContain(
       "feedback.replied",
     );
+  });
+
+  // C et M suivent le même athlète (#610) : la réponse de l'autre Coach se nomme.
+  it("nomme l'autre Coach quand c'est lui qui a répondu", () => {
+    const byM = { at: "2026-10-17T08:00:00Z", coachId: "coach-m", coachName: "Marc" };
+    const { getByRole } = renderList(
+      [feedback({ id: "f-m", athleteName: "Inès", firstReply: byM })],
+      InboxFilter.ALL,
+    );
+
+    expect(getByRole("button", { name: /Inès/ }).textContent).toContain("feedback.repliedBy");
   });
 
   // Un débrief fait de médias seulement est un état, pas une ligne vide : « — » et son compte.

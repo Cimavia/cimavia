@@ -8,6 +8,7 @@ import { FeedbackMediaController } from "./controller/feedback-media.controller"
 import { SessionFeedbackController } from "./controller/session-feedback.controller";
 import { CoachFeedbackService } from "./service/coach-feedback.service";
 import { FeedbackService } from "./service/feedback.service";
+import { FeedbackAudienceService } from "./service/feedback-audience.service";
 import { FeedbackMediaService } from "./service/feedback-media.service";
 
 // Débrief de séance (P4) : écrit par l'athlète, lu par le coach.
@@ -19,7 +20,7 @@ import { FeedbackMediaService } from "./service/feedback-media.service";
 @Module({
   imports: [PlanModule, StorageModule, AccountModule, MessageModule],
   controllers: [SessionFeedbackController, FeedbackMediaController, CoachFeedbackController],
-  providers: [FeedbackService, FeedbackMediaService, CoachFeedbackService],
+  providers: [FeedbackService, FeedbackMediaService, CoachFeedbackService, FeedbackAudienceService],
   exports: [FeedbackService],
 })
 export class FeedbackModule {}

@@ -32,7 +32,7 @@ const summary = (over: Partial<CoachFeedbackSummaryDto>): CoachFeedbackSummaryDt
     content: "Bien tenu",
     mediaCount: 0,
     coachReadAt: null,
-    repliedAt: null,
+    firstReply: null,
     updatedAt: "2026-10-16T20:00:00.000Z",
     ...over,
   }) as CoachFeedbackSummaryDto;
@@ -126,6 +126,33 @@ describe("CoachFeedbacksScreen — une ligne", () => {
     await findByText("Bien tenu");
 
     expect(queryByText("feedback.coach.mediaCount")).toBeNull();
+  });
+
+  it("ne pose aucun badge « répondu » tant que personne n'a répondu", async () => {
+    list.mockResolvedValue([summary({})]);
+    const { findByText, queryByText } = renderRn(<CoachFeedbacksScreen />);
+    await findByText("Léa Moreau");
+
+    expect(queryByText("feedback.coach.replied")).toBeNull();
+    expect(queryByText("feedback.coach.repliedBy")).toBeNull();
+  });
+
+  // Sa propre réponse dit « Répondu », sans nom : on ne nomme que ce qui n'est pas à soi.
+  it("marque « répondu » le débrief auquel il a répondu", async () => {
+    const mine = { at: "2026-10-17T08:00:00Z", coachId: "coach-1", coachName: "Moi" };
+    list.mockResolvedValue([summary({ firstReply: mine })]);
+    const { findByText } = renderRn(<CoachFeedbacksScreen />);
+
+    expect(await findByText("feedback.coach.replied")).toBeTruthy();
+  });
+
+  // C et M suivent le même athlète (#610) : la réponse de l'autre Coach se nomme.
+  it("nomme l'autre Coach quand c'est lui qui a répondu", async () => {
+    const byM = { at: "2026-10-17T08:00:00Z", coachId: "coach-m", coachName: "Marc" };
+    list.mockResolvedValue([summary({ firstReply: byM })]);
+    const { findByText } = renderRn(<CoachFeedbacksScreen />);
+
+    expect(await findByText("feedback.coach.repliedBy")).toBeTruthy();
   });
 
   /** Le coach qui s'entraîne lui-même se reconnaît dans la liste (#14). */

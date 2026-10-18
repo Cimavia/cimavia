@@ -57,7 +57,6 @@ function feedback(media: FeedbackMediaDto[], messages: MessageDto[]): SessionFee
     scheduledSessionId: "s1",
     athleteId: "a1",
     content: null,
-    coachReadAt: null,
     media,
     trackedExercises: [],
     messages,

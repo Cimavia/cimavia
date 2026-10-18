@@ -8,8 +8,8 @@ import type { ApiClient } from "./client";
  * `/me/scheduled-sessions/:id/feedback` (`@Roles([ATHLETE])`), le coach LIT sous `/feedbacks`
  * (`@Roles([COACH])`). Deux contrôleurs, deux gardes, deux modules — pas deux copies.
  *
- * `coachReadAt` est le pivot de cette surface : il alimente la tuile « Débriefs à relire », et il
- * **repasse à `null`** quand l'athlète complète son débrief. « Non lu » veut donc dire « quelque
+ * `coachReadAt` est le pivot de cette surface : la lecture du Coach COURANT (#610), il alimente sa
+ * tuile « Débriefs à relire », et il **repasse à `null`** quand l'athlète complète son débrief. « Non lu » veut donc dire « quelque
  * chose reste à lire », pas « jamais ouvert » — d'où une route de marquage explicite plutôt qu'un
  * effet de bord de la lecture.
  */
@@ -30,7 +30,7 @@ export type CoachFeedbackApi = {
   list: () => Promise<CoachFeedbackSummaryDto[]>;
   /** `null` si la séance n'a pas encore été débriefée — l'absence est un état normal. */
   getBySession: (sessionId: string) => Promise<SessionFeedbackDto | null>;
-  /** Pose `coachReadAt`. Idempotent : rouvrir ne redate pas la lecture. */
+  /** Pose la lecture du Coach courant. Idempotent : rouvrir ne redate pas la lecture. */
   markRead: (feedbackId: string) => Promise<CoachFeedbackSummaryDto>;
 };
 
