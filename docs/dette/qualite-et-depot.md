@@ -623,6 +623,38 @@ liste des domaines vivent dans l'index.
 > première page seulement (100 issues). Le dépôt en a 161 d'ouvertes : sorti de cette page, le
 > lundi suivant aurait ouvert un doublon. Les deux workflows paginent désormais.
 
+> **Tranché en [#683](https://github.com/Cimavia/cimavia/issues/683)** (les tests sur des jobs
+> parallèles) : l'étape *Test* de `quality` prenait 300 à 355 s, et Sonar l'attendait. Les quatre
+> suites Vitest tournaient sous un seul `turbo test`, chacune avec ses workers, sur les 4 vCPU du
+> runner.
+>
+> - **Quatre jobs, un agrégateur.** `lint`, `test-web`, `test-mobile` et `test-autres` tournent en
+>   parallèle ; `quality` garde le nom « Lint + Typecheck + Test », que le ruleset `Main` et
+>   `promote-preview.yml` lisent tels quels. Il tourne en `if: !cancelled()` et lit
+>   `needs.*.result` : un check requis **sauté** compte comme réussi pour GitHub, et l'échec d'un
+>   job de tests saute aussi `sonarcloud`. Sans cette lecture, un test rouge laissait la PR
+>   mergeable.
+> - **`test-autres` filtre par exclusion** (`!@cmv/web`, `!@cmv/mobile`) : un nouveau paquet testé
+>   y tourne d'office. Son lcov reste à déclarer, dans l'upload du job et dans
+>   `sonar-project.properties`.
+> - **Un téléchargement par artefact, pas `pattern: coverage-*`.** Le motif range chaque artefact
+>   sous un dossier à son nom, et un lcov envoyé seul perd son chemin d'origine : l'artefact ne
+>   contient plus que `lcov.info`. Sonar ne le trouverait pas. Le job Sonar replace donc chacun par
+>   `path:`.
+> - **`sonarcloud` n'attend pas `lint`** : le lint ne produit aucune mesure, et Sonar part dès la
+>   fin des tests et de l'e2e.
+> - **`userEvent.setup({ delay: null })`** dans `test/render.tsx` : −8 % sur le temps des tests
+>   web (251 → 230 s cumulées), aucun test changé de couleur.
+> - **Les fichiers lents ne sont pas découpés.** Le « plancher » mesuré en CI (99 s pour
+>   `SessionBuilderScreen.test.tsx`) venait surtout de la concurrence : seul sur un poste, le
+>   fichier tient en 13 s. Le découpage n'est à reprendre que si un fichier redevient la queue de
+>   `test-web`.
+>
+> Écarts assumés : **pas de cache Turbo entre runs** (« Tranché en #318 », C) ; **ni `happy-dom`
+> ni `isolate: false`**, qui changent l'environnement des tests (#625) ; **pas de shards Vitest**
+> tant que `test-web` reste sous ~3 min. Chaque job paie son propre setup (~30 s) : c'est le prix
+> du parallélisme. La porte **locale** reste sous un seul `turbo` (#455).
+
 ---
 
 ## v1.0 — Garde-fous du dépôt ([#621](https://github.com/Cimavia/cimavia/issues/621))

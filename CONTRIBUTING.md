@@ -21,26 +21,37 @@ Merge unidirectionnel `feature/* → main → preview → production` (jamais en
 
 CI (`.github/workflows/`) :
 
-- `ci.yml`, job **`Lint + Typecheck + Test`** — commitlint sur les commits de la PR (#416), Biome,
-  `check:lint-rules`, `check:dette`, `check:migrations` (squawk, sur les PR — #628),
-  `turbo typecheck test`, `check:i18n`.
+- `ci.yml`, job **`Lint + Typecheck + Test`** — l'**agrégateur** de quatre jobs parallèles (#683),
+  dont il lit le résultat : il échoue si l'un d'eux n'a pas réussi, sauté compris. Les quatre :
+  - `Lint + Typecheck` — commitlint sur les commits de la PR (#416), Biome, `check:lint-rules`,
+    `check:dette`, `check:migrations` (squawk, sur les PR — #628), `turbo typecheck`, `check:i18n` ;
+  - `Tests web`, `Tests mobile` — chacun sa suite Vitest, sur son runner ;
+  - `Tests hors web et mobile` — `@cmv/shared`, les tests unitaires de l'API, `@cmv/e2e`. Le
+    filtre exclut plutôt qu'il ne liste : un nouveau paquet testé y entre d'office, mais son lcov
+    se déclare à la main (upload du job, job Sonar, `sonar-project.properties`).
+
+  Sous un seul `turbo test`, les quatre suites se disputaient les 4 vCPU du runner. Seul
+  l'agrégateur est requis : les quatre jobs peuvent changer de nom ou de découpage sans toucher au
+  ruleset.
 - `ci.yml`, job **`E2E (isolation multi-tenant)`** — les e2e de l'API (359 en #257), contre un Postgres
   et un SILO jetables montés par les composes du dépôt. Ils portent la couverture réelle de la couche
   API (~89 %) : ses douze tests unitaires n'en couvrent que 3,5 %. Bloquant.
 - `ci.yml`, job **`SonarCloud Analysis`** — qualité, sécurité et **couverture des quatre paquets**
   (`@cmv/shared`, API, web, mobile). Rapatrié depuis `sonar.yml` en #57 : Sonar veut tous les lcov
-  dans UN scan, or ils naissent dans les deux jobs ci-dessus — les mettre dans le même run rend
+  dans UN scan, or ils naissent dans les jobs ci-dessus — les mettre dans le même run rend
   l'ordre déterministe, là où un artefact ne traverse pas deux workflows sans course. Il n'exécute
-  **aucun test** (#318) : il attend `quality` et `e2e`, et analyse les lcov qu'ils lui passent en
-  artefact. La mesure vient donc de l'exécution qui a gardé la porte, pas d'une seconde.
+  **aucun test** (#318) : il attend les trois jobs de tests et `e2e`, et analyse les lcov qu'ils lui
+  passent en artefact. La mesure vient donc de l'exécution qui a gardé la porte, pas d'une seconde.
+  Si un job de tests échoue, ce job est **sauté** — ce qui passe pour un check requis : c'est
+  l'agrégateur `Lint + Typecheck + Test` qui bloque alors la PR.
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 - `ci.yml`, job **`Builds de production`** — sur PR seulement : construit l'image API et l'image web
   sans les pousser, et l'export Expo android, pour les seules apps que la PR touche (#414). Une app
   non touchée est sautée et le job reste vert : il peut donc être requis sans bloquer une PR de doc.
 
-Les trois premiers tournent sur chaque **PR vers `main`**, et sur `main` au seul **commit de
-release** (#318) : le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé
+Les trois premiers (et les quatre jobs de l'agrégateur) tournent sur chaque **PR vers `main`**, et
+sur `main` au seul **commit de release** (#318) : le merge d'une feature n'est pas rejoué, sa PR à jour de `main` a déjà testé
 l'arbre exact qui atterrit. Rien sur les branches de promotion : elles ne reçoivent que des commits
 déjà passés par `main`, et `promote-preview.yml` vérifie que ces trois checks sont verts **sur le
 commit de release** avant d'envoyer quoi que ce soit. `Builds de production` n'en fait pas partie :
