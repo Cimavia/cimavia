@@ -424,6 +424,12 @@ liste des domaines vivent dans l'index.
 > - **Rejetés** : `postcss-selector-parser` (correctif en 7, Tailwind 3 exige la 6 : attend
 >   Tailwind 4), `braces` et `node-forge` (aucun correctif publié ; build, metro et `@expo/cli`).
 >   Les alertes `fastify` et `js-yaml` du relevé se sont fermées seules avec #671.
+>
+> Découvert en chemin : la PR groupée `npm` ne s'ouvre plus parce que le passage du 2026-10-19
+> échoue sur chaque paquet, `ERR_PNPM_NO_MATURE_MATCHING_VERSION`. Dependabot transmet son
+> `cooldown` à pnpm, et le lockfile porte `@sentry/nestjs` et `@sentry/profiling-node` 11.8.0,
+> publiés le 2026-10-15 et montés à la main en #669. Le blocage se lève seul le 2026-10-22 ; la
+> règle est désormais dans `CONTRIBUTING.md` (« Mises à jour des dépendances »).
 
 > **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
 > ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même

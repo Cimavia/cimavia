@@ -270,6 +270,12 @@ images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble
   `@fastify/static`, `pino` et `pino-http` (#671). Les mineures et correctifs de Nest, eux, restent dans la PR groupée.
 - Une version n'est proposée que **7 jours** après sa publication (`cooldown`). Les mises à jour
   de sécurité n'attendent pas.
+- **Ce délai s'applique aussi à ce que le lockfile contient déjà** : Dependabot le transmet à pnpm
+  (`--config.minimum-release-age`), qui refuse alors toute dépendance directe installée dans une
+  version de moins de 7 jours. Monter un paquet à la main avant ce délai fait échouer **toute** la
+  PR groupée `npm` tant que la version n'a pas ses 7 jours (#670). Ne le faire que si ça presse,
+  puis relancer *Check for updates* une fois le délai passé (Insights → Dependency graph →
+  Dependabot).
 - Une PR `docker` ou `docker-compose` n'atteint le NAS qu'à la **promotion** suivante : il ne
   tire que des images promues, et le compose du commit promu.
 
