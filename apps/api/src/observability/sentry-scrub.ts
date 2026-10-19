@@ -1,13 +1,13 @@
-import { redactUrlSecrets } from "@cmv/shared";
-import type { Breadcrumb, Event } from "@sentry/nestjs";
+import { FILTERED, redactUrlSecrets } from "@cmv/shared";
+import type { Breadcrumb, Event, NodeOptions } from "@sentry/nestjs";
 
 // ⚠️ Ce fichier est chargé par `instrument.ts`, AVANT NestJS : il ne doit rien importer qui
 // charge Nest — Sentry n'instrumenterait plus les modules déjà en mémoire. D'où le nom de l'en-tête
 // du tick écrit en dur plutôt qu'importé de sa garde ; un test vérifie qu'ils restent égaux.
 
 /**
- * Les en-têtes qui ne partent JAMAIS chez Sentry (#433). L'API reste en `sendDefaultPii: true`
- * (#183) : les autres en-têtes partent, et l'IP avec.
+ * Les en-têtes qui ne partent JAMAIS chez Sentry (#433). L'API collecte les en-têtes et l'IP
+ * (#183, `dataCollection` depuis #669) : les autres en-têtes partent.
  *
  * `cookie` porte la session Better Auth, rejouable sept jours ; `authorization` le jeton bearer
  * d'un client qui en poserait un ; le secret du tick déclenche les rappels ; `set-cookie` est la
@@ -28,43 +28,63 @@ function isSecretHeader(name: string): boolean {
 }
 
 /**
- * Sur un span, Sentry range un en-tête sous `http.request.header.<nom>` — tirets changés en `_`,
- * et un cookie éclaté en `…header.cookie.<nom du cookie>`.
+ * Sur un span, Sentry range un en-tête sous `http.request.header.<nom>`. La v11 garde le nom tel
+ * quel, cookies d'un bloc ; la v10 changeait les tirets en `_` et éclatait un cookie en
+ * `…header.cookie.<nom du cookie>`. Les deux formes restent reconnues : une instrumentation qui
+ * suivrait encore l'ancienne ne doit pas suffire à faire partir un secret.
  */
 const SECRET_SPAN_ATTRIBUTE = new RegExp(
   String.raw`^http\.(?:request|response)\.header\.(?:${[...SECRET_HEADERS]
-    .map((name) => name.replaceAll("-", "_"))
+    .map((name) => name.replaceAll("-", "[-_]"))
     .join("|")})(?:\.|$)`,
   "i",
 );
 
 /**
- * Ce qui reste d'un en-tête ou d'un attribut passe AUSSI par `redactUrlSecrets` : le `referer`
- * d'une requête partie de `/reset-password?token=…`, ou `http.target` sur le span serveur, portent
- * une URL au même titre que `request.url`.
+ * Une valeur d'attribut est brute — chaîne, nombre, booléen ou tableau — ou un objet `{ value }`.
+ * Un en-tête arrive en tableau depuis la v11 (`["https://app.test/?token=…"]`).
  */
+function scrubAttributeValue(value: unknown, redact = redactUrlSecrets): unknown {
+  if (typeof value === "string") return redact(value);
+  if (Array.isArray(value)) return value.map((item) => scrubAttributeValue(item, redact));
+  if (value !== null && typeof value === "object" && "value" in value) {
+    return { ...value, value: scrubAttributeValue(value.value, redact) };
+  }
+  return value;
+}
+
+/**
+ * Une chaîne de requête SANS son `?` — `query_string` d'un événement, `url.query` d'un span : la
+ * liste ne reconnaît un paramètre qu'après `?` ou `&`, et laisserait passer le premier.
+ */
+function redactQueryString(query: string): string {
+  return redactUrlSecrets(`?${query}`).slice(1);
+}
+
+/**
+ * Les attributs d'un span, les données de trace d'une erreur ou d'un fil d'Ariane : les en-têtes
+ * secrets sautent, et tout ce qui reste passe par `redactUrlSecrets` — `url.full`, `url.path`, le
+ * `referer`, l'`url` d'un fetch. Toutes les chaînes, pas une liste de clés : la prochaine clé qui
+ * portera une URL n'aura pas à y être ajoutée.
+ */
+function scrubSpanData<D extends Record<string, unknown>>(data: D): D {
+  return Object.fromEntries(
+    Object.entries(data)
+      .filter(([key]) => !SECRET_SPAN_ATTRIBUTE.test(key))
+      .map(([key, value]) => [
+        key,
+        scrubAttributeValue(value, key === "url.query" ? redactQueryString : redactUrlSecrets),
+      ]),
+  ) as D;
+}
+
+/** Ce qui reste d'un en-tête d'événement passe AUSSI par `redactUrlSecrets` — le `referer`. */
 function scrubStrings<V>(entries: [string, V][]): [string, V][] {
   // Une chaîne blanchie reste une chaîne : le type de la valeur ne change pas.
   return entries.map(([key, value]) => [
     key,
     typeof value === "string" ? (redactUrlSecrets(value) as V & string) : value,
   ]);
-}
-
-function scrubSpanData<V>(data: Record<string, V>): Record<string, V> {
-  return Object.fromEntries(
-    scrubStrings(Object.entries(data).filter(([key]) => !SECRET_SPAN_ATTRIBUTE.test(key))),
-  );
-}
-
-type Span = NonNullable<Event["spans"]>[number];
-
-function scrubSpan(span: Span): Span {
-  return {
-    ...span,
-    data: scrubSpanData(span.data),
-    ...(span.description !== undefined && { description: redactUrlSecrets(span.description) }),
-  };
 }
 
 /**
@@ -86,7 +106,7 @@ function scrubRequest(request: NonNullable<Event["request"]>): Event["request"] 
       typeof scrubbed.query_string === "string"
         ? scrubbed.query_string
         : new URLSearchParams(scrubbed.query_string).toString();
-    scrubbed.query_string = redactUrlSecrets(`?${query}`).slice(1);
+    scrubbed.query_string = redactQueryString(query);
   }
   return scrubbed;
 }
@@ -100,16 +120,11 @@ function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
 }
 
 /**
- * Le `beforeSend` ET le `beforeSendTransaction` de l'API (#433).
+ * Le `beforeSend` de l'API (#433) : les erreurs. Les spans passent par `scrubSpan`.
  *
- * Les deux, parce que la fuite ne demande pas d'erreur : une transaction échantillonnée porte la
- * même requête qu'un événement d'erreur, et ses spans l'URL complète — `GET
- * /api/auth/reset-password/<jeton>` en nom de transaction, en `http.target`, en `http.url`. Le
- * corps des requêtes, lui, n'est jamais lu (`maxIncomingRequestBodySize: "none"`) : il n'y a rien
- * à en retirer ici.
- *
- * Tout ce qui porte une URL est blanchi par `redactUrlSecrets`, la liste partagée avec le web et
- * avec les journaux Pino.
+ * Le corps des requêtes, lui, n'est jamais lu (`maxRequestBodySize: "none"`) : il n'y a rien à en
+ * retirer ici. Tout ce qui porte une URL est blanchi par `redactUrlSecrets`, la liste partagée avec
+ * le web et avec les journaux Pino.
  */
 export function scrubEvent<T extends Event>(event: T): T {
   const contextData = event.contexts?.trace?.data;
@@ -117,7 +132,6 @@ export function scrubEvent<T extends Event>(event: T): T {
     ...event,
     ...(event.request && { request: scrubRequest(event.request) }),
     ...(event.transaction !== undefined && { transaction: redactUrlSecrets(event.transaction) }),
-    ...(event.spans && { spans: event.spans.map(scrubSpan) }),
     ...(event.breadcrumbs && { breadcrumbs: event.breadcrumbs.map(scrubBreadcrumb) }),
     ...(event.contexts?.trace &&
       contextData && {
@@ -127,4 +141,40 @@ export function scrubEvent<T extends Event>(event: T): T {
         },
       }),
   };
+}
+
+/** Le span tel que `beforeSendSpan` le reçoit — `@sentry/nestjs` n'en exporte pas le nom. */
+type StreamedSpan = Parameters<NonNullable<NodeOptions["beforeSendSpan"]>>[0];
+
+/**
+ * Le `beforeSendSpan` de l'API (#433, #669). La v11 envoie les spans un par un, en flux, et ne
+ * construit plus de transaction : `beforeSendTransaction` n'est plus jamais appelé, et c'est ICI
+ * que passe ce qu'une requête échantillonnée emporte sans qu'aucune erreur ne soit levée — l'URL
+ * (`url.full`, `url.path`, le nom du span), le `referer`, les en-têtes secrets. Les liens vers
+ * d'autres spans portent des attributs aussi : même traitement.
+ *
+ * Le callback ne peut pas écarter un span, seulement le réécrire : un attribut secret est retiré,
+ * jamais remplacé par une valeur inventée.
+ *
+ * En défaut FERMÉ : si le blanchiment lève, le SDK enverrait le span tel qu'il l'a reçu, secrets
+ * compris (`safeCallback`). Il part donc réduit à sa structure — identifiants, durée, statut —, son
+ * nom masqué, sans attribut ni lien : un trou dans la trace plutôt qu'un secret chez Sentry.
+ */
+export function scrubSpan(span: StreamedSpan): StreamedSpan {
+  try {
+    return {
+      ...span,
+      name: redactUrlSecrets(span.name),
+      attributes: scrubSpanData(span.attributes),
+      ...(span.links && {
+        links: span.links.map((link) => ({
+          ...link,
+          ...(link.attributes && { attributes: scrubSpanData(link.attributes) }),
+        })),
+      }),
+    };
+  } catch {
+    const { links: _links, ...structure } = span;
+    return { ...structure, name: FILTERED, attributes: {} };
+  }
 }

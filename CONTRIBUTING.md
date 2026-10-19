@@ -262,9 +262,9 @@ images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble
 **Ce que Dependabot ne met PAS à jour** (`ignore`, qui ne coupe que les mises à jour de version :
 les alertes de sécurité arrivent toujours) :
 
-- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native`, `react` et
-  `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK Expo et avancent
-  ensemble, à la main :
+- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native` et le `@sentry/cli`
+  qu'il exige, `react` et `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK
+  Expo et avancent ensemble, à la main :
 
   ```bash
   pnpm --filter @cmv/mobile exec expo install --check     # écarts avec le SDK en cours
@@ -400,7 +400,7 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 
 - Logs structurés **pino → Axiom** : transport actif dès que `AXIOM_TOKEN` + `AXIOM_DATASET` sont définis. `AXIOM_URL` selon la région du dataset (EU par défaut).
 - Une ligne de journal ne dit d'une requête que son `id`, sa méthode et son URL blanchie, et de la réponse que son statut (`apps/api/src/observability/logger.config.ts`) : ni en-têtes, ni IP, ni paramètres (#433).
-- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import), options dans `apps/api/src/observability/sentry.config.ts`, + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée. Le corps des requêtes n'est jamais capturé ; cookies, `authorization` et secret du tick sont retirés des erreurs comme des transactions (`sentry-scrub.ts`).
+- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import), options dans `apps/api/src/observability/sentry.config.ts`, + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée. Le corps des requêtes n'est jamais capturé ; cookies, `authorization` et secret du tick sont retirés des erreurs comme des spans (`sentry-scrub.ts`).
 - **Un nouveau secret dans une URL** (paramètre ou segment de chemin) s'ajoute à `redactUrlSecrets` (`packages/shared/src/util/url-secret.util.ts`) : c'est la liste que lisent les journaux, Sentry API et Sentry web. **Un nouvel en-tête secret** s'ajoute à `SECRET_HEADERS` (`sentry-scrub.ts`) — les journaux, eux, n'écrivent aucun en-tête.
 - Variables d'environnement : voir `apps/api/.env.example`.
 
@@ -408,7 +408,7 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 
 - Init dans `apps/web/src/instrument.ts`, **premier import** de `main.tsx` : les imports statiques sont hoistés, donc une init placée dans le corps de `main.tsx` arriverait après l'évaluation de tout le graphe de modules et n'entendrait pas ce qui y casse.
 - Écran de repli : `defaultErrorComponent` du routeur → `CmvCrashScreen`. Sa portée s'arrête au routeur — ce qui casse au-dessus (les providers, l'import d'i18n) tombe à l'écran blanc, mais part quand même chez Sentry.
-- Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. `sendDefaultPii: false` côté front, contrairement à l'API.
+- Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. Pas d'IP côté front (`dataCollection.userInfo: false`), contrairement à l'API.
 - Variables, **lues au démarrage** et non figées au build (#417) : `CMV_SENTRY_DSN` — pas un secret, il part chez chaque visiteur dans `/config.js` — et `CMV_APP_ENV`, le *tier* de déploiement et non le mode de build. Servies par nginx depuis l'environnement du conteneur, par `vite.config.ts` en dev (voir `apps/web/.env.example`). Un tier absent laisse le SDK inerte, et l'app sur son écran de crash.
 - Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni — au commit de bump seulement, sous `X.Y.Z+sha` (#417) —, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
 

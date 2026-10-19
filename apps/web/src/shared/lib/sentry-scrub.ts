@@ -4,8 +4,8 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/react";
 // Ce qu'une URL ne doit pas emporter — jeton de réinitialisation, signature S3 — vit dans
 // `@cmv/shared` depuis #433 : l'API blanchit ses journaux et ses événements avec la même liste.
 // Ici, le seul problème propre au navigateur : `httpContextIntegration`, intégration PAR DÉFAUT,
-// écrit `location.href` dans `event.request.url` sur tout événement, et `sendDefaultPii` n'y
-// change rien — il ne joue que sur l'IP (#335).
+// écrit `location.href` dans `event.request.url` sur tout événement, et couper l'IP n'y change
+// rien (#335 ; `dataCollection.userInfo` depuis #669, `sendDefaultPii` avant).
 
 /**
  * Les champs d'un fil d'Ariane qui portent une URL : `url` pour fetch/XHR (les PUT signés de

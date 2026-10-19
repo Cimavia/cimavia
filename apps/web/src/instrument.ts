@@ -1,3 +1,4 @@
+import { sentryDataCollection } from "@cmv/shared";
 import * as Sentry from "@sentry/react";
 import { runtimeConfig } from "./shared/lib/runtime-config";
 import { scrubEvent } from "./shared/lib/sentry-scrub";
@@ -31,11 +32,15 @@ Sentry.init({
   // NAS ET en prod, et taguerait les deux pareil. Même vocabulaire que l'`APP_ENV` de l'API.
   environment: tier ?? undefined,
 
-  // `false` là où l'API est à `true` (#183) : le front n'a aucune raison d'envoyer l'IP.
-  // L'identité tient dans le seul `id` posé par `Sentry.setUser` — un pseudonyme, qui ne redevient
-  // une personne qu'en base, chez nous. Ce réglage ne couvre QUE l'IP : l'URL de la page, le
-  // `Referer` et le `User-Agent` partent quand même (`httpContextIntegration`, par défaut).
-  sendDefaultPii: false,
+  // Ce que le SDK collecte (#669, `@cmv/shared`). Pas d'IP, là où l'API l'envoie (#183) : le front
+  // n'a aucune raison de l'envoyer, l'identité tient dans le seul `id` posé par `Sentry.setUser` —
+  // un pseudonyme, qui ne redevient une personne qu'en base, chez nous. L'URL de la page, le
+  // `Referer` et le `User-Agent` partent quand même (`httpContextIntegration`).
+  // `satisfies Required<…>` : `@cmv/shared` ne connaît pas Sentry, et une clé que la prochaine
+  // majeure ajoutera ou renommera doit casser le typecheck ICI, pas retomber sur son défaut.
+  dataCollection: sentryDataCollection({ userInfo: false }) satisfies Required<
+    NonNullable<Sentry.BrowserOptions["dataCollection"]>
+  >,
 
   // D'où `beforeSend` : l'URL et les fils d'Ariane peuvent porter un jeton de réinitialisation ou
   // une signature S3 (#335).
@@ -43,6 +48,8 @@ Sentry.init({
 
   // Erreurs seulement. Le quota de performance se vide bien plus vite depuis un navigateur que
   // depuis l'API, et aucune question de perf front n'est ouverte — à monter à 0.1 le jour où il y
-  // en a une (#183).
+  // en a une (#183). Ce jour-là, il faudra AUSSI un `beforeSendSpan` : en v11 les spans partent en
+  // flux, sans passer par `beforeSend`, et `httpContextIntegration` pose le `Referer` sur le span
+  // racine — un `/reset-password?token=…` partirait en clair (#669, voir `scrubSpan` de l'API).
   tracesSampleRate: 0,
 });

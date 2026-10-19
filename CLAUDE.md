@@ -47,8 +47,8 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.5`). Lint/format **Biome** (`2.5.1`, 
 | ORM / DB | Prisma + adapter-pg / PostgreSQL | `7.8.0` / PG **18** |
 | Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `^1.5` *(P1)* |
 | Validation + env | Zod | `4.4.3` |
-| Observabilité API | nestjs-pino / @sentry/nestjs | `4.6.1` / `10.61.0` |
-| Observabilité web | @sentry/react / @sentry/vite-plugin | `10.73.0` / `5.4.0` |
+| Observabilité API | nestjs-pino / @sentry/nestjs + @sentry/profiling-node | `4.6.1` / `11.8.0` |
+| Observabilité web | @sentry/react / @sentry/vite-plugin | `11.8.0` / `11.8.0` |
 | Observabilité mobile | @sentry/react-native | `7.11.0` *(version épinglée par Expo SDK 56)* |
 | Mobile | Expo SDK / React Native / NativeWind | `56.0.22` / `0.85.3` / `4.2.6` |
 | Web | React / Vite / TanStack Router / TanStack Query / Tailwind | `19.2.7` / `8.1.0` / `1.170.16` / `5.101.1` / `3.4.19` |

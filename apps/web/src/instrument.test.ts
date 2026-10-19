@@ -6,8 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * les options d'`instrument.ts`, si bien que les intégrations par défaut, `beforeSend` et la
  * construction de l'enveloppe s'exécutent comme dans le navigateur. Lire l'option ne prouve rien —
  * c'est ainsi que « n'envoie ni IP ni en-têtes » a tenu alors que l'URL partait avec son jeton (#335).
+ *
+ * `wire` garde chaque item de l'enveloppe quel que soit son type : un filtre sur les types connus
+ * laisserait passer sans bruit le prochain que le SDK inventera (#669).
  */
 const sent: Sentry.Event[] = [];
+const wire: unknown[] = [];
 
 vi.mock("@sentry/react", async (importOriginal) => {
   const real = await importOriginal<typeof import("@sentry/react")>();
@@ -19,6 +23,7 @@ vi.mock("@sentry/react", async (importOriginal) => {
         transport: () => ({
           send: async ([, items]) => {
             for (const [header, payload] of items) {
+              wire.push(payload);
               if (header.type === "event") sent.push(payload as Sentry.Event);
             }
             return {};
@@ -59,6 +64,7 @@ function config(fields: { sentryDsn?: string; tier?: string }) {
 
 beforeEach(() => {
   sent.length = 0;
+  wire.length = 0;
 });
 
 afterEach(async () => {
@@ -124,7 +130,7 @@ describe("instrument", () => {
     expect(sent).toHaveLength(1);
     // Le jeton n'est NULLE PART — URL, Referer, fils d'Ariane ou champ qu'une version du SDK
     // ajouterait demain.
-    expect(JSON.stringify(event)).not.toContain("jeton-secret");
+    expect(JSON.stringify(wire)).not.toContain("jeton-secret");
     // Blanchi, pas retiré : l'événement dit encore sur quelle page il est survenu.
     expect(event?.request?.url).toMatch(/\/reset-password\?token=\[Filtered\]$/);
     expect(event?.breadcrumbs).toContainEqual(
@@ -133,7 +139,7 @@ describe("instrument", () => {
         data: expect.objectContaining({ to: "/reset-password?token=[Filtered]" }),
       }),
     );
-    // `sendDefaultPii: false` tel que Sentry le reçoit : l'ingestion ne déduit pas l'IP.
+    // `userInfo: false` tel que Sentry le reçoit : l'ingestion ne déduit pas l'IP.
     expect(event?.sdk?.settings).toMatchObject({ infer_ip: "never" });
   });
 });

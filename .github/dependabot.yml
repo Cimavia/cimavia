@@ -51,6 +51,14 @@ updates:
     labels:
       - "type: chore"
     groups:
+      # Exception à la règle des majeures à part (#669) : les paquets Sentry avancent ENSEMBLE,
+      # majeures comprises. `@sentry/nestjs` et `@sentry/profiling-node` partagent `@sentry/core`, et
+      # une montée qui n'en prend qu'un ne compile pas (#588) ; le plugin Vite suit la numérotation du
+      # SDK depuis la 11. AVANT `npm` : un paquet va au premier groupe qui le correspond.
+      # `@sentry/react-native` et `@sentry/cli` sont ignorés plus bas.
+      sentry:
+        patterns:
+          - "@sentry/*"
       npm:
         update-types: [minor, patch]
         patterns:
@@ -71,6 +79,9 @@ updates:
       - dependency-name: "@react-native/*"
       - dependency-name: "@react-native-async-storage/*"
       - dependency-name: "@sentry/react-native"
+      # Épinglé sur la version qu'exige `@sentry/react-native` (dette O-2) : le laisser monter seul
+      # désalignerait le binaire que `sentry.gradle` appelle (#669).
+      - dependency-name: "@sentry/cli"
       - dependency-name: "react"
       - dependency-name: "react-dom"
 

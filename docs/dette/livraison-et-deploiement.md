@@ -221,6 +221,8 @@ liste des domaines vivent dans l'index.
 > couche qui marche, sans qu'aucun incident ne le demande.
 > *Amendé en #433* : l'API garde `sendDefaultPii: true`, mais ni cookies, ni en-têtes secrets, ni
 > corps de requête — voir plus bas.
+> *Amendé en #669* : `sendDefaultPii` n'existe plus en v11. Le même partage — IP côté API, pas
+> côté front — est écrit dans `dataCollection`, voir l'encadré #669.
 
 > **Tranché en #183** (pas de Session Replay, `tracesSampleRate: 0`) : le Replay filmerait l'écran
 > d'un coach, donc des données d'athlètes, pour un gain que l'écran de repli et la stack couvrent
@@ -300,11 +302,42 @@ liste des domaines vivent dans l'index.
 >   `url.full`, `referer`, fils d'Ariane. `sendDefaultPii: true` reste (#183) : IP et autres
 >   en-têtes partent toujours.
 >
+> *Amendé en #669* : en v11 l'option du corps s'appelle `maxRequestBodySize`, et
+> `beforeSendTransaction` n'est plus jamais appelé — c'est `beforeSendSpan` (`scrubSpan`) qui
+> blanchit les spans. Voir l'encadré suivant.
+>
 > Ce qui avait déjà fui n'a pas été purgé : Axiom n'a jamais reçu de journaux (`AXIOM_TOKEN` vide
 > sur le NAS), et les journaux Docker du NAS, que seul son administrateur lit, disparaissent avec le
 > conteneur au déploiement suivant. Les sessions en cours n'ont donc pas été invalidées. Côté
 > Sentry, le nettoyage serveur par défaut du projet (« Data Scrubber ») masque les clés comme
 > `password` ou `cookie` : les événements antérieurs se vérifient et se suppriment à la main.
+
+> **Tranché en #669** (Sentry 11 sur l'API et le web, sans rien lâcher de #183 ni de #433) : la
+> majeure change ce que le SDK collecte et par où passent les spans, sans qu'aucune erreur de type
+> ne le signale. Quatre décisions :
+> - **`dataCollection` écrit en entier, une fois pour les deux couches** (`sentryDataCollection`,
+>   `@cmv/shared`), plutôt que ses défauts : `sendDefaultPii` a disparu, et les défauts de la v11
+>   envoient les corps des requêtes ET des réponses, les cookies, les paramètres des requêtes Prisma
+>   et les variables locales des stacks. Chaque clé est posée à ce que la v10 envoyait : en-têtes et
+>   chaîne de requête, aucun corps ni cookie nulle part ; seule l'IP diffère, envoyée par l'API et
+>   pas par le web (#183). Une clé que la v12 ajoutera partira, elle, à son défaut : c'est la
+>   relecture de la prochaine majeure qui la verra.
+> - **Les spans partent en flux, et `beforeSendSpan` les blanchit** (`scrubSpan`) plutôt que de
+>   revenir à `traceLifecycle: "static"`, déprécié et retiré en v12. La v11 ne construit plus de
+>   transaction : un `beforeSendTransaction` gardé tel quel n'aurait plus jamais tourné, et le
+>   `referer` d'une page de réinitialisation partait en clair dans les attributs. Les en-têtes y
+>   gardent leurs tirets et arrivent en tableaux, les cookies d'un bloc.
+> - **Le profilage suit les traces** (`profileSessionSampleRate: 1`, `profileLifecycle: "trace"`),
+>   l'équivalent du `profilesSampleRate: 1` de la v10 : chaque trace échantillonnée est profilée,
+>   10 % en production. Le défaut `manual` n'aurait plus rien profilé, sans un mot.
+> - **Le test du vrai SDK lit toute l'enveloppe, sur le serveur de l'API** : son transport ne gardait
+>   que les items `event` et `transaction`, et les spans streamés passaient à côté. Il tourne
+>   désormais sur l'adaptateur Fastify de `app.setup.ts` : en v11, une erreur levée dans le
+>   `req.on("end")` d'un serveur `node:http` nu perd sa requête, ce que Fastify ne fait pas.
+>
+> Dependabot regroupe désormais les paquets `@sentry/*`, majeures comprises (`.github/dependabot.yml`) :
+> une montée qui n'en prend qu'un ne compile pas (#588). `@sentry/react-native` reste ignoré, et
+> `@sentry/cli` le rejoint : épinglé sur ce qu'il exige (O-2), il n'avance qu'avec lui.
 
 ---
 
