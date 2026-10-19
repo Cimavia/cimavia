@@ -522,3 +522,47 @@ liste des domaines vivent dans l'index.
 >   barre sans fil — mais **son échec de résolution se cachait derrière un chargement sans fin** :
 >   sans id, la requête des messages est désactivée et TanStack la rend `isPending`. L'erreur passe
 >   désormais avant le chargement ; le test simulait `isPending: false`, un état qui n'arrive pas.
+
+---
+
+## Post-MVP — Note vocale écran verrouillé ([#619](https://github.com/Cimavia/cimavia/issues/619))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| NV-1 | **La notification Android de l'enregistrement est en anglais** (règle dure n°6) : « Recording audio » / « Tap to return to app », et le canal « Audio Recording » visible dans Réglages › Notifications. `AudioRecordingService.kt` les écrit en dur, sans ressource Android à surcharger : la voie d'IOS-1 (`expo.locales`) ne s'applique pas. Seule issue aujourd'hui, un `pnpm patch` du service, écarté : à rejouer à chaque montée d'`expo-audio`. Même famille que [#348](https://github.com/Cimavia/cimavia/issues/348). | 🟢 | — *(déclencheur : une option de configuration côté `expo-audio`, ou un retour d'utilisateur qui s'en plaint)* |
+| NV-2 | **Le service de premier plan `microphone` n'est déclaré nulle part côté store** : la Play Console exige une justification et une vidéo pour chaque type de service de premier plan du manifeste. | 🟡 | — *(déclencheur : la première publication sur le Play Store ; Android n'est distribué qu'en interne, `eas.json` n'a pas de `submit` Android)* |
+
+> **Tranché en #619** (la note vocale continue écran verrouillé) : le Coach bêta perdait tout ce
+> qu'il disait une fois l'iPhone en veille. expo-audio met l'enregistreur en pause dès que l'app
+> passe en arrière-plan, et la note gardait un trou muet que rien ne signalait.
+>
+> - **Arrière-plan d'abord, premier plan en repli.** Chaque capture demande
+>   `allowsBackgroundRecording`. Android exige alors `POST_NOTIFICATIONS`, pour la notification de
+>   son service : refusée, `prepareToRecordAsync` lève `ERR_NOTIFICATION_PERMISSIONS`, et la
+>   capture repart au premier plan au lieu d'échouer. On ne redemande pas les notifications à ce
+>   moment-là : la demande appartient à `usePushToken`. Le repli **se dit sous le minuteur** — au
+>   verrouillage manuel, le trou reste possible, mais il n'est plus muet.
+> - **L'écran reste allumé tant que le bandeau est affiché**, et non entre `record()` et chaque
+>   sortie comme le proposait l'issue : `useKeepAwake` vit dans le bandeau, que le natif retire à
+>   l'envoi, à l'annulation, à l'échec et au démontage. Aucune sortie n'a de libération à écrire,
+>   donc aucune ne peut l'oublier. Un arrêt qui échoue garde le bandeau tant que le natif dit
+>   enregistrer, et l'écran allumé avec lui.
+> - **Quitter l'écran en pleine capture rend le mode lecture.** expo-audio libère l'enregistreur et
+>   rien ne part — pas l'écueil web de [#340](https://github.com/Cimavia/cimavia/issues/340) —, mais
+>   le mode « record » restait posé et aurait rendu muettes les notes lues ensuite. Le drapeau se
+>   lève AVANT la préparation, qui attend le service d'Android : partir pendant ce temps le rend
+>   aussi.
+> - **`enableBackgroundPlayback: false`.** Actif par défaut, il posait `UIBackgroundModes` sans
+>   usage (IOS-3) et déclarait côté Android un service `mediaPlayback` que seuls les contrôles de
+>   l'écran verrouillé emploient — l'app n'en a pas. `UIBackgroundModes: ["audio"]` reste posé,
+>   justifié par l'enregistrement, et il ne reste que `microphone` à déclarer au store (NV-2). Un
+>   test d'`app.config.test.ts` garde le plugin aligné sur le mode que passe le JS : sans
+>   `enableBackgroundRecording`, Android refuserait TOUTE capture.
+> - **Le second piège de l'issue ne se présente pas** : `prepareRecording` attend la liaison du
+>   service (`bindWithService`, suspendu) avant de rendre la main, et `record()` la trouve. Lu dans
+>   `AudioRecorder.kt`, à confirmer sur appareil.
+> - **L'appel entrant** coupe la session audio malgré tout : c'est le système qui le fait. Ce que
+>   devient la capture n'est pas traité ici, il s'observe en recette. Le risque à guetter : un
+>   arrêt venu du natif retire le bandeau sans passer par `finish`, et `onRecordingChange(false)`
+>   ne part pas — la barre de messages resterait masquée, et un nouvel essai pourrait buter sur un
+>   enregistreur encore préparé.
