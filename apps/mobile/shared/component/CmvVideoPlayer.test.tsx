@@ -273,7 +273,14 @@ describe("CmvVideoPlayer", () => {
     await findByText("media.video.refreshError");
     resolveUrl.mockResolvedValue(FIRST);
 
-    press(pill());
+    // Appui retenté : `react-native-web` ne relit `disabled` que dans un effet PASSIF, qui peut
+    // n'avoir pas encore tourné quand le message s'affiche — sur une machine chargée, le clic
+    // tombait sur un `Pressable` encore désactivé et était ignoré sans bruit. `resolveUrl` est
+    // appelé dans le même tour que l'appui : le second appel prouve qu'il a été pris.
+    await waitFor(() => {
+      press(pill());
+      expect(resolveUrl).toHaveBeenCalledTimes(2);
+    });
 
     await waitFor(() => expect(videoView()).not.toBeNull());
     expect(queryByText("media.video.refreshError")).toBeNull();
