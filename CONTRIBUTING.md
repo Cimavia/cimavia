@@ -262,9 +262,9 @@ images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble
 **Ce que Dependabot ne met PAS à jour** (`ignore`, qui ne coupe que les mises à jour de version :
 les alertes de sécurité arrivent toujours) :
 
-- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native`, `react` et
-  `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK Expo et avancent
-  ensemble, à la main :
+- **Le mobile** — Expo, React Native et leurs modules, `@sentry/react-native` et le `@sentry/cli`
+  qu'il exige, `react` et `react-dom` (ceux du web compris). Leurs versions sont fixées par le SDK
+  Expo et avancent ensemble, à la main :
 
   ```bash
   pnpm --filter @cmv/mobile exec expo install --check     # écarts avec le SDK en cours
@@ -400,7 +400,7 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 
 - Logs structurés **pino → Axiom** : transport actif dès que `AXIOM_TOKEN` + `AXIOM_DATASET` sont définis. `AXIOM_URL` selon la région du dataset (EU par défaut).
 - Une ligne de journal ne dit d'une requête que son `id`, sa méthode et son URL blanchie, et de la réponse que son statut (`apps/api/src/observability/logger.config.ts`) : ni en-têtes, ni IP, ni paramètres (#433).
-- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import), options dans `apps/api/src/observability/sentry.config.ts`, + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée. Le corps des requêtes n'est jamais capturé ; cookies, `authorization` et secret du tick sont retirés des erreurs comme des transactions (`sentry-scrub.ts`).
+- Erreurs **Sentry** (`SENTRY_DSN`) : init dans `apps/api/src/instrument.ts` (1er import), options dans `apps/api/src/observability/sentry.config.ts`, + `SentryExceptionFilter` global, qui ne remonte que les erreurs *inattendues* — une `HttpException` (4xx, 503 de santé) est ignorée. Le corps des requêtes n'est jamais capturé ; cookies, `authorization` et secret du tick sont retirés des erreurs comme des spans (`sentry-scrub.ts`).
 - **Un nouveau secret dans une URL** (paramètre ou segment de chemin) s'ajoute à `redactUrlSecrets` (`packages/shared/src/util/url-secret.util.ts`) : c'est la liste que lisent les journaux, Sentry API et Sentry web. **Un nouvel en-tête secret** s'ajoute à `SECRET_HEADERS` (`sentry-scrub.ts`) — les journaux, eux, n'écrivent aucun en-tête.
 - Variables d'environnement : voir `apps/api/.env.example`.
 

@@ -337,7 +337,7 @@ liste des domaines vivent dans l'index.
 >
 > Dependabot regroupe désormais les paquets `@sentry/*`, majeures comprises (`.github/dependabot.yml`) :
 > une montée qui n'en prend qu'un ne compile pas (#588). `@sentry/react-native` reste ignoré, et
-> `@sentry/cli` reste dans le groupe `npm`.
+> `@sentry/cli` le rejoint : épinglé sur ce qu'il exige (O-2), il n'avance qu'avec lui.
 
 ---
 
