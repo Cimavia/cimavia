@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import * as Sentry from "@sentry/nestjs";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { sentryOptions } from "./sentry.config";
 
 /**
@@ -10,9 +10,11 @@ import { sentryOptions } from "./sentry.config";
  * `beforeSend`, `beforeSendSpan` et la construction de l'enveloppe s'exécutent comme sur le NAS.
  * Lire l'option ne prouve rien — c'est ainsi que la fuite du jeton a tenu côté web (#335).
  *
- * `wire` garde chaque item de l'enveloppe quel que soit son type, pour dire qu'aucun secret n'est
- * parti : un filtre sur les types connus a laissé passer sans bruit les spans streamés de la v11,
- * `referer` en clair compris (#669). `sent` et `spans` disent CE qui est parti.
+ * `wire` garde TOUTE l'enveloppe — son en-tête, et chaque item avec le sien, quel que soit son
+ * type — pour dire qu'aucun secret n'est parti : un filtre sur les types connus a laissé passer
+ * sans bruit les spans streamés de la v11, `referer` en clair compris (#669). L'en-tête porte le
+ * contexte de trace, dont le nom BRUT du span racine, calculé avant `beforeSendSpan`. `sent` et
+ * `spans` disent CE qui est parti.
  */
 const wire: unknown[] = [];
 const sent: Sentry.Event[] = [];
@@ -51,9 +53,10 @@ beforeAll(async () => {
     // Aucun profil : ils n'apportent rien au test et partiraient dans le même transport.
     profileSessionSampleRate: 0,
     transport: () => ({
-      send: async ([, items]) => {
+      send: async ([envelopeHeader, items]) => {
+        wire.push(envelopeHeader);
         for (const [header, payload] of items) {
-          wire.push(payload);
+          wire.push(header, payload);
           if (header.type === "event") sent.push(payload as Sentry.Event);
           if (header.type === "span") spans.push(...(payload as { items: WireSpan[] }).items);
         }
@@ -106,9 +109,27 @@ async function hit(path: string, init: RequestInit = {}) {
   await Sentry.flush(2000);
 }
 
-/** Le span serveur de la requête — celui qui porte son URL. */
-function serverSpan() {
-  return spans.find((span) => span.attributes["sentry.op"]?.value === "http.server");
+/**
+ * Le span serveur de la requête, celui qui porte son URL — ATTENDU, et reconnu à sa méthode et au
+ * début de son chemin. Il se termine à la fermeture de la réponse, parfois après que `fetch` a
+ * résolu : sans l'attendre, la vérification de `wire` ne porterait que sur l'erreur, et un span
+ * du test précédent arrivé en retard passerait pour le sien.
+ */
+function serverSpan(method: string, pathPrefix: string) {
+  return vi.waitFor(
+    async () => {
+      await Sentry.flush(2000);
+      const span = spans.find(
+        ({ attributes }) =>
+          attributes["sentry.op"]?.value === "http.server" &&
+          attributes["http.request.method"]?.value === method &&
+          String(attributes["url.path"]?.value).startsWith(pathPrefix),
+      );
+      if (!span) throw new Error(`aucun span serveur ${method} ${pathPrefix}… n'est parti`);
+      return span;
+    },
+    { timeout: 5000 },
+  );
 }
 
 describe("sentryOptions — ce que Sentry reçoit vraiment", () => {
@@ -118,6 +139,7 @@ describe("sentryOptions — ce que Sentry reçoit vraiment", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email: "coach@test.fr", password: secret("mot-de-passe-secret") }),
     });
+    await serverSpan("POST", "/api/auth/sign-in/email");
 
     const error = sent.find((event) => event.exception);
     expect(error).toBeDefined();
@@ -140,8 +162,9 @@ describe("sentryOptions — ce que Sentry reçoit vraiment", () => {
     await hit(`/api/auth/reset-password/${secret("jeton-de-reset")}?callbackURL=%2Freset-password`);
 
     // Les DEUX : un span échantillonné porte l'URL sans qu'aucune erreur ne soit levée.
+    const span = await serverSpan("GET", "/api/auth/reset-password/");
     expect(sent).toHaveLength(1);
-    expect(serverSpan()?.attributes["url.path"]?.value).toBe("/api/auth/reset-password/[Filtered]");
+    expect(span.attributes["url.path"]?.value).toBe("/api/auth/reset-password/[Filtered]");
     expect(JSON.stringify(wire)).not.toContain(RUN);
   });
 
@@ -150,8 +173,9 @@ describe("sentryOptions — ce que Sentry reçoit vraiment", () => {
       method: "DELETE",
     });
 
+    const span = await serverSpan("DELETE", "/me/push-tokens/");
     expect(sent).toEqual([]);
-    expect(serverSpan()).toBeDefined();
+    expect(span.attributes["url.path"]?.value).toBe("/me/push-tokens/[Filtered]");
     expect(JSON.stringify(wire)).not.toContain(RUN);
   });
 });
