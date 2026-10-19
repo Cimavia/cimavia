@@ -6,6 +6,9 @@ import {
   DocumentUsage,
   duplicateExerciseSchema,
   EXERCISE_MAX_TAGS,
+  EXERCISE_TAG_FILTER_MAX,
+  EXERCISE_TAG_MAX_LENGTH,
+  exerciseTagFilterSchema,
   exerciseTagsSchema,
   isAllowedDocumentMime,
   isInstructionImageMime,
@@ -34,6 +37,41 @@ describe("exerciseTagsSchema", () => {
   it("refuse au-delà du plafond", () => {
     const tags = Array.from({ length: EXERCISE_MAX_TAGS + 1 }, (_, i) => `tag${i}`);
     expect(exerciseTagsSchema.safeParse(tags).success).toBe(false);
+  });
+});
+
+describe("exerciseTagFilterSchema", () => {
+  it("absent, ou fait de valeurs vides : aucun filtre", () => {
+    expect(exerciseTagFilterSchema.parse(undefined)).toEqual([]);
+    expect(exerciseTagFilterSchema.parse("")).toEqual([]);
+    expect(exerciseTagFilterSchema.parse(["", "   "])).toEqual([]);
+  });
+
+  it("une valeur seule ou répétée devient une liste, normalisée comme à l'écriture", () => {
+    expect(exerciseTagFilterSchema.parse("  Renfo ")).toEqual(["renfo"]);
+    expect(exerciseTagFilterSchema.parse(["Gainage", "force"])).toEqual(["force", "gainage"]);
+  });
+
+  it("le même ensemble dans un autre ordre, ou répété, donne la même liste", () => {
+    expect(exerciseTagFilterSchema.parse(["gainage", "Force", "force"])).toEqual(
+      exerciseTagFilterSchema.parse(["force", "gainage"]),
+    );
+  });
+
+  it("refuse une valeur qui ne peut pas être un tag, plutôt que de l'ignorer", () => {
+    const tooLong = "x".repeat(EXERCISE_TAG_MAX_LENGTH + 1);
+    expect(exerciseTagFilterSchema.safeParse(["force", tooLong]).success).toBe(false);
+    expect(exerciseTagFilterSchema.safeParse({ tag: "force" }).success).toBe(false);
+  });
+
+  it("refuse au-delà du plafond", () => {
+    const tags = (count: number) => Array.from({ length: count }, (_, i) => `tag${i}`);
+    expect(exerciseTagFilterSchema.parse(tags(EXERCISE_TAG_FILTER_MAX))).toHaveLength(
+      EXERCISE_TAG_FILTER_MAX,
+    );
+    expect(exerciseTagFilterSchema.safeParse(tags(EXERCISE_TAG_FILTER_MAX + 1)).success).toBe(
+      false,
+    );
   });
 });
 
