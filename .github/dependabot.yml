@@ -71,6 +71,8 @@ updates:
           - "@nestjs/*"
           - "nestjs-*"
           - "@thallesp/nestjs-better-auth"
+          # Pair de `platform-fastify` et de `@nestjs/swagger`, qui en bornent la majeure.
+          - "@fastify/static"
           - "pino"
           - "pino-http"
       npm:
