@@ -22,12 +22,17 @@ import {
   UploadMode,
 } from "@cmv/shared";
 import {
+  BadGatewayException,
   ConflictException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { captureException } from "@sentry/nestjs";
+import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
+
+const UNCONFIRMED_UPLOAD = "Le storage n'a pas pu confirmer la réception du fichier";
 
 /**
  * TTL des URLs de parts — nettement plus long, et ce n'est pas du confort.
@@ -42,6 +47,7 @@ export const MULTIPART_SIGNED_URL_TTL_SECONDS = 3600;
 
 type S3Config = {
   endpoint: string;
+  internalEndpoint: string | null;
   region: string;
   bucket: string;
   accessKeyId: string;
@@ -49,32 +55,53 @@ type S3Config = {
   forcePathStyle: boolean;
 };
 
+type S3Access = {
+  /** Envoie les commandes que l'API passe ELLE-MÊME au storage. */
+  client: S3Client;
+  /** Signe les URLs que le navigateur ou le téléphone appellera. */
+  signer: S3Client;
+  bucket: string;
+};
+
 /**
  * Accès à l'object storage S3 (Scaleway en MVP) : buckets PRIVÉS, jamais d'accès direct.
  * Le binaire ne transite jamais par l'API — le client PUT/GET directement sur S3 via des
  * URLs signées délivrées ici (CDC §10). Non configuré → 503 (l'API démarre quand même).
+ *
+ * Deux clients S3 quand `S3_INTERNAL_ENDPOINT` est fourni (#649) : l'un SIGNE avec l'endpoint
+ * public, le seul que le client sait joindre ; l'autre APPELLE par l'endpoint interne. Sur la
+ * preview, l'endpoint public passe par Cloudflare, qui envoie un `HEAD` en `GET` vers un fichier
+ * qu'il peut mettre en cache : la signature couvre la méthode, et SILO répond 403. Sans la
+ * variable, les deux ne font qu'un.
  */
 @Injectable()
 export class StorageService {
-  private readonly client: S3Client | null;
-  private readonly bucket: string | null;
+  private readonly s3: S3Access | null;
 
-  constructor(config: ConfigService<EnvSchema, true>) {
+  constructor(
+    config: ConfigService<EnvSchema, true>,
+    @InjectPinoLogger(StorageService.name) private readonly logger: PinoLogger,
+  ) {
     const s3 = StorageService.readConfig(config);
     if (s3 == null) {
-      this.client = null;
-      this.bucket = null;
+      this.s3 = null;
       return;
     }
-    this.client = new S3Client({
-      endpoint: s3.endpoint,
-      region: s3.region,
-      credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
-      // SILO, local ou NAS (endpoint sans DNS de sous-domaine) → path-style ;
-      // Scaleway → virtual-hosted.
-      forcePathStyle: s3.forcePathStyle,
-    });
-    this.bucket = s3.bucket;
+    const clientFor = (endpoint: string) =>
+      new S3Client({
+        endpoint,
+        region: s3.region,
+        credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+        // SILO, local ou NAS (endpoint sans DNS de sous-domaine) → path-style ;
+        // Scaleway → virtual-hosted.
+        forcePathStyle: s3.forcePathStyle,
+      });
+    const signer = clientFor(s3.endpoint);
+    this.s3 = {
+      client: s3.internalEndpoint == null ? signer : clientFor(s3.internalEndpoint),
+      signer,
+      bucket: s3.bucket,
+    };
   }
 
   // Les 5 variables doivent être toutes présentes, sinon le storage est considéré désactivé.
@@ -88,20 +115,29 @@ export class StorageService {
       return null;
     }
     const forcePathStyle = config.get("S3_FORCE_PATH_STYLE", { infer: true }) === "true";
-    return { endpoint, region, bucket, accessKeyId, secretAccessKey, forcePathStyle };
+    const internalEndpoint = config.get("S3_INTERNAL_ENDPOINT", { infer: true }) || null;
+    return {
+      endpoint,
+      internalEndpoint,
+      region,
+      bucket,
+      accessKeyId,
+      secretAccessKey,
+      forcePathStyle,
+    };
   }
 
   get isConfigured(): boolean {
-    return this.client != null;
+    return this.s3 != null;
   }
 
-  private require(): { client: S3Client; bucket: string } {
-    if (this.client == null || this.bucket == null) {
+  private require(): S3Access {
+    if (this.s3 == null) {
       throw new ServiceUnavailableException(
         "Object storage non configuré (variables S3_* manquantes)",
       );
     }
-    return { client: this.client, bucket: this.bucket };
+    return this.s3;
   }
 
   /**
@@ -118,14 +154,14 @@ export class StorageService {
     ttl = SIGNED_URL_TTL_SECONDS,
     contentLength?: number,
   ): Promise<string> {
-    const { client, bucket } = this.require();
+    const { signer, bucket } = this.require();
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
       ContentType: contentType,
       ContentLength: contentLength,
     });
-    return getSignedUrl(client, command, { expiresIn: ttl });
+    return getSignedUrl(signer, command, { expiresIn: ttl });
   }
 
   /**
@@ -209,11 +245,11 @@ export class StorageService {
     partSizes: readonly number[],
     ttl = MULTIPART_SIGNED_URL_TTL_SECONDS,
   ): Promise<string[]> {
-    const { client, bucket } = this.require();
+    const { signer, bucket } = this.require();
     return Promise.all(
       partSizes.map((size, index) =>
         getSignedUrl(
-          client,
+          signer,
           new UploadPartCommand({
             Bucket: bucket,
             Key: key,
@@ -328,9 +364,14 @@ export class StorageService {
    * 404 si l'objet n'existe pas (upload jamais fait), 409 si le type ou la taille diverge. Une
    * réponse sans type ou sans taille ne prouve rien : elle diverge aussi, plutôt que de passer.
    *
+   * 502 sur tout autre refus du storage : il n'a pas pu trancher, ce qui ne dit pas que le fichier
+   * manque. Sa cause part au log et à Sentry — le filtre global ignore une `HttpException`, et un
+   * 502 sans cause ferait chercher la panne à l'aveugle (#649).
+   *
    * ⚠️ Le 404 suppose un storage qui répond `NotFound` sur une clé absente. SILO le fait ; S3
-   * répond 403 quand la clé n'a pas le droit de lister le bucket — l'erreur remonterait alors en
-   * 500, refusée quand même.
+   * répond 403 quand la clé n'a pas le droit de lister le bucket — un rattachement jamais envoyé
+   * y finirait en 502, refusé quand même. Un 403 n'est pas lu comme une absence : il maquillerait
+   * une vraie panne de droits (#317).
    */
   async assertUploadedAsDeclared(
     key: string,
@@ -343,7 +384,9 @@ export class StorageService {
         if (error instanceof Error && error.name === "NotFound") {
           throw new NotFoundException("Aucun fichier n'a été envoyé à ce chemin de storage");
         }
-        throw error;
+        this.logger.error({ err: error, storagePath: key }, UNCONFIRMED_UPLOAD);
+        captureException(error);
+        throw new BadGatewayException(UNCONFIRMED_UPLOAD);
       });
     if (head.ContentType !== declared.mimeType || head.ContentLength !== declared.size) {
       throw new ConflictException(
@@ -354,9 +397,9 @@ export class StorageService {
 
   // URL GET signée : lecture ponctuelle d'un objet privé.
   async createDownloadUrl(key: string, ttl = SIGNED_URL_TTL_SECONDS): Promise<string> {
-    const { client, bucket } = this.require();
+    const { signer, bucket } = this.require();
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-    return getSignedUrl(client, command, { expiresIn: ttl });
+    return getSignedUrl(signer, command, { expiresIn: ttl });
   }
 
   async deleteObject(key: string): Promise<void> {
