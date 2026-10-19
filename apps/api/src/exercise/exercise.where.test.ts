@@ -11,8 +11,14 @@ describe("exerciseListWhere", () => {
     expect(exerciseListWhere({})).toEqual({});
   });
 
-  it("retient un exercice sur l'un de ses tags", () => {
-    expect(exerciseListWhere({ tag: "renfo" })).toEqual({ tags: { some: { name: "renfo" } } });
+  it("retient un exercice qui porte l'UN des tags choisis", () => {
+    expect(exerciseListWhere({ tags: ["force", "gainage"] })).toEqual({
+      tags: { some: { name: { in: ["force", "gainage"] } } },
+    });
+  });
+
+  it("une liste de tags vide ne filtre rien", () => {
+    expect(exerciseListWhere({ tags: [] })).toEqual({});
   });
 
   /**
@@ -48,9 +54,9 @@ describe("exerciseListWhere", () => {
     }
   });
 
-  it("cumule le tag et la recherche", () => {
-    expect(exerciseListWhere({ tag: "grimpe", search: "Dévers" })).toEqual({
-      tags: { some: { name: "grimpe" } },
+  it("cumule les tags et la recherche", () => {
+    expect(exerciseListWhere({ tags: ["grimpe"], search: "Dévers" })).toEqual({
+      tags: { some: { name: { in: ["grimpe"] } } },
       titleSearch: { contains: "devers" },
     });
   });

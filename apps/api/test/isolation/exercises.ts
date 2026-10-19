@@ -1,4 +1,4 @@
-import { Role, STALE_WRITE } from "@cmv/shared";
+import { EXERCISE_TAG_FILTER_MAX, EXERCISE_TAG_MAX_LENGTH, Role, STALE_WRITE } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, required, signUp } from "../support/actors";
 import {
@@ -56,6 +56,40 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // Le tag existe, mais chez l'autre coach : la liste doit rester vide, pas fuir l'exercice.
     const other = await coachB.get("/exercises").query({ tag: "gainage" });
     expect(other.body).toHaveLength(0);
+  });
+
+  it("plusieurs tags : ce qui porte l'UN d'eux, sans doublon (#654)", async () => {
+    const force = await coachA.post("/exercises").send({ title: "Tirage lesté", tags: ["force"] });
+    expect(force.status).toBe(201);
+    const ids = async (query: string) =>
+      ((await coachA.get(`/exercises?${query}`)).body as { id: string }[]).map((row) => row.id);
+
+    expect(new Set(await ids("tag=force&tag=Gainage"))).toEqual(
+      new Set([force.body.id, exerciseAId]),
+    );
+    // Deux tags de la MÊME ligne la ramènent une fois.
+    expect(await ids("tag=gainage&tag=renfo")).toEqual([exerciseAId]);
+    expect(await ids("tag=force")).toEqual([force.body.id]);
+    // Une valeur vide ne filtre rien : la liste entière.
+    expect(new Set(await ids("tag="))).toEqual(new Set([force.body.id, exerciseAId]));
+
+    await deleteAtLatest(coachA, `/exercises/${force.body.id}`);
+  });
+
+  it("refuse un tag qui ne peut pas en être un, plutôt que de rendre toute la liste", async () => {
+    const tooLong = "x".repeat(EXERCISE_TAG_MAX_LENGTH + 1);
+    expect((await coachA.get(`/exercises?tag=gainage&tag=${tooLong}`)).status).toBe(400);
+  });
+
+  it("reçoit jusqu'au plafond de tags, et refuse au-delà", async () => {
+    const query = (count: number) =>
+      ["gainage", ...Array.from({ length: count - 1 }, (_, i) => `t${i}`)]
+        .map((tag) => `tag=${tag}`)
+        .join("&");
+    // Toute la liste arrive : le tag cité en premier retrouve son exercice.
+    const atLimit = await coachA.get(`/exercises?${query(EXERCISE_TAG_FILTER_MAX)}`);
+    expect(atLimit.body.map((row: { id: string }) => row.id)).toEqual([exerciseAId]);
+    expect((await coachA.get(`/exercises?${query(EXERCISE_TAG_FILTER_MAX + 1)}`)).status).toBe(400);
   });
 
   it("un coach ne liste que SES exercices", async () => {
