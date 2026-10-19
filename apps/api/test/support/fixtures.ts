@@ -25,6 +25,12 @@ export const jpeg = (fileName: string): DocumentFile => ({
   size: 2048,
 });
 
+export const pdf = (fileName: string): DocumentFile => ({
+  fileName,
+  mimeType: "application/pdf",
+  size: 4096,
+});
+
 /**
  * Un fichier réellement envoyé sous un exercice, rendu par sa clé : le rattachement confronte sa
  * déclaration à l'objet reçu, une clé signée mais jamais envoyée y est refusée en 404 (#317).
