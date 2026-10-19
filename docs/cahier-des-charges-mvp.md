@@ -219,7 +219,7 @@ Légende : **MVP** = première version livrable · **v1.0** = première version 
 | Web | **React 19 + Vite** (TanStack Router + Query, Tailwind v3) | Surface principale du coach (création de contenu). Pas de Next.js. |
 | Langage | **TypeScript strict** partout | Types métier (DTO) + schémas Zod **partagés** front ↔ back via `@cmv/shared`. |
 | Données serveur | **TanStack Query** | Cache, synchro, persistance du cache (lecture offline). |
-| API | **NestJS 11** (modules par feature) | Logique métier, validation Zod, observabilité, point d'application du multi-tenant. |
+| API | **NestJS 12** (modules par feature) | Logique métier, validation Zod, observabilité, point d'application du multi-tenant. |
 | ORM / DB | **Prisma 7** (adapter-pg) + **PostgreSQL 18** | `prisma migrate` natif. Une instance `PrismaClient` unique, étendue (scope tenant). |
 | Auth | **Better Auth** (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | Email/mot de passe + reset en MVP ; OAuth Google en v1.0. Session résolue par le tenancy guard. |
 | Multi-tenant | **Tenancy guard + Prisma Client Extension** | Isolation à la couche données (pas de RLS). Voir §9. |

@@ -1,4 +1,4 @@
-import { defineConfig, mergeConfig } from "vitest/config";
+import { configDefaults, defineConfig, mergeConfig } from "vitest/config";
 import e2e from "./vitest.config.e2e";
 
 /**
@@ -12,6 +12,9 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ["src/tenancy/**/*.test.ts", "src/auth/decorator/**/*.test.ts"],
+      // Le `dist` compilé ne porte aucun mutant : cette spec ne jugerait rien, et `test:mutation`
+      // ne le construit pas (#671).
+      exclude: [...configDefaults.exclude, "test/compiled-dist.e2e-spec.ts"],
       coverage: { enabled: false },
     },
   }),

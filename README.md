@@ -5,7 +5,7 @@ Application de suivi de la relation **coach ↔ athlète**, quel que soit le spo
 ## Structure
 
 ```
-apps/api      — @cmv/api    : NestJS 11 + Prisma 7 + PostgreSQL
+apps/api      — @cmv/api    : NestJS 12 + Prisma 7 + PostgreSQL
 apps/mobile   — @cmv/mobile : Expo SDK 56 + Expo Router + NativeWind
 apps/web      — @cmv/web    : React 19 + Vite + TanStack Router/Query + Tailwind v3
 packages/e2e     — @cmv/e2e     : Outillage des e2e — port et base par worktree (#630)
@@ -16,7 +16,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 
 ## Prérequis
 
-- Node.js ≥ 22
+- Node.js 22.22.3+ ou 24.15+ — la 23 et les 24 plus anciennes sont hors de la plage de `@nestjs/schematics` 12
 - pnpm 10.34.5 (`corepack enable && corepack use pnpm@10.34.5`)
 - Docker (pour PostgreSQL, SILO — object storage S3-compatible, fork maintenu de MinIO — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
