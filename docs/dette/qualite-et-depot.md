@@ -410,6 +410,21 @@ liste des domaines vivent dans l'index.
 > - **`@fastify/cors` n'est plus une dépendance directe** : rien ne l'importait, et
 >   `platform-fastify` embarque la sienne.
 
+> **Tranché en [#670](https://github.com/Cimavia/cimavia/issues/670)** (alertes Dependabot sans
+> PR) : vingt alertes, toutes transitives. Six paquets passent par un override, et il reste trois
+> rejets en plus de ceux de #398. Ce que le code ne dit pas seul :
+>
+> - **Un correctif publié dans la majeure s'applique, même hors d'atteinte.** `seroval`, seul
+>   paquet du lot à entrer dans le runtime du web, n'atteint pas le bundle : sa (dé)sérialisation ne
+>   sert qu'au rendu serveur du routeur, et les sourcemaps du `vite build` n'en contiennent aucun
+>   fichier. L'override coûte une ligne ; l'atteignabilité ne départage que les cas sans correctif.
+> - **Override plutôt que montée du routeur**, qui tire `seroval ^1.6.7` dans ses dernières
+>   versions : monter le routeur, c'est le travail de la PR groupée de Dependabot. L'override
+>   devient alors inopérant, et part.
+> - **Rejetés** : `postcss-selector-parser` (correctif en 7, Tailwind 3 exige la 6 : attend
+>   Tailwind 4), `braces` et `node-forge` (aucun correctif publié ; build, metro et `@expo/cli`).
+>   Les alertes `fastify` et `js-yaml` du relevé se sont fermées seules avec #671.
+
 > **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
 > ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
 > en mode `pedantic`, hors deux exceptions posées à la ligne. Ce que le code ne dit pas seul :
