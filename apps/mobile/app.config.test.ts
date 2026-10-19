@@ -1,6 +1,7 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import appConfig from "./app.config";
+import appJson from "./app.json";
 
 const API_URL = "https://api-preview.cimavia.fr";
 const WEB_URL = "https://app-preview.cimavia.fr";
@@ -85,6 +86,25 @@ describe("app.config — demandes de permission iOS", () => {
     expect(config.ios?.infoPlist).toEqual({
       UIFileSharingEnabled: true,
       CFBundleDevelopmentRegion: "fr",
+    });
+  });
+});
+
+describe("app.json — note vocale écran verrouillé (#619)", () => {
+  /**
+   * `CmvAudioRecorder` demande `allowsBackgroundRecording` à chaque capture. Sans le service que ce
+   * plugin déclare, Android refuse de lier l'enregistreur et TOUTE note échoue — un rouge que seul
+   * un build complet montrerait. La lecture en arrière-plan reste coupée : rien ne joue app fermée,
+   * et son service de premier plan serait à justifier au store sans usage.
+   */
+  it("déclare l'enregistrement en arrière-plan que demande le mode audio", () => {
+    const audio = appJson.expo.plugins.find(
+      (plugin) => Array.isArray(plugin) && plugin[0] === "expo-audio",
+    );
+
+    expect(audio?.[1]).toMatchObject({
+      enableBackgroundRecording: true,
+      enableBackgroundPlayback: false,
     });
   });
 });
