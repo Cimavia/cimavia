@@ -266,9 +266,10 @@ liste des domaines vivent dans l'index.
 >   pendant toute écriture du builder.
 > - **Une date de début effacée ou illisible compte comme un écart**, bien qu'elle ne parte pas à
 >   l'enregistrement : l'écran ne montre plus la date que la diffusion emporterait.
-> - **Les formulaires gardent leur état** et ne remontent qu'un booléen (`useReportDirty`), remis à
->   faux à leur démontage — sinon une facturation masquée (passage en auto-coaching) fermerait la
->   diffusion sans plus aucun champ où la lever.
+> - **Les formulaires gardent leur état** et ne remontent que leur enregistrement en attente
+>   (`useReportUnsaved`, un booléen jusqu'à [#682](https://github.com/Cimavia/cimavia/issues/682)),
+>   retiré à leur démontage — sinon une facturation masquée (passage en auto-coaching) fermerait
+>   la diffusion sans plus aucun champ où la lever.
 > - Après diffusion, l'en-tête est **remonté** (`key={plan.status}`) : ses champs grisés repartent
 >   de l'enregistré au lieu de garder une saisie qui n'est pas partie.
 >

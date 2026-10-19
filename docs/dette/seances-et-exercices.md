@@ -492,6 +492,48 @@ liste des domaines vivent dans l'index.
 >
 > Le **mobile** n'a pas de constructeur de bibliothèque : rien à garder.
 
+> **Tranché en [#682](https://github.com/Cimavia/cimavia/issues/682)** (la question propose
+> d'ENREGISTRER, et amende « Tranché en #327 ») : « Rester / Quitter » obligeait le coach qui
+> voulait garder son travail à rester, enregistrer, puis refaire son geste. Le dialogue demande
+> désormais « Enregistrer les modifications ? » : **Enregistrer** (premier, focalisé), **Ne pas
+> enregistrer**, **Annuler**.
+>
+> - **Entrée enregistre et part, Échap vaut « Annuler »** : aucune touche ne fait perdre la saisie.
+>   Pendant l'envoi, les trois boutons sont fermés, « Enregistrer » dit « Enregistrement… » et Échap
+>   est ignoré — rester laisserait partir un enregistrement que plus rien n'attend.
+> - **Chaque écran gardé fournit `save(): Promise<boolean>`** à `useLeaveGuard`, et ne part que
+>   sur `true`. Un échec referme le dialogue et refuse la navigation : l'écran dit pourquoi, par le
+>   même toast ou le même bandeau qu'à un enregistrement au bouton. Les constructeurs de
+>   bibliothèque partagent le leur (`useBuilderSave`) avec « Dupliquer en variante » et « Créer
+>   l'exercice manquant ».
+> - **Les messages sont génériques** (« Le titre est requis pour enregistrer… ») et non liés à la
+>   destination : un même enregistrement sert le bouton, le dialogue et les sorties de #303. Sous
+>   un titre vide, le toast redit la légende du champ : celui-ci peut être hors de l'écran.
+> - **Un enregistrement à la fois** (`useSingleFlight`) : le dialogue peut s'ouvrir pendant que
+>   l'envoi du bouton attend sa réponse. Son « Enregistrer » rejoint cet envoi au lieu d'en lancer
+>   un second — une création partait deux fois, une modification se faisait refuser par sa propre
+>   version.
+> - **« Enregistrer » part là où allait le geste.** « Annuler » sur un exercice ouvert par « Créer
+>   l'exercice manquant » ramène à la séance SANS l'y ajouter, comme le veut #303 : l'exercice est
+>   enregistré en bibliothèque, à ajouter de là. Le routeur ne laisse reprendre la navigation
+>   retenue que telle quelle.
+> - **Le cycle enregistre tout ce qui attend, l'un APRÈS l'autre** : panneau de séance, facturation,
+>   puis en-tête. Décaler le début du cycle fait avancer la version des séances (#604) : envoyé
+>   avant, l'en-tête rendrait périmée la version que le panneau cite, et le coach prendrait un
+>   conflit contre lui-même. Un envoi refusé n'arrête pas les suivants, mais garde le coach sur la
+>   page. Les formulaires remontent leur `save` (`useReportUnsaved`), plus un simple booléen.
+> - **Le panneau d'une séance se referme une fois enregistré** par le dialogue, comme par son
+>   bouton : resté ouvert, il citerait la version qu'il vient lui-même de dépasser.
+> - **Se déconnecter enregistre AVANT de couper la session** ; un échec laisse le coach connecté,
+>   sur sa saisie.
+> - **« Changer de compte » diffère l'enregistrement** à la reconnexion (cf. *Tranché en #682* de
+>   `comptes-et-tenancy.md`).
+>
+> Deux écarts assumés : **F5 et fermeture d'onglet** montrent toujours la boîte du navigateur, qui
+> ne peut rien enregistrer ; et **« Annuler » a deux sens** selon l'écran — le bouton d'un
+> constructeur abandonne la saisie, celui du dialogue l'y ramène. Le dialogue le dit par son titre,
+> qui pose la question.
+
 ---
 
 ## Post-MVP — Saisie refusée dans les constructeurs ([#566](https://github.com/Cimavia/cimavia/issues/566))
