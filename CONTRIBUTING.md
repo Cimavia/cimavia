@@ -408,7 +408,7 @@ visibilité *secret* des trois environnements EAS, et non une valeur d'`eas.json
 
 - Init dans `apps/web/src/instrument.ts`, **premier import** de `main.tsx` : les imports statiques sont hoistés, donc une init placée dans le corps de `main.tsx` arriverait après l'évaluation de tout le graphe de modules et n'entendrait pas ce qui y casse.
 - Écran de repli : `defaultErrorComponent` du routeur → `CmvCrashScreen`. Sa portée s'arrête au routeur — ce qui casse au-dessus (les providers, l'import d'i18n) tombe à l'écran blanc, mais part quand même chez Sentry.
-- Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. `sendDefaultPii: false` côté front, contrairement à l'API.
+- Identité : `useSentryUser()` dans `routes/__root.tsx`, l'`id` du compte seul, effacé à la déconnexion. Pas d'IP côté front (`dataCollection.userInfo: false`), contrairement à l'API.
 - Variables, **lues au démarrage** et non figées au build (#417) : `CMV_SENTRY_DSN` — pas un secret, il part chez chaque visiteur dans `/config.js` — et `CMV_APP_ENV`, le *tier* de déploiement et non le mode de build. Servies par nginx depuis l'environnement du conteneur, par `vite.config.ts` en dev (voir `apps/web/.env.example`). Un tier absent laisse le SDK inerte, et l'app sur son écran de crash.
 - Sourcemaps : téléversées par `@sentry/vite-plugin` quand `SENTRY_AUTH_TOKEN` est fourni — au commit de bump seulement, sous `X.Y.Z+sha` (#417) —, puis effacées de `dist/` avant l'étape nginx. Le jeton passe par un **secret BuildKit** et jamais un `ARG`, qui le graverait dans `docker history` de l'image publiée. `SENTRY_RELEASE` est passé explicitement : `.git` est hors du contexte de build, la détection automatique n'aurait rien à lire.
 
