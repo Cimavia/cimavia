@@ -721,8 +721,9 @@ liste des domaines vivent dans l'index.
 > seule base) et un `timeoutMS` de 60 s — Stryker compte un timeout comme un mutant tué, et la
 > marge par défaut aurait gonflé le score sur un simple boot lent de Nest. Elle tourne **chaque
 > lundi et à la demande**, et sur une PR seulement quand sa propre configuration change ; shared,
-> sur **chaque PR qui le touche**, en mode incrémental, et aussi le lundi — c'est ce run de `main`
-> qui alimente le fichier d'état que les PR relisent depuis le cache. Sous son seuil, un job
+> sur **chaque PR qui le touche**, en mode incrémental, et aussi sur `main` — à chaque merge qui le
+> touche depuis #647, le lundi et à la demande : ce sont ces runs qui alimentent le fichier d'état
+> que les PR relisent depuis le cache. Sous son seuil, un job
 > **échoue** ; mais **aucun des deux n'est requis** : le rouge se voit, il ne bloque pas un merge.
 >
 > Les seuils diffèrent par nature. La tenancy est à **100 %** (`break: 100`) : un survivant y est
@@ -791,9 +792,25 @@ liste des domaines vivent dans l'index.
 > que si un test qui le couvre est apparu. Un mutant **statique** — une regex, une constante, un
 > schéma posés au niveau du module — n'a pas de couverture par test : son « survivant » était relu
 > à vie, même tué depuis. La PR mesurait ainsi 91,30 % là où le score réel est 92,03 %, et le run
-> du lundi, incrémental lui aussi, n'aurait jamais assaini le cache. Désormais `main` (lundi et à
-> la demande) et toute PR qui touche `stryker.config.mjs` passent `--force` ; les autres PR
-> restent incrémentales.
+> du lundi, incrémental lui aussi, n'aurait jamais assaini le cache. Désormais `main` (à chaque
+> merge dans shared depuis #647, le lundi et à la demande) et toute PR qui touche
+> `stryker.config.mjs` passent `--force` ; les autres PR restent incrémentales.
+
+> **Tranché en [#647](https://github.com/Cimavia/cimavia/issues/647)** (le cache que relisent les
+> PR) : une PR doit être mesurée sur le `main` courant. Elle l'était sur le run du lundi précédent —
+> #646 a relu un cache vieux de plusieurs merges et hérité de 29 survivants tués depuis : 91,32 %
+> au lieu de 92,06 %. Pire, sur rien : un cache inutilisé sept jours est effacé, et le premier run
+> de #673 a tout mesuré faute d'en trouver un. Trois règles :
+> - **chaque merge qui touche shared** lance une mesure complète sur `main`, qui réécrit le cache.
+>   Préféré à un `--force` sur la PR quand son cache date d'avant le dernier `stryker.config.mjs` :
+>   lui ne couvrait que la remontée du cliquet, pas un cache en retard de plusieurs merges ;
+> - **une PR lit le cache, ne l'écrit plus.** Le cache cherche d'abord dans la branche du run : une
+>   PR relisait le sien avant celui de `main`, et restait mesurée sur le `main` de son premier run.
+>   Relancer une PR après un run de `main` ne changeait donc rien. Le prix : un run relancé rejoue
+>   toute la différence avec `main`, pas son dernier incrément — quelques dizaines de secondes ;
+> - **un groupe de concurrence par événement.** GitHub ne garde qu'un run en attente par groupe :
+>   dans un groupe commun, un merge aurait annulé un run du lundi ou à la demande qui attendait son
+>   tour, tenancy comprise, ou attendu 90 min derrière elle. La tenancy ne tourne pas au merge.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
 > dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et
