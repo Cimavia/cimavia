@@ -93,7 +93,7 @@ tourne aussi au merge de son fichier, et à la main.
   d'installation se fait là, une fois ;
 - les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
   de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là — et les `Dockerfile`, qui
-  épinglent encore `node:22`, `pnpm@10.34.5` et `turbo@2.10.0` à part ;
+  épinglent encore `node:22`, `pnpm@10.34.7` et `turbo@2.10.0` à part ;
 - chaque job porte un `timeout-minutes`, autour de trois fois sa durée observée, mesure en
   commentaire : sans lui, un job bloqué occupe un runner six heures ;
 - tous les jobs tournent sur `ubuntu-26.04`, épinglé : passer à une autre version d'Ubuntu est

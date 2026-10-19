@@ -28,7 +28,7 @@ FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 # pnpm épinglé : la même version que `packageManager` (`package.json` racine), à monter ensemble.
-RUN corepack enable && corepack prepare pnpm@10.34.5 --activate
+RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
 WORKDIR /app
 
 # ─────────────────────────────────────────────────────────────────────────────
