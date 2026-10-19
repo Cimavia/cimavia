@@ -6,19 +6,39 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { press, renderRn } from "@/test/render";
 import { CmvAudioRecorder } from "./CmvAudioRecorder";
 
+/** La `NotificationPermissionsException` d'Android, telle que le pont la rend au JS. */
+function notificationsRefused() {
+  return Object.assign(new Error("POST_NOTIFICATIONS permission has not been granted"), {
+    code: "ERR_NOTIFICATION_PERMISSIONS",
+  });
+}
+
+// L'état de `POST_NOTIFICATIONS` sur le téléphone simulé : accordée, sauf quand un test la refuse.
+let notificationsGranted = true;
+
 /**
  * Un enregistreur STABLE d'un rendu à l'autre : le faux par défaut en fabrique un neuf à chaque
  * appel du hook, et l'assertion porterait alors sur un objet que le composant n'a jamais touché.
+ *
+ * Sa préparation suit la règle d'Android (#619) : en arrière-plan, sans `POST_NOTIFICATIONS`, elle
+ * lève. Elle lit le DERNIER mode posé — un repli qui retenterait sans changer de mode échouerait
+ * donc ici comme sur le téléphone.
  */
 function fakeRecorder() {
   return {
     record: vi.fn(),
     stop: vi.fn(async () => undefined),
-    prepareToRecordAsync: vi.fn(async () => undefined),
+    prepareToRecordAsync: vi.fn(async () => {
+      const mode = vi.mocked(setAudioModeAsync).mock.lastCall?.[0];
+      if (mode?.allowsBackgroundRecording === true && !notificationsGranted) {
+        throw notificationsRefused();
+      }
+    }),
     uri: "file:///cache/note.m4a" as string | null,
   };
 }
@@ -39,6 +59,12 @@ function icon(container: HTMLElement, name: string): Element {
 
 const PLAYBACK_MODE = { allowsRecording: false, playsInSilentMode: true };
 
+const recordMode = (background: boolean) => ({
+  allowsRecording: true,
+  playsInSilentMode: true,
+  allowsBackgroundRecording: background,
+});
+
 /** Monte le composant EN COURS d'enregistrement : c'est l'état natif qui gouverne le bandeau. */
 function recording(durationMillis: number) {
   vi.mocked(useAudioRecorderState).mockReturnValue({
@@ -47,29 +73,50 @@ function recording(durationMillis: number) {
   } as ReturnType<typeof useAudioRecorderState>);
 }
 
-beforeEach(() => {
-  recorder = fakeRecorder();
-  vi.mocked(useAudioRecorder).mockReturnValue(
-    recorder as unknown as ReturnType<typeof useAudioRecorder>,
-  );
+/** Passe le composant monté au repos : c'est ce que fait le natif une fois la capture close. */
+function idle() {
   vi.mocked(useAudioRecorderState).mockReturnValue({
     isRecording: false,
     durationMillis: 0,
   } as ReturnType<typeof useAudioRecorderState>);
+}
+
+/**
+ * Lance une capture depuis le micro, puis rend le bandeau. Le natif ne dit enregistrer qu'APRÈS
+ * `record()` : l'état est donc basculé une fois la capture partie, et un nouveau rendu le lit.
+ */
+async function startCapture(view: ReturnType<typeof setup>) {
+  press(icon(view.container, "mic-outline"));
+  await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(true));
+  recording(1000);
+  view.rerender(
+    <CmvAudioRecorder
+      onRecorded={view.onRecorded}
+      onRecordingChange={view.onRecordingChange}
+      onError={view.onError}
+    />,
+  );
+}
+
+beforeEach(() => {
+  notificationsGranted = true;
+  recorder = fakeRecorder();
+  vi.mocked(useAudioRecorder).mockReturnValue(
+    recorder as unknown as ReturnType<typeof useAudioRecorder>,
+  );
+  idle();
 });
 
 describe("CmvAudioRecorder — démarrage", () => {
-  it("passe le mode audio en entier, sans quoi iOS refuse d'enregistrer", async () => {
+  it("passe le mode audio en entier, arrière-plan compris, sans quoi iOS refuse d'enregistrer", async () => {
     const { container, onRecordingChange, onError } = setup();
 
     press(icon(container, "mic-outline"));
 
-    // Le faux d'`expo-audio` lève comme iOS sur `allowsRecording` seul : c'est #393.
+    // Le faux d'`expo-audio` lève comme iOS sur `allowsRecording` seul : c'est #393. Sans
+    // `allowsBackgroundRecording`, la capture se met en pause écran verrouillé : c'est #619.
     await waitFor(() => expect(recorder.record).toHaveBeenCalledOnce());
-    expect(setAudioModeAsync).toHaveBeenCalledWith({
-      allowsRecording: true,
-      playsInSilentMode: true,
-    });
+    expect(setAudioModeAsync).toHaveBeenCalledExactlyOnceWith(recordMode(true));
     expect(onRecordingChange).toHaveBeenCalledWith(true);
     expect(onError).not.toHaveBeenCalled();
   });
@@ -117,6 +164,8 @@ describe("CmvAudioRecorder — retour au mode lecture sur échec", () => {
       expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
     );
     expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    // Seul le refus des notifications mérite un second essai : un micro pris le resterait.
+    expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce();
   });
 
   it("rétablit la lecture quand l'arrêt échoue", async () => {
@@ -147,6 +196,159 @@ describe("CmvAudioRecorder — retour au mode lecture sur échec", () => {
       expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
     );
     expect(setAudioModeAsync).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("CmvAudioRecorder — repli au premier plan (Android, notifications refusées)", () => {
+  it("retente sans arrière-plan au lieu d'échouer, sans redemander les notifications", async () => {
+    notificationsGranted = false;
+    const { container, onRecordingChange, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(recorder.record).toHaveBeenCalledOnce());
+    expect(vi.mocked(setAudioModeAsync).mock.calls).toEqual([
+      [recordMode(true)],
+      [recordMode(false)],
+    ]);
+    expect(recorder.prepareToRecordAsync).toHaveBeenCalledTimes(2);
+    expect(onRecordingChange).toHaveBeenCalledWith(true);
+    expect(onError).not.toHaveBeenCalled();
+    // Un refus de notifications est un choix de l'utilisateur, pas une panne.
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("dit sous le minuteur que la note se mettra en pause écran verrouillé", async () => {
+    notificationsGranted = false;
+    const view = setup();
+
+    await startCapture(view);
+
+    expect(view.getByText("messages.audio.foregroundOnly")).not.toBeNull();
+  });
+
+  it("ne dit rien quand la capture tient en arrière-plan", async () => {
+    const view = setup();
+
+    await startCapture(view);
+
+    expect(view.getByText("0:01")).not.toBeNull();
+    expect(view.queryByText("messages.audio.foregroundOnly")).toBeNull();
+  });
+
+  it("signale l'échec du second essai et rend la lecture", async () => {
+    const cause = new Error("micro occupé");
+    recorder.prepareToRecordAsync
+      .mockRejectedValueOnce(notificationsRefused())
+      .mockRejectedValueOnce(cause);
+    const { container, onError, onRecordingChange } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
+    expect(recorder.record).not.toHaveBeenCalled();
+    expect(onRecordingChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioRecorder — écran allumé pendant la capture", () => {
+  it("laisse la veille au repos", () => {
+    setup();
+
+    expect(activateKeepAwakeAsync).not.toHaveBeenCalled();
+  });
+
+  // Envoyer comme jeter passent par l'arrêt du natif, qui retombe au repos : le bandeau part, et
+  // le maintien avec lui.
+  it.each([
+    "send",
+    "trash-outline",
+  ])("tient l'écran allumé pendant le bandeau, et le rend après %s", async (iconName) => {
+    recording(3000);
+    const view = setup();
+    expect(activateKeepAwakeAsync).toHaveBeenCalledOnce();
+
+    press(icon(view.container, iconName));
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(false));
+    expect(deactivateKeepAwake).not.toHaveBeenCalled();
+    idle();
+    view.rerender(<CmvAudioRecorder onRecorded={view.onRecorded} />);
+
+    expect(deactivateKeepAwake).toHaveBeenCalledOnce();
+  });
+
+  it("rend l'écran à la veille quand on quitte en pleine capture", () => {
+    recording(3000);
+    const { unmount } = setup();
+
+    unmount();
+
+    expect(deactivateKeepAwake).toHaveBeenCalledOnce();
+  });
+});
+
+describe("CmvAudioRecorder — démontage", () => {
+  it("rend le mode lecture quand on quitte en pleine capture", async () => {
+    const view = setup();
+    await startCapture(view);
+
+    view.unmount();
+
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+  });
+
+  it("le rend aussi quand on quitte pendant la préparation du micro", async () => {
+    // La préparation attend le service d'Android : le temps de quitter l'écran, mode déjà posé.
+    let prepared: () => void = () => undefined;
+    recorder.prepareToRecordAsync.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        prepared = resolve;
+      }),
+    );
+    const { container, unmount } = setup();
+    press(icon(container, "mic-outline"));
+    await waitFor(() => expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce());
+
+    unmount();
+
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    prepared();
+  });
+
+  it("ne touche pas au mode audio quand on quitte au repos", () => {
+    const { unmount } = setup();
+
+    unmount();
+
+    expect(setAudioModeAsync).not.toHaveBeenCalled();
+  });
+
+  it("ne le rejoue pas après un démarrage échoué", async () => {
+    recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("micro occupé"));
+    const { container, onError, unmount } = setup();
+    press(icon(container, "mic-outline"));
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    vi.mocked(setAudioModeAsync).mockClear();
+
+    unmount();
+
+    expect(setAudioModeAsync).not.toHaveBeenCalled();
+  });
+
+  it("ne le rejoue pas après une capture déjà close", async () => {
+    const view = setup();
+    await startCapture(view);
+    press(icon(view.container, "send"));
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(false));
+    vi.mocked(setAudioModeAsync).mockClear();
+
+    view.unmount();
+
+    expect(setAudioModeAsync).not.toHaveBeenCalled();
   });
 });
 
