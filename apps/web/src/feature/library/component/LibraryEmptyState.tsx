@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { libraryEmpty } from "@/feature/library/util/library-empty.util";
 import { CmvEmptyState } from "@/shared/component";
 
 type LibraryEmptyStateProps = {
   /** La recherche, rognée. */
   search: string;
-  tag: string;
+  /** Les tags choisis ; aucun = pas de filtre. */
+  tags: readonly string[];
   sharedOnly: boolean;
   /** Ce que dit la recherche vaine. */
   noMatch: string;
@@ -25,7 +25,7 @@ type LibraryEmptyStateProps = {
  */
 export function LibraryEmptyState({
   search,
-  tag,
+  tags,
   sharedOnly,
   noMatch,
   create,
@@ -33,7 +33,7 @@ export function LibraryEmptyState({
   children,
 }: Readonly<LibraryEmptyStateProps>) {
   const { t } = useTranslation();
-  const empty = libraryEmpty({ search, tagged: tag !== NO_TAG_FILTER, sharedOnly });
+  const empty = libraryEmpty({ search, tagged: tags.length > 0, sharedOnly });
   if (empty.kind === "noMatch") {
     return <CmvEmptyState title={noMatch} action={empty.canCreate ? create : undefined} />;
   }

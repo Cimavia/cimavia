@@ -236,6 +236,7 @@
       "sessionValue": "séance {{value}}"
     },
     "filterAllTags": "Tous",
+    "filterTags": "Filtrer par tags",
     "frozen": {
       "badge": "Copie figée",
       "badgeFrom": "Copie figée — d'après {{owner}}",

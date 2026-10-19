@@ -122,16 +122,43 @@ describe("ExerciseList — filtres", () => {
     expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
   });
 
-  it("filtre par tag, et « Tous » retire le filtre", async () => {
+  it("filtre par plusieurs tags, en décoche un, et « Tous » vide le choix (#654)", async () => {
     state({ data: [] });
     const { user, getByRole } = await setup();
 
     await user.click(getByRole("button", { name: "force" }));
-    expect(lastFilters()).toEqual({ tag: "force", scope: LibraryScope.ALL });
+    expect(lastFilters()).toEqual({ tags: ["force"], scope: LibraryScope.ALL });
+    await user.click(getByRole("button", { name: "doigts" }));
+    expect(lastFilters()).toEqual({ tags: ["doigts", "force"], scope: LibraryScope.ALL });
     expect(getByRole("button", { name: "force" })).toHaveAttribute("aria-pressed", "true");
+    expect(getByRole("button", { name: "library.filterAllTags" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await user.click(getByRole("button", { name: "force" }));
+    expect(lastFilters()).toEqual({ tags: ["doigts"], scope: LibraryScope.ALL });
 
     await user.click(getByRole("button", { name: "library.filterAllTags" }));
     expect(lastFilters()).toEqual({ scope: LibraryScope.ALL });
+    expect(getByRole("button", { name: "library.filterAllTags" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("un tag choisi qui sort des tags connus garde sa pastille, pour pouvoir le décocher", async () => {
+    state({ data: [] });
+    const { user, getByRole } = await setup();
+    await user.click(getByRole("button", { name: "force" }));
+
+    // Relu : plus aucun exercice ne porte « force ».
+    state({ data: [], tags: ["doigts"] });
+    await user.click(getByRole("button", { name: "doigts" }));
+
+    expect(getByRole("button", { name: "force" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(getByRole("button", { name: "force" }));
+    expect(lastFilters()).toEqual({ tags: ["doigts"], scope: LibraryScope.ALL });
   });
 
   it("combine le tag et la recherche", async () => {
@@ -141,7 +168,7 @@ describe("ExerciseList — filtres", () => {
     await user.click(getByRole("button", { name: "doigts" }));
     await user.type(getByRole("searchbox", { name: SEARCH }), "pinces");
 
-    expect(lastFilters()).toEqual({ tag: "doigts", search: "pinces", scope: LibraryScope.ALL });
+    expect(lastFilters()).toEqual({ tags: ["doigts"], search: "pinces", scope: LibraryScope.ALL });
   });
 
   // Un filtre à un seul bouton « Tous » ne filtrerait rien.
