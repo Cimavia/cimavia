@@ -5,7 +5,7 @@ Application de suivi de la relation **coach ↔ athlète**, quel que soit le spo
 ## Structure
 
 ```
-apps/api      — @cmv/api    : NestJS 11 + Prisma 7 + PostgreSQL
+apps/api      — @cmv/api    : NestJS 12 + Prisma 7 + PostgreSQL
 apps/mobile   — @cmv/mobile : Expo SDK 56 + Expo Router + NativeWind
 apps/web      — @cmv/web    : React 19 + Vite + TanStack Router/Query + Tailwind v3
 packages/e2e     — @cmv/e2e     : Outillage des e2e — port et base par worktree (#630)

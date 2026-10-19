@@ -21,7 +21,7 @@ Contexte auto-chargé par Claude Code. Garder **court et à jour** : toute déri
 
 ```
 apps/
-  api/        # NestJS 11 — modules par feature
+  api/        # NestJS 12 — modules par feature
   mobile/     # Expo SDK 56 (RN ~0.85) — Expo Router + NativeWind
   web/        # React 19 + Vite — TanStack Router + Query (coach surtout)
 packages/
@@ -43,11 +43,11 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.5`). Lint/format **Biome** (`2.5.1`, 
 | Lint/format | Biome | `2.5.1` |
 | Tests | Vitest | `4.1.11` |
 | Hooks | Husky / lint-staged / commitlint | `9.1.7` / `17.0.8` / `21.1.0` |
-| API | NestJS | `11.2.6` |
+| API | NestJS | `12.1.3` |
 | ORM / DB | Prisma + adapter-pg / PostgreSQL | `7.8.0` / PG **18** |
 | Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `^1.5` *(P1)* |
 | Validation + env | Zod | `4.4.3` |
-| Observabilité API | nestjs-pino / @sentry/nestjs + @sentry/profiling-node | `4.6.1` / `11.8.0` |
+| Observabilité API | nestjs-pino / @sentry/nestjs + @sentry/profiling-node | `5.3.1` / `11.8.0` |
 | Observabilité web | @sentry/react / @sentry/vite-plugin | `11.8.0` / `11.8.0` |
 | Observabilité mobile | @sentry/react-native | `7.11.0` *(version épinglée par Expo SDK 56)* |
 | Mobile | Expo SDK / React Native / NativeWind | `56.0.22` / `0.85.3` / `4.2.6` |

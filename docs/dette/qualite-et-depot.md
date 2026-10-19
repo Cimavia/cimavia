@@ -383,6 +383,28 @@ liste des domaines vivent dans l'index.
 > `/docs` (fermé dans toute image, mais indispensable en local), et `mysql2` vient du CLI `prisma`,
 > pas de better-auth.
 
+> **Tranché en [#671](https://github.com/Cimavia/cimavia/issues/671)** (NestJS 12) : la pile Nest
+> monte d'un bloc, à la main — `nestjs-pino` 5, `nestjs-cls` 7, `@nestjs/swagger` 12 et
+> `@nestjs/config` 12 refusent la 11 ou la 12 selon leur version, et Dependabot ne proposait que la
+> CLI (#589). Il la regroupe désormais (`.github/dependabot.yml`, groupe `nestjs`), comme Sentry en
+> #669. `fastify` suit Nest, comme le voulait #398 : la 5.12.5 arrive avec `platform-fastify`
+> 12.1.3, et `js-yaml` 5.4.2 avec `@nestjs/swagger` 12, sans override.
+>
+> - **L'API reste en CommonJS.** Nest 12 n'est publié qu'en ESM : `tsc` compile toujours en
+>   CommonJS, et Node charge Nest par `require(esm)`, actif sans drapeau depuis 22.12. **Seul
+>   `node dist/main` passe par ce chemin** : Vitest, unitaires comme e2e, importe Nest en ESM
+>   natif. Vérifié à la main, sur `dist` et dans l'image : santé, `/docs`, journaux Pino, et les
+>   spans Nest de Sentry (gardes, intercepteur, filtre). Aucun test ne le refait : dette O-4.
+>   Passer l'API en ESM est un autre sujet, que Nest laisse optionnel.
+> - **`engines` passe de 22.18 à 22.22.3** : c'est le plancher de `@nestjs/schematics` 12 (son
+>   Angular devkit), et `@thallesp/nestjs-better-auth` exigeait déjà 22.22.1 sans que `engines` le
+>   dise.
+> - **Les pipes Zod restent les nôtres**, pas le `StandardSchemaValidationPipe` de Nest 12 : la
+>   montée garde le comportement, et le pipe de Nest perdrait le contrat des 400 — `{ path,
+>   message }`, en français (#319).
+> - **`@fastify/cors` n'est plus une dépendance directe** : rien ne l'importait, et
+>   `platform-fastify` embarque la sienne.
+
 > **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
 > ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
 > en mode `pedantic`, hors deux exceptions posées à la ligne. Ce que le code ne dit pas seul :
