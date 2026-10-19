@@ -17,6 +17,13 @@ export const CMV_TABLE = {
   headBorder: "border-cmv-border border-b",
   headCell: "px-cmv-sm py-cmv-sm text-left align-middle font-normal",
   /**
+   * L'en-tête d'un tableau qui défile dans son cadre, à ajouter à `headCell` : collé en haut,
+   * au-dessus des lignes. Posé sur chaque cellule et non sur le `thead`, dont ni le collage ni
+   * l'ombre ne tiennent partout. Il porte son fond et son filet — une ombre, car en
+   * `border-collapse` une bordure resterait sur place pendant le défilement.
+   */
+  stickyHeadCell: "sticky top-0 z-10 bg-cmv-bg-1 shadow-[inset_0_-1px_0] shadow-cmv-border",
+  /**
    * Les petites capitales vivent sur le LIBELLÉ, jamais sur la ligne : `uppercase` est hérité, et
    * posé plus haut il remonterait dans tout ce que la cellule contient — l'unité, et jusqu'au
    * menu de colonne qui s'y ancre.

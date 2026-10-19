@@ -532,6 +532,7 @@
       "owner": "Propriétaire",
       "access": "Accès",
       "exercises": "Exercices",
+      "dosage": "Dosage",
       "updatedAt": "Modifié le",
       "select": "Sélectionner « {{title}} »",
       "selectAll": "Tout sélectionner",

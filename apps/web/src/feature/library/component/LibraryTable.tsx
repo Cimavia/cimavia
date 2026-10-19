@@ -11,8 +11,15 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type AccessElement, AccessPanel } from "@/feature/library/component/AccessPanel";
 import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
+import {
+  HeadCell,
+  LIBRARY_ROW,
+  NoValue,
+  TagsCell,
+  TitleCell,
+} from "@/feature/library/component/LibraryTableCells";
 import { accessText, ownerText } from "@/feature/library/util/access-text.util";
-import { CMV_TABLE, CmvButton, CmvTagList } from "@/shared/component";
+import { CMV_TABLE, CmvButton } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatInstantDate } from "@/shared/util/date.util";
 
@@ -129,10 +136,7 @@ export function LibraryTable<T extends LibraryTableRow>({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr
-                key={row.id}
-                className={cn(CMV_TABLE.row, "relative transition-colors hover:bg-cmv-surface")}
-              >
+              <tr key={row.id} className={LIBRARY_ROW}>
                 {sharing ? (
                   <td className={CMV_TABLE.cell}>
                     {/* Au-dessus de la zone cliquable du titre, qui couvre la ligne. */}
@@ -146,27 +150,14 @@ export function LibraryTable<T extends LibraryTableRow>({
                     />
                   </td>
                 ) : null}
-                <td className={CMV_TABLE.cell}>
-                  <button
-                    type="button"
-                    onClick={() => onOpen(row)}
-                    className="text-left text-cmv-body text-cmv-text-hi after:absolute after:inset-0"
-                  >
-                    {row.title}
-                  </button>
+                <TitleCell title={row.title} onClick={() => onOpen(row)}>
                   {row.frozenFrom == null ? null : (
                     <div className="mt-cmv-xs">
                       <FrozenBadge frozenFrom={row.frozenFrom} />
                     </div>
                   )}
-                </td>
-                <td className={CMV_TABLE.cell}>
-                  {row.tags.length === 0 ? (
-                    <span className="text-cmv-text-lo">—</span>
-                  ) : (
-                    <CmvTagList tags={row.tags} />
-                  )}
-                </td>
+                </TitleCell>
+                <TagsCell tags={row.tags} />
                 {sharing ? (
                   <td className={cn(CMV_TABLE.cell, "text-cmv-text-mid")}>{ownerText(row, t)}</td>
                 ) : null}
@@ -175,7 +166,7 @@ export function LibraryTable<T extends LibraryTableRow>({
                     {isMissingGrants(row) ? (
                       // Des droits absents ne s'ouvrent pas : le panneau les prendrait pour
                       // « Aucun » et écrirait des retraits que personne n'a demandés.
-                      <span className="text-cmv-text-lo">—</span>
+                      <NoValue />
                     ) : (
                       <button
                         type="button"
@@ -236,12 +227,4 @@ function isMissingGrants(row: LibraryTableRow) {
 /** Ce dont le Coach peut régler les accès : le sien, droits connus. */
 function manageable(row: LibraryTableRow) {
   return isOwner(row.myAccess) && !isMissingGrants(row);
-}
-
-function HeadCell({ label }: Readonly<{ label: string }>) {
-  return (
-    <th className={CMV_TABLE.headCell}>
-      <span className={CMV_TABLE.headLabel}>{label}</span>
-    </th>
-  );
 }

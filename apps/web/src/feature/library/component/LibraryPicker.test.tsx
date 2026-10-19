@@ -7,6 +7,7 @@ import {
   MetricValueType,
   MyAccessLevel,
 } from "@cmv/shared";
+import { within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
@@ -86,9 +87,15 @@ async function setup({ isSaving = false } = {}) {
   );
   const titles = () =>
     view
-      .queryAllByRole("button", { name: /^(Échauffement|Tractions|Gainage)/ })
-      .map((button) => button.firstChild?.textContent);
-  return { ...view, onPick, onCreateMissing, titles };
+      .queryAllByRole("button", { name: /^(Échauffement|Tractions|Gainage)$/ })
+      .map((button) => button.textContent);
+  const headers = () => view.getAllByRole("columnheader").map((header) => header.textContent);
+  // La ligne d'un exercice, lue cellule par cellule : ce que le Coach parcourt avant de choisir.
+  const cells = (title: string) =>
+    within(view.getByRole("button", { name: title }).closest("tr") as HTMLElement)
+      .getAllByRole("cell")
+      .map((cell) => cell.textContent);
+  return { ...view, onPick, onCreateMissing, titles, headers, cells };
 }
 
 beforeEach(() => {
@@ -111,6 +118,20 @@ describe("LibraryPicker", () => {
 
     expect(titles()).toEqual([]);
     expect(queryByText("library.noMatch.title")).not.toBeInTheDocument();
+  });
+
+  // La même phrase que la composition : le coach reconnaît ce qu'il ajoute avant de l'ajouter.
+  it("montre chaque exercice en ligne — titre, tags, dosage —, et « — » pour ce qui manque", async () => {
+    served(library);
+    const { headers, cells } = await setup();
+
+    expect(headers()).toEqual([
+      "library.table.title",
+      "library.table.tags",
+      "library.table.dosage",
+    ]);
+    expect(cells("Échauffement")).toEqual(["Échauffement", "mobilité", "—"]);
+    expect(cells("Tractions")).toEqual(["Tractions", "—", "exercise.dosage.series"]);
   });
 
   // Le coach tape sans accent ni majuscule : « echauf » doit trouver « Échauffement ».
@@ -144,23 +165,11 @@ describe("LibraryPicker", () => {
     expect(queryByRole("button", { name: "library.filterAllTags" })).not.toBeInTheDocument();
   });
 
-  // La même phrase que la composition : le coach reconnaît ce qu'il ajoute avant de l'ajouter.
-  it("résume le dosage de chaque exercice, et tait celui d'un exercice sans bloc", async () => {
-    served(library);
-    const { getByRole } = await setup();
-
-    expect(getByRole("button", { name: /^Tractions/ })).toHaveTextContent(
-      "Tractionsexercise.dosage.series",
-    );
-    expect(getByRole("button", { name: /^Gainage/ }).textContent).toBe("Gainage");
-    expect(getByRole("button", { name: /^Échauffement/ }).textContent).toBe("Échauffementmobilité");
-  });
-
   it("remonte l'exercice choisi", async () => {
     served(library);
     const { user, getByRole, onPick } = await setup();
 
-    await user.click(getByRole("button", { name: /^Tractions/ }));
+    await user.click(getByRole("button", { name: "Tractions" }));
 
     expect(onPick).toHaveBeenCalledExactlyOnceWith(library[1]);
   });
@@ -195,6 +204,7 @@ describe("LibraryPicker", () => {
 
     expect(queryByRole("button", { name: "library.noMatch.create" })).not.toBeInTheDocument();
     expect(getByText("library.empty.title")).toBeInTheDocument();
+    expect(queryByRole("table")).not.toBeInTheDocument();
   });
 });
 
@@ -204,10 +214,11 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
     myAccess: { level: MyAccessLevel.READ, via: F },
   });
 
-  it("sans entreprise : ni propriétaire, ni bascule", async () => {
+  it("sans entreprise : ni colonne Propriétaire, ni bascule", async () => {
     served(library);
-    const { queryByText, queryByRole } = await setup();
+    const { headers, queryByText, queryByRole } = await setup();
 
+    expect(headers()).not.toContain("library.table.owner");
     expect(queryByText("library.access.me")).not.toBeInTheDocument();
     expect(queryByRole("button", { name: "library.picker.shared" })).not.toBeInTheDocument();
   });
@@ -215,10 +226,16 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
   it("dit à qui est chaque exercice, et le droit qu'on a sur celui d'un autre", async () => {
     organizations([F]);
     served([exercise("ex-1", "Échauffement"), ofM]);
-    const { getByRole } = await setup();
+    const { headers, cells } = await setup();
 
-    expect(getByRole("button", { name: /^Échauffement/ })).toHaveTextContent("library.access.me");
-    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("library.access.grant");
+    expect(headers()).toEqual([
+      "library.table.title",
+      "library.table.tags",
+      "library.table.owner",
+      "library.table.dosage",
+    ]);
+    expect(cells("Échauffement")).toEqual(["Échauffement", "—", "library.access.me", "—"]);
+    expect(cells("Gainage")).toEqual(["Gainage", "—", "library.access.grant", "—"]);
   });
 
   it("propose les deux provenances au départ, et demande celle qui reste", async () => {
@@ -255,9 +272,9 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
   it("entreprises inconnues : le propriétaire se dit quand même, les bascules attendent", async () => {
     organizations(undefined);
     served([ofM]);
-    const { getByRole, queryByRole } = await setup();
+    const { cells, queryByRole } = await setup();
 
-    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("library.access.grant");
+    expect(cells("Gainage")).toContain("library.access.grant");
     expect(queryByRole("button", { name: "library.picker.shared" })).not.toBeInTheDocument();
     expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
   });
@@ -317,8 +334,8 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
         ],
       }),
     ]);
-    const { getByRole } = await setup();
+    const { cells } = await setup();
 
-    expect(getByRole("button", { name: /^Gainage/ })).toHaveTextContent("12 prises");
+    expect(cells("Gainage").at(-1)).toContain("12 prises");
   });
 });
