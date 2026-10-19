@@ -42,7 +42,8 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
       // d'une connexion, le jeton d'une réinitialisation, le code d'une invitation, le texte d'un
       // débrief. Couper partout plutôt que sur `/api/auth/*` seulement : une liste d'exceptions
       // s'oublie à la prochaine route sensible, et une 500 se rejoue avec sa stack sans son corps.
-      // `httpBodies: []` plus bas dit qu'aucun corps ne PART ; ceci, qu'il n'est même pas LU.
+      // `dataCollection` plus bas dit qu'aucun corps ne PART (`httpBodies: []`, `@cmv/shared`) ;
+      // ceci, qu'il n'est même pas LU.
       Sentry.httpIntegration({ maxRequestBodySize: "none" }),
     ],
 
@@ -67,7 +68,11 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
 
     // Ce que le SDK collecte (#669, `@cmv/shared`) : l'IP part côté API (#183), pas côté web.
     // `scrubEvent` et `scrubSpan` retirent ensuite les secrets, des erreurs COMME des spans (#433).
-    dataCollection: sentryDataCollection({ userInfo: true }),
+    // `satisfies Required<…>` : `@cmv/shared` ne connaît pas Sentry, et une clé que la prochaine
+    // majeure ajoutera ou renommera doit casser le typecheck ICI, pas retomber sur son défaut.
+    dataCollection: sentryDataCollection({ userInfo: true }) satisfies Required<
+      NonNullable<SentryOptions["dataCollection"]>
+    >,
     beforeSend: scrubEvent,
     // Les spans partent en flux en v11 : `beforeSendTransaction` n'est plus jamais appelé.
     beforeSendSpan: scrubSpan,
