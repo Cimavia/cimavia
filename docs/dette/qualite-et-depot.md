@@ -394,11 +394,12 @@ liste des domaines vivent dans l'index.
 >
 > - **L'API reste en CommonJS.** Nest 12 n'est publié qu'en ESM : `tsc` compile toujours en
 >   CommonJS, et Node charge Nest par `require(esm)`, actif sans drapeau depuis 22.12. **Seul
->   `node dist/main` passe par ce chemin** : Vitest, unitaires comme e2e, importe Nest en ESM
->   natif. Vérifié à la main, sur `dist` et dans l'image : santé, `/docs`, journaux Pino, et les
->   spans Nest de Sentry (gardes, intercepteur, filtre). Le démarrage est rejoué sur `main` par la
->   sonde d'`api-image.yml`, pas les spans : dette O-4. Passer l'API en ESM est un autre sujet,
->   que Nest laisse optionnel.
+>   `node dist/main` passe par ce chemin** : le reste de la suite, sous Vitest, importe Nest en ESM
+>   natif. D'où `test/compiled-dist.e2e-spec.ts`, qui lance le `dist` (construit par Turbo avant
+>   les e2e, `apps/api/turbo.json`) sur un faux Sentry : une lecture scopée au Coach doit répondre,
+>   et les spans Nest partir — démarrage, gardes, intercepteur, filtre. Charger Nest avant
+>   `instrument` le fait tomber. Passer l'API en ESM est un autre sujet, que Nest laisse
+>   optionnel.
 > - **`engines` devient `^22.22.3 || ^24.15.0 || >=26.0.0`**, la plage de `@nestjs/schematics` 12
 >   (son Angular devkit) ; `@thallesp/nestjs-better-auth` exigeait déjà 22.22.1 sans que `engines`
 >   le dise. pnpm n'en fait qu'un avertissement (pas d'`engine-strict`) : un poste ou un build EAS

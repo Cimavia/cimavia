@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test:e2e": {
+      // `build` en plus de `^build` : `compiled-dist.e2e-spec.ts` lance `dist/main.js`, le chemin
+      // CommonJS de l'image (#671). Turbo le reconstruit quand le contenu de `src/` change, et le
+      // laisse en place sinon. Le prix : un `nest build` (~8 s) avant la suite quand il manque.
+      "dependsOn": ["^build", "build"]
+    }
+  }
+}
