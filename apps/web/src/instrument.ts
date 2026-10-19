@@ -1,3 +1,4 @@
+import { sentryDataCollection } from "@cmv/shared";
 import * as Sentry from "@sentry/react";
 import { runtimeConfig } from "./shared/lib/runtime-config";
 import { scrubEvent } from "./shared/lib/sentry-scrub";
@@ -31,11 +32,11 @@ Sentry.init({
   // NAS ET en prod, et taguerait les deux pareil. Même vocabulaire que l'`APP_ENV` de l'API.
   environment: tier ?? undefined,
 
-  // `false` là où l'API est à `true` (#183) : le front n'a aucune raison d'envoyer l'IP.
-  // L'identité tient dans le seul `id` posé par `Sentry.setUser` — un pseudonyme, qui ne redevient
-  // une personne qu'en base, chez nous. Ce réglage ne couvre QUE l'IP : l'URL de la page, le
-  // `Referer` et le `User-Agent` partent quand même (`httpContextIntegration`, par défaut).
-  sendDefaultPii: false,
+  // Ce que le SDK collecte (#669, `@cmv/shared`). Pas d'IP, là où l'API l'envoie (#183) : le front
+  // n'a aucune raison de l'envoyer, l'identité tient dans le seul `id` posé par `Sentry.setUser` —
+  // un pseudonyme, qui ne redevient une personne qu'en base, chez nous. L'URL de la page, le
+  // `Referer` et le `User-Agent` partent quand même (`httpContextIntegration`).
+  dataCollection: sentryDataCollection({ userInfo: false }),
 
   // D'où `beforeSend` : l'URL et les fils d'Ariane peuvent porter un jeton de réinitialisation ou
   // une signature S3 (#335).
