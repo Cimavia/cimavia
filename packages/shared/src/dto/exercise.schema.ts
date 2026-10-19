@@ -44,6 +44,29 @@ export const exerciseTagsSchema = z
     message: "Un exercice ne peut pas porter deux fois le même tag.",
   });
 
+/**
+ * Le `?tag=` d'une liste d'exercices, répétable (#654) : `?tag=force&tag=gainage`. Une valeur
+ * vide ne filtre rien — liste vide = pas de filtre —, mais une valeur qui ne peut PAS être un tag
+ * est refusée : l'ignorer rendrait toute la bibliothèque sous un filtre que le client croit actif.
+ *
+ * Dédoublonné et trié : le même ensemble, choisi dans un autre ordre, est la même requête. Plafonné
+ * comme `ACCESS_MAX_TARGETS` : au-delà, ce n'est plus un geste de Coach, et chaque valeur finit dans
+ * un `IN` SQL.
+ */
+export const EXERCISE_TAG_FILTER_MAX = 50;
+
+export const exerciseTagFilterSchema = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value) =>
+    [value ?? []]
+      .flat()
+      .map((tag) => tag.trim())
+      .filter((tag) => tag !== ""),
+  )
+  .pipe(z.array(exerciseTagSchema).max(EXERCISE_TAG_FILTER_MAX))
+  .transform((tags) => [...new Set(tags)].sort((a, b) => a.localeCompare(b)));
+
 export const DocumentType = {
   FILE: "FILE",
   LINK: "LINK",

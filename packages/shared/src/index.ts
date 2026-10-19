@@ -174,10 +174,12 @@ export {
   duplicateExerciseSchema,
   EXERCISE_DESCRIPTION_MAX_LENGTH,
   EXERCISE_MAX_TAGS,
+  EXERCISE_TAG_FILTER_MAX,
   EXERCISE_TAG_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
   exerciseDocumentDtoSchema,
   exerciseDtoSchema,
+  exerciseTagFilterSchema,
   exerciseTagSchema,
   exerciseTagsSchema,
   frozenFromSchema,
@@ -884,7 +886,7 @@ export type {
 } from "./util/library-input.util";
 export { toExerciseInput, toSessionInput } from "./util/library-input.util";
 export type { AccessLabel, AccessLabelSubject } from "./util/library-row.util";
-export { accessLabel, sessionTags } from "./util/library-row.util";
+export { accessLabel, matchesTagFilter, sessionTags } from "./util/library-row.util";
 export type {
   MediaBatch,
   MediaBatchStep,

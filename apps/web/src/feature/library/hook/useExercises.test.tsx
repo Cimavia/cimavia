@@ -58,10 +58,10 @@ describe("useExercises", () => {
     apiMock.listExercises.mockResolvedValue([source]);
     const { wrapper } = renderWithQueryClient();
 
-    const { result } = renderHook(() => useExercises({ tag: "force" }), { wrapper });
+    const { result } = renderHook(() => useExercises({ tags: ["force"] }), { wrapper });
 
     await waitFor(() => expect(result.current.data).toEqual([source]));
-    expect(apiMock.listExercises).toHaveBeenCalledWith({ tag: "force" });
+    expect(apiMock.listExercises).toHaveBeenCalledWith({ tags: ["force"] });
   });
 
   // Chaque frappe est une clé neuve : sans la liste précédente, le tableau se démonterait le temps

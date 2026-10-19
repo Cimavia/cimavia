@@ -1,5 +1,5 @@
 import {
-  exerciseTagSchema,
+  exerciseTagFilterSchema,
   type LibraryScope,
   libraryScopeSchema,
   type VersionQuery,
@@ -30,13 +30,11 @@ export class ExerciseController {
   @Get()
   list(
     @Query("scope", new ZodSchemaPipe(libraryScopeSchema)) scope: LibraryScope,
-    @Query("tag") tag?: string,
+    // `?tag=a&tag=b`, normalisés comme à l'écriture : un filtre « Renfo » retrouve le tag « renfo ».
+    @Query("tag", new ZodSchemaPipe(exerciseTagFilterSchema)) tags: string[],
     @Query("search") search?: string,
   ) {
-    const filters: ListExercisesFilters = {};
-    // Normalisé comme à l'écriture : un filtre « Renfo » doit retrouver le tag « renfo ».
-    const parsedTag = tag ? exerciseTagSchema.safeParse(tag) : null;
-    if (parsedTag?.success) filters.tag = parsedTag.data;
+    const filters: ListExercisesFilters = { tags };
     const trimmed = search?.trim();
     if (trimmed) filters.search = trimmed;
     return this.exercises.list(filters, scope);

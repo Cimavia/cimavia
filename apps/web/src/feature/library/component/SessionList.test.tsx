@@ -176,6 +176,16 @@ describe("SessionList — recherche et tags", () => {
     expect(titles(view)).toEqual(["Force max"]);
   });
 
+  it("plusieurs tags élargissent : ce qui porte l'un d'eux, une fois (#654)", async () => {
+    state({ data });
+    const view = setup();
+
+    await view.user.click(view.getByRole("button", { name: "force" }));
+    expect(titles(view)).toEqual(["Force max"]);
+    await view.user.click(view.getByRole("button", { name: "grimpe" }));
+    expect(titles(view)).toEqual(["Force max", "Endurance continuité"]);
+  });
+
   it("cherche dans les titres, sans tenir compte des accents ni de la casse", async () => {
     state({ data });
     const view = setup();

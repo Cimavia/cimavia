@@ -282,6 +282,9 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
     [#653](https://github.com/Cimavia/cimavia/issues/653) : des lignes de tableau, avec une colonne
     Dosage en plus, un en-tête qui reste visible au défilement, et sans bouton « + » — la ligne
     entière ajoute l'exercice.
+  - **tranché en [#654](https://github.com/Cimavia/cimavia/issues/654)** : les pastilles de tags
+    se cochent à plusieurs, là où la planche n'en active qu'une. Plusieurs tags élargissent (ce qui
+    porte l'un d'eux), et « Tous les tags » — « Tous » à l'écran — vide le choix.
   - **tranchés en #607** : ce que la planche ne dessine pas — le builder d'un cycle en Lecture,
     figé comme la frame 12, et la ligne « Partagé par M · Lecture via F » des listes de cycles et
     de factures. La note « par défaut » des frames 9 n'apparaît que si l'entreprise du lien est
