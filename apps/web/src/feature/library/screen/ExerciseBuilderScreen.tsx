@@ -8,7 +8,7 @@ import {
 } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
 import { BuilderActions } from "@/feature/library/component/BuilderActions";
@@ -17,6 +17,7 @@ import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { SaveExerciseError } from "@/feature/library/component/SaveExerciseError";
 import { StructureSection } from "@/feature/library/component/StructureSection";
+import { useBuilderSave } from "@/feature/library/hook/useBuilderSave";
 import { useExerciseCatalog } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
 import {
@@ -38,7 +39,6 @@ import {
   CmvStaleBanner,
   CmvTagInput,
   CmvTextField,
-  useToast,
 } from "@/shared/component";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -174,15 +174,21 @@ function ExerciseBuilder({
 }: Readonly<ExerciseBuilderProps>) {
   const { t } = useTranslation();
   const { data: knownTags } = useExerciseTags();
-  const toast = useToast();
-  const { onFailure } = useMutationToast();
   const draft = useExerciseDraft(exercise, initialTitle);
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
+  const { titleMissing, touchTitle, save } = useBuilderSave(draft, refused.hasRefused, {
+    titleRequired: "library.builder.titleRequired",
+    saveFailed: "library.builder.saveFailed",
+  });
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
-  // saisie (#327). Seules les sorties qui SUIVENT un enregistrement ou une suppression passent.
-  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
+  // saisie (#327), et proposent de l'enregistrer (#682). Seules les sorties qui SUIVENT un
+  // enregistrement ou une suppression passent sans demander.
+  const guard = useLeaveGuard(
+    draft.isDirty || refused.hasRefused,
+    async () => (await save("library.builder.saved")) != null,
+  );
   // Le brouillon et non la prop : un enregistrement interrompu a pu créer l'exercice, et l'écran
   // doit alors se présenter en édition — c'en est une.
   const edited = draft.exercise;
@@ -199,27 +205,9 @@ function ExerciseBuilder({
   // il se consulte.
   const foreign = foreignOf(edited);
   const readOnly = foreign != null && !canWrite(foreign.myAccess);
-  // Le message n'apparaît qu'APRÈS que le champ a été touché : l'afficher au premier rendu
-  // accueillerait le coach par une erreur qu'il n'a pas encore eu l'occasion de commettre.
-  const [titleTouched, setTitleTouched] = useState(false);
-  const titleMissing = titleTouched && draft.trimmedTitle === "";
-
-  /**
-   * `mutateAsync` REJETTE en cas d'échec : sans ce `try`, le rejet remonte non capturé, on reste
-   * sur la page sans savoir pourquoi, et rien ne dit au coach que son enregistrement a échoué.
-   * Le message d'erreur, lui, s'affiche déjà sous le formulaire.
-   */
   async function onSubmit() {
-    let saved: ExerciseDto;
-    try {
-      saved = await draft.submit();
-    } catch (error) {
-      // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait
-      // en emportant la seule explication.
-      if (!isStaleWriteError(error)) onFailure("library.builder.saveFailed", error);
-      return;
-    }
-    toast.success(t("library.builder.saved"));
+    const saved = await save("library.builder.saved");
+    if (saved == null) return;
     guard.release();
     onSaved(saved);
   }
@@ -305,7 +293,7 @@ function ExerciseBuilder({
                   maxLength={EXERCISE_TITLE_MAX_LENGTH}
                   value={draft.title}
                   onChange={(event) => draft.setTitle(event.target.value)}
-                  onBlur={() => setTitleTouched(true)}
+                  onBlur={touchTitle}
                   placeholder={t("library.builder.titlePlaceholder")}
                   required
                   requiredMark={!readOnly}

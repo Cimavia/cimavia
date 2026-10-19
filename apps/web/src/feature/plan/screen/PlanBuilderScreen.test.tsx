@@ -43,9 +43,10 @@ vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
     ).scheduledSessionDetailQuery,
   };
 });
+const saveBilling = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
   usePlanBilling: vi.fn(),
-  useSavePlanBilling: () => ({ mutate: vi.fn(), isPending: false }),
+  useSavePlanBilling: () => ({ mutateAsync: saveBilling, isPending: false }),
   useAttachInvoiceDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useRemoveInvoiceDocument: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -153,7 +154,12 @@ const mount = async (
   } as unknown as ReturnType<typeof usePlan>);
   vi.mocked(usePlanMutations).mockReturnValue({
     addWeek: { mutate: addWeek },
-    saveHeader: { mutate: saveHeader, isPending: false, error: headerError, reset: resetHeader },
+    saveHeader: {
+      mutateAsync: saveHeader,
+      isPending: false,
+      error: headerError,
+      reset: resetHeader,
+    },
     saveSession: { mutate: vi.fn(), error: sessionError },
     removeSession: { mutate: vi.fn(), error: null },
     isBusy: false,
@@ -206,10 +212,10 @@ describe("PlanBuilderScreen — le destinataire", () => {
     await user.selectOptions(getByRole("combobox"), "ath_lea");
     await user.click(getByText("plan.header.submit"));
 
-    expect(saveHeader).toHaveBeenCalledWith(
-      { athleteId: "ath_lea", expectedUpdatedAt: "2026-10-01T10:00:00Z" },
-      { onSuccess: expect.any(Function) },
-    );
+    expect(saveHeader).toHaveBeenCalledWith({
+      athleteId: "ath_lea",
+      expectedUpdatedAt: "2026-10-01T10:00:00Z",
+    });
   });
 
   it("ferme la diffusion et la facturation tant que le cycle n'a pas de destinataire", async () => {
@@ -643,8 +649,9 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
 
 describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () => {
   const BACK = "plan.builder.back";
-  const STAY = "common.leave.stay";
-  const LEAVE = "common.leave.leave";
+  const STAY = "common.leave.cancel";
+  const LEAVE = "common.leave.discard";
+  const SAVE = "common.leave.save";
   const billing = {
     amountCents: 5000,
     dueDate: "2026-11-05",
@@ -656,7 +663,7 @@ describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () 
     vi.clearAllMocks();
   });
 
-  it("demande avant de quitter un en-tête modifié, et « Rester » le garde", async () => {
+  it("demande avant de quitter un en-tête modifié, et « Annuler » le garde", async () => {
     const { getByRole, getByText, findByRole, queryByRole, router, user } = await mount(
       {},
       billing,
@@ -671,7 +678,7 @@ describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () 
     expect((getByRole("combobox") as HTMLSelectElement).value).toBe("ath_tom");
   });
 
-  it("quitte une facturation modifiée quand le coach confirme", async () => {
+  it("quitte une facturation modifiée sans l'enregistrer quand le coach le choisit", async () => {
     const { container, getByText, findByRole, router, user } = await mount({}, billing);
     const amount = container.querySelector("#amount") as HTMLInputElement;
     await user.clear(amount);
@@ -681,6 +688,54 @@ describe("PlanBuilderScreen — quitter une saisie non enregistrée (#327)", () 
     await user.click(await findByRole("button", { name: LEAVE }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+    expect(saveBilling).not.toHaveBeenCalled();
+  });
+
+  /**
+   * « Enregistrer » envoie TOUT ce qui attend, l'un après l'autre (#682) : l'en-tête en dernier,
+   * parce qu'un début de cycle décalé touche les séances que les autres envois citent.
+   */
+  it("enregistre la facturation puis l'en-tête, et part", async () => {
+    saveHeader.mockResolvedValueOnce(plan({ athleteId: "ath_tom" }));
+    saveBilling.mockResolvedValueOnce(undefined);
+    const { container, getByRole, getByText, findByRole, router, user } = await mount({}, billing);
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+    const amount = container.querySelector("#amount") as HTMLInputElement;
+    await user.clear(amount);
+    await user.type(amount, "80");
+
+    await user.click(getByText(BACK));
+    await user.click(await findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
+    expect(saveBilling).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 8000 }));
+    expect(saveHeader).toHaveBeenCalledWith(expect.objectContaining({ athleteId: "ath_tom" }));
+    expect(saveBilling.mock.invocationCallOrder[0]).toBeLessThan(
+      saveHeader.mock.invocationCallOrder[0] as number,
+    );
+  });
+
+  // Un envoi refusé n'arrête pas les suivants, mais garde le coach sur la page : partir perdrait
+  // la saisie refusée, que l'écran a pourtant dit vouloir garder.
+  it("reste sur le cycle quand un enregistrement échoue", async () => {
+    saveHeader.mockResolvedValueOnce(plan({ athleteId: "ath_tom" }));
+    saveBilling.mockRejectedValueOnce(new Error("réseau"));
+    const { container, getByRole, getByText, findByRole, queryByRole, router, user } = await mount(
+      {},
+      billing,
+    );
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+    const amount = container.querySelector("#amount") as HTMLInputElement;
+    await user.clear(amount);
+    await user.type(amount, "80");
+
+    await user.click(getByText(BACK));
+    await user.click(await findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(queryByRole("dialog")).not.toBeInTheDocument());
+    expect(saveHeader).toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/plans/pln_1");
+    expect(amount.value).toBe("80");
   });
 
   it("laisse quitter sans friction un cycle sans saisie en cours", async () => {

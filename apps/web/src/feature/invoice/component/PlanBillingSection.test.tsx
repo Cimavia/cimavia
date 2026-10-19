@@ -12,6 +12,7 @@ import {
   useRemoveInvoiceDocument,
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
+import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
@@ -20,11 +21,11 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
   useRemoveInvoiceDocument: vi.fn(),
 }));
 
-const save = vi.fn();
-const onDirtyChange = vi.fn();
+const save = vi.fn<(input: unknown) => Promise<unknown>>();
+const onUnsavedChange = vi.fn<(save: SaveBeforeLeaving | null) => void>();
 // Des objets et non des valeurs figées : un test passe une mutation « en vol » en basculant
 // `isPending`, remis à plat avant chaque test.
-const saving = { mutate: save, isPending: false };
+const saving = { mutateAsync: save, isPending: false };
 const attach = { mutate: vi.fn(), isPending: false };
 const remove = { mutate: vi.fn(), isPending: false };
 vi.mocked(useSavePlanBilling).mockReturnValue(
@@ -40,8 +41,12 @@ vi.mocked(useRemoveInvoiceDocument).mockReturnValue(
 // ne doit pas décrire le suivant.
 beforeEach(() => {
   vi.clearAllMocks();
+  save.mockResolvedValue({});
   for (const mutation of [saving, attach, remove]) mutation.isPending = false;
 });
+
+/** L'enregistrement que la section remonte à l'écran, `null` sans saisie en attente. */
+const reportedSave = () => onUnsavedChange.mock.lastCall?.[0] ?? null;
 
 // `billing` arrive en prop depuis le builder (#211) : la section ne lit plus rien elle-même. Par
 // défaut « aucun terme saisi », l'état d'un cycle qu'on vient d'ouvrir.
@@ -58,7 +63,7 @@ const mount = (props: {
       hasAthlete={true}
       billing={null}
       readOnly={false}
-      onDirtyChange={onDirtyChange}
+      onUnsavedChange={onUnsavedChange}
       {...props}
     />,
     { path: "/plans/$planId", params: { planId: "pln_1" }, links: ["/invoices"] },
@@ -310,7 +315,7 @@ describe("PlanBillingSection — une saisie non enregistrée", () => {
   it("se déclare propre sur les termes tels qu'enregistrés", async () => {
     await mount({ billing: DRAFT });
 
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
   });
 
   it("signale un montant changé, puis rendu à sa valeur enregistrée", async () => {
@@ -319,11 +324,11 @@ describe("PlanBillingSection — une saisie non enregistrée", () => {
 
     await user.clear(amount);
     await user.type(amount, "80");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(reportedSave()).not.toBeNull();
 
     await user.clear(amount);
     await user.type(amount, "50.00");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
   });
 
   it("signale une note ajoutée, mais pas des espaces seuls", async () => {
@@ -331,10 +336,10 @@ describe("PlanBillingSection — une saisie non enregistrée", () => {
     const note = container.querySelector("#note") as HTMLTextAreaElement;
 
     await user.type(note, "   ");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
 
     await user.type(note, "Virement");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(reportedSave()).not.toBeNull();
   });
 
   // Rien d'enregistré : le premier champ rempli est déjà une saisie à ne pas perdre.
@@ -343,7 +348,55 @@ describe("PlanBillingSection — une saisie non enregistrée", () => {
 
     await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
 
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(reportedSave()).not.toBeNull();
+  });
+});
+
+/**
+ * L'enregistrement que l'écran déclenche sans le bouton — « Enregistrer » du dialogue de sortie
+ * (#682) : il part, ou dit ce qui manque, et rend `false` pour retenir la sortie.
+ */
+describe("PlanBillingSection — l'enregistrement demandé par l'écran (#682)", () => {
+  const fill = async (container: HTMLElement, user: Awaited<ReturnType<typeof mount>>["user"]) => {
+    await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
+    fireEvent.change(container.querySelector("#dueDate") as HTMLInputElement, {
+      target: { value: "2026-11-05" },
+    });
+  };
+
+  it("envoie les termes, et répond vrai une fois enregistrés", async () => {
+    const { container, user } = await mount({});
+    await fill(container, user);
+
+    await act(async () => {
+      await expect(reportedSave()?.()).resolves.toBe(true);
+    });
+
+    expect(save).toHaveBeenCalledWith({ amountCents: 6000, dueDate: "2026-11-05", note: null });
+  });
+
+  // Le toast de l'échec vient de la mutation : il ne reste qu'à retenir la sortie.
+  it("répond faux quand l'enregistrement échoue", async () => {
+    save.mockRejectedValue(new Error("500"));
+    const { container, user } = await mount({});
+    await fill(container, user);
+
+    await act(async () => {
+      await expect(reportedSave()?.()).resolves.toBe(false);
+    });
+  });
+
+  // Une saisie à moitié faite compte comme une saisie à ne pas perdre, mais ne part pas.
+  it("n'envoie rien d'incomplet, et dit ce qui manque", async () => {
+    const { container, findByText, user } = await mount({});
+    await user.type(container.querySelector("#amount") as HTMLInputElement, "60");
+
+    await act(async () => {
+      await expect(reportedSave()?.()).resolves.toBe(false);
+    });
+
+    expect(await findByText("invoice.billing.incomplete")).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
   });
 });
 
@@ -362,7 +415,7 @@ function ReloadingBuilder({ first }: Readonly<{ first: InvoiceDto | undefined }>
       hasAthlete={true}
       billing={billing}
       readOnly={false}
-      onDirtyChange={onDirtyChange}
+      onUnsavedChange={onUnsavedChange}
     />
   );
 }

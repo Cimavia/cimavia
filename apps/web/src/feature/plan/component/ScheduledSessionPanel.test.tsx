@@ -98,7 +98,7 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
 
 function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) {
   const onClose = vi.fn();
-  const onDirtyChange = vi.fn();
+  const onUnsavedChange = vi.fn();
   const onReload = vi.fn();
   const view = renderWithProviders(
     <ScheduledSessionPanel
@@ -110,13 +110,13 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       session={null}
       athleteName="Léa Bonnet"
       onClose={onClose}
-      onDirtyChange={onDirtyChange}
+      onUnsavedChange={onUnsavedChange}
       onReload={onReload}
       isReloading={false}
       {...over}
     />,
   );
-  return { ...view, onClose, onDirtyChange, onReload };
+  return { ...view, onClose, onUnsavedChange, onReload };
 }
 
 beforeEach(() => {
@@ -465,7 +465,7 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
         session={session({ updatedAt: "2026-09-02T10:00:00.000Z" })}
         athleteName="Léa Bonnet"
         onClose={vi.fn()}
-        onDirtyChange={vi.fn()}
+        onUnsavedChange={vi.fn()}
         onReload={vi.fn()}
         isReloading={false}
       />,
@@ -784,13 +784,15 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
   const LEAVE_TITLE = "common.leave.title";
 
   it("se ferme sans rien demander tant que rien n'a changé", async () => {
-    const { user, getByRole, queryByText, onClose, onDirtyChange } = setup({ session: session() });
+    const { user, getByRole, queryByText, onClose, onUnsavedChange } = setup({
+      session: session(),
+    });
 
     await user.click(getByRole("button", { name: CANCEL }));
 
     expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onDirtyChange).not.toHaveBeenCalledWith(true);
+    expect(onUnsavedChange).not.toHaveBeenCalledWith(expect.any(Function));
   });
 
   it("ne retient rien pour une espace ajoutée au titre", async () => {
@@ -802,31 +804,78 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("demande avant de perdre la saisie, et « Rester » la garde", async () => {
-    const { user, getByLabelText, getByRole, queryByText, onClose, onDirtyChange } = setup({
+  it("demande avant de perdre la saisie, et « Annuler » la garde", async () => {
+    const { user, getByLabelText, getByRole, queryByText, onClose, onUnsavedChange } = setup({
       session: session(),
     });
 
     await user.type(getByLabelText(NOTES), " et les poignets");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(expect.any(Function));
     await user.click(getByRole("button", { name: CANCEL }));
 
     expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
-    await user.click(getByRole("button", { name: "common.leave.stay", hidden: true }));
+    await user.click(getByRole("button", { name: "common.leave.cancel", hidden: true }));
 
     expect(onClose).not.toHaveBeenCalled();
     expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
     expect(getByLabelText(NOTES)).toHaveValue("Échauffement long et les poignets");
   });
 
-  it("referme sur « Quitter sans enregistrer »", async () => {
+  it("referme sur « Ne pas enregistrer », sans rien envoyer", async () => {
     const { user, getByLabelText, getByRole, onClose } = setup({ session: session() });
 
     await user.type(getByLabelText(NOTES), " et les poignets");
     await user.click(getByRole("button", { name: CANCEL }));
-    await user.click(getByRole("button", { name: "common.leave.leave", hidden: true }));
+    await user.click(getByRole("button", { name: "common.leave.discard", hidden: true }));
 
     expect(onClose).toHaveBeenCalledOnce();
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  // #682 : garder son travail ET partir, sans passer par « Annuler », « Enregistrer », refermer.
+  it("enregistre, puis referme, sur « Enregistrer »", async () => {
+    updateMock.mockResolvedValue(session());
+    const { user, getByLabelText, getByRole, onClose } = setup({ session: session() });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: CANCEL }));
+    await user.click(getByRole("button", { name: "common.leave.save", hidden: true }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(updateMock).toHaveBeenCalledWith(
+      "ss-1",
+      expect.objectContaining({ notes: "Échauffement long et les poignets" }),
+    );
+  });
+
+  // Le conflit se dit par le bandeau, à côté de la saisie : le panneau reste, la question part.
+  it("reste ouvert, la question fermée, quand l'enregistrement est refusé", async () => {
+    updateMock.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    const { user, getByLabelText, getByRole, queryByText, findByText, onClose } = setup({
+      session: session(),
+    });
+
+    await user.type(getByLabelText(NOTES), " et les poignets");
+    await user.click(getByRole("button", { name: CANCEL }));
+    await user.click(getByRole("button", { name: "common.leave.save", hidden: true }));
+
+    expect(await findByText("library.session.stale")).toBeInTheDocument();
+    await waitFor(() => expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument());
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // Un jour choisi sans modèle ni titre : la saisie compte, mais la séance ne peut pas naître.
+  it("dit pourquoi une séance sans modèle ni titre ne s'enregistre pas", async () => {
+    const { user, getByLabelText, getByRole, findByText, onClose, onUnsavedChange } = setup();
+
+    await user.selectOptions(getByLabelText("plan.session.day"), "2026-09-10");
+    await user.click(getByRole("button", { name: CANCEL }));
+    await user.click(getByRole("button", { name: "common.leave.save", hidden: true }));
+
+    expect(await findByText("plan.session.titleRequired")).toBeInTheDocument();
+    expect(createMock).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(expect.any(Function));
   });
 
   it("garde aussi une séance en cours de création", async () => {

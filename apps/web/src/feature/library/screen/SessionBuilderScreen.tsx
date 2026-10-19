@@ -15,6 +15,7 @@ import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { CompositionCard } from "@/feature/library/component/CompositionCard";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SessionPreview } from "@/feature/library/component/SessionPreview";
+import { useBuilderSave } from "@/feature/library/hook/useBuilderSave";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import {
   exerciseDetailQuery,
@@ -198,58 +199,6 @@ function staleMessageOf(isWriteStale: boolean, isDeleteStale: boolean): string |
   return isDeleteStale ? "library.session.staleDelete" : null;
 }
 
-/**
- * L'enregistrement de la séance, et ce qui le retient : le titre manquant ou une saisie refusée.
- * `titleTouched` : le titre est réclamé — au départ du champ, ou par un geste qui enregistre.
- */
-function useSessionSave(draft: SessionDraft, hasRefused: boolean) {
-  const { t } = useTranslation();
-  const toast = useToast();
-  const { onFailure } = useMutationToast();
-  const [titleTouched, setTitleTouched] = useState(false);
-
-  /** Le titre manque ou une saisie est refusée : la séance ne s'enregistrerait pas, et le dit. */
-  function cannotSave(): boolean {
-    if (draft.trimmedTitle === "") {
-      setTitleTouched(true);
-      toast.error(t("library.session.titleBeforeLeaving"));
-      return true;
-    }
-    if (hasRefused) toast.error(t("library.session.refusedBeforeLeaving"));
-    return hasRefused;
-  }
-
-  /**
-   * Enregistre, le dit, et rend la séance enregistrée — ou `null` quand il faut rester : échec
-   * (déjà annoncé), ou séance sans titre.
-   *
-   * Le titre est vérifié ICI (`cannotSave`) parce que deux gestes enregistrent sans passer par le
-   * bouton, qui, lui, reste fermé sans titre : « Dupliquer en variante » et « Créer l'exercice
-   * manquant » (#303). Ils quittent la séance pour l'éditeur d'exercice, et l'enregistrent
-   * d'abord — sans ça tout ce que le coach vient de composer disparaît, et le geste qui devait
-   * l'aider lui coûte son travail. Sans titre, rien ne part : le champ le réclame, plutôt qu'un
-   * échec du serveur qui ne dirait pas pourquoi.
-   *
-   * Une saisie refusée retient de même (#566) : ces deux gestes enregistreraient l'ANCIENNE
-   * valeur, puis quitteraient la séance — la saisie disparaîtrait sans que rien ne l'ait dit.
-   */
-  async function save(successKey: string): Promise<SessionDto | null> {
-    if (cannotSave()) return null;
-    try {
-      const saved = await draft.submit();
-      toast.success(t(successKey));
-      return saved;
-    } catch (error) {
-      // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait
-      // en emportant la seule explication.
-      if (!isStaleWriteError(error)) onFailure("library.session.saveFailed", error);
-      return null;
-    }
-  }
-
-  return { titleTouched, touchTitle: () => setTitleTouched(true), cannotSave, save };
-}
-
 type SessionBuilderProps = {
   session: SessionDto | null;
   added: ExerciseDto | null;
@@ -274,9 +223,17 @@ function SessionBuilder({
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
+  const { titleMissing, touchTitle, cannotSave, save } = useBuilderSave(draft, refused.hasRefused, {
+    titleRequired: "library.session.titleRequired",
+    saveFailed: "library.session.saveFailed",
+  });
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
-  // composition (#327). Seules les sorties qui SUIVENT un enregistrement passent.
-  const guard = useLeaveGuard(draft.isDirty || refused.hasRefused);
+  // composition (#327), et proposent de l'enregistrer (#682). Seules les sorties qui SUIVENT un
+  // enregistrement passent sans demander.
+  const guard = useLeaveGuard(
+    draft.isDirty || refused.hasRefused,
+    async () => (await save("library.session.saved")) != null,
+  );
   // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
   const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
   const writes = useSessionWrites(draft);
@@ -285,7 +242,6 @@ function SessionBuilder({
   const duplicate = useDuplicateExercise();
   const variantSource = useVariantSource();
   const isWriting = writes.isWriting || variantSource.isReading;
-  const { titleTouched, touchTitle, cannotSave, save } = useSessionSave(draft, refused.hasRefused);
 
   // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
   // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
@@ -408,7 +364,7 @@ function SessionBuilder({
                   required
                   requiredMark={!readOnly}
                 />
-                {titleTouched && draft.trimmedTitle === "" ? (
+                {titleMissing ? (
                   <p className="text-cmv-caption text-cmv-error">
                     {t("library.session.titleRequired")}
                   </p>

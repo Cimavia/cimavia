@@ -33,9 +33,12 @@ import {
   CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
+  useToast,
 } from "@/shared/component";
+import type { LeaveDialogProps, SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
-import { useReportDirty } from "@/shared/hook/useReportDirty";
+import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
+import { useSingleFlight } from "@/shared/hook/useSingleFlight";
 import { isStaleWriteError } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
@@ -76,12 +79,34 @@ function toSaveInput(
  * (#518, **G-1**) : il porte désormais une grille de dosage par exercice. Seules les fermetures
  * qui SUIVENT un enregistrement ou une suppression réussis passent : elles appellent `onClose`
  * sans passer par ici.
+ *
+ * « Enregistrer » (#682) passe par `saveAndClose`, qui ferme le panneau s'il a tout enregistré ;
+ * sur un refus, la question se ferme et le panneau reste, avec la raison.
  */
-function useCloseGuard(isDirty: boolean, onClose: () => void) {
+function useCloseGuard(
+  isDirty: boolean,
+  onClose: () => void,
+  saveAndClose: SaveBeforeLeaving,
+): { requestClose: () => void; dialog: LeaveDialogProps } {
   const [asking, setAsking] = useState(false);
+  const [isSaving, setSaving] = useState(false);
+  async function onSave() {
+    setSaving(true);
+    try {
+      if (!(await saveAndClose())) setAsking(false);
+    } finally {
+      setSaving(false);
+    }
+  }
   return {
     requestClose: () => (isDirty ? setAsking(true) : onClose()),
-    dialog: { open: asking, onStay: () => setAsking(false), onLeave: onClose },
+    dialog: {
+      open: asking,
+      isSaving,
+      onSave,
+      onDiscard: onClose,
+      onCancel: () => setAsking(false),
+    },
   };
 }
 
@@ -103,13 +128,14 @@ function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
     createSession,
     isBusy,
     // Chaque écriture oublie le refus de l'autre : le bandeau ne dit que celui du dernier geste.
-    save(input: ReturnType<typeof toSaveInput>, onSuccess: () => void) {
+    // Rejette sur un échec, que le bandeau ou un toast dit déjà.
+    save(input: ReturnType<typeof toSaveInput>) {
       const { id, version } = edited();
       removeSession.reset();
-      saveSession.mutate(
-        { sessionId: id, input: { ...input, expectedUpdatedAt: version } },
-        { onSuccess },
-      );
+      return saveSession.mutateAsync({
+        sessionId: id,
+        input: { ...input, expectedUpdatedAt: version },
+      });
     },
     remove(onSuccess: () => void) {
       const { id, version } = edited();
@@ -165,10 +191,11 @@ type ScheduledSessionPanelProps = {
   athleteName: string | null;
   onClose: () => void;
   /**
-   * Le panneau porte une saisie non enregistrée : l'écran du cycle retient alors la navigation,
-   * comme pour son en-tête et sa facturation (#327). Doit être stable — un setter d'état.
+   * Le panneau porte une saisie non enregistrée, et voici de quoi l'enregistrer — `null` sinon :
+   * l'écran du cycle retient alors la navigation, comme pour son en-tête et sa facturation (#327),
+   * et l'enregistre avec eux (#682). Doit être stable.
    */
-  onDirtyChange: (isDirty: boolean) => void;
+  onUnsavedChange: (save: SaveBeforeLeaving | null) => void;
   /**
    * Remplace la saisie par la dernière version de la séance, après un conflit (#604) : l'écran
    * relit la séance et remonte le panneau dessus.
@@ -193,11 +220,12 @@ export function ScheduledSessionPanel({
   session,
   athleteName,
   onClose,
-  onDirtyChange,
+  onUnsavedChange,
   onReload,
   isReloading,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
+  const toast = useToast();
   const { createSession, save, remove, isBusy, staleMessage } = useSessionWrites(planId, session);
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
@@ -222,23 +250,44 @@ export function ScheduledSessionPanel({
   const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate, composition.items) };
   const [opened] = useState(form);
   const isDirty = !sameJson(form, opened) || refused.hasRefused;
-  useReportDirty(isDirty, onDirtyChange);
-  const close = useCloseGuard(isDirty, onClose);
+  const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
+
+  /**
+   * Enregistre la séance, ou dit ce qui l'en empêche — le bouton fermé ne suffit pas : Entrée dans
+   * un champ soumet aussi, et le dialogue de sortie enregistre sans lui (#682). Ferme le panneau
+   * une fois enregistré : resté ouvert, il citerait encore la version d'avant, et un second envoi
+   * se ferait refuser comme si un autre Coach l'avait changée. Vrai si la séance est partie. Un
+   * second geste pendant l'envoi attend celui-là (`useSingleFlight`) : une création partirait deux fois.
+   */
+  const saveAndClose = useSingleFlight(async (): Promise<boolean> => {
+    if (refused.hasRefused) {
+      toast.error(t("library.builder.refusedBlocksSave"));
+      return false;
+    }
+    if (!canSubmit) {
+      toast.error(t("plan.session.titleRequired"));
+      return false;
+    }
+    try {
+      await (isEditing
+        ? save(toSaveInput(title, notes, scheduledDate, composition.items))
+        : createSession.mutateAsync({
+            weekId: week.id,
+            input: toCreateInput(sourceSessionId, title, scheduledDate),
+          }));
+    } catch {
+      return false;
+    }
+    onClose();
+    return true;
+  });
+
+  useReportUnsaved(isDirty, saveAndClose, onUnsavedChange);
+  const close = useCloseGuard(isDirty, onClose, saveAndClose);
 
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    // Entrée dans un champ soumet aussi le formulaire : le bouton fermé ne suffit pas.
-    if (refused.hasRefused) return;
-
-    if (!isEditing) {
-      createSession.mutate(
-        { weekId: week.id, input: toCreateInput(sourceSessionId, title, scheduledDate) },
-        { onSuccess: onClose },
-      );
-      return;
-    }
-
-    save(toSaveInput(title, notes, scheduledDate, composition.items), onClose);
+    void saveAndClose();
   }
 
   const dayOptions = required(planWeekDays(week.startDate), "lundi de semaine illisible").map(
@@ -248,7 +297,6 @@ export function ScheduledSessionPanel({
     }),
   );
 
-  const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
   const heading = panelHeading(isEditing, readOnly);
 
   return (
