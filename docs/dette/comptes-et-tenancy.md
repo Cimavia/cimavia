@@ -978,9 +978,14 @@ liste des domaines vivent dans l'index.
 >   l'attendre — seules ses bascules, qui demandent une portée, attendent, et ne viennent pas si la
 >   lecture échoue : il propose alors tout ce que le Coach lit. Sans entreprise, rien ne se
 >   partage : ni ligne propriétaire, ni filtre « Partagés avec moi », ni bascule (frame 14).
-> - **Le sélecteur du builder de séance reste en cartes**, pas en lignes de tableau comme la
->   frame 8 : il occupe la largeur du centre, et une carte y porte titre, tags,
->   propriétaire et dosage. Ses bascules « Les miens · Partagés » ne s'éteignent pas toutes les
+> - **Le sélecteur du builder de séance est un tableau, comme la bibliothèque** — *revu en
+>   [#653](https://github.com/Cimavia/cimavia/issues/653), qui défait le choix des cartes : le
+>   Coach voyait la même liste sous deux formes.* Il suit la frame 8 — Titre · Tags ·
+>   Propriétaire —, plus une colonne Dosage : le Coach doit reconnaître ce qu'il ajoute avant de
+>   l'ajouter. Le propriétaire dit le droit du Coach (`ownerRightText`, « M · Lecture »), pas la
+>   paire Propriétaire / Accès : ici on choisit, on ne règle rien. Ni « Modifié le », ni case à
+>   cocher, ni bouton « + » : un clic sur la ligne ajoute, et l'en-tête reste visible quand la
+>   liste défile. Ses bascules « Les miens · Partagés » ne s'éteignent pas toutes les
 >   deux : la dernière active est verrouillée (`aria-disabled`, atteignable au clavier, l'infobulle
 >   dit pourquoi). « Les deux » demande la portée « toutes », que le client n'écrit pas dans l'URL :
 >   c'est celle de l'API par défaut. Une recherche vaine parmi les seuls partagés ne propose pas de créer l'exercice manquant.

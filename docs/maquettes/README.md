@@ -278,7 +278,10 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
     panneau, sous la première. Sa ligne est unique en base ; la répéter laisserait croire à deux
     réglages.
   - **tranchés en #606** (voir le journal de dette) : le propriétaire sans pastille d'initiale, la
-    date avec l'année, et le sélecteur de la frame 8 en cartes plutôt qu'en lignes de tableau.
+    date avec l'année. Le sélecteur de la frame 8, d'abord en cartes, suit la frame depuis
+    [#653](https://github.com/Cimavia/cimavia/issues/653) : des lignes de tableau, avec une colonne
+    Dosage en plus, un en-tête qui reste visible au défilement, et sans bouton « + » — la ligne
+    entière ajoute l'exercice.
   - **tranchés en #607** : ce que la planche ne dessine pas — le builder d'un cycle en Lecture,
     figé comme la frame 12, et la ligne « Partagé par M · Lecture via F » des listes de cycles et
     de factures. La note « par défaut » des frames 9 n'apparaît que si l'entreprise du lien est
