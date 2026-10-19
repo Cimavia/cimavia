@@ -158,6 +158,27 @@ vi.mock("expo-audio", () => ({
 }));
 
 /**
+ * `useKeepAwake` a la forme du vrai : il active au montage et libère au démontage (#619). Les deux
+ * moitiés sont des `vi.fn`, pour qu'un test compte les maintiens encore posés.
+ */
+vi.mock("expo-keep-awake", () => {
+  const activateKeepAwakeAsync = vi.fn((_tag?: string) => Promise.resolve());
+  const deactivateKeepAwake = vi.fn((_tag?: string) => Promise.resolve());
+  return {
+    activateKeepAwakeAsync,
+    deactivateKeepAwake,
+    useKeepAwake: (tag?: string) => {
+      useEffect(() => {
+        void activateKeepAwakeAsync(tag);
+        return () => {
+          void deactivateKeepAwake(tag);
+        };
+      }, [tag]);
+    },
+  };
+});
+
+/**
  * Le lecteur naît UNE fois par montage, comme le vrai : `useVideoPlayer` ne le recrée que si sa
  * source change, et ne rejoue son `setup` qu'à cette naissance. Un faux qui en rendait un neuf à
  * chaque rendu aurait réabonné les écouteurs et relancé `play` à chaque état — un comportement que

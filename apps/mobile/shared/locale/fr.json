@@ -366,7 +366,8 @@
     },
     "audio": {
       "permission": "cimavia a besoin du micro pour enregistrer un message vocal.",
-      "recordError": "L'enregistrement a échoué. Réessaie."
+      "recordError": "L'enregistrement a échoué. Réessaie.",
+      "foregroundOnly": "Notifications désactivées : la note se met en pause écran verrouillé."
     },
     "title": "Messages",
     "noAthletes": {
