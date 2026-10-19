@@ -3,10 +3,12 @@ import {
   PLAN_TITLE_MAX_LENGTH,
   type PlanDto,
   PlanStatus,
+  type UpdatePlanInput,
 } from "@cmv/shared";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
+import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { renderWithProviders } from "../../../../test/render";
 
 vi.mock("@/feature/athlete/hook/useAthletes", () => ({
@@ -53,13 +55,25 @@ const plan = (over: Partial<PlanDto> = {}): PlanDto =>
 // La version du cycle monté : celle que l'enregistrement cite tant que rien d'autre n'a été écrit.
 const VERSION = "2026-10-01T10:00:00Z";
 
-const onSave = vi.fn();
-const onDirtyChange = vi.fn();
+const onSave = vi.fn<(input: UpdatePlanInput) => Promise<PlanDto>>();
+const onUnsavedChange = vi.fn<(save: SaveBeforeLeaving | null) => void>();
 const onReload = vi.fn();
 
-/** Ce que reçoit `onSave` : les champs changés, la version lue, et de quoi confirmer. */
+/** Les réponses des enregistrements partis, dans l'ordre : le test décide quand elles arrivent. */
+let replies: Array<{ resolve: (saved: PlanDto) => void; reject: (error: unknown) => void }> = [];
+
+/** Ce que reçoit `onSave` : les champs changés, et la version lue. */
 const sent = (fields: object, version = VERSION) =>
-  [{ ...fields, expectedUpdatedAt: version }, expect.any(Function)] as const;
+  [{ ...fields, expectedUpdatedAt: version }] as const;
+
+/** Le cycle enregistré revient : le formulaire repart de lui, ou garde ce qui a été saisi depuis. */
+const reply = (index: number, saved: PlanDto) =>
+  act(async () => {
+    replies[index]?.resolve(saved);
+  });
+
+/** L'enregistrement que le formulaire remonte à l'écran, `null` sans saisie en attente. */
+const reportedSave = () => onUnsavedChange.mock.lastCall?.[0] ?? null;
 
 type FormProps = Partial<Parameters<typeof PlanHeaderForm>[0]>;
 
@@ -74,13 +88,17 @@ const form = (current: PlanDto, over: FormProps = {}) => (
     isStale={false}
     isReloading={false}
     onReload={onReload}
-    onDirtyChange={onDirtyChange}
+    onUnsavedChange={onUnsavedChange}
     {...over}
   />
 );
 
 beforeEach(() => {
   vi.clearAllMocks();
+  replies = [];
+  onSave.mockImplementation(
+    () => new Promise<PlanDto>((resolve, reject) => replies.push({ resolve, reject })),
+  );
 });
 
 const mount = (over: Partial<PlanDto> = {}, hasInvoiceDocument = false) =>
@@ -365,17 +383,17 @@ describe("PlanHeaderForm — une saisie non enregistrée", () => {
   it("se déclare propre tant que rien n'a bougé", () => {
     mount();
 
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
   });
 
   it("signale un destinataire changé, puis rendu à sa valeur enregistrée", async () => {
     const { getByRole, user } = mount();
 
     await user.selectOptions(getByRole("combobox"), "ath_noah");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(reportedSave()).not.toBeNull();
 
     await user.selectOptions(getByRole("combobox"), "ath_lea");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
   });
 
   // Rien ne partirait à l'enregistrement, mais l'écran ne montre plus la date que la diffusion
@@ -385,7 +403,92 @@ describe("PlanHeaderForm — une saisie non enregistrée", () => {
 
     await user.clear(container.querySelector("#startDate") as HTMLInputElement);
 
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    expect(reportedSave()).not.toBeNull();
+  });
+});
+
+/**
+ * L'enregistrement que l'écran déclenche sans le bouton — « Enregistrer » du dialogue de sortie
+ * (#682) : il part, ou dit ce qui l'en empêche, et rend `false` pour retenir la sortie.
+ */
+describe("PlanHeaderForm — l'enregistrement demandé par l'écran (#682)", () => {
+  const title = (container: HTMLElement) =>
+    container.querySelector("#planTitle") as HTMLInputElement;
+
+  it("envoie la saisie, et répond vrai une fois le cycle enregistré", async () => {
+    const { container, user } = mount();
+    await user.type(title(container), " bis");
+
+    let saved: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      saved = reportedSave()?.() ?? saved;
+    });
+    await reply(0, plan({ title: "Cycle bloc bis", updatedAt: "2026-10-12T08:03:00.000Z" }));
+
+    await expect(saved).resolves.toBe(true);
+    expect(onSave).toHaveBeenCalledWith(...sent({ title: "Cycle bloc bis" }));
+  });
+
+  // L'échec est déjà dit à l'écran — bandeau de conflit ou toast : il ne reste qu'à retenir.
+  it("répond faux quand l'enregistrement échoue", async () => {
+    const { container, user } = mount();
+    await user.type(title(container), " bis");
+
+    let saved: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      saved = reportedSave()?.() ?? saved;
+    });
+    await act(async () => {
+      replies[0]?.reject(new Error("409"));
+    });
+
+    await expect(saved).resolves.toBe(false);
+  });
+
+  /**
+   * Le dialogue s'ouvre pendant l'envoi du bouton, après une nouvelle frappe. Reprendre la réponse
+   * de cet envoi laissait partir l'écran sans « ter », jamais envoyé ; renvoyer citait une version
+   * déjà dépassée. Le coach reste, sa saisie aussi.
+   */
+  it("ne reprend pas à son compte l'envoi en vol, et garde ce qui a été saisi depuis", async () => {
+    const { container, getByText, user } = mount();
+    await user.type(title(container), " bis");
+    await user.click(getByText("plan.header.submit"));
+    await user.type(title(container), " ter");
+
+    let saved: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      saved = reportedSave()?.() ?? saved;
+    });
+    await reply(0, plan({ title: "Cycle bloc bis", updatedAt: "2026-10-12T08:03:00.000Z" }));
+
+    await expect(saved).resolves.toBe(false);
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(title(container).value).toBe("Cycle bloc bis ter");
+  });
+
+  it("n'envoie rien sans titre, et dit pourquoi", async () => {
+    const { container, findByText, user } = mount();
+    await user.clear(title(container));
+
+    await act(async () => {
+      await expect(reportedSave()?.()).resolves.toBe(false);
+    });
+
+    expect(await findByText("plan.header.titleRequired")).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("n'envoie rien sur une date effacée, et dit pourquoi", async () => {
+    const { container, findByText, user } = mount();
+    await user.clear(container.querySelector("#startDate") as HTMLInputElement);
+
+    await act(async () => {
+      await expect(reportedSave()?.()).resolves.toBe(false);
+    });
+
+    expect(await findByText("plan.header.startDateRequired")).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
   });
 });
 
@@ -433,7 +536,7 @@ describe("PlanHeaderForm — la version que l'enregistrement cite (#604)", () =>
     rerender(form(plan({ title: "Renommé ailleurs", updatedAt: LATEST })));
 
     expect(title(container).value).toBe("Renommé ailleurs");
-    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    expect(reportedSave()).toBeNull();
   });
 
   it("repart du cycle enregistré quand rien n'a été saisi pendant l'envoi", async () => {
@@ -443,7 +546,7 @@ describe("PlanHeaderForm — la version que l'enregistrement cite (#604)", () =>
     await user.click(getByText("plan.header.submit"));
     const saved = plan({ title: "Enregistré", updatedAt: LATEST });
 
-    act(() => onSave.mock.calls[0]?.[1](saved));
+    await reply(0, saved);
     rerender(form(saved));
     // Le formulaire suit de nouveau le cycle : une écriture d'ailleurs s'y voit.
     rerender(form(plan({ title: "Puis renommé ailleurs", updatedAt: "2026-10-12T09:00:00.000Z" })));
@@ -460,7 +563,7 @@ describe("PlanHeaderForm — la version que l'enregistrement cite (#604)", () =>
     await user.type(title(container), " jet");
 
     const saved = plan({ title: "Premier", updatedAt: LATEST });
-    act(() => onSave.mock.calls[0]?.[1](saved));
+    await reply(0, saved);
     rerender(form(saved));
     expect(title(container).value).toBe("Premier jet");
 

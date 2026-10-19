@@ -797,8 +797,8 @@ describe("SessionBuilderScreen — créer l'exercice manquant (#303)", () => {
 
     await createMissing(view);
 
-    expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
-    expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
+    // Deux fois : sous le champ, et par le toast qui dit pourquoi rien n'est parti.
+    expect(view.getAllByText("library.session.titleRequired")).toHaveLength(2);
     expect(api.createSession).not.toHaveBeenCalled();
     expect(view.router.state.location.pathname).toBe("/library/sessions/new");
   });
@@ -869,8 +869,7 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
 
     await view.menu("Planche", "library.session.duplicate");
 
-    expect(view.getByText("library.session.titleBeforeLeaving")).toBeInTheDocument();
-    expect(view.getByText("library.session.titleRequired")).toBeInTheDocument();
+    expect(view.getAllByText("library.session.titleRequired")).toHaveLength(2);
     expect(api.createSession).not.toHaveBeenCalled();
     expect(api.getExercise).not.toHaveBeenCalled();
     expect(api.duplicateExercise).not.toHaveBeenCalled();
@@ -960,10 +959,11 @@ describe("SessionBuilderScreen — dupliquer en variante", () => {
 
 describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
   const CANCEL = "library.builder.cancel";
-  const STAY = "common.leave.stay";
-  const LEAVE = "common.leave.leave";
+  const STAY = "common.leave.cancel";
+  const LEAVE = "common.leave.discard";
+  const SAVE = "common.leave.save";
 
-  it("demande avant d'abandonner une saisie, et « Rester » la garde intacte", async () => {
+  it("demande avant d'abandonner une saisie, et « Annuler » la garde intacte", async () => {
     const view = await edit();
     const notes = view.getByRole("textbox", { name: NOTES });
     await view.user.type(notes, ", dos droit");
@@ -986,6 +986,33 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(api.createSession).not.toHaveBeenCalled();
+  });
+
+  // #682 : garder son travail ET partir, d'un geste.
+  it("enregistre, puis part là où le coach allait", async () => {
+    const view = await edit();
+    await view.user.type(view.getByRole("textbox", { name: NOTES }), ", dos droit");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(view.sent().notes).toBe("Au calme, dos droit");
+    expect(await view.findByText("library.session.saved")).toBeInTheDocument();
+  });
+
+  it("reste sur une séance neuve sans titre, et le réclame", async () => {
+    const view = await create();
+    await view.user.click(view.getByRole("button", { name: PICK }));
+    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(view.getAllByText("library.session.titleRequired")).toHaveLength(2);
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/sessions/new");
   });
 
   it("laisse partir sans friction une séance ouverte sans être modifiée", async () => {
@@ -1062,7 +1089,8 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
 describe("SessionBuilderScreen — saisie refusée (#566)", () => {
   const REST = "library.builder.bandeau.restBetweenSetsSeconds";
   const BLOCKED = "library.builder.refusedBlocksSave";
-  const REFUSED_TOAST = "library.session.refusedBeforeLeaving";
+  // Le même texte que l'infobulle du bouton fermé — un attribut, pas un texte : c'est le toast.
+  const REFUSED_TOAST = BLOCKED;
 
   /** Ouvre « Gainage » et refuse une saisie dans sa première cellule de répétitions. */
   async function refuseCell(view: Awaited<ReturnType<typeof edit>>) {

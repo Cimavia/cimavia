@@ -3,6 +3,7 @@ import {
   INVOICE_NOTE_MAX_LENGTH,
   type InvoiceDto,
   MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+  required,
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
@@ -13,7 +14,9 @@ import {
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
 import { CmvButton, CmvCard, CmvTextArea, CmvTextField, useToast } from "@/shared/component";
-import { useReportDirty } from "@/shared/hook/useReportDirty";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
+import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
+import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
 
 type PlanBillingSectionProps = {
   planId: string;
@@ -37,10 +40,11 @@ type PlanBillingSectionProps = {
    */
   readOnly: boolean;
   /**
-   * La saisie diffère des termes enregistrés : « Diffuser » émet la facture ENREGISTRÉE, et se
-   * ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
+   * La saisie diffère des termes enregistrés, et voici de quoi l'enregistrer — `null` sinon :
+   * « Diffuser » émet la facture ENREGISTRÉE, et se ferme tant qu'elle attend (#326) ; le dialogue
+   * de sortie l'enregistre (#682). Doit être stable.
    */
-  onDirtyChange: (isDirty: boolean) => void;
+  onUnsavedChange: (save: SaveBeforeLeaving | null) => void;
 };
 
 // Euros saisis → centimes entiers. `Math.round` absorbe l'imprécision du float de saisie
@@ -95,7 +99,7 @@ export function PlanBillingSection({
   hasAthlete,
   billing,
   readOnly,
-  onDirtyChange,
+  onUnsavedChange,
 }: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
   const save = useSavePlanBilling(planId);
@@ -123,15 +127,33 @@ export function PlanBillingSection({
     setNote(draftAfterLoad(note, lastLoaded.note, loaded.note));
   }
 
+  const amountCents = toAmountCents(amount);
+  const canSubmit = amountCents != null && dueDate !== "";
+
+  /**
+   * Enregistre les termes, ou dit ce qui manque — le bouton fermé ne suffit pas : le dialogue de
+   * sortie enregistre sans lui (#682). Un formulaire à moitié rempli compte comme une saisie, mais
+   * ne part pas. Vrai si les termes sont partis ; un échec de l'API se dit par son toast.
+   */
+  const sendTerms = useCheckedSave(
+    () => (canSubmit ? null : "invoice.billing.incomplete"),
+    async () => {
+      await save.mutateAsync({
+        amountCents: required(amountCents, "montant contrôlé avant l'envoi"),
+        dueDate,
+        note: note.trim() || null,
+      });
+      return true;
+    },
+  );
+  const saveTerms = async () => (await sendTerms()) != null;
+
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();
-    const amountCents = toAmountCents(amount);
-    if (amountCents == null || dueDate === "") return;
-    save.mutate({ amountCents, dueDate, note: note.trim() || null });
+    void saveTerms();
   }
 
-  const canSubmit = toAmountCents(amount) != null && dueDate !== "";
-  useReportDirty(hasUnsavedTerms({ amount, dueDate, note }, billing), onDirtyChange);
+  useReportUnsaved(hasUnsavedTerms({ amount, dueDate, note }, billing), saveTerms, onUnsavedChange);
 
   /**
    * Fermée, expliquée, jamais masquée : la faire disparaître laisserait croire qu'un cycle ne se

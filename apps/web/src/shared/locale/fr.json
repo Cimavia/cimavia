@@ -36,10 +36,11 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "leave": {
-      "title": "Quitter sans enregistrer ?",
-      "body": "Tes modifications seront perdues.",
-      "stay": "Rester",
-      "leave": "Quitter sans enregistrer"
+      "title": "Enregistrer les modifications ?",
+      "body": "Si tu ne les enregistres pas, elles seront perdues.",
+      "save": "Enregistrer",
+      "discard": "Ne pas enregistrer",
+      "cancel": "Annuler"
     }
   },
   "auth": {
@@ -101,7 +102,9 @@
       "account": "Compte :",
       "submit": "Me reconnecter",
       "switchAccount": "Changer de compte",
-      "restored": "Te revoilà : tu peux reprendre là où tu en étais."
+      "saveFirst": "Reconnecte-toi pour enregistrer tes modifications : tu changeras de compte juste après.",
+      "restored": "Te revoilà : tu peux reprendre là où tu en étais.",
+      "switchAbandoned": "Tu es reconnecté, sans changer de compte : corrige ta saisie, puis enregistre-la avant de partir."
     },
     "errors": {
       "generic": "Une erreur est survenue. Réessaie.",
@@ -227,8 +230,6 @@
       "variantSuffix": "(variante)",
       "savedBeforeVariant": "Séance enregistrée avant de créer la variante.",
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
-      "titleBeforeLeaving": "Donne un titre à la séance : elle doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
-      "refusedBeforeLeaving": "Une valeur n'est pas comprise : corrige-la ou vide-la, la séance doit être enregistrée avant d'ouvrir l'éditeur d'exercice.",
       "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque."
     },
     "dosage": {
@@ -641,7 +642,9 @@
       "startDateShiftEarlier": "Tu as modifié la date de début du cycle. La séance du cycle sera avancée {{shift}} à l'enregistrement.",
       "startDateShiftEarlier_other": "Tu as modifié la date de début du cycle. Les {{count}} séances du cycle seront avancées {{shift}} à l'enregistrement.",
       "submit": "Enregistrer",
-      "submitting": "Enregistrement…"
+      "submitting": "Enregistrement…",
+      "titleRequired": "Le titre est requis pour enregistrer le cycle.",
+      "startDateRequired": "Le début du cycle est requis pour l'enregistrer."
     },
     "week": {
       "number": "Semaine {{number}}",
@@ -665,6 +668,7 @@
       "template": "Séance modèle",
       "templateNone": "Séance vide (sans modèle)",
       "templateHint": "Le titre, les consignes, les exercices et leurs documents seront copiés du modèle.",
+      "titleRequired": "Choisis une séance modèle ou donne un titre pour enregistrer la séance.",
       "titleLabel": "Titre de la séance",
       "titlePlaceholder": "Ex. Force max",
       "notesLabel": "Consignes du coach",
@@ -1322,6 +1326,7 @@
       "trackLink": "Suivre dans Facturation",
       "document": "Justificatif (PDF)",
       "documentAfterSave": "Enregistre la facturation ci-dessus pour pouvoir joindre un PDF.",
+      "incomplete": "Le montant et l'échéance sont requis pour enregistrer la facturation.",
       "documentNone": "Aucun justificatif joint.",
       "documentAdd": "Joindre un PDF",
       "documentReplace": "Remplacer",

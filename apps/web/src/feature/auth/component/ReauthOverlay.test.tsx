@@ -6,11 +6,17 @@ import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { renderInRoute } from "../../../../test/render";
 import { ReauthOverlay } from "./ReauthOverlay";
 
-const { signInMock } = vi.hoisted(() => ({ signInMock: vi.fn() }));
+const { signInMock, signOutMock } = vi.hoisted(() => ({
+  signInMock: vi.fn(),
+  signOutMock: vi.fn(async () => undefined),
+}));
 
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { signIn: { email: signInMock } },
+  authClient: { signIn: { email: signInMock }, signOut: signOutMock },
 }));
+
+/** L'enregistrement de l'écran perdu : réussi, sauf quand un test le refuse. */
+const saveLost = vi.fn<() => Promise<boolean>>();
 
 const OWNER = { id: "u-1", email: "coach@example.test" };
 const PASSWORD = "common.password";
@@ -24,7 +30,7 @@ const SUBMIT = "auth.reauth.submit";
 async function setup({ unsaved = false } = {}) {
   /** L'écran perdu, INERTE comme `CmvRoleGate` le rend — et sa saisie, gardée ou non (#327). */
   function Lost() {
-    const guard = useLeaveGuard(unsaved);
+    const guard = useLeaveGuard(unsaved, saveLost);
     return (
       <div inert>
         <CmvLeaveDialog {...guard.dialog} />
@@ -67,6 +73,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearPlanClipboard();
   signInMock.mockResolvedValue({ data: { user: { id: OWNER.id } }, error: null });
+  saveLost.mockResolvedValue(true);
 });
 
 describe("ReauthOverlay", () => {
@@ -144,11 +151,11 @@ describe("ReauthOverlay — saisie non enregistrée (#327)", () => {
   // La fenêtre de reconnexion est elle-même un dialogue : la question se désigne par son titre.
   const LEAVE_DIALOG = { name: "common.leave.title" };
 
-  it("demande AVANT de purger, et « Rester » ne touche à rien", async () => {
+  it("demande AVANT de purger, et « Annuler » ne touche à rien", async () => {
     const view = await setup({ unsaved: true });
 
     await view.user.click(view.getByRole("button", { name: SWITCH }));
-    await view.user.click(await view.findByRole("button", { name: "common.leave.stay" }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.cancel" }));
 
     await waitFor(() => expect(view.queryByRole("dialog", LEAVE_DIALOG)).not.toBeInTheDocument());
     expect(view.router.state.location.pathname).toBe("/library/exercises/new");
@@ -159,10 +166,11 @@ describe("ReauthOverlay — saisie non enregistrée (#327)", () => {
     const view = await setup({ unsaved: true });
 
     await view.user.click(view.getByRole("button", { name: SWITCH }));
-    await view.user.click(await view.findByRole("button", { name: "common.leave.leave" }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.discard" }));
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
     expect(sessionStorage.getItem("cmv.planClipboard")).toBeNull();
+    expect(saveLost).not.toHaveBeenCalled();
   });
 
   // L'écran perdu est inerte : un dialogue rendu sous lui le serait aussi, boutons compris.
@@ -183,5 +191,84 @@ describe("ReauthOverlay — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
     expect(view.queryByRole("dialog", LEAVE_DIALOG)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * « Enregistrer » sur une session déjà tombée (#682) : écrire maintenant finirait en 401, ou dans
+ * la bibliothèque du compte qui a pris le cookie. L'enregistrement attend la reconnexion.
+ */
+describe("ReauthOverlay — enregistrer avant de changer de compte (#682)", () => {
+  const SWITCH = "auth.reauth.switchAccount";
+
+  async function chooseSave() {
+    const view = await setup({ unsaved: true });
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.save" }));
+    return view;
+  }
+
+  it("n'écrit rien sans session, et ramène au mot de passe", async () => {
+    const view = await chooseSave();
+
+    expect(await view.findByText("auth.reauth.saveFirst")).toBeInTheDocument();
+    expect(view.getByLabelText(PASSWORD)).toHaveFocus();
+    expect(saveLost).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // La session est de nouveau valide : purger et partir ne suffirait plus, il faut la couper.
+  it("enregistre une fois reconnecté au même compte, puis déconnecte et part", async () => {
+    signOutMock.mockImplementationOnce(async () => {
+      expect(saveLost).toHaveBeenCalledOnce();
+      return undefined;
+    });
+    const view = await chooseSave();
+
+    await reconnect(view);
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
+    expect(signOutMock).toHaveBeenCalledOnce();
+    expect(sessionStorage.getItem("cmv.planClipboard")).toBeNull();
+  });
+
+  it("garde le coach sur son écran, reconnecté, quand l'enregistrement est refusé", async () => {
+    saveLost.mockResolvedValue(false);
+    const view = await chooseSave();
+
+    await reconnect(view);
+
+    // Pas « Te revoilà » : le coach doit apprendre que le changement de compte n'a pas eu lieu.
+    expect(await view.findByText("auth.reauth.switchAbandoned")).toBeInTheDocument();
+    expect(view.queryByText("auth.reauth.restored")).not.toBeInTheDocument();
+    expect(saveLost).toHaveBeenCalledOnce();
+    expect(signOutMock).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // « Annuler » à une seconde demande : le coach reste sur son compte, la première est oubliée.
+  it("oublie l'enregistrement demandé quand le coach annule ensuite le changement", async () => {
+    const view = await chooseSave();
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.cancel" }));
+
+    await reconnect(view);
+
+    expect(await view.findByText("auth.reauth.restored")).toBeInTheDocument();
+    expect(view.queryByText("auth.reauth.saveFirst")).not.toBeInTheDocument();
+    expect(saveLost).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // L'écran du premier compte ne s'enregistre jamais sous l'identité du second.
+  it("n'enregistre rien quand la connexion aboutit sur un autre compte", async () => {
+    signInMock.mockResolvedValue({ data: { user: { id: "u-2" } }, error: null });
+    const view = await chooseSave();
+
+    await reconnect(view);
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/login"));
+    expect(saveLost).not.toHaveBeenCalled();
+    expect(signOutMock).not.toHaveBeenCalled();
   });
 });

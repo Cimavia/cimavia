@@ -30,9 +30,12 @@ function unread(count: UnreadCountDto) {
   vi.mocked(notificationApi.unreadCount).mockResolvedValue(count);
 }
 
+/** L'enregistrement de l'écran gardé : réussi, sauf quand un test le refuse. */
+const saveUnsaved = vi.fn(async () => true);
+
 /** Un écran qui porte une saisie non enregistrée (#327). */
 function Unsaved() {
-  const guard = useLeaveGuard(true);
+  const guard = useLeaveGuard(true, saveUnsaved);
   return <CmvLeaveDialog {...guard.dialog} />;
 }
 
@@ -107,14 +110,16 @@ describe("CmvAppShell — la déconnexion", () => {
 describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327)", () => {
   beforeEach(() => {
     vi.mocked(authClient.signOut).mockClear();
+    saveUnsaved.mockClear();
+    saveUnsaved.mockResolvedValue(true);
   });
 
   // Demander APRÈS avoir coupé la session laissait le coach déconnecté sur l'écran qu'il gardait.
-  it("demande AVANT de couper la session, et « Rester » laisse le coach connecté", async () => {
+  it("demande AVANT de couper la session, et « Annuler » laisse le coach connecté", async () => {
     const { user, getByRole, findByRole, queryByRole, router } = await open({ unsaved: true });
 
     await user.click(getByRole("button", { name: "common.logout" }));
-    await user.click(await findByRole("button", { name: "common.leave.stay" }));
+    await user.click(await findByRole("button", { name: "common.leave.cancel" }));
 
     await waitFor(() => expect(queryByRole("dialog")).not.toBeInTheDocument());
     expect(authClient.signOut).not.toHaveBeenCalled();
@@ -125,11 +130,39 @@ describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327
     const { user, getByRole, findByRole, queryByRole, router } = await open({ unsaved: true });
 
     await user.click(getByRole("button", { name: "common.logout" }));
-    await user.click(await findByRole("button", { name: "common.leave.leave" }));
+    await user.click(await findByRole("button", { name: "common.leave.discard" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
     expect(authClient.signOut).toHaveBeenCalledOnce();
+    expect(saveUnsaved).not.toHaveBeenCalled();
     expect(queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // La session est valide au moment de la question : on écrit d'abord, on coupe ensuite (#682).
+  it("enregistre, PUIS déconnecte", async () => {
+    vi.mocked(authClient.signOut).mockImplementationOnce(async () => {
+      expect(saveUnsaved).toHaveBeenCalledOnce();
+      return undefined;
+    });
+    const { user, getByRole, findByRole, router } = await open({ unsaved: true });
+
+    await user.click(getByRole("button", { name: "common.logout" }));
+    await user.click(await findByRole("button", { name: "common.leave.save" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+    expect(authClient.signOut).toHaveBeenCalledOnce();
+  });
+
+  it("reste connecté quand l'enregistrement est refusé", async () => {
+    saveUnsaved.mockResolvedValue(false);
+    const { user, getByRole, findByRole, queryByRole, router } = await open({ unsaved: true });
+
+    await user.click(getByRole("button", { name: "common.logout" }));
+    await user.click(await findByRole("button", { name: "common.leave.save" }));
+
+    await waitFor(() => expect(queryByRole("dialog")).not.toBeInTheDocument());
+    expect(authClient.signOut).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/");
   });
 });
 

@@ -12,8 +12,10 @@ import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
 import { CmvButton, CmvCard, CmvStaleBanner, CmvTextArea, CmvTextField } from "@/shared/component";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
+import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
-import { useReportDirty } from "@/shared/hook/useReportDirty";
+import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
 import { formatDate } from "@/shared/util/date.util";
 
 type PlanHeaderFormProps = {
@@ -25,18 +27,22 @@ type PlanHeaderFormProps = {
   /** Réaffecter le cycle reste au propriétaire (#607) : en Écriture, le destinataire est figé. */
   canReassign: boolean;
   isSaving: boolean;
-  /** `onSaved` reçoit le cycle tel qu'enregistré : sa version est celle que NOUS avons écrite. */
-  onSave: (input: UpdatePlanInput, onSaved: (saved: PlanDto) => void) => void;
+  /**
+   * Rend le cycle tel qu'enregistré — sa version est celle que NOUS avons écrite —, ou rejette sur
+   * un échec, que l'écran dit déjà : bandeau de conflit, ou toast.
+   */
+  onSave: (input: UpdatePlanInput) => Promise<PlanDto>;
   /** Le dernier enregistrement a été refusé : le cycle a changé depuis le début de la saisie (#604). */
   isStale: boolean;
   isReloading: boolean;
   /** Relit le cycle ; l'écran remonte alors le formulaire sur la dernière version. */
   onReload: () => void;
   /**
-   * Une saisie diffère de ce qui est enregistré : « Diffuser », qui part avec le cycle ENREGISTRÉ,
-   * se ferme tant que c'est vrai (#326). Doit être stable : un `setState` de l'écran.
+   * Une saisie diffère de ce qui est enregistré, et voici de quoi l'enregistrer — `null` sinon :
+   * « Diffuser », qui part avec le cycle ENREGISTRÉ, se ferme tant qu'elle attend (#326), et le
+   * dialogue de sortie l'enregistre (#682). Doit être stable.
    */
-  onDirtyChange: (isDirty: boolean) => void;
+  onUnsavedChange: (save: SaveBeforeLeaving | null) => void;
 };
 
 /**
@@ -58,7 +64,7 @@ export function PlanHeaderForm({
   isStale,
   isReloading,
   onReload,
-  onDirtyChange,
+  onUnsavedChange,
 }: Readonly<PlanHeaderFormProps>) {
   const { t } = useTranslation();
   const toast = useMutationToast();
@@ -127,34 +133,49 @@ export function PlanHeaderForm({
     return input;
   }
 
+  /** Ce qui manque pour enregistrer, ou `null` : le bouton se ferme, le dialogue le dit. */
+  function missingField(): string | null {
+    if (title.trim() === "") return "plan.header.titleRequired";
+    if (effectiveStartDate == null) return "plan.header.startDateRequired";
+    return null;
+  }
+
+  /**
+   * Enregistre la saisie, ou dit ce qui l'en empêche — le bouton fermé ne suffit pas : le dialogue
+   * de sortie enregistre sans lui (#682). Vrai si elle est partie.
+   */
+  const send = useCheckedSave(missingField, async () => {
+    // Entrée envoie sans passer par le blur : le recalage se fait ici aussi, pour que le champ et
+    // le toast disent ce qui part. Après le contrôle : un envoi retenu ne réécrit rien.
+    const sent = snapToMonday();
+    const saved = await onSave({ ...changedFields(), expectedUpdatedAt: current.version });
+    // Rien saisi pendant l'envoi : le formulaire repart du cycle enregistré. Sinon la saisie
+    // reste, et cite la version que NOUS venons d'écrire — pas un conflit avec soi-même.
+    setDraft((latest) =>
+      latest === sent ? null : latest && { ...latest, version: saved.updatedAt },
+    );
+    return saved;
+  });
+  const save = async () => (await send()) != null;
+
+  // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée.
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault();
-    // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée. Ouvert, Entrée
-    // envoie sans passer par le blur : le recalage se fait ici aussi, pour que le champ et le
-    // toast disent ce qui part.
-    const sent = snapToMonday();
-    onSave({ ...changedFields(), expectedUpdatedAt: current.version }, (saved) =>
-      // Rien saisi pendant l'envoi : le formulaire repart du cycle enregistré. Sinon la saisie
-      // reste, et cite la version que NOUS venons d'écrire — pas un conflit avec soi-même.
-      setDraft((latest) =>
-        latest === sent ? null : latest && { ...latest, version: saved.updatedAt },
-      ),
-    );
+    void save();
   }
 
   const isPublished = plan.status === PlanStatus.PUBLISHED;
   // Figé, diffusé ou en Lecture : les champs se lisent, aucun ne se saisit.
   const isLocked = isPublished || readOnly;
   const hasChanges = Object.keys(changedFields()).length > 0;
-  const canSubmit =
-    !isLocked && !isSaving && hasChanges && title.trim() !== "" && effectiveStartDate != null;
+  const canSubmit = !isLocked && !isSaving && hasChanges && missingField() == null;
   /**
    * Plus large que `hasChanges` : une date effacée ou illisible n'entre pas dans ce qui part, mais
    * l'écran ne montre plus la date enregistrée — diffuser maintenant partirait sur une valeur que
    * le coach n'a plus sous les yeux. Le début d'un cycle n'est jamais `null` en base : un champ
    * illisible est donc toujours un écart.
    */
-  useReportDirty(hasChanges || effectiveStartDate == null, onDirtyChange);
+  useReportUnsaved(hasChanges || effectiveStartDate == null, save, onUnsavedChange);
 
   /**
    * De combien le cycle se déplace — entre deux lundis, donc toujours un multiple de 7. `null` = la

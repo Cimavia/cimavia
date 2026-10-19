@@ -6,24 +6,51 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CmvLeaveDialog } from "@/shared/component";
-import { confirmLeave, useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { confirmLeave, saveBeforeLeaving, useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { renderInRoute, renderWithProviders } from "../../../test/render";
 
-const STAY = "common.leave.stay";
-const LEAVE = "common.leave.leave";
+const SAVE = "common.leave.save";
+const DISCARD = "common.leave.discard";
+const CANCEL = "common.leave.cancel";
+
+/**
+ * L'enregistrement de l'écran, réglé test par test : réussi par défaut, refusé (`false`), ou tenu
+ * en suspens pour observer le dialogue pendant l'envoi.
+ */
+const save = vi.fn<() => Promise<boolean>>();
+
+beforeEach(() => {
+  save.mockReset();
+  save.mockResolvedValue(true);
+});
+
+/** Un enregistrement qui ne répond qu'à la demande du test. */
+function pendingSave() {
+  let finish: (saved: boolean) => void = () => undefined;
+  save.mockReturnValue(
+    new Promise<boolean>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  return (saved: boolean) => act(() => finish(saved));
+}
 
 /** Un écran minimal : une saisie à salir, et un enregistrement qui libère la sortie. */
 function Editor() {
   const [dirty, setDirty] = useState(false);
-  const guard = useLeaveGuard(dirty);
+  const guard = useLeaveGuard(dirty, save);
   return (
     <>
       <button type="button" onClick={() => setDirty(true)}>
         edit
+      </button>
+      {/* L'écran relu après un enregistrement : plus rien en attente. */}
+      <button type="button" onClick={() => setDirty(false)}>
+        clean
       </button>
       <button type="button" onClick={guard.release}>
         saved
@@ -53,32 +80,94 @@ describe("useLeaveGuard", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("retient une saisie non enregistrée, et « Rester » ne bouge pas", async () => {
+  it("retient une saisie non enregistrée, et « Annuler » ne bouge pas", async () => {
     const { router, user } = await mount();
     await user.click(screen.getByRole("button", { name: "edit" }));
 
     go(router, "/other");
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: STAY }));
+    await user.click(screen.getByRole("button", { name: CANCEL }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(router.state.location.pathname).toBe("/edit");
   });
 
-  it("part quand le coach confirme vouloir perdre sa saisie", async () => {
+  it("part sans enregistrer quand le coach renonce à sa saisie", async () => {
     const { router, user } = await mount();
     await user.click(screen.getByRole("button", { name: "edit" }));
 
     go(router, "/other");
-    await user.click(await screen.findByRole("button", { name: LEAVE }));
+    await user.click(await screen.findByRole("button", { name: DISCARD }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("enregistre, puis part", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    go(router, "/other");
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  // L'écran dit lui-même pourquoi : la garde, elle, refuse la navigation et ferme la question.
+  it("reste sur un enregistrement refusé, toujours gardé", async () => {
+    save.mockResolvedValue(false);
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    go(router, "/other");
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe("/edit");
+    go(router, "/other");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  // Un « Annuler » pendant l'envoi laisserait partir un enregistrement que plus rien n'attend.
+  it("ferme les trois sorties, Échap compris, le temps de l'enregistrement", async () => {
+    const finish = pendingSave();
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    go(router, "/other");
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    expect(await screen.findByRole("button", { name: "common.saving" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: DISCARD })).toBeDisabled();
+    expect(screen.getByRole("button", { name: CANCEL })).toBeDisabled();
+    const dialog = screen.getByRole("dialog");
+    act(() => {
+      dialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await finish(true);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+  });
+
+  // `showModal` focalise le premier bouton, et Entrée valide le bouton focalisé : ce doit être
+  // celui qui garde le travail. Le focus lui-même vient du navigateur — jsdom ne le pose pas.
+  it("met « Enregistrer » en premier, puis « Ne pas enregistrer », puis « Annuler »", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    go(router, "/other");
+    const dialog = await screen.findByRole("dialog");
+
+    const buttons = within(dialog).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([SAVE, DISCARD, CANCEL]);
   });
 
   // Échap déclenche `cancel` : sans le rattraper, la fenêtre se fermerait et la navigation
   // resterait suspendue — ni partie, ni refusée.
-  it("traite Échap comme « Rester »", async () => {
+  it("traite Échap comme « Annuler »", async () => {
     const { router, user } = await mount();
     await user.click(screen.getByRole("button", { name: "edit" }));
 
@@ -119,45 +208,139 @@ describe("useLeaveGuard", () => {
 
 /**
  * Se déconnecter, changer de compte : ces sorties AGISSENT avant de naviguer, et demandent donc
- * d'abord. La réponse dit si l'on peut agir.
+ * d'abord. La réponse dit si l'on peut agir, et si la saisie est partie.
  */
 describe("confirmLeave", () => {
-  it("répond oui d'emblée sans écran gardé", async () => {
-    await expect(confirmLeave()).resolves.toBe(true);
+  it("répond « partir » d'emblée sans écran gardé", async () => {
+    await expect(confirmLeave()).resolves.toBe("leave");
   });
 
-  it("répond oui d'emblée sur un écran sans saisie", async () => {
+  it("répond « partir » d'emblée sur un écran sans saisie", async () => {
     await mount();
 
-    await expect(confirmLeave()).resolves.toBe(true);
+    await expect(confirmLeave()).resolves.toBe("leave");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("répond non sur « Rester », et l'écran reste gardé", async () => {
+  it("répond « rester » sur « Annuler », et l'écran reste gardé", async () => {
     const { router, user } = await mount();
     await user.click(screen.getByRole("button", { name: "edit" }));
 
     const answer = confirmLeave();
-    await user.click(await screen.findByRole("button", { name: STAY }));
+    await user.click(await screen.findByRole("button", { name: CANCEL }));
 
-    await expect(answer).resolves.toBe(false);
+    await expect(answer).resolves.toBe("stay");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     go(router, "/other");
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
   // La navigation qui suit la déconnexion ne doit pas reposer la question.
-  it("répond oui sur « Quitter », et la sortie qui suit passe", async () => {
+  it("répond « partir » sur « Ne pas enregistrer », et la sortie qui suit passe", async () => {
     const { router, user } = await mount();
     await user.click(screen.getByRole("button", { name: "edit" }));
 
     const answer = confirmLeave();
-    await user.click(await screen.findByRole("button", { name: LEAVE }));
+    await user.click(await screen.findByRole("button", { name: DISCARD }));
 
-    await expect(answer).resolves.toBe(true);
+    await expect(answer).resolves.toBe("leave");
+    expect(save).not.toHaveBeenCalled();
     go(router, "/other");
     await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("enregistre dans le dialogue, puis répond « enregistrer » et laisse passer", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    const answer = confirmLeave();
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    await expect(answer).resolves.toBe("save");
+    expect(save).toHaveBeenCalledOnce();
+    go(router, "/other");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+  });
+
+  it("répond « rester » quand l'enregistrement est refusé", async () => {
+    save.mockResolvedValue(false);
+    const { user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    const answer = confirmLeave();
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    await expect(answer).resolves.toBe("stay");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  // La session perdue : rien ne s'écrit avant la reconnexion, qui enregistrera elle-même.
+  it("sans `saveNow`, répond « enregistrer » sans rien envoyer, et garde l'écran", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    const answer = confirmLeave({ saveNow: false });
+    await user.click(await screen.findByRole("button", { name: SAVE }));
+
+    await expect(answer).resolves.toBe("save");
+    expect(save).not.toHaveBeenCalled();
+    go(router, "/other");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("saveBeforeLeaving", () => {
+  it("n'a rien à enregistrer sans écran gardé", async () => {
+    await expect(saveBeforeLeaving()).resolves.toBe(true);
+  });
+
+  it("n'enregistre pas un écran sans saisie", async () => {
+    await mount();
+
+    await expect(saveBeforeLeaving()).resolves.toBe(true);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("enregistre l'écran gardé, et lève sa garde", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    await act(async () => {
+      await expect(saveBeforeLeaving()).resolves.toBe(true);
+    });
+
+    go(router, "/other");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+  });
+
+  // La déconnexion qui suivait a échoué : le coach est resté, et ce qu'il saisit ensuite compte.
+  it("garde de nouveau une saisie reprise après l'enregistrement", async () => {
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+    await act(async () => {
+      await saveBeforeLeaving();
+    });
+    await user.click(screen.getByRole("button", { name: "clean" }));
+
+    await user.click(screen.getByRole("button", { name: "edit" }));
+    go(router, "/other");
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/edit");
+  });
+
+  it("garde l'écran gardé quand l'enregistrement est refusé", async () => {
+    save.mockResolvedValue(false);
+    const { router, user } = await mount();
+    await user.click(screen.getByRole("button", { name: "edit" }));
+
+    await act(async () => {
+      await expect(saveBeforeLeaving()).resolves.toBe(false);
+    });
+
+    go(router, "/other");
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
 

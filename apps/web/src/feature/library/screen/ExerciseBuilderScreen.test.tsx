@@ -622,10 +622,11 @@ describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
 
 describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
   const CANCEL = "library.builder.cancel";
-  const STAY = "common.leave.stay";
-  const LEAVE = "common.leave.leave";
+  const STAY = "common.leave.cancel";
+  const LEAVE = "common.leave.discard";
+  const SAVE = "common.leave.save";
 
-  it("demande avant d'abandonner une saisie, et « Rester » la garde intacte", async () => {
+  it("demande avant d'abandonner une saisie, et « Annuler » la garde intacte", async () => {
     const view = await edit();
     const title = await view.findByRole("textbox", { name: TITLE });
     await view.user.type(title, " lestées");
@@ -647,6 +648,50 @@ describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(api.createExercise).not.toHaveBeenCalled();
+  });
+
+  // #682 : garder son travail ET partir, d'un geste.
+  it("enregistre, puis part là où le coach allait", async () => {
+    const view = await edit();
+    await view.user.type(await view.findByRole("textbox", { name: TITLE }), " lestées");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    expect(api.updateExercise).toHaveBeenCalledWith(
+      "ex-1",
+      expect.objectContaining({ title: "Tractions lestées" }),
+    );
+    expect(await view.findByText("library.builder.saved")).toBeInTheDocument();
+  });
+
+  // Le bouton est fermé sans titre ; le dialogue, lui, enregistre sans lui : il doit dire pourquoi.
+  it("reste sur un titre vidé, et le réclame", async () => {
+    const view = await create("Planche");
+    await view.user.clear(view.getByRole("textbox", { name: TITLE }));
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: SAVE }));
+
+    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(view.getAllByText("library.builder.titleRequired").length).toBeGreaterThan(0);
+    expect(api.createExercise).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // Le conflit se dit par le bandeau, comme au bouton : la sortie, elle, est refusée.
+  it("reste sur un enregistrement refusé, et dit le conflit", async () => {
+    api.updateExercise.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    const view = await edit();
+    await view.user.type(await view.findByRole("textbox", { name: TITLE }), " lestées");
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+    await view.user.click(await view.findByRole("button", { name: SAVE }));
+
+    expect(await view.findByText("library.builder.stale")).toBeInTheDocument();
+    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 
   it("laisse partir sans friction un exercice ouvert sans être modifié", async () => {

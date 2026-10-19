@@ -113,8 +113,10 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
   const items = itemsOfSpace(activeSpace, counterparts);
 
   async function onLogout() {
-    // AVANT de déconnecter : « Rester » doit laisser le coach connecté, sur sa saisie (#327).
-    if (!(await confirmLeave())) return;
+    // AVANT de déconnecter : « Annuler » doit laisser le coach connecté, sur sa saisie (#327), et
+    // « Enregistrer » écrire tant que la session est valide (#682). Un échec d'enregistrement
+    // répond « rester ».
+    if ((await confirmLeave()) === "stay") return;
     await authClient.signOut();
     // Le cookie part, le reste RESTAIT : sans rechargement complet, le compte suivant se connectait
     // sur les athlètes, débriefs et factures du précédent — et sur son presse-papier de semaine,

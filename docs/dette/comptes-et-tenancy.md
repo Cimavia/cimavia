@@ -588,6 +588,21 @@ liste des domaines vivent dans l'index.
 > cycle est supprimé. L'ordre « purge PUIS navigation » est désormais testé sur la connexion et
 > l'inscription ([#373](https://github.com/Cimavia/cimavia/issues/373)).
 
+> **Tranché en [#682](https://github.com/Cimavia/cimavia/issues/682)** (enregistrer avant de changer
+> de compte, mais APRÈS la reconnexion) : la garde de sortie propose désormais d'enregistrer. Depuis
+> la fenêtre de reconnexion, la session est déjà tombée : l'écriture finirait en 401 — ou, si un
+> autre compte a pris le cookie dans un autre onglet, une création partirait dans SA bibliothèque.
+>
+> - **« Enregistrer » ne fait que refermer la question** (`confirmLeave({ saveNow: false })`) : le
+>   mot de passe reprend le focus, et un message dit que le changement de compte suivra.
+> - **Reconnexion sur le MÊME compte** : enregistre, déconnecte — la session est de nouveau
+>   valide, purger seul ne suffirait plus —, purge et part vers `/login`. Un échec laisse le coach
+>   reconnecté sur son écran, qui dit pourquoi ; un second toast dit que le compte n'a pas changé,
+>   à la place de « Te revoilà ».
+> - **« Annuler » à une seconde demande oublie la première** : le coach reste sur son compte.
+> - **Reconnexion sur un AUTRE compte** : part sans rien enregistrer, comme avant — le travail du
+>   premier ne s'écrit pas sous l'identité du second.
+
 ---
 
 ## v1.0 — Entreprises, plusieurs Coachs par athlète, droits d'accès ([#593](https://github.com/Cimavia/cimavia/issues/593))

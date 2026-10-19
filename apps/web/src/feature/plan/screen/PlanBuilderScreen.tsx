@@ -17,7 +17,7 @@ import {
 } from "@cmv/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
@@ -47,7 +47,7 @@ import {
   CmvReadOnlyBanner,
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
-import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { type SaveBeforeLeaving, useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { ApiError, isStaleWriteError } from "@/shared/lib/api";
@@ -109,26 +109,47 @@ function athleteHeading(
 }
 
 /**
- * Ce que l'en-tête et la facturation montrent sans l'avoir enregistré. La diffusion part avec
- * l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'un des deux est vrai (#326). Les
- * formulaires gardent leur saisie, ils ne remontent que ce booléen.
+ * Une saisie de l'écran, par l'enregistrement que son formulaire remonte — `null` sans rien en
+ * attente. `report` est stable : c'est ce que les formulaires exigent de `onUnsavedChange`.
+ */
+function useUnsavedInput() {
+  const [save, setSave] = useState<SaveBeforeLeaving | null>(null);
+  // `() => next` : passée telle quelle, React prendrait la fonction pour une mise à jour d'état.
+  const report = useCallback((next: SaveBeforeLeaving | null) => setSave(() => next), []);
+  return { save, report };
+}
+
+/**
+ * Ce que l'en-tête, la facturation et le panneau de séance montrent sans l'avoir enregistré. La
+ * diffusion part avec l'état ENREGISTRÉ du cycle : elle reste fermée tant que l'en-tête ou la
+ * facturation attend (#326) — pas pour le panneau, la séance s'enregistre à part du cycle. Les
+ * formulaires gardent leur saisie, ils ne remontent que de quoi l'enregistrer.
  *
- * Les mêmes saisies retiennent la sortie — lien, retour arrière, F5 (#327) —, et celle du panneau
- * de séance (#518). La suppression du cycle, elle, part sans demander : `guard.release`.
+ * Les trois retiennent la sortie — lien, retour arrière, F5 (#327, #518) —, et « Enregistrer »
+ * les envoie tous (#682). L'un APRÈS l'autre, le panneau d'abord : déplacer le début du cycle
+ * décale ses séances, et la saisie du panneau, qui cite la version d'avant, se ferait refuser
+ * comme si un autre Coach l'avait changée. Un refus retient la sortie ; ce qui est parti le reste.
+ * La suppression du cycle, elle, part sans demander : `guard.release`.
  */
 function useUnsavedInputs() {
-  const [isHeaderUnsaved, setHeaderUnsaved] = useState(false);
-  const [isBillingUnsaved, setBillingUnsaved] = useState(false);
-  // Le panneau de séance ne ferme pas la diffusion — la séance s'enregistre à part du cycle —,
-  // mais sa saisie se perd comme les autres à la navigation (#518, **G-1**).
-  const [isPanelUnsaved, setPanelUnsaved] = useState(false);
-  const guard = useLeaveGuard(isHeaderUnsaved || isBillingUnsaved || isPanelUnsaved);
+  const header = useUnsavedInput();
+  const billing = useUnsavedInput();
+  const panel = useUnsavedInput();
+  const pending = [panel.save, billing.save, header.save].filter((save) => save != null);
+  const guard = useLeaveGuard(pending.length > 0, async () => {
+    let saved = true;
+    for (const save of pending) {
+      // Volontairement en série : voir plus haut. Chacun s'enregistre même après un refus.
+      saved = (await save()) && saved;
+    }
+    return saved;
+  });
   return {
-    isHeaderUnsaved,
-    setHeaderUnsaved,
-    isBillingUnsaved,
-    setBillingUnsaved,
-    setPanelUnsaved,
+    isHeaderUnsaved: header.save != null,
+    reportHeader: header.report,
+    isBillingUnsaved: billing.save != null,
+    reportBilling: billing.report,
+    reportPanel: panel.report,
     guard,
   };
 }
@@ -156,14 +177,8 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
-  const {
-    isHeaderUnsaved,
-    setHeaderUnsaved,
-    isBillingUnsaved,
-    setBillingUnsaved,
-    setPanelUnsaved,
-    guard,
-  } = useUnsavedInputs();
+  const { isHeaderUnsaved, reportHeader, isBillingUnsaved, reportBilling, reportPanel, guard } =
+    useUnsavedInputs();
 
   if (isPending) {
     return (
@@ -303,11 +318,11 @@ export function PlanBuilderScreen() {
           readOnly={readOnly}
           canReassign={isMine}
           isSaving={saveHeader.isPending}
-          onSave={(input, onSaved) => saveHeader.mutate(input, { onSuccess: onSaved })}
+          onSave={saveHeader.mutateAsync}
           isStale={isStaleWriteError(saveHeader.error)}
           isReloading={headerReload.isReloading}
           onReload={() => headerReload.reload(planId, saveHeader.reset)}
-          onDirtyChange={setHeaderUnsaved}
+          onUnsavedChange={reportHeader}
         />
 
         {plan.weeks.length === 0 ? (
@@ -353,7 +368,7 @@ export function PlanBuilderScreen() {
             hasAthlete={hasAthlete}
             billing={billing}
             readOnly={readOnly}
-            onDirtyChange={setBillingUnsaved}
+            onUnsavedChange={reportBilling}
           />
         )}
       </div>
@@ -367,7 +382,7 @@ export function PlanBuilderScreen() {
           readOnly={readOnly}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
-          onDirtyChange={setPanelUnsaved}
+          onUnsavedChange={reportPanel}
         />
       )}
       <CmvLeaveDialog {...guard.dialog} />
@@ -427,7 +442,7 @@ type SessionPanelHostProps = {
   readOnly: boolean;
   athleteName: string | null;
   onClose: () => void;
-  onDirtyChange: (isDirty: boolean) => void;
+  onUnsavedChange: (save: SaveBeforeLeaving | null) => void;
 };
 
 /**

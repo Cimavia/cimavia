@@ -1,11 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { type SubmitEvent, useId, useState } from "react";
+import { type SubmitEvent, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
-import { confirmLeave } from "@/shared/hook/useLeaveGuard";
+import { confirmLeave, saveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 
@@ -26,6 +26,11 @@ type ReauthOverlayProps = {
  * L'e-mail n'est pas saisissable : on ne reprend l'écran que sous le compte qui l'a ouvert. Un autre
  * compte hériterait sinon du brouillon, et des données en cache, du précédent. Qui veut changer
  * de compte passe par « Changer de compte », qui purge tout avant de partir.
+ *
+ * « Changer de compte » sur une saisie non enregistrée propose de l'enregistrer (#682), mais pas
+ * TOUT DE SUITE : la session est déjà tombée côté serveur, l'écriture finirait en 401 — ou, si un
+ * autre compte a pris le cookie, une création partirait dans SA bibliothèque. L'enregistrement
+ * attend donc la reconnexion, sur le même compte seulement.
  */
 export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
   const { t } = useTranslation();
@@ -36,6 +41,9 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // « Enregistrer » choisi avant de changer de compte : la reconnexion enregistre, puis part.
+  const [saveOnReconnect, setSaveOnReconnect] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   /**
    * Purge et part, sans rien demander. `ignoreBlocker` : quand un AUTRE compte a pris la session,
@@ -48,8 +56,27 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
   }
 
   // Le choix du coach, lui, demande AVANT de purger : sa saisie se reprend en se reconnectant.
+  // « Enregistrer » ramène au mot de passe : rien ne s'écrit sans session.
+  // « Annuler » à une seconde demande oublie la première : le coach reste, sur son compte.
   async function switchAccount() {
-    if (await confirmLeave()) leaveForLogin();
+    const choice = await confirmLeave({ saveNow: false });
+    setSaveOnReconnect(choice === "save");
+    if (choice === "leave") leaveForLogin();
+    if (choice !== "save") return;
+    const field = formRef.current?.elements.namedItem("password");
+    if (field instanceof HTMLInputElement) field.focus();
+  }
+
+  /**
+   * La reconnexion demandée pour enregistrer : enregistre, puis déconnecte — la session est de
+   * nouveau valide, purger et partir ne suffirait plus — et part. Un échec laisse le coach sur son
+   * écran, reconnecté : l'écran dit pourquoi, comme à tout enregistrement. Vrai s'il est parti.
+   */
+  async function saveThenLeave(): Promise<boolean> {
+    if (!(await saveBeforeLeaving())) return false;
+    await authClient.signOut();
+    leaveForLogin();
+    return true;
   }
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -74,7 +101,12 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
       // Les lectures tombées en 401 pendant la perte restent en erreur jusqu'à leur prochain
       // chargement : on les relance toutes, la fenêtre partie l'écran doit être juste.
       await queryClient.invalidateQueries();
-      toast.success(t("auth.reauth.restored"));
+      if (!saveOnReconnect) {
+        toast.success(t("auth.reauth.restored"));
+      } else if (!(await saveThenLeave())) {
+        // L'écran dit pourquoi rien n'est parti ; ceci dit ce que devient le changement de compte.
+        toast.info(t("auth.reauth.switchAbandoned"));
+      }
     } catch {
       setError(t("auth.errors.generic"));
     } finally {
@@ -97,7 +129,10 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
           {t("auth.reauth.title")}
         </h1>
         <p className="mb-6 text-sm text-cmv-text-mid">{t("auth.reauth.body")}</p>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <form ref={formRef} onSubmit={onSubmit} className="flex flex-col gap-4">
+          {saveOnReconnect ? (
+            <p className="text-sm text-cmv-text-hi">{t("auth.reauth.saveFirst")}</p>
+          ) : null}
           <p className="text-sm text-cmv-text-mid">
             {t("auth.reauth.account")}{" "}
             <span className="font-medium text-cmv-text-hi">{owner.email}</span>
