@@ -98,7 +98,9 @@ export function useLeaveGuard(isDirty: boolean, save: SaveBeforeLeaving): LeaveG
   const released = useRef(false);
   // Rien en attente : la levée a servi. Une saisie reprise ensuite — la déconnexion qui suit
   // l'enregistrement a échoué, le coach est resté — se garde de nouveau.
-  if (!isDirty) released.current = false;
+  useEffect(() => {
+    if (!isDirty) released.current = false;
+  }, [isDirty]);
   const [isSaving, setSaving] = useState(false);
 
   const isGuarded = useCallback(() => dirty.current && !released.current, []);
