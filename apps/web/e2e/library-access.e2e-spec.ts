@@ -212,7 +212,8 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await m.goto("/library/sessions/new");
     await m.getByRole("textbox", { name: t("library.session.titleLabel") }).fill("Séance de M");
     await m.getByRole("button", { name: t("library.session.pickerTitle") }).click();
-    await expect(m.getByRole("button", { name: /^Voie/ })).toContainText(world.c.name);
+    // Le propriétaire a sa colonne : il se lit sur la ligne, pas dans le bouton du titre (#653).
+    await expect(m.getByRole("row", { name: /^Voie/ })).toContainText(world.c.name);
 
     // Sans « Les miens », « Partagés » reste — verrouillée, elle ne s'éteint pas.
     const shared = m.getByRole("button", { name: t("library.picker.shared"), exact: true });

@@ -2,6 +2,13 @@ import { type CustomMetric, type ExerciseDto, LibraryScope, searchMatcher } from
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
+import {
+  HeadCell,
+  LIBRARY_ROW,
+  NoValue,
+  TagsCell,
+  TitleCell,
+} from "@/feature/library/component/LibraryTableCells";
 import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
@@ -9,13 +16,14 @@ import { ownerRightText } from "@/feature/library/util/access-text.util";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
+  CMV_TABLE,
   CmvButton,
   CmvChoiceChips,
   CmvEmptyState,
-  CmvTagList,
   CmvTextField,
   CmvToggleChip,
 } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 /** Ce que le sélecteur propose : les exercices du Coach, ceux qu'on lui partage — ou les deux. */
 type Shown = { mine: boolean; shared: boolean };
@@ -38,8 +46,9 @@ type LibraryPickerProps = {
  * La bibliothèque dans laquelle piocher, avec la MÊME phrase de dosage que la composition : le
  * coach doit reconnaître ce qu'il ajoute avant de l'ajouter.
  *
- * Chaque exercice dit à qui il est, et — partagé — le droit qu'en a le Coach (#606, frame 8) : la
- * Lecture suffit à l'ajouter. Sans entreprise, rien ne lui est partagé : ni propriétaire, ni
+ * Un tableau, comme la bibliothèque (#653, frame 8) : un clic sur la ligne ajoute l'exercice.
+ * Chaque exercice dit à qui il est, et — partagé — le droit qu'en a le Coach (#606) : la Lecture
+ * suffit à l'ajouter. Sans entreprise, rien ne lui est partagé : ni colonne Propriétaire, ni
  * bascule (frame 14).
  *
  * La recherche sans résultat propose de créer l'exercice manquant en reprenant le texte tapé
@@ -105,38 +114,51 @@ export function LibraryPicker({
         />
       ) : null}
 
-      {/* Une grille et non une colonne : le sélecteur occupe toute la largeur du centre depuis
-          qu'il a quitté le rail de droite, et une seule colonne y laisserait un vide énorme. */}
-      <div className="grid max-h-[28rem] gap-cmv-sm overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
-        {visible.map((exercise) => {
-          // Les colonnes d'un exercice partagé citent le catalogue de son propriétaire (#605).
-          const summary = dosageSummary(
-            exercise.blocks,
-            mergeCatalogs(customMetrics, exercise.customMetrics),
-            t,
-            i18n.language,
-          );
-          return (
-            <button
-              key={exercise.id}
-              type="button"
-              onClick={() => onPick(exercise)}
-              className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm text-left transition-colors hover:border-cmv-border-hi hover:bg-cmv-surface-hi"
-            >
-              <span className="text-cmv-body text-cmv-text-hi">{exercise.title}</span>
-              <CmvTagList tags={exercise.tags} />
-              {sharing === false ? null : (
-                <span className="text-cmv-caption text-cmv-text-lo">
-                  {ownerRightText(exercise, t)}
-                </span>
-              )}
-              {summary == null ? null : (
-                <span className="text-cmv-caption text-cmv-text-mid">{summary}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {visible.length === 0 ? null : (
+        // Le cadre arrondit, le conteneur défile : `CMV_TABLE.frame` coupe ce qui déborde, et `cn`
+        // ne résout pas les conflits de classes — un `overflow-auto` posé à côté ne l'emporterait pas.
+        <div className={CMV_TABLE.frame}>
+          <div className="max-h-[28rem] overflow-auto">
+            <table className={CMV_TABLE.table}>
+              {/* L'en-tête reste visible pendant le défilement : chaque cellule porte son fond
+                  et son filet (`CMV_TABLE.stickyHeadCell`). */}
+              <thead>
+                <tr>
+                  <HeadCell sticky label={t("library.table.title")} />
+                  <HeadCell sticky label={t("library.table.tags")} />
+                  {sharing === false ? null : <HeadCell sticky label={t("library.table.owner")} />}
+                  <HeadCell sticky label={t("library.table.dosage")} />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((exercise) => {
+                  // Les colonnes d'un exercice partagé citent le catalogue de son propriétaire (#605).
+                  const summary = dosageSummary(
+                    exercise.blocks,
+                    mergeCatalogs(customMetrics, exercise.customMetrics),
+                    t,
+                    i18n.language,
+                  );
+                  return (
+                    <tr key={exercise.id} className={LIBRARY_ROW}>
+                      <TitleCell title={exercise.title} onClick={() => onPick(exercise)} />
+                      <TagsCell tags={exercise.tags} />
+                      {sharing === false ? null : (
+                        <td className={cn(CMV_TABLE.cell, "text-cmv-text-mid")}>
+                          {ownerRightText(exercise, t)}
+                        </td>
+                      )}
+                      <td className={cn(CMV_TABLE.cell, "text-cmv-caption text-cmv-text-mid")}>
+                        {summary ?? <NoValue />}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
