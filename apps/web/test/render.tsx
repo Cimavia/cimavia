@@ -37,9 +37,15 @@ type RenderWithProviders = RenderResult & {
  * `userEvent` est rendu avec le résultat plutôt que laissé à l'appelant : il s'installe sur le
  * document au moment du `setup()`, et le créer après coup dans chaque test produit des
  * interactions qui semblent marcher jusqu'à la première qui en enchaîne deux.
+ *
+ * `delay: null` (#683) : par défaut, chaque frappe d'un `user.type` attend un tour de boucle
+ * d'événements avant la suivante. Aucun test ne vérifie ce qui s'affiche ENTRE deux frappes, et ce
+ * tour coûtait ~8 % du temps de la suite web (251 s → 230 s cumulées, 2162 tests verts des deux
+ * côtés). Un test qui viendrait à dépendre d'un rendu intermédiaire n'a qu'à passer par ses propres
+ * `await`, pas à rétablir le délai pour tous.
  */
 export function renderWithProviders(ui: ReactElement): RenderWithProviders {
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
   const { queryClient } = renderWithQueryClient();
   const i18n = createTestI18n();
 

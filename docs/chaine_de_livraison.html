@@ -437,7 +437,7 @@
       <div class="step gh">
         <span class="who">GitHub</span>
         <h3>PR vers main</h3>
-        <p><code>ci.yml</code> : qualité (commitlint compris) et e2e en parallèle, puis SonarCloud sur leurs couvertures ; les builds de production des apps touchées à côté. <code>zizmor.yml</code> et <code>trivy.yml</code> relisent les workflows et les Dockerfiles si la PR y touche, CodeQL analyse le code.</p>
+        <p><code>ci.yml</code> : lint (commitlint compris), trois jobs de tests unitaires et e2e en parallèle, un agrégateur qui rend le verdict du lint et des tests, puis SonarCloud sur leurs couvertures ; les builds de production des apps touchées à côté. <code>zizmor.yml</code> et <code>trivy.yml</code> relisent les workflows et les Dockerfiles si la PR y touche, CodeQL analyse le code.</p>
         <p class="gate">4 checks requis : Lint + Typecheck + Test · E2E · SonarCloud (couverture &gt; 80 %, duplication &lt; 3 %) · Builds de production. zizmor, Trivy et CodeQL alertent sans être requis.</p>
       </div>
       <div class="step gh">
@@ -484,15 +484,30 @@
         <div class="wf-body">
           <div class="jobs">
             <div class="job">
-              <h4>Lint + Typecheck + Test</h4>
-              <span class="needs">quality · parallèle</span>
+              <h4>Lint + Typecheck</h4>
+              <span class="needs">lint · parallèle · non requis seul</span>
               <ol>
                 <li>action <code>setup</code> : pnpm, Node, <code>pnpm install --frozen-lockfile --ignore-scripts</code>, <code>prisma generate</code></li>
                 <li><code>commitlint</code> de la base à la tête de la PR (#416)</li>
-                <li><code>pnpm biome ci .</code></li>
-                <li><code>pnpm turbo typecheck</code> puis <code>pnpm turbo test</code></li>
-                <li>upload des 4 lcov unitaires, artefact <code>coverage-unit</code> (1 jour)</li>
+                <li><code>pnpm biome ci .</code>, <code>check:lint-rules</code>, <code>check:dette</code>, <code>check:migrations</code> (PR seulement)</li>
+                <li><code>pnpm turbo typecheck</code></li>
                 <li><code>pnpm check:i18n</code> (sans <code>--strict</code>)</li>
+              </ol>
+            </div>
+            <div class="job">
+              <h4>Tests web · Tests mobile · Tests hors web et mobile</h4>
+              <span class="needs">test-web · test-mobile · test-autres · parallèle · non requis seuls</span>
+              <ol>
+                <li>une suite Vitest par runner (#683) : <code>turbo test --filter=@cmv/web</code>, <code>--filter=@cmv/mobile</code>, puis tout le reste par exclusion</li>
+                <li>upload des lcov : artefacts <code>coverage-web</code>, <code>coverage-mobile</code>, <code>coverage-autres</code> (1 jour), <code>if-no-files-found: error</code></li>
+              </ol>
+            </div>
+            <div class="job">
+              <h4>Lint + Typecheck + Test</h4>
+              <span class="needs">quality · needs: les quatre ci-dessus · toujours exécuté</span>
+              <ol>
+                <li>agrégateur, sous le nom que le ruleset et la promotion exigent</li>
+                <li>échoue si un des quatre jobs n'a pas réussi : <code>!cancelled()</code>, et lecture de <code>needs.*.result</code>, parce qu'un check requis sauté passe pour GitHub</li>
               </ol>
             </div>
             <div class="job">
@@ -519,9 +534,9 @@
             </div>
             <div class="job">
               <h4>SonarCloud Analysis</h4>
-              <span class="needs">needs: quality, e2e</span>
+              <span class="needs">needs: les trois jobs de tests, e2e</span>
               <ol>
-                <li>aucun test rejoué (#318) : build de <code>@cmv/shared</code>, puis les artefacts <code>coverage-unit</code> et <code>coverage-e2e</code></li>
+                <li>aucun test rejoué (#318) : build de <code>@cmv/shared</code>, puis les quatre artefacts <code>coverage-*</code>, chacun replacé à son chemin</li>
                 <li>scan avec <code>qualitygate.wait=true</code>, timeout 300 s</li>
                 <li><code>projectVersion</code> = version de <code>package.json</code></li>
               </ol>

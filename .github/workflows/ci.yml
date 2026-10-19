@@ -39,13 +39,16 @@ permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Lint + Typecheck + Test
+  # Tout ce qui ne lance pas Vitest : messages de commit, Biome, journaux, migrations, types, clés
+  # i18n. Séparé des tests depuis #683 : un rouge de lint n'attend plus la fin de la suite web pour
+  # se voir. Le check requis reste `quality`, plus bas, qui rend le verdict de ce job et des tests.
+  lint:
+    name: Lint + Typecheck
     # Ubuntu épinglé, pas `ubuntu-latest` (#413) : le passage à une nouvelle version se fait
     # dans une PR que la CI teste, pas un jour choisi par GitHub. Même runner pour tous les jobs
     # du dépôt.
     runs-on: ubuntu-26.04
-    timeout-minutes: 15 # 3 min 24 au plus observé
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -56,15 +59,15 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # pnpm, Node, dépendances et client Prisma : la même mise en place pour les trois jobs.
+      # pnpm, Node, dépendances et client Prisma : la même mise en place pour tous les jobs.
       - name: Setup
         uses: $/.github/actions/setup
 
       # Le hook `commit-msg` ne voit que le poste : un commit fait dans l'interface GitHub, par une
       # suggestion de revue ou avec `--no-verify` arrivait sur `main` sans contrôle — et
       # `release-please` ignore en silence ce qu'il ne sait pas lire, sans bump ni CHANGELOG (#416).
-      # Une étape et non un job : elle hérite du statut requis de `quality`, là où un nouveau nom de
-      # job serait un check de plus à déclarer dans le ruleset.
+      # Une étape et non un job : elle hérite, par `quality`, de son statut requis, là où un nouveau
+      # job requis serait un check de plus à déclarer dans le ruleset.
       # La base de la PR et non `origin/main` : une PR en retard relirait sinon des commits qui ne
       # sont pas les siens. Les commits de merge sont ignorés par commitlint. Les deux sha passent
       # par `env:`, jamais interpolés dans le script (#401). `fetch-depth: 0` les rend présents.
@@ -85,15 +88,15 @@ jobs:
 
       # Le journal de dette n'a plus de liste « sans issue » tenue à la main : elle dérivait sans que
       # rien ne casse. Ce script la calcule, et refuse un identifiant en double ou une dette ouverte
-      # sans suivi (#624). Avant typecheck et tests : une lecture de fichiers, qui répond aussitôt.
+      # sans suivi (#624). Avant typecheck : une lecture de fichiers, qui répond aussitôt.
       - name: Check journal de dette
         run: pnpm check:dette
 
       # Une migration qui supprime une colonne passait la CI sans signal, et preview la joue au
       # démarrage, sur les données réelles du Coach bêta (#628). squawk relit les seuls
       # `migration.sql` que la PR apporte ; une opération voulue se déclare dans le fichier, avec sa
-      # raison. Une étape de `quality`, comme commitlint : elle hérite de son statut requis. Sur les
-      # PR seulement — le run de release n'apporte aucune migration qui n'ait déjà été relue.
+      # raison. Une étape de ce job, comme commitlint : elle hérite du statut requis de `quality`.
+      # Sur les PR seulement — le run de release n'apporte aucune migration qui n'ait déjà été relue.
       - name: Migrations (squawk)
         if: github.event_name == 'pull_request'
         env:
@@ -103,37 +106,144 @@ jobs:
       - name: Typecheck
         run: pnpm turbo typecheck
 
-      - name: Test
-        run: pnpm turbo test
-
-      # Ces lcov sont ceux que le job Sonar analyse : il ne rejoue plus `turbo test` (#318). Deux
-      # exécutions de la même suite, sur deux runners, pouvaient diverger sur un flake — et c'était
-      # la seconde, invisible dans les logs de ce job, qui décidait de la porte.
-      # `if-no-files-found: error` : un lcov manquant ne se lit pas « 0 % » chez Sonar, il ne se
-      # lit pas du tout, et la Quality Gate échouerait sur `new_coverage` sans dire pourquoi.
-      # Le plus proche ancêtre commun des quatre chemins étant la racine, l'artefact garde leur
-      # arborescence : le job Sonar les retrouve là où `sonar-project.properties` les attend.
-      - name: Upload de la couverture unitaire
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-unit
-          path: |
-            packages/shared/coverage/lcov.info
-            apps/api/coverage/lcov.info
-            apps/web/coverage/lcov.info
-            apps/mobile/coverage/lcov.info
-          if-no-files-found: error
-          retention-days: 1
-
       # Les clés i18n assemblées (`t(`a.b.${x}`)`) échappent au typecheck : sans cette étape, une
       # clé renommée s'affiche en clair dans l'UI sans qu'aucune porte de qualité ne bronche.
       # Sans `--strict` : une clé morte est un signal, pas un blocage de PR.
       - name: Check i18n keys
         run: pnpm check:i18n
 
-  # Job séparé, et non une étape de `quality` : les deux tournent en parallèle (le retour de PR
-  # reste borné par le plus long des deux), les logs ne se mélangent pas, et un service Docker qui
-  # ne monte pas ne masque pas le résultat du lint.
+  # Les tests unitaires, en trois jobs parallèles (#683). Sous un seul `turbo test`, les quatre
+  # suites Vitest se disputaient les 4 vCPU du runner, chacune avec ses propres workers : l'étape
+  # prenait 300 à 355 s, quand `SessionBuilderScreen.test.tsx`, le plus lent des fichiers, tient en
+  # 13 s seul sur un poste. Le web et le mobile, les deux plus lourds, ont chacun leur runner ; le
+  # reste partage le troisième.
+  #
+  # Par `turbo` et non `pnpm --filter … test` : la dépendance `^build` construit le `dist` de
+  # @cmv/shared, absent après une installation `--ignore-scripts`.
+  #
+  # Ces lcov sont ceux que le job Sonar analyse : il ne rejoue plus les tests (#318). Deux
+  # exécutions de la même suite, sur deux runners, pouvaient diverger sur un flake — et c'était
+  # la seconde, invisible dans les logs de ce job, qui décidait de la porte.
+  # `if-no-files-found: error` : un lcov manquant ne se lit pas « 0 % » chez Sonar, il ne se
+  # lit pas du tout, et la Quality Gate échouerait sur `new_coverage` sans dire pourquoi.
+  test-web:
+    name: Tests web
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup
+        uses: $/.github/actions/setup
+
+      - name: Test
+        run: pnpm turbo test --filter=@cmv/web
+
+      # Un seul chemin : l'artefact ne garde que `lcov.info`, sans son dossier. Le job Sonar le
+      # replace donc lui-même sous `apps/web/coverage/`.
+      - name: Upload de la couverture
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-web
+          path: apps/web/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
+
+  test-mobile:
+    name: Tests mobile
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup
+        uses: $/.github/actions/setup
+
+      - name: Test
+        run: pnpm turbo test --filter=@cmv/mobile
+
+      # Un seul chemin, comme pour le web : le job Sonar replace le fichier sous `apps/mobile/coverage/`.
+      - name: Upload de la couverture
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-mobile
+          path: apps/mobile/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
+
+  # Tout ce qui n'est ni le web ni le mobile : @cmv/shared, les tests unitaires de l'API, @cmv/e2e.
+  # Le filtre exclut plutôt qu'il ne liste : un nouveau paquet testé tourne ici d'office, sans
+  # qu'on pense à l'ajouter. Son lcov, lui, reste à déclarer : dans l'upload ci-dessous, dans le
+  # job Sonar et dans `sonar-project.properties`.
+  test-autres:
+    name: Tests hors web et mobile
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup
+        uses: $/.github/actions/setup
+
+      - name: Test
+        run: pnpm turbo test --filter='!@cmv/web' --filter='!@cmv/mobile'
+
+      # Deux chemins, dont l'ancêtre commun est la racine : l'artefact garde leur arborescence, et
+      # le job Sonar les retrouve là où `sonar-project.properties` les attend.
+      - name: Upload de la couverture
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-autres
+          path: |
+            packages/shared/coverage/lcov.info
+            apps/api/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 1
+
+  # Le check requis, sous son nom d'avant #683 : le ruleset `Main` et `promote-preview.yml` le
+  # lisent tel quel, et rien n'y change. Il ne fait rien d'autre que rendre le verdict des quatre
+  # jobs ci-dessus.
+  #
+  # `!cancelled()` et non le défaut (`success()`) : sans lui, l'échec d'un job de test SAUTERAIT
+  # celui-ci — et un check requis sauté compte comme réussi pour GitHub. D'où la lecture explicite
+  # de `needs.*.result`, où « skipped » n'est pas « success ». Il tourne aussi au run de release :
+  # la promotion lit ce contexte sur le sha de `main`, et le trouverait sinon « absent ».
+  quality:
+    name: Lint + Typecheck + Test
+    if: ${{ !cancelled() }}
+    needs: [lint, test-web, test-mobile, test-autres]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    # Ni checkout ni jeton : il ne lit que le résultat des autres jobs.
+    permissions: {}
+
+    steps:
+      # Par `env:`, jamais interpolé dans le script (#401).
+      - name: Verdict des jobs de lint et de tests
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key) : \(.value.result)"' <<<"$NEEDS"
+          if ! jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null; then
+            echo "::error::Un job de lint ou de tests n'a pas réussi : voir la liste ci-dessus."
+            exit 1
+          fi
+
+  # Job séparé, et non une étape des jobs ci-dessus : tous tournent en parallèle (le retour de PR
+  # reste borné par le plus long), les logs ne se mélangent pas, et un service Docker qui ne monte
+  # pas ne masque pas le résultat du lint.
   #
   # Sur CHAQUE PR, pas seulement sur main : une porte qui ne se ferme qu'après le merge ne bloque
   # rien. C'est précisément la panne qu'on répare — les e2e n'étaient exécutés nulle part, et deux
@@ -382,12 +492,14 @@ jobs:
         run: pnpm exec expo export --platform android
 
   # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or ils naissent
-  # dans les deux jobs ci-dessus — l'unitaire dans `quality`, celui de l'API dans `e2e`. Un artefact
-  # ne traverse pas deux workflows sans une course entre deux runs déclenchés par le même événement
-  # — les mettre dans le même run rend l'ordre déterministe.
+  # dans plusieurs jobs ci-dessus — l'unitaire dans les trois jobs de tests, celui de l'API dans
+  # `e2e`. Un artefact ne traverse pas deux workflows sans une course entre deux runs déclenchés par
+  # le même événement — les mettre dans le même run rend l'ordre déterministe.
   #
-  # Il n'exécute aucun test (#318) : il analyse ce que les deux autres ont mesuré. Il démarre donc
-  # après le plus long des deux, `quality`, mais n'a plus ~2 min de tests à rejouer.
+  # Il n'exécute aucun test (#318) : il analyse ce que les autres ont mesuré, et démarre après le
+  # plus long d'entre eux. Il n'attend ni `lint` ni `quality` : le lint ne produit aucune mesure.
+  # Si un job de tests échoue, ce job est sauté, et un check requis sauté passe pour GitHub : c'est
+  # `quality`, l'agrégateur, qui bloque alors la PR.
   #
   # Le nom du job est inchangé à dessein : les rulesets exigent le contexte « SonarCloud Analysis »,
   # qui est le nom du JOB et non celui du workflow (cf. « Appris en #130 »,
@@ -396,7 +508,7 @@ jobs:
     name: SonarCloud Analysis
     runs-on: ubuntu-26.04
     timeout-minutes: 15 # 2 min 24 observé, plus jusqu'à 5 min d'attente de la Quality Gate
-    needs: [quality, e2e]
+    needs: [test-web, test-mobile, test-autres, e2e]
 
     steps:
       - name: Checkout
@@ -409,7 +521,7 @@ jobs:
       - name: Setup
         uses: $/.github/actions/setup
 
-      # Le `dist` de @cmv/shared, que `turbo test` construisait jusqu'ici en dépendance (`^build`) :
+      # Le `dist` de @cmv/shared, que `turbo test` construit en dépendance (`^build`) sur SON runner :
       # l'API le résout par son `package.json`. Sans lui, l'analyse de types de Sonar ne tournerait
       # plus dans le même environnement que le typecheck, et ses résultats pourraient changer.
       # @cmv/tokens n'a pas d'étape de build : rien à construire de ce côté.
@@ -417,12 +529,27 @@ jobs:
         run: pnpm turbo build --filter=@cmv/shared
 
       # La couverture doit exister AVANT le scan : sans lcov, Sonar ne lit pas « 0 % », il ne lit
-      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Celle-ci, produite
-      # par `quality`, couvre @cmv/shared, le web, le mobile et les tests unitaires de l'API…
-      - name: Récupère la couverture unitaire
+      # rien — et la Quality Gate échoue sur `new_coverage` quoi qu'on écrive. Un téléchargement par
+      # artefact, chacun replacé là où `sonar-project.properties` l'attend, plutôt qu'un seul par
+      # `pattern: coverage-*` : celui-ci range chaque artefact sous un dossier à son nom, et les
+      # lcov du web et du mobile, envoyés seuls, n'ont même plus leur dossier d'origine.
+      # Celle-ci couvre @cmv/shared et les tests unitaires de l'API, à leur place dans l'arbre…
+      - name: Récupère la couverture api + shared
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: coverage-unit
+          name: coverage-autres
+
+      - name: Récupère la couverture web
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-web
+          path: apps/web/coverage
+
+      - name: Récupère la couverture mobile
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-mobile
+          path: apps/mobile/coverage
 
       # …et celle-ci, produite par le job e2e, apporte les ~86 % de l'API. Sonar unit les rapports
       # par fichier, il n'y a donc pas de fusion à faire à la main.

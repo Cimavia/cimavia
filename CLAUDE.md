@@ -86,8 +86,8 @@ pnpm --filter @cmv/api exec prisma migrate dev --create-only --name <nom>
 
 ### Porte qualité
 
-Tout doit passer avant de conclure une étape. Ces sept commandes sont celles du job CI
-*Lint + Typecheck + Test*, à l'exception du `--strict`, exigé en local et pas en CI :
+Tout doit passer avant de conclure une étape. Ces sept commandes sont celles des jobs CI que
+regroupe le check *Lint + Typecheck + Test* (#683), à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
 pnpm biome ci .                # ⚠️ PAS `turbo lint` : les 6 paquets ont désormais chacun leur
