@@ -254,6 +254,9 @@ images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble
 
 - **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
   **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
+  Deux exceptions, des paquets qui ne s'installent qu'ensemble : les `@sentry/*`, toutes
+  versions (#669), et les majeures de la pile Nest — `@nestjs/*`, ses modules tiers, `pino` et
+  `pino-http` (#671). Les mineures et correctifs de Nest, eux, restent dans la PR groupée.
 - Une version n'est proposée que **7 jours** après sa publication (`cooldown`). Les mises à jour
   de sécurité n'attendent pas.
 - Une PR `docker` ou `docker-compose` n'atteint le NAS qu'à la **promotion** suivante : il ne

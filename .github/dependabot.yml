@@ -59,14 +59,20 @@ updates:
       sentry:
         patterns:
           - "@sentry/*"
-      # Même exception pour la pile Nest (#671) : `platform-fastify`, `testing` et les modules
-      # tiers exigent le `@nestjs/core` de leur majeure, et une PR par paquet ne s'installe pas.
-      # Dependabot n'avait proposé que la CLI 12 (#589) ; la montée s'était faite à la main.
+      # Même exception pour les MAJEURES de la pile Nest (#671) : `platform-fastify`, `testing` et
+      # les modules tiers exigent le `@nestjs/core` de leur majeure, `nestjs-pino` la majeure de
+      # `pino` et de `pino-http` — une PR par paquet ne s'installe pas. Dependabot n'avait proposé
+      # que la CLI 12 (#589) ; la montée s'était faite à la main. Majeures seulement : les
+      # correctifs de Nest restent dans `npm`, pour qu'une majeure tierce pas encore installable
+      # (#135) ne les retienne pas.
       nestjs:
+        update-types: [major]
         patterns:
           - "@nestjs/*"
           - "nestjs-*"
           - "@thallesp/nestjs-better-auth"
+          - "pino"
+          - "pino-http"
       npm:
         update-types: [minor, patch]
         patterns:
