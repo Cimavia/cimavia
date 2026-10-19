@@ -37,7 +37,7 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.5`). Lint/format **Biome** (`2.5.1`, 
 
 | Couche | Choix | Version épinglée |
 |---|---|---|
-| Runtime / Package manager | Node.js / pnpm | `≥22` / `10.34.5` |
+| Runtime / Package manager | Node.js / pnpm | `22.22.3+` ou `24.15+` / `10.34.5` |
 | Monorepo | Turborepo | `2.10.0` |
 | TypeScript | strict partout | `6.0.3` (^6.0) |
 | Lint/format | Biome | `2.5.1` |

@@ -16,7 +16,7 @@ packages/tsconfig — @cmv/tsconfig : Configs TypeScript de base
 
 ## Prérequis
 
-- Node.js ≥ 22
+- Node.js 22.22.3+ ou 24.15+ — la 23 et les 24 plus anciennes sont hors de la plage de `@nestjs/schematics` 12
 - pnpm 10.34.5 (`corepack enable && corepack use pnpm@10.34.5`)
 - Docker (pour PostgreSQL, SILO — object storage S3-compatible, fork maintenu de MinIO — et Mailpit — serveur SMTP local)
 - Pour le mobile sur **appareil physique** uniquement (débrief, médias, push) : compte
