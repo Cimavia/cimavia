@@ -1012,6 +1012,7 @@ export {
 } from "./util/reminder.util";
 export { sameJson } from "./util/same-json.util";
 export { comparableText, searchMatcher } from "./util/search.util";
+export { sentryDataCollection } from "./util/sentry-data-collection.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkedUnitsOf,
