@@ -646,14 +646,22 @@ liste des domaines vivent dans l'index.
 > - **`userEvent.setup({ delay: null })`** dans `test/render.tsx` : −8 % sur le temps des tests
 >   web (251 → 230 s cumulées), aucun test changé de couleur.
 > - **Les fichiers lents ne sont pas découpés.** Le « plancher » mesuré en CI (99 s pour
->   `SessionBuilderScreen.test.tsx`) venait surtout de la concurrence : seul sur un poste, le
->   fichier tient en 13 s. Le découpage n'est à reprendre que si un fichier redevient la queue de
->   `test-web`.
+>   `SessionBuilderScreen.test.tsx`) venait surtout de la concurrence : seul sur son runner, le
+>   fichier tient en 36 s (13 s sur un poste), pour 210 s de suite. Le découpage n'est à reprendre
+>   que si un fichier redevient la queue de `test-web`.
+>
+> **Mesuré sur la PR #685** : 5 min 53 du premier job à la fin de Sonar, contre ~10 min. Les
+> tests ont fondu sitôt seuls — mobile 226 → 64 s, api et shared (64 et 48 s) → 32 s à eux
+> deux —, le web moins (347 → 217 s), parce que sa suite tient 3 workers occupés à elle seule.
+> `test-web` (4 min 06) ne précède plus l'e2e (3 min 33) que d'une demi-minute : c'est le gain
+> maximal qu'un découpage du web apporterait encore au chemin bloquant.
 >
 > Écarts assumés : **pas de cache Turbo entre runs** (« Tranché en #318 », C) ; **ni `happy-dom`
-> ni `isolate: false`**, qui changent l'environnement des tests (#625) ; **pas de shards Vitest**
-> tant que `test-web` reste sous ~3 min. Chaque job paie son propre setup (~30 s) : c'est le prix
-> du parallélisme. La porte **locale** reste sous un seul `turbo` (#455).
+> ni `isolate: false`**, qui changent l'environnement des tests (#625). **Pas de shards Vitest**,
+> bien que `test-web` dépasse les ~3 min que fixait l'issue : ce seuil supposait le web loin
+> devant l'e2e, et une demi-minute ne paie ni un second setup ni une fusion de rapports de
+> couverture. À rouvrir si l'écart avec l'e2e dépasse ~1 min 30. Chaque job paie son propre setup
+> (~20 s) : c'est le prix du parallélisme. La porte **locale** reste sous un seul `turbo` (#455).
 
 ---
 
