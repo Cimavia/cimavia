@@ -51,6 +51,17 @@ updates:
     labels:
       - "type: chore"
     groups:
+      # Exception à la règle des majeures à part (#669) : les paquets Sentry avancent ENSEMBLE,
+      # majeures comprises. `@sentry/nestjs` et `@sentry/profiling-node` partagent `@sentry/core`, et
+      # une montée qui n'en prend qu'un ne compile pas (#588) ; le plugin Vite suit la numérotation du
+      # SDK depuis la 11. AVANT `npm` : un paquet va au premier groupe qui le correspond.
+      # `@sentry/react-native` est ignoré plus bas ; `@sentry/cli`, épinglé sur ce qu'exige ce
+      # dernier (dette O-2), reste dans `npm`.
+      sentry:
+        patterns:
+          - "@sentry/*"
+        exclude-patterns:
+          - "@sentry/cli"
       npm:
         update-types: [minor, patch]
         patterns:
