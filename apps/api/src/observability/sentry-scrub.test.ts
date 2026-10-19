@@ -2,7 +2,7 @@ import { FILTERED } from "@cmv/shared";
 import type { Event } from "@sentry/nestjs";
 import { describe, expect, it } from "vitest";
 import { REMINDER_TICK_HEADER } from "../reminder/guard/reminder-tick.guard";
-import { REMINDER_TICK_HEADER_NAME, scrubEvent } from "./sentry-scrub";
+import { REMINDER_TICK_HEADER_NAME, scrubEvent, scrubSpan } from "./sentry-scrub";
 
 describe("scrubEvent", () => {
   it("connaît l'en-tête du tick sous le nom que sa garde lit vraiment", () => {
@@ -35,46 +35,30 @@ describe("scrubEvent", () => {
     expect(withQuery([["token", "t"]])).toBe(`token=${FILTERED}`);
   });
 
-  it("retire des spans les en-têtes secrets, cookies éclatés compris, et blanchit les URLs", () => {
+  it("blanchit le nom de transaction et les attributs de trace d'une erreur", () => {
     const event: Event = {
-      type: "transaction",
       transaction: "DELETE /me/push-tokens/abc",
       contexts: {
         trace: {
           span_id: "1",
           trace_id: "2",
           data: {
-            "http.target": "/me/push-tokens/abc",
-            "http.request.header.cookie.better_auth.session_token": "s",
-            "http.request.header.x_cimavia_tick_secret": "t",
-            "http.response.header.set_cookie": "s",
-            "http.request.header.user_agent": "UA",
+            "url.path": "/me/push-tokens/abc",
+            "http.request.header.referer": ["https://app.test/reset-password?token=y"],
+            "http.request.header.cookie": "s",
             "http.response.status_code": 204,
           },
         },
       },
-      spans: [
-        {
-          span_id: "3",
-          trace_id: "2",
-          start_timestamp: 0,
-          description: "GET /api/auth/reset-password/abc",
-          data: { "url.full": "https://api.test/api/auth/reset-password/abc?x=1" },
-        },
-      ],
     };
 
     const scrubbed = scrubEvent(event);
 
     expect(scrubbed.transaction).toBe(`DELETE /me/push-tokens/${FILTERED}`);
     expect(scrubbed.contexts?.trace?.data).toEqual({
-      "http.target": `/me/push-tokens/${FILTERED}`,
-      "http.request.header.user_agent": "UA",
+      "url.path": `/me/push-tokens/${FILTERED}`,
+      "http.request.header.referer": [`https://app.test/reset-password?token=${FILTERED}`],
       "http.response.status_code": 204,
-    });
-    expect(scrubbed.spans?.[0]).toMatchObject({
-      description: `GET /api/auth/reset-password/${FILTERED}`,
-      data: { "url.full": `https://api.test/api/auth/reset-password/${FILTERED}?x=1` },
     });
   });
 
@@ -111,7 +95,6 @@ describe("scrubEvent", () => {
     const event: Event = {
       message: "boom",
       contexts: { trace: { span_id: "1", trace_id: "2" } },
-      spans: [{ span_id: "3", trace_id: "2", start_timestamp: 0, data: {} }],
       breadcrumbs: [{ category: "ui" }],
     };
 
@@ -128,5 +111,103 @@ describe("scrubEvent", () => {
     scrubEvent(event);
 
     expect(event).toEqual(before);
+  });
+});
+
+describe("scrubSpan", () => {
+  /** Un span serveur tel que `beforeSendSpan` le reçoit — les valeurs relevées sur le vrai SDK. */
+  const span = (attributes: Parameters<typeof scrubSpan>[0]["attributes"]) => ({
+    trace_id: "1",
+    span_id: "2",
+    name: "GET /api/auth/reset-password/abc",
+    start_timestamp: 0,
+    status: "ok" as const,
+    is_segment: true,
+    attributes,
+  });
+
+  it("retire les en-têtes secrets, dans les deux sens et quelle que soit leur casse", () => {
+    const scrubbed = scrubSpan(
+      span({
+        "http.request.header.cookie": ["better-auth.session_token=s"],
+        "http.request.header.Authorization": ["Bearer b"],
+        "http.request.header.x-cimavia-tick-secret": ["t"],
+        "http.response.header.set-cookie": ["better-auth.session_token=s"],
+        "http.request.header.user-agent": ["UA"],
+        "http.response.status_code": 200,
+      }),
+    );
+
+    expect(scrubbed.attributes).toEqual({
+      "http.request.header.user-agent": ["UA"],
+      "http.response.status_code": 200,
+    });
+  });
+
+  it("blanchit le nom et toute URL, qu'elle soit brute, en tableau ou dans un objet typé", () => {
+    const scrubbed = scrubSpan(
+      span({
+        "url.full": "https://api.test/api/auth/reset-password/abc?x=1",
+        "url.query": "code=c&x=1",
+        "http.request.header.referer": ["https://app.test/reset-password?token=y"],
+        "sentry.segment.name": { value: "GET /me/push-tokens/abc", type: "string" },
+        "http.response.status_code": 200,
+      }),
+    );
+
+    expect(scrubbed).toMatchObject({
+      name: `GET /api/auth/reset-password/${FILTERED}`,
+      attributes: {
+        "url.full": `https://api.test/api/auth/reset-password/${FILTERED}?x=1`,
+        "url.query": `code=${FILTERED}&x=1`,
+        "http.request.header.referer": [`https://app.test/reset-password?token=${FILTERED}`],
+        "sentry.segment.name": { value: `GET /me/push-tokens/${FILTERED}`, type: "string" },
+        "http.response.status_code": 200,
+      },
+    });
+  });
+
+  it("retire aussi les en-têtes secrets sous leur forme v10, tirets changés et cookie éclaté", () => {
+    const scrubbed = scrubSpan(
+      span({
+        "http.request.header.x_cimavia_tick_secret": "t",
+        "http.request.header.cookie.better-auth.session_token": "s",
+        "http.response.header.set_cookie": "s",
+      }),
+    );
+
+    expect(scrubbed.attributes).toEqual({});
+  });
+
+  it("traite les attributs des liens vers d'autres spans comme les siens", () => {
+    const scrubbed = scrubSpan({
+      ...span({}),
+      links: [
+        { span_id: "3", trace_id: "1" },
+        {
+          span_id: "4",
+          trace_id: "1",
+          attributes: {
+            "url.full": "https://api.test/me/push-tokens/abc",
+            "http.request.header.authorization": "b",
+          },
+        },
+      ],
+    });
+
+    expect(scrubbed.links).toEqual([
+      { span_id: "3", trace_id: "1" },
+      {
+        span_id: "4",
+        trace_id: "1",
+        attributes: { "url.full": `https://api.test/me/push-tokens/${FILTERED}` },
+      },
+    ]);
+  });
+
+  it("ne prend pas pour secret un en-tête dont le nom COMMENCE comme un secret", () => {
+    const attributes = { "http.request.header.authorization-hint": ["h"] };
+
+    expect(scrubSpan(span(attributes)).attributes).toEqual(attributes);
   });
 });

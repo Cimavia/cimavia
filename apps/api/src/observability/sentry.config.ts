@@ -1,6 +1,7 @@
+import { sentryDataCollection } from "@cmv/shared";
 import * as Sentry from "@sentry/nestjs";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
-import { scrubEvent } from "./sentry-scrub";
+import { scrubEvent, scrubSpan } from "./sentry-scrub";
 
 type SentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]>;
 
@@ -41,7 +42,8 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
       // d'une connexion, le jeton d'une réinitialisation, le code d'une invitation, le texte d'un
       // débrief. Couper partout plutôt que sur `/api/auth/*` seulement : une liste d'exceptions
       // s'oublie à la prochaine route sensible, et une 500 se rejoue avec sa stack sans son corps.
-      Sentry.httpIntegration({ maxIncomingRequestBodySize: "none" }),
+      // `httpBodies: []` plus bas dit qu'aucun corps ne PART ; ceci, qu'il n'est même pas LU.
+      Sentry.httpIntegration({ maxRequestBodySize: "none" }),
     ],
 
     // Taux d'échantillonnage des transactions de performance
@@ -49,8 +51,12 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
     // En prod : 0.1 (10%) pour réduire le volume
     tracesSampleRate: env.NODE_ENV === "production" ? 0.1 : 1,
 
-    // Taux d'échantillonnage du profiling (subset des transactions tracées)
-    profilesSampleRate: 1,
+    // Chaque trace échantillonnée est profilée, comme le faisait `profilesSampleRate: 1` en v10
+    // (#669) : la session est toujours tirée, et le profileur tourne tant qu'une trace est ouverte.
+    // Sans `trace`, le défaut `manual` attend un `startProfiler()` que personne n'appelle — plus
+    // aucun profil, sans un mot.
+    profileSessionSampleRate: 1,
+    profileLifecycle: "trace",
 
     // Environnement — apparaît dans le dashboard Sentry pour filtrer les issues. On lit APP_ENV
     // (le TIER de déploiement), pas NODE_ENV (le MODE runtime) : sur le NAS comme en prod l'image
@@ -59,10 +65,11 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
     release,
     enabled: !!env.SENTRY_DSN,
 
-    // IP et en-têtes, assumés en #183 — mais ni cookies, ni en-têtes secrets, ni jetons d'URL, que
-    // `scrubEvent` retire des erreurs COMME des transactions (#433).
-    sendDefaultPii: true,
+    // Ce que le SDK collecte (#669, `@cmv/shared`) : l'IP part côté API (#183), pas côté web.
+    // `scrubEvent` et `scrubSpan` retirent ensuite les secrets, des erreurs COMME des spans (#433).
+    dataCollection: sentryDataCollection({ userInfo: true }),
     beforeSend: scrubEvent,
-    beforeSendTransaction: scrubEvent,
+    // Les spans partent en flux en v11 : `beforeSendTransaction` n'est plus jamais appelé.
+    beforeSendSpan: scrubSpan,
   };
 }
