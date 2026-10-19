@@ -268,6 +268,22 @@ liste des domaines vivent dans l'index.
 > [#79](https://github.com/Cimavia/cimavia/issues/79) paginera `GET /exercises` — filtrer une page
 > deviendrait faux. Écrit ici pour que la voie ne soit pas rouverte.
 
+> **Tranché en [#654](https://github.com/Cimavia/cimavia/issues/654)** (plusieurs tags à la fois) :
+> - **OU, pas ET** : « force et gainage » cochés montrent ce qui porte l'UN des deux. Le besoin
+>   remonté en recette de #606 était de réunir deux familles d'exercices, pas d'en chercher
+>   l'intersection. La règle est écrite une fois, `matchesTagFilter` (`@cmv/shared`), que les
+>   séances appliquent côté client ; le serveur la tient pour les exercices en `some … in`. Le
+>   texte de l'état vide ne change pas : « Rien ne correspond à ces filtres » vaut pour les deux.
+> - **Un `?tag=` invalide est refusé (400)**, plus ignoré : un tag trop long rendait toute la
+>   bibliothèque sous un filtre que le client croyait actif. Une valeur VIDE, elle, reste « pas de
+>   filtre » (`exerciseTagFilterSchema`). Au-delà de `EXERCISE_TAG_FILTER_MAX` (50) tags, la
+>   requête est refusée aussi : chacun finit dans un `IN` SQL, et ce n'est plus un geste de Coach.
+> - **Un tag choisi garde sa pastille** même s'il sort des tags connus après une relecture
+>   (`tagFilterOptions`, dans `LibraryFilterBar`) : sans elle, il ne se décocherait plus. Seul
+>   l'onglet Séances le tenait jusque-là ; la règle vaut désormais pour les trois listes.
+> - **Écart à la maquette #597**, à choix unique (« Tous les tags ») : consigné dans
+>   `docs/maquettes/README.md`.
+
 > **Ce qui a manqué au journal** : cette dette a vécu depuis P2 sans jamais y être écrite — ni
 > ligne, ni mention dans l'en-tête des dettes sans issue. Elle n'a été vue que parce que #123 a
 > aligné les recherches client à côté d'elle. La règle de capture n'a pas joué ; c'est le seul
