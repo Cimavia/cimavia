@@ -1,11 +1,16 @@
-import { LibraryScope, type SessionDto, searchMatcher, sessionTags } from "@cmv/shared";
+import {
+  LibraryScope,
+  matchesTagFilter,
+  type SessionDto,
+  searchMatcher,
+  sessionTags,
+} from "@cmv/shared";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
 import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
 import { LibraryToolbar } from "@/feature/library/component/LibraryToolbar";
-import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { useLibraryFilters } from "@/feature/library/hook/useLibraryFilters";
 import { useChangeSessionAccess, useSessions } from "@/feature/library/hook/useSessions";
 import { CmvButton, CmvEmptyState } from "@/shared/component";
@@ -29,22 +34,16 @@ export function SessionList({ onCreate, onEdit }: Readonly<SessionListProps>) {
   const sessions = useSessions(filters.scope);
   const change = useChangeSessionAccess();
 
-  const tags = useMemo(() => {
-    const known = new Set((all.data ?? []).flatMap((session) => sessionTags(session.exercises)));
-    // Le tag choisi reste proposé s'il sort de la liste (relecture) : un filtre actif sans
-    // pastille ne se déferait plus.
-    if (filters.tag !== NO_TAG_FILTER) known.add(filters.tag);
-    return [...known].sort((a, b) => a.localeCompare(b));
-  }, [all.data, filters.tag]);
+  const tags = useMemo(
+    () => (all.data ?? []).flatMap((session) => sessionTags(session.exercises)),
+    [all.data],
+  );
 
   function visible(list: readonly SessionDto[]) {
     const matches = searchMatcher(filters.search);
     return list
       .map((session) => ({ ...session, tags: sessionTags(session.exercises) }))
-      .filter(
-        (row) =>
-          (filters.tag === NO_TAG_FILTER || row.tags.includes(filters.tag)) && matches(row.title),
-      );
+      .filter((row) => matchesTagFilter(row.tags, filters.tags) && matches(row.title));
   }
 
   /** Même ordre que les exercices ; une séance ne se crée pas depuis une recherche vaine. */
@@ -52,7 +51,7 @@ export function SessionList({ onCreate, onEdit }: Readonly<SessionListProps>) {
     return (
       <LibraryEmptyState
         search={filters.search}
-        tag={filters.tag}
+        tags={filters.tags}
         sharedOnly={filters.scope === LibraryScope.SHARED}
         noMatch={t("library.session.noMatch", { search: filters.search })}
         sharedEmpty={t("library.access.session.sharedEmpty")}

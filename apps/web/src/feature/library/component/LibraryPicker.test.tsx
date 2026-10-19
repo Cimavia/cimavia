@@ -144,12 +144,17 @@ describe("LibraryPicker", () => {
     expect(titles()).toEqual(["Échauffement"]);
   });
 
-  it("demande au serveur les exercices du tag choisi, et « Tous » retire le filtre", async () => {
-    served(library);
+  it("demande au serveur les exercices des tags choisis, et « Tous » retire le filtre", async () => {
+    served(library, ["force", "gainage"]);
     const { user, getByRole } = await setup();
 
     await user.click(getByRole("button", { name: "force" }));
-    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force", scope: LibraryScope.ALL });
+    expect(useExercises).toHaveBeenLastCalledWith({ tags: ["force"], scope: LibraryScope.ALL });
+    await user.click(getByRole("button", { name: "gainage" }));
+    expect(useExercises).toHaveBeenLastCalledWith({
+      tags: ["force", "gainage"],
+      scope: LibraryScope.ALL,
+    });
 
     await user.click(getByRole("button", { name: "library.filterAllTags" }));
     expect(useExercises).toHaveBeenLastCalledWith({ scope: LibraryScope.ALL });
@@ -262,7 +267,10 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
     await user.click(getByRole("button", { name: "force" }));
     await user.click(getByRole("button", { name: "library.scope.mine" }));
 
-    expect(useExercises).toHaveBeenLastCalledWith({ tag: "force", scope: LibraryScope.SHARED });
+    expect(useExercises).toHaveBeenLastCalledWith({
+      tags: ["force"],
+      scope: LibraryScope.SHARED,
+    });
     expect(getByRole("button", { name: "library.picker.shared" })).toHaveAttribute(
       "aria-disabled",
       "true",

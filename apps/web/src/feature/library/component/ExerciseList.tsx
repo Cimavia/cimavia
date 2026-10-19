@@ -5,7 +5,6 @@ import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState
 import { LibraryListState } from "@/feature/library/component/LibraryListState";
 import { LibraryTable } from "@/feature/library/component/LibraryTable";
 import { LibraryToolbar } from "@/feature/library/component/LibraryToolbar";
-import { NO_TAG_FILTER } from "@/feature/library/constant";
 import {
   useChangeExerciseAccess,
   useExercises,
@@ -24,7 +23,7 @@ export function ExerciseList() {
   const navigate = useNavigate();
   const filters = useLibraryFilters();
   const exercises = useExercises({
-    ...(filters.tag === NO_TAG_FILTER ? {} : { tag: filters.tag }),
+    ...(filters.tags.length === 0 ? {} : { tags: filters.tags }),
     ...(filters.search === "" ? {} : { search: filters.search }),
     scope: filters.scope,
   });
@@ -46,7 +45,7 @@ export function ExerciseList() {
     return (
       <LibraryEmptyState
         search={filters.search}
-        tag={filters.tag}
+        tags={filters.tags}
         sharedOnly={filters.scope === LibraryScope.SHARED}
         noMatch={t("library.noMatch.title", { search: filters.search })}
         create={

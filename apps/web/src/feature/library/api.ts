@@ -23,7 +23,8 @@ import {
 import { api } from "@/shared/lib/api";
 
 export type ExerciseFilters = {
-  tag?: string;
+  /** Ce qui porte l'UN de ces tags (#654). Vide ou absent : pas de filtre. */
+  tags?: readonly string[];
   search?: string;
   /** Absent = `all` : tout ce que le Coach peut lire (#605). */
   scope?: LibraryScope;
@@ -47,7 +48,7 @@ export const exerciseKeys = {
 
 export function listExercises(filters: ExerciseFilters): Promise<ExerciseDto[]> {
   const params = new URLSearchParams();
-  if (filters.tag) params.set("tag", filters.tag);
+  for (const tag of filters.tags ?? []) params.append("tag", tag);
   if (filters.search) params.set("search", filters.search);
   // `all` est la valeur par défaut de l'API : l'écrire ne changerait rien à la réponse.
   if (filters.scope != null && filters.scope !== LibraryScope.ALL) {

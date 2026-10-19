@@ -6,7 +6,7 @@ import {
   type MyAccess,
   MyAccessLevel,
 } from "../dto/access.schema";
-import { accessLabel, sessionTags } from "./library-row.util";
+import { accessLabel, matchesTagFilter, sessionTags } from "./library-row.util";
 
 const F = { id: "org-f", name: "F" };
 const G = { id: "org-g", name: "G" };
@@ -141,5 +141,22 @@ describe("sessionTags", () => {
   it("aucun exercice tagué, ou aucun exercice : liste vide", () => {
     expect(sessionTags([{ tags: [] }, { tags: [] }])).toEqual([]);
     expect(sessionTags([])).toEqual([]);
+  });
+});
+
+describe("matchesTagFilter", () => {
+  it("sans tag choisi, tout passe — même ce qui n'a aucun tag", () => {
+    expect(matchesTagFilter(["force"], [])).toBe(true);
+    expect(matchesTagFilter([], [])).toBe(true);
+  });
+
+  it("passe dès qu'il porte UN des tags choisis : le filtre élargit", () => {
+    expect(matchesTagFilter(["force"], ["force", "gainage"])).toBe(true);
+    expect(matchesTagFilter(["gainage", "mobilité"], ["force", "gainage"])).toBe(true);
+  });
+
+  it("écarte ce qui n'en porte aucun, et ce qui n'a pas de tag", () => {
+    expect(matchesTagFilter(["mobilité"], ["force", "gainage"])).toBe(false);
+    expect(matchesTagFilter([], ["force"])).toBe(false);
   });
 });

@@ -10,7 +10,6 @@ import {
   TitleCell,
 } from "@/feature/library/component/LibraryTableCells";
 import { LibraryFilterBar } from "@/feature/library/component/LibraryToolbar";
-import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { ownerRightText } from "@/feature/library/util/access-text.util";
@@ -57,14 +56,17 @@ export function LibraryPicker({
 }: Readonly<LibraryPickerProps>) {
   const { t, i18n } = useTranslation();
   const [search, setSearch] = useState("");
-  const [tag, setTag] = useState(NO_TAG_FILTER);
+  const [chosenTags, setChosenTags] = useState<readonly string[]>([]);
   const [shown, setShown] = useState<Shown>({ mine: true, shared: true });
   // `null` tant que les entreprises ne se lisent pas : le propriétaire, que chaque exercice
   // porte, se montre quand même — seules les bascules, qui demandent une portée, attendent.
   const sharing = sharesLibrary(useMyOrganizations().data);
   const scope = sharing === true ? scopeOf(shown) : LibraryScope.ALL;
 
-  const { data: exercises } = useExercises({ ...(tag === NO_TAG_FILTER ? {} : { tag }), scope });
+  const { data: exercises } = useExercises({
+    ...(chosenTags.length === 0 ? {} : { tags: chosenTags }),
+    scope,
+  });
   const { data: tags } = useExerciseTags();
 
   // Filtrage du titre côté client : la liste d'un coach tient en mémoire, et `searchMatcher` rend
@@ -81,8 +83,8 @@ export function LibraryPicker({
         onSearch={setSearch}
         searchPlaceholder={t("library.session.pickerSearch")}
         tags={tags ?? []}
-        tag={tag}
-        onTag={setTag}
+        chosenTags={chosenTags}
+        onChosenTags={setChosenTags}
       >
         {sharing === true ? <ShownToggles shown={shown} onChange={setShown} /> : null}
       </LibraryFilterBar>
@@ -90,7 +92,7 @@ export function LibraryPicker({
       {exercises != null && visible.length === 0 ? (
         <PickerEmpty
           search={search.trim()}
-          tag={tag}
+          tags={chosenTags}
           sharedOnly={scope === LibraryScope.SHARED}
           onCreateMissing={onCreateMissing}
           isSaving={isSaving}
@@ -148,7 +150,7 @@ export function LibraryPicker({
 
 type PickerEmptyProps = {
   search: string;
-  tag: string;
+  tags: readonly string[];
   sharedOnly: boolean;
   onCreateMissing: (title: string) => void;
   isSaving: boolean;
@@ -157,7 +159,7 @@ type PickerEmptyProps = {
 /** Le sélecteur vide, selon la même règle que les onglets de la bibliothèque (`libraryEmpty`). */
 function PickerEmpty({
   search,
-  tag,
+  tags,
   sharedOnly,
   onCreateMissing,
   isSaving,
@@ -166,7 +168,7 @@ function PickerEmpty({
   return (
     <LibraryEmptyState
       search={search}
-      tag={tag}
+      tags={tags}
       sharedOnly={sharedOnly}
       noMatch={t("library.noMatch.title", { search })}
       create={

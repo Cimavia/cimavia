@@ -56,15 +56,21 @@ describe("listExercises", () => {
 
   // Une chaîne vide est un filtre effacé, pas une recherche de « » : l'API recevrait `?search=`.
   it("ignore un filtre vide", async () => {
-    await listExercises({ tag: "", search: "" });
+    await listExercises({ tags: [], search: "" });
 
     expect(apiMock.get).toHaveBeenCalledWith("/exercises");
   });
 
   it("passe le tag seul", async () => {
-    await listExercises({ tag: "force" });
+    await listExercises({ tags: ["force"] });
 
     expect(apiMock.get).toHaveBeenCalledWith("/exercises?tag=force");
+  });
+
+  it("répète le paramètre pour plusieurs tags (#654)", async () => {
+    await listExercises({ tags: ["force", "gainage"] });
+
+    expect(apiMock.get).toHaveBeenCalledWith("/exercises?tag=force&tag=gainage");
   });
 
   it("passe la recherche seule, encodée", async () => {
@@ -74,7 +80,7 @@ describe("listExercises", () => {
   });
 
   it("passe une portée autre que « all »", async () => {
-    await listExercises({ scope: LibraryScope.SHARED, tag: "force" });
+    await listExercises({ scope: LibraryScope.SHARED, tags: ["force"] });
 
     expect(apiMock.get).toHaveBeenCalledWith("/exercises?tag=force&scope=shared");
   });
@@ -87,7 +93,7 @@ describe("listExercises", () => {
   });
 
   it("combine tag et recherche", async () => {
-    await listExercises({ tag: "force", search: "poutre" });
+    await listExercises({ tags: ["force"], search: "poutre" });
 
     expect(apiMock.get).toHaveBeenCalledWith("/exercises?tag=force&search=poutre");
   });
@@ -96,12 +102,13 @@ describe("listExercises", () => {
 describe("exerciseKeys", () => {
   // Deux filtres qui partageraient une entrée de cache afficheraient la liste de l'autre.
   it("range deux filtres différents sous deux clés différentes", () => {
-    expect(exerciseKeys.list({ tag: "a" })).not.toEqual(exerciseKeys.list({ tag: "b" }));
+    expect(exerciseKeys.list({ tags: ["a"] })).not.toEqual(exerciseKeys.list({ tags: ["b"] }));
+    expect(exerciseKeys.list({ tags: ["a"] })).not.toEqual(exerciseKeys.list({ tags: ["a", "b"] }));
   });
 
   it("range la portée « tous » sous la clé sans portée : c'est la même requête", () => {
-    expect(exerciseKeys.list({ tag: "a", scope: LibraryScope.ALL })).toEqual(
-      exerciseKeys.list({ tag: "a" }),
+    expect(exerciseKeys.list({ tags: ["a"], scope: LibraryScope.ALL })).toEqual(
+      exerciseKeys.list({ tags: ["a"] }),
     );
     expect(exerciseKeys.list({ scope: LibraryScope.MINE })).not.toEqual(exerciseKeys.list({}));
   });

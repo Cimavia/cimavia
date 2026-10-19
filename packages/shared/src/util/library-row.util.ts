@@ -80,3 +80,13 @@ function byName(beneficiaries: readonly Beneficiary[]): Beneficiary[] {
 export function sessionTags(exercises: readonly { tags: readonly string[] }[]): string[] {
   return [...new Set(exercises.flatMap((exercise) => exercise.tags))];
 }
+
+/**
+ * Le filtre par tags de la bibliothèque : un élément passe s'il porte AU MOINS UN des tags choisis
+ * — « force ou gainage », tranché en #654 —, et tout passe quand aucun n'est choisi. Le serveur
+ * applique la même règle aux exercices (`exerciseListWhere`) ; les séances, dont les tags ne sont
+ * que ceux de leurs exercices, se filtrent avec elle côté client.
+ */
+export function matchesTagFilter(tags: readonly string[], chosen: readonly string[]): boolean {
+  return chosen.length === 0 || chosen.some((tag) => tags.includes(tag));
+}
