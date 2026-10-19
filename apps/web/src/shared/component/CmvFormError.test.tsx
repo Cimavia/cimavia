@@ -29,6 +29,15 @@ describe("CmvFormError", () => {
     expect(getByText("common.error")).toBeInTheDocument();
   });
 
+  it("dit le message que l'écran a résolu, plutôt que celui de l'API", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <CmvFormError error={new ApiError(502, "Bad Gateway", null)} message="Fichier non joint" />,
+    );
+
+    expect(getByText("Fichier non joint")).toBeInTheDocument();
+    expect(queryByText("Bad Gateway")).toBeNull();
+  });
+
   it("se tait sur une session perdue", () => {
     const { container } = renderWithProviders(
       <CmvFormError error={new ApiError(401, "Unauthorized", null)} />,
