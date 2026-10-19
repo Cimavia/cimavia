@@ -384,9 +384,11 @@ liste des domaines vivent dans l'index.
 > pas de better-auth.
 
 > **Tranché en [#671](https://github.com/Cimavia/cimavia/issues/671)** (NestJS 12) : la pile Nest
-> monte d'un bloc, à la main — `nestjs-pino` 5, `nestjs-cls` 7, `@nestjs/swagger` 12 et
-> `@nestjs/config` 12 refusent la 11 ou la 12 selon leur version, et Dependabot ne proposait que la
-> CLI (#589). Il la regroupe désormais (`.github/dependabot.yml`, groupe `nestjs`), comme Sentry en
+> monte d'un bloc, à la main : les versions qu'on avait de `nestjs-pino`, `nestjs-cls`,
+> `@nestjs/config` et `@thallesp/nestjs-better-auth` refusaient Nest 12, et `@nestjs/swagger` 12
+> refuse Nest 11. Les nouvelles versions des quatre premiers acceptent les deux : un retour arrière
+> ne concernerait que Nest et Swagger. Dependabot ne proposait que la CLI (#589) ; il regroupe
+> désormais les majeures de la pile (`.github/dependabot.yml`, groupe `nestjs`), comme Sentry en
 > #669. `fastify` suit Nest, comme le voulait #398 : la 5.12.5 arrive avec `platform-fastify`
 > 12.1.3, et `js-yaml` 5.4.2 avec `@nestjs/swagger` 12, sans override.
 >
@@ -394,11 +396,13 @@ liste des domaines vivent dans l'index.
 >   CommonJS, et Node charge Nest par `require(esm)`, actif sans drapeau depuis 22.12. **Seul
 >   `node dist/main` passe par ce chemin** : Vitest, unitaires comme e2e, importe Nest en ESM
 >   natif. Vérifié à la main, sur `dist` et dans l'image : santé, `/docs`, journaux Pino, et les
->   spans Nest de Sentry (gardes, intercepteur, filtre). Aucun test ne le refait : dette O-4.
->   Passer l'API en ESM est un autre sujet, que Nest laisse optionnel.
-> - **`engines` passe de 22.18 à 22.22.3** : c'est le plancher de `@nestjs/schematics` 12 (son
->   Angular devkit), et `@thallesp/nestjs-better-auth` exigeait déjà 22.22.1 sans que `engines` le
->   dise.
+>   spans Nest de Sentry (gardes, intercepteur, filtre). Le démarrage est rejoué sur `main` par la
+>   sonde d'`api-image.yml`, pas les spans : dette O-4. Passer l'API en ESM est un autre sujet,
+>   que Nest laisse optionnel.
+> - **`engines` devient `^22.22.3 || ^24.15.0 || >=26.0.0`**, la plage de `@nestjs/schematics` 12
+>   (son Angular devkit) ; `@thallesp/nestjs-better-auth` exigeait déjà 22.22.1 sans que `engines`
+>   le dise. pnpm n'en fait qu'un avertissement (pas d'`engine-strict`) : un poste ou un build EAS
+>   plus ancien installe toujours.
 > - **Les pipes Zod restent les nôtres**, pas le `StandardSchemaValidationPipe` de Nest 12 : la
 >   montée garde le comportement, et le pipe de Nest perdrait le contrat des 400 — `{ path,
 >   message }`, en français (#319).
