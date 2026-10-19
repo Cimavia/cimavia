@@ -1,4 +1,4 @@
-import { redactUrlSecrets } from "@cmv/shared";
+import { FILTERED, redactUrlSecrets } from "@cmv/shared";
 import type { Breadcrumb, Event, NodeOptions } from "@sentry/nestjs";
 
 // ⚠️ Ce fichier est chargé par `instrument.ts`, AVANT NestJS : il ne doit rien importer qui
@@ -155,17 +155,26 @@ type StreamedSpan = Parameters<NonNullable<NodeOptions["beforeSendSpan"]>>[0];
  *
  * Le callback ne peut pas écarter un span, seulement le réécrire : un attribut secret est retiré,
  * jamais remplacé par une valeur inventée.
+ *
+ * En défaut FERMÉ : si le blanchiment lève, le SDK enverrait le span tel qu'il l'a reçu, secrets
+ * compris (`safeCallback`). Il part donc réduit à sa structure — identifiants, durée, statut —, son
+ * nom masqué, sans attribut ni lien : un trou dans la trace plutôt qu'un secret chez Sentry.
  */
 export function scrubSpan(span: StreamedSpan): StreamedSpan {
-  return {
-    ...span,
-    name: redactUrlSecrets(span.name),
-    attributes: scrubSpanData(span.attributes),
-    ...(span.links && {
-      links: span.links.map((link) => ({
-        ...link,
-        ...(link.attributes && { attributes: scrubSpanData(link.attributes) }),
-      })),
-    }),
-  };
+  try {
+    return {
+      ...span,
+      name: redactUrlSecrets(span.name),
+      attributes: scrubSpanData(span.attributes),
+      ...(span.links && {
+        links: span.links.map((link) => ({
+          ...link,
+          ...(link.attributes && { attributes: scrubSpanData(link.attributes) }),
+        })),
+      }),
+    };
+  } catch {
+    const { links: _links, ...structure } = span;
+    return { ...structure, name: FILTERED, attributes: {} };
+  }
 }

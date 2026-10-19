@@ -205,6 +205,29 @@ describe("scrubSpan", () => {
     ]);
   });
 
+  it("échoue fermé : un attribut illisible fait partir le span sans rien, plutôt que tel quel", () => {
+    const unreadable = {
+      get value(): string {
+        throw new Error("illisible");
+      },
+    };
+
+    const scrubbed = scrubSpan({
+      ...span({ "url.full": unreadable, "http.request.header.authorization": "b" }),
+      links: [{ span_id: "3", trace_id: "1" }],
+    });
+
+    expect(scrubbed).toEqual({
+      trace_id: "1",
+      span_id: "2",
+      name: FILTERED,
+      start_timestamp: 0,
+      status: "ok",
+      is_segment: true,
+      attributes: {},
+    });
+  });
+
   it("ne prend pas pour secret un en-tête dont le nom COMMENCE comme un secret", () => {
     const attributes = { "http.request.header.authorization-hint": ["h"] };
 
