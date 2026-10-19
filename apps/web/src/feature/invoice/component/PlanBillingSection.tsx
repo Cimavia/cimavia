@@ -3,6 +3,7 @@ import {
   INVOICE_NOTE_MAX_LENGTH,
   type InvoiceDto,
   MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+  required,
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { type ChangeEvent, type SubmitEvent, useRef, useState } from "react";
@@ -13,9 +14,9 @@ import {
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
 import { CmvButton, CmvCard, CmvTextArea, CmvTextField, useToast } from "@/shared/component";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
-import { useSingleFlight } from "@/shared/hook/useSingleFlight";
 
 type PlanBillingSectionProps = {
   planId: string;
@@ -101,7 +102,6 @@ export function PlanBillingSection({
   onUnsavedChange,
 }: Readonly<PlanBillingSectionProps>) {
   const { t } = useTranslation();
-  const toast = useToast();
   const save = useSavePlanBilling(planId);
 
   const loaded = termsAsDraft(billing);
@@ -133,21 +133,20 @@ export function PlanBillingSection({
   /**
    * Enregistre les termes, ou dit ce qui manque — le bouton fermé ne suffit pas : le dialogue de
    * sortie enregistre sans lui (#682). Un formulaire à moitié rempli compte comme une saisie, mais
-   * ne part pas. Vrai si les termes sont partis ; un échec de l'API se dit par son toast. Un second
-   * geste pendant l'envoi attend celui-là (`useSingleFlight`).
+   * ne part pas. Vrai si les termes sont partis ; un échec de l'API se dit par son toast.
    */
-  const saveTerms = useSingleFlight(async (): Promise<boolean> => {
-    if (amountCents == null || dueDate === "") {
-      toast.error(t("invoice.billing.incomplete"));
-      return false;
-    }
-    try {
-      await save.mutateAsync({ amountCents, dueDate, note: note.trim() || null });
+  const sendTerms = useCheckedSave(
+    () => (canSubmit ? null : "invoice.billing.incomplete"),
+    async () => {
+      await save.mutateAsync({
+        amountCents: required(amountCents, "montant contrôlé avant l'envoi"),
+        dueDate,
+        note: note.trim() || null,
+      });
       return true;
-    } catch {
-      return false;
-    }
-  });
+    },
+  );
+  const saveTerms = async () => (await sendTerms()) != null;
 
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();

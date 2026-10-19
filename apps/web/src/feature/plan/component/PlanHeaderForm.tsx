@@ -11,18 +11,11 @@ import {
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanAthletePicker } from "@/feature/plan/component/PlanAthletePicker";
-import {
-  CmvButton,
-  CmvCard,
-  CmvStaleBanner,
-  CmvTextArea,
-  CmvTextField,
-  useToast,
-} from "@/shared/component";
+import { CmvButton, CmvCard, CmvStaleBanner, CmvTextArea, CmvTextField } from "@/shared/component";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
-import { useSingleFlight } from "@/shared/hook/useSingleFlight";
 import { formatDate } from "@/shared/util/date.util";
 
 type PlanHeaderFormProps = {
@@ -75,7 +68,6 @@ export function PlanHeaderForm({
 }: Readonly<PlanHeaderFormProps>) {
   const { t } = useTranslation();
   const toast = useMutationToast();
-  const { error: toastError } = useToast();
 
   /**
    * `null` tant que le coach n'a rien saisi : les champs suivent alors le cycle en cache, version
@@ -150,31 +142,21 @@ export function PlanHeaderForm({
 
   /**
    * Enregistre la saisie, ou dit ce qui l'en empêche — le bouton fermé ne suffit pas : le dialogue
-   * de sortie enregistre sans lui (#682). Vrai si elle est partie. Un second geste pendant l'envoi
-   * attend celui-là (`useSingleFlight`), sans quoi il citerait une version déjà dépassée.
+   * de sortie enregistre sans lui (#682). Vrai si elle est partie.
    */
-  const save = useSingleFlight(async (): Promise<boolean> => {
-    const missing = missingField();
-    if (missing != null) {
-      toastError(t(missing));
-      return false;
-    }
+  const send = useCheckedSave(missingField, async () => {
     // Entrée envoie sans passer par le blur : le recalage se fait ici aussi, pour que le champ et
-    // le toast disent ce qui part. Après le contrôle : un envoi refusé ne réécrit rien.
+    // le toast disent ce qui part. Après le contrôle : un envoi retenu ne réécrit rien.
     const sent = snapToMonday();
-    let saved: PlanDto;
-    try {
-      saved = await onSave({ ...changedFields(), expectedUpdatedAt: current.version });
-    } catch {
-      return false;
-    }
+    const saved = await onSave({ ...changedFields(), expectedUpdatedAt: current.version });
     // Rien saisi pendant l'envoi : le formulaire repart du cycle enregistré. Sinon la saisie
     // reste, et cite la version que NOUS venons d'écrire — pas un conflit avec soi-même.
     setDraft((latest) =>
       latest === sent ? null : latest && { ...latest, version: saved.updatedAt },
     );
-    return true;
+    return saved;
   });
+  const save = async () => (await send()) != null;
 
   // `canSubmit` faux ferme le bouton, donc aussi l'envoi à la touche Entrée.
   function onSubmit(event: SyntheticEvent) {

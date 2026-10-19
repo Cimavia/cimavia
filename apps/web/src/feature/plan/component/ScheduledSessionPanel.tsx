@@ -33,12 +33,11 @@ import {
   CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
-  useToast,
 } from "@/shared/component";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import type { LeaveDialogProps, SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
-import { useSingleFlight } from "@/shared/hook/useSingleFlight";
 import { isStaleWriteError } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
@@ -225,7 +224,6 @@ export function ScheduledSessionPanel({
   isReloading,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
-  const toast = useToast();
   const { createSession, save, remove, isBusy, staleMessage } = useSessionWrites(planId, session);
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
@@ -256,31 +254,25 @@ export function ScheduledSessionPanel({
    * Enregistre la séance, ou dit ce qui l'en empêche — le bouton fermé ne suffit pas : Entrée dans
    * un champ soumet aussi, et le dialogue de sortie enregistre sans lui (#682). Ferme le panneau
    * une fois enregistré : resté ouvert, il citerait encore la version d'avant, et un second envoi
-   * se ferait refuser comme si un autre Coach l'avait changée. Vrai si la séance est partie. Un
-   * second geste pendant l'envoi attend celui-là (`useSingleFlight`) : une création partirait deux fois.
+   * se ferait refuser comme si un autre Coach l'avait changée. Vrai si la séance est partie.
    */
-  const saveAndClose = useSingleFlight(async (): Promise<boolean> => {
-    if (refused.hasRefused) {
-      toast.error(t("library.builder.refusedBlocksSave"));
-      return false;
-    }
-    if (!canSubmit) {
-      toast.error(t("plan.session.titleRequired"));
-      return false;
-    }
-    try {
+  const sendAndClose = useCheckedSave(
+    () => {
+      if (refused.hasRefused) return "library.builder.refusedBlocksSave";
+      return canSubmit ? null : "plan.session.titleRequired";
+    },
+    async () => {
       await (isEditing
         ? save(toSaveInput(title, notes, scheduledDate, composition.items))
         : createSession.mutateAsync({
             weekId: week.id,
             input: toCreateInput(sourceSessionId, title, scheduledDate),
           }));
-    } catch {
-      return false;
-    }
-    onClose();
-    return true;
-  });
+      onClose();
+      return true;
+    },
+  );
+  const saveAndClose = async () => (await sendAndClose()) != null;
 
   useReportUnsaved(isDirty, saveAndClose, onUnsavedChange);
   const close = useCloseGuard(isDirty, onClose, saveAndClose);

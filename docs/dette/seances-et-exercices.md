@@ -509,10 +509,11 @@ liste des domaines vivent dans l'index.
 > - **Les messages sont génériques** (« Le titre est requis pour enregistrer… ») et non liés à la
 >   destination : un même enregistrement sert le bouton, le dialogue et les sorties de #303. Sous
 >   un titre vide, le toast redit la légende du champ : celui-ci peut être hors de l'écran.
-> - **Un enregistrement à la fois** (`useSingleFlight`) : le dialogue peut s'ouvrir pendant que
->   l'envoi du bouton attend sa réponse. Son « Enregistrer » rejoint cet envoi au lieu d'en lancer
->   un second — une création partait deux fois, une modification se faisait refuser par sa propre
->   version.
+> - **Un enregistrement à la fois** (`useCheckedSave`, que partagent les quatre écrans) : le
+>   dialogue peut s'ouvrir pendant que l'envoi du bouton attend sa réponse. Son « Enregistrer »
+>   ATTEND cet envoi, puis répond « rester ». Renvoyer créait deux fois, ou se faisait refuser par
+>   sa propre version ; reprendre la réponse de l'envoi en vol partait en perdant ce que le coach
+>   avait saisi depuis. Seule la suite du premier geste agit.
 > - **« Enregistrer » part là où allait le geste.** « Annuler » sur un exercice ouvert par « Créer
 >   l'exercice manquant » ramène à la séance SANS l'y ajouter, comme le veut #303 : l'exercice est
 >   enregistré en bibliothèque, à ajouter de là. Le routeur ne laisse reprendre la navigation

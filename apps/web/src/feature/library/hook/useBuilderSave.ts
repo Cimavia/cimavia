@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
+import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
-import { useSingleFlight } from "@/shared/hook/useSingleFlight";
 import { isStaleWriteError } from "@/shared/lib/api";
 
 /** Ce qu'un constructeur enregistre : un titre, obligatoire, et l'envoi du brouillon. */
@@ -34,36 +34,39 @@ export function useBuilderSave<Saved>(
   const { onFailure } = useMutationToast();
   const [titleTouched, setTitleTouched] = useState(false);
 
-  /** Le titre manque ou une saisie est refusée : rien ne s'enregistrerait, et le coach l'apprend. */
-  function cannotSave(): boolean {
+  /** Ce qui retient l'enregistrement — le titre manquant, que le champ réclame alors —, ou `null`. */
+  function blocker(): string | null {
     if (draft.trimmedTitle === "") {
       setTitleTouched(true);
-      toast.error(t(keys.titleRequired));
-      return true;
+      return keys.titleRequired;
     }
-    if (hasRefused) toast.error(t("library.builder.refusedBlocksSave"));
-    return hasRefused;
+    return hasRefused ? "library.builder.refusedBlocksSave" : null;
+  }
+
+  /** Le titre manque ou une saisie est refusée : rien ne s'enregistrerait, et le coach l'apprend. */
+  function cannotSave(): boolean {
+    const blocked = blocker();
+    if (blocked != null) toast.error(t(blocked));
+    return blocked != null;
   }
 
   /**
    * Enregistre, le dit, et rend ce qui est enregistré — ou `null` quand il faut rester : saisie
-   * qui ne peut pas partir, ou échec (déjà annoncé). `mutateAsync` REJETTE en cas d'échec : sans
-   * ce `try`, le rejet remonterait non capturé, et rien ne dirait au coach que rien n'est parti.
-   * Un geste qui enregistre pendant un envoi en vol attend celui-là (`useSingleFlight`).
+   * qui ne peut pas partir, échec (déjà annoncé), ou envoi déjà en vol (`useCheckedSave`).
    */
-  const save = useSingleFlight(async (successKey: string): Promise<Saved | null> => {
-    if (cannotSave()) return null;
-    try {
+  const save = useCheckedSave(
+    blocker,
+    async (successKey: string) => {
       const saved = await draft.submit();
       toast.success(t(successKey));
       return saved;
-    } catch (error) {
-      // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait
-      // en emportant la seule explication.
+    },
+    // Un conflit d'édition se dit par le bandeau, à côté de la saisie : un toast disparaîtrait en
+    // emportant la seule explication.
+    (error) => {
       if (!isStaleWriteError(error)) onFailure(keys.saveFailed, error);
-      return null;
-    }
-  });
+    },
+  );
 
   return {
     titleMissing: titleTouched && draft.trimmedTitle === "",

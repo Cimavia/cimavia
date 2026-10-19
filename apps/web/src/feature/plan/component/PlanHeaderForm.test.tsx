@@ -445,6 +445,28 @@ describe("PlanHeaderForm — l'enregistrement demandé par l'écran (#682)", () 
     await expect(saved).resolves.toBe(false);
   });
 
+  /**
+   * Le dialogue s'ouvre pendant l'envoi du bouton, après une nouvelle frappe. Reprendre la réponse
+   * de cet envoi laissait partir l'écran sans « ter », jamais envoyé ; renvoyer citait une version
+   * déjà dépassée. Le coach reste, sa saisie aussi.
+   */
+  it("ne reprend pas à son compte l'envoi en vol, et garde ce qui a été saisi depuis", async () => {
+    const { container, getByText, user } = mount();
+    await user.type(title(container), " bis");
+    await user.click(getByText("plan.header.submit"));
+    await user.type(title(container), " ter");
+
+    let saved: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      saved = reportedSave()?.() ?? saved;
+    });
+    await reply(0, plan({ title: "Cycle bloc bis", updatedAt: "2026-10-12T08:03:00.000Z" }));
+
+    await expect(saved).resolves.toBe(false);
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(title(container).value).toBe("Cycle bloc bis ter");
+  });
+
   it("n'envoie rien sans titre, et dit pourquoi", async () => {
     const { container, findByText, user } = mount();
     await user.clear(title(container));
