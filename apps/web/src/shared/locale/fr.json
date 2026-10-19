@@ -103,7 +103,8 @@
       "submit": "Me reconnecter",
       "switchAccount": "Changer de compte",
       "saveFirst": "Reconnecte-toi pour enregistrer tes modifications : tu changeras de compte juste après.",
-      "restored": "Te revoilà : tu peux reprendre là où tu en étais."
+      "restored": "Te revoilà : tu peux reprendre là où tu en étais.",
+      "switchAbandoned": "Tu es reconnecté, sans changer de compte : corrige ta saisie, puis enregistre-la avant de partir."
     },
     "errors": {
       "generic": "Une erreur est survenue. Réessaie.",

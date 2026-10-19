@@ -597,7 +597,9 @@ liste des domaines vivent dans l'index.
 >   mot de passe reprend le focus, et un message dit que le changement de compte suivra.
 > - **Reconnexion sur le MÊME compte** : enregistre, déconnecte — la session est de nouveau
 >   valide, purger seul ne suffirait plus —, purge et part vers `/login`. Un échec laisse le coach
->   reconnecté sur son écran, qui dit pourquoi.
+>   reconnecté sur son écran, qui dit pourquoi ; un second toast dit que le compte n'a pas changé,
+>   à la place de « Te revoilà ».
+> - **« Annuler » à une seconde demande oublie la première** : le coach reste sur son compte.
 > - **Reconnexion sur un AUTRE compte** : part sans rien enregistrer, comme avant — le travail du
 >   premier ne s'écrit pas sous l'identité du second.
 

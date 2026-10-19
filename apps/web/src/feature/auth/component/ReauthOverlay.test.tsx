@@ -238,9 +238,25 @@ describe("ReauthOverlay — enregistrer avant de changer de compte (#682)", () =
 
     await reconnect(view);
 
-    expect(await view.findByText("auth.reauth.restored")).toBeInTheDocument();
+    // Pas « Te revoilà » : le coach doit apprendre que le changement de compte n'a pas eu lieu.
+    expect(await view.findByText("auth.reauth.switchAbandoned")).toBeInTheDocument();
+    expect(view.queryByText("auth.reauth.restored")).not.toBeInTheDocument();
     expect(saveLost).toHaveBeenCalledOnce();
     expect(signOutMock).not.toHaveBeenCalled();
+    expect(view.router.state.location.pathname).toBe("/library/exercises/new");
+  });
+
+  // « Annuler » à une seconde demande : le coach reste sur son compte, la première est oubliée.
+  it("oublie l'enregistrement demandé quand le coach annule ensuite le changement", async () => {
+    const view = await chooseSave();
+    await view.user.click(view.getByRole("button", { name: SWITCH }));
+    await view.user.click(await view.findByRole("button", { name: "common.leave.cancel" }));
+
+    await reconnect(view);
+
+    expect(await view.findByText("auth.reauth.restored")).toBeInTheDocument();
+    expect(view.queryByText("auth.reauth.saveFirst")).not.toBeInTheDocument();
+    expect(saveLost).not.toHaveBeenCalled();
     expect(view.router.state.location.pathname).toBe("/library/exercises/new");
   });
 

@@ -57,11 +57,12 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
 
   // Le choix du coach, lui, demande AVANT de purger : sa saisie se reprend en se reconnectant.
   // « Enregistrer » ramène au mot de passe : rien ne s'écrit sans session.
+  // « Annuler » à une seconde demande oublie la première : le coach reste, sur son compte.
   async function switchAccount() {
     const choice = await confirmLeave({ saveNow: false });
+    setSaveOnReconnect(choice === "save");
     if (choice === "leave") leaveForLogin();
     if (choice !== "save") return;
-    setSaveOnReconnect(true);
     const field = formRef.current?.elements.namedItem("password");
     if (field instanceof HTMLInputElement) field.focus();
   }
@@ -100,8 +101,12 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
       // Les lectures tombées en 401 pendant la perte restent en erreur jusqu'à leur prochain
       // chargement : on les relance toutes, la fenêtre partie l'écran doit être juste.
       await queryClient.invalidateQueries();
-      if (saveOnReconnect && (await saveThenLeave())) return;
-      toast.success(t("auth.reauth.restored"));
+      if (!saveOnReconnect) {
+        toast.success(t("auth.reauth.restored"));
+      } else if (!(await saveThenLeave())) {
+        // L'écran dit pourquoi rien n'est parti ; ceci dit ce que devient le changement de compte.
+        toast.info(t("auth.reauth.switchAbandoned"));
+      }
     } catch {
       setError(t("auth.errors.generic"));
     } finally {
