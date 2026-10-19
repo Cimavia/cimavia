@@ -8,7 +8,9 @@ name: Mutation testing (Stryker)
 #   - `@cmv/shared`, sur chaque PR qui touche ses sources. Le mode incrémental ne rejoue que les
 #     mutants dont le code ou les tests ont changé : quelques dizaines de secondes, contre ~4 min
 #     pour un run complet. Le seuil est un cliquet, posé dans `packages/shared/stryker.config.mjs` ;
-#     `main`, et la PR qui le remonte, mesurent en entier (#635, voir l'étape « Mutation testing ») ;
+#     `main`, et la PR qui le remonte, mesurent en entier (#635, voir l'étape « Mutation testing »).
+#     `main` mesure à chaque merge qui touche shared, et pas seulement le lundi : c'est son cache
+#     que relit la PR suivante, et il doit être celui du `main` courant (#647) ;
 #   - la tenancy de l'API, chaque semaine et à la demande. Son juge est la suite e2e, sur une vraie
 #     base (« Tranché en #506 ») : ~30 min, un mutant à la fois. Son seuil est 100 % — un survivant
 #     y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
@@ -27,15 +29,26 @@ on:
       - "apps/api/stryker.config.mjs"
       - "apps/api/vitest.config.mutation.ts"
       - ".github/workflows/mutation.yml"
+  # Le merge qui touche shared réécrit le cache que les PR relisent. Sans lui, une PR mesurait sur
+  # le run du lundi précédent, en retard de plusieurs merges, voire sur rien : un cache inutilisé
+  # sept jours est effacé (#647). La tenancy n'y tourne pas (voir son job).
+  push:
+    branches: [main]
+    paths:
+      - "packages/shared/**"
+      - ".github/workflows/mutation.yml"
   schedule:
     # Le lundi, avant la copie hebdomadaire des images (`mirror-images.yml`, 6 h).
     - cron: "0 4 * * 1"
   workflow_dispatch:
 
-# Une PR relancée annule son run précédent. Un run de `main` (le lundi, ou à la demande) ne l'est
-# jamais : il porte la demi-heure de la tenancy et le cache incrémental que les PR relisent.
+# Une PR relancée annule son run précédent. Un run de `main` ne l'est jamais : il porte la
+# tenancy, ou le cache incrémental que les PR relisent. Un groupe par événement, parce que GitHub ne
+# garde qu'un run en attente par groupe : un merge ne doit ni annuler un run du lundi ou à la
+# demande qui attend son tour, ni attendre derrière la tenancy (#647). Deux merges rapprochés, eux,
+# se remplacent : seul le dernier compte.
 concurrency:
-  group: mutation-${{ github.ref }}
+  group: mutation-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
@@ -81,13 +94,15 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         uses: $/.github/actions/setup
 
-      # Le rapport incrémental du dernier run. Une PR lit celui de `main` (écrit par le run de la
-      # semaine) et n'écrit que dans son propre périmètre : elle ne peut rien imposer aux autres. La
-      # clé suit ce qui est muté et ce qui le juge : un push qui n'y touche pas retrouve son cache
-      # et n'en écrit pas un de plus.
+      # Le rapport incrémental du dernier run de `main`. Une PR le lit et n'écrit rien : un cache
+      # qu'elle écrirait, elle le relirait avant celui de `main` à son run suivant (le cache cherche
+      # d'abord dans la branche du run), et resterait mesurée sur le `main` de son premier run (#647).
+      # La clé suit ce qui est muté et ce qui le juge : un merge qui n'y touche pas retrouve son
+      # cache et n'en écrit pas un de plus.
       - name: Cache du mode incrémental
+        id: cache
         if: steps.changes.outputs.run == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: packages/shared/reports/mutation/stryker-incremental.json
           key: stryker-shared-${{ hashFiles('packages/shared/src/**', 'packages/shared/stryker.config.mjs', 'packages/shared/vitest.config.ts', 'pnpm-lock.yaml') }}
@@ -109,6 +124,17 @@ jobs:
             pnpm turbo test:mutation --filter=@cmv/shared
           fi
 
+      # Seul `main` écrit, et même sous le cliquet : une mesure complète reste juste quand le score
+      # baisse, et les PR suivantes doivent la relire plutôt qu'un run plus ancien.
+      - name: Sauvegarde du mode incrémental
+        if: >-
+          steps.changes.outputs.run == 'true' && github.event_name != 'pull_request'
+          && steps.cache.outputs.cache-hit != 'true' && !cancelled()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/shared/reports/mutation/stryker-incremental.json
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
       - name: Rapport
         if: steps.changes.outputs.run == 'true' && !cancelled()
         uses: $/.github/actions/mutation-report
@@ -118,6 +144,8 @@ jobs:
 
   tenancy:
     name: Mutation — tenancy (API)
+    # Pas à chaque merge dans shared, qui ne le touche pas : il garde son rythme du lundi (#647).
+    if: github.event_name != 'push'
     runs-on: ubuntu-26.04
     timeout-minutes: 90 # ~30 min en local
     permissions:
