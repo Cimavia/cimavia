@@ -515,8 +515,9 @@ function failureReason(error: unknown): MediaRecapReason {
 
 /**
  * L'échec de la NOTE VOCALE, qui n'a pas de lot où être récapitulée. Un refus métier (format non
- * géré, note trop longue) porte sa propre clé i18n ; une panne technique garde le message de
- * l'API ; le refus du micro précède l'upload et arrive à la main. Les trois se disent.
+ * géré, note trop longue) porte sa propre clé i18n ; un refus de l'API garde son message, une panne
+ * (réseau, 5xx) le message générique ; le refus du micro précède l'upload et arrive à la main. Les
+ * trois se disent.
  */
 function resolveMediaError(error: unknown, manualKey: string | null, t: TFunction): string | null {
   if (manualKey != null) return t(manualKey);

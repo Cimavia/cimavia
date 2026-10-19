@@ -262,13 +262,13 @@ describe("ConversationThread", () => {
     expect(queryByText("messages.media.audioTooBig")).not.toBeNull();
   });
 
-  it("garde le message du serveur quand la panne est technique", () => {
+  it("garde le message de l'API quand elle refuse le fichier", () => {
     vi.mocked(useSendMessageMedia).mockReturnValue({
       pickAndSend,
       recordAndSend: vi.fn(),
       isUploading: false,
       step: null,
-      audioError: new ApiError(500, "le serveur a refusé ce fichier", null),
+      audioError: new ApiError(409, "le serveur a refusé ce fichier", null),
     } as unknown as ReturnType<typeof useSendMessageMedia>);
 
     const { queryByText } = renderRn(<ConversationThread {...base} />);

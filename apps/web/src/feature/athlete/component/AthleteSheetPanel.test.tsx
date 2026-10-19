@@ -244,13 +244,13 @@ describe("AthleteSheetPanel — la version lue (#440)", () => {
 
   // Un autre refus n'est pas un conflit d'édition : pas de « Recharger » qui ne servirait à rien.
   it("n'affiche pas le bandeau sur un autre échec", async () => {
-    saveAthleteSheet.mockRejectedValue(new ApiError(500, "Erreur interne", null));
+    saveAthleteSheet.mockRejectedValue(new ApiError(400, "Fiche trop longue", null));
     const { user } = render();
 
     await user.type(await screen.findByRole("textbox"), " Genou OK.");
     await user.click(submitButton() as HTMLElement);
 
-    expect(await screen.findByText("Erreur interne")).toBeInTheDocument();
+    expect(await screen.findByText("Fiche trop longue")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "common.staleReload" })).toBeNull();
   });
 });

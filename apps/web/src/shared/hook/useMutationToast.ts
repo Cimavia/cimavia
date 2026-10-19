@@ -18,7 +18,7 @@ export function useMutationToast() {
     // ça se signale, sinon l'écran change « tout seul » sans explication.
     onInfo: (key: string, values?: Record<string, string>) => toast.info(t(key, values ?? {})),
     // Le message de l'API est déjà actionnable (« La date ne tombe pas dans la semaine 2 ») ;
-    // on ne retombe sur le message générique que s'il n'y en a pas (panne réseau, 500 muet).
+    // on ne retombe sur le message générique que s'il n'y en a pas (panne réseau, 5xx).
     // Un 401 ne dit rien ici : la fenêtre de reconnexion l'explique déjà, et le « Unauthorized »
     // brut de l'API n'aurait fait que la doubler d'un message illisible (#336).
     onError: (error: unknown) => {

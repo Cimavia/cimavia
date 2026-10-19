@@ -41,9 +41,14 @@ export class ApiError extends Error {
  * ne dit rien de ce qu'il faut faire. La session perdue est expliquée ailleurs, une fois, par l'app
  * (la fenêtre de reconnexion du web depuis #336) ; l'écran, lui, n'a qu'à dire que SON geste a
  * échoué.
+ *
+ * `null` sur tout 5xx : NestJS lui donne un corps JSON, mais son message s'adresse aux logs — le
+ * « Internal server error » d'une exception non rattrapée, en anglais, ou le « Object storage non
+ * configuré… » d'un déploiement incomplet. Le Coach n'en peut rien faire (#649).
  */
 export function apiErrorMessage(error: unknown): string | null {
   if (!(error instanceof ApiError) || error.status === 401 || !error.fromApi) return null;
+  if (error.status >= 500) return null;
   return error.message;
 }
 

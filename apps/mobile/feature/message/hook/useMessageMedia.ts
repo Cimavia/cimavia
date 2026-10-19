@@ -153,7 +153,7 @@ function rejectedReason(_rejection: MediaRejection): MediaRecapReason {
   return { key: "messages.media.tooMany", params: { max: MAX_MESSAGE_MEDIA_BATCH } };
 }
 
-/** Un refus métier porte sa clé i18n ; une panne technique garde le message de l'API. */
+/** Un refus métier porte sa clé i18n ; tout autre échec, le message générique de l'envoi. */
 function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
   return { key: "messages.media.uploadError", params: {} };
