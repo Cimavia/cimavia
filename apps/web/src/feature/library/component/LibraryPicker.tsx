@@ -9,20 +9,14 @@ import {
   TagsCell,
   TitleCell,
 } from "@/feature/library/component/LibraryTableCells";
+import { LibraryFilterBar } from "@/feature/library/component/LibraryToolbar";
 import { NO_TAG_FILTER } from "@/feature/library/constant";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { ownerRightText } from "@/feature/library/util/access-text.util";
 import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
-import {
-  CMV_TABLE,
-  CmvButton,
-  CmvChoiceChips,
-  CmvEmptyState,
-  CmvTextField,
-  CmvToggleChip,
-} from "@/shared/component";
+import { CMV_TABLE, CmvButton, CmvEmptyState, CmvToggleChip } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 /** Ce que le sélecteur propose : les exercices du Coach, ceux qu'on lui partage — ou les deux. */
@@ -80,29 +74,18 @@ export function LibraryPicker({
 
   return (
     <div className="flex w-full flex-col gap-cmv-sm">
-      <div className="max-w-md">
-        <CmvTextField
-          label={t("library.searchLabel")}
-          name="pickerSearch"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder={t("library.session.pickerSearch")}
-        />
-      </div>
-
-      {sharing === true ? <ShownToggles shown={shown} onChange={setShown} /> : null}
-
-      {tags == null || tags.length === 0 ? null : (
-        <CmvChoiceChips
-          value={tag}
-          onChange={setTag}
-          options={[
-            { value: NO_TAG_FILTER, label: t("library.filterAllTags") },
-            ...tags.map((name) => ({ value: name, label: name })),
-          ]}
-        />
-      )}
+      {/* La même ligne que les onglets de la bibliothèque (#653) ; seule la provenance diffère. */}
+      <LibraryFilterBar
+        name="pickerSearch"
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder={t("library.session.pickerSearch")}
+        tags={tags ?? []}
+        tag={tag}
+        onTag={setTag}
+      >
+        {sharing === true ? <ShownToggles shown={shown} onChange={setShown} /> : null}
+      </LibraryFilterBar>
 
       {exercises != null && visible.length === 0 ? (
         <PickerEmpty
