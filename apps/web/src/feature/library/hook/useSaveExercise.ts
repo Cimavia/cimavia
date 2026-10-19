@@ -20,6 +20,7 @@ import {
   hasPendingImages,
   withResolvedImages,
 } from "@/feature/library/util/instruction-media.util";
+import { isUnauthorizedError } from "@/shared/lib/api";
 import { uploadToSignedUrl } from "@/shared/lib/upload";
 
 // Fichier sélectionné mais pas encore envoyé (l'upload n'a lieu qu'à l'enregistrement, car
@@ -33,6 +34,70 @@ export type PendingFile = { id: string; file: File; mimeType: DocumentMimeType }
  * en 409 une écriture dont l'exercice a changé depuis. Un `ExerciseDto` en est un.
  */
 export type ExerciseVersion = Pick<ExerciseDto, "id" | "updatedAt">;
+
+/**
+ * Un document — pièce jointe, image de consigne ou lien — qui n'a pas pu être joint. Il ne se lève
+ * qu'APRÈS l'écriture de l'exercice : l'écran peut donc dire que la saisie est enregistrée, et
+ * qu'il suffit de réessayer, ce qui ne renvoie que ce qui manque (#302). Sans lui, le Coach lisait
+ * l'erreur brute de l'API sans savoir ce qui était perdu (#649). La cause garde la raison d'un
+ * refus de l'API, que l'écran redit.
+ */
+export class AttachmentFailedError extends Error {
+  constructor(
+    readonly fileName: string,
+    cause: unknown,
+  ) {
+    super(
+      `[library] « ${fileName} » non joint : ${cause instanceof Error ? cause.message : cause}`,
+      {
+        cause,
+      },
+    );
+    this.name = "AttachmentFailedError";
+  }
+}
+
+/**
+ * Joint un document, et nomme celui qui échoue. Une session perdue passe telle quelle : la fenêtre
+ * de reconnexion la dit déjà (#336), et le formulaire n'a rien à y ajouter.
+ */
+async function joining<T>(name: string, send: () => Promise<T>): Promise<T> {
+  try {
+    return await send();
+  } catch (error) {
+    if (isUnauthorizedError(error)) throw error;
+    throw new AttachmentFailedError(name, error);
+  }
+}
+
+type FileToAttach = {
+  file: File;
+  mimeType: DocumentMimeType;
+  onProgress: (percent: number) => void;
+  /** Absent : une pièce jointe. */
+  usage?: DocumentUsage;
+};
+
+/** Ticket, envoi au storage, rattachement : un fichier joint de bout en bout. */
+function attachFile(exerciseId: string, { file, mimeType, onProgress, usage }: FileToAttach) {
+  return joining(file.name, async () => {
+    const { uploadUrl, storagePath } = await requestUploadUrl(exerciseId, {
+      fileName: file.name,
+      mimeType,
+      size: file.size,
+    });
+    await uploadToSignedUrl(uploadUrl, file, onProgress);
+    return attachDocument(exerciseId, {
+      type: DocumentType.FILE,
+      storagePath,
+      fileName: file.name,
+      mimeType,
+      // Redite du ticket : l'API la confronte à ce que le storage a reçu (#317).
+      size: file.size,
+      ...(usage != null && { usage }),
+    });
+  });
+}
 
 type SaveExerciseArgs = {
   // null = création ; sinon édition de cet exercice, à la version que la saisie a lue.
@@ -107,27 +172,17 @@ export function useSaveExercise() {
 
       // Envois séquentiels : progression lisible et pas de rafale vers l'object storage.
       for (const pending of pendingFiles) {
-        const { uploadUrl, storagePath } = await requestUploadUrl(saved.id, {
-          fileName: pending.file.name,
+        await attachFile(saved.id, {
+          file: pending.file,
           mimeType: pending.mimeType,
-          size: pending.file.size,
-        });
-        await uploadToSignedUrl(uploadUrl, pending.file, (percent) => {
-          setProgress((current) => ({ ...current, [pending.id]: percent }));
-        });
-        await attachDocument(saved.id, {
-          type: DocumentType.FILE,
-          storagePath,
-          fileName: pending.file.name,
-          mimeType: pending.mimeType,
-          // Redite du ticket : l'API la confronte à ce que le storage a reçu (#317).
-          size: pending.file.size,
+          onProgress: (percent) =>
+            setProgress((current) => ({ ...current, [pending.id]: percent })),
         });
         onFileAttached?.(pending.id);
       }
 
       for (const url of pendingLinks) {
-        await attachDocument(saved.id, { type: DocumentType.LINK, url });
+        await joining(url, () => attachDocument(saved.id, { type: DocumentType.LINK, url }));
         onLinkAttached?.(url);
       }
 
@@ -138,20 +193,10 @@ export function useSaveExercise() {
 
       const idByPendingId = new Map(sentImages);
       for (const image of pendingImages) {
-        const { uploadUrl, storagePath } = await requestUploadUrl(saved.id, {
-          fileName: image.file.name,
+        const attached = await attachFile(saved.id, {
+          file: image.file,
           mimeType: image.mimeType,
-          size: image.file.size,
-        });
-        await uploadToSignedUrl(uploadUrl, image.file, (percent) =>
-          onImageProgress?.(image.mediaId, percent),
-        );
-        const attached = await attachDocument(saved.id, {
-          type: DocumentType.FILE,
-          storagePath,
-          fileName: image.file.name,
-          mimeType: image.mimeType,
-          size: image.file.size,
+          onProgress: (percent) => onImageProgress?.(image.mediaId, percent),
           // Ce qui l'exclut de la liste des pièces jointes : elle est DANS la consigne.
           usage: DocumentUsage.INSTRUCTION,
         });

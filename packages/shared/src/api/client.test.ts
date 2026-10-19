@@ -109,6 +109,15 @@ describe("apiErrorMessage", () => {
     // anglais, alors que l'app explique déjà la perte de session ailleurs (#336).
     expect(apiErrorMessage(await errorOf(401))).toBeNull();
   });
+
+  /**
+   * Un 5xx de NestJS a un corps JSON, donc un message « de l'API » — mais écrit pour les logs : le
+   * « Internal server error » d'une exception non rattrapée, ou le « Object storage non
+   * configuré… » d'un déploiement incomplet. Le Coach le lisait tel quel (#649).
+   */
+  it.each([500, 502, 503])("tait le message d'un %s, écrit pour les logs", async (status) => {
+    expect(apiErrorMessage(await errorOf(status))).toBeNull();
+  });
 });
 
 type Call = { url: string; init: Parameters<ApiFetch>[1] };

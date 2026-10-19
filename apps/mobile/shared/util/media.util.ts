@@ -254,8 +254,8 @@ export function prepareAudio(audio: RecordedAudio, profile: MediaProfile): Prepa
  * Ce que dit un envoi de média qui a échoué.
  *
  * Trois provenances, trois traitements, et aucune ne se masque : un refus métier (format non géré,
- * note trop longue) porte sa propre clé i18n ; une panne technique garde le message de l'API ; le
- * refus d'une permission — micro, galerie — précède tout envoi et arrive donc à la main, hors
+ * note trop longue) porte sa propre clé i18n ; un refus de l'API garde son message, une panne
+ * (réseau, 5xx) le message générique ; le refus d'une permission — micro, galerie — précède tout envoi et arrive donc à la main, hors
  * mutation.
  */
 export function mediaErrorMessage(

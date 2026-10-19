@@ -84,6 +84,15 @@ const envShape = z.object({
   // toute opération d'upload/download échoue en 503 tant que les 5 variables ne sont pas
   // toutes fournies (buckets privés, accès par URL signée uniquement — CDC §10).
   S3_ENDPOINT: z.preprocess(emptyAsUndefined, z.url().optional()),
+  /**
+   * L'endpoint que l'API appelle ELLE-MÊME (relecture, suppression, multipart), quand
+   * `S3_ENDPOINT` — celui qu'elle signe pour le navigateur et le téléphone — passe par un CDN.
+   * Sur la preview, Cloudflare envoie un `HEAD` en `GET` vers un fichier qu'il peut mettre en
+   * cache, et la signature, qui couvre la méthode, ne tient plus : 403 (#649). Absente (local,
+   * Scaleway), l'API appelle `S3_ENDPOINT`. Hors du contrat des cinq : seule, elle ne configure
+   * rien.
+   */
+  S3_INTERNAL_ENDPOINT: z.preprocess(emptyAsUndefined, z.url().optional()),
   S3_REGION: z.preprocess(emptyAsUndefined, z.string().optional()),
   S3_BUCKET: z.preprocess(emptyAsUndefined, z.string().optional()),
   S3_ACCESS_KEY_ID: z.preprocess(emptyAsUndefined, z.string().optional()),

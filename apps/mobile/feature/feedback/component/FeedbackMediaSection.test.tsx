@@ -172,11 +172,11 @@ describe("FeedbackMediaSection", () => {
     expect(vi.mocked(pickFeedbackAssets)).not.toHaveBeenCalled();
   });
 
-  it("garde le message de l'API quand la panne est technique", () => {
+  it("garde le message de l'API quand elle refuse le fichier", () => {
     vi.mocked(useAddFeedbackAudio).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
-      error: new ApiError(500, "le serveur a refusé ce fichier", null),
+      error: new ApiError(409, "le serveur a refusé ce fichier", null),
       progress: 0,
     } as unknown as ReturnType<typeof useAddFeedbackAudio>);
 
@@ -184,7 +184,7 @@ describe("FeedbackMediaSection", () => {
       <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
     );
 
-    // Un refus métier porte sa clé i18n ; une panne technique garde le message du serveur.
+    // Un refus métier porte sa clé i18n ; un refus de l'API garde son message.
     expect(queryByText("le serveur a refusé ce fichier")).not.toBeNull();
   });
 
@@ -329,15 +329,19 @@ describe("FeedbackMediaSection — ce que la section dicte au lot", () => {
     expect(rejectedReason({ kind: MediaType.IMAGE }).key).toBe("feedback.media.noSlotImage");
   });
 
-  it("garde le message du serveur pour un échec, la clé pour un refus métier", async () => {
+  it("garde le message d'un refus de l'API, la clé pour un refus métier", async () => {
     const { failureReason } = await batchOptions();
     expect(failureReason(new MediaRejectedError("feedback.media.videoTooBig")).key).toBe(
       "feedback.media.videoTooBig",
     );
-    expect(failureReason(new ApiError(500, "trop lourd pour le serveur", null)).message).toBe(
+    expect(failureReason(new ApiError(413, "trop lourd pour le serveur", null)).message).toBe(
       "trop lourd pour le serveur",
     );
-    // Une panne muette retombe sur le message générique plutôt que sur une ligne vide.
+    // Une panne muette retombe sur le message générique plutôt que sur une ligne vide — un 5xx
+    // aussi, dont le message s'adresse aux logs (#649).
     expect(failureReason(new Error("boom")).key).toBe("feedback.media.uploadError");
+    expect(failureReason(new ApiError(500, "Internal server error", null)).key).toBe(
+      "feedback.media.uploadError",
+    );
   });
 });

@@ -15,6 +15,7 @@ import { BuilderActions } from "@/feature/library/component/BuilderActions";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
+import { SaveExerciseError } from "@/feature/library/component/SaveExerciseError";
 import { StructureSection } from "@/feature/library/component/StructureSection";
 import { useExerciseCatalog } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
@@ -32,7 +33,6 @@ import {
   CmvAppShell,
   CmvButton,
   CmvErrorState,
-  CmvFormError,
   CmvLeaveDialog,
   CmvReadOnlyBanner,
   CmvStaleBanner,
@@ -357,7 +357,7 @@ function ExerciseBuilder({
                 onPendingLinks={draft.setPendingLinks}
               />
 
-              <CmvFormError error={draft.isStale ? null : draft.error} />
+              <SaveExerciseError error={draft.isStale ? null : draft.error} />
             </fieldset>
 
             {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}

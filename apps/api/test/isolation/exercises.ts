@@ -4,6 +4,7 @@ import { type Agent, required, signUp } from "../support/actors";
 import {
   type DocumentFile,
   jpeg,
+  pdf,
   putExerciseFile,
   uploadInstructionImage,
 } from "../support/fixtures";
@@ -287,6 +288,31 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     await coachA.delete(`/exercises/${exerciseAId}/documents/${link.body.id}`);
     await coachA.delete(`/exercises/${exerciseAId}/documents/${image.body.id}`);
+  });
+
+  // Le geste le plus courant de la bibliothèque, et le seul qu'aucun e2e ne faisait : sur la preview,
+  // il finissait en 500 sans qu'un test le voie (#649).
+  it("rattache un PDF en pièce jointe, visible dans le détail de l'exercice", async () => {
+    const file = pdf("programme.pdf");
+    const attached = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: await putExerciseFile(coachA, exerciseAId, file),
+      ...file,
+    });
+    expect(attached.status).toBe(201);
+    expect(attached.body).toMatchObject({
+      type: "FILE",
+      fileName: "programme.pdf",
+      mimeType: "application/pdf",
+      usage: "ATTACHMENT",
+    });
+
+    const detail = await coachA.get(`/exercises/${exerciseAId}`);
+    expect(
+      (detail.body.documents as { id: string }[]).filter(({ id }) => id === attached.body.id),
+    ).toHaveLength(1);
+
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${attached.body.id}`);
   });
 
   it("refuse un PDF comme image de consigne", async () => {

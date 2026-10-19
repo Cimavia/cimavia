@@ -438,6 +438,8 @@
         "linkPlaceholder": "https://…",
         "errorType": "Format non accepté : PDF, PNG, JPEG ou WebP.",
         "errorSize": "Fichier trop lourd : 20 Mo maximum.",
+        "failed": "« {{fileName}} » n'a pas pu être joint. L'exercice est enregistré : enregistre à nouveau pour réessayer.",
+        "refused": "« {{fileName}} » n'a pas été joint : {{reason}}. L'exercice, lui, est enregistré.",
         "errorLink": "Lien non reconnu : colle l'adresse complète, avec https://."
       },
       "saved": "Exercice enregistré.",

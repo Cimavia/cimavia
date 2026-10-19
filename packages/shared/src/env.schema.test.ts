@@ -81,3 +81,25 @@ describe("envSchema — tiers déployés (#357)", () => {
     expect(envSchema.parse(DEV).APP_ENV).toBe("development");
   });
 });
+
+/**
+ * L'endpoint interne du storage (#649) : celui que l'API appelle elle-même, quand l'URL publique
+ * — celle qu'elle signe pour le téléphone — passe par un CDN qui réécrit ses requêtes.
+ */
+describe("envSchema — endpoint interne du storage (#649)", () => {
+  it("le laisse absent : l'API appelle alors l'endpoint public, comme avant", () => {
+    expect(envSchema.parse(DEV).S3_INTERNAL_ENDPOINT).toBeUndefined();
+    expect(
+      envSchema.parse({ ...DEV, S3_INTERNAL_ENDPOINT: "" }).S3_INTERNAL_ENDPOINT,
+    ).toBeUndefined();
+  });
+
+  it("accepte une URL de service, et refuse ce qui n'en est pas une", () => {
+    expect(
+      envSchema.parse({ ...DEV, S3_INTERNAL_ENDPOINT: "http://silo:9000" }).S3_INTERNAL_ENDPOINT,
+    ).toBe("http://silo:9000");
+    expect(refusals({ ...DEV, S3_INTERNAL_ENDPOINT: "silo 9000" }).map(({ path }) => path)).toEqual(
+      ["S3_INTERNAL_ENDPOINT"],
+    );
+  });
+});

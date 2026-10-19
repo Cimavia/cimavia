@@ -738,9 +738,17 @@ liste des domaines vivent dans l'index.
 > **Tranché en #317** (une clé absente répond 404, sur SILO seulement — vérifié) : sans le droit de
 > lister le bucket, que la clé de l'API n'a pas (#267), S3 répond **403** sur un objet absent, là où
 > SILO répond `NotFound`. Sur un storage qui suit S3, rattacher une clé jamais envoyée finirait en
-> 500 : refusé quand même, mais sous le mauvais code. Ni `s3:ListBucket` ajouté à la policy (il
+> **502** (depuis [#649](https://github.com/Cimavia/cimavia/issues/649) : c'était un 500 muet) —
+> refusé quand même, mais sous le mauvais code, et compté dans Sentry comme une panne du storage. Ni `s3:ListBucket` ajouté à la policy (il
 > donnerait à l'API l'inventaire du bucket pour corriger un code d'erreur), ni 403 lu comme absent
 > (il maquillerait une vraie panne de droits). À revoir avec le choix du stockage de prod (#259).
+>
+> **Ce que #317 n'avait pas vu** : « SILO répond `NotFound` » n'était vrai qu'en local. Sur la
+> preview, l'API appelait SILO par l'URL publique, donc par Cloudflare, qui envoie un `HEAD` en
+> `GET` vers un fichier qu'il peut mettre en cache : la signature couvre la méthode, SILO répondait
+> 403 sur chaque rattachement — pièces jointes et images de consigne — et le Coach lisait
+> « Internal server error ». Depuis #649, les appels serveur passent par `S3_INTERNAL_ENDPOINT`
+> (P7-10), et tout refus autre que `NotFound` répond 502 avec sa cause au log et dans Sentry.
 
 ---
 

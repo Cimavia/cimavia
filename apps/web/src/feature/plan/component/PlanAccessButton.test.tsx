@@ -199,7 +199,8 @@ describe("PlanAccessButton", () => {
     const view = renderWithProviders(<PlanAccessButton plan={plan()} athleteName="TI" />);
     await view.user.click(await view.findByRole("button", { name: ACCESS }));
 
-    expect(await screen.findByText("Panne")).toBeTruthy();
+    // Le message d'un 5xx s'adresse aux logs : le Coach lit le message générique (#649).
+    expect(await screen.findByText("common.error")).toBeTruthy();
     expect(screen.queryByText("plan.access.empty")).toBeNull();
     await waitFor(() =>
       expect((screen.getByRole("button", { name: ACCESS }) as HTMLButtonElement).disabled).toBe(

@@ -1,20 +1,36 @@
 import {
+  AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  DeleteObjectCommand,
   HeadObjectCommand,
   ListPartsCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import type { EnvSchema } from "@cmv/shared";
 import { MULTIPART_THRESHOLD_BYTES } from "@cmv/shared";
-import { ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadGatewayException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
+import { captureException } from "@sentry/nestjs";
+import type { PinoLogger } from "nestjs-pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MULTIPART_SIGNED_URL_TTL_SECONDS, StorageService } from "./storage.service";
+
+// Une `HttpException` échappe au filtre Sentry : le service capture lui-même ce qu'il traduit.
+vi.mock("@sentry/nestjs", () => ({ captureException: vi.fn() }));
 
 // ConfigService réduit à ce que lit StorageService : un getteur sur les variables S3_*.
 function configWith(values: Record<string, string>): ConfigService<EnvSchema, true> {
   return { get: (key: string) => values[key] } as unknown as ConfigService<EnvSchema, true>;
+}
+
+function storageWith(values: Record<string, string>, logger = { error: vi.fn() }) {
+  return new StorageService(configWith(values), logger as unknown as PinoLogger);
 }
 
 const FULL_CONFIG = {
@@ -33,12 +49,12 @@ const FULL_CONFIG = {
  */
 describe("StorageService — storage non configuré", () => {
   it("se construit sans lever, mais se déclare non configuré", () => {
-    const storage = new StorageService(configWith({}));
+    const storage = storageWith({});
     expect(storage.isConfigured).toBe(false);
   });
 
   it("répond 503 sur upload, download et suppression", async () => {
-    const storage = new StorageService(configWith({}));
+    const storage = storageWith({});
     await expect(storage.createUploadUrl("k", "image/jpeg")).rejects.toThrow(
       ServiceUnavailableException,
     );
@@ -50,7 +66,7 @@ describe("StorageService — storage non configuré", () => {
   });
 
   it("répond 503 sur les quatre étapes d'un upload découpé", async () => {
-    const storage = new StorageService(configWith({}));
+    const storage = storageWith({});
     await expect(storage.createMultipartUpload("k", "video/mp4")).rejects.toThrow(
       ServiceUnavailableException,
     );
@@ -69,13 +85,13 @@ describe("StorageService — storage non configuré", () => {
   // un demi-storage. Mieux vaut un 503 franc qu'un client S3 qui échoue à l'exécution.
   it("considère une configuration partielle comme absente", () => {
     const partial = { ...FULL_CONFIG, S3_SECRET_ACCESS_KEY: "" };
-    expect(new StorageService(configWith(partial)).isConfigured).toBe(false);
+    expect(storageWith(partial).isConfigured).toBe(false);
   });
 });
 
 describe("StorageService — storage configuré", () => {
   it("signe une URL d'upload portant la taille attendue", async () => {
-    const storage = new StorageService(configWith(FULL_CONFIG));
+    const storage = storageWith(FULL_CONFIG);
     expect(storage.isConfigured).toBe(true);
 
     const url = await storage.createUploadUrl("media.mp4", "video/mp4", 300, 1024);
@@ -85,7 +101,7 @@ describe("StorageService — storage configuré", () => {
   });
 
   it("signe une URL par part, numérotée à partir de 1 et portant sa propre taille", async () => {
-    const storage = new StorageService(configWith(FULL_CONFIG));
+    const storage = storageWith(FULL_CONFIG);
     const urls = await storage.createPartUploadUrls("media.mp4", "upload-1", [2048, 1024]);
 
     expect(urls).toHaveLength(2);
@@ -106,7 +122,7 @@ describe("StorageService — storage configuré", () => {
    */
   describe("createUploadTicket", () => {
     it("rend un ticket SINGLE au seuil — le seuil est inclusif", async () => {
-      const storage = new StorageService(configWith(FULL_CONFIG));
+      const storage = storageWith(FULL_CONFIG);
       const ticket = await storage.createUploadTicket(
         "media.mp4",
         "video/mp4",
@@ -124,7 +140,7 @@ describe("StorageService — storage configuré", () => {
   });
 
   it("laisse aux parts un TTL plus long qu'au PUT unique", async () => {
-    const storage = new StorageService(configWith(FULL_CONFIG));
+    const storage = storageWith(FULL_CONFIG);
     const [url] = await storage.createPartUploadUrls("media.mp4", "upload-1", [1024]);
     // Sinon la dernière part d'un gros fichier expire pendant que les précédentes montent.
     expect(url).toContain(`X-Amz-Expires=${MULTIPART_SIGNED_URL_TTL_SECONDS}`);
@@ -144,6 +160,7 @@ describe("StorageService — réponses du storage", () => {
   /** Remplace le transport S3 : chaque commande reçoit la réponse suivante de `replies`. */
   function storageAnswering(...replies: (object | Error)[]) {
     const sent: { name: string; input: Record<string, unknown> }[] = [];
+    const logger = { error: vi.fn() };
     vi.spyOn(S3Client.prototype, "send").mockImplementation((command: object) => {
       sent.push({
         name: command.constructor.name,
@@ -152,7 +169,7 @@ describe("StorageService — réponses du storage", () => {
       const reply = replies.shift();
       return (reply instanceof Error ? Promise.reject(reply) : Promise.resolve(reply)) as never;
     });
-    return { storage: new StorageService(configWith(FULL_CONFIG)), sent };
+    return { storage: storageWith(FULL_CONFIG, logger), sent, logger };
   }
 
   const noSuchUpload = () => Object.assign(new Error("gone"), { name: "NoSuchUpload" });
@@ -276,11 +293,27 @@ describe("StorageService — réponses du storage", () => {
       );
     });
 
-    it("laisse remonter une autre panne telle quelle", async () => {
-      const outage = new Error("connect ECONNREFUSED");
-      const { storage } = storageAnswering(outage);
+    /**
+     * Tout autre refus du storage dit qu'il n'a pas pu trancher, pas que le fichier manque : un 403
+     * lu comme une absence maquillerait une vraie panne de droits (#317). C'est le 403 de SILO
+     * derrière Cloudflare (#649), ou un storage injoignable. Il répondait en 500 muet ; il répond
+     * 502, et sa cause part au log et à Sentry, que le filtre global n'alimente pas pour une
+     * `HttpException`.
+     */
+    it.each([
+      ["un 403", Object.assign(new Error("UnknownError"), { $metadata: { httpStatusCode: 403 } })],
+      ["un storage injoignable", new Error("connect ECONNREFUSED")],
+    ])("répond 502 sur %s, et en garde la cause", async (_case, outage) => {
+      const { storage, logger } = storageAnswering(outage);
 
-      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).rejects.toBe(outage);
+      await expect(storage.assertUploadedAsDeclared("doc.pdf", declared)).rejects.toEqual(
+        new BadGatewayException("Le storage n'a pas pu confirmer la réception du fichier"),
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        { err: outage, storagePath: "doc.pdf" },
+        "Le storage n'a pas pu confirmer la réception du fichier",
+      );
+      expect(captureException).toHaveBeenCalledWith(outage);
     });
   });
 
@@ -296,5 +329,74 @@ describe("StorageService — réponses du storage", () => {
         input: { Bucket: "bucket-test", Key: "media.mp4", ContentType: "video/mp4" },
       },
     ]);
+  });
+});
+
+/**
+ * Deux endpoints, deux usages (#649). L'URL signée part chez le navigateur ou le téléphone : elle
+ * garde l'endpoint PUBLIC. L'appel que l'API fait elle-même vise l'endpoint INTERNE quand il
+ * existe : sur la preview, le public passe par Cloudflare, qui envoie un `HEAD` en `GET` vers un
+ * fichier qu'il peut mettre en cache — la signature couvre la méthode, SILO répond 403.
+ */
+describe("StorageService — endpoint interne", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const INTERNAL_CONFIG = { ...FULL_CONFIG, S3_INTERNAL_ENDPOINT: "http://silo:9000" };
+
+  /** Chaque commande envoyée, avec l'hôte que visait le client qui l'a envoyée. */
+  function recordingHosts(config: Record<string, string>) {
+    const hosts: { name: string; host: string }[] = [];
+    vi.spyOn(S3Client.prototype, "send").mockImplementation(async function (
+      this: S3Client,
+      command: object,
+    ) {
+      const endpoint = await this.config.endpoint?.();
+      hosts.push({
+        name: command.constructor.name,
+        host: `${endpoint?.hostname}:${endpoint?.port}`,
+      });
+      return { UploadId: "upload-1", ContentType: "application/pdf", ContentLength: 2048 } as never;
+    });
+    return { storage: storageWith(config), hosts };
+  }
+
+  it("relit, supprime et ouvre un upload découpé par l'endpoint interne", async () => {
+    const { storage, hosts } = recordingHosts(INTERNAL_CONFIG);
+
+    await storage.assertUploadedAsDeclared("doc.pdf", { mimeType: "application/pdf", size: 2048 });
+    await storage.deleteObject("doc.pdf");
+    await storage.createMultipartUpload("media.mp4", "video/mp4");
+    await storage.abortMultipartUpload("media.mp4", "upload-1");
+
+    expect(hosts).toEqual([
+      { name: HeadObjectCommand.name, host: "silo:9000" },
+      { name: DeleteObjectCommand.name, host: "silo:9000" },
+      { name: CreateMultipartUploadCommand.name, host: "silo:9000" },
+      { name: AbortMultipartUploadCommand.name, host: "silo:9000" },
+    ]);
+  });
+
+  it("signe toujours sur l'endpoint public : c'est lui que le client appellera", async () => {
+    const { storage } = recordingHosts(INTERNAL_CONFIG);
+
+    const urls = [
+      await storage.createUploadUrl("doc.pdf", "application/pdf"),
+      await storage.createDownloadUrl("doc.pdf"),
+      ...(await storage.createPartUploadUrls("media.mp4", "upload-1", [1024])),
+    ];
+
+    for (const url of urls) {
+      expect(url.startsWith("http://localhost:9000/bucket-test/")).toBe(true);
+    }
+  });
+
+  it("appelle l'endpoint public quand aucun endpoint interne n'est fourni", async () => {
+    const { storage, hosts } = recordingHosts(FULL_CONFIG);
+
+    await storage.deleteObject("doc.pdf");
+
+    expect(hosts).toEqual([{ name: DeleteObjectCommand.name, host: "localhost:9000" }]);
   });
 });
