@@ -948,6 +948,7 @@ export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
 export type {
   PlanAudience,
   PlanAudienceSource,
+  PlanCycleWeekDays,
   PlanPeriod,
   PlanPhase,
   PlanState,
@@ -962,6 +963,7 @@ export {
   PLAN_STATE_BADGE,
   PLAN_STATES,
   planAudience,
+  planCycleDays,
   planEndDate,
   planPhase,
   planState,
