@@ -14,6 +14,7 @@ import {
   deleteAtLatest,
   putAtLatest,
   versionOf,
+  weekVersionOf,
 } from "../support/version";
 
 describe("Composition & isolation des séances (P2)", () => {
@@ -774,9 +775,9 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
     expect(await titlesOn(day)).toEqual(["Séance 1", "Séance 2", "Séance 3"]);
   });
 
-  // Une séance d'une AUTRE semaine (ou d'un autre coach, que le scope rend invisible) n'a rien à
-  // faire dans cette journée : la déplacer là franchirait une frontière que le glisser n'offre pas.
-  it("refuse une séance étrangère à la semaine", async () => {
+  // Une séance d'un autre coach, que le scope rend invisible, n'a rien à faire dans cette journée :
+  // pour cette requête, elle n'existe pas. Celle d'un autre cycle du MÊME coach : voir #689 plus bas.
+  it("refuse la séance d'un autre coach", async () => {
     const day = await dayOf("foreign", 2);
     const other = await dayOf("foreign-other", 1);
 
@@ -939,6 +940,253 @@ describe("Réordonner les séances d'une même journée (#148)", () => {
       expect((await reorder(day, [second as string, first as string])).status).toBe(200);
 
       expect(await reordered(day.athlete)).toHaveLength(0);
+    });
+  });
+});
+
+describe("Déplacer une séance vers une autre semaine du cycle (#689)", () => {
+  const monday = mondayOfCurrentWeek();
+
+  /** La date `days` jours après `iso`. */
+  function shift(iso: string, days: number): string {
+    const date = new Date(`${iso}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  // Le lundi de la S1, le jeudi de la S3 : deux jours de deux semaines différentes du cycle.
+  const s1Monday = monday;
+  const s3Thursday = shift(monday, 2 * 7 + 3);
+
+  type Cycle = {
+    coach: Agent;
+    athlete: Agent;
+    athleteId: string;
+    planId: string;
+    weekIds: string[];
+  };
+
+  /** Un coach, son athlète, et un cycle de trois semaines. */
+  async function cycleOf(slug: string): Promise<Cycle> {
+    const coach = await signUpWith(`${slug}-coach@cmv.test`, { isCoach: true, isAthlete: false });
+    const athlete = await signUp(`${slug}-athlete@cmv.test`, Role.ATHLETE);
+    const invitation = await inviteFor(coach, athlete);
+    const athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body[0]
+      .athleteId;
+    return { coach, athlete, athleteId, ...(await planFor(coach, athleteId, `Cycle ${slug}`)) };
+  }
+
+  async function planFor(coach: Agent, athleteId: string, title: string) {
+    const plan = await coach.post("/plans").send({
+      athleteId,
+      title,
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }, { type: "TRAINING" }, { type: "TRAINING" }],
+    });
+    expect(plan.status).toBe(201);
+    return {
+      planId: plan.body.id as string,
+      weekIds: plan.body.weeks.map((week: { id: string }) => week.id) as string[],
+    };
+  }
+
+  async function addOn(cycle: Cycle, weekIndex: number, date: string, title: string) {
+    const created = await cycle.coach
+      .post(`/plan-weeks/${cycle.weekIds[weekIndex]}/sessions`)
+      .send({ scheduledDate: date, title });
+    expect(created.status).toBe(201);
+    return created.body.id as string;
+  }
+
+  /** Ce que la semaine `weekIndex` porte ce jour-là : titres et rangs, dans l'ordre de l'API. */
+  async function dayIn(cycle: Cycle, weekIndex: number, date: string) {
+    const plan = await cycle.coach.get(`/plans/${cycle.planId}`);
+    const sessions = (
+      plan.body.weeks[weekIndex].sessions as {
+        title: string;
+        position: number;
+        scheduledDate: string;
+      }[]
+    ).filter((session) => session.scheduledDate === date);
+    return {
+      titles: sessions.map((session) => session.title),
+      positions: sessions.map((session) => session.position),
+    };
+  }
+
+  /** Écrit le jeudi de la S3, en citant la version de la S3 — celle que le client a lue. */
+  const orderS3Thursday = async (cycle: Cycle, sessionIds: string[], agent = cycle.coach) =>
+    agent
+      .put(`/plan-weeks/${cycle.weekIds[2]}/days/${s3Thursday}/order`)
+      .send(
+        await atWeekVersion(cycle.coach, cycle.planId, cycle.weekIds[2] as string, { sessionIds }),
+      );
+
+  describe("par la route d'ordre", () => {
+    it("accueille une séance de la S1 au rang exact du jeudi de la S3", async () => {
+      const cycle = await cycleOf("cross-rank");
+      const first = await addOn(cycle, 2, s3Thursday, "Jeudi 1");
+      const second = await addOn(cycle, 2, s3Thursday, "Jeudi 2");
+      const moved = await addOn(cycle, 0, s1Monday, "Lundi S1");
+
+      expect((await orderS3Thursday(cycle, [first, moved, second])).status).toBe(200);
+
+      expect(await dayIn(cycle, 2, s3Thursday)).toEqual({
+        titles: ["Jeudi 1", "Lundi S1", "Jeudi 2"],
+        positions: [0, 1, 2],
+      });
+      expect((await dayIn(cycle, 0, s1Monday)).titles).toEqual([]);
+    });
+
+    // Le jour quitté se recolle DANS SA semaine : un trou y ferait échouer le prochain ajout.
+    it("recolle le jour quitté dans la semaine de départ, qui reste ajoutable", async () => {
+      const cycle = await cycleOf("cross-compact");
+      const leaving = await addOn(cycle, 0, s1Monday, "Lundi 1");
+      await addOn(cycle, 0, s1Monday, "Lundi 2");
+
+      expect((await orderS3Thursday(cycle, [leaving])).status).toBe(200);
+
+      expect(await dayIn(cycle, 0, s1Monday)).toEqual({ titles: ["Lundi 2"], positions: [0] });
+      await addOn(cycle, 0, s1Monday, "Lundi 3");
+      expect((await dayIn(cycle, 0, s1Monday)).positions).toEqual([0, 1]);
+    });
+
+    // Changer de cycle peut changer d'athlète, donc de destinataire : hors du périmètre.
+    it("refuse une séance d'un autre cycle du même coach", async () => {
+      const cycle = await cycleOf("cross-plan");
+      const other = await planFor(cycle.coach, cycle.athleteId, "Autre cycle");
+      const foreign = (
+        await cycle.coach
+          .post(`/plan-weeks/${other.weekIds[0]}/sessions`)
+          .send({ scheduledDate: s1Monday, title: "Autre cycle" })
+      ).body.id as string;
+
+      expect((await orderS3Thursday(cycle, [foreign])).status).toBe(400);
+      expect((await dayIn(cycle, 2, s3Thursday)).titles).toEqual([]);
+    });
+
+    it("ne laisse pas un coach tirer la séance d'un autre dans son cycle", async () => {
+      const mine = await cycleOf("cross-mine");
+      const theirs = await cycleOf("cross-theirs");
+      const target = await addOn(mine, 0, s1Monday, "À moi");
+
+      expect((await orderS3Thursday(theirs, [target])).status).toBe(400);
+      expect((await dayIn(mine, 0, s1Monday)).titles).toEqual(["À moi"]);
+    });
+
+    it("annonce le déplacement par un seul PLAN_UPDATED sur un cycle diffusé", async () => {
+      const cycle = await cycleOf("cross-notif");
+      const moved = await addOn(cycle, 0, s1Monday, "Lundi S1");
+      expect([200, 201]).toContain((await billAndPublish(cycle.coach, cycle.planId)).status);
+
+      expect((await orderS3Thursday(cycle, [moved])).status).toBe(200);
+
+      const notifications = (
+        (await cycle.athlete.get("/me/notifications")).body as {
+          type: string;
+          subjectLabel: string | null;
+        }[]
+      ).filter((notification) => notification.type.startsWith("PLAN_"));
+      expect(notifications.filter((n) => n.type === "PLAN_UPDATED")).toHaveLength(1);
+      expect(notifications.filter((n) => n.type === "PLAN_SESSIONS_REORDERED")).toHaveLength(0);
+    });
+
+    it("répond 409 sur une version périmée de la semaine d'arrivée, sans rien déplacer", async () => {
+      const cycle = await cycleOf("cross-stale-arrival");
+      const moved = await addOn(cycle, 0, s1Monday, "Lundi S1");
+      const read = await atWeekVersion(cycle.coach, cycle.planId, cycle.weekIds[2] as string, {
+        sessionIds: [moved],
+      });
+      // Un autre geste sur la S3 la fait avancer après la lecture.
+      await addOn(cycle, 2, shift(s3Thursday, 1), "Vendredi S3");
+
+      const res = await cycle.coach
+        .put(`/plan-weeks/${cycle.weekIds[2]}/days/${s3Thursday}/order`)
+        .send(read);
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(STALE_WRITE);
+      expect((await dayIn(cycle, 0, s1Monday)).titles).toEqual(["Lundi S1"]);
+    });
+
+    // La semaine de départ n'est pas citée, mais elle change : un Coach qui l'a ouverte AVANT le
+    // déplacement doit recevoir un 409 plutôt qu'écraser ce qu'il n'a pas vu.
+    it("fait avancer la semaine de départ : un geste fondé sur sa version d'avant prend 409", async () => {
+      const cycle = await cycleOf("cross-stale-departure");
+      const moved = await addOn(cycle, 0, s1Monday, "Lundi S1");
+      const departureRead = await weekVersionOf(
+        cycle.coach,
+        cycle.planId,
+        cycle.weekIds[0] as string,
+      );
+
+      expect((await orderS3Thursday(cycle, [moved])).status).toBe(200);
+
+      const res = await cycle.coach
+        .patch(`/plan-weeks/${cycle.weekIds[0]}`)
+        .send({ type: "DELOAD", expectedUpdatedAt: departureRead });
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(STALE_WRITE);
+    });
+
+    /**
+     * Deux déplacements en sens inverse touchent les mêmes deux semaines. Verrouillées dans l'ordre
+     * du geste, chacun tiendrait celle que l'autre attend : Postgres en tuerait un d'un 500. Dans
+     * l'ordre des numéros, le second attend, puis prend le 409 de sa version périmée.
+     */
+    it("sérialise deux déplacements croisés, sans interblocage", async () => {
+      const cycle = await cycleOf("cross-deadlock");
+      const fromS1 = await addOn(cycle, 0, s1Monday, "Lundi S1");
+      const fromS3 = await addOn(cycle, 2, s3Thursday, "Jeudi S3");
+
+      const toS3 = await atWeekVersion(cycle.coach, cycle.planId, cycle.weekIds[2] as string, {
+        sessionIds: [fromS3, fromS1],
+      });
+      const toS1 = await atWeekVersion(cycle.coach, cycle.planId, cycle.weekIds[0] as string, {
+        sessionIds: [fromS3, fromS1],
+      });
+      const [first, second] = await Promise.all([
+        cycle.coach.put(`/plan-weeks/${cycle.weekIds[2]}/days/${s3Thursday}/order`).send(toS3),
+        cycle.coach.put(`/plan-weeks/${cycle.weekIds[0]}/days/${s1Monday}/order`).send(toS1),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual([200, 409]);
+    });
+  });
+
+  describe("par le panneau de séance", () => {
+    it("accepte une date d'une autre semaine : la séance y part, en fin de file", async () => {
+      const cycle = await cycleOf("cross-update");
+      await addOn(cycle, 2, s3Thursday, "Jeudi S3");
+      const moved = await addOn(cycle, 0, s1Monday, "Lundi S1");
+
+      const res = await putAtLatest(cycle.coach, `/scheduled-sessions/${moved}`, {
+        title: "Lundi S1",
+        scheduledDate: s3Thursday,
+        exercises: [],
+      });
+
+      expect(res.status).toBe(200);
+      expect(await dayIn(cycle, 2, s3Thursday)).toEqual({
+        titles: ["Jeudi S3", "Lundi S1"],
+        positions: [0, 1],
+      });
+      expect((await dayIn(cycle, 0, s1Monday)).titles).toEqual([]);
+    });
+
+    it("refuse une date hors du cycle (400), et la séance reste où elle était", async () => {
+      const cycle = await cycleOf("cross-update-out");
+      const session = await addOn(cycle, 0, s1Monday, "Lundi S1");
+
+      for (const scheduledDate of [shift(monday, 3 * 7), shift(monday, -1)]) {
+        const res = await putAtLatest(cycle.coach, `/scheduled-sessions/${session}`, {
+          title: "Lundi S1",
+          scheduledDate,
+          exercises: [],
+        });
+        expect(res.status).toBe(400);
+      }
+      expect((await dayIn(cycle, 0, s1Monday)).titles).toEqual(["Lundi S1"]);
     });
   });
 });

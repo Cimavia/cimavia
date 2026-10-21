@@ -11,7 +11,9 @@ import type {
 import {
   AdjustmentLevel,
   isDateInPlanWeek,
+  PLAN_MAX_WEEKS,
   PlanStatus,
+  planWeekNumber,
   required,
   ScheduledSessionStatus,
 } from "@cmv/shared";
@@ -47,7 +49,7 @@ import {
   writeAtVersion,
 } from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
-import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
+import { lockWeeksInOrder, touchWeeks } from "../plan-week.version";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
@@ -192,8 +194,11 @@ export class ScheduledSessionService {
     // Avant de juger la composition contre un état que la saisie n'a pas vu : une ligne retirée
     // par l'autre Coach ferait un 400 au lieu de proposer de recharger.
     assertReadAtVersion(session.updatedAt, expected);
-    const week = await this.plans.getWeekOrThrow(session.planWeekId);
-    this.assertDateInWeek(plan, week, input.scheduledDate);
+    // La date peut tomber dans une AUTRE semaine du cycle (#689) : la séance y part avec elle.
+    const [week, arrival] = await Promise.all([
+      this.plans.getWeekOrThrow(session.planWeekId),
+      this.weekOfDateOrThrow(plan, input.scheduledDate),
+    ]);
 
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
     const received = planExerciseRows(session.exercises, input.exercises);
@@ -210,8 +215,13 @@ export class ScheduledSessionService {
     assertRowImagesOwned(session.exercises, rows, documents);
 
     const updated = await this.db.$transaction(async (tx) => {
-      // La semaine d'abord, puis la séance : l'ordre des verrous de `touchWeeks`.
-      await touchWeeks(tx, { id: session.planWeekId });
+      // Les semaines d'abord, puis la séance : l'ordre des verrous de `touchWeeks`. Départ et
+      // arrivée avancent toutes deux, sans version : celle que le client cite est celle de la
+      // séance, et ce qui dépend des semaines — rang d'arrivée, jour quitté — se relit ci-dessous.
+      await lockWeeksInOrder(tx, [
+        { id: week.id, weekNumber: week.weekNumber },
+        { id: arrival.id, weekNumber: arrival.weekNumber },
+      ]);
       await writeAtVersion(
         tx.scheduledSession,
         id,
@@ -219,10 +229,11 @@ export class ScheduledSessionService {
         {
           title: input.title,
           notes: input.notes ?? null,
+          planWeekId: arrival.id,
           scheduledDate: toDbDate(input.scheduledDate),
           // Changer de jour = prendre la fin de file du nouveau jour ; sinon la position tient.
           position: dateChanged
-            ? await this.nextPosition(tx, session.planWeekId, input.scheduledDate)
+            ? await this.nextPosition(tx, arrival.id, input.scheduledDate)
             : session.position,
         },
         SESSION_NOT_FOUND,
@@ -257,10 +268,14 @@ export class ScheduledSessionService {
    * Le CONTENU d'une journée et son ordre (#148, élargi en #93) — replace-all : le tableau reçu
    * définit ce que la journée porte, et dans quel ordre.
    *
-   * Il peut donc citer une séance posée un autre jour de la MÊME semaine : elle y est déplacée, au
-   * rang exact où le tableau la place. C'est le pendant serveur du glisser d'une case à l'autre, et
-   * ça reste le même geste que le sélecteur « Jour » du panneau de séance — d'où la même annonce
+   * Il peut donc citer une séance posée un autre jour du MÊME cycle, dans n'importe laquelle de ses
+   * semaines (#689) : elle y est déplacée, au rang exact où le tableau la place, et change de
+   * semaine avec sa date. C'est le pendant serveur du glisser d'une case à l'autre, et ça reste le
+   * même geste que le sélecteur « Jour » du panneau de séance — d'où la même annonce
    * (`PLAN_UPDATED`), et non celle du réordonnancement.
+   *
+   * La version citée est celle de la semaine d'ARRIVÉE : c'est la journée que le client a lue
+   * pour composer le tableau. Les semaines de départ avancent sans condition (`lockWeeksInOrder`).
    *
    * Réordonner reste autorisé sur un cycle DIFFUSÉ, contrairement au collage de semaine (#4) qui
    * s'y refuse : la différence n'est pas le statut, c'est le nombre d'écritures. Un collage émet
@@ -279,17 +294,24 @@ export class ScheduledSessionService {
     assertReadAtVersion(week.updatedAt, expected);
     this.assertDateInWeek(plan, week, isoDate);
 
-    // Toute la SEMAINE, et non la seule journée : le tableau peut citer une séance d'un autre jour.
-    // Scopé au coach courant par l'extension tenant — une séance d'un autre coach n'y figure pas,
-    // et les contrôles ci-dessous la refusent donc comme une séance étrangère à la semaine.
-    const weekSessions = await this.db.scheduledSession.findMany({
-      where: { planWeekId },
-      select: { id: true, position: true, scheduledDate: true, title: true },
+    // Le jour visé, et les séances citées où qu'elles soient dans le CYCLE : une autre journée,
+    // une autre semaine (#689). Pas un autre cycle : changer de cycle peut changer d'athlète, donc
+    // de destinataire. Scopé au coach courant par l'extension tenant — une séance d'un autre coach
+    // n'y figure pas, et les contrôles ci-dessous la refusent comme étrangère au cycle.
+    const date = toDbDate(isoDate);
+    const cycleSessions = await this.db.scheduledSession.findMany({
+      where: { planId: plan.id, OR: [{ scheduledDate: date }, { id: { in: input.sessionIds } }] },
+      select: {
+        id: true,
+        position: true,
+        scheduledDate: true,
+        title: true,
+        planWeek: { select: { id: true, weekNumber: true, updatedAt: true } },
+      },
       orderBy: { position: "asc" },
     });
 
-    const date = toDbDate(isoDate);
-    const ordered = assertDayContent(weekSessions, input.sessionIds, date);
+    const ordered = assertDayContent(cycleSessions, input.sessionIds, date);
 
     const moved = ordered.filter((session) => session.scheduledDate.getTime() !== date.getTime());
     // Comparer l'état RÉSULTANT, jamais le fait qu'une requête soit passée : le `PUT` est
@@ -299,14 +321,29 @@ export class ScheduledSessionService {
 
     if (moved.length > 0 || reordered) {
       // Les jours d'origine, avant écriture : après, les séances n'y sont plus et on ne saurait
-      // plus lesquels recoller.
-      const sources = [...new Set(moved.map((session) => session.scheduledDate.getTime()))];
+      // plus lesquels recoller. Une date n'appartient qu'à une semaine du cycle : la clé suffit.
+      const sources = new Map(
+        moved.map((session) => [
+          session.scheduledDate.getTime(),
+          { planWeekId: session.planWeek.id, date: session.scheduledDate },
+        ]),
+      );
 
       await this.db.$transaction(async (tx) => {
-        await writeAtVersion(tx.planWeek, planWeekId, expected, {}, WEEK_NOT_FOUND);
-        await writeDay(tx, ordered, date);
-        for (const source of sources) {
-          await compactDay(tx, planWeekId, new Date(source));
+        // Chaque semaine sous la version LUE : celle que le client cite pour l'arrivée (déjà
+        // comparée ci-dessus), celle de la lecture ci-dessus pour les départs — les jours à
+        // recoller en ont été déduits, et ne valent que si personne ne les a changés depuis.
+        await lockWeeksInOrder(tx, [
+          { id: week.id, weekNumber: week.weekNumber, readAt: expected },
+          ...moved.map(({ planWeek }) => ({
+            id: planWeek.id,
+            weekNumber: planWeek.weekNumber,
+            readAt: planWeek.updatedAt,
+          })),
+        ]);
+        await writeDay(tx, ordered, planWeekId, date);
+        for (const source of sources.values()) {
+          await compactDay(tx, source.planWeekId, source.date);
         }
       });
 
@@ -420,6 +457,29 @@ export class ScheduledSessionService {
     db: TenantPrisma | TenantTx = this.db,
   ): Promise<ScheduledSessionDto> {
     return toScheduledSessionDto(await this.getReadableOrThrow(id, db), this.storage);
+  }
+
+  /**
+   * La semaine du cycle où tombe `date`, ou 400 (#689). Une séance retouchée peut changer de
+   * semaine, jamais de cycle : hors de ses semaines, la date ne désigne rien où la poser.
+   *
+   * Le cycle ne stocke pas son nombre de semaines, il le porte en lignes `PlanWeek` : le compter
+   * coûterait une requête de plus. `PLAN_MAX_WEEKS` borne donc le calcul du numéro, et c'est la base
+   * qui dit si cette semaine existe.
+   */
+  private async weekOfDateOrThrow(plan: Plan, date: string): Promise<PlanWeek> {
+    const weekNumber = planWeekNumber(
+      { startDate: toIsoDate(plan.startDate), weekCount: PLAN_MAX_WEEKS },
+      date,
+    );
+    const week =
+      weekNumber == null
+        ? null
+        : await this.db.planWeek.findFirst({ where: { planId: plan.id, weekNumber } });
+    if (week == null) {
+      throw new BadRequestException(`La date ${date} ne tombe dans aucune semaine du cycle`);
+    }
+    return week;
   }
 
   // Une séance ne peut pas être posée hors de la plage de sa semaine (sinon la vue calendrier
@@ -694,29 +754,29 @@ function libraryDocumentsOf(
  * Vérifie que `sessionIds` décrit une journée VALIDE, et rend ses séances dans l'ordre demandé.
  *
  * Deux règles, et une seule liberté :
- *  - tout identifiant cité appartient à la SEMAINE. Un identifiant étranger désigne soit une autre
- *    semaine, soit un autre coach — que le scope tenant a déjà rendu invisible. 400 dans les deux
- *    cas : la demande est mal formée ;
+ *  - tout identifiant cité appartient au CYCLE (#689). Un identifiant étranger désigne soit un
+ *    autre cycle, soit un autre coach — que le scope tenant a déjà rendu invisible. 400 dans les
+ *    deux cas : la demande est mal formée ;
  *  - aucune séance déjà posée ce jour-là n'est OMISE. L'omettre ne dirait pas où elle va : elle
  *    garderait son rang d'avant, donc des doublons et des trous sur
  *    `@@unique([planWeekId, scheduledDate, position])`. Vider une journée se fait en déplaçant ou
  *    en supprimant ses séances, pas en les taisant ;
- *  - en revanche une séance d'un AUTRE jour de la semaine peut être citée : elle est déplacée ici,
- *    au rang où le tableau la place. C'est tout l'objet de l'élargissement (#93).
+ *  - en revanche une séance d'un AUTRE jour du cycle peut être citée : elle est déplacée ici, au
+ *    rang où le tableau la place. C'est tout l'objet de l'élargissement (#93, puis #689).
  */
 function assertDayContent<T extends PositionedSession>(
-  weekSessions: readonly T[],
+  cycleSessions: readonly T[],
   sessionIds: readonly string[],
   date: Date,
 ): T[] {
-  const byId = new Map(weekSessions.map((session) => [session.id, session]));
+  const byId = new Map(cycleSessions.map((session) => [session.id, session]));
   const wanted = new Set(sessionIds);
 
   if (wanted.size !== sessionIds.length) {
     throw new BadRequestException("Une séance est citée deux fois dans l'ordre demandé");
   }
 
-  const missing = weekSessions.filter(
+  const missing = cycleSessions.filter(
     (session) => session.scheduledDate.getTime() === date.getTime() && !wanted.has(session.id),
   );
   if (missing.length > 0) {
@@ -728,7 +788,7 @@ function assertDayContent<T extends PositionedSession>(
   return sessionIds.map((id) => {
     const session = byId.get(id);
     if (session == null) {
-      throw new BadRequestException(`La séance ${id} n'appartient pas à cette semaine`);
+      throw new BadRequestException(`La séance ${id} n'appartient pas à ce cycle`);
     }
     return session;
   });

@@ -77,6 +77,32 @@ export function planWeekDays(weekStartDate: string): string[] | null {
   return days;
 }
 
+// Les jours d'une semaine du cycle, sous son numéro (1-based).
+export type PlanCycleWeekDays = { weekNumber: number; days: string[] };
+
+/**
+ * Tous les jours du cycle, regroupés par semaine (#689) — les choix du sélecteur « Jour » du
+ * panneau de séance, qui est le chemin clavier du glisser d'une semaine à l'autre.
+ *
+ * Se déduit du seul `startDate`, comme `planWeekRange` : aucune date n'est stockée sur `PlanWeek`.
+ * `null` si le lundi est illisible ou `weekCount` invalide — jamais une liste vide, qui se lirait
+ * « cycle sans semaine » et masquerait la panne. Un cycle à zéro semaine rend bien `[]`.
+ */
+export function planCycleDays(
+  planStartDate: string,
+  weekCount: number,
+): PlanCycleWeekDays[] | null {
+  if (!Number.isInteger(weekCount) || weekCount < 0) return null;
+  const weeks: PlanCycleWeekDays[] = [];
+  for (let weekNumber = 1; weekNumber <= weekCount; weekNumber++) {
+    const range = planWeekRange(planStartDate, weekNumber);
+    const days = range == null ? null : planWeekDays(range.startDate);
+    if (days == null) return null;
+    weeks.push({ weekNumber, days });
+  }
+  return weeks;
+}
+
 // Dernier jour du cycle (dimanche de la dernière semaine). `null` si le plan n'a aucune semaine.
 export function planEndDate(planStartDate: string, weekCount: number): string | null {
   if (!Number.isInteger(weekCount) || weekCount < 1) return null;

@@ -1,11 +1,13 @@
 import type { ScheduledSessionSummaryDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import type { useWeekDrag } from "@/feature/plan/hook/useWeekDrag";
+import type { useWeekDrag, WeekSlot } from "@/feature/plan/hook/useWeekDrag";
 import { CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 type PlanDayCellProps = {
+  /** La semaine qui porte ce jour : une séance déposée ici y part avec sa date (#689). */
+  weekId: string;
   date: string;
   sessions: readonly ScheduledSessionSummaryDto[];
   isBusy: boolean;
@@ -14,12 +16,12 @@ type PlanDayCellProps = {
    * poignée, aucun glisser ne part : les cibles de dépôt restent inertes.
    */
   readOnly: boolean;
-  /** Le glisser de la SEMAINE : une case ne peut pas le tenir, une séance en sort. */
+  /** Le glisser du CYCLE : une case ne peut pas le tenir, une séance en sort. */
   drag: ReturnType<typeof useWeekDrag>;
   onAddSession: (date: string) => void;
   onEditSession: (session: ScheduledSessionSummaryDto) => void;
   /** Déplace d'un cran DANS la journée — le chemin clavier de la poignée. */
-  onMoveWithinDay: (date: string, index: number, direction: -1 | 1) => void;
+  onMoveWithinDay: (slot: WeekSlot, direction: -1 | 1) => void;
 };
 
 /**
@@ -29,11 +31,13 @@ type PlanDayCellProps = {
  * la largeur, et deux boutons de plus par séance la rendraient illisible. La poignée EST le chemin
  * clavier — c'est un bouton focusable qui répond aux flèches.
  *
- * Ce que le clavier ne fait PAS : sortir de la journée. Déplacer une séance vers un autre jour se
- * fait au glisser, ou par le sélecteur « Jour » du panneau de séance — qui est, lui, un chemin
- * clavier complet. C'est ce qui rend ce geste-ci accessoire plutôt qu'exclusif.
+ * Ce que le clavier ne fait PAS : sortir de la journée. Déplacer une séance vers un autre jour, de
+ * n'importe quelle semaine du cycle, se fait au glisser, ou par le sélecteur « Jour » du panneau de
+ * séance — qui couvre tout le cycle (#689) et est, lui, un chemin clavier complet. C'est ce qui
+ * rend ce geste-ci accessoire plutôt qu'exclusif.
  */
 export function PlanDayCell({
+  weekId,
   date,
   sessions,
   isBusy,
@@ -44,13 +48,15 @@ export function PlanDayCell({
   onMoveWithinDay,
 }: Readonly<PlanDayCellProps>) {
   const { t } = useTranslation();
+  const slot = (index: number): WeekSlot => ({ weekId, date, index });
+  const end = slot(sessions.length);
 
   return (
     <div
-      {...drag.dayProps(date, sessions.length)}
+      {...drag.dayProps(end)}
       className={cn(
         "flex min-h-24 flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border p-cmv-sm",
-        drag.isDayOver(date, sessions.length) ? "bg-cmv-accent-soft" : "bg-cmv-bg-1",
+        drag.isDayOver(end) ? "bg-cmv-accent-soft" : "bg-cmv-bg-1",
       )}
     >
       <span className="text-cmv-caption text-cmv-text-lo">{formatDayLabel(date)}</span>
@@ -58,11 +64,11 @@ export function PlanDayCell({
       {sessions.map((session, index) => (
         <div
           key={session.id}
-          {...drag.cardProps(date, index)}
+          {...drag.cardProps(slot(index))}
           className={cn(
             "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border transition-colors",
-            drag.isDragging(date, index) && "opacity-40",
-            drag.isOver(date, index)
+            drag.isDragging(slot(index)) && "opacity-40",
+            drag.isOver(slot(index))
               ? "bg-cmv-accent-soft"
               : "bg-cmv-surface hover:border-cmv-border-hi hover:bg-cmv-surface-hi",
           )}
@@ -72,8 +78,8 @@ export function PlanDayCell({
           {readOnly ? null : (
             <CmvDragHandle
               label={`${t("plan.week.moveSession")} ${index + 1}`}
-              {...drag.handleProps(date, index)}
-              onMove={(direction) => onMoveWithinDay(date, index, direction)}
+              {...drag.handleProps(slot(index))}
+              onMove={(direction) => onMoveWithinDay(slot(index), direction)}
             />
           )}
           {/* La carte n'est plus un `button` à elle seule : la poignée en est un, et un bouton

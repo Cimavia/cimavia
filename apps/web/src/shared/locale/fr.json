@@ -669,6 +669,7 @@
       "templateNone": "Séance vide (sans modèle)",
       "templateHint": "Le titre, les consignes, les exercices et leurs documents seront copiés du modèle.",
       "titleRequired": "Choisis une séance modèle ou donne un titre pour enregistrer la séance.",
+      "dayOutsideCycle": "Ce jour ne fait plus partie du cycle : choisis-en un autre.",
       "titleLabel": "Titre de la séance",
       "titlePlaceholder": "Ex. Force max",
       "notesLabel": "Consignes du coach",

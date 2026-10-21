@@ -7,6 +7,7 @@ import {
   PLAN_STATE_BADGE,
   PLAN_STATES,
   planAudience,
+  planCycleDays,
   planEndDate,
   planPhase,
   planState,
@@ -56,6 +57,28 @@ describe("planWeekDays", () => {
 
   it("retourne null sur une date illisible (pas une semaine tronquée)", () => {
     expect(planWeekDays("2026-02-31")).toBeNull();
+  });
+});
+
+describe("planCycleDays", () => {
+  it("déroule chaque semaine du cycle sous son numéro, lundi → dimanche", () => {
+    const weeks = planCycleDays(MONDAY, 2);
+
+    expect(weeks?.map((week) => week.weekNumber)).toEqual([1, 2]);
+    expect(weeks?.[0]?.days).toEqual(planWeekDays(MONDAY));
+    expect(weeks?.[1]?.days[0]).toBe("2026-10-19");
+    expect(weeks?.[1]?.days[6]).toBe("2026-10-25");
+  });
+
+  // Zéro semaine est un cycle réel (tout juste créé) : la liste est vide, pas indisponible.
+  it("rend une liste vide pour un cycle sans semaine", () => {
+    expect(planCycleDays(MONDAY, 0)).toEqual([]);
+  });
+
+  it("retourne null sur un lundi illisible ou un nombre de semaines invalide", () => {
+    expect(planCycleDays("2026-02-31", 1)).toBeNull();
+    expect(planCycleDays(MONDAY, -1)).toBeNull();
+    expect(planCycleDays(MONDAY, 1.5)).toBeNull();
   });
 });
 

@@ -11,7 +11,7 @@ import { copyPlanWeek, deletePlanWeek, reorderPlanDay, updatePlanWeek } from "@/
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { formatDayLabel } from "@/shared/util/date.util";
 import { renderWithProviders } from "../../../../test/render";
-import { PlanWeekCard } from "./PlanWeekCard";
+import { PlanWeekList } from "./PlanWeekList";
 
 /**
  * Les VRAIS hooks — `usePlanMutations`, `usePlanClipboard` —, seul `api.ts` est bouchonné
@@ -75,23 +75,21 @@ type Props = {
 
 /**
  * Deux cartes, comme dans le constructeur : copier se fait sur l'une, coller sur l'autre. Les
- * deux vivent dans le même arbre, donc sur le même presse-papier — celui du vrai hook.
+ * deux vivent dans le même arbre, donc sur le même presse-papier — celui du vrai hook — et sur le
+ * même glisser, celui de la liste qui les porte à l'écran (#689).
  */
 function mount(target: PlanWeekDto, props: Props = {}) {
   const view = renderWithProviders(
     <div>
-      {[SOURCE, target].map((item) => (
-        <PlanWeekCard
-          key={item.id}
-          planId="p-1"
-          planTitle="Cycle bloc"
-          isPublished={props.isPublished ?? false}
-          readOnly={props.readOnly ?? false}
-          week={item}
-          onAddSession={props.onAddSession ?? vi.fn()}
-          onEditSession={props.onEditSession ?? vi.fn()}
-        />
-      ))}
+      <PlanWeekList
+        planId="p-1"
+        planTitle="Cycle bloc"
+        isPublished={props.isPublished ?? false}
+        readOnly={props.readOnly ?? false}
+        weeks={[SOURCE, target]}
+        onAddSession={props.onAddSession ?? vi.fn()}
+        onEditSession={props.onEditSession ?? vi.fn()}
+      />
     </div>,
   );
   const [source, targetCard] = Array.from(view.container.querySelectorAll("section"));
@@ -236,6 +234,27 @@ describe("PlanWeekCard — la semaine", () => {
     await waitFor(() =>
       expect(reorderPlanDay).toHaveBeenCalledWith("w-2", tuesday, {
         sessionIds: ["s-c"],
+        expectedUpdatedAt: VERSION,
+      }),
+    );
+  });
+
+  /**
+   * Le geste de #689 : une séance quitte SA semaine pour une autre du cycle. La journée écrite est
+   * celle d'arrivée, sous la version de SA semaine — la source n'est pas citée, le serveur la fait
+   * avancer de lui-même.
+   */
+  it("dépose une séance d'une autre semaine au rang exact, sous la version d'arrivée", async () => {
+    const { source, target } = mount(busy);
+
+    fireEvent.dragStart(source.getByRole("button", { name: "plan.week.moveSession 1" }));
+    const second = target.getByRole("button", { name: "plan.week.moveSession 2" });
+    fireEvent.dragOver(second);
+    fireEvent.drop(second);
+
+    await waitFor(() =>
+      expect(reorderPlanDay).toHaveBeenCalledWith("w-2", MONDAY_2, {
+        sessionIds: ["s-b", "s-a", "s-c"],
         expectedUpdatedAt: VERSION,
       }),
     );
