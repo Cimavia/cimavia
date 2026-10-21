@@ -1,6 +1,7 @@
 import type { ExerciseDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
 import {
-  planWeekDays,
+  planCycleDays,
+  planWeekNumber,
   required,
   ScheduledSessionStatus,
   SESSION_NOTES_MAX_LENGTH,
@@ -178,7 +179,10 @@ type ScheduledSessionPanelProps = {
    * alors pas « Ajouter une séance ».
    */
   readOnly: boolean;
-  week: PlanWeekDto;
+  // Le lundi de départ du cycle, et ses semaines telles que l'écran les montre : le sélecteur
+  // « Jour » couvre tout le cycle (#689), et une séance créée part dans la semaine de son jour.
+  planStartDate: string;
+  weeks: readonly PlanWeekDto[];
   // Jour cliqué (création) ou jour de la séance (édition).
   date: string;
   // null = création d'une séance ; sinon édition de cette instance.
@@ -214,7 +218,8 @@ export function ScheduledSessionPanel({
   planId,
   isPublished,
   readOnly,
-  week,
+  planStartDate,
+  weeks,
   date,
   session,
   athleteName,
@@ -256,16 +261,27 @@ export function ScheduledSessionPanel({
    * une fois enregistré : resté ouvert, il citerait encore la version d'avant, et un second envoi
    * se ferait refuser comme si un autre Coach l'avait changée. Vrai si la séance est partie.
    */
+  // La semaine qui porte le jour choisi — une séance créée y part (#689). `null` quand le jour
+  // n'est plus dans le cycle : un autre Coach l'a raccourci ou décalé depuis l'ouverture.
+  const weekNumber = planWeekNumber(
+    { startDate: planStartDate, weekCount: weeks.length },
+    scheduledDate,
+  );
+  const arrival = weeks.find((week) => week.weekNumber === weekNumber) ?? null;
+
   const sendAndClose = useCheckedSave(
     () => {
       if (refused.hasRefused) return "library.builder.refusedBlocksSave";
-      return canSubmit ? null : "plan.session.titleRequired";
+      if (!canSubmit) return "plan.session.titleRequired";
+      // À l'édition, l'API juge elle-même la date et répond 400 ; à la création, sans semaine, la
+      // requête ne saurait même pas où partir.
+      return isEditing || arrival != null ? null : "plan.session.dayOutsideCycle";
     },
     async () => {
       await (isEditing
         ? save(toSaveInput(title, notes, scheduledDate, composition.items))
         : createSession.mutateAsync({
-            weekId: week.id,
+            weekId: required(arrival, "semaine du jour choisi").id,
             input: toCreateInput(sourceSessionId, title, scheduledDate),
           }));
       onClose();
@@ -282,12 +298,15 @@ export function ScheduledSessionPanel({
     void saveAndClose();
   }
 
-  const dayOptions = required(planWeekDays(week.startDate), "lundi de semaine illisible").map(
-    (day) => ({
-      value: day,
-      label: formatDayLabel(day),
-    }),
-  );
+  // Tout le cycle, regroupé par semaine (#689) : c'est le chemin clavier du glisser d'une semaine
+  // à l'autre. Le lundi d'un cycle servi par l'API est une date valide (#512).
+  const dayGroups = required(
+    planCycleDays(planStartDate, weeks.length),
+    "début de cycle illisible",
+  ).map(({ weekNumber, days }) => ({
+    label: t("plan.week.number", { number: weekNumber }),
+    options: days.map((day) => ({ value: day, label: formatDayLabel(day) })),
+  }));
 
   const heading = panelHeading(isEditing, readOnly);
 
@@ -326,7 +345,7 @@ export function ScheduledSessionPanel({
               name="scheduledDate"
               value={scheduledDate}
               onChange={(event) => setScheduledDate(event.target.value)}
-              options={dayOptions}
+              groups={dayGroups}
               disabled={readOnly}
             />
 

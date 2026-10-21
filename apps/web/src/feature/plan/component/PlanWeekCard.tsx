@@ -3,10 +3,9 @@ import { PlanWeekType, planWeekDays, required } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { PlanDayCell } from "@/feature/plan/component/PlanDayCell";
 import { PLAN_WEEK_TYPES } from "@/feature/plan/constant";
+import type { CycleDrag } from "@/feature/plan/hook/useCycleDrag";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
-import { useWeekDrag, type WeekSlot } from "@/feature/plan/hook/useWeekDrag";
-import { dayAfterDrop } from "@/feature/plan/util/week-drop.util";
 import { CmvBadge, CmvButton, CmvConfirmButton, CmvSegmented } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDateRange } from "@/shared/util/date.util";
@@ -25,6 +24,8 @@ type PlanWeekCardProps = {
    */
   readOnly: boolean;
   week: PlanWeekDto;
+  /** Le glisser du CYCLE, tenu par l'écran : une séance passe d'une semaine à l'autre (#689). */
+  drag: CycleDrag;
   onAddSession: (date: string) => void;
   onEditSession: (session: ScheduledSessionSummaryDto) => void;
 };
@@ -35,11 +36,12 @@ export function PlanWeekCard({
   isPublished,
   readOnly,
   week,
+  drag,
   onAddSession,
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, pasteWeek, reorderDay, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, pasteWeek, isBusy } = usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
   // Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API refuse,
   // #312) : le geste reste visible, fermé, avec sa raison.
@@ -105,28 +107,6 @@ export function PlanWeekCard({
   // La décharge est l'exception du cycle : elle se repère au liseré, sans avoir à lire le
   // sélecteur de type semaine par semaine. L'entraînement, lui, reste neutre (design system).
   const isDeload = week.type === PlanWeekType.DELOAD;
-
-  const sessionsOn = (date: string) => sessionsByDay.get(date) ?? [];
-
-  // Une seule journée est écrite : celle d'arrivée. Le serveur retire la séance de son jour
-  // d'origine et l'y recolle — deux écritures feraient deux notifications pour un seul geste.
-  // Pendant une écriture sur le cycle — d'ici, du panneau ou de l'en-tête —, la grille affichée
-  // n'est pas encore celle du serveur : un second geste la citerait et se verrait refuser comme
-  // périmé (#604). Il attend que la relecture ait posé la nouvelle version.
-  function onDrop(from: WeekSlot, to: WeekSlot) {
-    if (isBusy) return;
-    const day = dayAfterDrop(sessionsOn(from.date), sessionsOn(to.date), from, to);
-    if (day == null) return;
-    reorderDay.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt, ...day });
-  }
-
-  // Le chemin clavier de la poignée : un cran, DANS la journée. Sortir du jour se fait au glisser,
-  // ou par le sélecteur « Jour » du panneau — qui reste, lui, entièrement accessible au clavier.
-  function moveWithinDay(date: string, index: number, direction: -1 | 1) {
-    onDrop({ date, index }, { date, index: index + direction });
-  }
-
-  const drag = useWeekDrag(onDrop);
 
   return (
     <section
@@ -199,6 +179,7 @@ export function PlanWeekCard({
         {days.map((day) => (
           <PlanDayCell
             key={day}
+            weekId={week.id}
             date={day}
             sessions={sessionsByDay.get(day) ?? []}
             isBusy={isBusy}
@@ -206,7 +187,7 @@ export function PlanWeekCard({
             drag={drag}
             onAddSession={onAddSession}
             onEditSession={onEditSession}
-            onMoveWithinDay={moveWithinDay}
+            onMoveWithinDay={drag.moveWithinDay}
           />
         ))}
       </div>

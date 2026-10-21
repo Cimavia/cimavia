@@ -8,6 +8,7 @@ import { PlanDayCell } from "./PlanDayCell";
 
 const MONDAY = "2026-10-12";
 const TUESDAY = "2026-10-13";
+const WEEK = "pw_1";
 const HANDLE = (rank: number) => `plan.week.moveSession ${rank}`;
 const ADD = "plan.week.addSession";
 
@@ -15,7 +16,7 @@ const session = (id: string, title: string, position: number, date = MONDAY) =>
   ({
     id,
     planId: "p_1",
-    planWeekId: "pw_1",
+    planWeekId: WEEK,
     sourceSessionId: null,
     title,
     notes: null,
@@ -51,6 +52,7 @@ function Week({
       {Object.entries(days).map(([date, sessions]) => (
         <PlanDayCell
           key={date}
+          weekId={WEEK}
           date={date}
           sessions={sessions}
           isBusy={false}
@@ -58,8 +60,8 @@ function Week({
           drag={drag}
           onAddSession={vi.fn()}
           onEditSession={onEditSession}
-          onMoveWithinDay={(day, index, direction) =>
-            onDrop({ date: day, index }, { date: day, index: index + direction })
+          onMoveWithinDay={(slot, direction) =>
+            onDrop(slot, { ...slot, index: slot.index + direction })
           }
         />
       ))}
@@ -113,7 +115,10 @@ describe("PlanDayCell", () => {
       fireEvent.dragOver(target);
       fireEvent.drop(target);
 
-      expect(onDrop).toHaveBeenCalledWith({ date: MONDAY, index: 2 }, { date: MONDAY, index: 0 });
+      expect(onDrop).toHaveBeenCalledWith(
+        { weekId: WEEK, date: MONDAY, index: 2 },
+        { weekId: WEEK, date: MONDAY, index: 0 },
+      );
     });
 
     /**
@@ -133,7 +138,10 @@ describe("PlanDayCell", () => {
       fireEvent.dragOver(target as Element);
       fireEvent.drop(target as Element);
 
-      expect(onDrop).toHaveBeenCalledWith({ date: MONDAY, index: 2 }, { date: TUESDAY, index: 0 });
+      expect(onDrop).toHaveBeenCalledWith(
+        { weekId: WEEK, date: MONDAY, index: 2 },
+        { weekId: WEEK, date: TUESDAY, index: 0 },
+      );
     });
 
     // Une journée VIDE n'a aucune carte à viser : c'est la case qui reçoit, en fin de file.
@@ -145,7 +153,10 @@ describe("PlanDayCell", () => {
       fireEvent.dragOver(tuesdayCell as Element);
       fireEvent.drop(tuesdayCell as Element);
 
-      expect(onDrop).toHaveBeenCalledWith({ date: MONDAY, index: 0 }, { date: TUESDAY, index: 0 });
+      expect(onDrop).toHaveBeenCalledWith(
+        { weekId: WEEK, date: MONDAY, index: 0 },
+        { weekId: WEEK, date: TUESDAY, index: 0 },
+      );
     });
 
     // Un fichier lâché depuis le bureau, un texte glissé d'ailleurs : rien n'a été saisi ici.
@@ -166,7 +177,10 @@ describe("PlanDayCell", () => {
       getByRole("button", { name: HANDLE(1) }).focus();
       await user.keyboard("{ArrowDown}");
 
-      expect(onDrop).toHaveBeenCalledWith({ date: MONDAY, index: 0 }, { date: MONDAY, index: 1 });
+      expect(onDrop).toHaveBeenCalledWith(
+        { weekId: WEEK, date: MONDAY, index: 0 },
+        { weekId: WEEK, date: MONDAY, index: 1 },
+      );
     });
   });
 });

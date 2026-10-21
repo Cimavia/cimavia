@@ -27,7 +27,7 @@ import { PlanAccessButton } from "@/feature/plan/component/PlanAccessButton";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
-import { PlanWeekCard } from "@/feature/plan/component/PlanWeekCard";
+import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
 import {
   planDetailQuery,
@@ -52,8 +52,9 @@ import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { ApiError, isStaleWriteError } from "@/shared/lib/api";
 
-// Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour).
-type SessionEdit = { week: PlanWeekDto; date: string; sessionId: string | null };
+// Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour). Pas de
+// semaine : le jour la désigne, et le panneau peut l'envoyer dans une autre (#689).
+type SessionEdit = { date: string; sessionId: string | null };
 
 /**
  * Les cycles à comparer : ceux du coach, MOINS la copie que sa liste porte de celui qu'on regarde,
@@ -207,12 +208,12 @@ export function PlanBuilderScreen() {
   const isMine = isOwner(access);
   const readOnly = !canWrite(access);
 
-  function onOpenCreate(week: PlanWeekDto, date: string) {
-    setEdit({ week, date, sessionId: null });
+  function onOpenCreate(date: string) {
+    setEdit({ date, sessionId: null });
   }
 
-  function onOpenEdit(week: PlanWeekDto, session: ScheduledSessionSummaryDto) {
-    setEdit({ week, date: session.scheduledDate, sessionId: session.id });
+  function onOpenEdit(session: ScheduledSessionSummaryDto) {
+    setEdit({ date: session.scheduledDate, sessionId: session.id });
   }
 
   return (
@@ -332,18 +333,15 @@ export function PlanBuilderScreen() {
           />
         ) : null}
 
-        {plan.weeks.map((week) => (
-          <PlanWeekCard
-            key={week.id}
-            planId={planId}
-            planTitle={plan.title}
-            isPublished={isPublished}
-            readOnly={readOnly}
-            week={week}
-            onAddSession={(date) => onOpenCreate(week, date)}
-            onEditSession={(session) => onOpenEdit(week, session)}
-          />
-        ))}
+        <PlanWeekList
+          planId={planId}
+          planTitle={plan.title}
+          isPublished={isPublished}
+          readOnly={readOnly}
+          weeks={plan.weeks}
+          onAddSession={onOpenCreate}
+          onEditSession={onOpenEdit}
+        />
 
         {readOnly ? null : (
           <div>
@@ -376,6 +374,7 @@ export function PlanBuilderScreen() {
       {edit == null ? null : (
         <SessionPanelHost
           edit={edit}
+          planStartDate={plan.startDate}
           weeks={plan.weeks}
           planId={planId}
           isPublished={isPublished}
@@ -435,7 +434,8 @@ function SharedPlanBanner({ access, owner }: Readonly<{ access: MyAccess; owner:
 
 type SessionPanelHostProps = {
   edit: SessionEdit;
-  // Les semaines telles que le cycle les montre À L'INSTANT : un autre Coach a pu le décaler.
+  // Le cycle tel qu'il se montre À L'INSTANT : un autre Coach a pu le décaler.
+  planStartDate: string;
   weeks: readonly PlanWeekDto[];
   planId: string;
   isPublished: boolean;
@@ -489,7 +489,7 @@ function SessionPanelHost({ edit, weeks, ...props }: Readonly<SessionPanelHostPr
     <ScheduledSessionPanel
       key={generation}
       {...props}
-      week={weeks.find((week) => week.id === edit.week.id) ?? edit.week}
+      weeks={weeks}
       date={edit.date}
       session={session ?? null}
       onReload={() =>

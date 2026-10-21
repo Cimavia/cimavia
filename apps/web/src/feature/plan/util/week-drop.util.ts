@@ -7,6 +7,12 @@ type Identified = { id: string };
 export type DroppedDay = { date: string; sessionIds: string[] };
 
 /**
+ * Une place, sans sa semaine : le calcul n'en a pas besoin (#689). Dans un cycle, deux dates
+ * différentes sont deux journées différentes, qu'elles soient ou non de la même semaine.
+ */
+type DayPlace = Pick<WeekSlot, "date" | "index">;
+
+/**
  * Ce que devient la journée d'ARRIVÉE après un dépôt (#93).
  *
  * Une seule journée est écrite, jamais deux : le tableau DÉFINIT le contenu du jour visé, et le
@@ -20,8 +26,8 @@ export type DroppedDay = { date: string; sessionIds: string[] };
 export function dayAfterDrop(
   source: readonly Identified[],
   target: readonly Identified[],
-  from: WeekSlot,
-  to: WeekSlot,
+  from: DayPlace,
+  to: DayPlace,
 ): DroppedDay | null {
   const moved = source[from.index];
   if (moved == null) return null;

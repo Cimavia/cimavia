@@ -58,8 +58,14 @@ const TITLE = "plan.session.titleLabel";
 const NOTES = "plan.session.notesLabel";
 const TEMPLATE = "plan.session.template";
 
-const week = { id: "week-1", startDate: "2026-09-07" } as PlanWeekDto;
+// Un cycle de deux semaines : le sélecteur « Jour » les couvre toutes deux (#689).
+const PLAN_START = "2026-09-07";
+const WEEKS = [
+  { id: "week-1", weekNumber: 1, startDate: PLAN_START },
+  { id: "week-2", weekNumber: 2, startDate: "2026-09-14" },
+] as PlanWeekDto[];
 const DATE = "2026-09-09";
+const NEXT_WEEK_THURSDAY = "2026-09-17";
 // La version de la séance à l'ouverture : celle qu'enregistrer et supprimer citent (#604).
 const VERSION = "2026-09-01T10:00:00.000Z";
 
@@ -105,7 +111,8 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       planId="plan-1"
       isPublished={false}
       readOnly={false}
-      week={week}
+      planStartDate={PLAN_START}
+      weeks={WEEKS}
       date={DATE}
       session={null}
       athleteName="Léa Bonnet"
@@ -176,6 +183,65 @@ describe("ScheduledSessionPanel", () => {
           sourceSessionId: "tpl-1",
           scheduledDate: DATE,
         }),
+      );
+    });
+  });
+
+  describe("le sélecteur « Jour » (#689)", () => {
+    it("propose tous les jours du cycle, regroupés par semaine", () => {
+      const { getByLabelText } = setup();
+
+      const groups = Array.from(
+        (getByLabelText("plan.session.day") as HTMLSelectElement).querySelectorAll("optgroup"),
+      );
+      expect(groups.map((group) => group.label)).toEqual(["plan.week.number", "plan.week.number"]);
+      expect(groups.map((group) => group.querySelectorAll("option").length)).toEqual([7, 7]);
+    });
+
+    // Le jour choisi désigne la semaine : créer depuis la S1 un jeudi de S2 part dans la S2.
+    it("crée la séance dans la semaine du jour choisi", async () => {
+      createMock.mockResolvedValue(session());
+      const { user, getByRole, getByLabelText } = setup();
+
+      await user.selectOptions(getByLabelText("plan.session.day"), NEXT_WEEK_THURSDAY);
+      await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(createMock).toHaveBeenCalledWith(
+          "week-2",
+          expect.objectContaining({ scheduledDate: NEXT_WEEK_THURSDAY }),
+        ),
+      );
+    });
+
+    // Un autre Coach a retiré la S2 depuis l'ouverture : la création ne saurait où partir.
+    it("refuse de créer sur un jour sorti du cycle, et dit pourquoi", async () => {
+      const { user, getByRole, findByText, onClose } = setup({
+        weeks: WEEKS.slice(0, 1),
+        date: NEXT_WEEK_THURSDAY,
+      });
+
+      await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      expect(await findByText("plan.session.dayOutsideCycle")).toBeInTheDocument();
+      expect(createMock).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("déplace une séance vers une autre semaine du cycle", async () => {
+      updateMock.mockResolvedValue(session());
+      const { user, getByLabelText, getByRole } = setup({ session: session() });
+
+      await user.selectOptions(getByLabelText("plan.session.day"), NEXT_WEEK_THURSDAY);
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(updateMock).toHaveBeenCalledWith(
+          "ss-1",
+          expect.objectContaining({ scheduledDate: NEXT_WEEK_THURSDAY }),
+        ),
       );
     });
   });
@@ -460,7 +526,8 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
         planId="plan-1"
         isPublished={false}
         readOnly={false}
-        week={week}
+        planStartDate={PLAN_START}
+        weeks={WEEKS}
         date={DATE}
         session={session({ updatedAt: "2026-09-02T10:00:00.000Z" })}
         athleteName="Léa Bonnet"
