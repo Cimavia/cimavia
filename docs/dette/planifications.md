@@ -280,7 +280,7 @@ liste des domaines vivent dans l'index.
 
 ---
 
-## Post-MVP — Ordonner et déplacer les séances d'un cycle ([#93](https://github.com/Cimavia/cimavia/issues/93) · [#148](https://github.com/Cimavia/cimavia/issues/148))
+## Post-MVP — Ordonner et déplacer les séances d'un cycle ([#93](https://github.com/Cimavia/cimavia/issues/93) · [#148](https://github.com/Cimavia/cimavia/issues/148) · [#689](https://github.com/Cimavia/cimavia/issues/689))
 
 > **Tranché en #93** (la dette était périmée, l'issue a changé d'objet) : le `SessionBuilder` a le
 > glisser-déposer **depuis son commit de création** — #165 disait « absorbe #93, fermer en la
@@ -299,8 +299,31 @@ liste des domaines vivent dans l'index.
 > séance double le glisser de boutons ↑/↓ ; la case d'un jour, qui fait un septième de la largeur,
 > ne le peut pas. L'issue les prescrivait pourtant. Deux boutons de plus par séance y seraient
 > illisibles, et la poignée porte déjà le chemin clavier — l'esprit de la règle tient, sa lettre
-> non. Le glisser reste **borné à la semaine** : l'état vit dans `PlanWeekCard`, et la route
-> serveur est scopée à une semaine. Deux cycles, ou deux semaines, ne communiquent pas.
+> non. ~~Le glisser reste **borné à la semaine** : l'état vit dans `PlanWeekCard`, et la route
+> serveur est scopée à une semaine. Deux cycles, ou deux semaines, ne communiquent pas.~~
+> **Levé en #689** : le bornage ne s'appuyait sur aucun repli. Le sélecteur « Jour » du panneau ne
+> proposait que les jours de la semaine, et `update` refusait toute autre date : changer une séance
+> de semaine n'existait nulle part, sauf à la supprimer puis la recréer, en perdant son dosage
+> ajusté.
+
+> **Tranché en #689** (une séance change de semaine, jamais de cycle) : c'est la route d'ordre qui
+> s'élargit au cycle, comme elle s'était élargie au jour en #93. Son tableau peut citer une séance
+> de n'importe quelle semaine du cycle, et `writeDay` réécrit `planWeekId` avec la date. Changer de
+> cycle reste refusé : ça peut changer d'athlète, donc le destinataire de la notification et de la
+> facture. Le sélecteur « Jour » du panneau couvre tout le cycle, à la création comme à l'édition :
+> une séance créée part dans la semaine de son jour. C'est le chemin clavier du geste.
+
+> **Tranché en #689** (deux semaines, une seule version citée) : le client cite la version de la
+> semaine d'**arrivée**, celle dont il a lu la journée pour composer le tableau. La semaine de
+> **départ** n'est pas citée, mais elle avance (`lockWeeksInOrder`) : un Coach qui l'a ouverte
+> avant le déplacement reçoit un 409 sur son geste suivant, au lieu d'écraser. Elle avance sous la
+> version que le **serveur** a lue : le jour à recoller en a été déduit hors transaction, et ne vaut
+> que si personne ne l'a changé depuis. Les semaines se verrouillent **dans l'ordre de
+> `weekNumber`**, jamais dans l'ordre du geste : deux déplacements croisés, S1 → S3 et S3 → S1, se
+> tiendraient sinon chacun le verrou que l'autre attend. Un e2e les lance ensemble et attend un 200
+> et un 409, jamais de 500. `touchWeeks` suit le même ordre, une semaine après l'autre : le
+> décalage du cycle, qui les touche toutes par un seul `updateMany`, les verrouillait dans l'ordre
+> de lecture de Postgres et pouvait croiser un déplacement.
 
 > **Tranché en #148** (le sujet d'une notification peut être une DATE, et reste une donnée) :
 > `PLAN_SESSIONS_REORDERED` ne nomme aucune séance — un ORDRE n'appartient à aucune d'elles. Son
