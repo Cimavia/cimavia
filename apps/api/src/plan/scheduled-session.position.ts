@@ -26,12 +26,18 @@ export type PositionedSession = { id: string; position: number; scheduledDate: D
  * des trous (cas d'avant #148) peut occuper un rang supérieur à son propre effectif, et un
  * `+ effectif` fixe retomberait dessus.
  *
- * `scheduledDate` est réécrite sur TOUTE la liste, y compris les séances qui n'ont pas bougé de
- * jour : distinguer coûterait une branche pour économiser une écriture sans effet.
+ * `scheduledDate` et `planWeekId` sont réécrits sur TOUTE la liste, y compris les séances qui
+ * n'ont pas bougé : distinguer coûterait une branche pour économiser une écriture sans effet. La
+ * semaine change avec la date quand une séance vient d'une autre semaine du cycle (#689) — sans
+ * elle, la séance serait datée du jeudi de la S3 et rangée dans la S1.
+ *
+ * Comparer la seule date suffit à reconnaître les séances déjà là : dans un cycle, une date
+ * n'appartient qu'à une semaine.
  */
 export async function writeDay(
   tx: TenantTx,
   ordered: readonly PositionedSession[],
+  planWeekId: string,
   date: Date,
 ): Promise<void> {
   // Une liste vide ne fait rien : aucun `staying`, donc aucun maximum à prendre, et la boucle
@@ -43,7 +49,7 @@ export async function writeDay(
   for (const [index, session] of ordered.entries()) {
     await tx.scheduledSession.update({
       where: { id: session.id },
-      data: { scheduledDate: date, position: parking + index },
+      data: { planWeekId, scheduledDate: date, position: parking + index },
     });
   }
   for (const [index, session] of ordered.entries()) {
@@ -69,5 +75,5 @@ export async function compactDay(tx: TenantTx, planWeekId: string, date: Date): 
   // Déjà contigus : ne rien écrire évite deux `UPDATE` par séance sur chaque suppression.
   if (sessions.every((session, index) => session.position === index)) return;
 
-  await writeDay(tx, sessions, date);
+  await writeDay(tx, sessions, planWeekId, date);
 }
