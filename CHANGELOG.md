@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.14.0](https://github.com/Cimavia/cimavia/compare/v1.13.0...v1.14.0) (2026-10-21)
+
+
+### Fonctionnalités
+
+* **api:** la liste d'exercices filtre sur plusieurs tags, et refuse un tag invalide ([c37dc9b](https://github.com/Cimavia/cimavia/commit/c37dc9ba83095f5ac63e31eacabb0685a2632e49))
+* **api:** une séance change de semaine dans son cycle, semaines verrouillées par numéro ([2bbef6f](https://github.com/Cimavia/cimavia/commit/2bbef6f3f347dc640709020598eac7f7d74f0d72))
+* **shared:** le filtre de tags en prend plusieurs, et passe ce qui porte l'un d'eux ([5550bbc](https://github.com/Cimavia/cimavia/commit/5550bbc23f8585d77438f919cc9fea9fe286839d))
+* **shared:** les jours du cycle groupés par semaine, pour le sélecteur jour du panneau ([a6f62c5](https://github.com/Cimavia/cimavia/commit/a6f62c55a2f8430900ccd326d9c36c9e0a04f0d8))
+* **web:** glisser et sélecteur jour couvrent le cycle, la séance change de semaine ([e0532c9](https://github.com/Cimavia/cimavia/commit/e0532c9a10c285a21691b882352ebaed8c647bc2))
+* **web:** la bibliothèque filtre par plusieurs tags, et un tag choisi garde sa pastille ([e97250a](https://github.com/Cimavia/cimavia/commit/e97250a296757434bc05189cf3a318ae7b979fec))
+* **web:** le sélecteur aligne recherche et filtres sur une ligne, comme la bibliothèque ([8fbe785](https://github.com/Cimavia/cimavia/commit/8fbe78529da37ff24ba34b5ea9c2d9d31e3b7d2b))
+* **web:** le sélecteur de séance en tableau comme la bibliothèque, dosage en colonne ([cee67e3](https://github.com/Cimavia/cimavia/commit/cee67e3ae30b0374bc5d1bdf255e5c9a5326eaee))
+* **web:** quitter une saisie non enregistrée propose de l'enregistrer avant de partir ([8f33029](https://github.com/Cimavia/cimavia/commit/8f3302943a529903e668321a49cc66074ac1b89a))
+* **web:** un second enregistrement lancé pendant l'envoi rejoint celui en vol ([a0daa5f](https://github.com/Cimavia/cimavia/commit/a0daa5f21235795c3a183ab28bfd44f05a0e19fb))
+
+
+### Corrections
+
+* **api:** l'api joint silo hors cloudflare, un refus du storage répond 502 avec sa cause ([72712fb](https://github.com/Cimavia/cimavia/commit/72712fb7d9c584ee7da762afc23ed54a183979fe))
+* **deps:** les six transitives alertées montent au correctif de leur majeure ([0030ab0](https://github.com/Cimavia/cimavia/commit/0030ab0e3d8b223cf592229cb48cedda7703edb6))
+* **shared:** apierrormessage tait les 5xx, écrits pour les logs et pas pour le coach ([eac99c3](https://github.com/Cimavia/cimavia/commit/eac99c3874b032e0c283c36585b59264ad33349c))
+* **web:** changer de compte oublie l'enregistrement annulé et dit quand il échoue ([bce8519](https://github.com/Cimavia/cimavia/commit/bce8519149d5c4860108e56135e67703921556f4))
+* **web:** un document qui ne se joint pas est nommé, et l'exercice se dit enregistré ([4582ba4](https://github.com/Cimavia/cimavia/commit/4582ba4a1c89890603008e94807c6c22db3ea39a))
+* **web:** un geste lancé pendant l'envoi l'attend puis reste, sans perdre la saisie ([53bce9d](https://github.com/Cimavia/cimavia/commit/53bce9dcce69aeea16b51f4df049fe09684f6b59))
+
+
+### Technique
+
+* chaque suite de tests a son runner, un agrégateur garde le check requis sous son nom ([6a8a6fb](https://github.com/Cimavia/cimavia/commit/6a8a6fb47516d94b8f659c18da81bd39377ee2d8))
+* les délais maximaux des jobs suivent leur durée mesurée, et le web n'est pas découpé ([1af2615](https://github.com/Cimavia/cimavia/commit/1af2615b21601e4e6a6e0adc5a4106b5ecc10662))
+* **mutation:** main mesure shared à chaque merge, et les pr ne relisent plus que son cache ([39e86fd](https://github.com/Cimavia/cimavia/commit/39e86fd3b4226360ee7c0c18a0e68779f7291ddd))
+* pnpm 10.34.7 partout, rattrape la majeure 10 sans faille à corriger ([e17f7f8](https://github.com/Cimavia/cimavia/commit/e17f7f8fa5b914e0cdc61dd784a17f02e5fed738))
+* **web:** la garde de sortie se réarme dans un effet, plus pendant le rendu ([b385bcd](https://github.com/Cimavia/cimavia/commit/b385bcddeef47d35c54aaad2afcfd230211b2ce8))
+* **web:** les cellules communes de la bibliothèque extraites, pour un second tableau ([07ec192](https://github.com/Cimavia/cimavia/commit/07ec192ceb7631698efe03c5d55b41063bd4190f))
+* **web:** les pastilles à choix unique retirées, plus aucun écran ne s'en sert ([561f861](https://github.com/Cimavia/cimavia/commit/561f8612d08d9bcd34e1d03583434f944e0c0be9))
+
 ## [1.13.0](https://github.com/Cimavia/cimavia/compare/v1.12.1...v1.13.0) (2026-10-19)
 
 
