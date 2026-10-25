@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.1](https://github.com/Cimavia/cimavia/compare/v1.15.0...v1.15.1) (2026-10-25)
+
+
+### Corrections
+
+* **mobile:** lecteur natif créé à l'engagement d'une note vocale, and… ([864e1b8](https://github.com/Cimavia/cimavia/commit/864e1b82474ed674adaf37d4e804803fafa5a708))
+* **mobile:** lecteur natif créé à l'engagement d'une note vocale, android plafonne à 100 ([e2ddd8a](https://github.com/Cimavia/cimavia/commit/e2ddd8a225bc166518778e618084408c1aab5caa))
+
 ## [1.15.0](https://github.com/Cimavia/cimavia/compare/v1.14.0...v1.15.0) (2026-10-25)
 
 
