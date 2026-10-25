@@ -83,16 +83,39 @@ describe("sessionBlockSchema", () => {
     expect(issuesOf(sessionBlockSchema, block("b1", ["a", "b"], { settings }))).toEqual([]);
   });
 
-  it("refuse une grille qui a plus de lignes que le bloc n'a de tours", () => {
-    const withRows = (count: number) =>
-      exercise("a", { grid: gridOf([reps], ...Array.from({ length: count }, () => [6])) });
-    const parse = (settings: object, count: number) =>
-      issuesOf(sessionBlockSchema, { ...block("b1", []), settings, exercises: [withRows(count)] });
+  it("refuse une grille qui a plus de lignes que l'exercice n'a de tours", () => {
+    const withRows = (key: string, count: number) =>
+      exercise(key, { grid: gridOf([reps], ...Array.from({ length: count }, () => [6])) });
+    const parse = (settings: object, ...counts: number[]) =>
+      issuesOf(sessionBlockSchema, {
+        ...block("b1", []),
+        settings,
+        exercises: counts.map((count, index) => withRows(`e${index}`, count)),
+      });
     expect(parse(presets.SERIES, 4)).toEqual([]);
     expect(parse(presets.SERIES, 5)).toEqual([
-      "exercises.0.grid.rows: La grille a plus de lignes que le bloc n'a de tours.",
+      "exercises.0.grid.rows: La grille a plus de lignes que l'exercice n'a de tours ou de passages.",
     ]);
     expect(parse(presets.FREE, 2)).toHaveLength(1);
+  });
+
+  it("borne chaque exercice à ses passages avec un seul par bip", () => {
+    const tenBeeps = oneByBeep(60, 10);
+    const parse = (...counts: number[]) =>
+      issuesOf(sessionBlockSchema, {
+        ...block("b1", []),
+        settings: tenBeeps,
+        exercises: counts.map((count, index) =>
+          exercise(`e${index}`, {
+            grid: gridOf([reps], ...Array.from({ length: count }, () => [6])),
+          }),
+        ),
+      });
+    // 10 bips, 3 exercices : le premier passe 4 fois, les deux autres 3.
+    expect(parse(4, 3, 3)).toEqual([]);
+    expect(parse(4, 4, 3)).toEqual([
+      "exercises.1.grid.rows: La grille a plus de lignes que l'exercice n'a de tours ou de passages.",
+    ]);
   });
 
   it("taille le nom et le libellé, et les borne", () => {

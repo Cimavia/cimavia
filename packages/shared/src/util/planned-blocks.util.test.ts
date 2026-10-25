@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { gridOf, load, presets, reps, rounds, settingsOf } from "../../test/block-fixtures";
+import {
+  gridOf,
+  load,
+  oneByBeep,
+  presets,
+  reps,
+  rounds,
+  settingsOf,
+} from "../../test/block-fixtures";
 import type { MetricValue } from "../dto/exercise-metric.schema";
 import { CompositionOrigin, type ScheduledBlockExercise } from "../dto/session-block.schema";
 import type { StructureSettings } from "../dto/structure.schema";
@@ -127,93 +135,129 @@ describe("plannedChanges", () => {
       });
     });
 
+    /** Les cellules changées, « tour:colonne=valeur de la référence ». */
+    const cells = (changes: ReturnType<typeof plannedChanges>) =>
+      changes.values.map((change) =>
+        change.kind === ValueChangeKind.CELL
+          ? `${change.rowIndex}:${change.metricId === reps.id ? "reps" : "load"}=${change.was}`
+          : change.field,
+      );
+    const toursOf = (count: number) => ({ ...presets.SERIES, repeat: rounds(count) });
+    const compare = (count: number, reference: MetricValue[][], plannedRows: MetricValue[][]) =>
+      cells(
+        plannedChanges(
+          [blockOf([{ key: "a", grid: gridOf([reps, load], ...reference) }], toursOf(count))],
+          [
+            blockOf(
+              [{ ...planned(RECEIVED, "a"), grid: gridOf([reps, load], ...plannedRows) }],
+              toursOf(count),
+            ),
+          ],
+        ),
+      );
+
     it("compte une cellule changée, et une cellule vidée, qui ne vaut pas zéro", () => {
-      const reference = [blockOf([exercise("a", [6, 60], [6, 60])])];
-      const changes = plannedChanges(reference, [blockOf([planned(RECEIVED, "a", [6, 65], [6])])]);
-      expect(changes.values).toEqual([
-        {
-          kind: ValueChangeKind.CELL,
-          blockIndex: 0,
-          exerciseKey: "a",
-          rowIndex: 0,
-          metricId: load.id,
-          was: 60,
-        },
-        {
-          kind: ValueChangeKind.CELL,
-          blockIndex: 0,
-          exerciseKey: "a",
-          rowIndex: 1,
-          metricId: load.id,
-          was: 60,
-        },
-      ]);
-    });
-
-    it("compare une ligne en plus à la dernière de la référence : seules ses retouches comptent", () => {
-      const reference = [blockOf([exercise("a", [6, 60], [8, 50])])];
+      const reference = [blockOf([exercise("a", [6, 60], [6, 60])], toursOf(2))];
       const changes = plannedChanges(reference, [
-        blockOf([planned(RECEIVED, "a", [6, 60], [8, 50], [8, 50], [10, 50])]),
+        blockOf([planned(RECEIVED, "a", [6, 65], [6])], toursOf(2)),
       ]);
-      expect(changes.values).toEqual([
-        {
-          kind: ValueChangeKind.CELL,
-          blockIndex: 0,
-          exerciseKey: "a",
-          rowIndex: 3,
-          metricId: reps.id,
-          was: 8,
-        },
-      ]);
-    });
-
-    it("compare une grille réduite à une ligne à chaque tour de la référence", () => {
-      const reference = [blockOf([exercise("a", [6, 60], [5, 60], [4, 60])])];
-      const changes = plannedChanges(reference, [blockOf([planned(RECEIVED, "a", [6, 60])])]);
       expect(changes.values).toEqual(
-        [1, 2].map((rowIndex) => ({
+        [0, 1].map((rowIndex) => ({
           kind: ValueChangeKind.CELL,
           blockIndex: 0,
           exerciseKey: "a",
           rowIndex,
-          metricId: reps.id,
-          was: 6 - rowIndex,
+          metricId: load.id,
+          was: 60,
         })),
       );
     });
 
+    it("compare une ligne en plus à la dernière de la référence : seules ses retouches comptent", () => {
+      expect(
+        compare(
+          4,
+          [
+            [6, 60],
+            [8, 50],
+          ],
+          [
+            [6, 60],
+            [8, 50],
+            [8, 50],
+            [10, 50],
+          ],
+        ),
+      ).toEqual(["3:reps=8"]);
+    });
+
+    it("compare une grille réduite à une ligne à chaque tour de la référence", () => {
+      expect(
+        compare(
+          3,
+          [
+            [6, 60],
+            [5, 60],
+            [4, 60],
+          ],
+          [[6, 60]],
+        ),
+      ).toEqual(["1:reps=5", "2:reps=4"]);
+    });
+
+    it("compte une ligne retouchée sur chaque tour où elle vaut, des deux côtés", () => {
+      expect(
+        compare(
+          4,
+          [[6, 60]],
+          [
+            [6, 60],
+            [8, 60],
+          ],
+        ),
+      ).toEqual(["1:reps=6", "2:reps=6", "3:reps=6"]);
+    });
+
     it("compte un tour retiré dans les tours du bloc seulement, pas dans ses cellules", () => {
       const reference = [blockOf([exercise("a", [6, 60], [5, 60], [4, 60], [3, 60])])];
-      const fewer = { ...presets.SERIES, repeat: rounds(3) };
       const changes = plannedChanges(reference, [
-        blockOf([planned(RECEIVED, "a", [6, 60], [5, 60], [4, 60])], fewer),
+        blockOf([planned(RECEIVED, "a", [6, 60], [5, 60], [4, 60])], toursOf(3)),
       ]);
-      expect(changes.values).toEqual([
-        { kind: ValueChangeKind.SETTING, blockIndex: 0, field: SettingValue.ROUNDS, was: 4 },
-      ]);
+      expect(cells(changes)).toEqual([SettingValue.ROUNDS]);
     });
 
     it("compte comme vidée chaque cellule d'une grille planifiée sans ligne", () => {
-      const reference = [blockOf([exercise("a", [6, 60], [5, 60])])];
-      const changes = plannedChanges(reference, [
-        blockOf([{ ...planned(RECEIVED, "a"), grid: gridOf([reps, load]) }]),
-      ]);
-      expect(changes.values.map((change) => change.was)).toEqual([6, 60, 5, 60]);
+      expect(
+        compare(
+          2,
+          [
+            [6, 60],
+            [5, 60],
+          ],
+          [],
+        ),
+      ).toEqual(["0:reps=6", "0:load=60", "1:reps=5", "1:load=60"]);
     });
 
-    it("compte une cellule remplie là où la référence n'a aucune ligne", () => {
-      const reference = [blockOf([{ key: "a", grid: gridOf([reps, load]) }])];
-      const changes = plannedChanges(reference, [blockOf([planned(RECEIVED, "a", [6])])]);
-      expect(changes.values).toEqual([
-        {
-          kind: ValueChangeKind.CELL,
-          blockIndex: 0,
-          exerciseKey: "a",
-          rowIndex: 0,
-          metricId: reps.id,
-          was: null,
-        },
-      ]);
+    it("compte une cellule remplie là où la référence n'a aucune ligne, sur chaque tour", () => {
+      expect(compare(2, [], [[6]])).toEqual(["0:reps=null", "1:reps=null"]);
+    });
+
+    it("compare chaque exercice sur ses propres passages avec un seul par bip", () => {
+      // 5 bips, 2 exercices : le premier passe 3 fois, le second 2.
+      const block = (b: MetricValue) =>
+        blockOf(
+          [
+            { ...planned(RECEIVED, "a"), grid: gridOf([reps], [6]) },
+            { ...planned(RECEIVED, "b"), grid: gridOf([reps], [b]) },
+          ],
+          oneByBeep(60, 5),
+        );
+      expect(
+        plannedChanges([block(6)], [block(8)]).values.map(
+          (change) => change.kind === ValueChangeKind.CELL && change.rowIndex,
+        ),
+      ).toEqual([0, 1]);
     });
 
     it("ne compare pas les valeurs d'un remplaçant ni d'un ajout : c'est de la composition", () => {

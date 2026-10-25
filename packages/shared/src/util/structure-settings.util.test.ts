@@ -134,14 +134,18 @@ describe("l'ordre des exercices", () => {
 
 describe("gridRowLimit", () => {
   it("donne une ligne par tour ou par série, une par passage avec un seul par bip", () => {
-    expect(gridRowLimit(presets.SERIES, 2)).toBe(4);
-    expect(gridRowLimit(oneByBeep(60, 10), 3)).toBe(4);
-    expect(gridRowLimit(oneByBeep(60, 10), 2)).toBe(5);
+    expect(gridRowLimit(presets.SERIES, 2, 1)).toBe(4);
+    expect(gridRowLimit(oneByBeep(60, 10), 2, 1)).toBe(5);
+  });
+
+  it("donne aux premiers un passage de plus quand le compte ne tombe pas juste", () => {
+    expect([0, 1, 2].map((index) => gridRowLimit(oneByBeep(60, 10), 3, index))).toEqual([4, 3, 3]);
+    expect([0, 1, 2].map((index) => gridRowLimit(oneByBeep(60, 8), 3, index))).toEqual([3, 3, 2]);
   });
 
   it("donne une seule ligne à un bloc fait une fois ou autant que possible", () => {
-    expect(gridRowLimit(presets.FREE, 3)).toBe(1);
-    expect(gridRowLimit(presets.AMRAP, 3)).toBe(1);
+    expect(gridRowLimit(presets.FREE, 3, 0)).toBe(1);
+    expect(gridRowLimit(presets.AMRAP, 3, 0)).toBe(1);
   });
 });
 

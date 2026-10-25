@@ -163,14 +163,27 @@ export function roundsError(settings: StructureSettings, exerciseCount: number):
 
 /**
  * Le plus de lignes que la grille d'un exercice puisse avoir : une par tour, par série, ou par
- * passage de l'exercice avec un seul par bip ; une seule quand le bloc se fait une fois ou autant
- * que possible. Moins de lignes est permis : la dernière vaut pour les suivantes.
+ * passage de l'exercice avec un seul par bip — les premiers passent une fois de plus quand le
+ * compte ne tombe pas juste, d'où son rang `exerciseIndex` ; une seule quand le bloc se fait une
+ * fois ou autant que possible. Moins de lignes est permis : la dernière vaut pour les suivantes.
  */
-export function gridRowLimit(settings: StructureSettings, exerciseCount: number): number {
+export function gridRowLimit(
+  settings: StructureSettings,
+  exerciseCount: number,
+  exerciseIndex: number,
+): number {
   const { repeat } = settings;
   if (repeat.kind !== StructureRepeat.ROUNDS) return 1;
-  if (oneAtATime(settings, exerciseCount)) return Math.ceil(repeat.rounds / exerciseCount);
+  if (oneAtATime(settings, exerciseCount)) {
+    return passesOf(repeat.rounds, exerciseCount, exerciseIndex);
+  }
   return repeat.rounds;
+}
+
+/** Combien de fois passe l'exercice de rang `index`, un seul par bip : les premiers, une de plus. */
+function passesOf(rounds: number, exerciseCount: number, index: number): number {
+  const extra = index < rounds % exerciseCount ? 1 : 0;
+  return Math.floor(rounds / exerciseCount) + extra;
 }
 
 // ── La durée déduite ────────────────────────────────────────────────────────────────────────

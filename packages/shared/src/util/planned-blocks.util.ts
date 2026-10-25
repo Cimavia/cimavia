@@ -75,10 +75,10 @@ export type PlannedChanges = { composition: CompositionChange[]; values: ValueCh
  *   exercice reçu que la référence n'a plus, ou le remplaçant d'un exercice qu'elle n'a plus, n'a
  *   rien à quoi revenir : il compte comme ajouté.
  * - Les valeurs ne se comparent que pour les exercices présents des deux côtés, TOUR PAR TOUR :
- *   `rowIndex` est le rang du tour, pas celui d'une ligne de la grille planifiée. Une grille plus
- *   courte que ses tours vaut, par sa dernière ligne, pour les tours suivants ; un tour en plus se
- *   compare à la dernière ligne de la référence, qu'il recopie. Un tour retiré ne compte qu'une
- *   fois, dans les tours du bloc : ses cellules ne se comparent pas.
+ *   `rowIndex` est le rang du tour (ou du passage), pas celui d'une ligne de la grille planifiée.
+ *   Des deux côtés, une grille plus courte que ses tours vaut par sa dernière ligne pour les tours
+ *   suivants ; un tour en plus se compare donc à la dernière ligne de la référence, qu'il recopie.
+ *   Un tour retiré ne compte qu'une fois, dans les tours du bloc : ses cellules ne se comparent pas.
  */
 export function plannedChanges(
   reference: readonly ReferenceBlock[],
@@ -126,9 +126,9 @@ function blockChanges(
   );
   const composition: CompositionChange[] = [];
   const values = settingChanges(blockIndex, reference.settings, block.settings);
-  const rowLimit = gridRowLimit(block.settings, block.exercises.length);
+  const exerciseCount = block.exercises.length;
 
-  for (const exercise of block.exercises) {
+  for (const [exerciseIndex, exercise] of block.exercises.entries()) {
     const match = byPlace.get(referencePlaceOf(exercise));
     if (match == null) {
       composition.push({ kind: CompositionChangeKind.ADDED, blockIndex, key: exercise.key });
@@ -140,7 +140,8 @@ function blockChanges(
         replacedKey: match.key,
       });
     } else {
-      values.push(...cellChanges(blockIndex, match, exercise, rowLimit));
+      const tours = gridRowLimit(block.settings, exerciseCount, exerciseIndex);
+      values.push(...cellChanges(blockIndex, match, exercise, tours));
     }
   }
 
@@ -172,20 +173,19 @@ function cellAt(grid: BlockGrid, rowIndex: number, metricId: string): MetricValu
 }
 
 /**
- * Les cellules qui diffèrent, tour par tour. Une grille réduite à une ligne vaut pour tous les
- * tours, et se compare donc à chaque ligne de la référence — mais pas au-delà des tours que le bloc
- * planifié garde (`rowLimit`) : un tour retiré se compte déjà dans les tours du bloc.
+ * Les cellules qui diffèrent, sur chacun des `tours` de l'exercice dans le bloc planifié — ses
+ * tours, ses séries ou ses passages. Des deux côtés, la dernière ligne vaut pour les tours suivants :
+ * une ligne retouchée se compte sur chaque tour où elle vaut. Un tour retiré n'est pas comparé, il
+ * se compte déjà dans les tours du bloc.
  * Les colonnes ne bougent pas au niveau planifié : seules celles de la séance se comparent.
  */
 function cellChanges(
   blockIndex: number,
   reference: ReferenceExercise,
   planned: ReferenceExercise,
-  rowLimit: number,
+  tours: number,
 ): ValueChange[] {
-  const referenceRows = Math.min(reference.grid.rows.length, rowLimit);
-  const rowCount = Math.max(referenceRows, planned.grid.rows.length);
-  return Array.from({ length: rowCount }, (_unused, rowIndex) =>
+  return Array.from({ length: tours }, (_unused, rowIndex) =>
     planned.grid.metrics.flatMap((metric): ValueChange[] => {
       const was = cellAt(reference.grid, rowIndex, metric.id);
       if (cellAt(planned.grid, rowIndex, metric.id) === was) return [];

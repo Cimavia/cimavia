@@ -128,14 +128,15 @@ function refineBlock(block: BlockLike, context: z.RefinementCtx): void {
       path: ["settings"],
       message: "« Un seul par… » demande au moins autant de bips ou d'intervalles que d'exercices.",
     });
+    // Un exercice qui ne passe jamais n'a pas de borne de lignes à tenir : le refus est déjà dit.
+    return;
   }
-  const rowLimit = gridRowLimit(block.settings, exerciseCount);
   block.exercises.forEach((exercise, index) => {
-    if (exercise.grid.rows.length > rowLimit) {
+    if (exercise.grid.rows.length > gridRowLimit(block.settings, exerciseCount, index)) {
       context.addIssue({
         code: "custom",
         path: ["exercises", index, "grid", "rows"],
-        message: "La grille a plus de lignes que le bloc n'a de tours.",
+        message: "La grille a plus de lignes que l'exercice n'a de tours ou de passages.",
       });
     }
   });
