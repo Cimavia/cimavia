@@ -2,6 +2,17 @@ import { required, type SessionBlock } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { toJsonInput } from "../util/block-json.util";
+import { type BlockContent, blockContentOf } from "./session-block.mapper";
+
+/** Les colonnes du contenu d'un bloc, écrites de la même façon aux deux niveaux. */
+export function toBlockContentData(block: BlockContent) {
+  const content = blockContentOf(block);
+  return {
+    ...content,
+    settings: toJsonInput(content.settings),
+    copiedSettings: toJsonInput(content.copiedSettings),
+  };
+}
 
 /**
  * Écrit la composition par blocs d'une séance (#716) : ses blocs, puis leurs exercices d'un seul
@@ -29,13 +40,7 @@ export async function insertSessionBlocks(
         data: {
           sessionId,
           position,
-          name: block.name,
-          label: block.label,
-          instructions: block.instructions,
-          settings: toJsonInput(block.settings),
-          copiedSettings: toJsonInput(block.copiedSettings),
-          sourceStructureId: block.sourceStructureId,
-          sourcePreset: block.sourcePreset,
+          ...toBlockContentData(block),
         } satisfies Omit<
           Prisma.SessionBlockUncheckedCreateInput,
           "coachId"

@@ -2,6 +2,7 @@ import {
   CompositionOrigin,
   required,
   type ScheduledSessionBlockDto,
+  type SessionBlock,
   type SessionBlockDto,
 } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
@@ -13,14 +14,16 @@ import {
 } from "../util/block-json.util";
 
 /**
- * Les blocs d'une séance ordonnés, et leurs exercices dans l'ordre du bloc. Inclus À TRAVERS la
- * séance, comme ses exercices : la couche d'isolation ne scope pas un `include` imbriqué, et la
- * séance est déjà prouvée lisible.
+ * Les blocs d'une séance ordonnés, et leurs exercices dans l'ordre du bloc — la même lecture aux
+ * deux niveaux. Inclus À TRAVERS la séance, comme ses exercices : la couche d'isolation ne scope
+ * pas un `include` imbriqué, et la séance est déjà prouvée lisible.
  */
-export const SESSION_BLOCKS_INCLUDE = {
+const BLOCKS_INCLUDE = {
   orderBy: { position: "asc" },
   include: { exercises: { orderBy: { blockPosition: "asc" } } },
-} satisfies Prisma.Session$blocksArgs;
+} as const;
+
+export const SESSION_BLOCKS_INCLUDE = BLOCKS_INCLUDE satisfies Prisma.Session$blocksArgs;
 
 type BlockRow = Pick<
   Prisma.SessionBlockGetPayload<object>,
@@ -46,14 +49,34 @@ export function toBlockFields(block: BlockRow) {
   return { id: block.id, ...toBlockContent(block) };
 }
 
-/** Le contenu d'un bloc sans son identifiant : ce qu'une copie reprend. */
 function toBlockContent(block: BlockRow) {
+  return blockContentOf({
+    ...block,
+    settings: parseSettings(block.settings),
+    copiedSettings: parseSettings(block.copiedSettings),
+  });
+}
+
+/** Le contenu d'un bloc sans son identifiant ni ses exercices : ce qu'une copie reprend. */
+export type BlockContent = Pick<
+  SessionBlock,
+  | "name"
+  | "label"
+  | "instructions"
+  | "settings"
+  | "copiedSettings"
+  | "sourceStructureId"
+  | "sourcePreset"
+>;
+
+/** Le seul endroit qui énumère le contenu d'un bloc : la lecture, l'écriture et la copie. */
+export function blockContentOf(block: BlockContent): BlockContent {
   return {
     name: block.name,
     label: block.label,
     instructions: block.instructions,
-    settings: parseSettings(block.settings),
-    copiedSettings: parseSettings(block.copiedSettings),
+    settings: block.settings,
+    copiedSettings: block.copiedSettings,
     sourceStructureId: block.sourceStructureId,
     sourcePreset: block.sourcePreset,
   };
@@ -91,12 +114,13 @@ type SessionBlockWithExercises = Prisma.SessionBlockGetPayload<{
  * et la référence contre laquelle sa composition et ses valeurs se compteront (`plannedChanges`).
  */
 export function receivedBlockOf(block: SessionBlockWithExercises) {
-  const content = toBlockContent(block);
+  // Lu une seule fois : le contenu et la référence partagent les mêmes réglages parsés.
+  const read = toSessionBlockDto(block);
   return {
-    ...content,
+    ...blockContentOf(read),
     baseline: {
-      settings: content.settings,
-      exercises: toSessionBlockDto(block).exercises.map(({ key, exerciseId, note, grid }) => ({
+      settings: read.settings,
+      exercises: read.exercises.map(({ key, exerciseId, note, grid }) => ({
         key,
         exerciseId,
         note,
@@ -106,11 +130,8 @@ export function receivedBlockOf(block: SessionBlockWithExercises) {
   };
 }
 
-/** Les blocs d'une séance planifiée, comme ceux de la séance-type. */
-export const SCHEDULED_SESSION_BLOCKS_INCLUDE = {
-  orderBy: { position: "asc" },
-  include: { exercises: { orderBy: { blockPosition: "asc" } } },
-} satisfies Prisma.ScheduledSession$blocksArgs;
+export const SCHEDULED_SESSION_BLOCKS_INCLUDE =
+  BLOCKS_INCLUDE satisfies Prisma.ScheduledSession$blocksArgs;
 
 type ScheduledBlockExerciseRow = BlockExerciseRow & {
   origin: CompositionOrigin | null;
