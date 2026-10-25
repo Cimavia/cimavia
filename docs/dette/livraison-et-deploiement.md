@@ -402,6 +402,26 @@ liste des domaines vivent dans l'index.
 > chez Sentry). La ligne de journal de la requête porte `problemType`. Le 503 de `/health/ready`
 > perd son corps `{ status: "degraded", database: "down" }` : les sondes ne lisent que le statut,
 > `detail` nomme la base.
+>
+> **Tranché en #699** (ce que le web et le mobile envoient à Sentry, épic
+> [#696](https://github.com/Cimavia/cimavia/issues/696)) :
+> - **Le client ne signale que ce que l'API n'a pas pu voir** : une `ApiError` dont `fromApi` est
+>   faux (page de cloudflared, portail captif, corps vide), une panne réseau alors que l'appareil se
+>   croit en ligne, toute erreur qui n'est pas une `ApiError` (un bug dans un `queryFn` ou un
+>   `select`). Une réponse que l'API a écrite, 4xx comme 5xx, n'est pas reprise : #697 l'a déjà
+>   capturée, la reprendre ferait un doublon par incident. La décision est
+>   `shouldReportQueryError` (`@cmv/shared`) ; l'appel au SDK reste dans l'`onError` des deux
+>   caches, web et mobile.
+> - **Hors-ligne, rien ne part** (`onlineManager.isOnline()`), exceptions du client comprises : l'athlète
+>   en salle sans réseau est le cas d'usage de la lecture hors-ligne, et un vrai bug se reproduit
+>   en ligne. **Le 401 non plus**, écrit par l'API ou non : la session perdue est un signal
+>   (#336), pas une panne — #697 l'écarte de même.
+> - **Better Auth n'a pas besoin d'être écarté à part** : ses routes ne passent pas par le client
+>   d'API (donc jamais d'`ApiError`), et les écrans d'auth lisent son `{ error }` au lieu de le
+>   lever. Si l'un d'eux levait un jour cette erreur dans une mutation, elle partirait comme un
+>   bug du client : le traiter avant, à l'appelant.
+> - **Aucun lien entre l'événement du client et celui de l'API** : les traces restent coupées côté
+>   client (`tracesSampleRate: 0`), ce n'est pas l'objet de #699.
 
 ---
 

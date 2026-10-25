@@ -1,4 +1,6 @@
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { shouldReportQueryError } from "@cmv/shared";
+import * as Sentry from "@sentry/react";
+import { MutationCache, onlineManager, QueryCache, QueryClient } from "@tanstack/react-query";
 import { isUnauthorizedError } from "@/shared/lib/api";
 
 /** Un seul nouvel essai sur une lecture qui échoue — une coupure brève n'affiche pas d'erreur. */
@@ -18,12 +20,17 @@ const QUERY_RETRY_COUNT = 1;
  * exactement la perte que le constat reprochait. Une seule source de décision pour les deux
  * chemins qui découvrent la perte : un 401 de l'API, et le retour sur l'onglet.
  *
+ * Il signale aussi à Sentry ce que l'API n'a pas pu voir (#699) : sa réponse illisible (proxy,
+ * portail captif), le réseau coupé en ligne, un bug du client dans un `queryFn`. Ce que l'API a
+ * écrit, elle l'a déjà capturé (#697). La décision vit dans `shouldReportQueryError`.
+ *
  * Posé sur les CACHES et non dans `defaultOptions` : un `onError` d'écran remplace celui des
  * options par défaut, alors que celui du cache s'exécute toujours, en plus.
  */
 export function createQueryClient(onUnauthorized: () => void): QueryClient {
   const onError = (error: unknown) => {
     if (isUnauthorizedError(error)) onUnauthorized();
+    if (shouldReportQueryError(error, onlineManager.isOnline())) Sentry.captureException(error);
   };
 
   return new QueryClient({

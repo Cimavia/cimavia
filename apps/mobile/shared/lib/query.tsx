@@ -1,7 +1,19 @@
-import { coachFeedbackKeys, messageKeys, myFeedbackKeys } from "@cmv/shared";
+import {
+  coachFeedbackKeys,
+  messageKeys,
+  myFeedbackKeys,
+  shouldReportQueryError,
+} from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Sentry from "@sentry/react-native";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
+import {
+  focusManager,
+  MutationCache,
+  onlineManager,
+  QueryCache,
+  QueryClient,
+} from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { addNetworkStateListener } from "expo-network";
 import type { ReactNode } from "react";
@@ -15,7 +27,18 @@ const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Les données restent « fraîches » 5 min : pas de rafale de requêtes en changeant d'onglet.
 const STALE_TIME_MS = 5 * 60 * 1000;
 
+/**
+ * Ce que l'API n'a pas pu voir part chez Sentry (#699) : une réponse illisible, un bug du client.
+ * Hors-ligne, l'échec est le cas d'usage — l'athlète en salle sans réseau — et ne part pas. Posé
+ * sur les CACHES, pour que l'`onError` d'un écran ne le remplace pas.
+ */
+function reportToSentry(error: unknown): void {
+  if (shouldReportQueryError(error, onlineManager.isOnline())) Sentry.captureException(error);
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: reportToSentry }),
+  mutationCache: new MutationCache({ onError: reportToSentry }),
   defaultOptions: {
     queries: {
       staleTime: STALE_TIME_MS,

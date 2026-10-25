@@ -1022,6 +1022,7 @@ export {
   snoozedDueAt,
   toReminderFeedId,
 } from "./util/reminder.util";
+export { shouldReportQueryError } from "./util/report-query-error.util";
 export { sameJson } from "./util/same-json.util";
 export { comparableText, searchMatcher } from "./util/search.util";
 export { sentryDataCollection } from "./util/sentry-data-collection.util";

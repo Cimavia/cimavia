@@ -1,9 +1,10 @@
-import { coachFeedbackKeys, messageKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import { ApiError, coachFeedbackKeys, messageKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
+import * as Sentry from "@sentry/react-native";
 import { focusManager, onlineManager, QueryClient, useQueryClient } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { NetworkState } from "expo-network";
 import { AppState, type AppStateStatus } from "react-native";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { storedItems } from "@/test/setup";
 
 // `expo-network` est natif : le module de production s'y abonne au CHARGEMENT, donc l'import
@@ -84,6 +85,69 @@ describe("resetQueryCache", () => {
 
   it("ne se plaint pas quand il n'y a rien à effacer", async () => {
     await expect(resetQueryCache()).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * Ce que l'API n'a pas pu voir part chez Sentry (#699). La décision, cas par cas, est éprouvée dans
+ * `@cmv/shared` ; ici, le câblage — et le client est celui du PROVIDER, pas une copie.
+ */
+describe("signalement à Sentry", () => {
+  const failing = (error: unknown) => () => Promise.reject(error);
+
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
+  it("signale la réponse que l'API n'a pas écrite, sur une lecture", async () => {
+    const proxyPage = new ApiError(502, "Erreur 502", null, false);
+
+    await mountedClient()
+      .fetchQuery({ queryKey: ["sentry", "read"], queryFn: failing(proxyPage), retry: false })
+      .catch(() => {});
+
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(proxyPage);
+  });
+
+  it("signale un bug du client levé dans un enregistrement", async () => {
+    const client = mountedClient();
+    const bug = new TypeError("x is undefined");
+
+    await client
+      .getMutationCache()
+      .build(client, { mutationFn: failing(bug) })
+      .execute(undefined)
+      .catch(() => {});
+
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(bug);
+  });
+
+  it("ne reprend pas la réponse que l'API a écrite : elle l'a déjà capturée (#697)", async () => {
+    await mountedClient()
+      .fetchQuery({
+        queryKey: ["sentry", "api-written"],
+        queryFn: failing(new ApiError(500, "Boum", null, true)),
+        retry: false,
+      })
+      .catch(() => {});
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  // L'athlète en salle sans réseau : c'est le cas d'usage de la lecture hors-ligne.
+  it("ne signale rien hors-ligne", async () => {
+    onlineManager.setOnline(false);
+
+    await mountedClient()
+      .fetchQuery({
+        queryKey: ["sentry", "offline"],
+        queryFn: failing(new TypeError("Network request failed")),
+        retry: false,
+        networkMode: "always",
+      })
+      .catch(() => {});
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });
 
