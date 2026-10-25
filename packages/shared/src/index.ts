@@ -127,9 +127,10 @@ export {
   suggestedMetricSchema,
   suggestedMetricsSchema,
 } from "./dto/block-grid.schema";
-export type { SessionBlockTracking } from "./dto/block-tracking.schema";
+export type { BlockCheck, SessionBlockTracking } from "./dto/block-tracking.schema";
 export {
   BLOCK_MAX_CHECKS,
+  blockCheckId,
   sessionBlockTrackingInputSchema,
   sessionBlockTrackingSchema,
 } from "./dto/block-tracking.schema";
@@ -844,6 +845,7 @@ export {
   blockTally,
   CheckBoxKind,
   CheckUnit,
+  checkOf,
   tickedRows,
   trackingFitsBlock,
   trackingNote,

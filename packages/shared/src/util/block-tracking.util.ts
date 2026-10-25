@@ -1,4 +1,8 @@
-import type { SessionBlockTracking } from "../dto/block-tracking.schema";
+import {
+  type BlockCheck,
+  blockCheckId,
+  type SessionBlockTracking,
+} from "../dto/block-tracking.schema";
 import type { StructureSettings } from "../dto/structure.schema";
 import { StructureAdvance, StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
@@ -27,8 +31,9 @@ export const CheckBoxKind = {
   BLOCK: "BLOCK",
 } as const;
 
+/** La case d'un exercice porte son rang dans le bloc, pour le montrer, et sa clé, pour le cocher. */
 export type CheckBox =
-  | { kind: typeof CheckBoxKind.EXERCISE; exerciseIndex: number }
+  | { kind: typeof CheckBoxKind.EXERCISE; exerciseIndex: number; key: string }
   | { kind: typeof CheckBoxKind.BLOCK };
 
 export type BlockChecks = {
@@ -39,11 +44,6 @@ export type BlockChecks = {
   rows: { label: Phrase | null; boxes: CheckBox[] }[];
 };
 
-const exerciseBox = (exerciseIndex: number): CheckBox => ({
-  kind: CheckBoxKind.EXERCISE,
-  exerciseIndex,
-});
-
 /**
  * Les cases d'un bloc :
  *  - un nombre de tours, au moins deux exercices : une case par exercice et par tour, par tour ;
@@ -51,7 +51,10 @@ const exerciseBox = (exerciseIndex: number): CheckBox => ({
  *  - une seule fois : une case par exercice ;
  *  - autant que possible : une seule case, « Bloc fait ».
  */
-export function blockChecks(settings: StructureSettings, exerciseCount: number): BlockChecks {
+export function blockChecks(
+  settings: StructureSettings,
+  exerciseKeys: readonly string[],
+): BlockChecks {
   const { repeat } = settings;
   if (repeat.kind === StructureRepeat.MAX) {
     return {
@@ -60,7 +63,10 @@ export function blockChecks(settings: StructureSettings, exerciseCount: number):
       rows: [{ label: null, boxes: [{ kind: CheckBoxKind.BLOCK }] }],
     };
   }
-  const exercises = Array.from({ length: exerciseCount }, (_unused, index) => exerciseBox(index));
+  const exerciseCount = exerciseKeys.length;
+  const exercises = exerciseKeys.map(
+    (key, exerciseIndex): CheckBox => ({ kind: CheckBoxKind.EXERCISE, exerciseIndex, key }),
+  );
   if (repeat.kind === StructureRepeat.ONCE) {
     return { unit: CheckUnit.EXERCISE, byRound: false, rows: [{ label: null, boxes: exercises }] };
   }
@@ -75,7 +81,7 @@ export function blockChecks(settings: StructureSettings, exerciseCount: number):
         label: beep
           ? { key: "block.checks.beep", params: { index } }
           : { key: "block.checks.interval", params: { index } },
-        boxes: [exerciseBox((index - 1) % exerciseCount)],
+        boxes: [exerciseAt(exercises, (index - 1) % exerciseCount)],
       })),
     };
   }
@@ -85,7 +91,7 @@ export function blockChecks(settings: StructureSettings, exerciseCount: number):
       byRound: false,
       rows: rounds.map((index) => ({
         label: { key: "block.grid.set", params: { index } },
-        boxes: [exerciseBox(0)],
+        boxes: [exerciseAt(exercises, 0)],
       })),
     };
   }
@@ -99,29 +105,47 @@ export function blockChecks(settings: StructureSettings, exerciseCount: number):
   };
 }
 
+function exerciseAt(exercises: readonly CheckBox[], index: number): CheckBox {
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+  return required(exercises[index], "case d'un exercice que le bloc n'a pas");
+}
+
+/** La coche d'une case : ce qu'on ajoute au suivi en la cochant, ce qu'on retire en la décochant. */
+export function checkOf(rowIndex: number, box: CheckBox): BlockCheck {
+  return { row: rowIndex, key: box.kind === CheckBoxKind.EXERCISE ? box.key : null };
+}
+
 /** Le nombre de cases du bloc : la borne de son suivi. */
 export function blockCheckCount(checks: BlockChecks): number {
   return checks.rows.reduce((sum, row) => sum + row.boxes.length, 0);
 }
 
-/** Toutes les cases cochées existent dans ce bloc. Un débrief qui en cite une autre est refusé. */
-export function trackingFitsBlock(checks: BlockChecks, tracking: SessionBlockTracking): boolean {
-  const count = blockCheckCount(checks);
-  return tracking.checked.every((index) => index < count);
+function boxIds(checks: BlockChecks): Set<string> {
+  return new Set(
+    checks.rows.flatMap((row, rowIndex) =>
+      row.boxes.map((box) => blockCheckId(checkOf(rowIndex, box))),
+    ),
+  );
 }
 
-/** Les cases cochées, rangée par rangée. Une case au-delà du bloc — réglages réduits — est ignorée. */
+/** Toutes les cases cochées existent dans ce bloc. Un débrief qui en cite une autre est refusé. */
+export function trackingFitsBlock(checks: BlockChecks, tracking: SessionBlockTracking): boolean {
+  const boxes = boxIds(checks);
+  return tracking.checked.every((check) => boxes.has(blockCheckId(check)));
+}
+
+/**
+ * Les cases cochées, rangée par rangée. Une coche que le bloc n'a plus — tour retiré, exercice
+ * retiré ou remplacé, bip passé à un autre exercice — est ignorée, sans glisser sur une autre case.
+ */
 export function tickedRows(
   checks: BlockChecks,
   tracking: SessionBlockTracking | null,
 ): boolean[][] {
-  const checked = new Set(tracking?.checked);
-  let offset = 0;
-  return checks.rows.map((row) => {
-    const ticked = row.boxes.map((_box, index) => checked.has(offset + index));
-    offset += row.boxes.length;
-    return ticked;
-  });
+  const checked = new Set(tracking?.checked.map(blockCheckId));
+  return checks.rows.map((row, rowIndex) =>
+    row.boxes.map((box) => checked.has(blockCheckId(checkOf(rowIndex, box)))),
+  );
 }
 
 // ── Le décompte ─────────────────────────────────────────────────────────────────────────────
