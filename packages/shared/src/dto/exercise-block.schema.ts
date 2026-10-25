@@ -166,6 +166,21 @@ export const metricUnitRefinement: [
   { message: "Cette unité n'est pas admise par la métrique.", path: ["unit"] },
 ];
 
+type GridRefinement<T> = [(grid: T) => boolean, { message: string; path: string[] }];
+const distinctIds = (items: readonly { id: string }[]) =>
+  new Set(items.map((item) => item.id)).size === items.length;
+
+/** Deux colonnes ne partagent pas un identifiant : les valeurs d'une ligne s'y rangent. */
+export const distinctColumnIds: GridRefinement<{ metrics: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.metrics),
+  { message: "Deux colonnes ne peuvent pas partager le même identifiant.", path: ["metrics"] },
+];
+
+export const distinctRowIds: GridRefinement<{ rows: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.rows),
+  { message: "Deux lignes ne peuvent pas partager le même identifiant.", path: ["rows"] },
+];
+
 export const catalogBlockMetricSchema = z
   .object({ ...blockMetricBaseSchema, ...catalogMetricShape })
   .strict()
@@ -210,14 +225,8 @@ export const exerciseBlockSchema = z
     rows: z.array(blockRowSchema).max(BLOCK_MAX_ROWS),
   })
   .strict()
-  .refine((block) => new Set(block.metrics.map((m) => m.id)).size === block.metrics.length, {
-    message: "Deux colonnes ne peuvent pas partager le même identifiant.",
-    path: ["metrics"],
-  })
-  .refine((block) => new Set(block.rows.map((r) => r.id)).size === block.rows.length, {
-    message: "Deux lignes ne peuvent pas partager le même identifiant.",
-    path: ["rows"],
-  });
+  .refine(...distinctColumnIds)
+  .refine(...distinctRowIds);
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
 /**
@@ -982,12 +991,13 @@ export type ExerciseBlocks = z.infer<typeof exerciseBlocksSchema>;
 // ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────
 
 /**
- * Ce qui désigne la métrique d'une colonne, de l'ancienne grille comme de la grille par blocs.
- * Écrit ici plutôt qu'importé de `block-grid.schema`, qui dépend déjà de ce module.
+ * Ce qui désigne la métrique d'une colonne, de l'ancienne grille comme de la grille par blocs :
+ * tiré des formes que les deux partagent, sans importer `block-grid.schema`, qui dépend déjà de ce
+ * module.
  */
 type MetricReference =
-  | { source: typeof MetricSource.CATALOG; key: MetricKey }
-  | { source: typeof MetricSource.CUSTOM; customMetricId: string };
+  | Pick<z.infer<typeof catalogBlockMetricSchema>, "source" | "key">
+  | Pick<z.infer<typeof customBlockMetricSchema>, "source" | "customMetricId">;
 
 /** Le type de valeur d'une colonne — catalogue ou métrique du coach. */
 export function metricValueTypeOf(
