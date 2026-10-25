@@ -8,7 +8,7 @@ import {
 import type { StructureSettings } from "../dto/structure.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 import { required } from "./invariant.util";
-import { type SettingValue, settingValues } from "./structure-settings.util";
+import { gridRowLimit, type SettingValue, settingValues } from "./structure-settings.util";
 
 // Les comptes du niveau planifié (#715), repris d'`adjusted()` dans `structure_model.js`. Chaque
 // chose se compte d'un seul côté : le panneau de séance planifiée compte la COMPOSITION, Dosage
@@ -74,9 +74,11 @@ export type PlannedChanges = { composition: CompositionChange[]; values: ValueCh
  *   exercice de la référence ; un exercice de la référence ni gardé ni remplacé est retiré. Un
  *   exercice reçu que la référence n'a plus, ou le remplaçant d'un exercice qu'elle n'a plus, n'a
  *   rien à quoi revenir : il compte comme ajouté.
- * - Les valeurs ne se comparent que pour les exercices présents des deux côtés. Une ligne en plus —
- *   un tour de plus — se compare à la dernière ligne de la référence, qu'elle recopie : seules ses
- *   cellules modifiées comptent.
+ * - Les valeurs ne se comparent que pour les exercices présents des deux côtés, TOUR PAR TOUR :
+ *   `rowIndex` est le rang du tour, pas celui d'une ligne de la grille planifiée. Une grille plus
+ *   courte que ses tours vaut, par sa dernière ligne, pour les tours suivants ; un tour en plus se
+ *   compare à la dernière ligne de la référence, qu'il recopie. Un tour retiré ne compte qu'une
+ *   fois, dans les tours du bloc : ses cellules ne se comparent pas.
  */
 export function plannedChanges(
   reference: readonly ReferenceBlock[],
@@ -88,6 +90,7 @@ export function plannedChanges(
     const referenceBlock = reference[blockIndex];
     if (block == null) {
       // Un rang en deçà du plus long des deux existe d'au moins un côté.
+      // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
       const removed = required(referenceBlock, "rang sans bloc");
       return wholeBlock(blockIndex, removed, CompositionChangeKind.REMOVED);
     }
@@ -117,13 +120,16 @@ function blockChanges(
   reference: ReferenceBlock,
   block: PlannedBlock,
 ): PlannedChanges {
-  const byKey = new Map(reference.exercises.map((exercise) => [exercise.key, exercise]));
+  // Un ajout n'a pas de place (`null`), que la référence n'a jamais : il n'y trouve rien.
+  const byPlace = new Map<string | null, ReferenceExercise>(
+    reference.exercises.map((exercise) => [exercise.key, exercise]),
+  );
   const composition: CompositionChange[] = [];
   const values = settingChanges(blockIndex, reference.settings, block.settings);
+  const rowLimit = gridRowLimit(block.settings, block.exercises.length);
 
   for (const exercise of block.exercises) {
-    const place = referencePlaceOf(exercise);
-    const match = place == null ? undefined : byKey.get(place);
+    const match = byPlace.get(referencePlaceOf(exercise));
     if (match == null) {
       composition.push({ kind: CompositionChangeKind.ADDED, blockIndex, key: exercise.key });
     } else if (exercise.origin.kind === CompositionOrigin.REPLACEMENT) {
@@ -134,7 +140,7 @@ function blockChanges(
         replacedKey: match.key,
       });
     } else {
-      values.push(...cellChanges(blockIndex, match, exercise));
+      values.push(...cellChanges(blockIndex, match, exercise, rowLimit));
     }
   }
 
@@ -159,18 +165,30 @@ function settingChanges(
     .map((field) => ({ kind: ValueChangeKind.SETTING, blockIndex, field, was: was[field] }));
 }
 
-/** Les colonnes ne bougent pas au niveau planifié : seules celles de la séance se comparent. */
+/** La valeur d'une cellule au tour `rowIndex` : la dernière ligne vaut pour les tours suivants. */
+function cellAt(grid: BlockGrid, rowIndex: number, metricId: string): MetricValue {
+  const row = grid.rows[rowIndex] ?? grid.rows.at(-1);
+  return row?.values[metricId] ?? null;
+}
+
+/**
+ * Les cellules qui diffèrent, tour par tour. Une grille réduite à une ligne vaut pour tous les
+ * tours, et se compare donc à chaque ligne de la référence — mais pas au-delà des tours que le bloc
+ * planifié garde (`rowLimit`) : un tour retiré se compte déjà dans les tours du bloc.
+ * Les colonnes ne bougent pas au niveau planifié : seules celles de la séance se comparent.
+ */
 function cellChanges(
   blockIndex: number,
   reference: ReferenceExercise,
   planned: ReferenceExercise,
+  rowLimit: number,
 ): ValueChange[] {
-  return planned.grid.rows.flatMap((row, rowIndex) => {
-    const referenceRow = reference.grid.rows[rowIndex] ?? reference.grid.rows.at(-1);
-    return planned.grid.metrics.flatMap((metric) => {
-      const was = referenceRow?.values[metric.id] ?? null;
-      const now = row.values[metric.id] ?? null;
-      if (now === was) return [];
+  const referenceRows = Math.min(reference.grid.rows.length, rowLimit);
+  const rowCount = Math.max(referenceRows, planned.grid.rows.length);
+  return Array.from({ length: rowCount }, (_unused, rowIndex) =>
+    planned.grid.metrics.flatMap((metric): ValueChange[] => {
+      const was = cellAt(reference.grid, rowIndex, metric.id);
+      if (cellAt(planned.grid, rowIndex, metric.id) === was) return [];
       return [
         {
           kind: ValueChangeKind.CELL,
@@ -181,6 +199,6 @@ function cellChanges(
           was,
         },
       ];
-    });
-  });
+    }),
+  ).flat();
 }

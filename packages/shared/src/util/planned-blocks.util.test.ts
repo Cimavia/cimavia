@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gridOf, load, presets, reps, settingsOf } from "../../test/block-fixtures";
+import { gridOf, load, presets, reps, rounds, settingsOf } from "../../test/block-fixtures";
 import type { MetricValue } from "../dto/exercise-metric.schema";
 import { CompositionOrigin, type ScheduledBlockExercise } from "../dto/session-block.schema";
 import type { StructureSettings } from "../dto/structure.schema";
@@ -165,6 +165,40 @@ describe("plannedChanges", () => {
           was: 8,
         },
       ]);
+    });
+
+    it("compare une grille réduite à une ligne à chaque tour de la référence", () => {
+      const reference = [blockOf([exercise("a", [6, 60], [5, 60], [4, 60])])];
+      const changes = plannedChanges(reference, [blockOf([planned(RECEIVED, "a", [6, 60])])]);
+      expect(changes.values).toEqual(
+        [1, 2].map((rowIndex) => ({
+          kind: ValueChangeKind.CELL,
+          blockIndex: 0,
+          exerciseKey: "a",
+          rowIndex,
+          metricId: reps.id,
+          was: 6 - rowIndex,
+        })),
+      );
+    });
+
+    it("compte un tour retiré dans les tours du bloc seulement, pas dans ses cellules", () => {
+      const reference = [blockOf([exercise("a", [6, 60], [5, 60], [4, 60], [3, 60])])];
+      const fewer = { ...presets.SERIES, repeat: rounds(3) };
+      const changes = plannedChanges(reference, [
+        blockOf([planned(RECEIVED, "a", [6, 60], [5, 60], [4, 60])], fewer),
+      ]);
+      expect(changes.values).toEqual([
+        { kind: ValueChangeKind.SETTING, blockIndex: 0, field: SettingValue.ROUNDS, was: 4 },
+      ]);
+    });
+
+    it("compte comme vidée chaque cellule d'une grille planifiée sans ligne", () => {
+      const reference = [blockOf([exercise("a", [6, 60], [5, 60])])];
+      const changes = plannedChanges(reference, [
+        blockOf([{ ...planned(RECEIVED, "a"), grid: gridOf([reps, load]) }]),
+      ]);
+      expect(changes.values.map((change) => change.was)).toEqual([6, 60, 5, 60]);
     });
 
     it("compte une cellule remplie là où la référence n'a aucune ligne", () => {
