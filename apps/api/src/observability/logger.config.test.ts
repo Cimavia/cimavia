@@ -218,4 +218,19 @@ describe("buildLogTargets", () => {
       options: { dataset: "cimavia", token: "xaat-jeton" },
     });
   });
+
+  it("passe le domaine edge à Axiom quand AXIOM_EDGE est posé, et seulement alors", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AXIOM_TOKEN", "xaat-jeton");
+    vi.stubEnv("AXIOM_DATASET", "cimavia");
+    vi.stubEnv("AXIOM_EDGE", "");
+    expect(buildLogTargets()[1]?.options).not.toHaveProperty("edge");
+
+    vi.stubEnv("AXIOM_EDGE", "eu-central-1.aws.edge.axiom.co");
+    expect(buildLogTargets()[1]?.options).toEqual({
+      dataset: "cimavia",
+      token: "xaat-jeton",
+      edge: "eu-central-1.aws.edge.axiom.co",
+    });
+  });
 });
