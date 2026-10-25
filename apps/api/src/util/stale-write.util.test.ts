@@ -1,4 +1,4 @@
-import { STALE_WRITE } from "@cmv/shared";
+import { ProblemType } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { assertReadAtVersion, assertWrittenAtVersion, writeAtVersion } from "./stale-write.util";
 
@@ -13,7 +13,7 @@ describe("assertWrittenAtVersion", () => {
   it("répond 409 quand l'élément existe encore : il a changé depuis la lecture", async () => {
     await expect(
       assertWrittenAtVersion(0, () => Promise.resolve(true), "Introuvable"),
-    ).rejects.toMatchObject({ status: 409, message: STALE_WRITE });
+    ).rejects.toMatchObject({ status: 409, problemType: ProblemType.STALE_WRITE });
   });
 
   // « Recharger » ne trouverait rien : l'élément supprimé se dit comme tel.
@@ -33,7 +33,7 @@ describe("assertReadAtVersion", () => {
 
   it("répond 409 sur une version déjà dépassée", () => {
     expect(() => assertReadAtVersion(read, new Date("2026-10-12T07:59:59.999Z"))).toThrow(
-      expect.objectContaining({ status: 409, message: STALE_WRITE }),
+      expect.objectContaining({ status: 409, problemType: ProblemType.STALE_WRITE }),
     );
   });
 });
@@ -69,6 +69,6 @@ describe("writeAtVersion", () => {
   it("répond 409 quand rien n'est écrit et que l'élément existe encore", async () => {
     await expect(
       writeAtVersion(delegate(0, 1), "el-1", expected, {}, "Introuvable"),
-    ).rejects.toMatchObject({ status: 409, message: STALE_WRITE });
+    ).rejects.toMatchObject({ status: 409, problemType: ProblemType.STALE_WRITE });
   });
 });

@@ -6,9 +6,9 @@ import {
   type PlanSummaryDto,
   type PlanWeekDto,
   PlanWeekType,
+  ProblemType,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
-  STALE_WRITE,
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
@@ -363,7 +363,7 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
 });
 
 describe("PlanBuilderScreen — conflit d'édition sur l'en-tête (#604)", () => {
-  const stale = () => new ApiError(409, STALE_WRITE, null);
+  const stale = () => new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -478,7 +478,7 @@ describe("PlanBuilderScreen — les semaines", () => {
 
   // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion (#604).
   it("« Recharger » relit la séance ouverte et remonte le panneau dessus", async () => {
-    const stale = new ApiError(409, STALE_WRITE, null);
+    const stale = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
     const { findByRole, getByRole, user } = await mount(
       { weeks: [week] },
       null,

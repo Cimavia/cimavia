@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { pinoHttp } from "pino-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildLogTargets, loggerOptions, requestLogLevel } from "./logger.config";
+import { buildLogTargets, loggerOptions, requestLogLevel, requestLogProps } from "./logger.config";
 
 /**
  * Les lignes que pino-http écrit VRAIMENT, pour une vraie requête HTTP. Seul le transport est
@@ -15,7 +15,12 @@ let server: Server;
 
 async function request(
   path: string,
-  init: RequestInit & { onRequest?: "log"; status?: number; err?: Error } = {},
+  init: RequestInit & {
+    onRequest?: "log";
+    status?: number;
+    err?: Error;
+    problemType?: string;
+  } = {},
 ) {
   const { transport: _stdoutWorker, ...options } = loggerOptions();
   const logger = pinoHttp(options, { write: (line: string) => lines.push(JSON.parse(line)) });
@@ -26,6 +31,7 @@ async function request(
     res.setHeader("location", "https://app.test/reset-password?token=jeton-de-redirection");
     res.statusCode = init.status ?? 302;
     if (init.err) Object.assign(res, { err: init.err });
+    if (init.problemType) Object.assign(res, { problemType: init.problemType });
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -141,6 +147,25 @@ describe("loggerOptions", () => {
     });
   });
 
+  it("ajoute le type du problème à la ligne : un 4xx se lit par sa cause", async () => {
+    await request("/plans/p1", {
+      status: 409,
+      err: new Error("conflit"),
+      problemType: "urn:cimavia:problem:stale-write",
+    });
+
+    expect(lines.find((line) => line.res)).toMatchObject({
+      level: 40,
+      problemType: "urn:cimavia:problem:stale-write",
+    });
+  });
+
+  it("n'ajoute rien à la ligne d'une requête réussie", async () => {
+    await request("/plans", { status: 200 });
+
+    expect(lines.find((line) => line.res)).not.toHaveProperty("problemType");
+  });
+
   it("journalise en info en production, en debug ailleurs", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(loggerOptions().level).toBe("info");
@@ -154,6 +179,15 @@ describe("requestLogLevel", () => {
   it("passe en error une erreur que le serveur n'a pas rendue, même sous un statut 2xx", () => {
     expect(requestLogLevel({}, { statusCode: 200 }, new Error("flux coupé"))).toBe("error");
     expect(requestLogLevel({}, { statusCode: 404 }, new Error("absent"))).toBe("warn");
+  });
+});
+
+describe("requestLogProps", () => {
+  it("ne pose le type que si le filtre l'a déposé", () => {
+    expect(requestLogProps({}, {})).toEqual({});
+    expect(requestLogProps({}, { problemType: "about:blank" })).toEqual({
+      problemType: "about:blank",
+    });
   });
 });
 

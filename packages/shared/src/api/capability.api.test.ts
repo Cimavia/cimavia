@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { capabilityKeys, createCapabilityApi } from "./capability.api";
-import type { ApiClient } from "./client";
+import { CapabilityBlocker } from "../dto/capability.schema";
+import { capabilityBlockerOf, capabilityKeys, createCapabilityApi } from "./capability.api";
+import { type ApiClient, ApiError } from "./client";
+import { ProblemType } from "./problem";
 
 describe("createCapabilityApi", () => {
   /**
@@ -24,5 +26,21 @@ describe("createCapabilityApi", () => {
   // laisserait servir les anciennes capacités.
   it("range les capacités sous une clé de cache unique", () => {
     expect(capabilityKeys.all).toEqual(["capabilities"]);
+  });
+});
+
+describe("capabilityBlockerOf", () => {
+  it.each([
+    [ProblemType.ACTIVE_ATHLETES, CapabilityBlocker.ACTIVE_ATHLETES],
+    [ProblemType.ACTIVE_COACH, CapabilityBlocker.ACTIVE_COACH],
+  ])("lit %s dans le type du problème", (type, blocker) => {
+    expect(capabilityBlockerOf(new ApiError(409, "Refus", null, true, type))).toBe(blocker);
+  });
+
+  // API plus récente que le client, ou panne : l'appelant retombe sur son message générique.
+  it("n'a rien à dire d'un type inconnu, d'un refus sans code ou d'une panne réseau", () => {
+    expect(capabilityBlockerOf(new ApiError(409, "Refus", null, true, "urn:x:nouveau"))).toBeNull();
+    expect(capabilityBlockerOf(new ApiError(409, "ACTIVE_COACH", null))).toBeNull();
+    expect(capabilityBlockerOf(new TypeError("Failed to fetch"))).toBeNull();
   });
 });

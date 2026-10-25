@@ -1,8 +1,8 @@
 import {
+  ProblemType,
   Role,
   SESSION_MAX_EXERCISES,
   SESSION_TOO_MANY_EXERCISES_MESSAGE,
-  STALE_WRITE,
 } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { API_BODY_LIMIT_BYTES } from "../../src/app.setup";
@@ -98,9 +98,10 @@ describe("Composition & isolation des séances (P2)", () => {
       exercises: tooMany,
     });
     expect(updated.status).toBe(400);
-    expect(updated.body.message).toContainEqual({
-      path: "exercises",
-      message: SESSION_TOO_MANY_EXERCISES_MESSAGE,
+    expect(updated.headers["content-type"]).toContain("application/problem+json");
+    expect(updated.body.errors).toContainEqual({
+      pointer: "#/exercises",
+      detail: SESSION_TOO_MANY_EXERCISES_MESSAGE,
     });
     const reread = await coachA.get(`/sessions/${sessionAId}`);
     expect(reread.body.title).toBe("Bloc force max");
@@ -117,6 +118,7 @@ describe("Composition & isolation des séances (P2)", () => {
       .post("/sessions")
       .send({ title: "Trop lourd", notes: "x".repeat(API_BODY_LIMIT_BYTES) });
     expect(res.status).toBe(413);
+    expect(res.headers["content-type"]).toContain("application/problem+json");
     expect((await coachA.get("/sessions")).body).toHaveLength(1);
   });
 
@@ -525,7 +527,7 @@ describe("Dosage au niveau planifié : ajusté pour un athlète (#518)", () => {
     // une frontière, et le panneau du coach n'est pas le seul client possible.
     const res = await save([await exerciseLine({ blocks: build() })]);
     expect(res.status).toBe(400);
-    expect(res.body.message).toContain("Structure verrouillée au niveau séance planifiée");
+    expect(res.body.detail).toContain("Structure verrouillée au niveau séance planifiée");
   });
 
   it("REFUSE une référence des marqueurs envoyée par le client", async () => {
@@ -1105,7 +1107,7 @@ describe("Déplacer une séance vers une autre semaine du cycle (#689)", () => {
         .send(read);
 
       expect(res.status).toBe(409);
-      expect(res.body.message).toBe(STALE_WRITE);
+      expect(res.body.type).toBe(ProblemType.STALE_WRITE);
       expect((await dayIn(cycle, 0, s1Monday)).titles).toEqual(["Lundi S1"]);
     });
 
@@ -1126,7 +1128,7 @@ describe("Déplacer une séance vers une autre semaine du cycle (#689)", () => {
         .patch(`/plan-weeks/${cycle.weekIds[0]}`)
         .send({ type: "DELOAD", expectedUpdatedAt: departureRead });
       expect(res.status).toBe(409);
-      expect(res.body.message).toBe(STALE_WRITE);
+      expect(res.body.type).toBe(ProblemType.STALE_WRITE);
     });
 
     /**
@@ -1242,7 +1244,7 @@ describe("Séance modèle — version lue (#604)", () => {
       .send({ title: "Écrit dans l'onglet 2", exercises: [], expectedUpdatedAt: read.updatedAt });
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     // Ni le titre, ni la composition qu'elle aurait vidée.
     expect(await current()).toEqual(kept);
   });
@@ -1285,7 +1287,7 @@ describe("Séance modèle — version lue (#604)", () => {
     const stale = await reload(read.exercises[0].id, read.updatedAt);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     expect(await current()).toEqual(kept);
   });
 

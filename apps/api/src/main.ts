@@ -10,6 +10,7 @@ import { Logger as PinoLogger } from "nestjs-pino";
 import { AppModule } from "./app.module";
 import { configureApp, createHttpAdapter } from "./app.setup";
 import { docsEnabled } from "./config/docs";
+import { withProblemResponses } from "./problem/problem.swagger";
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -41,7 +42,7 @@ async function bootstrap(): Promise<void> {
       .setVersion(version ?? "dev")
       .addBearerAuth()
       .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    const document = withProblemResponses(SwaggerModule.createDocument(app, swaggerConfig));
     SwaggerModule.setup("docs", app, document);
   }
 

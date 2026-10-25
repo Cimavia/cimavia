@@ -1,4 +1,4 @@
-import { CapabilityBlocker } from "@cmv/shared";
+import { CapabilityBlocker, ProblemType } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -225,22 +225,19 @@ describe("ProfileScreen — les casquettes", () => {
   });
 
   /**
-   * L'API renvoie un CODE, traduit ici. Un code inconnu (API plus récente que ce binaire) retombe
+   * L'API renvoie un CODE (le `type` du problème), traduit ici. Un code inconnu (API plus récente que ce binaire) retombe
    * sur l'erreur générique plutôt que d'afficher un identifiant brut.
    */
   it.each([
     [
-      CapabilityBlocker.ACTIVE_ATHLETES,
+      ProblemType.ACTIVE_ATHLETES,
       `account.capabilities.blocked.${CapabilityBlocker.ACTIVE_ATHLETES}`,
     ],
-    [
-      CapabilityBlocker.ACTIVE_COACH,
-      `account.capabilities.blocked.${CapabilityBlocker.ACTIVE_COACH}`,
-    ],
-    ["UNKNOWN_BLOCKER", "common.error"],
-  ])("traduit le refus %s en %s", async (code, message) => {
+    [ProblemType.ACTIVE_COACH, `account.capabilities.blocked.${CapabilityBlocker.ACTIVE_COACH}`],
+    ["urn:cimavia:problem:inconnu", "common.error"],
+  ])("traduit le refus %s en %s", async (type, message) => {
     signedIn({ isCoach: true, isAthlete: true });
-    update.mockRejectedValue(new ApiError(409, code, null));
+    update.mockRejectedValue(new ApiError(409, "Refus", null, true, type));
     const { container } = renderRn(<ProfileScreen />);
 
     pressButton(container, OPTION_COACH);
@@ -262,7 +259,7 @@ describe("ProfileScreen — les casquettes", () => {
 
   it("efface le refus dès qu'on retouche une casquette", async () => {
     signedIn({ isCoach: true, isAthlete: true });
-    update.mockRejectedValue(new ApiError(409, CapabilityBlocker.ACTIVE_ATHLETES, null));
+    update.mockRejectedValue(new ApiError(409, "Refus", null, true, ProblemType.ACTIVE_ATHLETES));
     const { container } = renderRn(<ProfileScreen />);
     pressButton(container, OPTION_COACH);
     pressButton(container, SAVE);

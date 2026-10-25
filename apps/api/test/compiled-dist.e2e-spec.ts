@@ -208,6 +208,6 @@ describe("dist/main.js — l'API compilée en CommonJS", () => {
     await spanNamed("AuthGuard", "auto.middleware.nestjs.guard");
     await spanNamed("CapabilitiesGuard", "auto.middleware.nestjs.guard");
     await spanNamed("TenancyInterceptor", "auto.middleware.nestjs.interceptor");
-    await spanNamed("SentryExceptionFilter", "auto.middleware.nestjs.exception_filter");
+    await spanNamed("ProblemExceptionFilter", "auto.middleware.nestjs.exception_filter");
   });
 });

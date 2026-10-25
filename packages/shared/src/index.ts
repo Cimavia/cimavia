@@ -16,7 +16,7 @@ export type { AthletePlanApi } from "./api/athlete-plan.api";
 export { createAthletePlanApi, myPlanKeys } from "./api/athlete-plan.api";
 export type { CacheClient } from "./api/cache-client";
 export type { CapabilityApi } from "./api/capability.api";
-export { capabilityKeys, createCapabilityApi } from "./api/capability.api";
+export { capabilityBlockerOf, capabilityKeys, createCapabilityApi } from "./api/capability.api";
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export {
   ApiError,
@@ -24,7 +24,6 @@ export {
   createApiClient,
   isStaleWriteError,
   isUnauthorizedError,
-  STALE_WRITE,
 } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
 export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";
@@ -51,6 +50,15 @@ export {
   createOrganizationApi,
   organizationKeys,
 } from "./api/organization.api";
+export type { ProblemDetails, ProblemFieldError } from "./api/problem";
+export {
+  ABOUT_BLANK,
+  PROBLEM_CONTENT_TYPE,
+  ProblemType,
+  problemDetailsSchema,
+  problemFieldErrorSchema,
+  toJsonPointer,
+} from "./api/problem";
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export {

@@ -1,26 +1,25 @@
-import { BadRequestException } from "@nestjs/common";
+import { ABOUT_BLANK } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { ProblemException } from "../problem/problem.exception";
 import { zodSafeParse } from "./zod.util";
 
 // L'espace fine insécable que pose `Intl.NumberFormat("fr-FR")` entre les milliers.
 const THIN = " ";
 
-function refusal(schema: z.ZodType, data: unknown): { path: string; message: string }[] {
+function refusal(schema: z.ZodType, data: unknown): { detail: string; pointer: string }[] {
   try {
     zodSafeParse(schema, data);
   } catch (error) {
-    expect(error).toBeInstanceOf(BadRequestException);
-    const body = (error as BadRequestException).getResponse() as {
-      message: { path: string; message: string }[];
-    };
-    return body.message;
+    expect(error).toBeInstanceOf(ProblemException);
+    expect(error).toMatchObject({ problemType: ABOUT_BLANK, status: 400 });
+    return (error as ProblemException).errors ?? [];
   }
   throw new Error("zodSafeParse aurait dû refuser");
 }
 
 function message(schema: z.ZodType, data: unknown): string | undefined {
-  return refusal(schema, data)[0]?.message;
+  return refusal(schema, data)[0]?.detail;
 }
 
 describe("zodSafeParse", () => {
@@ -30,11 +29,11 @@ describe("zodSafeParse", () => {
     });
   });
 
-  it("refuse en 400 avec le chemin du champ fautif, ou (root) à la racine", () => {
+  it("refuse en 400 avec le JSON Pointer du champ fautif, ou # à la racine", () => {
     expect(refusal(z.object({ plan: z.object({ title: z.string() }) }), { plan: {} })).toEqual([
-      { path: "plan.title", message: "Ce champ est requis." },
+      { pointer: "#/plan/title", detail: "Ce champ est requis." },
     ]);
-    expect(refusal(z.string(), 3)).toEqual([{ path: "(root)", message: "Valeur invalide." }]);
+    expect(refusal(z.string(), 3)).toEqual([{ pointer: "#", detail: "Valeur invalide." }]);
   });
 });
 

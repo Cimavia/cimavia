@@ -2,9 +2,9 @@ import {
   ApiError,
   DocumentType,
   type ExerciseDto,
+  ProblemType,
   type RichBlock,
   RichBlockType,
-  STALE_WRITE,
 } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -370,7 +370,9 @@ describe("useExerciseDraft — la version citée (#604)", () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.isStale).toBe(false);
 
-    api.updateExercise.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    api.updateExercise.mockRejectedValueOnce(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
     await act(async () => {
       await expect(result.current.submit()).rejects.toThrow();
     });

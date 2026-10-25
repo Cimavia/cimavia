@@ -1,6 +1,6 @@
-import { ServiceUnavailableException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
 import type { PrismaService } from "../infra/prisma/prisma.service";
+import { ProblemException } from "../problem/problem.exception";
 import { HealthService } from "./health.service";
 
 /**
@@ -13,17 +13,13 @@ function serviceOver(ping: () => Promise<unknown>) {
 }
 
 describe("HealthService.ready", () => {
-  it("rend 503, dit « degraded » et nomme la base en panne", async () => {
+  it("rend 503 et nomme la base en panne", async () => {
     const service = serviceOver(() => Promise.reject(new Error("connect ECONNREFUSED")));
 
     const error = await service.ready().catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(ServiceUnavailableException);
-    expect((error as ServiceUnavailableException).getStatus()).toBe(503);
-    expect((error as ServiceUnavailableException).getResponse()).toMatchObject({
-      status: "degraded",
-      database: "down",
-    });
+    expect(error).toBeInstanceOf(ProblemException);
+    expect(error).toMatchObject({ status: 503, detail: "Base de données indisponible" });
   });
 
   // L'erreur du pilote (hôte, port, parfois l'utilisateur) ne sort pas : la route est publique.
@@ -32,8 +28,7 @@ describe("HealthService.ready", () => {
 
     const error = (await service.ready().catch((caught: unknown) => caught)) as Error;
 
-    expect(JSON.stringify((error as ServiceUnavailableException).getResponse())).not.toContain(
-      "password",
-    );
+    expect(JSON.stringify(error)).not.toContain("password");
+    expect(error.message).not.toContain("password");
   });
 });

@@ -237,7 +237,7 @@ describe("Le Coach répond à l'invitation d'une entreprise (#601)", () => {
     ).toBe(409);
     const late = await coach.post(`/organization-invitations/${second}/accept`);
     expect(late.status).toBe(409);
-    expect(late.body.message).toBe("Tu es déjà membre de cette entreprise");
+    expect(late.body.detail).toBe("Tu es déjà membre de cette entreprise");
   });
 
   it("laisse le refus visible à l'entreprise, qui peut l'effacer", async () => {
@@ -264,7 +264,7 @@ describe("Le Coach répond à l'invitation d'une entreprise (#601)", () => {
 
     const late = await coach.post(`/organization-invitations/${id}/accept`);
     expect(late.status).toBe(410);
-    expect(late.body.message).toBe("Invitation retirée par l'entreprise");
+    expect(late.body.detail).toBe("Invitation retirée par l'entreprise");
     expect((await company.post(`/organization/invitations/${id}/revoke`)).status).toBe(409);
   });
 
@@ -496,10 +496,10 @@ describe("L'entreprise invite des athlètes, suivis par tous ses Coachs (#602)",
       .post("/organization/invitations")
       .send({ email: "ORG-Ath-Twice@cmv.test", role: InvitationRole.ATHLETE });
     expect(again.status).toBe(409);
-    expect(again.body.message).toBe("Cet athlète est déjà suivi par ton entreprise");
+    expect(again.body.detail).toBe("Cet athlète est déjà suivi par ton entreprise");
     const late = await athlete.post(`/invitations/${second}/accept`);
     expect(late.status).toBe(409);
-    expect(late.body.message).toBe("Tu es déjà athlète de cette entreprise");
+    expect(late.body.detail).toBe("Tu es déjà athlète de cette entreprise");
   });
 
   // Être Coach de l'entreprise n'empêche pas d'en être athlète : les autres Coachs le suivent.
@@ -542,7 +542,7 @@ describe("L'entreprise invite des athlètes, suivis par tous ses Coachs (#602)",
 
     const late = await athlete.post(`/invitations/${id}/accept`);
     expect(late.status).toBe(410);
-    expect(late.body.message).toBe("Invitation retirée par l'entreprise");
+    expect(late.body.detail).toBe("Invitation retirée par l'entreprise");
   });
 
   // Les routes du Coach ne lisent que les invitations de Coach, et réciproquement.
@@ -593,7 +593,7 @@ describe("Une entreprise sans Coach, et la garde anti-boucle (#602)", () => {
     const refused = await x.post(`/invitations/${id}/accept`);
 
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toBe("Ce lien créerait une boucle avec tes propres athlètes");
+    expect(refused.body.detail).toBe("Ce lien créerait une boucle avec tes propres athlètes");
     expect((await x.get("/me/coaches")).body).toEqual([]);
     expect((await other.agent.get("/athletes")).body).toEqual([]);
     expect((await company.get("/organization/athletes")).body).toEqual([]);
@@ -723,7 +723,7 @@ describe("Le Coach qui rejoint une entreprise suit chacun de ses athlètes (#602
     const refused = await z.post(`/organization-invitations/${id}/accept`);
 
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toBe(
+    expect(refused.body.detail).toBe(
       "Un athlète de cette entreprise te coache déjà, directement ou non",
     );
     expect(await athleteIdsOf(z)).toEqual([]);

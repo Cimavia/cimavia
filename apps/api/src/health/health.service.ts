@@ -1,5 +1,7 @@
-import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { ABOUT_BLANK } from "@cmv/shared";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../infra/prisma/prisma.service";
+import { ProblemException } from "../problem/problem.exception";
 
 type DependencyState = "up" | "down";
 
@@ -16,15 +18,21 @@ export class HealthService {
     };
   }
 
-  /** Readiness : l'API ET ses dépendances (DB) sont prêtes. 503 sinon. */
+  /**
+   * Readiness : l'API ET ses dépendances (DB) sont prêtes. 503 sinon, en problème (RFC 9457) dont
+   * `detail` nomme la dépendance en panne — les sondes ne lisent que le statut.
+   */
   async ready() {
     const database = await this.pingDatabase();
-    const body = { status: "ok" as const, database, timestamp: new Date().toISOString() };
-
     if (database !== "up") {
-      throw new ServiceUnavailableException({ ...body, status: "degraded" });
+      throw new ProblemException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        ABOUT_BLANK,
+        "Service Unavailable",
+        "Base de données indisponible",
+      );
     }
-    return body;
+    return { status: "ok" as const, database, timestamp: new Date().toISOString() };
   }
 
   private async pingDatabase(): Promise<DependencyState> {

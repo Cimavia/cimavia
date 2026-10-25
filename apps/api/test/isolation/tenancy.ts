@@ -131,7 +131,7 @@ describe("Isolation multi-tenant (P1)", () => {
     const inv = await inviteFor(coachA, athleteA1);
     const res = await athleteA1.post(`/invitations/${inv.body.id}/accept`);
     expect(res.status).toBe(409);
-    expect(res.body.message).toBe("Tu es déjà suivi par ce coach");
+    expect(res.body.detail).toBe("Tu es déjà suivi par ce coach");
   });
 
   it("une requête non authentifiée est refusée", async () => {

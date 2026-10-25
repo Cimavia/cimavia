@@ -82,12 +82,23 @@ export function requestLogLevel(
   return res.statusCode >= 400 ? "warn" : "info";
 }
 
+/**
+ * Le `type` du problème que la réponse a rendu (#698), posé sur la réponse par le filtre
+ * d'exception : un 4xx se lit par sa cause dans Axiom (`problemType = "urn:cimavia:problem:…"`),
+ * sans rouvrir le corps de la réponse.
+ */
+export function requestLogProps(_req: unknown, res: object): { problemType?: string } {
+  const { problemType } = res as { problemType?: string };
+  return problemType === undefined ? {} : { problemType };
+}
+
 export function loggerOptions(): Options {
   return {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     transport: { targets: buildLogTargets() },
     autoLogging: true,
     customLogLevel: requestLogLevel,
+    customProps: requestLogProps,
     serializers,
   };
 }

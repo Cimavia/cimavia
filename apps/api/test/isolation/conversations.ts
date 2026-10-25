@@ -182,11 +182,11 @@ describe("Conversations à participants : à deux ou à plusieurs (#611)", () =>
 
       const atCap = await create(world.c, crowd(MAX_CONVERSATION_PARTICIPANTS));
       expect(atCap.status).toBe(400);
-      expect(atCap.body.message).toBe("Participant inconnu");
+      expect(atCap.body.detail).toBe("Participant inconnu");
 
       const overCap = await create(world.c, crowd(MAX_CONVERSATION_PARTICIPANTS + 1));
       expect(overCap.status).toBe(400);
-      expect(overCap.body.message).toEqual([expect.objectContaining({ path: "participants" })]);
+      expect(overCap.body.errors).toEqual([expect.objectContaining({ pointer: "#/participants" })]);
     });
   });
 
@@ -287,7 +287,7 @@ describe("Conversations à participants : à deux ou à plusieurs (#611)", () =>
       });
 
       expect(cited.status).toBe(400);
-      expect(cited.body.message).toBe("Débrief hors de ce fil");
+      expect(cited.body.detail).toBe("Débrief hors de ce fil");
     });
   });
 });

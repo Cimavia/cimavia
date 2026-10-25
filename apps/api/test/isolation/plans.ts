@@ -1,4 +1,4 @@
-import { Role, STALE_WRITE, shiftIsoDate } from "@cmv/shared";
+import { ProblemType, Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
@@ -181,7 +181,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       .send({ sourceSessionId: foreign.body.id, scheduledDate: mondayOfWeek2Iso });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Séance modèle inconnue");
+    expect(res.body.detail).toBe("Séance modèle inconnue");
     const week2 = (await coachA.get(`/plans/${planId}`)).body.weeks[1];
     expect(week2.sessions).toEqual([]);
   });
@@ -915,7 +915,7 @@ describe("Cycle — version lue (#604)", () => {
     });
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     // Ni le titre, ni le décalage des séances qu'aurait emporté la date de début.
     expect(await current()).toEqual(kept);
   });
@@ -958,7 +958,7 @@ describe("Cycle — version lue (#604)", () => {
     const stale = await rename("Trop tard", read, id);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
   });
 
   // Un 409 apprendrait à l'autre coach que le cycle existe.
@@ -1001,7 +1001,7 @@ describe("Cycle — version lue (#604)", () => {
     const stale = await publish(id, read);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     const plan = (await coach.get(`/plans/${id}`)).body;
     expect(plan.status).toBe("DRAFT");
     expect((await coach.get(`/plans/${id}/billing`)).body.status).toBe("DRAFT");
@@ -1035,7 +1035,7 @@ describe("Cycle — version lue (#604)", () => {
     const stale = await remove(id, read);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     expect((await coach.get(`/plans/${id}`)).body.title).toBe("Retouché");
   });
 

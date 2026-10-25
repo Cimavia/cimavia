@@ -6,16 +6,27 @@ import {
   createApiClient,
   isStaleWriteError,
   isUnauthorizedError,
-  STALE_WRITE,
 } from "./client";
+import { ABOUT_BLANK, PROBLEM_CONTENT_TYPE, ProblemType } from "./problem";
 
-/** Un `fetch` qui répond toujours `status`, avec le corps d'erreur que NestJS renverrait. */
+/** Les en-têtes d'une réponse : seul `content-type` compte pour le client. */
+function headersOf(contentType: string | null): { get: (name: string) => string | null } {
+  return { get: (name) => (name.toLowerCase() === "content-type" ? contentType : null) };
+}
+
+/** Le corps d'erreur que l'API renvoie : un problème (RFC 9457). */
+function problem(status: number, fields: Record<string, unknown> = {}): string {
+  return JSON.stringify({ type: ABOUT_BLANK, title: "Erreur", status, ...fields });
+}
+
+/** Un `fetch` qui répond toujours `status`, avec le problème que l'API renverrait. */
 function answering(status: number): ApiFetch {
   return () =>
     Promise.resolve({
       ok: status < 400,
       status,
-      text: () => Promise.resolve(JSON.stringify({ message: "Unauthorized", statusCode: status })),
+      headers: headersOf(PROBLEM_CONTENT_TYPE),
+      text: () => Promise.resolve(problem(status, { title: "Unauthorized" })),
     });
 }
 
@@ -54,21 +65,22 @@ describe("isUnauthorizedError", () => {
 
 describe("isStaleWriteError", () => {
   /**
-   * La valeur est un contrat sur le fil, pas un détail : l'API la pose dans le corps du 409, et une
+   * La valeur est un contrat sur le fil, pas un détail : l'API la pose dans le `type` du 409, et une
    * app installée la compare à la sienne. La changer côté API casserait le bandeau des apps déjà
    * en service, que les autres tests ne verraient pas — ils lisent tous la même constante.
    */
-  it("garde le code que les apps installées attendent", () => {
-    expect(STALE_WRITE).toBe("STALE_WRITE");
+  it("garde le type que les apps installées attendent", () => {
+    expect(ProblemType.STALE_WRITE).toBe("urn:cimavia:problem:stale-write");
   });
 
   it("reconnaît le 409 que l'API lève sur une version périmée", async () => {
-    // Par le vrai client : le code doit survivre au trajet corps NestJS → `ApiError`.
+    // Par le vrai client : le type doit survivre au trajet corps → `ApiError`.
     const fetchFn: ApiFetch = () =>
       Promise.resolve({
         ok: false,
         status: 409,
-        text: () => Promise.resolve(JSON.stringify({ message: STALE_WRITE, statusCode: 409 })),
+        headers: headersOf(`${PROBLEM_CONTENT_TYPE}; charset=utf-8`),
+        text: () => Promise.resolve(problem(409, { type: ProblemType.STALE_WRITE })),
       });
     const api = createApiClient({ baseUrl: "http://api.test", fetchFn });
     const error = await api.put("/athletes/a1/sheet", {}).catch((caught: unknown) => caught);
@@ -82,8 +94,10 @@ describe("isStaleWriteError", () => {
     );
   });
 
-  it("exige le statut 409, pas seulement le code", () => {
-    expect(isStaleWriteError(new ApiError(400, STALE_WRITE, null))).toBe(false);
+  it("exige le statut 409, pas seulement le type", () => {
+    expect(isStaleWriteError(new ApiError(400, "Refus", null, true, ProblemType.STALE_WRITE))).toBe(
+      false,
+    );
   });
 
   it("ne prend pas une panne réseau pour un conflit", () => {
@@ -123,11 +137,16 @@ describe("apiErrorMessage", () => {
 type Call = { url: string; init: Parameters<ApiFetch>[1] };
 
 /** Un `fetch` qui enregistre ses appels et répond `status` avec `body` brut (déjà sérialisé). */
-function recording(status: number, body: string) {
+function recording(status: number, body: string, contentType: string | null = null) {
   const calls: Call[] = [];
   const fetchFn: ApiFetch = (url, init) => {
     calls.push({ url, init });
-    return Promise.resolve({ ok: status < 400, status, text: () => Promise.resolve(body) });
+    return Promise.resolve({
+      ok: status < 400,
+      status,
+      headers: headersOf(contentType),
+      text: () => Promise.resolve(body),
+    });
   };
   return { calls, fetchFn };
 }
@@ -221,7 +240,8 @@ describe("createApiClient — la réponse", () => {
   // 204 (DELETE) : aucun corps à lire — le lire échouerait sur certains runtimes.
   it("rend undefined sur un 204, sans lire le corps", async () => {
     const text = () => Promise.reject(new Error("corps lu sur un 204"));
-    const fetchFn: ApiFetch = () => Promise.resolve({ ok: true, status: 204, text });
+    const fetchFn: ApiFetch = () =>
+      Promise.resolve({ ok: true, status: 204, headers: headersOf(null), text });
     const api = createApiClient({ baseUrl: "http://api.test", fetchFn });
 
     await expect(api.delete("/plans/p1")).resolves.toBeUndefined();
@@ -250,8 +270,12 @@ describe("createApiClient — la réponse", () => {
 });
 
 describe("createApiClient — les erreurs", () => {
-  async function rejection(status: number, body: string): Promise<ApiError> {
-    const { fetchFn } = recording(status, body);
+  async function rejection(
+    status: number,
+    body: string,
+    contentType: string | null = PROBLEM_CONTENT_TYPE,
+  ): Promise<ApiError> {
+    const { fetchFn } = recording(status, body, contentType);
     const error = await createApiClient({ baseUrl: "http://api.test", fetchFn })
       .get("/x")
       .catch((caught: unknown) => caught);
@@ -259,12 +283,13 @@ describe("createApiClient — les erreurs", () => {
     return error as ApiError;
   }
 
-  it("porte le statut et le message d'une erreur NestJS", async () => {
-    const error = await rejection(404, JSON.stringify({ message: "Cycle introuvable" }));
+  it("porte le statut, le type et le detail d'un problème", async () => {
+    const error = await rejection(404, problem(404, { detail: "Cycle introuvable" }));
 
     expect(error).toMatchObject({
       status: 404,
       message: "Cycle introuvable",
+      type: ABOUT_BLANK,
       fieldErrors: null,
       fromApi: true,
     });
@@ -273,29 +298,45 @@ describe("createApiClient — les erreurs", () => {
     expect(error).toBeInstanceOf(Error);
   });
 
+  it("retombe sur le titre quand le problème n'a pas de detail", async () => {
+    const error = await rejection(409, problem(409, { title: "Conflit", type: "urn:x:y" }));
+
+    expect(error).toMatchObject({ message: "Conflit", type: "urn:x:y", fromApi: true });
+  });
+
+  it("reconnaît le type de contenu avec ses paramètres, quelle que soit la casse", async () => {
+    const error = await rejection(
+      404,
+      problem(404, { detail: "Absent" }),
+      "Application/Problem+JSON; charset=utf-8",
+    );
+
+    expect(error).toMatchObject({ message: "Absent", fromApi: true });
+  });
+
   /**
-   * Erreur de validation Zod : `message` est la LISTE des champs fautifs. Le message affiché est
-   * le premier ; la liste entière reste disponible pour marquer chaque champ du formulaire.
+   * Erreur de validation : `errors` est la LISTE des champs fautifs. Le message affiché est le
+   * premier ; la liste entière reste disponible pour marquer chaque champ du formulaire.
    */
   it("expose les erreurs de champ d'une validation, et montre la première", async () => {
     const fieldErrors = [
-      { path: "title", message: "Titre requis" },
-      { path: "startDate", message: "Date invalide" },
+      { pointer: "#/title", detail: "Titre requis" },
+      { pointer: "#/startDate", detail: "Date invalide" },
     ];
-    const error = await rejection(400, JSON.stringify({ message: fieldErrors }));
+    const error = await rejection(400, problem(400, { errors: fieldErrors }));
 
     expect(error).toMatchObject({ status: 400, message: "Titre requis", fieldErrors });
     expect(apiErrorMessage(error)).toBe("Titre requis");
   });
 
   /**
-   * Faute de message écrit par l'API, le client en fabrique un pour les logs et Sentry — mais
-   * `apiErrorMessage` le tait : « Erreur 502 » ou « Service Unavailable » prendraient la place du
-   * message traduit de l'écran, qui dit, lui, quel geste a échoué (#320).
+   * Faute d'un `application/problem+json`, l'API n'a pas écrit la réponse : le client fabrique un
+   * message pour les logs et Sentry — mais `apiErrorMessage` le tait : « Erreur 502 » prendrait la
+   * place du message traduit de l'écran, qui dit, lui, quel geste a échoué (#320, #698).
    */
-  describe("sans message écrit par l'API, l'écran garde le sien", () => {
+  describe("sans problème écrit par l'API, l'écran garde son message", () => {
     it("une liste de champs vide", async () => {
-      const error = await rejection(400, JSON.stringify({ message: [] }));
+      const error = await rejection(400, problem(400, { errors: [] }));
 
       expect(error).toMatchObject({
         status: 400,
@@ -306,21 +347,29 @@ describe("createApiClient — les erreurs", () => {
       expect(apiErrorMessage(error)).toBeNull();
     });
 
-    it("le seul libellé HTTP", async () => {
-      const error = await rejection(503, JSON.stringify({ error: "Service Unavailable" }));
+    // Un JSON dont le type de contenu n'est pas celui des problèmes : le format de Better Auth, ou
+    // celui qu'un proxy fabriquerait. Pas écrit par l'API, même s'il porte un `message`.
+    it("un JSON qui n'est pas un problème, même avec un message", async () => {
+      const error = await rejection(
+        403,
+        JSON.stringify({ code: "FORBIDDEN", message: "Interdit" }),
+        "application/json",
+      );
 
-      expect(error).toMatchObject({
-        status: 503,
-        message: "Service Unavailable",
-        fieldErrors: null,
-        fromApi: false,
-      });
+      expect(error).toMatchObject({ status: 403, message: "Erreur 403", fromApi: false });
+      expect(apiErrorMessage(error)).toBeNull();
+    });
+
+    it("un problème mal formé", async () => {
+      const error = await rejection(503, JSON.stringify({ title: "Service Unavailable" }));
+
+      expect(error).toMatchObject({ status: 503, message: "Erreur 503", fromApi: false });
       expect(apiErrorMessage(error)).toBeNull();
     });
 
     // Pas de corps du tout : le statut est la seule information, il reste lisible dans Sentry.
     it("aucun corps", async () => {
-      const error = await rejection(502, "");
+      const error = await rejection(502, "", null);
 
       expect(error).toMatchObject({
         status: 502,
@@ -336,7 +385,11 @@ describe("createApiClient — les erreurs", () => {
      * que Sentry ne distinguait pas d'un bug applicatif : le statut est ce qui dit la panne.
      */
     it("un corps qui n'est pas du JSON", async () => {
-      const error = await rejection(502, "<!doctype html><title>Bad gateway</title>");
+      const error = await rejection(
+        502,
+        "<!doctype html><title>Bad gateway</title>",
+        "text/html; charset=UTF-8",
+      );
 
       expect(error).toMatchObject({
         status: 502,
@@ -367,7 +420,12 @@ describe("createApiClient — le fetch du runtime", () => {
     let receiver: unknown = null;
     vi.stubGlobal("fetch", function (this: unknown) {
       receiver = this;
-      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("{}") });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: headersOf(null),
+        text: () => Promise.resolve("{}"),
+      });
     });
     vi.resetModules();
     const { createApiClient: create } = await import("./client");

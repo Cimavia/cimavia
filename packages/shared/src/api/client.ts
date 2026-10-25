@@ -1,7 +1,15 @@
+import {
+  ABOUT_BLANK,
+  PROBLEM_CONTENT_TYPE,
+  type ProblemFieldError,
+  ProblemType,
+  problemDetailsSchema,
+} from "./problem";
+
 /**
  * Client HTTP de l'API cimavia, partagé web ↔ mobile.
  *
- * Ce qui est COMMUN vit ici : la forme des erreurs NestJS (message string ou liste d'erreurs Zod),
+ * Ce qui est COMMUN vit ici : la forme des erreurs (RFC 9457, `application/problem+json`),
  * le 204 sans corps, le typage des verbes. Ce qui DIFFÈRE reste à l'app : l'URL de base (variable
  * d'env Vite vs Expo) et l'authentification (cookie jar du navigateur vs cookie SecureStore
  * réinjecté à la main sur mobile) — d'où l'injection de `baseUrl`, `fetchFn` et `headers`.
@@ -10,7 +18,7 @@
  * module reste consommable par n'importe quel runtime (et que le .d.ts n'impose pas `lib: DOM`).
  */
 
-export type ApiFieldError = { path: string; message: string };
+export type ApiFieldError = ProblemFieldError;
 
 export class ApiError extends Error {
   constructor(
@@ -19,10 +27,13 @@ export class ApiError extends Error {
     // null quand l'erreur n'est pas une erreur de validation (404, 403, 503…).
     readonly fieldErrors: ApiFieldError[] | null,
     /**
-     * `false` quand le message est fabriqué par le client, faute d'en avoir reçu un : corps vide,
-     * non-JSON, simple libellé HTTP. Il sert alors aux logs et à Sentry, jamais à l'écran (#320).
+     * `false` quand le message est fabriqué par le client, faute d'en avoir reçu un : la réponse
+     * n'est pas un `application/problem+json`, ou son corps est vide ou illisible. Il sert alors
+     * aux logs et à Sentry, jamais à l'écran (#320, #698).
      */
     readonly fromApi = true,
+    /** Le `type` du problème (RFC 9457) : `about:blank` hors des refus à code, voir `ProblemType`. */
+    readonly type: string = ABOUT_BLANK,
   ) {
     super(message);
     this.name = "ApiError";
@@ -66,34 +77,33 @@ export function isUnauthorizedError(error: unknown): boolean {
 }
 
 /**
- * Le code du 409 qui refuse une écriture fondée sur une version périmée (#440) : l'élément a changé
- * depuis que l'auteur l'a lu. Un CODE et pas une phrase, comme `CapabilityBlocker` — chaque client
- * le traduit, et le distingue des autres 409 de la même route.
- */
-export const STALE_WRITE = "STALE_WRITE";
-
-/**
- * L'écriture a été refusée parce que l'élément a changé entre-temps. Le statut ne suffit pas :
- * d'autres refus sont des 409 (un exercice encore utilisé, une transition de facture), et les
- * prendre pour un conflit d'édition ferait proposer de « recharger » là où rien n'a bougé.
+ * L'écriture a été refusée parce que l'élément a changé entre-temps (#440). Le statut ne suffit
+ * pas : d'autres refus sont des 409 (un exercice encore utilisé, une transition de facture), et les
+ * prendre pour un conflit d'édition ferait proposer de « recharger » là où rien n'a bougé. Le
+ * `type` du problème est le CODE, comme `CapabilityBlocker` : chaque client le traduit.
  */
 export function isStaleWriteError(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 409 && error.message === STALE_WRITE;
+  return (
+    error instanceof ApiError && error.status === 409 && error.type === ProblemType.STALE_WRITE
+  );
 }
 
-// Corps d'erreur NestJS : `message` vaut soit une string, soit la liste des erreurs Zod.
-type NestErrorBody = { message?: string | ApiFieldError[]; error?: string };
+/**
+ * La réponse d'erreur, décodée. Une réponse qui n'est pas un `application/problem+json` n'a pas été
+ * écrite par l'API (page d'un proxy, portail captif) ; son message sert aux logs, jamais à l'écran.
+ */
+function toApiError(status: number, body: unknown, problem: boolean): ApiError {
+  const parsed = problem ? problemDetailsSchema.safeParse(body) : null;
+  if (parsed?.success !== true) return new ApiError(status, `Erreur ${status}`, null, false);
 
-function toApiError(status: number, body: unknown): ApiError {
-  const { message, error } = (body ?? {}) as NestErrorBody;
-  if (Array.isArray(message)) {
-    const first = message[0];
+  const { type, title, detail, errors } = parsed.data;
+  if (errors != null) {
+    const first = errors[0];
     return first == null
-      ? new ApiError(status, "Requête invalide", message, false)
-      : new ApiError(status, first.message, message);
+      ? new ApiError(status, "Requête invalide", errors, false, type)
+      : new ApiError(status, first.detail, errors, true, type);
   }
-  if (typeof message === "string") return new ApiError(status, message, null);
-  return new ApiError(status, error ?? `Erreur ${status}`, null, false);
+  return new ApiError(status, detail ?? title, null, true, type);
 }
 
 // Le corps n'est pas du JSON. Un symbole plutôt que `null`, qui veut déjà dire « corps vide ».
@@ -112,6 +122,13 @@ function parseBody(text: string): unknown {
   }
 }
 
+/** Le type de contenu seul compte : `application/problem+json; charset=utf-8` en est un aussi. */
+function isProblem(response: ApiResponse): boolean {
+  return (response.headers.get("content-type") ?? "")
+    .toLowerCase()
+    .startsWith(PROBLEM_CONTENT_TYPE);
+}
+
 type ApiRequestInit = {
   method: string;
   headers: Record<string, string>;
@@ -119,7 +136,12 @@ type ApiRequestInit = {
   credentials?: "include";
 };
 
-type ApiResponse = { ok: boolean; status: number; text: () => Promise<string> };
+type ApiResponse = {
+  ok: boolean;
+  status: number;
+  headers: { get: (name: string) => string | null };
+  text: () => Promise<string>;
+};
 
 // Signature structurelle du `fetch` global (web comme React Native s'y conforment).
 export type ApiFetch = (url: string, init: ApiRequestInit) => Promise<ApiResponse>;
@@ -183,7 +205,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
     if (data === UNREADABLE) {
       throw new ApiError(response.status, `Réponse non-json (${response.status})`, null, false);
     }
-    if (!response.ok) throw toApiError(response.status, data);
+    if (!response.ok) throw toApiError(response.status, data, isProblem(response));
     return data as T;
   }
 
