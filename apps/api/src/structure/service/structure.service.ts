@@ -52,8 +52,7 @@ export class StructureService {
 
   async get(id: string): Promise<StructureDto> {
     const structure = await this.getOwnedOrThrow(id);
-    const counts = await this.sessionCounts();
-    return toStructureDto(structure, counts.byStructure.get(structure.id) ?? 0);
+    return toStructureDto(structure, await this.sessionCountOf(id));
   }
 
   async create(input: StructureInput): Promise<StructureDto> {
@@ -68,9 +67,11 @@ export class StructureService {
     return toStructureDto(created, 0);
   }
 
-  /** Sous la version lue (#604) : deux onglets ne s'écrasent pas. */
+  /**
+   * Sous la version lue (#604) : deux onglets ne s'écrasent pas. `writeAtVersion` distingue déjà
+   * la structure d'un autre (404, le scope ne la voit pas) de la version dépassée (409).
+   */
   async update(id: string, input: UpdateStructureInput): Promise<StructureDto> {
-    await this.getOwnedOrThrow(id);
     await writeAtVersion(
       this.db.structure,
       id,
@@ -97,6 +98,11 @@ export class StructureService {
       throw new NotFoundException(STRUCTURE_NOT_FOUND);
     }
     return structure;
+  }
+
+  /** Le compteur d'une seule structure, compté par la base : les mêmes séances que `sessionCounts`. */
+  private sessionCountOf(id: string): Promise<number> {
+    return this.db.session.count({ where: { blocks: { some: { sourceStructureId: id } } } });
   }
 
   /**
