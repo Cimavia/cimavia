@@ -652,15 +652,22 @@ liste des domaines vivent dans l'index.
 >   ligne (`gridReading`), elle ne se replie pas.
 > - **Le suivi d'un « autant que possible » est une seule case, « Bloc fait »** : son nombre de
 >   tours n'est pas noté. À reporter dans la reprise des données de #716.
+> - **Une case cochée se désigne par sa rangée et la CLÉ de son exercice** (`{ row, key }`, `key`
+>   à `null` pour « Bloc fait »), pas par sa position à plat : le suivi reste ouvert pendant que le
+>   Coach ajoute, retire ou remplace un exercice, et une coche ne doit pas glisser sur un autre — la
+>   garantie que l'ancien suivi tenait par exercice (#311). Une coche que le bloc n'a plus est
+>   ignorée à la lecture (`tickedRows`) et refusée à l'envoi (`trackingFitsBlock`).
 > - **La composition se lit sur l'ORIGINE portée par la donnée** (`RECEIVED | ADDED |
 >   REPLACEMENT{replacesKey}`), pas sur une comparaison de listes : chaque exercice a une `key`
 >   stable, unique dans la séance. Composition et valeurs se comptent chacune de son côté
 >   (`plannedChanges`). Un ajout n'a aucune place dans la référence, même si sa clé en rappelle
 >   une ; une place n'est gardée ou remplacée qu'une fois (`referencePlaceOf`). Les cellules se
->   comparent TOUR PAR TOUR (`rowIndex` est le rang du tour, pas d'une ligne de la grille
->   planifiée) : une grille réduite à une ligne vaut pour chaque tour, un tour retiré ne compte
->   que dans les tours du bloc, et une grille planifiée sans ligne compte chaque cellule de la
->   référence comme vidée. Qu'un exercice
+>   comparent TOUR PAR TOUR, sur les tours (ou passages) de l'exercice dans le bloc planifié :
+>   `rowIndex` est le rang du tour, pas d'une ligne de la grille planifiée. Des deux côtés, la
+>   dernière ligne vaut pour les tours suivants, donc une ligne retouchée compte sur chaque tour où
+>   elle vaut. Un tour retiré ne compte que dans les tours du bloc, et une grille planifiée sans
+>   ligne compte chaque cellule de la référence comme vidée. Regrouper ces cellules par colonne
+>   pour le compte « n ajustés » est l'affaire de Dosage (#720). Qu'un exercice
 >   nouveau — ajout ou remplaçant — reçoive une clé ABSENTE de la séance-type ne se voit qu'avec
 >   elle : l'API des blocs (#716) le vérifie, sans quoi un retrait et un remplacement
 >   partageraient la même clé.
@@ -678,7 +685,13 @@ liste des domaines vivent dans l'index.
 >   *Tranché en #297*), 99 tours, 12 métriques par grille ; le suivi d'un bloc tient donc en
 >   `BLOCK_MAX_CHECKS` = 99 × 20 = 1 980 cases, bornées à l'entrée seulement (*Tranché en #297*).
 >   Chaque durée d'un réglage va de 1 s à 3 h, comme dans la maquette, et non 24 h comme les durées
->   d'entraînement. Une grille n'a pas plus de lignes que le bloc n'a de tours (`gridRowLimit`).
+>   d'entraînement. Une grille n'a pas plus de lignes que son exercice n'a de tours ; avec « un
+>   seul par… », de passages, les premiers exercices passant une fois de plus quand le compte ne
+>   tombe pas juste (`gridRowLimit`).
+> - **Une valeur sans colonne est refusée par le schéma de la grille, à sa cellule**
+>   (`rows.<i>.values.<colonne>`), là où l'ancienne grille la tolérait pour la signaler à part
+>   (`orphanValueIssues`) : le modèle par blocs n'a pas de données stockées à ménager, et l'éditeur
+>   (#720) retire les valeurs avec leur colonne.
 > - **La valeur d'une cellule n'est pas encore confrontée au type de sa colonne** : il faut les
 >   métriques du Coach, que seul le serveur charge. Ce contrôle vient avec l'API des blocs (#716),
 >   en reprenant celui de l'ancienne grille (`validateBlockValues`).
