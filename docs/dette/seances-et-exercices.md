@@ -631,3 +631,45 @@ liste des domaines vivent dans l'index.
 > - **[#370](https://github.com/Cimavia/cimavia/issues/370) est livrée en préalable** :
 >   `useComposition`, `CompositionEditor` et `ExercisePicker` n'avaient plus que ce panneau pour
 >   client, et sont passés dans `feature/plan`, sans préfixe ni recherche.
+
+---
+
+## Post-MVP — La séance par blocs ([#714](https://github.com/Cimavia/cimavia/issues/714))
+
+> **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
+> `docs/maquettes/composants/structure_model.js` passent dans `@cmv/shared`, typées) : structure,
+> bloc de séance et leurs règles pures, sans écran ni API. Ce qui suit a été tranché en route.
+>
+> - **La maquette fait foi contre le texte de l'issue.** L'ordre des exercices se demande avec un
+>   bip OU un cycle (pas seulement un bip), et un bip ou un cycle grise aussi « autant que
+>   possible », « une seule fois » et les deux repos — le texte de l'issue n'en citait qu'une
+>   partie. Le schéma refuse toute valeur posée sur un réglage grisé (`settingsIssues`).
+> - **Les durées sont des secondes entières**, rendues par `formatTrainingDuration` (*Tranché en
+>   #528*) : L-1 n'est pas aggravée. Les nombres en lettres de `suiviNote` passent en chiffres.
+> - **Rien de ce qui se déduit n'est stocké** : la lettre du bloc (A… Z, puis AA… jusqu'à 30
+>   blocs), les codes A1, A2…, la disposition de la grille (ligne, tableau, cartes) et le chrono.
+> - **La grille perd `collapsed`** : une grille dont toutes les lignes sont identiques se LIT en une
+>   ligne (`gridReading`), elle ne se replie pas.
+> - **Le suivi d'un « autant que possible » est une seule case, « Bloc fait »** : son nombre de
+>   tours n'est pas noté. À reporter dans la reprise des données de #716.
+> - **La composition se lit sur l'ORIGINE portée par la donnée** (`RECEIVED | ADDED |
+>   REPLACEMENT{replacesKey}`), pas sur une comparaison de listes : chaque exercice a une `key`
+>   stable, unique dans la séance. Composition et valeurs se comptent chacune de son côté
+>   (`plannedChanges`). Un ajout n'a aucune place dans la référence, même si sa clé en rappelle
+>   une ; une place n'est gardée ou remplacée qu'une fois (`referencePlaceOf`).
+> - **Le bloc garde ses réglages copiés** (`copiedSettings`) et son origine, structure du Coach
+>   (`sourceStructureId`) OU structure prête (`sourcePreset`), jamais les deux : « Personnalisé »
+>   et « Revenir à … » en dépendent, même une fois la structure supprimée. Impacte #716.
+> - **Bornes** : 30 blocs par séance, 20 exercices par bloc, 50 par séance (`SESSION_MAX_EXERCISES`,
+>   *Tranché en #297*), 99 tours, 12 métriques par grille ; le suivi d'un bloc tient donc en
+>   `BLOCK_MAX_CHECKS` = 99 × 20 = 1 980 cases, bornées à l'entrée seulement (*Tranché en #297*).
+>   Chaque durée d'un réglage va de 1 s à 3 h, comme dans la maquette, et non 24 h comme les durées
+>   d'entraînement. Une grille n'a pas plus de lignes que le bloc n'a de tours (`gridRowLimit`).
+> - **La valeur d'une cellule n'est pas encore confrontée au type de sa colonne** : il faut les
+>   métriques du Coach, que seul le serveur charge. Ce contrôle vient avec l'API des blocs (#716),
+>   en reprenant celui de l'ancienne grille (`validateBlockValues`).
+> - **Laissés aux issues des écrans** : `doseCols`, `doseLines`, `lineIn`, `weekChoices`, `fill`,
+>   `fillPreview`, `addStep` et `stepError` (#720, #721, #724).
+> - **`MetricSource` et `fittingColumnCount` sont importés de l'ancien modèle de blocs** : ils
+>   déménagent avec son retrait (#723), qui retire aussi la double déclaration des formes de
+>   métrique (`block-grid.schema` et `exercise-block.schema`, au `collapsed` près).
