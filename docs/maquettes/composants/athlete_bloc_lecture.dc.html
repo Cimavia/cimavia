@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:14px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+  <div style="display:flex; flex-direction:column; gap:6px">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+      <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ b.head }}</span>
+      <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ b.type }}</span>
+      <span style="margin-left:auto; display:flex; align-items:center; gap:8px"><sc-if value="{{ b.tallyDone }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9fcdb1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">{{ b.tallyLabel }}</span></span></sc-if>
+      <sc-if value="{{ b.tallyPartial }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ b.tallyLabel }}</span></span></sc-if><sc-if value="{{ chevron }}" hint-placeholder-val="{{ false }}"><span style="width:24px; height:24px; margin-right:-4px; display:flex; align-items:center; justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></span></sc-if></span>
+    </div>
+    <div style="font:600 16px/22px 'Space Grotesk',sans-serif; color:#dceff3; text-wrap:pretty">{{ b.phrase }}</div>
+    <sc-if value="{{ showFlow }}" hint-placeholder-val="{{ false }}"><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ b.flow }}</div></sc-if>
+    <sc-if value="{{ b.hasConsigne }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px; background:#0e141a; border:1px solid #2b3742; border-radius:8px; padding:9px 12px"><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Consigne</div><div style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#dceff3; margin-top:2px">{{ b.consigne }}</div></div></sc-if>
+  </div>
+  <div style="display:flex; flex-direction:column">
+    <sc-for list="{{ b.exs }}" as="e" hint-placeholder-count="2">
+      <div style="display:flex; gap:12px">
+        <sc-if value="{{ e.hasCode }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; align-items:center; width:34px; flex-shrink:0"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 0; width:34px; text-align:center; border-radius:6px">{{ e.code }}</span><sc-if value="{{ e.line }}" hint-placeholder-val="{{ true }}"><span style="flex:1; width:2px; min-height:12px; background:#3a4854; margin:6px 0"></span></sc-if></div>
+        </sc-if>
+        <div style="flex:1; min-width:0; padding-bottom:{{ e.pad }}; display:flex; flex-direction:column; gap:6px">
+          <div style="font:600 16px/24px 'Space Grotesk',sans-serif; color:#dceff3">{{ e.name }}</div>
+          <sc-if value="{{ e.grid.isLine }}" hint-placeholder-val="{{ false }}"><div style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ e.grid.text }}</div></sc-if>
+          <sc-if value="{{ e.grid.isTable }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden; max-width:440px">
+              <div style="display:flex; gap:10px; padding:7px 10px; background:#0e141a; border-bottom:1px solid #2b3742"><span style="width:58px; flex-shrink:0"></span><sc-for list="{{ e.grid.cols }}" as="col" hint-placeholder-count="2"><span style="flex:1; min-width:0; font:600 12px/16px 'IBM Plex Mono',monospace; letter-spacing:.05em; text-transform:uppercase; color:#6b93a0">{{ col }}</span></sc-for></div>
+              <sc-for list="{{ e.grid.rows }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex; gap:10px; align-items:center; min-height:36px; padding:0 10px; border-bottom:1px solid #1c2630">
+                  <span style="width:58px; flex-shrink:0; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.label }}</span>
+                  <sc-for list="{{ r.cells }}" as="cl" hint-placeholder-count="2"><span style="flex:1; min-width:0; display:flex"><sc-if value="{{ cl.filled }}" hint-placeholder-val="{{ true }}"><span style="font:500 15px/22px 'IBM Plex Mono',monospace; color:#dceff3">{{ cl.v }}</span></sc-if><sc-if value="{{ cl.empty }}" hint-placeholder-val="{{ false }}"><span style="font:500 15px/22px 'IBM Plex Mono',monospace; color:#6b93a0">—</span></sc-if></span></sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ e.grid.isCards }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex; flex-direction:column; gap:8px">
+              <sc-for list="{{ e.grid.rows }}" as="r" hint-placeholder-count="2">
+                <div style="background:#0e141a; border:1px solid #2b3742; border-radius:8px; padding:10px 12px">
+                  <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:6px">{{ r.label }}</div>
+                  <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px 16px"><sc-for list="{{ r.cells }}" as="cl" hint-placeholder-count="4"><div><div style="font:600 12px/16px 'IBM Plex Mono',monospace; letter-spacing:.05em; text-transform:uppercase; color:#6b93a0">{{ cl.col }}</div><div style="font:500 15px/22px 'IBM Plex Mono',monospace; color:#dceff3">{{ cl.v }}</div></div></sc-for></div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ e.hasNote }}" hint-placeholder-val="{{ false }}"><div style="background:#0e141a; border-left:3px solid #c2603a; border-radius:6px; padding:9px 12px"><span style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ e.note }}</span></div></sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:362,&quot;height&quot;:600},&quot;b&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;chevron&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;hideFlow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  // chevron : la carte s'ouvre sur l'écran du bloc. hideFlow : « Un tour » remplace la ligne d'enchaînement.
+  renderVals() {
+    const b = this.props.b || {};
+    return { b, chevron: !!this.props.chevron, showFlow: !!b.hasFlow && !this.props.hideFlow };
+  }
+}
+</script>
+</body>
+</html>

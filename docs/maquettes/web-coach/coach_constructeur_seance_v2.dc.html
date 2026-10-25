@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#0a0f14; }
+  a { color:#e8966f; text-decoration:none; }
+  a:hover { color:#d07049; }
+  *::-webkit-scrollbar { width:10px; height:10px; }
+  *::-webkit-scrollbar-thumb { background:#2b3742; border-radius:8px; border:3px solid #0a0f14; }
+</style>
+</helmet>
+<div style="display:flex; flex-direction:column; gap:120px; padding:0 0 120px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+
+<!-- 1 — SÉANCE VIDE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">1 — SÉANCE VIDE · choisir la structure du premier bloc</div>
+  <div data-screen-label="01 Séance vide" style="width:1440px; height:1360px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Nouvelle séance</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">Réutilisable dans toutes tes planifications.</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; background:#1c2630; border:1px solid #2b3742; padding:12px 20px; border-radius:8px; cursor:not-allowed">Créer la séance</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:16px">
+          <div><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:8px">Titre <span style="color:#c2603a">*</span></div><div style="display:flex; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0">Ex. Force haut du corps, Volume grimpe…</span></div></div>
+          <div><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:8px">Notes de séance</div><div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0">Le contexte que la grille ne dit pas — intention, consignes de sécurité…</span></div></div>
+          <div style="border:1px dashed #2b3742; border-radius:8px; padding:32px">
+            <div style="text-align:center">
+              <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; margin-bottom:8px">Compose ta séance en blocs</div>
+              <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; max-width:520px; margin:0 auto 20px; text-wrap:pretty">Un bloc donne le rythme à un ou plusieurs exercices. Choisis la structure du premier.</div>
+            </div>
+            <dc-import name="Structure - Selecteur" s="{{ s1 }}" hint-size="100%,720px"></dc-import>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:16px; text-align:center">ou <span style="color:#aab6c2; cursor:pointer">ajouter directement un exercice</span> — il arrive dans un bloc Séries.</div>
+          </div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pv1 }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 — SÉANCE COMPOSÉE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">2 — SÉANCE COMPOSÉE · blocs repliés</div>
+  <div data-screen-label="02 Séance composée" style="width:1440px; height:940px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="margin-bottom:4px"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:8px">Titre <span style="color:#c2603a">*</span></div><div style="display:flex; align-items:center; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Force &amp; conditionnement</span></div></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Blocs</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">glisse pour réordonner — les lettres suivent l'ordre</span></div>
+          <sc-for list="{{ f2Blocks }}" as="b" hint-placeholder-count="4"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+          <div style="display:flex; align-items:center; gap:8px; padding:13px 16px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un bloc</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">choisir une structure</span></div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 BIS — SÉANCE SIMPLE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">2 BIS — SÉANCE SIMPLE · quatre blocs à un exercice, une carte chacun</div>
+  <div data-screen-label="02b Séance simple" style="width:1440px; height:1000px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,1000px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force — base</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 4 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; align-items:center; justify-content:space-between"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Blocs</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">un exercice seul : une carte, sa structure dans l'en-tête</span></div>
+          <dc-import name="Seance - Exercice de bloc" ex="{{ sEx }}" hint-size="100%,330px"></dc-import>
+          <sc-for list="{{ sBlocks }}" as="b" hint-placeholder-count="3"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,60px"></dc-import></sc-for>
+          <div style="display:flex; gap:10px">
+            <div style="flex:1; display:flex; align-items:center; gap:8px; padding:13px 16px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un exercice</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">crée un bloc Séries</span></div>
+            <div style="flex:1; display:flex; align-items:center; gap:8px; padding:13px 16px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un bloc</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">choisir une structure</span></div>
+          </div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvS }}" style="width:400px; flex-shrink:0" hint-size="400px,927px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 TER — CHOISIR UNE STRUCTURE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">2 TER — AJOUTER UN BLOC · le sélecteur de structures, filtre « cardio » actif</div>
+  <div data-screen-label="02c Choisir une structure" style="width:1440px; height:1000px; position:relative; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,1000px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <sc-for list="{{ f2Blocks }}" as="b" hint-placeholder-count="4"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,927px"></dc-import>
+      </div>
+    </div>
+    <div style="position:absolute; inset:0; background:rgba(10,15,20,.78); display:flex; align-items:center; justify-content:center">
+      <div style="width:1000px"><dc-import name="Structure - Selecteur" s="{{ s2t }}" hint-size="100%,520px"></dc-import></div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 — BLOC SÉRIES DÉPLIÉ -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 — BLOC SÉRIES À 2 EXERCICES · bandeau commun, une grille par exercice, une ligne par tour</div>
+  <div data-screen-label="03 Bloc Séries déplié" style="width:1440px; height:1460px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <dc-import name="Seance - Bloc replie" block="{{ bW }}" hint-size="100%,86px"></dc-import>
+          <div style="border:1px solid #3a4854; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">A</span>
+              <span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0; cursor:text">Libellé facultatif</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px; cursor:pointer">Séries<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">4</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">tours</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; box-sizing:border-box; border-radius:4px; border:1.5px solid #3a4854; flex-shrink:0; cursor:pointer"></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Repos entre exercices</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#c2603a; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Repos entre tours</span><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">2 min 30</span></div>
+                </div>
+                <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:10px">« 4 tours à son rythme, 2 min 30 de repos entre tours. » A1, A2, puis on recommence. Une ligne par tour.</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Ajouter une consigne au bloc</span></div>
+              <sc-for list="{{ f3Exs }}" as="e" hint-placeholder-count="2"><dc-import name="Seance - Exercice de bloc" ex="{{ e }}" hint-size="100%,220px"></dc-import></sc-for>
+              <div style="display:flex; align-items:center; gap:8px; padding:11px 14px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un exercice au bloc A</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">arrivera en A3</span></div>
+            </div>
+          </div>
+          <sc-for list="{{ f3After }}" as="b" hint-placeholder-count="2"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+          <div style="display:flex; align-items:flex-start; gap:7px; margin-top:4px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:3px; flex-shrink:0"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Une cellule vide s'affiche « — ». La planification pourra la remplir.</span></div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 BIS — BLOC PERSONNALISÉ -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 BIS — COCHER « REPOS ENTRE EXERCICES » · le bloc A devient personnalisé, son menu propose de l'enregistrer</div>
+  <div data-screen-label="03b Bloc personnalisé" style="width:1440px; height:940px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <dc-import name="Seance - Bloc replie" block="{{ bW }}" hint-size="100%,60px"></dc-import>
+          <div style="border:1px solid #3a4854; border-radius:8px; position:relative; z-index:2">
+            <div style="position:relative; display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">A</span>
+              <span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0; cursor:text">Libellé facultatif</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:4px 10px; border-radius:999px; cursor:pointer">Personnalisé d'après Séries<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; box-sizing:border-box; border-radius:8px; background:#1c2630; border:1.5px solid #c2603a; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span>
+              <div style="position:absolute; top:52px; right:16px; width:320px; background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:8px; box-shadow:0 24px 60px -20px rgba(0,0,0,.9); z-index:5">
+                <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Changer de structure</div></div>
+                <div style="padding:9px 10px; border-radius:6px; background:#1c2630"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Enregistrer comme structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Ouvre le formulaire de la bibliothèque, prérempli.</div></div>
+                <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Dupliquer le bloc</div></div>
+                <div style="height:1px; background:#2b3742; margin:6px 4px"></div>
+                <div style="padding:9px 10px; border-radius:6px; font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#e89089">Supprimer le bloc</div>
+              </div>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px 34px">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">4</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">tours</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <div style="position:relative; display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#c2603a; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">Repos entre exercices</span><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1.5px solid #c2603a; padding:4.5px 10px; border-radius:6px">30 s|</span><span style="position:absolute; top:30px; right:0; white-space:nowrap; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">ex. 45 s, 1 min 30, 10 min</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <div style="display:flex; align-items:center; gap:8px"><span style="width:16px; height:16px; border-radius:4px; background:#c2603a; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Repos entre tours</span><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">2 min 30</span></div>
+                </div>
+                <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:10px">« 4 tours à son rythme, 30 s entre exercices, 2 min 30 de repos entre tours. » A1, A2, puis on recommence.</div>
+              </div>
+              <div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Consigne du bloc</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">visible par l'athlète</span></div><div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px; cursor:text"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Descends sous la parallèle à chaque répétition.</span></div></div>
+              <div style="display:flex; align-items:center; gap:18px; padding:12px 14px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">A1</span>&nbsp; Squat arrière</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">A2</span>&nbsp; Tirage horizontal</span><span style="margin-left:auto; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">4 lignes chacun, inchangées</span></div>
+            </div>
+          </div>
+          <sc-for list="{{ f3After }}" as="b" hint-placeholder-count="2"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pv3b }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 TER — ENREGISTRER COMME STRUCTURE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 TER — ENREGISTRER COMME STRUCTURE · le formulaire de la bibliothèque, prérempli, nom vide et sélectionné</div>
+  <div data-screen-label="03c Enregistrer comme structure" style="width:1440px; height:1200px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 32px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Nouvelle structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">d'après le bloc A de Force &amp; conditionnement</div></div></div>
+        <div style="display:flex; align-items:center; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Créer la structure</div></div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden">
+        <dc-import name="Structure - Formulaire" f="{{ fSave }}" hint-size="100%,800px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 QUATER — RÉGLER LA STRUCTURE D'UN BLOC -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 QUATER — CLIC SUR L'ÉTIQUETTE « SÉRIES ▾ » · les réglages du bloc, sans changer de structure</div>
+  <div data-screen-label="03d Réglages du bloc" style="width:1440px; height:940px; position:relative; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+      </div>
+      <div style="flex:1; min-width:0; padding:32px; display:flex; flex-direction:column; gap:12px">
+        <dc-import name="Seance - Bloc replie" block="{{ bW }}" hint-size="100%,60px"></dc-import>
+        <dc-import name="Seance - Bloc replie" block="{{ bAq }}" hint-size="100%,86px"></dc-import>
+        <sc-for list="{{ f3After }}" as="b" hint-placeholder-count="2"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+      </div>
+    </div>
+    <div style="position:absolute; inset:0 0 0 236px; background:rgba(10,15,20,.6)"></div>
+    <div style="position:absolute; top:0; right:0; bottom:0; width:980px; display:flex; flex-direction:column; background:#0e141a; border-left:1px solid #3a4854; box-shadow:-40px 0 100px -30px rgba(0,0,0,.8)">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 26px; border-bottom:1px solid #2b3742">
+        <div><div style="display:flex; align-items:center; gap:10px"><span style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3">Réglages du bloc A</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:4px 10px; border-radius:999px">Personnalisé d'après Séries</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Ces réglages ne touchent que ce bloc.</div></div>
+        <div style="width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden"><dc-import name="Structure - Formulaire" f="{{ f3q }}" hint-size="100%,700px"></dc-import></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 26px; border-top:1px solid #2b3742; background:#0a0f14">
+        <span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Revenir à Séries</span>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Appliquer au bloc</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4 — EMOM + AMRAP -->
+<div style="width:1892px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">4 — BLOCS AMRAP ET EMOM DÉPLIÉS · AMRAP : une ligne ; EMOM un seul par bip : une ligne par passage</div>
+  <div style="display:flex; gap:32px; align-items:flex-start">
+  <div data-screen-label="04 Blocs AMRAP et EMOM" style="width:1440px; height:2080px; flex-shrink:0; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,2080px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">5 blocs · 12 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; align-items:center; gap:18px; padding:12px 16px; background:#141d25; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"></path></svg><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Échauffement</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">A</span>&nbsp; Séries</span><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">B</span>&nbsp; Séries</span><span style="margin-left:auto; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">3 blocs au-dessus</span></div>
+          <!-- C AMRAP -->
+          <div style="border:1px solid #3a4854; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">C</span>
+              <span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0; cursor:text">Libellé facultatif</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px; cursor:pointer">AMRAP<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Autant que possible en</span><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">12 min</span></div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:10px">
+                  <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; white-space:nowrap; flex-shrink:0">Un tour</span>
+                  <span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:5px 8px; border-radius:6px">C1</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                  <span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:5px 8px; border-radius:6px">C2</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                  <span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:5px 8px; border-radius:6px">C3</span>
+                  <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">puis on recommence. Une seule ligne : le contenu d'un tour.</span>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Ajouter une consigne au bloc</span></div>
+              <sc-for list="{{ f4C }}" as="e" hint-placeholder-count="3"><dc-import name="Seance - Exercice de bloc" ex="{{ e }}" hint-size="100%,150px"></dc-import></sc-for>
+              <div style="display:flex; align-items:center; gap:8px; padding:11px 14px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un exercice au bloc C</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">arrivera en C4</span></div>
+            </div>
+          </div>
+          <!-- D EMOM -->
+          <div style="border:1px solid #3a4854; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="display:flex; align-items:center; gap:8px; font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Finisher<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"></path></svg></span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px; cursor:pointer">EMOM<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Un bip toutes les</span><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">1 min</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">10</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">bips</span></div>
+                  <div style="width:1px; height:20px; background:#2b3742"></div>
+                  <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">= 10 min</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:10px">
+                  <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-right:4px">Bips</span>
+                  <sc-for list="{{ tops }}" as="t" hint-placeholder-count="10"><span style="display:flex; flex-direction:column; align-items:center; gap:4px; width:38px"><sc-if value="{{ t.a }}" hint-placeholder-val="{{ true }}"><span style="height:24px; width:100%; background:#c2603a; border-radius:6px"></span></sc-if><sc-if value="{{ t.b }}" hint-placeholder-val="{{ false }}"><span style="height:24px; width:100%; box-sizing:border-box; background:#1c2630; border:1px solid #3a4854; border-radius:6px"></span></sc-if><span style="font:500 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ t.n }}</span></span></sc-for>
+                </div>
+                <div style="display:flex; gap:14px; margin-top:8px"><span style="display:flex; align-items:center; gap:6px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="width:10px; height:10px; border-radius:2px; background:#c2603a"></span>KB swing</span><span style="display:flex; align-items:center; gap:6px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2"><span style="width:10px; height:10px; box-sizing:border-box; border-radius:2px; background:#1c2630; border:1px solid #3a4854"></span>Burpees</span></div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:12px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Ordre des exercices</span><div style="display:flex; padding:3px; background:#0a0f14; border:1px solid #2b3742; border-radius:8px"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding:7px 10px; cursor:pointer">Tous à chaque bip</span><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 10px; border-radius:6px">Un seul par bip</span></div><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Bip 1 KB swing, bip 2 Burpees.</span></div>
+                <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px">« 10 bips, chaque minute : KB swing et Burpees en alternance, 5 fois chacun. » Chaque ligne est un passage.</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Ajouter une consigne au bloc</span></div>
+              <sc-for list="{{ f4D }}" as="e" hint-placeholder-count="2"><dc-import name="Seance - Exercice de bloc" ex="{{ e }}" hint-size="100%,150px"></dc-import></sc-for>
+              <div style="display:flex; align-items:center; gap:8px; padding:11px 14px; border:1px dashed #2b3742; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un exercice au Finisher</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-left:auto">arrivera après Burpees</span></div>
+            </div>
+          </div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pv4 }}" style="width:400px; flex-shrink:0" hint-size="400px,2007px"></dc-import>
+      </div>
+    </div>
+  </div>
+  <div style="width:420px; flex-shrink:0; background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:12px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">Un seul par bip, 3 exercices sur 10 bips</div>
+    <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; text-wrap:pretty">« {{ uneven.phrase }} »</div>
+    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Quand le compte ne tombe pas juste, les premiers font un passage de plus.</div>
+    <div style="border:1px solid #2b3742; border-radius:8px">
+      <sc-for list="{{ uneven.rows }}" as="u" hint-placeholder-count="3"><div style="display:grid; grid-template-columns:minmax(0,1fr) 70px minmax(0,1fr); gap:10px; align-items:center; padding:9px 12px; border-bottom:1px solid #2b3742"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ u.name }}</span><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#e8966f">{{ u.lines }}</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ u.bips }}</span></div></sc-for>
+    </div>
+    <div style="padding-top:12px; border-top:1px solid #2b3742; display:flex; flex-direction:column; gap:6px"><div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">Règle</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Au moins autant de bips que d'exercices. En dessous, le champ passe en erreur :</div><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#e89089; background:rgba(210,86,75,.06); border:1.5px solid #D2564B; padding:5.5px 9px; border-radius:6px">2</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">bips</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089">{{ unevenErr }}</div></div>
+  </div>
+  </div>
+</div>
+
+<!-- 4 BIS — FRACTIONNÉ COURSE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">4 BIS — FRACTIONNÉ COURSE · un bloc « Départs 4 min », toutes les valeurs se règlent dans le bandeau</div>
+  <div data-screen-label="04b Fractionné course" style="width:1440px; height:1000px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,1000px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Fractionné piste</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">3 blocs · 3 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <dc-import name="Seance - Bloc replie" block="{{ runW }}" hint-size="100%,60px"></dc-import>
+          <dc-import name="Seance - Exercice de bloc" ex="{{ runEx }}" hint-size="100%,420px"></dc-import>
+          <dc-import name="Seance - Bloc replie" block="{{ runC }}" hint-size="100%,60px"></dc-import>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvRun }}" style="width:400px; flex-shrink:0" hint-size="400px,927px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 — AJOUTER DANS UN BLOC -->
+<div style="width:1892px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">5 — AJOUTER UN EXERCICE DANS UN BLOC · sélecteur de bibliothèque, colonnes préremplies</div>
+  <div style="display:flex; gap:32px; align-items:flex-start">
+  <div data-screen-label="05 Ajouter dans un bloc" style="width:1440px; height:940px; position:relative; display:flex; flex-shrink:0; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <sc-for list="{{ f2Blocks }}" as="b" hint-placeholder-count="4"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+    <div style="position:absolute; inset:0; background:rgba(10,15,20,.78); display:flex; align-items:center; justify-content:center">
+      <div style="width:900px; max-height:820px; display:flex; flex-direction:column; background:#0e141a; border:1px solid #3a4854; border-radius:16px; box-shadow:0 40px 100px -30px rgba(0,0,0,.8)">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 26px; border-bottom:1px solid #2b3742">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3">Ajouter un exercice</div></div>
+          <div style="width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></div>
+        </div>
+        <div style="padding:16px 26px; border-bottom:1px solid #2b3742; display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; align-items:center; gap:10px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Dans</span><span style="display:inline-flex; align-items:center; gap:8px; background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:8px 12px; cursor:pointer"><span style="font:700 13px/1 'Space Grotesk',sans-serif; color:#dceff3">C</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">AMRAP · 12 min</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">arrivera en C4 · ou choisis « Nouveau bloc » dans la liste</span></div>
+          <div style="display:flex; align-items:center; gap:10px"><div style="flex:1; display:flex; align-items:center; gap:10px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:11px 13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0">Chercher dans ta bibliothèque…</span></div><span style="display:inline-flex; align-items:center; gap:6px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:9px 12px; border-radius:999px; cursor:pointer; white-space:nowrap"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Les miens</span><span style="display:inline-flex; align-items:center; gap:6px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:9px 12px; border-radius:999px; cursor:pointer; white-space:nowrap"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>Partagés</span></div>
+          <div style="display:flex; align-items:center; gap:8px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Tags</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 10px; border-radius:999px">renfo</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">grimpe</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">technique</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">mobilité</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">cardio</span></div>
+        </div>
+        <div style="flex:1; min-height:0; overflow-y:auto; padding:16px 26px; display:flex; flex-direction:column; gap:8px">
+          <sc-for list="{{ lib }}" as="l" hint-placeholder-count="5">
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:8px; background:#141d25; border:1px solid #2b3742; cursor:pointer">
+              <sc-if value="{{ l.on }}" hint-placeholder-val="{{ false }}"><span style="width:18px; height:18px; border-radius:5px; background:#c2603a; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span></sc-if>
+              <sc-if value="{{ l.off }}" hint-placeholder-val="{{ true }}"><span style="width:18px; height:18px; box-sizing:border-box; border-radius:5px; border:1.5px solid #3a4854; flex-shrink:0"></span></sc-if>
+              <div style="flex:1; min-width:0">
+                <div style="display:flex; align-items:center; gap:10px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ l.name }}</div><sc-for list="{{ l.tags }}" as="t" hint-placeholder-count="1"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:3px 10px; border-radius:999px">{{ t }}</span></sc-for></div>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:6px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Métriques suggérées</span><sc-for list="{{ l.metrics }}" as="m" hint-placeholder-count="2"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#aab6c2">{{ m }}</span></sc-for></div>
+              </div>
+              <span style="display:inline-flex; align-items:center; gap:7px; width:130px; flex-shrink:0"><span style="width:22px; height:22px; border-radius:999px; background:#1c2630; border:1px solid #3a4854; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; font:600 11px/1 'Space Grotesk',sans-serif; color:#dceff3">{{ l.ini }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; white-space:nowrap">{{ l.owner }}</span></span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 26px; border-top:1px solid #2b3742; background:#0a0f14; border-radius:0 0 16px 16px">
+          <div style="display:flex; align-items:center; gap:8px; color:#aab6c2; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Créer un exercice</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">sans quitter la séance</span></div>
+          <div style="display:flex; align-items:center; gap:14px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">1 sélectionné</span><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Ajouter au bloc C</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="width:420px; flex-shrink:0; display:flex; flex-direction:column; gap:16px">
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:6px">Après l'ajout — dans le bloc C</div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:12px; text-wrap:pretty">Les colonnes viennent des métriques suggérées de l'exercice. Les cellules arrivent vides.</div>
+      <dc-import name="Seance - Exercice de bloc" ex="{{ f5New }}" hint-size="100%,200px"></dc-import>
+    </div>
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:6px">Modifier les métriques — C4 seulement</div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:12px; text-wrap:pretty">Même sélecteur que dans l'exercice. Ce qui change ici reste dans la séance ; l'exercice de la bibliothèque ne bouge pas.</div>
+      <sc-for list="{{ f5Metrics }}" as="m" hint-placeholder-count="5">
+        <div style="display:flex; align-items:center; gap:10px; padding:7px 4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg>
+          <sc-if value="{{ m.on }}" hint-placeholder-val="{{ false }}"><span style="width:18px; height:18px; border-radius:5px; background:#c2603a; display:flex; align-items:center; justify-content:center; flex-shrink:0"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span></sc-if>
+          <sc-if value="{{ m.off }}" hint-placeholder-val="{{ true }}"><span style="width:18px; height:18px; box-sizing:border-box; border-radius:5px; border:1.5px solid #3a4854; flex-shrink:0"></span></sc-if>
+          <span style="font:500 15px/1 'IBM Plex Sans',sans-serif; color:#dceff3; flex:1">{{ m.n }}</span>
+          <sc-if value="{{ m.sugg }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; border:1px solid #3a4854; border-radius:999px; padding:3px 8px">suggérée</span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- 6 — RÉORGANISER -->
+<div style="width:1892px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">6 — RÉORGANISER · glisser d'un bloc à l'autre, menus d'exercice et de bloc, changer de structure</div>
+  <div style="display:flex; gap:32px; align-items:flex-start">
+  <div data-screen-label="06 Réorganiser" style="width:1440px; height:940px; display:flex; flex-shrink:0; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="display:flex; align-items:center; justify-content:space-between"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Blocs</span><div style="display:flex; align-items:center; gap:8px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Affichage</span><div style="display:flex; padding:3px; background:#0a0f14; border:1px solid #2b3742; border-radius:8px"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding:7px 10px">Détaillé</span><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 10px; border-radius:6px">Compact</span></div></div></div>
+          <!-- A -->
+          <div style="border:1px solid #2b3742; border-radius:8px; background:#141d25">
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 16px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">A</span>
+              <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:4px 10px; border-radius:999px">Séries</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">4 tours à son rythme, 2 min 30 de repos entre tours</span>
+            </div>
+            <div style="padding:0 16px 14px 56px; display:flex; flex-direction:column; gap:6px">
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; min-width:26px">A1</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Squat arrière</span><span style="margin-left:auto; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions · Charge</span></div>
+              <div style="display:flex; align-items:center; justify-content:center; padding:10px 12px; border:1px dashed #3a4854; border-radius:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">A2 part : avec un seul exercice, A devient une seule carte</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border:1.5px dashed #3a4854; border-radius:8px; color:#aab6c2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Déposer entre deux blocs pour sortir l'exercice en bloc à part</span></div>
+          <!-- B -->
+          <div style="border:1.5px solid #c2603a; border-radius:8px; background:#141d25">
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 16px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">B</span>
+              <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:4px 10px; border-radius:999px">Séries</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">3 tours à son rythme, 3 min de repos entre tours</span>
+            </div>
+            <div style="padding:0 16px 14px 56px; display:flex; flex-direction:column; gap:6px; position:relative">
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; min-width:26px">B1</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Burpees</span><span style="margin-left:auto; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions</span></div>
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; min-width:26px">B2</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">KB swing</span><span style="margin-left:auto; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Répétitions · Charge</span></div>
+              <div style="display:flex; align-items:center; gap:8px; height:2px; background:#c2603a; border-radius:2px; margin:6px 0; position:relative"><span style="position:absolute; left:-5px; top:-4px; width:10px; height:10px; border-radius:50%; background:#c2603a"></span><span style="position:absolute; right:0; top:-22px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">déposer en B3</span></div>
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; min-width:26px">B4</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Gainage</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">était B3</span><span style="margin-left:auto; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Durée d'effort</span></div>
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; background:#0e141a; border:1px solid #2b3742; border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; min-width:26px">B5</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Corde à sauter</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">était B4</span><span style="margin-left:auto; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Durée d'effort</span></div>
+              <div style="position:absolute; left:96px; top:58px; width:440px; display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1c2630; border:1px solid #c2603a; border-radius:8px; box-shadow:0 24px 50px -16px rgba(0,0,0,.9); transform:rotate(-1.5deg); z-index:3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; text-decoration:line-through">A2</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#e8966f">B3</span><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Tirage horizontal</span><span style="margin-left:auto; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">ligne 4 retirée : B a 3 tours</span></div>
+            </div>
+          </div>
+          <dc-import name="Seance - Bloc replie" block="{{ bC }}" hint-size="100%,86px"></dc-import>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+  <div style="width:420px; flex-shrink:0; display:flex; flex-direction:column; gap:16px">
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:10px">Menu d'un exercice — A2</div>
+      <div style="background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:8px; box-shadow:0 24px 60px -20px rgba(0,0,0,.8)">
+        <div style="padding:9px 10px; border-radius:6px; display:flex; align-items:center"><div><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Déplacer vers le bloc…</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Échauffement · B · C — en dernière position</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="M9 6l6 6-6 6"></path></svg></div>
+        <div style="padding:9px 10px; border-radius:6px; background:#1c2630"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Sortir en bloc à part</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Un nouveau bloc après A, avec les mêmes réglages.</div></div>
+        <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Remplacer l'exercice</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Change l'exercice, garde colonnes et valeurs.</div></div>
+        <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Dupliquer dans le bloc</div></div>
+        <div style="height:1px; background:#2b3742; margin:6px 4px"></div>
+        <div style="padding:9px 10px; border-radius:6px; font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#e89089">Retirer du bloc</div>
+      </div>
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin:16px 0 8px">Résultat</div>
+      <div style="display:flex; flex-direction:column; gap:6px">
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#141d25; border:1px solid #2b3742; border-radius:8px"><span style="font:700 13px/1 'Space Grotesk',sans-serif; color:#dceff3; width:14px">A</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Séries</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">A1 Squat arrière</span></div>
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#141d25; border:1px solid #c2603a; border-radius:8px"><span style="font:700 13px/1 'Space Grotesk',sans-serif; color:#e8966f; width:14px">B</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Séries</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">B1 Tirage horizontal</span><span style="margin-left:auto; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">nouveau</span></div>
+        <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#141d25; border:1px solid #2b3742; border-radius:8px"><span style="font:700 13px/1 'Space Grotesk',sans-serif; color:#dceff3; width:14px">C</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Séries</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">était B</span></div>
+      </div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:10px; text-wrap:pretty">Le nouveau bloc copie les réglages de A : 4 séries, 2 min 30 de repos entre séries. Les blocs suivants changent de lettre.</div>
+    </div>
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:10px">Menu d'un bloc — A</div>
+      <div style="background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:8px; box-shadow:0 24px 60px -20px rgba(0,0,0,.8)">
+        <div style="padding:9px 10px; border-radius:6px; background:#1c2630; display:flex; align-items:center"><div><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Changer de structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Les lignes s'ajustent, on te dit lesquelles.</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="M9 6l6 6-6 6"></path></svg></div>
+        <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Enregistrer comme structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Ouvre le formulaire de la bibliothèque, prérempli.</div></div>
+        <div style="padding:9px 10px; border-radius:6px"><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Dupliquer le bloc</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">La copie arrive juste après A.</div></div>
+        <div style="height:1px; background:#2b3742; margin:6px 4px"></div>
+        <div style="padding:9px 10px; border-radius:6px; font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#e89089">Supprimer le bloc</div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- 6 BIS — CHANGER DE STRUCTURE -->
+<div style="width:1892px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">6 BIS — CHANGER DE STRUCTURE · bloc A, Séries → AMRAP, puis ce qui change</div>
+  <div style="display:flex; gap:32px; align-items:flex-start">
+  <div data-screen-label="06b Changer de structure" style="width:1440px; height:1000px; flex-shrink:0; position:relative; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,1000px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <sc-for list="{{ f2Blocks }}" as="b" hint-placeholder-count="4"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pvBase }}" style="width:400px; flex-shrink:0" hint-size="400px,927px"></dc-import>
+      </div>
+    </div>
+    <div style="position:absolute; inset:0; background:rgba(10,15,20,.78); display:flex; align-items:center; justify-content:center">
+      <div style="width:1000px"><dc-import name="Structure - Selecteur" s="{{ s6 }}" hint-size="100%,800px"></dc-import></div>
+    </div>
+  </div>
+  <div style="width:420px; flex-shrink:0; background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:10px">Après « Passer en AMRAP »</div>
+    <div style="border:1px solid #2b3742; border-radius:8px">
+      <sc-for list="{{ f6Changes }}" as="c" hint-placeholder-count="4"><div style="display:grid; grid-template-columns:minmax(0,1fr) 20px minmax(0,1.3fr); gap:8px; align-items:center; padding:9px 12px; border-bottom:1px solid #2b3742"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ c.a }}</span><span style="color:#6b93a0">→</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ c.b }}</span></div></sc-for>
+    </div>
+    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:10px; text-wrap:pretty">En AMRAP, une seule ligne : le contenu d'un tour.</div>
+    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin:20px 0 6px; padding-top:14px; border-top:1px solid #2b3742">Dans l'autre sens — AMRAP → Séries, 4 tours</div>
+    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:10px">Les lignes 2 à 4 arrivent en fantôme, copiées de la ligne 1.</div>
+    <dc-import name="Seance - Exercice de bloc" ex="{{ f6Ghost }}" hint-size="100%,260px"></dc-import>
+  </div>
+  </div>
+</div>
+
+<!-- 7 — NOTES -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">7 — NOTES · par exercice et pour la séance</div>
+  <div data-screen-label="07 Notes" style="width:1440px; height:1360px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">4 blocs · 10 exercices</div></div></div>
+        <div style="display:flex; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px">Enregistrer</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="margin-bottom:4px"><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Notes de séance</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">visible par l'athlète, en tête de séance</span></div><div style="background:#141d25; border:1.5px solid #c2603a; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Échauffement complet avant la première série lestée. Couper si la technique se dégrade.|</span></div></div>
+          <dc-import name="Seance - Bloc replie" block="{{ bW }}" hint-size="100%,86px"></dc-import>
+          <div style="border:1px solid #3a4854; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">A</span>
+              <span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px">Séries<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">4 tours à son rythme, 2 min 30 de repos entre tours</span>
+              <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <sc-for list="{{ f7Exs }}" as="e" hint-placeholder-count="2"><dc-import name="Seance - Exercice de bloc" ex="{{ e }}" hint-size="100%,240px"></dc-import></sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ f3After }}" as="b" hint-placeholder-count="2"><dc-import name="Seance - Bloc replie" block="{{ b }}" hint-size="100%,86px"></dc-import></sc-for>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pv7 }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 8 — APERÇU MOBILE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">8 — APERÇU ATHLÈTE MOBILE · un superset et un circuit lus par l'athlète</div>
+  <div data-screen-label="08 Aperçu athlète mobile" style="width:1440px; height:940px; display:flex; align-items:flex-start; gap:40px; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; padding:48px; box-sizing:border-box">
+    <div style="width:402px; flex-shrink:0; height:844px; background:#0e141a; border:1px solid #2b3742; border-radius:32px; padding:26px 22px; box-sizing:border-box; overflow:hidden; display:flex; flex-direction:column">
+      <div style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3; letter-spacing:-.01em">Force &amp; conditionnement</div>
+      <div style="display:flex; gap:6px; margin-top:14px; flex-wrap:wrap"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">Échauffement</span><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">A</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">B</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">C</span></div>
+      <div style="margin-top:22px; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:18px">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">A</div>
+        <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; margin-top:6px">4 tours à son rythme, 2 min 30 de repos entre tours</div>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:4px">A1, A2, puis on recommence.</div>
+        <div style="display:flex; flex-direction:column; margin-top:16px">
+          <div style="display:flex; gap:12px">
+            <div style="display:flex; flex-direction:column; align-items:center; width:34px; flex-shrink:0"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 0; width:34px; text-align:center; border-radius:6px">A1</span><span style="flex:1; width:2px; background:#3a4854; margin:6px 0"></span></div>
+            <div style="padding-bottom:18px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Squat arrière</div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3; margin-top:4px"><b style="font-weight:600">6 répétitions</b> à chaque tour</div><div style="display:flex; align-items:center; gap:6px; margin-top:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+          </div>
+          <div style="display:flex; gap:12px">
+            <div style="display:flex; flex-direction:column; align-items:center; width:34px; flex-shrink:0"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 0; width:34px; text-align:center; border-radius:6px">A2</span></div>
+            <div><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Tirage horizontal</div><div style="display:flex; align-items:center; gap:6px; margin-top:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Voir la consigne</span></div></div>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid #2b3742"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0113.7-5.7L20 8.5M20 4v4.5h-4.5"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Repos 2 min 30, puis tour suivant — ×4</span></div>
+      </div>
+      <div style="margin-top:14px; padding:14px 18px; border:1px solid #2b3742; border-radius:16px; display:flex; align-items:center; gap:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">B</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">4 exercices</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="M9 6l6 6-6 6"></path></svg></div>
+    </div>
+    <div style="width:402px; flex-shrink:0; height:844px; background:#0e141a; border:1px solid #2b3742; border-radius:32px; padding:26px 22px; box-sizing:border-box; overflow:hidden; display:flex; flex-direction:column">
+      <div style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3; letter-spacing:-.01em">Force &amp; conditionnement</div>
+      <div style="display:flex; gap:6px; margin-top:14px; flex-wrap:wrap"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px">Échauffement</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">A</span><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">B</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">C</span></div>
+      <div style="margin-top:22px; background:#141d25; border:1px solid #2b3742; border-radius:16px; padding:18px">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">B</div>
+        <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3; margin-top:6px">3 tours à son rythme, 3 min de repos entre tours</div>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:4px">B1 à B4 à la suite, puis repos.</div>
+        <div style="display:flex; flex-direction:column; margin-top:16px">
+          <sc-for list="{{ f8B }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex; gap:12px">
+              <div style="display:flex; flex-direction:column; align-items:center; width:34px; flex-shrink:0"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:6px 0; width:34px; text-align:center; border-radius:6px">{{ s.code }}</span><sc-if value="{{ s.line }}" hint-placeholder-val="{{ true }}"><span style="flex:1; width:2px; min-height:14px; background:#3a4854; margin:6px 0"></span></sc-if></div>
+              <div style="padding-bottom:16px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ s.name }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding-top:14px; border-top:1px solid #2b3742"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0113.7-5.7L20 8.5M20 4v4.5h-4.5"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Repos 3 min, puis tour suivant — ×3</span></div>
+      </div>
+    </div>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:22px; padding-top:22px">
+      <div>
+        <div style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3; letter-spacing:-.01em">Ce que l'athlète lit</div>
+        <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:10px; text-wrap:pretty">Bloc par bloc, comme au tableau de la salle. Le rythme se lit une fois, en tête. Chaque exercice garde son code.</div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:12px">
+        <div style="background:#0e141a; border:1px solid #2b3742; border-radius:8px; padding:14px 16px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">La cadence en tête de bloc</div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:4px">Tours et repos viennent du bandeau — ils ne sont pas répétés sous chaque exercice.</div></div>
+        <div style="background:#0e141a; border:1px solid #2b3742; border-radius:8px; padding:14px 16px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Le trait relie ce qui s'enchaîne</div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:4px">A1 → A2 sans pause ; le repos arrive en bas du bloc, avec le nombre de tours.</div></div>
+        <div style="background:#0e141a; border:1px solid #2b3742; border-radius:8px; padding:14px 16px"><div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Les valeurs absentes</div><div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:4px">Une valeur vide ne s'affiche pas. Sans valeur, l'athlète voit juste le nom.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 9 — VALIDATION -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">9 — VALIDATION · titre manquant, bloc sans exercice</div>
+  <div data-screen-label="09 Validation" style="width:1440px; height:1330px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Nouvelle séance</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">2 blocs · 2 exercices</div></div></div>
+        <div style="display:flex; align-items:center; gap:10px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089; margin-right:6px">2 points à régler</span><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; background:#1c2630; border:1px solid #2b3742; padding:12px 20px; border-radius:8px; cursor:not-allowed">Créer la séance</div></div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow-y:auto; padding:32px; display:flex; flex-direction:column; gap:12px">
+          <div style="margin-bottom:4px"><div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:8px">Titre <span style="color:#c2603a">*</span></div><div style="display:flex; align-items:center; background:rgba(210,86,75,.06); border:1.5px solid #d2564b; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#6b93a0">Ex. Force haut du corps, Volume grimpe…</span></div><div style="display:flex; align-items:center; gap:7px; margin-top:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e89089" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.01"></path><circle cx="12" cy="12" r="9"></circle></svg>Donne un titre pour enregistrer la séance.</div></div>
+          <div style="border:1px solid #2b3742; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">A</span>
+              <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px">Séries</span>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">4 tours à son rythme, 2 min 30 de repos entre tours</span>
+            </div>
+            <div style="padding:14px 16px; display:flex; flex-direction:column; gap:12px">
+              <sc-for list="{{ f9Exs }}" as="e" hint-placeholder-count="2"><dc-import name="Seance - Exercice de bloc" ex="{{ e }}" hint-size="100%,150px"></dc-import></sc-for>
+            </div>
+          </div>
+          <div style="border:1.5px solid #d2564b; border-radius:8px">
+            <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; background:#141d25; border-bottom:1px solid #2b3742; border-radius:8px 8px 0 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              <span style="width:28px; height:28px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">B</span>
+              <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px">AMRAP</span>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">12 min</span>
+              <span style="display:inline-flex; align-items:center; font:500 13px/1 'IBM Plex Sans',sans-serif; color:#e89089; background:rgba(210,86,75,.16); border:1px solid #d2564b; padding:4px 9px; border-radius:999px">aucun exercice</span>
+            </div>
+            <div style="padding:14px 16px">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:20px; border:1px dashed #d2564b; border-radius:8px; background:rgba(210,86,75,.06)">
+                <span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Ce bloc est vide.</span>
+                <div style="display:flex; gap:10px"><div style="display:inline-flex; align-items:center; gap:8px; padding:11px 16px; background:#c2603a; border-radius:8px; color:#dceff3; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter un exercice</span></div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#e89089; padding:12px 16px; border:1px solid #2b3742; border-radius:8px; cursor:pointer">Supprimer le bloc</div></div>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; margin-top:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e89089" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.01"></path><circle cx="12" cy="12" r="9"></circle></svg>Bloc vide : ajoute un exercice ou supprime le bloc.</div>
+            </div>
+          </div>
+        </div>
+        <dc-import name="Seance - Apercu athlete" pv="{{ pv9 }}" style="width:400px; flex-shrink:0" hint-size="400px,867px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { M: null };
+  componentDidMount() { import('./structure-model.js').then(M => this.setState({ M })); }
+  renderVals() {
+    const M = this.state.M;
+    const cell = v => (v && v.edit) ? { isEdit: true, v: v.v || '' } : (v && v.ghost) ? { isGhost: true, v: v.v } : { isVal: !!v, isEmpty: !v, v: v || '' };
+    const ex = (code, name, tags, cols, rows, o = {}) => ({
+      code, hasCode: !!code, name, tags, showAdd: true,
+      cols: cols.map(c => typeof c === 'string' ? { n: c, plain: true } : { ...c, plain: !c.menu }),
+      rows: rows.map(r => ({ b: r[0], cells: r.slice(1).map(cell) })), ...o
+    });
+    const RC = ['Répétitions', 'Charge'];
+    const DE = ["Durée d'effort"];
+    const nm = (code, name) => ({ code, hasCode: !!code, name });
+    const rows4 = (...v) => [1, 2, 3, 4].map(i => [String(i), ...v]);
+    const blk = (letter, label, type, summary, exs) => exs.length === 1
+      ? { hasLetter: false, hasLabel: false, hasBadge: true, badge: letter ? letter + '1' : label, isSingle: true, exName: exs[0].name, hasList: false, type, summary, exs }
+      : { hasLetter: !!letter, letter, hasLabel: !!label, label, hasBadge: false, isSingle: false, hasList: true, type, summary, exs };
+
+    const P = (c, n, names) => M ? M.phrase(c, n, names) : '';
+    const C = {
+      LIB: { go: 'athlete', times: 'once' },
+      SUP: { go: 'athlete', times: 'n', n: 4, restRound: '2 min 30' },
+      B3: { go: 'athlete', times: 'n', n: 3, restRound: '3 min' },
+      AM: { go: 'athlete', times: 'max', cap: '12 min' },
+      EM: { go: 'bip', every: '1 min', times: 'n', n: 10, order: 'one' },
+      S4: { go: 'athlete', times: 'n', n: 4, restRound: '2 min' },
+      S2: { go: 'athlete', times: 'n', n: 3, restRound: '2 min' },
+      S90: { go: 'athlete', times: 'n', n: 3, restRound: '1 min 30' },
+      S1: { go: 'athlete', times: 'n', n: 3, restRound: '1 min' }
+    };
+    const bW = blk('', 'Échauffement', 'Libre', P(C.LIB, 1), [nm('', 'Routine de mobilité')]);
+    const bA = blk('A', '', 'Séries', P(C.SUP, 2), [nm('A1', 'Squat arrière'), nm('A2', 'Tirage horizontal')]);
+    const bB = blk('B', '', 'Séries', P(C.B3, 4), [nm('B1', 'Burpees'), nm('B2', 'KB swing'), nm('B3', 'Gainage'), nm('B4', 'Corde à sauter')]);
+    const bC = blk('C', '', 'AMRAP', P(C.AM, 3), [nm('C1', 'Tractions lestées'), nm('C2', 'Dips lestés'), nm('C3', 'Rowing unilatéral')]);
+
+    const it = (code, name, txt, note) => ({ code, hasCode: !!code, name, txt, hasTxt: !!txt, isPending: !txt, note, hasNote: !!note });
+    const pW = { isSingle: true, notSingle: false, head: 'Échauffement', name: 'Routine de mobilité', sum: P(C.LIB, 1) + '.' };
+    const pA = (n1) => ({ notSingle: true, head: 'A', hasSum: true, sum: P(C.SUP, 2) + '. A1, A2, puis on recommence.', items: [it('A1', 'Squat arrière', '6 répétitions à chaque tour.', n1), it('A2', 'Tirage horizontal')] });
+    const pB = { notSingle: true, head: 'B', hasSum: true, sum: P(C.B3, 4) + '.', items: [it('B1', 'Burpees'), it('B2', 'KB swing'), it('B3', 'Gainage'), it('B4', 'Corde à sauter')] };
+    const pC = { notSingle: true, head: 'C · AMRAP', hasSum: true, sum: P(C.AM, 3) + '. C1, C2, C3, puis on recommence.', items: [it('C1', 'Tractions lestées'), it('C2', 'Dips lestés'), it('C3', 'Rowing unilatéral')] };
+    const base = { label: 'Aperçu athlète — la séance entière', hasContent: true, isEmpty: false, title: 'Force & conditionnement', sub: '4 blocs · 10 exercices', hasNote: false };
+    const note = 'Échauffement complet avant la première série lestée. Couper si la technique se dégrade.';
+    const n1 = "Monte d'un cran si la première série passe bien.";
+    const pv4 = { ...base, label: 'Aperçu athlète — blocs C et Finisher', sub: '5 blocs · 12 exercices', blocks: [
+      { ...pC, items: [it('C1', 'Tractions lestées', '5 répétitions à chaque tour.'), it('C2', 'Dips lestés'), it('C3', 'Rowing unilatéral')] },
+      { notSingle: true, head: 'Finisher · EMOM', hasSum: true, sum: P(C.EM, 2, ['KB swing', 'Burpees']) + '.', items: [it('', 'KB swing', '3 répétitions à chaque bip.'), it('', 'Burpees')] }
+    ] };
+    const single = (code, name, sum) => ({ isSingle: true, notSingle: false, head: code, name, sum });
+    const runEvery = M ? M.every('4 min') : 'toutes les 4 min';
+    const runPhrase = M ? M.phrase(M.S.DEP4, 1) : '';
+    const runConsigne = M ? M.find('Départs 4 min').consigne : '';
+    const unevenNames = ['KB swing', 'Burpees', 'Squats sautés'];
+
+    return {
+      s1: M ? M.selector({ framed: false, btn: 'Ajouter le bloc' }) : undefined,
+      s2t: M ? M.selector({ tag: 'cardio', selected: 'Tabata 30/10', btn: 'Ajouter le bloc', sub: 'arrivera en D' }) : undefined,
+      s6: M ? M.selector({ current: 'Séries', selected: 'AMRAP', btn: 'Passer en AMRAP', title: 'Changer la structure du bloc A' }) : undefined,
+      f3q: M ? M.form({ go: 'bip', every: '1 min', times: 'n', n: 4, ui: { every: { edit: true } } }, { compact: true, nEx: 2 }) : undefined,
+      bAq: { ...bA, type: '', custom: "Personnalisé d'après Séries", summary: P({ go: 'bip', every: '1 min', times: 'n', n: 4 }, 2) },
+      unevenErr: M ? M.orderError(3, 'bip') : '',
+      fSave: M ? M.form({ go: 'athlete', times: 'n', n: 4, restEx: '30 s', restRound: '2 min 30' }, { nameEmpty: true, nEx: 2, consigne: 'Descends sous la parallèle à chaque répétition.', foot: 'Le bloc A passera à « … ».' }) : undefined,
+      uneven: {
+        phrase: (M ? M.phrase({ go: 'bip', every: '1 min', times: 'n', n: 10, order: 'one' }, 3, unevenNames) : '') + '.',
+        rows: [
+          { name: 'KB swing', lines: '4 lignes', bips: 'bips 1, 4, 7, 10' },
+          { name: 'Burpees', lines: '3 lignes', bips: 'bips 2, 5, 8' },
+          { name: 'Squats sautés', lines: '3 lignes', bips: 'bips 3, 6, 9' }
+        ]
+      },
+      pv3b: { ...base, blocks: [pW, { ...pA(), sum: P({ ...C.SUP, restEx: '30 s' }, 2) + '. A1, A2, puis on recommence.', consigne: 'Descends sous la parallèle à chaque répétition.' }, pB, pC] },
+      runW: blk('', 'Échauffement', 'Libre', P(C.LIB, 1), [nm('', 'Footing 15 min')]),
+      runC: blk('', 'Retour au calme', 'Libre', P(C.LIB, 1), [nm('', 'Étirements')]),
+      runEx: ex('A1', 'Course', ['course'], ['Distance', 'Allure'], [1, 2, 3, 4, 5, 6].map(i => [String(i), '500 m', '']), { showAdd: true, hasPill: true, pill: 'Départs 4 min', hasBand: true, bandEditing: true, band: [{ pre: 'Un bip toutes les', v: '4 min', post: '', isEdit: true, help: 'ex. 45 s, 1 min 30, 10 min' }, { pre: '', v: '6', post: 'séries', isVal: true }, { pre: '', post: '', accent: '= 24 min (6 × 4 min)' }], bandNote: `« ${runPhrase}. » Une ligne par série.`, consigne: runConsigne }),
+      pvRun: { label: 'Aperçu athlète — la séance entière', hasContent: true, isEmpty: false, title: 'Fractionné piste', sub: '3 blocs · 3 exercices', hasNote: false, blocks: [
+        single('Échauffement', 'Footing 15 min', P(C.LIB, 1) + '.'),
+        { ...single('A1', 'Course', `${runPhrase}. 500 m à chaque série.`), consigne: runConsigne },
+        single('Retour au calme', 'Étirements', P(C.LIB, 1) + '.')
+      ] },
+      bW, bC, f2Blocks: [bW, bA, bB, bC], f3After: [bB, bC],
+      pvBase: { ...base, blocks: [pW, pA(), pB, pC] }, pv4,
+      tops: Array.from({ length: 10 }, (_, i) => ({ n: String(i + 1), a: i % 2 === 0, b: i % 2 === 1 })),
+      pv1: { label: 'Aperçu athlète — la séance entière', isEmpty: true, hasContent: false, emptyTitle: "L'aperçu se remplit ici", emptyTxt: "L'athlète verra les blocs dans l'ordre, chaque exercice avec sa consigne et son dosage." },
+      pv7: { ...base, hasNote: true, note, blocks: [pW, pA(n1), pB, pC] },
+      pv9: { label: 'Aperçu athlète — la séance entière', isEmpty: true, hasContent: false, emptyTitle: '', emptyTxt: "L'aperçu apparaît une fois le titre renseigné." },
+      sEx: ex('A1', 'Squat arrière', ['renfo', 'force'], RC, [['1', '6', '80 kg'], ['2', '6', '80 kg'], ['3', '6', '82,5 kg'], ['4', '6', '82,5 kg']], { hasPill: true, pill: 'Séries', hasBand: true, addConsigne: true, band: [{ pre: '', v: '4', post: 'séries', isVal: true }, { pre: 'Repos entre séries', v: '2 min', post: '', isVal: true }] }),
+      sBlocks: [
+        blk('B', '', 'Séries', P(C.S2, 1), [nm('B1', 'Développé couché')]),
+        blk('C', '', 'Séries', P(C.S90, 1), [nm('C1', 'Soulevé de terre roumain')]),
+        blk('D', '', 'Séries', P(C.S1, 1), [nm('D1', 'Gainage')])
+      ],
+      pvS: { label: 'Aperçu athlète — la séance entière', hasContent: true, isEmpty: false, title: 'Force — base', sub: '4 blocs · 4 exercices', hasNote: false, blocks: [
+        single('A1', 'Squat arrière', P(C.S4, 1) + '. 6 répétitions, de 80 à 82,5 kg.'),
+        single('B1', 'Développé couché', P(C.S2, 1) + '. 8 répétitions à 60 kg.'),
+        single('C1', 'Soulevé de terre roumain', P(C.S90, 1) + '. 10 répétitions à 50 kg.'),
+        single('D1', 'Gainage', P(C.S1, 1) + '. 45 s par série.')
+      ] },
+      f3Exs: [
+        ex('A1', 'Squat arrière', ['renfo', 'force'], ['Répétitions', { n: 'Charge', menu: true }], [['1', '6', { edit: true }], ['2', '6', ''], ['3', '6', ''], ['4', '6', '']], { mirror: true }),
+        ex('A2', 'Tirage horizontal', ['renfo'], RC, rows4('', ''))
+      ],
+      f4C: [
+        ex('C1', 'Tractions lestées', ['renfo', 'force'], RC, [['1', '5', '']], { showAdd: false }),
+        ex('C2', 'Dips lestés', ['renfo', 'force'], RC, [['1', '', '']], { showAdd: false }),
+        ex('C3', 'Rowing unilatéral', ['renfo'], RC, [['1', '', '']], { showAdd: false })
+      ],
+      f4D: [
+        ex('', 'KB swing', ['renfo'], RC, [1, 2, 3, 4, 5].map(i => [String(i), '3', '']), { showAdd: false }),
+        ex('', 'Burpees', ['cardio'], ['Répétitions'], [1, 2, 3, 4, 5].map(i => [String(i), '']), { showAdd: false })
+      ],
+      lib: [
+        { name: 'Suspension bras tendus', tags: ['renfo', 'grimpe'], metrics: ["Durée d'effort"], on: true, off: false, ini: 'MK', owner: 'Moi' },
+        { name: 'Gainage dynamique', tags: ['renfo'], metrics: ["Durée d'effort", 'RPE'], on: false, off: true, ini: 'MK', owner: 'Moi' },
+        { name: 'Tirage horizontal', tags: ['renfo'], metrics: RC, on: false, off: true, ini: 'M', owner: 'M · Écriture' },
+        { name: 'Squat arrière', tags: ['renfo', 'force'], metrics: RC, on: false, off: true, ini: 'MK', owner: 'Moi' },
+        { name: 'KB swing', tags: ['renfo'], metrics: RC, on: false, off: true, ini: 'M', owner: 'M · Lecture' }
+      ],
+      f5New: ex('C4', 'Suspension bras tendus', ['renfo', 'grimpe'], DE, [['1', '']], { isNew: true, showAdd: false }),
+      f5Metrics: [
+        { n: "Durée d'effort", on: true, off: false, sugg: true },
+        { n: 'Répétitions', on: false, off: true },
+        { n: 'Charge', on: false, off: true },
+        { n: 'RPE', on: false, off: true },
+        { n: 'Repos après', on: false, off: true }
+      ],
+      f6Changes: [
+        { a: '4 tours', b: 'Autant que possible, en 12 min' },
+        { a: 'Repos entre tours 2 min 30', b: 'Retiré : pas de repos entre tours en AMRAP' },
+        { a: 'A1 Squat arrière, 4 lignes', b: 'Garde la ligne 1, lignes 2 à 4 retirées' },
+        { a: 'A2 Tirage horizontal, 4 lignes', b: 'Garde la ligne 1, lignes 2 à 4 retirées' }
+      ],
+      f6Ghost: ex('A1', 'Squat arrière', ['renfo', 'force'], RC, [['1', '6', '80 kg'], ['2', { ghost: true, v: '6' }, { ghost: true, v: '80 kg' }], ['3', { ghost: true, v: '6' }, { ghost: true, v: '80 kg' }], ['4', { ghost: true, v: '6' }, { ghost: true, v: '80 kg' }]], { showAdd: false }),
+      f7Exs: [
+        ex('A1', 'Squat arrière', ['renfo', 'force'], RC, rows4('6', ''), { showAdd: false, hasNote: true, note: n1 }),
+        ex('A2', 'Tirage horizontal', ['renfo'], RC, rows4('', ''), { showAdd: false, addNote: true })
+      ],
+      f8B: [
+        { code: 'B1', name: 'Burpees', line: true }, { code: 'B2', name: 'KB swing', line: true },
+        { code: 'B3', name: 'Gainage', line: true }, { code: 'B4', name: 'Corde à sauter', line: false }
+      ],
+      f9Exs: [
+        ex('A1', 'Squat arrière', ['renfo', 'force'], RC, rows4('6', ''), { showAdd: false }),
+        ex('A2', 'Tirage horizontal', ['renfo'], RC, rows4('', ''), { showAdd: false })
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

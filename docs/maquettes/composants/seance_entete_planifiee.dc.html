@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#0e141a; border-bottom:1px solid #2b3742; padding:20px 28px 18px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3; display:flex; flex-direction:column; gap:14px">
+  <div style="display:flex; align-items:center; gap:10px">
+    <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">{{ h.crumb }}</span>
+    <sc-if value="{{ h.broadcast }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:600 12px/1 'IBM Plex Sans',sans-serif; color:#8fcfa4; background:rgba(78,154,106,.14); border:1px solid rgba(78,154,106,.34); padding:5px 9px; border-radius:7px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>Plan diffusé</span></sc-if>
+    <span style="margin-left:auto; display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>
+  </div>
+  <div>
+    <div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">{{ h.title }}</div>
+    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">{{ h.sub }}</div>
+  </div>
+  <div style="display:flex; align-items:center; flex-wrap:wrap; gap:12px">
+    <sc-if value="{{ h.hasAdj }}" hint-placeholder-val="{{ true }}"><span style="display:inline-flex; align-items:center; gap:7px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.14); border:1px solid rgba(194,96,58,.38); padding:5px 11px; border-radius:999px"><span style="width:6px; height:6px; border-radius:2px; background:#c2603a"></span>{{ h.adj }}</span><span title="Rend la composition de la séance-type" style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Tout réinitialiser</span></sc-if>
+    <sc-if value="{{ h.noAdj }}" hint-placeholder-val="{{ false }}"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ h.adj }}</span></sc-if>
+    <span style="margin-left:auto; display:flex; align-items:center; gap:10px">
+      <span style="display:inline-flex; align-items:center; gap:8px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:10px 14px; border-radius:8px; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>Dosage</span>
+      <span style="display:inline-flex; align-items:center; gap:8px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:10px 12px; border-radius:8px; cursor:pointer">Voir la séance-type<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"></path></svg></span>
+    </span>
+  </div>
+  <sc-if value="{{ h.broadcast }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:8px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fcfa4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg>Léa verra sa séance mise à jour.</div></sc-if>
+  <div style="display:flex; align-items:center; gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Structures et ordre des exercices en lecture seule. Les réglages se changent dans la séance-type.</span></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:880,&quot;height&quot;:240},&quot;h&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{crumb:string,title:string,sub:string,adj:string,hasAdj:boolean,noAdj:boolean,broadcast?:boolean}&quot;}}"></script>
+</body>
+</html>

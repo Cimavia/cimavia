@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#0a0f14; }
+  a { color:#e8966f; text-decoration:none; }
+  a:hover { color:#d07049; }
+  *::-webkit-scrollbar { width:10px; height:10px; }
+  *::-webkit-scrollbar-thumb { background:#2b3742; border-radius:8px; border:3px solid #0a0f14; }
+</style>
+</helmet>
+<div style="display:flex; flex-direction:column; gap:110px; padding:0 0 120px; background:#0a0f14; width:max-content; min-width:100%; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+
+<!-- 1 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">1 — LA SÉANCE DE LÉA · lundi de S2, lue bloc par bloc</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Chaque bloc a son en-tête : libellé ou lettre, structure, phrase. Le Rameur est B4, avec sa note ; rien ne dit qu'il remplace un autre exercice. Toute la carte s'ouvre d'un tap sur l'écran du bloc. Les puces sont un sommaire : un tap fait défiler jusqu'au bloc ; celle du bloc en haut de l'écran est orange.</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <div data-screen-label="01a Séance S2 haut" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">1a · HAUT DE LA SÉANCE</div>
+      <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d2 }}</div></div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{ chips1a }}" as="c" hint-placeholder-count="4"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if><sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if></sc-for></div>
+          <sc-for list="{{ s2All }}" as="b" hint-placeholder-count="2"><dc-import name="Athlète - Bloc lecture" b="{{ b }}" chevron="{{ true }}" hint-size="100%,300px"></dc-import></sc-for>
+        </div>
+      </div>
+    </div>
+    <div data-screen-label="01b Séance S2 suite" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">1b · APRÈS DÉFILEMENT</div>
+      <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px; position:relative; z-index:2; background:#0a0f14"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 8px; flex-shrink:0; position:relative; z-index:2; background:#0a0f14"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force &amp; conditionnement</span></div>
+        <div style="padding:0 20px 12px; flex-shrink:0; position:relative; z-index:2; background:#0a0f14; border-bottom:1px solid #1c2630"><div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{ chips1b }}" as="c" hint-placeholder-count="4"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if><sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if></sc-for></div></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px">
+          <div style="display:flex; flex-direction:column; gap:16px; margin-top:-560px">
+            <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d2 }}</div></div>
+            <sc-for list="{{ s2All }}" as="b" hint-placeholder-count="4"><dc-import name="Athlète - Bloc lecture" b="{{ b }}" chevron="{{ true }}" hint-size="100%,300px"></dc-import></sc-for>
+            <div style="display:flex; flex-direction:column; gap:10px; padding-top:6px">
+              <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:52px; background:#c2603a; border-radius:8px"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Faire mon débrief</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">Ce que tu as coché part avec ton débrief.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div data-screen-label="01c Séance S2 fin" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">1c · FIN DE LA SÉANCE</div>
+      <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px; position:relative; z-index:2; background:#0a0f14"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 8px; flex-shrink:0; position:relative; z-index:2; background:#0a0f14"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force &amp; conditionnement</span></div>
+        <div style="padding:0 20px 12px; flex-shrink:0; position:relative; z-index:2; background:#0a0f14; border-bottom:1px solid #1c2630"><div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{ chips1c }}" as="c" hint-placeholder-count="4"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if><sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if></sc-for></div></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; justify-content:flex-end">
+          <div style="display:flex; flex-direction:column; gap:16px; flex-shrink:0">
+            <sc-for list="{{ s2All }}" as="b" hint-placeholder-count="4"><dc-import name="Athlète - Bloc lecture" b="{{ b }}" chevron="{{ true }}" hint-size="100%,300px"></dc-import></sc-for>
+            <div style="display:flex; flex-direction:column; gap:10px; padding-top:6px">
+              <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:52px; background:#c2603a; border-radius:8px"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Faire mon débrief</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">Ce que tu as coché part avec ton débrief.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">2 — LE BLOC A, DEUX SEMAINES · S1 puis S2</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Le trait et la ligne d'enchaînement disent qu'on fait A1, A2 (puis A3) à chaque tour. En S2, A3 s'ajoute et la 4e ligne de A1 passe à 62,5 kg : c'est simplement la séance de la semaine.</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <div data-screen-label="02a Bloc A S1" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">2a · SEMAINE 1</div>
+      <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d1 }}</div></div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{ chipsA }}" as="c" hint-placeholder-count="4"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if><sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if></sc-for></div>
+          <dc-import name="Athlète - Bloc lecture" b="{{ s1A }}" chevron="{{ true }}" hint-size="100%,300px"></dc-import>
+        </div>
+      </div>
+    </div>
+    <div data-screen-label="02b Bloc A S2" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">2b · SEMAINE 2</div>
+      <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d2 }}</div></div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap"><sc-for list="{{ chipsA }}" as="c" hint-placeholder-count="4"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if><sc-if value="{{ c.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 12px; border-radius:999px">{{ c.t }}</span></sc-if></sc-for></div>
+          <dc-import name="Athlète - Bloc lecture" b="{{ s2A }}" chevron="{{ true }}" hint-size="100%,500px"></dc-import>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">3 — L'ÉCRAN DU BLOC · B à quatre exercices, C en AMRAP</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Un seul écran par bloc : la carte, le tour en une ligne de codes (il remplace la ligne d'enchaînement), puis « Mon suivi ». Le chrono du bloc se lance d'en bas ; sans chrono, pas de barre.</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <sc-for list="{{ f3 }}" as="d" hint-placeholder-count="2">
+      <div data-screen-label="{{ d.screen }}" style="width:402px; flex-shrink:0">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">{{ d.label }}</div>
+        <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+          <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+          <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0; border-bottom:1px solid #1c2630"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force &amp; conditionnement</span></div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:16px 20px 20px; display:flex; flex-direction:column; justify-content:{{ d.align }}">
+          <div style="display:flex; flex-direction:column; gap:22px; flex-shrink:0">
+            <dc-import name="Athlète - Bloc lecture" b="{{ d.b }}" hide-flow="{{ d.hasTour }}" hint-size="100%,420px"></dc-import>
+            <sc-if value="{{ d.hasTour }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Un tour</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                <sc-for list="{{ d.tour }}" as="k" hint-placeholder-count="4"><span style="display:flex; align-items:center; gap:8px"><span style="font:600 15px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:10px 10px; border-radius:8px">{{ k.k }}</span><sc-if value="{{ k.arrow }}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></sc-if></span></sc-for>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px"><path d="M4 12a8 8 0 0113.7-5.7L20 8.5M20 4v4.5h-4.5"></path></svg>
+              </div>
+            </div>
+            </sc-if>
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:28px">
+                <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Mon suivi</span>
+                <sc-if value="{{ d.tDone }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9fcdb1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">{{ d.tLabel }}</span></span></sc-if>
+                <sc-if value="{{ d.tPartial }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ d.tLabel }}</span></span></sc-if>
+              </div>
+              <sc-if value="{{ d.isSingle }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:14px; padding:10px 12px; border-radius:10px; background:#141d25; border:1px solid #2b3742">
+                  <sc-if value="{{ d.singleOn }}" hint-placeholder-val="{{ false }}"><span style="width:56px; height:56px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:#c2603a; border:1.5px solid #c2603a"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span></sc-if>
+                  <sc-if value="{{ d.singleOff }}" hint-placeholder-val="{{ false }}"><span style="width:56px; height:56px; box-sizing:border-box; border-radius:12px; flex-shrink:0; background:#0a0f14; border:1.5px solid #3a4854"></span></sc-if>
+                  <span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ d.singleLabel }}</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ d.isRows }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; flex-direction:column; gap:10px">
+                  <sc-for list="{{ d.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:10px; background:#141d25; border:1px solid #2b3742">
+                      <span style="width:58px; flex-shrink:0; font:600 15px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ r.label }}</span>
+                      <div style="flex:1; min-width:0; display:flex; gap:8px; justify-content:flex-end">
+                        <sc-for list="{{ r.boxes }}" as="x" hint-placeholder-count="3">
+                          <sc-if value="{{ x.on }}" hint-placeholder-val="{{ false }}"><span style="flex:1; max-width:64px; min-width:0; height:52px; box-sizing:border-box; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:4px; background:#c2603a; border:1.5px solid #c2603a"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ x.k }}</span></span></sc-if>
+                          <sc-if value="{{ x.off }}" hint-placeholder-val="{{ true }}"><span style="flex:1; max-width:64px; min-width:0; height:52px; box-sizing:border-box; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#0a0f14; border:1.5px solid #3a4854"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#aab6c2">{{ x.k }}</span></span></sc-if>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ d.hint }}</span></div>
+            </div>
+          </div>
+          </div>
+          <sc-if value="{{ d.hasTimer }}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0; padding:14px 20px 22px; border-top:1px solid #2b3742; background:#0e141a; display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:56px; border-radius:12px; background:#c2603a"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5V13l2.4 1.6"></path><path d="M9 2.5h6"></path></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Lancer le chrono</span></div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">{{ d.what }}</div>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<!-- 4 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">4 — LE CHRONO APPARTIENT AU BLOC · six réglages, six chronos</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Chaque chrono affiche en tête le bloc et sa phrase. Le compteur parle comme la phrase. Rien de ce que mesure le chrono n'est enregistré ni envoyé au coach.</div>
+  <div style="display:grid; grid-template-columns:repeat(3,402px); gap:56px 40px">
+
+    <div data-screen-label="04a Repos entre tours" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4a · REPOS ENTRE DEUX TOURS · bloc A, S2</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4a.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4a.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4a.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">{{ t4a.title }}</span>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4a.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4a.pct }}; height:100%; background:#c2603a; border-radius:999px"></div></div>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4a.sub }}</span>
+            <div style="width:100%; box-sizing:border-box; margin-top:8px; padding:14px 16px; border-radius:12px; background:#141d25; border:1px solid #2b3742; display:flex; flex-direction:column; gap:6px">
+              <div style="display:flex; align-items:center; justify-content:space-between"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Ensuite</span><span style="font:600 15px/22px 'IBM Plex Mono',monospace; color:#dceff3">{{ t4a.counter }}</span></div>
+              <div style="display:flex; align-items:baseline; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ t4a.nextCode }}</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ t4a.nextName }}</span></div>
+              <div style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ t4a.nextLine }}</div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="min-height:64px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div>
+            <div style="display:flex; gap:10px"><div style="flex:1; min-height:52px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">+ 30 s</span></div><div style="flex:1; min-height:52px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Passer</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="04b Un seul par bip" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4b · À CHAQUE BIP, UN SEUL PAR BIP · Finisher</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4b.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4b.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4b.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <span style="font:600 15px/22px 'IBM Plex Mono',monospace; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:8px 14px; border-radius:999px">{{ t4b.counter }}</span>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4b.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4b.pct }}; height:100%; background:#c2603a; border-radius:999px"></div></div>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4b.sub }}</span>
+            <div style="display:flex; gap:5px; flex-wrap:wrap; justify-content:center; margin-top:6px">
+              <sc-for list="{{ t4b.tiles }}" as="x" hint-placeholder-count="10">
+                <sc-if value="{{ x.past }}" hint-placeholder-val="{{ false }}"><span style="width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#1c2630; border:1px solid #3a4854"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ x.n }}</span></span></sc-if>
+                <sc-if value="{{ x.cur }}" hint-placeholder-val="{{ false }}"><span style="width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#c2603a; border:1px solid #c2603a"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ x.n }}</span></span></sc-if>
+                <sc-if value="{{ x.fut }}" hint-placeholder-val="{{ true }}"><span style="width:26px; height:26px; box-sizing:border-box; border-radius:6px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid #2b3742"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ x.n }}</span></span></sc-if>
+              </sc-for>
+            </div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4b.next }}</div>
+          </div>
+          <div style="display:flex; gap:10px"><div style="flex:1; min-height:56px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div><div style="flex:1; min-height:56px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Arrêter</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="04c Bip toutes les 4 min" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4c · UN BIP TOUTES LES 4 MIN · Départs 4 min</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4c.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4c.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4c.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="margin-top:12px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:9px 12px"><div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Consigne</div><div style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#dceff3; margin-top:2px">{{ t4c.consigne }}</div></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <span style="font:600 15px/22px 'IBM Plex Mono',monospace; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:8px 14px; border-radius:999px">{{ t4c.counter }}</span>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4c.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4c.pct }}; height:100%; background:#c2603a; border-radius:999px"></div></div>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4c.sub }}</span>
+            <div style="width:100%; box-sizing:border-box; margin-top:8px; padding:14px 16px; border-radius:12px; background:#141d25; border:1px solid #2b3742; display:flex; flex-direction:column; gap:4px">
+              <div style="display:flex; align-items:baseline; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ t4c.code }}</span><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ t4c.name }}</span></div>
+              <div style="font:400 15px/22px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ t4c.line }}</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px"><div style="flex:1; min-height:56px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div><div style="flex:1; min-height:56px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Arrêter</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="04d Effort et repos" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4d · EFFORT PUIS REPOS IMPOSÉS · Tabata, Burpees seul</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4d.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4d.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4d.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <div style="display:flex; align-items:center; gap:10px; padding:7px 14px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; letter-spacing:.04em; text-transform:uppercase; color:#e8966f">Effort</span></div>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4d.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4d.pct }}; height:100%; background:#c2603a; border-radius:999px"></div></div>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4d.sub }}</span>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:8px; padding:12px 16px; border-radius:12px; background:#141d25; border:1px solid #2b3742"><span style="font:600 15px/22px 'IBM Plex Mono',monospace; color:#dceff3">{{ t4d.counter }}</span><div style="width:1px; height:24px; background:#2b3742"></div><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ t4d.name }}</span></div>
+            <div style="display:flex; gap:4px"><sc-for list="{{ t4d.dots }}" as="x" hint-placeholder-count="8"><sc-if value="{{ x.past }}" hint-placeholder-val="{{ false }}"><span style="width:22px; height:6px; border-radius:999px; background:#c2603a"></span></sc-if><sc-if value="{{ x.cur }}" hint-placeholder-val="{{ false }}"><span style="width:22px; height:6px; border-radius:999px; background:#e8966f"></span></sc-if><sc-if value="{{ x.fut }}" hint-placeholder-val="{{ true }}"><span style="width:22px; height:6px; border-radius:999px; background:#2b3742"></span></sc-if></sc-for></div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:10px">
+            <div style="min-height:64px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div>
+            <div style="display:flex; gap:10px"><div style="flex:1; min-height:52px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Passer le segment</span></div><div style="flex:1; min-height:52px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Arrêter</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="04e AMRAP" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4e · AUTANT QUE POSSIBLE · bloc C, S2</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4e.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4e.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4e.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">{{ t4e.title }}</span>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4e.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4e.pct }}; height:100%; background:#c2603a; border-radius:999px"></div></div>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ t4e.sub }}</span>
+            <div style="width:100%; box-sizing:border-box; margin-top:8px; padding:14px 16px; border-radius:12px; background:#141d25; border:1px solid #2b3742; display:flex; flex-direction:column; gap:10px">
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Un tour</div>
+              <sc-for list="{{ t4e.exs }}" as="e" hint-placeholder-count="3"><div><div style="display:flex; align-items:baseline; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ e.code }}</span><span style="font:600 15px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ e.name }}</span></div><sc-if value="{{ e.hasLine }}" hint-placeholder-val="{{ false }}"><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:2px; padding-left:30px">{{ e.line }}</div></sc-if></div></sc-for>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px"><div style="flex:1; min-height:56px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div><div style="flex:1; min-height:56px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Arrêter</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div data-screen-label="04f For time" style="width:402px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">4f · TOURS AVEC LIMITE · For time, B1 à B4</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:0 20px 20px">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-top:6px"><div style="min-width:0"><div style="display:flex; align-items:center; gap:8px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f">{{ t4f.head }}</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:2px 9px; border-radius:999px">{{ t4f.type }}</span></div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:6px; text-wrap:pretty">{{ t4f.phrase }}</div></div><span style="width:44px; height:44px; margin-right:-10px; flex-shrink:0; display:flex; align-items:center; justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px">
+            <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">{{ t4f.title }}</span>
+            <span style="font:600 96px/1 'IBM Plex Mono',monospace; letter-spacing:-.03em; color:#dceff3">{{ t4f.big }}</span>
+            <div style="width:100%; height:6px; border-radius:999px; background:#2b3742; overflow:hidden"><div style="width:{{ t4f.pct }}; height:100%; background:#5f8fa8; border-radius:999px"></div></div>
+            <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ t4f.sub }}</span>
+            <div style="width:100%; box-sizing:border-box; margin-top:8px; padding:14px 16px; border-radius:12px; background:#141d25; border:1px solid #2b3742; display:flex; flex-direction:column; gap:10px">
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Un tour</div>
+              <sc-for list="{{ t4f.exs }}" as="e" hint-placeholder-count="4"><div style="display:flex; align-items:baseline; gap:8px"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ e.code }}</span><span style="font:600 15px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ e.name }}</span></div></sc-for>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; gap:10px"><div style="flex:1; min-height:56px; border-radius:12px; background:#c2603a; display:flex; align-items:center; justify-content:center; gap:10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="#dceff3"><rect x="7" y="5" width="3.6" height="14" rx="1"></rect><rect x="13.4" y="5" width="3.6" height="14" rx="1"></rect></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Mettre en pause</span></div><div style="flex:1; min-height:56px; border-radius:12px; background:#141d25; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Arrêter</span></div></div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">Tu vas à ton rythme. Rien n'est enregistré à l'arrêt.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 5 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">5 — LES VALEURS VIDES</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Sans valeur ou sans colonne, pas de grille : le nom, la phrase du bloc et la note. Dès qu'une cellule est remplie, la grille s'affiche et les cellules vides valent « — ».</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <div data-screen-label="05a Sans grille" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">5a · ROUTINE DE MOBILITÉ ET A2 · S1</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Planning</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d1 }}</div></div>
+          <sc-for list="{{ f5a }}" as="b" hint-placeholder-count="2"><dc-import name="Athlète - Bloc lecture" b="{{ b }}" chevron="{{ true }}" hint-size="100%,260px"></dc-import></sc-for>
+        </div>
+      </div>
+    </div>
+    <div data-screen-label="05b Grille partielle" style="width:402px; flex-shrink:0">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">5b · C1 TRACTIONS LESTÉES, CHARGE VIDE · S2</div>
+      <div style="width:402px; height:844px; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+        <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+        <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force &amp; conditionnement</span></div>
+        <div style="flex:1; min-height:0; overflow:hidden; padding:0 20px 20px; display:flex; flex-direction:column; gap:16px">
+          <dc-import name="Athlète - Bloc lecture" b="{{ f5b }}" hint-size="100%,300px"></dc-import>
+        </div>
+      </div>
+    </div>
+    <div style="width:402px; flex-shrink:0; margin-top:30px; background:#0a0f14; border:1px solid #3a4854; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:14px">
+      <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Trois lectures, une règle</div>
+      <sc-for list="{{ f5rules }}" as="r" hint-placeholder-count="3">
+        <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px">
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">{{ r.who }}</div>
+          <div style="font:500 15px/22px 'IBM Plex Sans',sans-serif; color:#dceff3; margin-top:4px">{{ r.what }}</div>
+          <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">{{ r.why }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+<!-- 6 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:8px">6 — LE SUIVI COCHÉ · sur l'écran du bloc</div>
+  <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:18px; max-width:840px">Le suivi est ouvert tout le temps : à l'avance, pendant, et après le débrief. Ce qui est coché remonte au coach avec le débrief.</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <sc-for list="{{ f6s }}" as="d" hint-placeholder-count="2">
+      <div data-screen-label="{{ d.screen }}" style="width:402px; flex-shrink:0">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">{{ d.label }}</div>
+        <div style="width:402px; height:844px; position:relative; background:#0a0f14; border:1px solid #2b3742; border-radius:32px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+          <div style="height:44px; flex-shrink:0; display:flex; align-items:center; padding:0 24px; position:relative; z-index:2; background:#0a0f14"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">9:41</span></div>
+          <div style="display:flex; align-items:center; gap:12px; padding:4px 16px 12px; flex-shrink:0; position:relative; z-index:2; background:#0a0f14; border-bottom:1px solid #1c2630"><span style="width:44px; height:44px; margin-left:-10px; display:flex; align-items:center; justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Force &amp; conditionnement</span></div>
+          <div style="flex:1; min-height:0; overflow:hidden; padding:16px 20px 20px; display:flex; flex-direction:column; justify-content:{{ d.align }}">
+          <div style="display:flex; flex-direction:column; gap:22px; flex-shrink:0">
+            <dc-import name="Athlète - Bloc lecture" b="{{ d.b }}" hide-flow="{{ d.hasTour }}" hint-size="100%,420px"></dc-import>
+            <sc-if value="{{ d.hasTour }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Un tour</div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                <sc-for list="{{ d.tour }}" as="k" hint-placeholder-count="4"><span style="display:flex; align-items:center; gap:8px"><span style="font:600 15px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:10px 10px; border-radius:8px">{{ k.k }}</span><sc-if value="{{ k.arrow }}" hint-placeholder-val="{{ true }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></sc-if></span></sc-for>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:4px"><path d="M4 12a8 8 0 0113.7-5.7L20 8.5M20 4v4.5h-4.5"></path></svg>
+              </div>
+            </div>
+            </sc-if>
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:28px">
+                <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Mon suivi</span>
+                <sc-if value="{{ d.tDone }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9fcdb1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">{{ d.tLabel }}</span></span></sc-if>
+                <sc-if value="{{ d.tPartial }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ d.tLabel }}</span></span></sc-if>
+              </div>
+              <sc-if value="{{ d.isSingle }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:14px; padding:10px 12px; border-radius:10px; background:#141d25; border:1px solid #2b3742">
+                  <sc-if value="{{ d.singleOn }}" hint-placeholder-val="{{ false }}"><span style="width:56px; height:56px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:#c2603a; border:1.5px solid #c2603a"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></span></sc-if>
+                  <sc-if value="{{ d.singleOff }}" hint-placeholder-val="{{ false }}"><span style="width:56px; height:56px; box-sizing:border-box; border-radius:12px; flex-shrink:0; background:#0a0f14; border:1.5px solid #3a4854"></span></sc-if>
+                  <span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ d.singleLabel }}</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ d.isRows }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; flex-direction:column; gap:10px">
+                  <sc-for list="{{ d.rows }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:10px; background:#141d25; border:1px solid #2b3742">
+                      <span style="width:58px; flex-shrink:0; font:600 15px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ r.label }}</span>
+                      <div style="flex:1; min-width:0; display:flex; gap:8px; justify-content:flex-end">
+                        <sc-for list="{{ r.boxes }}" as="x" hint-placeholder-count="3">
+                          <sc-if value="{{ x.on }}" hint-placeholder-val="{{ false }}"><span style="flex:1; max-width:64px; min-width:0; height:52px; box-sizing:border-box; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:4px; background:#c2603a; border:1.5px solid #c2603a"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ x.k }}</span></span></sc-if>
+                          <sc-if value="{{ x.off }}" hint-placeholder-val="{{ true }}"><span style="flex:1; max-width:64px; min-width:0; height:52px; box-sizing:border-box; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#0a0f14; border:1.5px solid #3a4854"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#aab6c2">{{ x.k }}</span></span></sc-if>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ d.hint }}</span></div>
+            </div>
+          </div>
+          </div>
+          <sc-if value="{{ d.hasTimer }}" hint-placeholder-val="{{ true }}">
+          <div style="flex-shrink:0; padding:14px 20px 22px; border-top:1px solid #2b3742; background:#0e141a; display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:56px; border-radius:12px; background:#c2603a"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5V13l2.4 1.6"></path><path d="M9 2.5h6"></path></svg><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Lancer le chrono</span></div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center">{{ d.what }}</div>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+    <div style="width:402px; flex-shrink:0; margin-top:30px; background:#0a0f14; border:1px solid #3a4854; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:14px">
+      <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Les trois états du décompte</div>
+      <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Le troisième est silencieux : jamais « 0 sur 4 », jamais de rouge, jamais de relance.</div>
+      <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:14px 16px">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:8px">Tout coché · bloc C</div>
+        <span style="display:inline-flex; align-items:center; gap:8px; padding:5px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9fcdb1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">{{ f6.sDone }}</span></span>
+      </div>
+      <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:14px 16px">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:8px">Partiel · bloc A</div>
+        <span style="display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ f6.sPart }}</span></span>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px">L'unité est celle de la phrase : séries, tours, bips, exercices.</div>
+      </div>
+      <div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:14px 16px">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:8px">Rien de coché · bloc B</div>
+        <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ f6.sNone }}</span>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px">Aucune pastille dans la séance, une simple mention dans le débrief.</div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Les cases restent cochables après le débrief ; le coach reçoit la dernière version.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 7 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">7 — WEB · la séance du lundi de S2</div>
+  <div data-screen-label="07 Web séance S2" style="width:1440px; height:1560px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <div style="width:236px; flex-shrink:0; background:#0e141a; border-right:1px solid #2b3742; display:flex; flex-direction:column; padding:22px 14px">
+      <div style="display:flex; align-items:center; gap:10px; padding:4px 8px 22px"><svg width="24" height="24" viewBox="0 0 22 22" fill="none"><path d="M11 3 L19 18 H3 Z" stroke="#c2603a" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="11" cy="7.4" r="1.5" fill="#c2603a"></circle></svg><span style="font:700 16px/21px 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Cimavia</span></div>
+      <div style="display:flex; flex-direction:column; gap:3px">
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; background:#1c2630; color:#dceff3"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2.5"></rect><path d="M3.5 9h17M8 2v4M16 2v4"></path></svg><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif">Planning</span></div>
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Séances</span></div>
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Messagerie</span></div>
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h4"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Factures</span></div>
+        <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"></circle><path d="M5.5 20C5.5 16 8.7 14.2 12 14.2S18.5 16 18.5 20"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Mon coach</span></div>
+      </div>
+      <div style="margin-top:auto; display:flex; align-items:center; gap:11px; padding:10px; border-top:1px solid #2b3742"><div style="width:34px; height:34px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#dceff3">LM</div><div><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Léa Moreau</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Athlète</div></div></div>
+    </div>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="padding:22px 32px; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-bottom:8px"><span>Planning</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg><span style="color:#aab6c2">Force &amp; conditionnement</span></div>
+        <div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ d2 }}</div>
+      </div>
+      <div style="flex:1; display:flex; min-height:0">
+        <div style="flex:1; min-width:0; overflow:hidden; padding:28px 32px; display:flex; flex-direction:column; gap:16px; align-items:stretch">
+          <sc-for list="{{ s2All }}" as="b" hint-placeholder-count="4"><div style="max-width:720px"><dc-import name="Athlète - Bloc lecture" b="{{ b }}" hint-size="100%,300px"></dc-import></div></sc-for>
+        </div>
+        <div style="width:320px; flex-shrink:0; background:#141d25; border-left:1px solid #2b3742; display:flex; flex-direction:column">
+          <div style="flex:1; min-height:0; padding:22px; display:flex; flex-direction:column; gap:22px">
+            <div>
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:10px">Blocs</div>
+              <sc-for list="{{ rail7 }}" as="r" hint-placeholder-count="4"><div style="display:flex; align-items:center; gap:10px; padding:8px 10px; margin:0 -10px; border-radius:6px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#e8966f; min-width:18px">{{ r.head }}</span><span style="flex:1; min-width:0; font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ r.type }}</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.count }}</span></div></sc-for>
+            </div>
+            <div style="padding-top:18px; border-top:1px solid #2b3742">
+              <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:8px">Mon suivi</div>
+              <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Choisis un bloc pour cocher ce que tu as fait.</div>
+            </div>
+          </div>
+          <div style="padding:20px 22px; border-top:1px solid #2b3742; background:#0a0f14">
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:44px; border-radius:8px; background:#c2603a"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Faire mon débrief</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+            <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-align:center; margin-top:8px">Ce que tu as coché part avec ton débrief.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 8 -->
+<div>
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">8 — WEB · le bloc A, S1 puis S2</div>
+  <div style="display:flex; gap:40px; align-items:flex-start">
+    <sc-for list="{{ f8 }}" as="w" hint-placeholder-count="2">
+      <div data-screen-label="08 Web bloc A" style="width:1440px; flex-shrink:0">
+        <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:12px">{{ w.label }}</div>
+        <div style="width:1440px; height:940px; display:flex; background:#0a0f14; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+          <div style="width:236px; flex-shrink:0; background:#0e141a; border-right:1px solid #2b3742; display:flex; flex-direction:column; padding:22px 14px">
+            <div style="display:flex; align-items:center; gap:10px; padding:4px 8px 22px"><svg width="24" height="24" viewBox="0 0 22 22" fill="none"><path d="M11 3 L19 18 H3 Z" stroke="#c2603a" stroke-width="1.6" stroke-linejoin="round"></path><circle cx="11" cy="7.4" r="1.5" fill="#c2603a"></circle></svg><span style="font:700 16px/21px 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Cimavia</span></div>
+            <div style="display:flex; flex-direction:column; gap:3px">
+              <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; background:#1c2630; color:#dceff3"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="16" rx="2.5"></rect><path d="M3.5 9h17M8 2v4M16 2v4"></path></svg><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif">Planning</span></div>
+              <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Séances</span></div>
+              <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Messagerie</span></div>
+              <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><path d="M3 10h18M7 15h4"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Factures</span></div>
+              <div style="display:flex; align-items:center; gap:11px; padding:10px 11px; border-radius:8px; color:#aab6c2"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"></circle><path d="M5.5 20C5.5 16 8.7 14.2 12 14.2S18.5 16 18.5 20"></path></svg><span style="font:500 15px/25px 'IBM Plex Sans',sans-serif">Mon coach</span></div>
+            </div>
+            <div style="margin-top:auto; display:flex; align-items:center; gap:11px; padding:10px; border-top:1px solid #2b3742"><div style="width:34px; height:34px; border-radius:9px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; font:600 13px/1 'Space Grotesk',sans-serif; color:#dceff3">LM</div><div><div style="font:500 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Léa Moreau</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Athlète</div></div></div>
+          </div>
+          <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+            <div style="padding:22px 32px; border-bottom:1px solid #2b3742">
+              <div style="display:flex; align-items:center; gap:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-bottom:8px"><span>Planning</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"></path></svg><span style="color:#aab6c2">Force &amp; conditionnement</span></div>
+              <div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Force &amp; conditionnement</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">{{ w.date }}</div>
+            </div>
+            <div style="flex:1; display:flex; min-height:0">
+              <div style="flex:1; min-width:0; overflow:hidden; padding:28px 32px; display:flex; flex-direction:column; gap:16px">
+                <div style="max-width:720px"><dc-import name="Athlète - Bloc lecture" b="{{ w.b }}" hint-size="100%,500px"></dc-import></div>
+              </div>
+              <div style="width:320px; flex-shrink:0; background:#141d25; border-left:1px solid #2b3742; display:flex; flex-direction:column">
+                <div style="flex:1; min-height:0; padding:22px; display:flex; flex-direction:column; gap:22px">
+                  <div>
+                    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0; margin-bottom:10px">Blocs</div>
+                    <sc-for list="{{ w.rail }}" as="r" hint-placeholder-count="4">
+                      <sc-if value="{{ r.on }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:10px; padding:8px 10px; margin:0 -10px; border-radius:6px; background:#1c2630"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#e8966f; min-width:18px">{{ r.head }}</span><span style="flex:1; min-width:0; font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ r.type }}</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.count }}</span></div></sc-if>
+                      <sc-if value="{{ r.off }}" hint-placeholder-val="{{ true }}"><div style="display:flex; align-items:center; gap:10px; padding:8px 10px; margin:0 -10px; border-radius:6px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#e8966f; min-width:18px">{{ r.head }}</span><span style="flex:1; min-width:0; font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ r.type }}</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.count }}</span></div></sc-if>
+                    </sc-for>
+                  </div>
+                  <div style="padding-top:18px; border-top:1px solid #2b3742; display:flex; flex-direction:column; gap:10px">
+                    <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Chrono du bloc A</div>
+                    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ w.what }}</div>
+                    <div style="display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; border-radius:8px; background:#1c2630; border:1px solid #3a4854"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5V13l2.4 1.6"></path><path d="M9 2.5h6"></path></svg><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Lancer le chrono</span></div>
+                  </div>
+                  <div style="padding-top:18px; border-top:1px solid #2b3742; display:flex; flex-direction:column; gap:10px">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:26px">
+                      <span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Mon suivi</span>
+                      <sc-if value="{{ w.s.tDone }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:rgba(78,154,106,.16); border:1px solid rgba(78,154,106,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#9fcdb1">{{ w.s.tLabel }}</span></span></sc-if>
+                      <sc-if value="{{ w.s.tPartial }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34)"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ w.s.tLabel }}</span></span></sc-if>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px">
+                      <sc-for list="{{ w.s.rows }}" as="r" hint-placeholder-count="4">
+                        <div style="display:flex; align-items:center; gap:8px">
+                          <span style="width:52px; flex-shrink:0; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ r.label }}</span>
+                          <div style="flex:1; min-width:0; display:flex; gap:6px">
+                            <sc-for list="{{ r.boxes }}" as="x" hint-placeholder-count="3">
+                              <sc-if value="{{ x.on }}" hint-placeholder-val="{{ false }}"><span style="flex:1; max-width:64px; min-width:0; height:40px; box-sizing:border-box; border-radius:8px; display:flex; align-items:center; justify-content:center; gap:4px; background:#c2603a; border:1.5px solid #c2603a"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ x.k }}</span></span></sc-if>
+                              <sc-if value="{{ x.off }}" hint-placeholder-val="{{ true }}"><span style="flex:1; max-width:64px; min-width:0; height:40px; box-sizing:border-box; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#0a0f14; border:1.5px solid #3a4854"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#aab6c2">{{ x.k }}</span></span></sc-if>
+                            </sc-for>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ w.s.hint }}</div>
+                  </div>
+                </div>
+                <div style="padding:20px 22px; border-top:1px solid #2b3742; background:#0a0f14">
+                  <div style="display:flex; align-items:center; justify-content:center; gap:10px; min-height:44px; border-radius:8px; background:#c2603a"><span style="font:600 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">Faire mon débrief</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dceff3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { M: null };
+  componentDidMount() { import('./structure-model.js').then(M => this.setState({ M })); }
+  renderVals() {
+    const M = this.state.M;
+    if (!M) return {};
+    const L = M.PLAN_LEA;
+    const S1 = M.readBlocks(L.seances.S1lun), S2 = M.readBlocks(L.seances.S2lun);
+    const dateOf = n => `Lundi ${L.weeks.find(w => w.n === n).date} · Semaine ${n} · ${M.pl(S2.length, 'bloc', 'blocs')}`;
+    const vb = (b, t) => ({ ...b, exs: b.exs.map((e, i, a) => ({ ...e, line: i < a.length - 1, pad: i < a.length - 1 ? '16px' : '0px' })),
+      tallyDone: !!(t && t.done), tallyPartial: !!(t && t.partial), tallyLabel: t ? t.label : '' });
+    const chips = (bs, on) => bs.map(b => ({ t: b.head, on: b.head === on, off: b.head !== on }));
+    const tour = b => b.labels.map((k, i, a) => ({ k, arrow: i < a.length - 1 }));
+    const head = b => ({ head: b.head, type: b.type, phrase: b.phrase });
+
+    // Chronos
+    const ex = k => M.readBlocks(M.TIMER_EXAMPLES[k]);
+    const fin = ex('finisher')[0], dep = ex('departs')[0], tab = ex('tabata')[0], ft = ex('fortime')[1];
+    const A = S2[1], C = S2[3], a1 = A.exs[0];
+    const t4a = { ...head(A), title: A.timer.title, big: "1'48", pct: '28%', sub: `sur ${A.timer.restRound}`, counter: A.timer.counter(2),
+      nextCode: a1.code, nextName: a1.name, nextLine: M.lineText(a1.cols, a1.rows[1]) };
+    const t4b = { ...head(fin), big: '37 s', pct: '38%', sub: fin.timer.title.toLowerCase() + ' · ' + fin.timer.what.toLowerCase(), counter: fin.timer.counter(4),
+      tiles: fin.checks.rows.map((r, i) => ({ n: String(i + 1), past: i < 3, cur: i === 3, fut: i > 3 })), next: `Bip 5 : ${fin.checks.rows[4].boxes[0]}` };
+    const d0 = dep.exs[0];
+    const t4c = { ...head(dep), consigne: dep.consigne, big: "2'05", pct: '48%', sub: dep.timer.title.toLowerCase() + ' · ' + dep.timer.what.toLowerCase(), counter: dep.timer.counter(3),
+      code: d0.code, name: d0.name, line: d0.grid.isLine ? d0.grid.line : '' };
+    const t4d = { ...head(tab), big: '12 s', pct: '40%', sub: `sur ${tab.timer.work} d'effort · puis ${tab.timer.rest} de repos`, counter: tab.timer.counter(5), name: tab.exs[0].name,
+      dots: Array.from({ length: tab.c.n }, (_, i) => ({ past: i < 4, cur: i === 4, fut: i > 4 })) };
+    const t4e = { ...head(C), title: C.timer.title, big: "7'42", pct: '36%', sub: `sur ${C.timer.total}`,
+      exs: C.exs.map(e => ({ code: e.code, name: e.name, hasLine: e.grid.isLine, line: e.grid.isLine ? e.grid.line : '' })) };
+    const t4f = { ...head(ft), title: ft.timer.title, big: "6'21", pct: '42%', sub: ft.timer.limit, exs: ft.exs.map(e => ({ code: e.code, name: e.name })) };
+
+    // Suivi
+    const tick = [[true, true, true], [true, true, false], [false, false, false], [false, false, false]];
+    const tA = M.tally(A.checks, tick), tC = M.tally(C.checks, [[true]]), tB = M.tally(S2[2].checks, S2[2].checks.rows.map(r => r.boxes.map(() => false)));
+    const f6 = { sDone: tC.label, sPart: tA.label, sNone: tB.label };
+    const none = b => b.checks.rows.map(r => r.boxes.map(() => false));
+    const suivi = (b, ticks) => {
+      const t = M.tally(b.checks, ticks), single = !b.checks.unit;
+      return { t, tDone: !single && t.done, tPartial: !single && t.partial, tLabel: t.label, isSingle: single, isRows: !single,
+        singleOn: single && ticks[0][0], singleOff: single && !ticks[0][0], singleLabel: b.checks.rows[0].boxes[0],
+        rows: b.checks.rows.map((r, i) => ({ label: r.label, boxes: r.boxes.map((k, j) => ({ k, on: ticks[i][j], off: !ticks[i][j] })) })),
+        hint: M.suiviNote(b.checks) };
+    };
+    const scr = (b, ticks, screen, label, align) => {
+      const s = suivi(b, ticks);
+      return { ...s, screen, label, align, b: vb(b, s.t), hasTour: b.hasFlow, tour: tour(b), hasTimer: !!b.timer, what: b.timer ? b.timer.what : '' };
+    };
+    const w = S2[0].exs[0], a2 = S1[1].exs[1], c1 = C.exs[0];
+    const f5rules = [
+      { who: `${w.name} · ${S2[0].head}`, what: 'Pas de colonne : le nom seul.', why: 'Ce qu\'il y a à faire est dans la phrase du bloc.' },
+      { who: `${a2.code} ${a2.name}`, what: 'Aucune valeur : le nom seul.', why: 'Toutes les cellules sont vides, il n\'y a pas de grille.' },
+      { who: `${c1.code} ${c1.name}`, what: c1.grid.text, why: 'Une cellule remplie suffit : la grille s\'affiche, la charge vide vaut « — ».' }
+    ];
+
+    const rail = (bs, on) => bs.map(b => ({ head: b.head, type: b.type, count: M.pl(b.exs.length, 'exercice', 'exercices'), on: b.head === on, off: b.head !== on }));
+    return {
+      d1: dateOf(1), d2: dateOf(2),
+      chips1a: chips(S2, S2[0].head), chips1b: chips(S2, 'A'), chips1c: chips(S2, 'B'), chipsA: chips(S2, 'A'),
+      s2All: S2.map(b => vb(b)),
+      s1A: vb(S1[1]), s2A: vb(S2[1]),
+      f3: [scr(S2[2], none(S2[2]), '03a Écran bloc B', `3a · BLOC ${S2[2].head} · ${S2[2].type.toUpperCase()} · en haut`, 'flex-start'),
+        scr(C, none(C), '03b Écran bloc C', `3b · BLOC ${C.head} · ${C.type.toUpperCase()} · en haut`, 'flex-start')],
+      f6s: [scr(A, tick, '06a Bloc A suivi', `6a · BLOC ${A.head} · défilé jusqu'à « Mon suivi »`, 'flex-end'),
+        scr(C, [[true]], '06b Bloc C fait', `6b · BLOC ${C.head} · « ${C.checks.rows[0].boxes[0]} » coché`, 'flex-start')],
+      t4a, t4b, t4c, t4d, t4e, t4f,
+      f5a: [vb(S1[0]), vb(S1[1])], f5b: vb(C), f5rules,
+      f6,
+      rail7: rail(S2, null),
+      f8: [[S1, 1, '8a · SEMAINE 1 · un tour coché', true], [S2, 2, '8b · SEMAINE 2 · rien de coché', false]].map(([s, n, label, one]) => { const sv = suivi(s[1], s[1].checks.rows.map((r, i) => r.boxes.map(() => one && i === 0)));
+        return { label, date: dateOf(n), b: vb(s[1], sv.t), rail: rail(s, 'A'), what: s[1].timer.what, s: sv }; })
+    };
+  }
+}
+</script>
+</body>
+</html>
