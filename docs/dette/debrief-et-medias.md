@@ -360,6 +360,17 @@ liste des domaines vivent dans l'index.
 > de recharger d'office, ce qui bouclerait sur le même échec. Reste hors d'atteinte : la vidéo
 > mobile, jouée hors de l'app (**V-3**). **Levé en #407** : `CmvVideoPlayer` applique la même
 > règle, à ceci près qu'il relance toujours la lecture.
+>
+> **Tranché en #712** (un lecteur natif seulement à l'engagement) : `expo-audio` crée une session
+> média Android par lecteur, et Android en plafonne le nombre à **100 par application** — la 101e
+> fait lever `AudioPlayer.constructor` (`NullPointerException` sur `ISession.getController()`), et
+> l'écran rendait ~100 notes d'un coup. Mesuré sur preview : 98 sessions sur un fil chargé, 0 après
+> en être sorti (pas de fuite : le plafond vient du nombre de notes montées ensemble). `CmvAudioPlayer`
+> ne construit donc son lecteur qu'à l'engagement (lecture, saut du curseur, désignation par la
+> liste) et le rend quand une autre note prend la main, en gardant sa position. Rendue, une note ne
+> connaît que la durée du serveur : sans elle, la durée du lecteur n'apparaît qu'une fois la note
+> engagée. Correctif amont à surveiller : expo/expo#50104 (plus de session par lecteur) — s'il est
+> publié dans le SDK épinglé, ce contournement reste utile (une source préchargée de moins par note).
 
 ---
 

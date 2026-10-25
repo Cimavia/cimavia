@@ -1,6 +1,8 @@
 import type { VoiceNoteCue } from "@cmv/shared";
 import { act, waitFor } from "@testing-library/react";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useEffect } from "react";
+import { View } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushLayout, grab, press, renderRn, stubLayoutWidth, tap } from "@/test/render";
 import { CmvAudioPlayer } from "./CmvAudioPlayer";
@@ -94,6 +96,22 @@ function setup(
   return { ...view, resolveUrl, push, rerenderWith, cueWith, untilUnavailable };
 }
 
+/**
+ * Une note ENGAGÉE, en pause au début : son lecteur natif existe, rien n'a été joué. Une note rendue
+ * n'en a pas (#712) ; les cas qui parlent du lecteur partent de là — on la lance, puis on la met en
+ * pause —, les appels du lecteur étant ensuite effacés.
+ */
+async function engaged(resolveUrl?: Parameters<typeof setup>[0], initialCue?: VoiceNoteCue) {
+  const view = setup(resolveUrl, initialCue);
+  press(playButton(view.container));
+  await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+  view.push({ playing: true });
+  press(playButton(view.container));
+  view.push({ playing: false });
+  for (const spy of [player.play, player.pause, player.seekTo, player.replace]) spy.mockClear();
+  return view;
+}
+
 // Ce que la liste dit à une note (#529) : désignée ou non, et ses deux rappels, observables.
 function listedCue(cued = false) {
   return { cued, onPlay: vi.fn(), onFinish: vi.fn() };
@@ -122,16 +140,16 @@ describe("CmvAudioPlayer — l'URL change sous le lecteur (#304)", () => {
    * Le cœur du bug : `useAudioPlayer` recrée son lecteur à chaque source. Si le composant lui
    * passait l'URL des props, chaque re-signature coupait la note.
    */
-  it("crée le lecteur sur la première URL et n'en crée jamais d'autre", () => {
-    const { rerenderWith } = setup();
+  it("crée le lecteur sur la première URL et n'en crée jamais d'autre", async () => {
+    const { rerenderWith } = await engaged();
     rerenderWith(SECOND);
 
     const sources = vi.mocked(useAudioPlayer).mock.calls.map(([source]) => source);
     expect(new Set(sources)).toEqual(new Set([FIRST]));
   });
 
-  it("garde son URL pendant la lecture", () => {
-    const { rerenderWith } = setup();
+  it("garde son URL pendant la lecture", async () => {
+    const { rerenderWith } = await engaged();
     player.playing = true;
     player.currentTime = 12;
     rerenderWith(SECOND);
@@ -140,8 +158,8 @@ describe("CmvAudioPlayer — l'URL change sous le lecteur (#304)", () => {
   });
 
   // En pause à mi-chemin, recharger ramènerait la note à zéro à la prochaine lecture.
-  it("garde son URL en pause à mi-chemin", () => {
-    const { rerenderWith } = setup();
+  it("garde son URL en pause à mi-chemin", async () => {
+    const { rerenderWith } = await engaged();
     player.currentTime = 12;
     rerenderWith(SECOND);
 
@@ -149,8 +167,8 @@ describe("CmvAudioPlayer — l'URL change sous le lecteur (#304)", () => {
   });
 
   // Au repos, rien n'est perdu : c'est là qu'on prend l'URL la plus fraîche.
-  it("adopte l'URL neuve au repos", () => {
-    const { rerenderWith } = setup();
+  it("adopte l'URL neuve au repos", async () => {
+    const { rerenderWith } = await engaged();
     rerenderWith(SECOND);
 
     expect(player.replace).toHaveBeenCalledWith(SECOND);
@@ -159,7 +177,7 @@ describe("CmvAudioPlayer — l'URL change sous le lecteur (#304)", () => {
 
 describe("CmvAudioPlayer — la lecture casse en route", () => {
   it("re-signe et reprend à la même position, en lecture si elle jouait", async () => {
-    const { container, resolveUrl, push } = setup();
+    const { container, resolveUrl, push } = await engaged();
     press(playButton(container));
     player.play.mockClear();
 
@@ -178,7 +196,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
   });
 
   it("reprend à la même position sans relancer une note qui était en pause", async () => {
-    const { push } = setup();
+    const { push } = await engaged();
     player.currentTime = 42;
     push({ currentTime: 42, isLoaded: false, error: "403" });
     await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
@@ -190,7 +208,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 
   // Un saut refusé ne doit pas laisser la note muette : elle repart du début.
   it("relance la lecture même si le saut est refusé", async () => {
-    const { container, push } = setup();
+    const { container, push } = await engaged();
     press(playButton(container));
     player.play.mockClear();
     player.seekTo.mockRejectedValueOnce(new Error("seek"));
@@ -204,7 +222,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 
   it("le dit quand la re-signature échoue, et réessaie à la lecture", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => null);
-    const { container, queryByText, push, untilUnavailable } = setup(resolveUrl);
+    const { container, queryByText, push, untilUnavailable } = await engaged(resolveUrl);
 
     push({ isLoaded: false, error: "403" });
     await untilUnavailable();
@@ -221,7 +239,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 
   it("reste indisponible si la nouvelle tentative échoue aussi", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => null);
-    const { container, getByText, push, untilUnavailable } = setup(resolveUrl);
+    const { container, getByText, push, untilUnavailable } = await engaged(resolveUrl);
     push({ isLoaded: false, error: "403" });
     await untilUnavailable();
 
@@ -240,7 +258,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
    */
   it("ne recharge pas d'office une URL encore valide, mais la relance au geste", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => FIRST);
-    const { container, push, untilUnavailable } = setup(resolveUrl);
+    const { container, push, untilUnavailable } = await engaged(resolveUrl);
 
     push({ isLoaded: false, error: "network" });
     await untilUnavailable();
@@ -258,7 +276,7 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
           settle = resolve;
         }),
     );
-    const { push, unmount } = setup(resolveUrl);
+    const { push, unmount } = await engaged(resolveUrl);
     push({ isLoaded: false, error: "403" });
     await waitFor(() => expect(resolveUrl).toHaveBeenCalled());
 
@@ -270,8 +288,8 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
 });
 
 describe("CmvAudioPlayer — lecture", () => {
-  it("met en pause une note qui joue", () => {
-    const { container, push } = setup();
+  it("met en pause une note qui joue", async () => {
+    const { container, push } = await engaged();
     push({ playing: true, currentTime: 5 });
 
     press(playButton(container));
@@ -280,8 +298,8 @@ describe("CmvAudioPlayer — lecture", () => {
     expect(player.play).not.toHaveBeenCalled();
   });
 
-  it("rejoue depuis le début une note terminée", () => {
-    const { container, push } = setup();
+  it("rejoue depuis le début une note terminée", async () => {
+    const { container, push } = await engaged();
     push({ currentTime: 90, didJustFinish: true });
 
     press(playButton(container));
@@ -304,7 +322,9 @@ describe("CmvAudioPlayer — durée affichée au repos", () => {
   it("prend celle du lecteur quand le serveur n'en a pas", () => {
     setStatus({ duration: 75 });
 
-    const { getByText } = renderWithoutServerDuration();
+    const { container, getByText } = renderWithoutServerDuration();
+    // Le lecteur n'existe qu'à l'engagement : c'est lui qui la connaît.
+    press(playButton(container));
 
     expect(getByText("1:15")).toBeTruthy();
   });
@@ -318,14 +338,14 @@ describe("CmvAudioPlayer — durée affichée au repos", () => {
     expect(getByText("0:00")).toBeTruthy();
   });
 
-  it("ne relance pas depuis le début une note inconnue qu'on met en lecture", () => {
+  it("ne relance pas depuis le début une note inconnue qu'on met en lecture", async () => {
     setStatus({ duration: 0, currentTime: 0 });
 
     const { container } = renderWithoutServerDuration();
     press(playButton(container));
 
+    await waitFor(() => expect(player.play).toHaveBeenCalled());
     expect(player.seekTo).not.toHaveBeenCalled();
-    expect(player.play).toHaveBeenCalled();
   });
 });
 
@@ -353,7 +373,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   }
 
   it("amène la note au point touché, à mi-barre au milieu", async () => {
-    const view = setup();
+    const view = await engaged();
     tap(await seekZone(view), 100);
 
     await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(45));
@@ -361,7 +381,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   });
 
   it("ne saute qu'une fois, au relâché, et montre le temps sous le doigt pendant le glissé", async () => {
-    const view = setup();
+    const view = await engaged();
     const finger = grab(await seekZone(view), 50);
     finger.moveTo(100);
     finger.moveTo(150);
@@ -376,7 +396,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   });
 
   it("borne la position à la note", async () => {
-    const view = setup();
+    const view = await engaged();
     const finger = grab(await seekZone(view), 50);
     finger.moveTo(400);
     finger.release(400);
@@ -402,7 +422,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
    * en pause, et un saut sur une note terminée la relancerait d'office.
    */
   it("garde en pause une note déplacée en pause", async () => {
-    const view = setup();
+    const view = await engaged();
     view.push({ currentTime: 10 });
 
     tap(await seekZone(view), 100);
@@ -413,7 +433,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   });
 
   it("ramène une note terminée au point visé, et la relance de là, pas du début", async () => {
-    const view = setup();
+    const view = await engaged();
     press(playButton(view.container));
     view.push({ playing: false, currentTime: 90, didJustFinish: true });
     player.play.mockClear();
@@ -433,7 +453,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
 
   // Sur le réseau, le saut prend du temps : le statut « finie » qu'on a encore ne dit plus rien.
   it("ne ramène pas au début une note terminée relancée pendant son saut", async () => {
-    const view = setup();
+    const view = await engaged();
     view.push({ currentTime: 90, didJustFinish: true });
     stallNextSeek();
     tap(await seekZone(view), 100);
@@ -448,7 +468,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   // iOS refuse le saut tant que la source n'est pas prête : il attend le chargement.
   it("applique au chargement le saut d'une note pas encore chargée", async () => {
     setStatus({ isLoaded: false });
-    const view = setup();
+    const view = await engaged();
     tap(await seekZone(view), 100);
     expect(player.seekTo).not.toHaveBeenCalled();
 
@@ -476,7 +496,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
    * quand le saut lui-même casse sur l'URL expirée.
    */
   it("reprend au point visé quand l'URL expire sur le saut", async () => {
-    const view = setup();
+    const view = await engaged();
     stallNextSeek();
     tap(await seekZone(view), 100);
 
@@ -491,7 +511,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
 
   // Une note finie ne « veut » plus jouer : le rechargement ne la relance pas d'office.
   it("ne relance pas une note terminée qu'on déplace quand l'URL expire", async () => {
-    const view = setup();
+    const view = await engaged();
     press(playButton(view.container));
     view.push({ playing: false, currentTime: 90, didJustFinish: true });
     player.play.mockClear();
@@ -522,7 +542,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
 
   it("ne lance rien quand on amène au bout une note en pause (#529)", async () => {
     const listed = listedCue();
-    const view = setup(undefined, listed);
+    const view = await engaged(undefined, listed);
     view.push({ currentTime: 10 });
 
     tap(await seekZone(view), 200);
@@ -533,7 +553,7 @@ describe("CmvAudioPlayer — déplacer le curseur (#536)", () => {
   });
 
   it("rend la barre inerte tant que la note est cassée", async () => {
-    const view = setup();
+    const view = await engaged();
     view.push({ isLoaded: false, error: "403" });
 
     tap(await seekZone(view), 100);
@@ -598,7 +618,7 @@ describe("CmvAudioPlayer — enchaînement (#529)", () => {
 
   it("re-signe une note indisponible avant de la démarrer", async () => {
     const resolveUrl = vi.fn(async (): Promise<string | null> => null);
-    const view = setup(resolveUrl, listedCue());
+    const view = await engaged(resolveUrl, listedCue());
     view.push({ isLoaded: false, error: "403" });
     await view.untilUnavailable();
     resolveUrl.mockResolvedValueOnce(FRESH);
@@ -675,23 +695,25 @@ describe("CmvAudioPlayer — une seule note à la fois (#529)", () => {
     return { ...view, push };
   }
 
-  it("met en pause la note qui joue quand une autre démarre", () => {
+  it("met en pause la note qui joue quand une autre démarre", async () => {
     const view = renderBoth();
     const [first, second] = playButtons(view.container);
     press(first as Element);
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
     view.push({ playing: true, currentTime: 12 });
 
     press(second as Element);
 
+    await waitFor(() => expect(other.play).toHaveBeenCalledTimes(1));
     expect(player.pause).toHaveBeenCalledTimes(1);
-    expect(other.play).toHaveBeenCalledTimes(1);
   });
 
-  // Coupée pendant qu'elle se re-signait, elle ne repart pas d'elle-même une fois rechargée.
+  // Coupée pendant qu'elle se re-signait, elle rend son lecteur : rien ne la relance au chargement.
   it("ne relance pas au chargement une note coupée pendant sa reprise", async () => {
     const view = renderBoth();
     const [first, second] = playButtons(view.container);
     press(first as Element);
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
     player.play.mockClear();
     player.currentTime = 42;
     view.push({ currentTime: 42, isLoaded: false, error: "403" });
@@ -700,7 +722,213 @@ describe("CmvAudioPlayer — une seule note à la fois (#529)", () => {
     press(second as Element);
     view.push({ isLoaded: true, error: null });
 
-    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(other.play).toHaveBeenCalledTimes(1));
     expect(player.play).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Un lecteur natif crée une session média Android, et Android en plafonne le nombre à 100 par
+ * application : au-delà, `AudioPlayer.constructor` lève et l'app tombe (#712). La note ne construit
+ * donc le sien qu'à l'engagement — lecture, saut du curseur, désignation par la liste — et le rend
+ * quand une autre note prend la main.
+ */
+describe("CmvAudioPlayer — un lecteur natif seulement à l'engagement (#712)", () => {
+  const OTHER = "https://s3.test/other.m4a?X-Amz-Date=120000";
+  let other = fakePlayer();
+  // Les lecteurs vivants : une source y entre au montage de son hook, et en sort à son démontage.
+  let alive = new Set<string>();
+
+  beforeEach(() => {
+    other = fakePlayer();
+    alive = new Set();
+    vi.mocked(useAudioPlayer).mockImplementation((source) => {
+      useEffect(() => {
+        alive.add(String(source));
+        return () => {
+          alive.delete(String(source));
+        };
+      }, [source]);
+      return (source === OTHER ? other : player) as unknown as ReturnType<typeof useAudioPlayer>;
+    });
+    vi.mocked(useAudioPlayerStatus).mockImplementation(
+      (of) =>
+        ((of as unknown) === other ? { ...status } : status) as unknown as ReturnType<
+          typeof useAudioPlayerStatus
+        >,
+    );
+  });
+
+  it("ne construit aucun lecteur pour une note qu'on n'a pas touchée", () => {
+    const { getByText } = setup();
+
+    expect(useAudioPlayer).not.toHaveBeenCalled();
+    expect(getByText("1:30")).toBeTruthy();
+  });
+
+  // Le plafond d'Android : 150 notes rendues d'un coup ne créent aucune session.
+  it("ne construit aucun lecteur pour cent cinquante notes rendues", () => {
+    renderRn(
+      <View>
+        {Array.from({ length: 150 }, (_, index) => (
+          <CmvAudioPlayer
+            key={index}
+            url={`${FIRST}&n=${index}`}
+            durationSeconds={90}
+            resolveUrl={vi.fn()}
+          />
+        ))}
+      </View>,
+    );
+
+    expect(useAudioPlayer).not.toHaveBeenCalled();
+  });
+
+  it("construit le lecteur au premier appui, sur l'URL de la note, et la lance", async () => {
+    const { container } = setup();
+
+    press(playButton(container));
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(useAudioPlayer).mock.calls[0]?.[0]).toBe(FIRST);
+    // Une note neuve part sans saut : seul un point laissé en demande un.
+    expect(player.seekTo).not.toHaveBeenCalled();
+  });
+
+  // Déplacer le curseur d'une note au repos ne fait que poser d'où elle jouera.
+  it("ne construit aucun lecteur au saut du curseur, et joue ensuite du point visé", async () => {
+    stubLayoutWidth(200);
+    const view = setup();
+    await flushLayout();
+    const zone = view.getByRole("slider").firstElementChild;
+    if (zone == null) throw new Error("zone tactile introuvable");
+
+    tap(zone, 100);
+    expect(useAudioPlayer).not.toHaveBeenCalled();
+    expect(view.getByText("0:45")).toBeTruthy();
+    press(playButton(view.container));
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(45);
+  });
+
+  it("construit le lecteur d'une note que la liste désigne, et la lance au début", async () => {
+    const view = setup(undefined, listedCue());
+
+    view.cueWith(listedCue(true));
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(0);
+  });
+
+  function renderBoth() {
+    // Une re-signature qui n'aboutit pas : ces cas ne parlent pas de l'URL.
+    const resolveUrl = vi.fn(() => new Promise<string | null>(() => {}));
+    const element = () => (
+      <>
+        <CmvAudioPlayer url={FIRST} durationSeconds={90} resolveUrl={resolveUrl} />
+        <CmvAudioPlayer url={OTHER} durationSeconds={90} resolveUrl={resolveUrl} />
+      </>
+    );
+    const view = renderRn(element());
+    // Le statut de la première note évolue hors de React : on le pousse, puis on redessine.
+    const push = (next: Partial<Status>) => {
+      setStatus(next);
+      view.rerender(element());
+    };
+    return { ...view, push };
+  }
+
+  it("rend le lecteur d'une note quand une autre démarre", async () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([FIRST])));
+
+    press(second as Element);
+
+    await waitFor(() => expect(alive).toEqual(new Set([OTHER])));
+  });
+
+  // La note rendue repart d'où on l'a laissée, pas de zéro (#304, #536).
+  it("reprend une note rendue à la position où on l'a laissée", async () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([FIRST])));
+    player.currentTime = 12;
+    setStatus({ playing: true, currentTime: 12 });
+    press(second as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([OTHER])));
+    player.seekTo.mockClear();
+    player.play.mockClear();
+    setStatus({ playing: false, currentTime: 0 });
+
+    press(playButtons(view.container)[0] as Element);
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).toHaveBeenCalledWith(12);
+  });
+
+  it("repart du début une note menée au bout, quand on la rend puis la relance", async () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([FIRST])));
+    player.currentTime = 90;
+    view.push({ playing: false, currentTime: 90, didJustFinish: true });
+    press(second as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([OTHER])));
+    player.seekTo.mockClear();
+    player.play.mockClear();
+    view.push({ didJustFinish: false, currentTime: 0 });
+
+    press(playButtons(view.container)[0] as Element);
+
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    expect(player.seekTo).not.toHaveBeenCalled();
+  });
+
+  // Cassée avant d'être rendue, le lecteur retombe à zéro : la note garde pourtant sa position.
+  it("garde la position d'une note cassée qu'on rend avant sa reprise", async () => {
+    const view = renderBoth();
+    const [first, second] = playButtons(view.container);
+    press(first as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([FIRST])));
+    player.currentTime = 42;
+    view.push({ playing: false, currentTime: 42, isLoaded: false, error: "403" });
+    player.currentTime = 0;
+    press(second as Element);
+    await waitFor(() => expect(alive).toEqual(new Set([OTHER])));
+    player.seekTo.mockClear();
+    view.push({ playing: false, currentTime: 0, isLoaded: true, error: null });
+
+    press(playButtons(view.container)[0] as Element);
+
+    await waitFor(() => expect(player.seekTo).toHaveBeenCalledWith(42));
+  });
+
+  // Rendue pendant que son réessai attend une URL, elle n'a plus de lecteur à recharger.
+  it("ne recharge pas le lecteur d'une note rendue pendant son réessai", async () => {
+    let settle: (url: string) => void = () => {};
+    const resolveUrl = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockImplementationOnce(
+        () =>
+          new Promise<string | null>((resolve) => {
+            settle = resolve;
+          }),
+      );
+    const view = await engaged(resolveUrl);
+    view.push({ isLoaded: false, error: "403" });
+    await view.untilUnavailable();
+    press(playButton(view.container));
+    await waitFor(() => expect(resolveUrl).toHaveBeenCalledTimes(2));
+
+    view.unmount();
+    await act(async () => settle(FRESH));
+
+    expect(player.replace).not.toHaveBeenCalled();
   });
 });
