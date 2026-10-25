@@ -698,6 +698,7 @@ export {
   BLOCK_MAX_EXERCISES,
   CompositionOrigin,
   compositionOriginSchema,
+  referencePlaceOf,
   SESSION_BLOCK_LABEL_MAX_LENGTH,
   SESSION_MAX_BLOCKS,
   scheduledBlockExerciseSchema,
@@ -710,6 +711,7 @@ export {
 export type { StructureInput, StructureSettings } from "./dto/structure.schema";
 export {
   STRUCTURE_INSTRUCTIONS_MAX_LENGTH,
+  STRUCTURE_MAX_DURATION_SECONDS,
   STRUCTURE_MAX_ROUNDS,
   STRUCTURE_MIN_DURATION_SECONDS,
   STRUCTURE_MIN_ROUNDS,
@@ -717,16 +719,14 @@ export {
   STRUCTURE_NOTE_MAX_LENGTH,
   STRUCTURE_PRESET_NAME_KEY,
   STRUCTURE_PRESETS,
-  StructureAdvance,
-  StructureOrder,
   StructurePresetKey,
-  StructureRepeat,
   structureAdvanceSchema,
   structureInputSchema,
   structurePresetKeySchema,
   structureRepeatSchema,
   structureSettingsSchema,
 } from "./dto/structure.schema";
+export { StructureAdvance, StructureOrder, StructureRepeat } from "./dto/structure-answer.schema";
 export type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
@@ -1168,6 +1168,7 @@ export {
   disabledOptions,
   everyPhrase,
   exerciseOrderShown,
+  gridRowLimit,
   isCustomized,
   oneAtATime,
   roundsError,

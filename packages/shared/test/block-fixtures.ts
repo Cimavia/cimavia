@@ -1,13 +1,13 @@
+import type { z } from "zod";
 import type { BlockGrid, GridMetric } from "../src/dto/block-grid.schema";
 import { MetricSource } from "../src/dto/exercise-block.schema";
 import { MetricKey, MetricUnit, type MetricValue } from "../src/dto/exercise-metric.schema";
+import { STRUCTURE_PRESETS, type StructureSettings } from "../src/dto/structure.schema";
 import {
-  STRUCTURE_PRESETS,
   StructureAdvance,
   StructureOrder,
   StructureRepeat,
-  type StructureSettings,
-} from "../src/dto/structure.schema";
+} from "../src/dto/structure-answer.schema";
 
 // Les briques des tests de blocs (#715), pour que chaque test ne dise que ce qui le distingue.
 
@@ -81,4 +81,17 @@ export function gridOf(metrics: GridMetric[], ...rows: MetricValue[][]): BlockGr
       ),
     })),
   };
+}
+
+/**
+ * Les refus d'un schéma, « chemin: message » : un test qui les nomme tient aussi leur texte. Un
+ * refus qui n'est pas un refus métier (`custom`) porte en plus son code, « [too_big] ».
+ */
+export function issuesOf(schema: z.ZodType, input: unknown): string[] {
+  const parsed = schema.safeParse(input);
+  if (parsed.success) return [];
+  return parsed.error.issues.map((issue) => {
+    const text = `${issue.path.join(".")}: ${issue.message}`;
+    return issue.code === "custom" ? text : `${text} [${issue.code}]`;
+  });
 }

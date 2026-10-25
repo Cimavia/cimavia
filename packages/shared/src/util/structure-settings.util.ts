@@ -1,9 +1,5 @@
-import {
-  StructureAdvance,
-  StructureOrder,
-  StructureRepeat,
-  type StructureSettings,
-} from "../dto/structure.schema";
+import type { StructureSettings } from "../dto/structure.schema";
+import { StructureAdvance, StructureOrder, StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 import type { Phrase } from "./phrase.util";
 import { sameJson } from "./same-json.util";
@@ -290,11 +286,15 @@ export function settingsPhrase(
   names: readonly string[] = [],
 ): Phrase[] | null {
   const { advance, repeat } = settings;
+  // Seul `oneAtATime` décide ; le reste, déjà vrai par lui sur des réglages valides, est redit pour
+  // que le type le sache.
   if (
+    // Stryker disable next-line ConditionalExpression: sans nombre d'exercices, `oneAtATime` est faux
     exerciseCount != null &&
     oneAtATime(settings, exerciseCount) &&
+    // Stryker disable next-line ConditionalExpression: un bip ou un cycle impose des tours (`settingsIssues`)
     repeat.kind === StructureRepeat.ROUNDS &&
-    // Déjà vrai par `oneAtATime` : redit pour que le type le sache.
+    // Stryker disable next-line ConditionalExpression: déjà vrai par `oneAtATime`
     imposedPace(advance)
   ) {
     return oneByOnePhrase(advance, repeat, exerciseCount, names);

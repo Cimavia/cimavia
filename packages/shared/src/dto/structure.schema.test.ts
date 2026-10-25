@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { asMuchAsPossible, beep, cycle, once, rounds, settingsOf } from "../../test/block-fixtures";
 import {
+  STRUCTURE_INSTRUCTIONS_MAX_LENGTH,
   STRUCTURE_MAX_DURATION_SECONDS,
   STRUCTURE_MAX_ROUNDS,
+  STRUCTURE_NOTE_MAX_LENGTH,
   STRUCTURE_PRESET_NAME_KEY,
   STRUCTURE_PRESETS,
-  StructureOrder,
   StructurePresetKey,
   structureInputSchema,
   structureSettingsSchema,
 } from "./structure.schema";
+import { StructureOrder } from "./structure-answer.schema";
 
 function issuePaths(input: unknown): string[] {
   const parsed = structureSettingsSchema.safeParse(input);
@@ -72,6 +74,26 @@ describe("structureSettingsSchema", () => {
     expect(issuePaths(settingsOf({ order: StructureOrder.ONE }))).toEqual(["order"]);
     expect(issuePaths(settingsOf({ advance: beep(60), order: StructureOrder.ONE }))).toEqual([]);
   });
+
+  it("dit pourquoi il refuse, en refus métier", () => {
+    const issues = (settings: unknown) =>
+      structureSettingsSchema.safeParse(settings).error?.issues.map(({ code, message }) => ({
+        code,
+        message,
+      }));
+    expect(issues(settingsOf({ advance: beep(60), restBetweenRoundsSeconds: 60 }))).toEqual([
+      {
+        code: "custom",
+        message: "Ce réglage est grisé par les autres réponses : il ne peut pas être choisi.",
+      },
+    ]);
+    expect(issues(settingsOf({ order: StructureOrder.ONE }))).toEqual([
+      {
+        code: "custom",
+        message: "« Un seul par… » demande un bip, ou un effort et un repos imposés.",
+      },
+    ]);
+  });
 });
 
 describe("STRUCTURE_PRESET_NAME_KEY", () => {
@@ -103,5 +125,14 @@ describe("structureInputSchema", () => {
   it("refuse des réglages incohérents", () => {
     const settings = settingsOf({ advance: beep(60), restBetweenRoundsSeconds: 60 });
     expect(structureInputSchema.safeParse({ ...valid, settings }).success).toBe(false);
+  });
+
+  it("borne la note et la consigne", () => {
+    const parses = (field: "note" | "instructions", length: number) =>
+      structureInputSchema.safeParse({ ...valid, [field]: "x".repeat(length) }).success;
+    expect(parses("note", STRUCTURE_NOTE_MAX_LENGTH)).toBe(true);
+    expect(parses("note", STRUCTURE_NOTE_MAX_LENGTH + 1)).toBe(false);
+    expect(parses("instructions", STRUCTURE_INSTRUCTIONS_MAX_LENGTH)).toBe(true);
+    expect(parses("instructions", STRUCTURE_INSTRUCTIONS_MAX_LENGTH + 1)).toBe(false);
   });
 });

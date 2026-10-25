@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { settingsIssues } from "../util/structure-settings.util";
 import { exerciseTagsSchema } from "./exercise.schema";
+import { StructureAdvance, StructureOrder, StructureRepeat } from "./structure-answer.schema";
 
 // La structure d'un bloc de séance (#714, #715) : Séries, EMOM, AMRAP… et celles du Coach.
 //
@@ -31,16 +32,6 @@ const durationSchema = z
 
 // ── 1. Quand passe-t-on à la suite ? ────────────────────────────────────────────────────────
 
-export const StructureAdvance = {
-  /** Quand l'athlète a fini : pas de chrono, il enchaîne à son rythme. */
-  ATHLETE: "ATHLETE",
-  /** À chaque bip, à intervalle régulier : le temps restant sert de repos. */
-  BEEP: "BEEP",
-  /** Effort puis repos imposés, en boucle. */
-  CYCLE: "CYCLE",
-} as const;
-export type StructureAdvance = TypesValuesOf<typeof StructureAdvance>;
-
 // Les durées vivent DANS la réponse qui les appelle : un EMOM sans intervalle, ou un intervalle
 // posé sur « quand l'athlète a fini », ne peuvent pas s'écrire.
 export const structureAdvanceSchema = z.discriminatedUnion("kind", [
@@ -57,16 +48,6 @@ export const structureAdvanceSchema = z.discriminatedUnion("kind", [
 
 // ── 2. Combien de fois ? ────────────────────────────────────────────────────────────────────
 
-export const StructureRepeat = {
-  /** Un nombre fixé de tours, puis le bloc est fini. */
-  ROUNDS: "ROUNDS",
-  /** Autant que possible dans le temps donné. */
-  MAX: "MAX",
-  /** Une seule fois, chaque exercice du premier au dernier. */
-  ONCE: "ONCE",
-} as const;
-export type StructureRepeat = TypesValuesOf<typeof StructureRepeat>;
-
 export const structureRepeatSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -77,16 +58,6 @@ export const structureRepeatSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal(StructureRepeat.MAX), capSeconds: durationSchema }).strict(),
   z.object({ kind: z.literal(StructureRepeat.ONCE) }).strict(),
 ]);
-
-// ── 4. L'ordre des exercices ────────────────────────────────────────────────────────────────
-
-export const StructureOrder = {
-  /** Tous les exercices s'enchaînent dans le même bip ou le même intervalle. */
-  ALL: "ALL",
-  /** Un exercice par bip ou par intervalle, en alternance. */
-  ONE: "ONE",
-} as const;
-export type StructureOrder = TypesValuesOf<typeof StructureOrder>;
 
 // ── Les réglages ────────────────────────────────────────────────────────────────────────────
 

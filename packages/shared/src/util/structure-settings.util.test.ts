@@ -10,7 +10,7 @@ import {
   settingsOf,
 } from "../../test/block-fixtures";
 import { say } from "../../test/french";
-import { StructureOrder } from "../dto/structure.schema";
+import { StructureOrder } from "../dto/structure-answer.schema";
 import {
   disabledOptions,
   everyPhrase,
@@ -163,6 +163,11 @@ describe("structureDuration", () => {
     expect(structureDuration(presets.SERIES)).toBeNull();
     expect(structureDuration(presets.AMRAP)).toBeNull();
   });
+
+  it("est `null` sans nombre de tours, même sur un bip que le schéma refuserait", () => {
+    const capped = settingsOf({ advance: beep(60), repeat: asMuchAsPossible(600) });
+    expect(structureDuration(capped)).toBeNull();
+  });
 });
 
 describe("réglage ou valeur", () => {
@@ -186,6 +191,11 @@ describe("réglage ou valeur", () => {
       restBetweenExercises: false,
       restBetweenRounds: false,
       limit: true,
+    });
+    expect(settingsShape({ ...presets.SERIES, restBetweenExercisesSeconds: 30 })).toMatchObject({
+      restBetweenExercises: true,
+      restBetweenRounds: true,
+      limit: false,
     });
   });
 
@@ -276,6 +286,12 @@ describe("settingsPhrase", () => {
     expect(say(settingsPhrase(amrap, 2))).toBe(
       "Le plus de tours possible en 10', 30 s entre exercices",
     );
+    const intervals = settingsOf({
+      advance: cycle(20, 10),
+      repeat: rounds(8),
+      restBetweenExercisesSeconds: 30,
+    });
+    expect(say(settingsPhrase(intervals, 2))).toBe("8 tours : 20 s d'effort, 10 s de repos");
   });
 
   describe("un seul par bip", () => {
@@ -307,6 +323,9 @@ describe("settingsPhrase", () => {
 
     it("est `null` quand il y a moins de bips que d'exercices", () => {
       expect(settingsPhrase(oneByBeep(60, 2), 3)).toBeNull();
+      expect(say(settingsPhrase(oneByBeep(60, 3), 3, ["A", "B", "C"]))).toBe(
+        "3 bips, chaque minute : A, B et C en alternance, 1 fois chacun",
+      );
     });
 
     it("se lit comme « tous à chaque bip » pour un seul exercice", () => {
