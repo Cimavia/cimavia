@@ -3,6 +3,22 @@ import * as Sentry from "@sentry/nestjs";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import { scrubEvent, scrubSpan } from "./sentry-scrub";
 
+type SentryEvent = Parameters<NonNullable<SentryOptions["beforeSend"]>>[0];
+
+/**
+ * Les lignes que `pino-http` écrit à la fin d'une requête. En `error` (une 5xx), `pinoIntegration`
+ * en ferait un événement de plus : le filtre d'exception a déjà envoyé la même panne, avec sa vraie
+ * pile et son regroupement. Les autres lignes `error` (un `catch` qui journalise) restent.
+ */
+const REQUEST_LOG_MESSAGES = new Set(["request completed", "request errored", "request aborted"]);
+
+function isRequestLogLine(event: SentryEvent): boolean {
+  const message = (event.contexts?.pino as { msg?: unknown } | undefined)?.msg;
+  return (
+    event.logger === "pino" && typeof message === "string" && REQUEST_LOG_MESSAGES.has(message)
+  );
+}
+
 type SentryOptions = NonNullable<Parameters<typeof Sentry.init>[0]>;
 
 /**
@@ -45,6 +61,12 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
       // `dataCollection` plus bas dit qu'aucun corps ne PART (`httpBodies: []`, `@cmv/shared`) ;
       // ceci, qu'il n'est même pas LU.
       Sentry.httpIntegration({ maxRequestBodySize: "none" }),
+      // Une erreur avalée par un `catch` ne laisse qu'un `logger.error` (#697) : le niveau `error`
+      // de Pino devient un événement Sentry, en un seul point plutôt qu'un `captureException` à
+      // ne pas oublier dans chaque `catch`. SANS `enableLogs` et sans `log.levels` : Axiom reste le
+      // canal des journaux, Sentry ne reçoit que des événements.
+      // ⚠️ L'intégration instrumente `pino` au chargement : `instrument.ts` reste le premier import.
+      Sentry.pinoIntegration({ error: { levels: ["error", "fatal"] }, log: { levels: [] } }),
     ],
 
     // Taux d'échantillonnage des transactions de performance
@@ -73,7 +95,7 @@ export function sentryOptions(env: NodeJS.ProcessEnv = process.env): SentryOptio
     dataCollection: sentryDataCollection({ userInfo: true }) satisfies Required<
       NonNullable<SentryOptions["dataCollection"]>
     >,
-    beforeSend: scrubEvent,
+    beforeSend: (event) => (isRequestLogLine(event) ? null : scrubEvent(event)),
     // Les spans partent en flux en v11 : `beforeSendTransaction` n'est plus jamais appelé.
     beforeSendSpan: scrubSpan,
   };

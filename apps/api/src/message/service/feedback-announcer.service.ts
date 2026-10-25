@@ -83,7 +83,7 @@ export class FeedbackAnnouncerService {
       // ça la donnée. Et la règle étant portée par l'ÉTAT, le prochain geste répare tout seul —
       // un dépôt non annoncé retrouve zéro avis, donc réémet « déposé ».
       this.logger.error(
-        { event: "feedback.announce.failed", sessionFeedbackId: feedback.id, coachId, error },
+        { event: "feedback.announce.failed", sessionFeedbackId: feedback.id, coachId, err: error },
         "Avis de débrief non posé",
       );
     }
