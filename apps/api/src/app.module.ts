@@ -31,6 +31,7 @@ import { PlanModule } from "./plan/plan.module";
 import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
+import { StructureModule } from "./structure/structure.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
 import { VersionModule } from "./version/version.module";
 
@@ -75,6 +76,7 @@ import { VersionModule } from "./version/version.module";
     ExerciseModule,
     CustomMetricModule,
     SessionModule,
+    StructureModule,
     PlanModule,
     FeedbackModule,
     MessageModule,
