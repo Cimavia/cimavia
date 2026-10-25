@@ -173,7 +173,6 @@ function cellPhrase(cell: GridCell, described: GridCellText): Phrase {
   const { label, value, unit } = described;
   if (cell.value == null) return { key: "block.grid.emptyCell", params: { metric: label } };
   const { metric } = cell;
-  // Stryker disable next-line ConditionalExpression: un texte, « 8-10 », s'accorderait au pluriel comme il se lit déjà
   const counted =
     typeof cell.value === "number" ? repetitionsPhrase(metric, cell.value, value) : null;
   if (counted != null) return counted;

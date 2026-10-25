@@ -39,9 +39,18 @@ function lookup(key: string): string | undefined {
   return typeof node === "string" ? node : undefined;
 }
 
-/** Le pluriel français d'i18next : `_other` à partir de 2, la clé nue pour 0 et 1. */
+const pluralRules = new Intl.PluralRules("fr");
+
+/**
+ * Le pluriel d'i18next : seul un `count` NOMBRE accorde, selon les règles du français
+ * (`Intl.PluralRules`, comme i18next) — 0, 1 et 1,5 prennent la clé nue, le reste `_other`. Un
+ * `count` texte n'accorde rien : i18next prend alors la clé nue.
+ */
 function template(key: string, count: unknown): string {
-  const plural = typeof count === "number" && count > 1 ? lookup(`${key}_other`) : undefined;
+  const plural =
+    typeof count === "number" && pluralRules.select(count) !== "one"
+      ? lookup(`${key}_other`)
+      : undefined;
   const text = plural ?? lookup(key);
   if (text == null) throw new Error(`clé absente du catalogue : ${key}`);
   return text;

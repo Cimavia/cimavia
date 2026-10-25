@@ -172,12 +172,14 @@ describe("gridLinePhrases", () => {
   it("accorde au nombre, écrit la valeur comme l'app, et lit une durée d'effort", () => {
     expect(line([cell(reps, 1)])).toBe("1 répétition");
     expect(line([cell(reps, 2.5)])).toBe("2,5 répétitions");
+    expect(line([cell(reps, 1.5)])).toBe("1,5 répétition");
     expect(line([cell(effort, 90)])).toBe("1'30 d'effort");
   });
 
   it("écrit telle quelle une valeur sans tournure propre, suivie de son unité s'il y en a une", () => {
     expect(line([cell(reps, "8-10"), cell(custom, "6a")])).toBe("8-10 répétitions, 6a");
     expect(line([cell(perSide, 6), cell(load, 20)])).toBe("6 répétitions par côté à 20 kg");
+    expect(line([cell(custom, 12)])).toBe("12");
   });
 
   it("accorde aussi les répétitions par côté", () => {
