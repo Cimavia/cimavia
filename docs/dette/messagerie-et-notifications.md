@@ -566,3 +566,16 @@ liste des domaines vivent dans l'index.
 >   arrêt venu du natif retire le bandeau sans passer par `finish`, et `onRecordingChange(false)`
 >   ne part pas — la barre de messages resterait masquée, et un nouvel essai pourrait buter sur un
 >   enregistreur encore préparé.
+
+> **Tranché en #700** (un démarrage raté ne bloque plus les suivants) : Android pose `isPrepared`
+> à la préparation et refuse toute autre tant que l'enregistreur n'est ni arrêté ni libéré. Un
+> `record()` qui levait laissait donc l'enregistreur préparé, et chaque tap suivant échouait
+> (`AudioRecorder has already been prepared`, CIMAVIA-MOBILE-F).
+>
+> - **Le `catch` de `start()` appelle `recorder.stop()`**, best-effort : le natif y libère le
+>   `MediaRecorder` même quand rien n'a démarré. L'erreur d'origine prime sur celle de la libération.
+> - **Sentry reçoit le `code` natif et la plateforme** (tags), pour nommer la prochaine panne.
+> - **Pas de repli au premier plan quand le service ne se lie pas** : la cause d'origine n'est pas
+>   établie, et un repli la masquerait en disant « se met en pause écran verrouillé » sur une panne
+>   mal comprise. L'erreur s'affiche. Le repli se rouvre par une issue dédiée, une fois la cause
+>   nommée par les tags.
