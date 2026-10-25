@@ -304,6 +304,7 @@ const ofExercise = sharedChild("exercise", sharedExercise, {
   model: "Exercise",
   key: "exerciseId",
 });
+const ofSession = sharedChild("session", sharedSession, { model: "Session", key: "sessionId" });
 const ofPlan = sharedChild("plan", sharedPlan, { model: "Plan", key: "planId" });
 const ofScheduledSession = sharedChild("scheduledSession", ofPlan, {
   model: "ScheduledSession",
@@ -345,9 +346,12 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   ExerciseTag: { coach: ofExercise },
   CustomMetric: { coach: coachOwner },
   Session: { coach: sharedSession, root: true },
-  SessionExercise: {
-    coach: sharedChild("session", sharedSession, { model: "Session", key: "sessionId" }),
-  },
+  SessionExercise: { coach: ofSession },
+  // Les blocs suivent leur séance (#716) : une séance ouverte à un autre Coach (#605) les emporte.
+  SessionBlock: { coach: ofSession },
+  // Les structures ne s'ouvrent pas aux autres Coachs (#714) : le bloc les COPIE, une séance
+  // partagée n'en dépend donc pas.
+  Structure: { coach: coachOwner },
   // Les droits accordés (#605) : le propriétaire seul les lit et les gère. Celui qui en bénéficie
   // ne les lit pas ici : son droit se calcule sur l'élément qu'il ouvre.
   AccessGrant: { coach: column("ownerId") },
@@ -355,6 +359,9 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   PlanWeek: { coach: ofPlan },
   ScheduledSession: { coach: ofPlan, athlete: athleteOwner },
   ScheduledSessionExercise: { coach: ofScheduledSession, athlete: athleteOwner },
+  // L'athlète LIT ses blocs imbriqués dans sa séance, mais le débrief écrit leur suivi à plat, bloc
+  // par bloc, comme celui des exercices : c'est cette route qui ouvre la clé (#626, #716).
+  ScheduledSessionBlock: { coach: ofScheduledSession, athlete: athleteOwner },
   ScheduledSessionExerciseDocument: { coach: ofScheduledExercise },
   ScheduledSessionExerciseTag: { coach: ofScheduledExercise },
   SessionFeedback: { coach: feedbackOfSession, athlete: athleteOwner },
