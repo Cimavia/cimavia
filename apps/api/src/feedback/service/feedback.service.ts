@@ -19,7 +19,7 @@ import { toMessageDto } from "../../message/message.mapper";
 import { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
-import { AthletePlanService } from "../../plan/service/athlete-plan.service";
+import { AthletePlanService, type PublishedSession } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseSettings, toJsonInput } from "../../util/block-json.util";
@@ -76,9 +76,12 @@ export class FeedbackService {
   ): Promise<SessionFeedbackDto> {
     const tracking = input.tracking ?? {};
     const blockTracking = input.blockTracking ?? {};
+    // La garde de séance passe en premier, et une seule fois : la séance d'un autre reste un 404,
+    // pas un 400 de suivi qui dirait qu'elle existe.
+    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     await this.assertTrackedExercisesKnown(scheduledSessionId, tracking);
     await this.assertTrackedBlocksFit(scheduledSessionId, blockTracking);
-    const writable = await this.getOrCreateWritable(scheduledSessionId);
+    const writable = await this.writableOf(session);
     await this.db.sessionFeedback.update({
       where: { id: writable.feedback.id },
       data: { content: input.content ?? null },
@@ -102,8 +105,8 @@ export class FeedbackService {
    *
    * Contrôlé AVANT toute écriture, texte compris : le débrief n'est pas écrit dans une seule
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
-   * créerait un, séance passée en DONE, pour une requête refusée. La garde de séance passe en
-   * premier : la séance d'un autre reste un 404, pas un 400 qui dirait qu'elle existe.
+   * créerait un, séance passée en DONE, pour une requête refusée. L'appelant a déjà passé la garde
+   * de séance.
    */
   private async assertTrackedExercisesKnown(
     scheduledSessionId: string,
@@ -112,7 +115,6 @@ export class FeedbackService {
     const cited = Object.keys(tracking);
     if (cited.length === 0) return;
 
-    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     const known = await this.db.scheduledSessionExercise.findMany({
       where: { scheduledSessionId, id: { in: cited } },
       select: { id: true },
@@ -139,7 +141,6 @@ export class FeedbackService {
     const cited = Object.keys(tracking);
     if (cited.length === 0) return;
 
-    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     const known = await this.db.scheduledSessionBlock.findMany({
       where: { scheduledSessionId, id: { in: cited } },
       select: {
@@ -222,7 +223,12 @@ export class FeedbackService {
    * tenant (son `where` unique créerait un angle mort de scope).
    */
   async getOrCreateWritable(scheduledSessionId: string): Promise<WritableFeedback> {
-    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    return this.writableOf(await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId));
+  }
+
+  /** `getOrCreateWritable` pour une séance dont la garde est déjà passée. */
+  private async writableOf(session: PublishedSession): Promise<WritableFeedback> {
+    const scheduledSessionId = session.id;
     const existing = await this.db.sessionFeedback.findFirst({ where: { scheduledSessionId } });
     if (existing != null) {
       return { feedback: existing, sessionTitle: session.title, created: false };
