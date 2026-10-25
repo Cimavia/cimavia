@@ -4,6 +4,8 @@ import {
   BLOCK_MAX_METRICS,
   catalogMetricShape,
   customMetricShape,
+  distinctColumnIds,
+  distinctRowIds,
   MetricSource,
   metricUnitRefinement,
 } from "./exercise-block.schema";
@@ -88,21 +90,22 @@ export const blockGridSchema = z
     rows: z.array(gridRowSchema).max(GRID_MAX_ROWS),
   })
   .strict()
-  .refine((grid) => new Set(grid.metrics.map((m) => m.id)).size === grid.metrics.length, {
-    message: "Deux colonnes ne peuvent pas partager le même identifiant.",
-    path: ["metrics"],
-  })
-  .refine((grid) => new Set(grid.rows.map((r) => r.id)).size === grid.rows.length, {
-    message: "Deux lignes ne peuvent pas partager le même identifiant.",
-    path: ["rows"],
-  })
-  .refine(
-    (grid) => {
-      const known = new Set(grid.metrics.map((metric) => metric.id));
-      return grid.rows.every((row) => Object.keys(row.values).every((id) => known.has(id)));
-    },
-    { message: "Une ligne porte une valeur pour une colonne inexistante.", path: ["rows"] },
-  );
+  .refine(...distinctColumnIds)
+  .refine(...distinctRowIds)
+  .superRefine((grid, context) => {
+    // Chaque valeur orpheline est refusée À SA CELLULE, pour que l'éditeur la montre.
+    const known = new Set(grid.metrics.map((metric) => metric.id));
+    grid.rows.forEach((row, index) => {
+      for (const metricId of Object.keys(row.values)) {
+        if (known.has(metricId)) continue;
+        context.addIssue({
+          code: "custom",
+          path: ["rows", index, "values", metricId],
+          message: "Une ligne porte une valeur pour une colonne inexistante.",
+        });
+      }
+    });
+  });
 export type BlockGrid = z.infer<typeof blockGridSchema>;
 
 /**

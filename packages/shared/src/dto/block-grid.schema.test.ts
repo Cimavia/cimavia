@@ -96,11 +96,14 @@ describe("blockGridSchema", () => {
     ]);
   });
 
-  it("refuse une valeur dont la colonne n'existe pas, même à côté de valeurs connues", () => {
-    const values = { [reps.id]: 6, col_gone: 6 };
-    expect(issuesOf(blockGridSchema, { metrics: [reps], rows: [{ id: "row_0", values }] })).toEqual(
-      ["rows: Une ligne porte une valeur pour une colonne inexistante."],
-    );
+  it("refuse à sa cellule une valeur dont la colonne n'existe pas, même à côté de valeurs connues", () => {
+    const rows = [
+      { id: "row_0", values: { [reps.id]: 6 } },
+      { id: "row_1", values: { [reps.id]: 6, col_gone: 6 } },
+    ];
+    expect(issuesOf(blockGridSchema, { metrics: [reps], rows })).toEqual([
+      "rows.1.values.col_gone: Une ligne porte une valeur pour une colonne inexistante.",
+    ]);
   });
 
   it("borne les lignes au nombre de tours", () => {
