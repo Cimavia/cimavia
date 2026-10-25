@@ -15,6 +15,12 @@ Maquettes d'écrans produites via **Claude Design** (format `*.dc.html`), track 
 - Garder le nom d'export Claude Design ; le mapping vers la tâche `pd-N` (track PD) ou vers l'issue
   qui l'a commandée se fait dans le tableau ci-dessous.
 - Les fichiers `support.js` / `ios-frame.jsx` font partie du **runtime Claude Design** (rendu), pas du produit : non versionnés ici. Ces maquettes servent de **référence**, pas de code à importer tel quel.
+- `composants/` porte ce qu'importent les planches de la séance par blocs ([#714](https://github.com/Cimavia/cimavia/issues/714)) :
+  les composants Claude Design et `structure_model.js`, la source des règles. Les fichiers y sont renommés en
+  snake_case, mais leur **contenu n'est pas retouché**. Les planches citent donc toujours le nom Claude Design
+  (`dc-import name="Seance - Bloc replie"`) et `./structure-model.js`. Pour rouvrir une planche, on la remet
+  dans un projet Claude Design avec ses composants, sous leur nom d'origine : la correspondance est dans la
+  section « Séance par blocs », plus bas.
 
 ## Règles produit à respecter à l'implémentation
 
@@ -57,18 +63,46 @@ l'**issue** qui les a commandées (tableau suivant).
 | `web-coach/coach_facturation_v2.dc.html` | [#120](https://github.com/Cimavia/cimavia/issues/120) | **6 frames** — facturation groupée par athlète : liste, athlète déplié + panneau « en retard », historique paginé + confirmation en deux temps, athlète à jour + panneau « payée », état vide, panneau « annulée » | refonte de `/invoices`, remplace pd-8 | ✅ |
 | `web-coach/coach_planification.dc.html` | [#225](https://github.com/Cimavia/cimavia/issues/225) | **6 frames** — planifications groupées par athlète : liste + bac de brouillons (variante A), liste + échéance (variante B), athlète déplié avec historique paginé et brouillon affecté, chevauchement de deux cycles diffusés, état vide, recherche sans résultat | refonte de `/plans` | ✅ |
 | `mobile-coach/coach_mobile_facture.dc.html` | [#224](https://github.com/Cimavia/cimavia/issues/224) | **8 frames** — facturation du coach sur **mobile** : liste par athlète (seule frame à porter le sélecteur de casquette), athlète déplié sur place avec historique paginé, détail en écran plein (impayée / payée / annulée), les deux confirmations en deux temps, état vide | portage mobile de [#120](https://github.com/Cimavia/cimavia/issues/120) | ✅ |
-| `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
-| `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
-| `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
-| `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⏳ |
-| `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
+| `web-coach/coach_constructeur_exercice.dc.html` | — | **15 frames** — refonte du constructeur d'exercice (pleine page, aperçu athlète sticky) : état initial, les 5 types de structure, les 2 raccourcis, plusieurs blocs, saisie en grille, sélecteur de métriques, éditeur de consigne riche, insertion d'image, édition, validation | refonte de `ExerciseForm` — **non planifiée**, cf. section dédiée ci-dessous | ⚠️ **périmée** — remplacée par `web-coach/coach_constructeur_seance_v2.dc.html` ([#714](https://github.com/Cimavia/cimavia/issues/714)). La structure quitte l'exercice pour la séance. L'exercice réduit à ses métriques suggérées n'a pas de planche ([#718](https://github.com/Cimavia/cimavia/issues/718)). Ne pas s'y référer. |
+| `web-coach/coach_constructeur_seance.dc.html` | — | **10 frames** — refonte du constructeur de séance (pleine page, aperçu athlète = la séance entière) : séance vide, séance composée, exercice hérité / surchargé, exercice à plusieurs blocs, sélecteur de bibliothèque, notes, aperçu athlète mobile, niveau planification, validation | refonte de `SessionBuilder` — **non planifiée**, cf. section dédiée ci-dessous | ⚠️ **périmée** — remplacée par `web-coach/coach_constructeur_seance_v2.dc.html`, et pour sa frame 9 (niveau planification) par `web-coach/coach_planification_blocs.dc.html` ([#714](https://github.com/Cimavia/cimavia/issues/714)). Ne pas s'y référer. |
+| `mobile-athlete/athlete_seance_lecture.dc.html` | — | **13 écrans** — refonte du détail de séance côté athlète, volet **lecture** : séance du jour, consigne dépliée, image (+ chargement), grilles à 2 / 3 / 4 colonnes avec l'encart du seuil, EMOM · AMRAP · Libre, exercice à plusieurs blocs, pièces jointes, fin de séance, séance à venir / débriefée / hors ligne | refonte de `athlete_seance.dc.html` (pd-9) — **non planifiée**, cf. section dédiée ci-dessous | ⚠️ **périmée** — remplacée par `mobile-athlete/athlete_seance_blocs.dc.html` ([#714](https://github.com/Cimavia/cimavia/issues/714)). Ne pas s'y référer. |
+| `mobile-athlete/athlete_timers_suivi.dc.html` | — | **10 écrans** — même écran, volet **exécution** : séance en cours, cocher les séries d'un bloc groupé, repos en bandeau / agrandi, effort-repos alterné, EMOM, AMRAP, notification sur écran verrouillé, débrief avec décompte, encart des trois états | **fonctionnalité nouvelle** (timers + suivi) — cf. section dédiée ci-dessous | ⚠️ **périmée** — remplacée par `mobile-athlete/athlete_seance_blocs.dc.html` ([#714](https://github.com/Cimavia/cimavia/issues/714)), où le chrono et le suivi appartiennent au bloc. Ne pas s'y référer. |
+| `web-athlete/athlete_seance_web.dc.html` | — | **7 frames** — le même écran côté web, avec rail de droite : détail de séance (consignes dépliées, cases visibles), grilles à 2 et 4 colonnes, exercice à plusieurs blocs + pièces jointes, suivi en cours, débrief, séance à venir, séance déjà débriefée | refonte du détail de séance de `athlete_web.dc.html` — **non planifiée**, cf. section dédiée ci-dessous | ⚠️ **périmée** — remplacée par les frames 7 et 8 de `mobile-athlete/athlete_seance_blocs.dc.html` ([#714](https://github.com/Cimavia/cimavia/issues/714)). Ne pas s'y référer. |
 | `shared/coach_athlete_etats_vides.dc.html` | — | **11 écrans** — les vides que la refonte fait apparaître, sur les deux plateformes : bibliothèque vide, onglet Séances vide, grille sans ligne, exercice sans structure, recherche sans résultat · aucune séance, séance sans exercice, exercice sans consigne, amorçage du suivi · aucune séance et débrief vide côté web | **non planifiée**, cf. section dédiée ci-dessous | ⏳ |
 | `shared/auth_inscription_type.dc.html` | [#595](https://github.com/Cimavia/cimavia/issues/595) | **9 frames** — inscription avec choix du type de compte : web sans type choisi / Coach et/ou athlète / Entreprise / aucune case cochée / inscriptions fermées (refus après envoi, formulaire visible) · mobile sans type / Coach et/ou athlète / Entreprise / compte Entreprise connecté (renvoi vers le web) | [#600](https://github.com/Cimavia/cimavia/issues/600) | ✅ |
 | `web-entreprise/entreprise_espace_web.dc.html` | [#596](https://github.com/Cimavia/cimavia/issues/596) | **9 frames** — espace Entreprise : Coachs (membres + invitations en attente), panneau « Ajouter un coach », Athlètes (une pastille par Coach), panneau « Inviter un athlète », aucun coach, aucun athlète · côté Coach : carte d'invitation sur le tableau de bord · côté athlète : « Mes coachs » avec l'invitation reçue, puis en tableau avec la provenance de chaque lien | [#601](https://github.com/Cimavia/cimavia/issues/601) (1, 2, 5, 7) [#602](https://github.com/Cimavia/cimavia/issues/602) (3, 4, 6, 8, 9) | ✅ |
 | `shared/messagerie_conversations_à_plusieurs.dc.html` | [#598](https://github.com/Cimavia/cimavia/issues/598) | **11 frames** — messagerie à deux ou à plusieurs : web athlète liste / création (ses coachs à cocher) / conversation à plusieurs avec « Lu par » · web coach liste / création (athlètes et coachs de F, recherche, avertissement) · mobile athlète liste / création · mobile coach conversation à plusieurs · vides : athlète sans coach, liste sans conversation, conversation sans message | [#611](https://github.com/Cimavia/cimavia/issues/611) [#612](https://github.com/Cimavia/cimavia/issues/612) | ✅ |
 | `web-coach/coach_bibliotheque_acces.dc.html` | [#597](https://github.com/Cimavia/cimavia/issues/597) | **14 frames** — bibliothèque en tableaux : exercices, sélection multiple, séances, « Partagés avec moi » vide · panneau des accès : propriétaire, plusieurs éléments (« Mixte »), lecture seule · builder de séance avec le sélecteur d'exercice · accès d'une planification : athlète suivi à deux (TI), suivi par un seul coach (TE) · builder d'exercice : conflit d'écriture, lecture seule · refus de réduire un accès · bibliothèque d'un coach sans entreprise | [#604](https://github.com/Cimavia/cimavia/issues/604) (11) [#606](https://github.com/Cimavia/cimavia/issues/606) (1 à 8, 11 à 14) [#607](https://github.com/Cimavia/cimavia/issues/607) (9, 10) [#608](https://github.com/Cimavia/cimavia/issues/608) (5, 6, 13) — 13 caduque depuis [#609](https://github.com/Cimavia/cimavia/issues/609) | ✅ |
+| `web-coach/coach_constructeur_seance_v2.dc.html` | [#714](https://github.com/Cimavia/cimavia/issues/714) | **16 frames** — séance vide et choix de la première structure, séance composée (blocs repliés), séance simple, sélecteur de structures, bloc Séries à deux exercices, bloc devenu personnalisé, enregistrer comme structure, réglages d'un bloc, blocs AMRAP et EMOM, fractionné course, ajouter un exercice dans un bloc, réorganiser, changer de structure, notes, aperçu athlète mobile, validation | [#719](https://github.com/Cimavia/cimavia/issues/719) | ⏳ |
+| `web-coach/coach_bibliotheque_structures.dc.html` | [#714](https://github.com/Cimavia/cimavia/issues/714) | **7 frames** — onglet Structures (prêtes, puis celles du Coach), filtre par tag, modifier une structure, créer d'après une structure prête, supprimer (les séances gardent leur copie), état vide, validation | [#717](https://github.com/Cimavia/cimavia/issues/717) | ⏳ |
+| `web-coach/coach_planification_blocs.dc.html` | [#714](https://github.com/Cimavia/cimavia/issues/714) | **10 frames** — builder (les cartes comptent blocs et exercices), composer la séance pour une semaine (2, 2 bis), « Pour quelles semaines ? » (2 ter à 2 quinquies), Dosage, « Progression… », les deux accès, cas limites | [#720](https://github.com/Cimavia/cimavia/issues/720) (1 à 2 quinquies) [#721](https://github.com/Cimavia/cimavia/issues/721) (3, 4, 5) [#724](https://github.com/Cimavia/cimavia/issues/724) (3 bis) | ⏳ |
+| `mobile-athlete/athlete_seance_blocs.dc.html` | [#714](https://github.com/Cimavia/cimavia/issues/714) | **8 frames** — mobile : la séance lue bloc par bloc, le bloc A sur deux semaines, l'écran du bloc, les six chronos, les valeurs vides, le suivi coché · web : la séance, le bloc A sur deux semaines | [#722](https://github.com/Cimavia/cimavia/issues/722) | ⏳ |
 
 ⏳ = maquette produite, écran pas encore implémenté (ou refonte pas encore planifiée).
+
+## Séance par blocs — [#714](https://github.com/Cimavia/cimavia/issues/714)
+
+La structure quitte l'exercice pour la séance. L'exercice porte son contenu et des métriques
+suggérées. La séance-type est une suite de blocs, dont chacun a une structure et 1 à N exercices. La
+séance planifiée ajuste la composition et les valeurs pour un Athlete. Les décisions vivent dans
+l'épic et ses issues ([#715](https://github.com/Cimavia/cimavia/issues/715) à [#724](https://github.com/Cimavia/cimavia/issues/724)) : elles ne sont pas recopiées ici.
+`composants/structure_model.js` est la version exécutable des règles, que [#715](https://github.com/Cimavia/cimavia/issues/715) porte dans
+`@cmv/shared`.
+
+| Nom Claude Design | Fichier | Importé par |
+|---|---|---|
+| `structure-model.js` | `composants/structure_model.js` | les quatre planches |
+| Athlète - Bloc lecture | `composants/athlete_bloc_lecture.dc.html` | `athlete_seance_blocs` |
+| Coach - Barre laterale | `composants/coach_barre_laterale.dc.html` | `coach_constructeur_seance_v2`, `coach_bibliotheque_structures`, `coach_planification_blocs` |
+| Coach - Builder planification v2 | `composants/coach_builder_planification_v2.dc.html` | `coach_planification_blocs` |
+| Dosage - Tableau | `composants/dosage_tableau.dc.html` | `coach_planification_blocs` |
+| Seance - Apercu athlete | `composants/seance_apercu_athlete.dc.html` | `coach_constructeur_seance_v2` |
+| Seance - Bloc replie | `composants/seance_bloc_replie.dc.html` | `coach_constructeur_seance_v2`, `coach_planification_blocs` |
+| Seance - Entete planifiee | `composants/seance_entete_planifiee.dc.html` | `coach_planification_blocs` |
+| Seance - Exercice de bloc | `composants/seance_exercice_de_bloc.dc.html` | `coach_constructeur_seance_v2`, `coach_planification_blocs` |
+| Seance - Pour quelles semaines | `composants/seance_pour_quelles_semaines.dc.html` | `coach_planification_blocs` |
+| Structure - Formulaire | `composants/structure_formulaire.dc.html` | `coach_constructeur_seance_v2`, `coach_bibliotheque_structures` |
+| Structure - Selecteur | `composants/structure_selecteur.dc.html` | `coach_constructeur_seance_v2` |
 
 ## Écarts MVP repérés dans les maquettes (à trancher avant implémentation)
 
@@ -303,6 +337,8 @@ Les maquettes anticipent quelques éléments **hors périmètre MVP** (cf. `cahi
 
 ## Constructeur d'exercice — modèle et changements requis
 
+> ⚠️ **Périmée depuis [#714](https://github.com/Cimavia/cimavia/issues/714)** : cette section décrit l'ancien modèle, où chaque exercice portait sa structure. Voir « Séance par blocs », plus haut.
+
 `coach_constructeur_exercice.dc.html` n'est **pas** un rendu du modèle actuel : c'est une refonte
 qui suppose six changements backend. Aucun n'est planifié. Le modèle retenu, en bref :
 
@@ -353,6 +389,8 @@ bouton reste sur les quatre autres types. Voir « Tranché en #520 » dans `docs
 
 ## Constructeur de séance — le dosage à trois niveaux
 
+> ⚠️ **Périmée depuis [#714](https://github.com/Cimavia/cimavia/issues/714)** : cette section décrit l'ancien modèle, où chaque exercice portait sa structure. Voir « Séance par blocs », plus haut.
+
 `coach_constructeur_seance.dc.html` suppose la refonte de l'exercice ci-dessus : à lire après elle.
 La règle qui structure tout l'écran :
 
@@ -400,6 +438,8 @@ pour un AMRAP ou un exercice « au ressenti » (même famille que **P3-5** /
 [#94](https://github.com/Cimavia/cimavia/issues/94)).
 
 ## Séance côté athlète — lecture, puis exécution
+
+> ⚠️ **Périmée depuis [#714](https://github.com/Cimavia/cimavia/issues/714)** : cette section décrit l'ancien modèle, où chaque exercice portait sa structure. Voir « Séance par blocs », plus haut.
 
 `athlete_seance_lecture.dc.html` et `athlete_timers_suivi.dc.html` sont **deux volets du même
 écran** : la première dit comment la séance se lit, la seconde ce qui se passe pendant qu'on la

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#0e141a; border:1px solid #2b3742; border-radius:10px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+  <div style="display:flex; align-items:stretch; background:#111922; border-bottom:1px solid #2b3742; border-radius:10px 10px 0 0">
+    <div style="flex:0 1 {{ t.lw }}; min-width:140px; box-sizing:border-box; padding:12px 16px; font:600 12px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">Valeur</div>
+    <sc-for list="{{ t.cols }}" as="c" hint-placeholder-count="5">
+      <div style="flex:1 1 0; min-width:130px; box-sizing:border-box; position:relative; padding:10px 12px; border-left:{{ c.bl }}; border-top:3px solid {{ c.top }}; background:{{ c.bg }}; display:flex; align-items:flex-start; gap:6px">
+        <div style="flex:1; min-width:0"><div style="font:600 14px/18px 'Space Grotesk',sans-serif; color:{{ c.fg }}">{{ c.t }}</div><div style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ c.sub }}</div><sc-if value="{{ c.hasCount }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:5px; margin-top:4px; font:500 12px/16px 'IBM Plex Sans',sans-serif; color:{{ c.countFg }}"><sc-if value="{{ c.anyAdj }}" hint-placeholder-val="{{ false }}"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8"></span></sc-if>{{ c.count }}</div></sc-if><sc-if value="{{ c.focusLabel }}" hint-placeholder-val="{{ false }}"><div style="font:600 11px/14px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#e8966f; margin-top:4px">{{ c.focusLabel }}</div></sc-if></div>
+        <sc-if value="{{ c.hasMenu }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; flex-shrink:0; border-radius:6px; background:{{ c.menuBg }}; border:1px solid #2b3742; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span></sc-if>
+        <sc-if value="{{ c.menuOpen }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:44px; right:8px; z-index:8; width:max-content; background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:6px; box-shadow:0 24px 60px -20px rgba(0,0,0,.8); display:flex; flex-direction:column">
+          <span style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Revenir à la séance-type</span>
+          <span style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M15 4v16"></path></svg>Composer cette séance</span>
+        </div></sc-if>
+      </div>
+    </sc-for>
+    <div style="width:{{ t.aw }}; flex-shrink:0; box-sizing:border-box; padding:12px"></div>
+  </div>
+  <sc-for list="{{ t.rows }}" as="r" hint-placeholder-count="4">
+    <div>
+      <sc-if value="{{ r.isGroup }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:center; gap:10px; padding:14px 16px 8px; border-top:1px solid #2b3742; background:#0b1015">
+          <span style="min-width:28px; height:26px; padding:0 8px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 14px/1 'Space Grotesk',sans-serif; color:#dceff3">{{ r.badge }}</span>
+          <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; border:1px dashed #3a4854; padding:2px 9px; border-radius:999px">{{ r.type }}</span>
+          <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.phrase }}</span>
+        </div>
+      </sc-if>
+      <sc-if value="{{ r.isNote }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; align-items:flex-start; gap:7px; padding:2px 16px 10px 16px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:3px; flex-shrink:0"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-wrap:pretty">{{ r.text }}</span></div>
+      </sc-if>
+      <sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex; align-items:stretch; border-top:1px solid {{ r.line }}">
+          <div style="flex:0 1 {{ t.lw }}; min-width:140px; box-sizing:border-box; padding:8px 16px 8px {{ r.indent }}; display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px">
+            <sc-if value="{{ r.code }}" hint-placeholder-val="{{ false }}"><span style="font:600 12px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ r.code }}</span></sc-if>
+            <span style="font:500 14px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ r.name }}</span>
+            <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; white-space:nowrap">{{ r.metric }}</span><sc-if value="{{ r.tag }}" hint-placeholder-val="{{ false }}"><span style="font:500 12px/16px 'IBM Plex Sans',sans-serif; color:#e8966f; border:1px solid rgba(194,96,58,.38); padding:1px 7px; border-radius:999px; white-space:nowrap">{{ r.tag }}</span></sc-if>
+          </div>
+          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="5">
+            <div style="flex:1 1 0; min-width:130px; box-sizing:border-box; position:relative; padding:6px 10px; border-left:{{ c.bl }}; background:{{ c.bg }}; display:flex; flex-direction:column; justify-content:center">
+              <sc-if value="{{ c.isVal }}" hint-placeholder-val="{{ true }}"><span style="display:flex; align-items:center; min-height:30px; padding:6px 9px; box-sizing:border-box; border-radius:6px; background:#0a0f14; border:1px solid {{ c.bd }}; font:500 13px/16px 'IBM Plex Mono',monospace; color:#dceff3; cursor:text; max-width:100%; overflow-wrap:anywhere">{{ c.v }}</span></sc-if>
+              <sc-if value="{{ c.isEmpty }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; height:30px; padding:0 9px; box-sizing:border-box; border-radius:6px; background:#0a0f14; border:1px solid #2b3742; font:500 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; cursor:text">—</span></sc-if>
+              <sc-if value="{{ c.isAdj }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; gap:7px; min-height:30px; padding:6px 9px; box-sizing:border-box; border-radius:6px; background:rgba(95,143,168,.12); border:1px solid rgba(95,143,168,.45); font:500 13px/16px 'IBM Plex Mono',monospace; color:#8fb8cc; cursor:text; max-width:100%; overflow-wrap:anywhere"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8; flex-shrink:0"></span><span style="min-width:0">{{ c.v }}</span></span><sc-if value="{{ c.tip }}" hint-placeholder-val="{{ false }}"><div style="position:relative"><div style="position:absolute; top:6px; left:0; z-index:7; width:max-content; background:#1c2630; border:1px solid #3a4854; border-radius:8px; padding:10px 12px; box-shadow:0 18px 40px -16px rgba(0,0,0,.8); display:flex; flex-direction:column; gap:8px"><span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">{{ c.tip }}</span><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Revenir à la séance-type</span></div></div></sc-if></sc-if>
+              <sc-if value="{{ c.off }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; min-height:30px; font:italic 400 13px/18px 'IBM Plex Sans',sans-serif; color:#9aa7b3">{{ c.offLabel }}</span></sc-if>
+              <sc-if value="{{ c.absent }}" hint-placeholder-val="{{ false }}"><span style="min-height:30px"></span></sc-if>
+              <sc-if value="{{ c.hasSeries }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute; top:calc(100% - 2px); left:10px; z-index:9; width:236px; box-sizing:border-box; background:#141d25; border:1px solid #3a4854; border-radius:10px; box-shadow:0 18px 40px -16px rgba(0,0,0,.8); padding:12px; display:flex; flex-direction:column; gap:8px">
+                  <sc-for list="{{ c.series }}" as="s" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:10px">
+                      <span style="width:58px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ s.label }}</span>
+                      <span style="flex:1; display:flex; align-items:center; height:30px; padding:0 9px; box-sizing:border-box; border-radius:6px; background:#0a0f14; border:1px solid #3a4854; font:500 13px/1 'IBM Plex Mono',monospace; color:#dceff3; cursor:text">{{ s.v }}</span>
+                      <span style="width:22px; font:500 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ s.u }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="display:flex; align-items:center; gap:8px; padding-top:8px; border-top:1px solid #2b3742; font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; cursor:pointer">Même valeur partout</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="width:{{ t.aw }}; flex-shrink:0; box-sizing:border-box; padding:6px 12px; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:4px">
+            <sc-if value="{{ r.progOpen }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.14); border:1px solid rgba(194,96,58,.4); padding:6px 8px; border-radius:6px; cursor:pointer; white-space:nowrap">Progression…</span></sc-if>
+            <sc-if value="{{ r.canProg }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#e8966f; border:1px solid transparent; padding:6px 8px; cursor:pointer; white-space:nowrap">Progression…</span></sc-if>
+            <sc-if value="{{ r.cantProg }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#3a4854; border:1px solid transparent; padding:6px 8px; white-space:nowrap">Progression…</span></sc-if>
+            <sc-if value="{{ r.canReset }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:4px 9px; cursor:pointer; white-space:nowrap">Réinitialiser</span></sc-if>
+            <sc-if value="{{ r.cantReset }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#3a4854; padding:4px 9px; white-space:nowrap">Réinitialiser</span></sc-if>
+          </div>
+        </div>
+        <sc-if value="{{ r.progOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:0 0 12px; background:#141d25; border-top:1px solid #3a4854; border-bottom:1px solid #3a4854; box-shadow:0 18px 40px -16px rgba(0,0,0,.8)">
+            <div style="display:flex; align-items:stretch">
+              <div style="flex:0 1 {{ t.lw }}; min-width:140px; box-sizing:border-box; padding:12px 16px; display:flex; flex-direction:column; gap:8px">
+                <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Ajouter chaque semaine</span>
+                <span style="display:flex; align-items:center; height:32px; padding:0 10px; box-sizing:border-box; border-radius:6px; background:#0a0f14; border:1px solid {{ r.pop.bd }}; font:500 13px/1 'IBM Plex Mono',monospace; color:#dceff3; cursor:text">{{ r.pop.step }}</span>
+                <sc-if value="{{ r.pop.hasErr }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089">{{ r.pop.err }}</span></sc-if>
+                <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ r.pop.start }}</span>
+              </div>
+              <sc-for list="{{ r.pop.cells }}" as="p" hint-placeholder-count="5">
+                <div style="flex:1 1 0; min-width:130px; box-sizing:border-box; padding:12px 10px; border-left:{{ p.bl }}; background:{{ p.bg }}; display:flex; flex-direction:column; justify-content:center; gap:4px">
+                  <sc-if value="{{ p.plain }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/16px 'IBM Plex Mono',monospace; color:#dceff3; overflow-wrap:anywhere">{{ p.v }}</span></sc-if>
+                  <sc-if value="{{ p.deload }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/16px 'IBM Plex Mono',monospace; color:#aab6c2; overflow-wrap:anywhere">{{ p.v }}</span><span style="font:italic 400 12px/16px 'IBM Plex Sans',sans-serif; color:#6b93a0">inchangée</span></sc-if>
+                  <sc-if value="{{ p.absent }}" hint-placeholder-val="{{ false }}"><span style="font:italic 400 13px/18px 'IBM Plex Sans',sans-serif; color:#5f6c79">sautée</span></sc-if>
+                </div>
+              </sc-for>
+              <div style="width:{{ t.aw }}; flex-shrink:0; box-sizing:border-box; padding:12px; border-left:1px solid #2b3742; display:flex; flex-direction:column; justify-content:center; align-items:flex-end; gap:8px">
+                <sc-if value="{{ r.pop.canApply }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:9px 14px; border-radius:7px; cursor:pointer">Appliquer</span></sc-if><sc-if value="{{ r.pop.cantApply }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#5f6c79; background:#1c2630; border:1px solid #2b3742; padding:8px 13px; border-radius:7px">Appliquer</span></sc-if>
+                <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:4px 2px; cursor:pointer">Annuler</span>
+              </div>
+            </div>
+            <sc-if value="{{ r.pop.hasOver }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:1px solid #2b3742; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e6c478"><span style="width:6px; height:6px; border-radius:2px; background:#5f8fa8; flex-shrink:0"></span>{{ r.pop.overLabel }}</div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </sc-if>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:300},&quot;t&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{cols:object[],rows:object[]}&quot;}}"></script>
+</body>
+</html>

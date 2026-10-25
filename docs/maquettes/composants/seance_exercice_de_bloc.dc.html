@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#0e141a; border:1px solid #2b3742; border-radius:8px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+  <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:10px 12px; border-bottom:1px solid #2b3742">
+    <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab; flex-shrink:0"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg></sc-if>
+    <sc-if value="{{ ex.hasCode }}" hint-placeholder-val="{{ true }}"><span style="min-width:34px; height:24px; padding:0 6px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ ex.code }}</span></sc-if>
+    <span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ ex.name }}</span>
+    <sc-for list="{{ ex.tags }}" as="t" hint-placeholder-count="1"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:3px 10px; border-radius:999px">{{ t }}</span></sc-for>
+    <sc-if value="{{ ex.hasPill }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:4px 10px; border-radius:999px; cursor:pointer">{{ ex.pill }}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></sc-if>
+    <sc-if value="{{ ex.isNew }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; border:1px solid #2b3742; padding:5px 9px; border-radius:999px">colonnes depuis ses métriques suggérées</span></sc-if>
+    <sc-if value="{{ ex.adj }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; background:rgba(95,143,168,.16); border:1px solid rgba(95,143,168,.34); padding:3px 9px; border-radius:999px"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8"></span>{{ ex.adj }}</span></sc-if>
+    <sc-if value="{{ ex.change }}" hint-placeholder-val="{{ false }}"><span style="position:relative; display:inline-flex"><sc-if value="{{ x.changeShut }}" hint-placeholder-val="{{ true }}"><span data-change-label="" style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.14); border:1px solid rgba(194,96,58,.38); padding:3px 9px; border-radius:999px; cursor:pointer"><span style="width:5px; height:5px; border-radius:2px; background:#c2603a"></span>{{ ex.change }}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></sc-if><sc-if value="{{ ex.changeOpen }}" hint-placeholder-val="{{ false }}"><span data-change-label="" style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.14); border:1px solid #c2603a; padding:3px 9px; border-radius:999px; cursor:pointer"><span style="width:5px; height:5px; border-radius:2px; background:#c2603a"></span>{{ ex.change }}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span></sc-if><sc-if value="{{ ex.tip }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:32px; left:0; z-index:6; width:max-content; background:#1c2630; border:1px solid #3a4854; border-radius:8px; padding:10px 12px; box-shadow:0 18px 40px -16px rgba(0,0,0,.8); display:flex; flex-direction:column; gap:8px"><span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">{{ ex.tip }}</span><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Revenir à la séance-type</span><sc-if value="{{ ex.tipScope }}" hint-placeholder-val="{{ false }}"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ ex.tipScope }}</span></sc-if></div></sc-if></span></sc-if>
+    <sc-if value="{{ ex.planned }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto; display:flex; align-items:center; gap:16px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Remplacer</span><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Retirer</span></span></sc-if>
+    <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><span style="margin-left:auto; display:flex; align-items:center; gap:14px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; cursor:pointer">Modifier les métriques</span><span style="display:flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span></span></sc-if>
+  </div>
+  <sc-if value="{{ ex.compose }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:12px; display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Métriques</span><sc-for list="{{ ex.metrics }}" as="m" hint-placeholder-count="2"><span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2; background:#141d25; border:1px solid #2b3742; padding:3px 10px; border-radius:999px">{{ m }}</span></sc-for></div>
+      <sc-if value="{{ ex.hasNote }}" hint-placeholder-val="{{ false }}"><div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Note sur cet exercice</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">visible par l'athlète</span></div><div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px; cursor:text"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ ex.note }}</span></div></div></sc-if>
+      <sc-if value="{{ ex.addNote }}" hint-placeholder-val="{{ false }}"><div style="display:flex; align-items:center; gap:7px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Note sur cet exercice</span></div></sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{ x.grid }}" hint-placeholder-val="{{ true }}">
+  <div style="padding:12px">
+    <sc-if value="{{ ex.hasBand }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px; margin-bottom:12px">
+        <sc-for list="{{ ex.band }}" as="bd" hint-placeholder-count="2">
+          <div style="display:flex; align-items:center; gap:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ bd.pre }}</span><sc-if value="{{ bd.isVal }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">{{ bd.v }}</span></sc-if><sc-if value="{{ bd.isEdit }}" hint-placeholder-val="{{ false }}"><span style="position:relative; display:inline-flex"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1.5px solid #c2603a; padding:4.5px 10px; border-radius:6px">{{ bd.v }}|</span><span style="position:absolute; top:30px; left:0; white-space:nowrap; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ bd.help }}</span></span></sc-if><sc-if value="{{ bd.isAdj }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:600 13px/1 'IBM Plex Mono',monospace; color:#8fb8cc; background:rgba(95,143,168,.12); border:1px solid rgba(95,143,168,.45); padding:5px 10px; border-radius:6px; cursor:text"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8"></span>{{ bd.v }}</span></sc-if><sc-if value="{{ bd.isEmpty }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:6px">—</span></sc-if><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ bd.post }}</span><sc-if value="{{ bd.accent }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f">{{ bd.accent }}</span></sc-if></div>
+        </sc-for>
+        <sc-if value="{{ ex.bandEditing }}" hint-placeholder-val="{{ false }}"><span style="flex-basis:100%; height:6px"></span></sc-if>
+      </div>
+      <sc-if value="{{ ex.bandNote }}" hint-placeholder-val="{{ false }}"><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin:-2px 0 12px">{{ ex.bandNote }}</div></sc-if>
+    </sc-if>
+    <sc-if value="{{ ex.consigne }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-bottom:12px"><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Consigne du bloc</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">visible par l'athlète</span></div><div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px; cursor:text"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ ex.consigne }}</span></div></div>
+    </sc-if>
+    <sc-if value="{{ ex.addConsigne }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; gap:7px; margin-bottom:12px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Ajouter une consigne au bloc</span></div>
+    </sc-if>
+    <div style="border:1px solid #2b3742; border-radius:8px">
+      <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background:#141d25; border-radius:8px 8px 0 0">
+        <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><span style="width:13px; flex-shrink:0"></span></sc-if><span style="width:42px; flex-shrink:0"></span>
+        <sc-for list="{{ ex.cols }}" as="col" hint-placeholder-count="2">
+          <div style="flex:1; min-width:0; position:relative">
+            <sc-if value="{{ col.plain }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0">{{ col.n }}</span></sc-if>
+            <sc-if value="{{ col.menu }}" hint-placeholder-val="{{ false }}">
+              <span style="display:flex; align-items:center; gap:5px; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#e8966f; cursor:pointer">{{ col.n }}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
+              <div style="position:absolute; top:28px; left:-8px; width:288px; background:#141d25; border:1px solid #3a4854; border-radius:8px; padding:8px; z-index:5; box-shadow:0 24px 60px -20px rgba(0,0,0,.8)">
+                <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0; padding:4px 8px 8px">Unité de la colonne</div>
+                <div style="padding:8px 9px; border-radius:6px; background:rgba(194,96,58,.16); color:#e8966f; font:500 13px/18px 'IBM Plex Sans',sans-serif">kg</div>
+                <div style="padding:8px 9px; border-radius:6px; color:#aab6c2; font:500 13px/18px 'IBM Plex Sans',sans-serif">+kg de lest</div>
+                <div style="padding:8px 9px; border-radius:6px; color:#aab6c2; font:500 13px/18px 'IBM Plex Sans',sans-serif">% du poids de corps</div>
+                <div style="height:1px; background:#2b3742; margin:8px 4px"></div>
+                <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0; padding:4px 8px 8px">Remplir la colonne</div>
+                <div style="padding:8px 9px; border-radius:6px; color:#aab6c2; font:500 13px/18px 'IBM Plex Sans',sans-serif">Même valeur partout</div>
+                <div style="padding:8px 9px; border-radius:6px; color:#aab6c2; font:500 13px/18px 'IBM Plex Sans',sans-serif">Progression régulière (+ pas)</div>
+                <div style="padding:8px 9px; border-radius:6px; color:#aab6c2; font:500 13px/18px 'IBM Plex Sans',sans-serif">Vider la colonne</div>
+                <div style="height:1px; background:#2b3742; margin:8px 4px"></div>
+                <div style="padding:8px 9px; border-radius:6px; color:#e89089; font:500 13px/18px 'IBM Plex Sans',sans-serif">Retirer la colonne</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><span style="width:56px; flex-shrink:0"></span></sc-if>
+      </div>
+      <sc-for list="{{ ex.rows }}" as="row" hint-placeholder-count="1">
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; border-top:1px solid #2b3742">
+          <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab; flex-shrink:0"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg></sc-if>
+          <span style="width:42px; flex-shrink:0; display:flex"><span style="min-width:34px; height:22px; padding:0 6px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #2b3742; display:flex; align-items:center; justify-content:center; font:600 13px/1 'IBM Plex Mono',monospace; color:#aab6c2">{{ row.b }}</span></span>
+          <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="2">
+            <div style="flex:1; min-width:0">
+              <sc-if value="{{ c.isVal }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; height:28px; padding:0 8px; border-radius:6px; font:500 15px/1 'IBM Plex Mono',monospace; box-sizing:border-box; border:1.5px solid transparent; color:#dceff3">{{ c.v }}</span></sc-if>
+              <sc-if value="{{ c.isEmpty }}" hint-placeholder-val="{{ true }}"><span style="display:flex; align-items:center; height:28px; padding:0 8px; border-radius:6px; font:500 15px/1 'IBM Plex Mono',monospace; box-sizing:border-box; border:1.5px solid transparent; color:#6b93a0">—</span></sc-if>
+              <sc-if value="{{ c.isGhost }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; height:28px; padding:0 8px; border-radius:6px; font:500 15px/1 'IBM Plex Mono',monospace; box-sizing:border-box; border:1.5px dashed #3a4854; color:#6b93a0">{{ c.v }}</span></sc-if>
+              <sc-if value="{{ c.isAdj }}" hint-placeholder-val="{{ false }}"><span style="position:relative; display:flex"><span style="display:flex; align-items:center; gap:7px; height:28px; padding:0 8px; border-radius:6px; font:500 15px/1 'IBM Plex Mono',monospace; box-sizing:border-box; border:1.5px solid rgba(95,143,168,.45); background:rgba(95,143,168,.12); color:#8fb8cc; cursor:text"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8; flex-shrink:0"></span>{{ c.v }}</span><sc-if value="{{ c.tip }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:34px; left:0; z-index:6; width:max-content; background:#1c2630; border:1px solid #3a4854; border-radius:8px; padding:10px 12px; box-shadow:0 18px 40px -16px rgba(0,0,0,.8); display:flex; flex-direction:column; gap:8px"><span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">{{ c.tip }}</span><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Revenir à la séance-type</span></div></sc-if></span></sc-if>
+              <sc-if value="{{ c.isEdit }}" hint-placeholder-val="{{ false }}"><span style="display:flex; align-items:center; height:28px; padding:0 8px; border-radius:6px; font:500 15px/1 'IBM Plex Mono',monospace; box-sizing:border-box; border:1.5px solid #c2603a; background:#0a0f14; color:#dceff3">{{ c.v }}|</span></sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ x.std }}" hint-placeholder-val="{{ true }}"><span style="width:56px; flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="cursor:pointer"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M4 16V6a2 2 0 012-2h10"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="cursor:pointer"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v13a1 1 0 01-1 1H8a1 1 0 01-1-1V7z"></path></svg></span></sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ ex.showAdd }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex; gap:8px; margin-top:9px">
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; border:1px dashed #2b3742; border-radius:8px; color:#aab6c2; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Ajouter une ligne — duplique la dernière</span></div>
+        <sc-if value="{{ ex.mirror }}" hint-placeholder-val="{{ false }}"><div style="flex:1.2; display:flex; align-items:center; justify-content:center; gap:8px; padding:10px; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); border-radius:8px; color:#e8966f; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5L4 9l4 4"></path><path d="M4 9h11a5 5 0 010 10H9"></path></svg><span style="font:600 13px/1 'IBM Plex Sans',sans-serif">Miroir — recopie les lignes en sens inverse à la suite</span></div></sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ ex.hasNote }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:12px"><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Note sur cet exercice</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">visible par l'athlète</span></div><div style="background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:12px 14px"><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ ex.note }}</span></div></div>
+    </sc-if>
+    <sc-if value="{{ ex.addNote }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; gap:7px; margin-top:10px; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif">Note sur cet exercice</span></div>
+    </sc-if>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:780,&quot;height&quot;:260},&quot;ex&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}">
+class Component extends DCLogic {
+  renderVals() { const e = this.props.ex || {}; return { x: { std: !e.planned && !e.compose, grid: !e.compose, changeShut: !e.changeOpen } }; }
+}
+</script>
+</body>
+</html>

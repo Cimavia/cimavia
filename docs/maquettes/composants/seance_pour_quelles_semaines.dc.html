@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="background:#141d25; border:1px solid #3a4854; border-radius:12px; box-shadow:0 24px 60px -20px rgba(0,0,0,.85); display:flex; flex-direction:column; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+  <div style="padding:16px 18px 14px; border-bottom:1px solid #2b3742; display:flex; flex-direction:column; gap:6px">
+    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px"><span style="font:600 17px/22px 'Space Grotesk',sans-serif; color:#eceff3">Pour quelles semaines ?</span><span style="font:600 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; cursor:pointer">Toutes</span></div>
+    <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; text-wrap:pretty">{{ w.what }}</span>
+  </div>
+  <div style="padding:8px; display:flex; flex-direction:column">
+    <sc-for list="{{ w.items }}" as="it" hint-placeholder-count="4">
+      <div style="display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:7px; cursor:pointer">
+        <sc-if value="{{ it.on }}" hint-placeholder-val="{{ false }}"><span style="width:18px; height:18px; flex-shrink:0; box-sizing:border-box; border-radius:4px; background:#c2603a; border:1px solid #c2603a; display:flex; align-items:center; justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg></span></sc-if>
+        <sc-if value="{{ it.off }}" hint-placeholder-val="{{ true }}"><span style="width:18px; height:18px; flex-shrink:0; box-sizing:border-box; border-radius:4px; background:#0a0f14; border:1px solid #4a5a68"></span></sc-if>
+        <span style="font:500 14px/18px 'IBM Plex Sans',sans-serif; color:#dceff3">{{ it.label }}</span>
+        <sc-if value="{{ it.here }}" hint-placeholder-val="{{ false }}"><span style="margin-left:auto; font:600 11px/14px 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#e8966f">ce panneau</span></sc-if>
+      </div>
+    </sc-for>
+  </div>
+  <div style="padding:12px 18px; border-top:1px solid #2b3742; display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px">
+    <span style="flex:1 1 160px; min-width:0; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; text-wrap:pretty">{{ w.foot }}</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:14px">
+      <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer">Annuler</span>
+      <sc-if value="{{ w.canValidate }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#fff; background:#c2603a; padding:9px 14px; border-radius:7px; cursor:pointer">{{ w.btn }}</span></sc-if>
+      <sc-if value="{{ w.cantValidate }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#5f6c79; background:#1c2630; border:1px solid #2b3742; padding:8px 13px; border-radius:7px">{{ w.btn }}</span></sc-if>
+      <sc-if value="{{ w.isCancel }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#e89089; background:rgba(210,86,75,.12); border:1px solid rgba(210,86,75,.45); padding:8px 13px; border-radius:7px; cursor:pointer">{{ w.btn }}</span></sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:440,&quot;height&quot;:320},&quot;w&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}"></script>
+</body>
+</html>

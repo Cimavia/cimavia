@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body { margin:0; background:#0a0f14; }
+  a { color:#e8966f; text-decoration:none; }
+  a:hover { color:#d07049; }
+</style>
+</helmet>
+<div style="display:flex; flex-direction:column; gap:120px; padding:0 0 120px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+
+<!-- 1 — ONGLET STRUCTURES -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">1 — BIBLIOTHÈQUE · ONGLET STRUCTURES · prêtes puis les miennes</div>
+  <div data-screen-label="01 Onglet Structures" style="width:1440px; height:1100px; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="padding:24px 32px 0; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Bibliothèque</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Tes exercices, séances et structures réutilisables.</div></div>
+          <div style="display:inline-flex; align-items:center; gap:8px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 18px; border-radius:8px; cursor:pointer; white-space:nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nouvelle structure</div>
+        </div>
+        <div style="display:flex; gap:24px; margin-top:20px">
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px; cursor:pointer">Exercices <span style="font-family:'IBM Plex Mono',monospace">8</span></span>
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px; cursor:pointer">Séances <span style="font-family:'IBM Plex Mono',monospace">6</span></span>
+          <span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; padding-bottom:13px; border-bottom:2px solid #dceff3">Structures <span style="font-family:'IBM Plex Mono',monospace; color:#6b93a0">9</span></span>
+        </div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:20px 32px 32px; display:flex; flex-direction:column; gap:24px">
+        <div style="display:flex; align-items:center; gap:9px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 13px; width:280px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Rechercher une structure…</span></div>
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:-12px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Tags</span><sc-for list="{{ tagsAll }}" as="t" hint-placeholder-count="6"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px; cursor:pointer">{{ t.t }}</span></sc-for></div>
+        <div>
+          <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0">Structures prêtes</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Elles ne se modifient pas. Duplique-en une pour l'adapter.</span></div>
+          <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+            <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,3.1fr) 80px 200px; gap:16px; align-items:center; padding:10px 18px; background:#141d25; border-bottom:1px solid #2b3742; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0"><span>Nom</span><span>Déroulé</span><span>Séances</span><span></span></div>
+            <sc-for list="{{ presets }}" as="p" hint-placeholder-count="6">
+              <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,3.1fr) 80px 200px; gap:16px; align-items:center; padding:11px 18px; border-bottom:1px solid #2b3742; min-height:44px; box-sizing:border-box">
+                <span style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">{{ p.name }}</span>
+                <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ p.phrase }}</span>
+                <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.used }}</span>
+                <span style="display:flex; justify-content:flex-end"><sc-if value="{{ p.hover }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:7px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:9px 12px; border-radius:8px; cursor:pointer; white-space:nowrap"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M4 16V6a2 2 0 012-2h10"></path></svg>Dupliquer pour l'adapter</span></sc-if></span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:8px">Avec un seul exercice, l'athlète lit « séries ».</div>
+        </div>
+        <div>
+          <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0">Mes structures</span><span style="display:flex; align-items:center; gap:6px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Créer une structure</span></div>
+          <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+            <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr) minmax(0,.9fr) 80px 110px 74px; gap:16px; align-items:center; padding:10px 18px; background:#141d25; border-bottom:1px solid #2b3742; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0"><span>Nom</span><span>Déroulé</span><span>Tags</span><span>Séances</span><span>Modifiée le</span><span></span></div>
+            <sc-for list="{{ mine }}" as="p" hint-placeholder-count="3">
+              <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr) minmax(0,.9fr) 80px 110px 74px; gap:16px; align-items:center; padding:11px 18px; border-bottom:1px solid #2b3742; cursor:pointer">
+                <div style="min-width:0"><div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">{{ p.name }}</div><sc-if value="{{ p.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.note }}</div></sc-if></div>
+                <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ p.phrase }}</span>
+                <span style="display:flex; flex-wrap:wrap; gap:4px"><sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="1"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:1px 8px; border-radius:999px">{{ t }}</span></sc-for><sc-if value="{{ p.noTags }}" hint-placeholder-val="{{ false }}"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">—</span></sc-if></span>
+                <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.used }}</span>
+                <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.date }}</span>
+                <span style="display:flex; justify-content:flex-end"><span style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div style="padding:14px 32px; border-top:1px solid #2b3742; background:#0e141a; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Tes structures sont personnelles. Une séance copie la structure au moment où tu la poses.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1 BIS — FILTRE CARDIO -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">1 BIS — FILTRE « CARDIO » ACTIF · les structures prêtes, sans tags, disparaissent</div>
+  <div data-screen-label="01b Filtre cardio" style="width:1440px; height:760px; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,760px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="padding:24px 32px 0; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Bibliothèque</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Tes exercices, séances et structures réutilisables.</div></div>
+          <div style="display:inline-flex; align-items:center; gap:8px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 18px; border-radius:8px; cursor:pointer; white-space:nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nouvelle structure</div>
+        </div>
+        <div style="display:flex; gap:24px; margin-top:20px">
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px">Exercices <span style="font-family:'IBM Plex Mono',monospace">8</span></span>
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px">Séances <span style="font-family:'IBM Plex Mono',monospace">6</span></span>
+          <span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; padding-bottom:13px; border-bottom:2px solid #dceff3">Structures <span style="font-family:'IBM Plex Mono',monospace; color:#6b93a0">9</span></span>
+        </div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:20px 32px 32px; display:flex; flex-direction:column; gap:12px">
+        <div style="display:flex; align-items:center; gap:9px; background:#141d25; border:1px solid #2b3742; border-radius:8px; padding:10px 13px; width:280px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Rechercher une structure…</span></div>
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Tags</span><sc-for list="{{ tagsCardio }}" as="t" hint-placeholder-count="6"><sc-if value="{{ t.on }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:5px 8px 5px 10px; border-radius:999px; cursor:pointer">{{ t.t }}<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e8966f" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></sc-if><sc-if value="{{ t.off }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:5px 10px; border-radius:999px; cursor:pointer">{{ t.t }}</span></sc-if></sc-for></div>
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin-top:12px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0">Mes structures</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">2 résultats · <span style="color:#aab6c2; cursor:pointer">Effacer le filtre</span></span></div>
+        <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+          <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr) minmax(0,.9fr) 80px 110px 74px; gap:16px; align-items:center; padding:10px 18px; background:#141d25; border-bottom:1px solid #2b3742; font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.06em; text-transform:uppercase; color:#6b93a0"><span>Nom</span><span>Déroulé</span><span>Tags</span><span>Séances</span><span>Modifiée le</span><span></span></div>
+          <sc-for list="{{ mineCardio }}" as="p" hint-placeholder-count="2">
+            <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr) minmax(0,.9fr) 80px 110px 74px; gap:16px; align-items:center; padding:11px 18px; border-bottom:1px solid #2b3742">
+              <div style="min-width:0"><div style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">{{ p.name }}</div><sc-if value="{{ p.hasNote }}" hint-placeholder-val="{{ false }}"><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.note }}</div></sc-if></div>
+              <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ p.phrase }}</span>
+              <span style="display:flex; flex-wrap:wrap; gap:4px"><sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="1"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:1px 8px; border-radius:999px">{{ t }}</span></sc-for></span>
+              <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.used }}</span>
+              <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.date }}</span>
+              <span style="display:flex; justify-content:flex-end"><span style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#1c2630; border:1px solid #2b3742"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span></span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Les structures prêtes n'ont pas de tags. Duplique-en une pour lui en donner.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 — MODIFIER -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">2 — MODIFIER UNE STRUCTURE · pleine page, en-tête fixe avec ses actions</div>
+  <div data-screen-label="02 Modifier une structure" style="width:1440px; height:1180px; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:20px 32px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">4×4 grimpe</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">Ma structure · utilisée dans 5 séances</div></div></div>
+        <div style="display:flex; align-items:center; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#e89089; padding:11px 14px; border-radius:8px; cursor:pointer">Supprimer</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Enregistrer</div></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; padding:11px 32px; background:#141d25; border-bottom:1px solid #2b3742"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5M12 8v.01"></path></svg><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">Les séances qui l'utilisent ne changent pas.</span></div>
+      <div style="flex:1; min-height:0; overflow:hidden">
+        <dc-import name="Structure - Formulaire" f="{{ fEdit }}" hint-size="100%,760px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 3 — DUPLIQUER UNE STRUCTURE PRÊTE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">3 — CRÉER D'APRÈS TABATA · même formulaire, ouvert aussi depuis « Créer une structure » dans la séance</div>
+  <div data-screen-label="03 Créer d'après Tabata" style="width:1440px; height:1100px; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:20px 32px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Nouvelle structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">d'après Tabata</div></div></div>
+        <div style="display:flex; align-items:center; gap:10px"><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 20px; border-radius:8px; cursor:pointer">Créer la structure</div></div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden">
+        <dc-import name="Structure - Formulaire" f="{{ fDup }}" hint-size="100%,800px"></dc-import>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4 — SUPPRIMER -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">4 — SUPPRIMER UNE STRUCTURE · les séances gardent leur copie</div>
+  <div data-screen-label="04 Supprimer une structure" style="width:1440px; height:940px; position:relative; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 32px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">4×4 grimpe</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">Ma structure · utilisée dans 5 séances</div></div></div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden">
+        <dc-import name="Structure - Formulaire" f="{{ fEdit }}" hint-size="100%,800px"></dc-import>
+      </div>
+    </div>
+    <div style="position:absolute; inset:0; background:rgba(10,15,20,.78); display:flex; align-items:center; justify-content:center">
+      <div style="width:480px; background:#0e141a; border:1px solid #3a4854; border-radius:16px; box-shadow:0 40px 100px -30px rgba(0,0,0,.8)">
+        <div style="padding:22px 24px 18px">
+          <div style="font:700 24px/28px 'Space Grotesk',sans-serif; color:#dceff3">Supprimer « 4×4 grimpe » ?</div>
+          <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-top:10px">Ses 5 séances gardent leur copie.</div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 24px; border-top:1px solid #2b3742; background:#0a0f14; border-radius:0 0 16px 16px">
+          <div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div>
+          <div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#D2564B; padding:12px 20px; border-radius:8px; cursor:pointer">Supprimer</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 — ÉTAT VIDE -->
+<div style="width:1440px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">5 — MES STRUCTURES, ÉTAT VIDE</div>
+  <div data-screen-label="05 Mes structures vide" style="width:1440px; height:940px; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="padding:24px 32px 0; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">
+          <div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#dceff3">Bibliothèque</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:6px">Tes exercices, séances et structures réutilisables.</div></div>
+          <div style="display:inline-flex; align-items:center; gap:8px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#c2603a; padding:12px 18px; border-radius:8px; cursor:pointer; white-space:nowrap"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Nouvelle structure</div>
+        </div>
+        <div style="display:flex; gap:24px; margin-top:20px">
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px">Exercices <span style="font-family:'IBM Plex Mono',monospace">8</span></span>
+          <span style="font:500 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; padding-bottom:13px">Séances <span style="font-family:'IBM Plex Mono',monospace">6</span></span>
+          <span style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; padding-bottom:13px; border-bottom:2px solid #dceff3">Structures <span style="font-family:'IBM Plex Mono',monospace; color:#6b93a0">6</span></span>
+        </div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden; padding:20px 32px 32px; display:flex; flex-direction:column; gap:24px">
+        <div>
+          <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:10px"><span style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0">Structures prêtes</span><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">Elles ne se modifient pas. Duplique-en une pour l'adapter.</span></div>
+          <div style="border:1px solid #2b3742; border-radius:8px; overflow:hidden">
+            <sc-for list="{{ presetsPlain }}" as="p" hint-placeholder-count="6">
+              <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,3.1fr) 80px 200px; gap:16px; align-items:center; padding:11px 18px; border-bottom:1px solid #2b3742">
+                <span style="font:600 15px/20px 'Space Grotesk',sans-serif; color:#dceff3">{{ p.name }}</span>
+                <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ p.phrase }}</span>
+                <span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#aab6c2">{{ p.used }}</span>
+                <span></span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div>
+          <div style="font:600 13px/18px 'IBM Plex Mono',monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b93a0; margin-bottom:10px">Mes structures</div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:36px 24px; border:1px dashed #3a4854; border-radius:8px; text-align:center">
+            <div style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">Aucune structure à toi pour l'instant</div>
+            <div style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">Duplique une structure prête ou crée la tienne.</div>
+            <div style="display:inline-flex; align-items:center; gap:8px; margin-top:6px; font:600 13px/1 'IBM Plex Sans',sans-serif; color:#dceff3; background:#1c2630; border:1px solid #3a4854; padding:11px 16px; border-radius:8px; cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Créer une structure</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 — VALIDATION -->
+<div style="width:1892px">
+  <div style="font:600 13px/1 'IBM Plex Mono',monospace; letter-spacing:.04em; color:#6b93a0; margin-bottom:14px">6 — VALIDATION DU FORMULAIRE · nom en double, durée hors bornes, nom vide</div>
+  <div style="display:flex; gap:32px; align-items:flex-start">
+  <div data-screen-label="06 Validation structure" style="width:1440px; height:1100px; flex-shrink:0; display:flex; background:#0a0f14; border:1px solid #2b3742; border-radius:14px; overflow:hidden; box-shadow:0 30px 80px -30px rgba(0,0,0,.7)">
+    <dc-import name="Coach - Barre laterale" style="width:236px; flex-shrink:0" hint-size="236px,940px"></dc-import>
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+      <div style="position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:20px 32px; background:#0e141a; border-bottom:1px solid #2b3742">
+        <div style="display:flex; align-items:center; gap:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"></path></svg><div><div style="font:700 24px/28px 'Space Grotesk',sans-serif; letter-spacing:-.01em; color:#dceff3">Nouvelle structure</div><div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0; margin-top:4px">Ma structure</div></div></div>
+        <div style="display:flex; align-items:center; gap:10px"><span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089; margin-right:6px">2 points à régler</span><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#aab6c2; padding:11px 16px; border-radius:8px; cursor:pointer">Annuler</div><div style="font:600 13px/1 'IBM Plex Sans',sans-serif; color:#6b93a0; background:#1c2630; border:1px solid #2b3742; padding:12px 20px; border-radius:8px; cursor:not-allowed">Créer la structure</div></div>
+      </div>
+      <div style="flex:1; min-height:0; overflow:hidden">
+        <dc-import name="Structure - Formulaire" f="{{ fBad }}" hint-size="100%,800px"></dc-import>
+      </div>
+    </div>
+  </div>
+  <div style="width:420px; flex-shrink:0; display:flex; flex-direction:column; gap:16px">
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0; margin-bottom:12px">Nom vide — au clic sur « Créer la structure »</div>
+      <div style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; margin-bottom:8px">Nom <span style="color:#c2603a">*</span></div>
+      <div style="min-height:49px; box-sizing:border-box; background:rgba(210,86,75,.06); border:1.5px solid #D2564B; border-radius:8px"></div>
+      <div style="display:flex; align-items:center; gap:7px; margin-top:8px; font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#e89089"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e89089" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.01"></path><circle cx="12" cy="12" r="9"></circle></svg>Donne un nom à la structure.</div>
+    </div>
+    <div style="background:#0e141a; border:1px solid #3a4854; border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:10px">
+      <div style="font:600 13px/18px 'IBM Plex Mono',monospace; color:#6b93a0">Règles</div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; text-wrap:pretty">Le nom doit être unique parmi tes structures, sans tenir compte des majuscules.</div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; text-wrap:pretty">Une durée va de 1 s à 3 h. Un nombre de tours va de 1 à 99.</div>
+      <div style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; text-wrap:pretty">Le champ comprend « 45 s », « 1 min 30 », « 10 min », « 1 h 20 » et se remet en forme quand on le quitte.</div>
+    </div>
+  </div>
+  </div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { M: null };
+  componentDidMount() { import('./structure-model.js').then(M => this.setState({ M })); }
+  renderVals() {
+    const M = this.state.M;
+    if (!M) return {};
+    const { S, phrase, form } = M;
+    const presetsPlain = M.presets();
+    return {
+      presets: presetsPlain.map(p => ({ ...p, hover: p.name === 'Tabata' })),
+      presetsPlain,
+      mine: M.mine(),
+      fEdit: form(S.G44, { name: '4×4 grimpe|', tags: ['grimpe'], note: "Pour les blocs de bloc max, garder 4 min même si l'athlète se sent prêt." }),
+      fDup: form({ ...S.TAB, work: '40 s', ui: { work: { edit: true } } }, { name: 'Tabata (copie)', foot: 'Rangée dans Mes structures, pour toutes tes séances.' }),
+      tagsAll: M.tagRow(null), tagsCardio: M.tagRow('cardio'),
+      mineCardio: M.filterByTag(M.mine(), 'cardio'),
+      fBad: form({ go: 'athlete', times: 'max', cap: '4 h', ui: { cap: { err: 'Entre 1 s et 3 h.' } } }, { nameErr: true, nameVal: '4×4 Grimpe', nameMsg: 'Tu as déjà une structure « 4×4 grimpe ».' })
+    };
+  }
+}
+</script>
+</body>
+</html>

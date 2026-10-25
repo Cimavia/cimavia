@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex; align-items:flex-start; gap:12px; padding:14px 16px; background:#141d25; border:1px solid #2b3742; border-radius:8px; font-family:'IBM Plex Sans',sans-serif; color:#dceff3">
+  <div style="display:flex; align-items:center; gap:12px; height:28px; flex-shrink:0"><sc-if value="{{ b.std }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2" stroke-linecap="round" style="cursor:grab"><circle cx="9" cy="6" r="1.1"></circle><circle cx="15" cy="6" r="1.1"></circle><circle cx="9" cy="12" r="1.1"></circle><circle cx="15" cy="12" r="1.1"></circle><circle cx="9" cy="18" r="1.1"></circle><circle cx="15" cy="18" r="1.1"></circle></svg></sc-if><sc-if value="{{ b.closed }}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="cursor:pointer"><path d="M9 6l6 6-6 6"></path></svg></sc-if><sc-if value="{{ block.open }}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="cursor:pointer"><path d="M6 9l6 6 6-6"></path></svg></sc-if></div>
+  <sc-if value="{{ block.hasLetter }}" hint-placeholder-val="{{ true }}"><span style="width:28px; height:28px; flex-shrink:0; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:700 15px/1 'Space Grotesk',sans-serif; color:#dceff3">{{ block.letter }}</span></sc-if>
+  <sc-if value="{{ block.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="min-width:34px; height:28px; flex-shrink:0; padding:0 8px; box-sizing:border-box; border-radius:6px; background:#1c2630; border:1px solid #3a4854; display:flex; align-items:center; justify-content:center; font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3">{{ block.badge }}</span></sc-if>
+  <div style="flex:1; min-width:0">
+    <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px; min-height:28px">
+      <sc-if value="{{ block.isSingle }}" hint-placeholder-val="{{ false }}"><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ block.exName }}</span></sc-if>
+      <sc-if value="{{ block.hasLabel }}" hint-placeholder-val="{{ true }}"><span style="font:600 16px/21px 'Space Grotesk',sans-serif; color:#dceff3">{{ block.label }}</span></sc-if>
+      <sc-if value="{{ b.typeStd }}" hint-placeholder-val="{{ true }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; background:#1c2630; border:1px solid #2b3742; padding:4px 10px; border-radius:999px">{{ block.type }}</span></sc-if>
+      <sc-if value="{{ b.typeLocked }}" hint-placeholder-val="{{ false }}"><span title="Les réglages se changent dans la séance-type" style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2; border:1px dashed #3a4854; padding:3px 10px; border-radius:999px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6b93a0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 018 0v4"></path></svg>{{ block.type }}</span></sc-if>
+      <sc-if value="{{ block.adj }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; background:rgba(95,143,168,.16); border:1px solid rgba(95,143,168,.34); padding:3px 9px; border-radius:999px"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8"></span>{{ block.adj }}</span></sc-if>
+      <sc-if value="{{ block.custom }}" hint-placeholder-val="{{ false }}"><span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#e8966f; background:rgba(194,96,58,.16); border:1px solid rgba(194,96,58,.34); padding:4px 10px; border-radius:999px">{{ block.custom }}</span></sc-if>
+      <span style="font:400 13px/18px 'IBM Plex Sans',sans-serif; color:#6b93a0">{{ block.summary }}</span>
+    </div>
+    <sc-if value="{{ block.hasVals }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; margin-top:10px">
+        <sc-for list="{{ block.vals }}" as="v" hint-placeholder-count="2">
+          <div style="display:flex; align-items:center; gap:8px; position:relative">
+            <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ v.pre }}</span>
+            <sc-if value="{{ v.isVal }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#dceff3; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">{{ v.v }}</span></sc-if>
+            <sc-if value="{{ v.isEmpty }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0; background:#0a0f14; border:1px solid #3a4854; padding:5px 10px; border-radius:6px; cursor:text">—</span></sc-if>
+            <sc-if value="{{ v.isAdj }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex; align-items:center; gap:6px; font:600 13px/1 'IBM Plex Mono',monospace; color:#8fb8cc; background:rgba(95,143,168,.12); border:1px solid rgba(95,143,168,.45); padding:5px 10px; border-radius:6px; cursor:text"><span style="width:5px; height:5px; border-radius:2px; background:#5f8fa8"></span>{{ v.v }}</span></sc-if>
+            <span style="font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ v.post }}</span>
+            <sc-if value="{{ v.tip }}" hint-placeholder-val="{{ false }}"><div style="position:absolute; top:34px; left:0; z-index:6; width:max-content; background:#1c2630; border:1px solid #3a4854; border-radius:8px; padding:10px 12px; box-shadow:0 18px 40px -16px rgba(0,0,0,.8); display:flex; flex-direction:column; gap:8px"><span style="font:500 13px/18px 'IBM Plex Mono',monospace; color:#dceff3">{{ v.tip }}</span><span style="display:inline-flex; align-items:center; gap:6px; font:500 13px/18px 'IBM Plex Sans',sans-serif; color:#8fb8cc; cursor:pointer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a5 5 0 010 10H8"></path><path d="M7 5L4 8l3 3"></path></svg>Revenir à la séance-type</span></div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ block.hasList }}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex; flex-wrap:wrap; gap:4px 20px; margin-top:6px">
+        <sc-for list="{{ block.exs }}" as="e" hint-placeholder-count="2"><span style="display:flex; align-items:baseline; gap:7px"><sc-if value="{{ e.hasCode }}" hint-placeholder-val="{{ true }}"><span style="font:600 13px/1 'IBM Plex Mono',monospace; color:#6b93a0">{{ e.code }}</span></sc-if><span style="font:400 15px/25px 'IBM Plex Sans',sans-serif; color:#aab6c2">{{ e.name }}</span></span></sc-for>
+      </div>
+    </sc-if>
+  </div>
+  <sc-if value="{{ b.std }}" hint-placeholder-val="{{ true }}"><span style="display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex-shrink:0; border-radius:8px; background:#1c2630; border:1px solid #2b3742; cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#aab6c2" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></svg></span></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:780,&quot;height&quot;:100},&quot;block&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;{letter?:string,hasLetter:boolean,label?:string,hasLabel:boolean,hasBadge?:boolean,badge?:string,isSingle?:boolean,exName?:string,hasList:boolean,type:string,summary:string,exs:{code?:string,hasCode:boolean,name:string}[],planned?:boolean,open?:boolean,adj?:string,hasVals?:boolean,vals?:{pre:string,v:string,post:string,isVal?:boolean,isEmpty?:boolean,isAdj?:boolean,tip?:string}[]}&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const k = this.props.block || {};
+    return { b: { std: !k.planned, closed: !k.open, typeStd: !!k.type && !k.planned, typeLocked: !!k.type && !!k.planned } };
+  }
+}
+</script>
+</body>
+</html>
