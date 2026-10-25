@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.15.0](https://github.com/Cimavia/cimavia/compare/v1.14.0...v1.15.0) (2026-10-25)
+
+
+### Fonctionnalités
+
+* **api:** toute erreur est rendue en application/problem+json, son type va au journal ([2b4e2c1](https://github.com/Cimavia/cimavia/commit/2b4e2c1cd08fb90ecf8c87e33d341f390de4d9b5))
+* **shared:** env file and 699 ([8e19d43](https://github.com/Cimavia/cimavia/commit/8e19d4320d50658eb07af65e028e3080268dbedd))
+* **shared:** le client lit les erreurs rfc 9457 et les codes de refus passent par type ([a595569](https://github.com/Cimavia/cimavia/commit/a595569cda64700c002a7a68c4b871ab86d368d6))
+
+
+### Corrections
+
+* **api:** journaux de requête en warn (4xx) et error (5xx), avec la vraie exception ([25a9a3c](https://github.com/Cimavia/cimavia/commit/25a9a3cb381706db8593645c7f37cf4dfad7738b))
+* **api:** passer le domaine edge à axiom pour un dataset régional ([c8a66d7](https://github.com/Cimavia/cimavia/commit/c8a66d75294668a4db31983a97b6ab03b42fe802))
+* **api:** passer le domaine edge à axiom pour un dataset régional ([06b018a](https://github.com/Cimavia/cimavia/commit/06b018a4a3692035744463d81188e8695afd99eb))
+* **api:** sentry reçoit les 5xx, les refus en warning et les erreurs avalées par un catch ([8747d25](https://github.com/Cimavia/cimavia/commit/8747d25f5aef154e12fff8b6a69d161f4a68a17b))
+* **mobile:** le refus de capacité se lit dans le type du problème rfc 9457 ([3dc4af0](https://github.com/Cimavia/cimavia/commit/3dc4af03a7d61e1e899bd636b6c09249c3b1910e))
+* **web:** refus de capacité et conflit d'édition se lisent dans le type du problème ([028eadb](https://github.com/Cimavia/cimavia/commit/028eadbe21d1186844515070e5e98204ae89aedc))
+
 ## [1.14.0](https://github.com/Cimavia/cimavia/compare/v1.13.0...v1.14.0) (2026-10-21)
 
 
