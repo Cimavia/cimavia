@@ -71,6 +71,31 @@ export const gridMetricSchema = z.discriminatedUnion("source", [
 ]);
 export type GridMetric = z.infer<typeof gridMetricSchema>;
 
+/**
+ * La même colonne : même identifiant, même libellé, même mesure. Changer l'UNITÉ change ce que
+ * l'athlète comprend — « 6 » en kilos et « 6 » en pourcentage du poids de corps ne sont pas le même
+ * effort. Une colonne de l'ancienne grille s'y compare aussi, son repli (`collapsed`) ignoré.
+ */
+export function sameGridMetric(base: GridMetric, next: GridMetric): boolean {
+  if (base.id !== next.id || base.label !== next.label) return false;
+  // Changer de source, c'est changer de mesure : chaque branche exige la même des deux côtés.
+  if (base.source === MetricSource.CATALOG) {
+    return next.source === MetricSource.CATALOG && base.key === next.key && base.unit === next.unit;
+  }
+  return next.source === MetricSource.CUSTOM && base.customMetricId === next.customMetricId;
+}
+
+/** Mêmes colonnes, dans le même ordre : réordonner change ce que l'athlète lit. */
+export function sameGridMetrics(base: readonly GridMetric[], next: readonly GridMetric[]): boolean {
+  return (
+    base.length === next.length &&
+    base.every((metric, index) => {
+      const counterpart = next[index];
+      return counterpart != null && sameGridMetric(metric, counterpart);
+    })
+  );
+}
+
 /** Les valeurs sont indexées par l'`id` de la colonne : réordonner les colonnes ne les déplace pas. */
 export const gridRowSchema = z
   .object({

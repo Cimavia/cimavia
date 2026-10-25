@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { required } from "../util/invariant.util";
+import { sameGridMetrics } from "./block-grid.schema";
 import {
   type ExerciseBlock,
   type ExerciseBlocks,
@@ -243,30 +244,12 @@ function blockShapeIssues(base: ExerciseBlock, next: ExerciseBlock): string[] {
 }
 
 /**
- * Mêmes colonnes, dans le même ordre. Réordonner change ce que l'athlète lit ; changer l'UNITÉ
- * change ce qu'il comprend — « 6 » en kilos et « 6 » en pourcentage du poids de corps ne sont pas
- * le même effort.
- *
- * `collapsed` est exclu de la comparaison : c'est un état d'AFFICHAGE, pas une nature de donnée,
- * et le coach doit pouvoir replier une colonne dans sa séance sans que le verrou s'y oppose.
+ * Mêmes colonnes, dans le même ordre (`sameGridMetrics`). `collapsed` est exclu de la
+ * comparaison : c'est un état d'AFFICHAGE, pas une nature de donnée, et le coach doit pouvoir
+ * replier une colonne dans sa séance sans que le verrou s'y oppose.
  */
 function sameMetrics(base: ExerciseBlock, next: ExerciseBlock): boolean {
-  if (base.metrics.length !== next.metrics.length) return false;
-  return base.metrics.every((metric, index) =>
-    sameMetricDefinition(metric, required(next.metrics[index], `colonne absente au rang ${index}`)),
-  );
-}
-
-function sameMetricDefinition(
-  base: ExerciseBlock["metrics"][number],
-  next: ExerciseBlock["metrics"][number],
-): boolean {
-  if (base.id !== next.id || base.label !== next.label) return false;
-  // Changer de source, c'est changer de mesure : chaque branche exige la même des deux côtés.
-  if (base.source === "CATALOG") {
-    return next.source === "CATALOG" && base.key === next.key && base.unit === next.unit;
-  }
-  return next.source === "CUSTOM" && base.customMetricId === next.customMetricId;
+  return sameGridMetrics(base.metrics, next.metrics);
 }
 
 // ── L'état complet d'un exercice dosé ───────────────────────────────────────────────────────

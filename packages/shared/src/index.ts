@@ -284,6 +284,7 @@ export {
   fittingColumnCount,
   GridSlotKind,
   gridSlots,
+  gridValueIssues,
   MetricSource,
   metricValueTypeOf,
   readingRowLabel,
@@ -352,6 +353,7 @@ export type {
   AttachFeedbackMediaInput,
   CoachFeedbackSummaryDto,
   FeedbackAudioMimeType,
+  FeedbackBlockTracking,
   FeedbackMediaDto,
   FeedbackTracking,
   MediaType as MediaTypeType,
@@ -368,6 +370,7 @@ export {
   FEEDBACK_PHOTO_MAX_DIMENSION_PX,
   FEEDBACK_VIDEO_MAX_HEIGHT_PX,
   feedbackAudioMimeTypeSchema,
+  feedbackBlockTrackingSchema,
   feedbackMediaDtoSchema,
   feedbackTrackingSchema,
   isAllowedFeedbackAudioMime,
@@ -709,7 +712,23 @@ export {
   sessionBlockSchema,
   sessionBlocksSchema,
 } from "./dto/session-block.schema";
-export type { StructureInput, StructureSettings } from "./dto/structure.schema";
+export type {
+  BlockReference,
+  ScheduledSessionBlockDto,
+  SessionBlockDto,
+} from "./dto/session-block-dto.schema";
+export {
+  blockReferenceSchema,
+  scheduledSessionBlockDtoSchema,
+  sessionBlockDtoSchema,
+} from "./dto/session-block-dto.schema";
+export type {
+  StructureDto,
+  StructureInput,
+  StructureLibraryDto,
+  StructureSettings,
+  UpdateStructureInput,
+} from "./dto/structure.schema";
 export {
   STRUCTURE_INSTRUCTIONS_MAX_LENGTH,
   STRUCTURE_MAX_DURATION_SECONDS,
@@ -722,10 +741,13 @@ export {
   STRUCTURE_PRESETS,
   StructurePresetKey,
   structureAdvanceSchema,
+  structureDtoSchema,
   structureInputSchema,
+  structureLibraryDtoSchema,
   structurePresetKeySchema,
   structureRepeatSchema,
   structureSettingsSchema,
+  updateStructureSchema,
 } from "./dto/structure.schema";
 export { StructureAdvance, StructureOrder, StructureRepeat } from "./dto/structure-answer.schema";
 export type {
@@ -1101,6 +1123,8 @@ export {
   plannedChanges,
   ValueChangeKind,
 } from "./util/planned-blocks.util";
+export type { PlannedLockIssue } from "./util/planned-lock.util";
+export { PlannedLock, plannedLockIssues, takenKeys } from "./util/planned-lock.util";
 export type {
   ReminderFeedSource,
   ReminderLabel,
