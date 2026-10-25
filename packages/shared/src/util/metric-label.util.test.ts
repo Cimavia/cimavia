@@ -55,6 +55,7 @@ const voie: CustomMetric = {
   valueType: MetricValueType.TEXT,
   scale: null,
 };
+const otherMetric: CustomMetric = { ...voie, id: "cm-0", label: "Bloc", unit: "V" };
 
 describe("metricLabel", () => {
   it("préfère le libellé écrit sur la colonne à toute autre source", () => {
@@ -72,6 +73,10 @@ describe("metricLabel", () => {
   it("rend le tiret quand la métrique maison citée a disparu, jamais son identifiant", () => {
     expect(metricLabel(customMetric(), [], fakeT)).toBe("—");
   });
+
+  it("prend la métrique maison citée, pas la première du Coach", () => {
+    expect(metricLabel(customMetric(), [otherMetric, voie], fakeT)).toBe("Voie");
+  });
 });
 
 describe("metricUnitLabel", () => {
@@ -87,6 +92,7 @@ describe("metricUnitLabel", () => {
 
   it("rend l'unité maison sans la traduire, et null si la métrique a disparu", () => {
     expect(metricUnitLabel(customMetric(), [voie], fakeT)).toBe("6b+");
+    expect(metricUnitLabel(customMetric(), [otherMetric, voie], fakeT)).toBe("6b+");
     expect(metricUnitLabel(customMetric(), [], fakeT)).toBeNull();
   });
 });

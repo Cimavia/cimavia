@@ -11,6 +11,7 @@ import {
   catalogScaleOf,
   METRIC_CATALOG,
   MetricKey,
+  type MetricUnit,
   type MetricValue,
   type MetricValueType,
   metricAcceptsUnit,
@@ -146,25 +147,47 @@ export const MetricSource = {
 } as const;
 export type MetricSource = TypesValuesOf<typeof MetricSource>;
 
+// Ce qui désigne la métrique d'une colonne, partagé avec la grille par blocs (`block-grid.schema`)
+// jusqu'au retrait de ce modèle (#723).
+export const catalogMetricShape = {
+  source: z.literal(MetricSource.CATALOG),
+  key: metricKeySchema,
+  unit: metricUnitSchema,
+};
+export const customMetricShape = {
+  source: z.literal(MetricSource.CUSTOM),
+  customMetricId: z.string().min(1),
+};
+export const metricUnitRefinement: [
+  (metric: { key: MetricKey; unit: MetricUnit }) => boolean,
+  { message: string; path: string[] },
+] = [
+  (metric) => metricAcceptsUnit(metric.key, metric.unit),
+  { message: "Cette unité n'est pas admise par la métrique.", path: ["unit"] },
+];
+
+type GridRefinement<T> = [(grid: T) => boolean, { message: string; path: string[] }];
+const distinctIds = (items: readonly { id: string }[]) =>
+  new Set(items.map((item) => item.id)).size === items.length;
+
+/** Deux colonnes ne partagent pas un identifiant : les valeurs d'une ligne s'y rangent. */
+export const distinctColumnIds: GridRefinement<{ metrics: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.metrics),
+  { message: "Deux colonnes ne peuvent pas partager le même identifiant.", path: ["metrics"] },
+];
+
+export const distinctRowIds: GridRefinement<{ rows: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.rows),
+  { message: "Deux lignes ne peuvent pas partager le même identifiant.", path: ["rows"] },
+];
+
 export const catalogBlockMetricSchema = z
-  .object({
-    ...blockMetricBaseSchema,
-    source: z.literal(MetricSource.CATALOG),
-    key: metricKeySchema,
-    unit: metricUnitSchema,
-  })
+  .object({ ...blockMetricBaseSchema, ...catalogMetricShape })
   .strict()
-  .refine((metric) => metricAcceptsUnit(metric.key, metric.unit), {
-    message: "Cette unité n'est pas admise par la métrique.",
-    path: ["unit"],
-  });
+  .refine(...metricUnitRefinement);
 
 export const customBlockMetricSchema = z
-  .object({
-    ...blockMetricBaseSchema,
-    source: z.literal(MetricSource.CUSTOM),
-    customMetricId: z.string().min(1),
-  })
+  .object({ ...blockMetricBaseSchema, ...customMetricShape })
   .strict();
 
 export const blockMetricSchema = z.discriminatedUnion("source", [
@@ -202,14 +225,8 @@ export const exerciseBlockSchema = z
     rows: z.array(blockRowSchema).max(BLOCK_MAX_ROWS),
   })
   .strict()
-  .refine((block) => new Set(block.metrics.map((m) => m.id)).size === block.metrics.length, {
-    message: "Deux colonnes ne peuvent pas partager le même identifiant.",
-    path: ["metrics"],
-  })
-  .refine((block) => new Set(block.rows.map((r) => r.id)).size === block.rows.length, {
-    message: "Deux lignes ne peuvent pas partager le même identifiant.",
-    path: ["rows"],
-  });
+  .refine(...distinctColumnIds)
+  .refine(...distinctRowIds);
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
 /**
@@ -973,9 +990,18 @@ export type ExerciseBlocks = z.infer<typeof exerciseBlocksSchema>;
 
 // ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────
 
+/**
+ * Ce qui désigne la métrique d'une colonne, de l'ancienne grille comme de la grille par blocs :
+ * tiré des formes que les deux partagent, sans importer `block-grid.schema`, qui dépend déjà de ce
+ * module.
+ */
+type MetricReference =
+  | Pick<z.infer<typeof catalogBlockMetricSchema>, "source" | "key">
+  | Pick<z.infer<typeof customBlockMetricSchema>, "source" | "customMetricId">;
+
 /** Le type de valeur d'une colonne — catalogue ou métrique du coach. */
 export function metricValueTypeOf(
-  metric: BlockMetric,
+  metric: MetricReference,
   customMetrics: readonly CustomMetric[] = [],
 ): MetricValueType | null {
   if (metric.source === MetricSource.CATALOG) return METRIC_CATALOG[metric.key].valueType;
