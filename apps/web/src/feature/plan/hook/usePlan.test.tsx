@@ -1,4 +1,4 @@
-import { ApiError, myPlanKeys, type PlanDto, STALE_WRITE } from "@cmv/shared";
+import { ApiError, myPlanKeys, type PlanDto, ProblemType } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient } from "../../../../test/query";
@@ -187,7 +187,9 @@ describe("usePlanMutations", () => {
   // Le formulaire dit le conflit à côté de la saisie, avec de quoi recharger (#604) : un toast
   // disparaîtrait en emportant la seule explication.
   it("ne dit pas un conflit d'édition sur l'en-tête par un toast, mais le garde", async () => {
-    updatePlanMock.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    updatePlanMock.mockRejectedValue(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
     const { wrapper } = renderWithQueryClient();
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
@@ -338,7 +340,7 @@ describe("usePlanMutations", () => {
     ],
     ["l'ajout", addPlanWeekMock, (m: Mutations) => m.addWeek.mutateAsync({} as never)],
   ])("relit le cycle quand %s se fonde sur une grille périmée", async (_, api, gesture) => {
-    const stale = new ApiError(409, STALE_WRITE, null);
+    const stale = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
     api.mockRejectedValue(stale);
     const { wrapper, queryClient } = renderWithQueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");

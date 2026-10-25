@@ -1,21 +1,29 @@
-import { BadRequestException } from "@nestjs/common";
+import { ABOUT_BLANK, toJsonPointer } from "@cmv/shared";
+import { HttpStatus } from "@nestjs/common";
 import type { ZodType } from "zod";
+import { ProblemException } from "../problem/problem.exception";
 import { frenchIssueMessage } from "./zod-issue-message";
 
 // Une classe DTO fabriquée par createZodDto porte son schéma Zod en statique.
 export type ZodDtoClass = { schema: ZodType };
 
 // Valide `data` contre `schema` et renvoie la donnée typée, ou lève une 400 avec des
-// erreurs structurées ({ path, message }) exploitables côté client. Un refus sans message écrit
+// erreurs structurées ({ detail, pointer }, RFC 9457) exploitables côté client. Un refus sans message écrit
 // par le schéma reçoit le sien de `frenchIssueMessage`, jamais le texte anglais de Zod (#319).
 export function zodSafeParse<T>(schema: ZodType<T>, data: unknown): T {
   const result = schema.safeParse(data, { error: frenchIssueMessage });
   if (!result.success) {
     const errors = result.error.issues.map((issue) => ({
-      path: issue.path.join(".") || "(root)",
-      message: issue.message,
+      detail: issue.message,
+      pointer: toJsonPointer(issue.path),
     }));
-    throw new BadRequestException(errors);
+    throw new ProblemException(
+      HttpStatus.BAD_REQUEST,
+      ABOUT_BLANK,
+      "Bad Request",
+      undefined,
+      errors,
+    );
   }
   return result.data;
 }

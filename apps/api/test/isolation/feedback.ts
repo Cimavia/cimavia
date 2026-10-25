@@ -448,9 +448,9 @@ describe("Suivi d'exécution (#168)", () => {
       })),
     });
     expect(res.status).toBe(400);
-    expect(res.body.message).toContainEqual({
-      path: "exercises",
-      message: SESSION_TOO_MANY_EXERCISES_MESSAGE,
+    expect(res.body.errors).toContainEqual({
+      pointer: "#/exercises",
+      detail: SESSION_TOO_MANY_EXERCISES_MESSAGE,
     });
     expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
       before.exercises,

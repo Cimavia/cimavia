@@ -26,9 +26,9 @@ import { InvoiceModule } from "./invoice/invoice.module";
 import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
 import { loggerOptions } from "./observability/logger.config";
-import { SentryExceptionFilter } from "./observability/sentry-exception.filter";
 import { OrganizationModule } from "./organization/organization.module";
 import { PlanModule } from "./plan/plan.module";
+import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
@@ -83,6 +83,6 @@ import { VersionModule } from "./version/version.module";
     HealthModule,
     VersionModule,
   ],
-  providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
+  providers: [{ provide: APP_FILTER, useClass: ProblemExceptionFilter }],
 })
 export class AppModule {}

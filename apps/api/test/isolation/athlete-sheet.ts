@@ -1,4 +1,4 @@
-import { Role, STALE_WRITE } from "@cmv/shared";
+import { ProblemType, Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, link, signUp } from "../support/actors";
 
@@ -46,7 +46,7 @@ describe("Fiche athlète — version lue (#440)", () => {
     const stale = await put(coach, path(), "Écrit dans l'onglet 2", read.updatedAt);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     expect((await current()).content).toBe("Écrit dans l'onglet 1");
   });
 
@@ -56,7 +56,7 @@ describe("Fiche athlète — version lue (#440)", () => {
     const blank = await put(coach, path(), "Deux lignes", null);
 
     expect(blank.status).toBe(409);
-    expect(blank.body.message).toBe(STALE_WRITE);
+    expect(blank.body.type).toBe(ProblemType.STALE_WRITE);
     expect(await current()).toEqual(before);
   });
 

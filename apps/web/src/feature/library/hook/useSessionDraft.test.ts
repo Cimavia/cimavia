@@ -9,9 +9,9 @@ import {
   MetricSource,
   MetricUnit,
   MetricValueType,
+  ProblemType,
   type SessionDto,
   type SessionExerciseDto,
-  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
@@ -633,7 +633,9 @@ describe("useSessionDraft — la version citée (#604)", () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.isStale).toBe(false);
 
-    updateSessionMock.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    updateSessionMock.mockRejectedValueOnce(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
     await act(async () => {
       await expect(result.current.submit()).rejects.toThrow();
     });

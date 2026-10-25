@@ -1,19 +1,20 @@
-import { STALE_WRITE } from "@cmv/shared";
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { ProblemType } from "@cmv/shared";
+import { HttpStatus, NotFoundException } from "@nestjs/common";
 import { isUniqueViolation } from "../infra/prisma/prisma-error";
+import { ProblemException } from "../problem/problem.exception";
 
 /**
  * Le 409 d'une écriture fondée sur une version périmée (#440) : l'élément a changé depuis que
- * l'auteur l'a lu. Le corps porte le code `STALE_WRITE`, que les clients reconnaissent
+ * l'auteur l'a lu. Le problème porte le `type` `ProblemType.STALE_WRITE`, que les clients reconnaissent
  * (`isStaleWriteError`) pour garder la saisie et proposer de recharger.
  *
  * La garde elle-même est une écriture CONDITIONNELLE sur la version lue — `updateMany` filtré par
  * `updatedAt`, `count === 0` → cette exception — jamais une lecture suivie d'une écriture : entre
  * les deux, une autre écriture passerait.
  */
-export class StaleWriteException extends ConflictException {
+export class StaleWriteException extends ProblemException {
   constructor() {
-    super(STALE_WRITE);
+    super(HttpStatus.CONFLICT, ProblemType.STALE_WRITE, "Écriture fondée sur une version périmée");
   }
 }
 

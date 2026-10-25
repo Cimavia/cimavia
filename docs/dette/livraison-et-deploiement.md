@@ -365,7 +365,43 @@ liste des domaines vivent dans l'index.
 > - **Les journaux disent le niveau et la vraie exception** : `customLogLevel` range un 4xx en
 >   `warn` et un 5xx en `error` ; le filtre pose l'exception sur `res.err`, que `pino-http` lit pour
 >   écrire `err` au lieu de « failed with status code 503 ». Les routes Better Auth (`/api/auth/*`)
->   restent hors du filtre et du logger (O-3, #466) : leur capture se décide avec #698.
+>   restent hors du filtre et du logger (O-3, #466) : leur capture se décide avec #698 (voir plus bas).
+
+> **Tranché en #698** (la forme des erreurs de l'API, épic [#696](https://github.com/Cimavia/cimavia/issues/696)) :
+> toute réponse d'erreur est un `application/problem+json` (RFC 9457) — `type`, `title`, `status`,
+> `detail`, `instance`, et l'extension `errors: [{ detail, pointer }]` pour la validation, `pointer`
+> étant un JSON Pointer (`#/blocks/0/name`). Le type et le schéma vivent dans `@cmv/shared`
+> (`problemDetailsSchema`). Quatre décisions :
+> - **Les codes de refus sont dans `type`, en URN non résoluble** (`urn:cimavia:problem:stale-write`,
+>   `…:active-athletes`, `…:active-coach` — `ProblemType`), `about:blank` pour tout refus sans code,
+>   avec le libellé HTTP pour `title`. Pas d'extension `code` qui doublerait `type`. `STALE_WRITE`
+>   et la lecture de `message` par `isStaleWriteError` / `CapabilityBlocker` disparaissent ;
+>   `capabilityBlockerOf` lit `type`.
+> - **`message` est retiré tout de suite**, sans période de transition (décision du 2026-10-25) :
+>   seuls le développeur et le Coach bêta ont le binaire mobile installé, le déploiement est donc
+>   coordonné — API et nouveau binaire ensemble. Un binaire plus ancien ne lit plus ni le message
+>   des refus (il retombe sur son texte générique), ni `STALE_WRITE` (le bandeau « Recharger »
+>   ne s'affiche plus), ni les codes de capacité.
+> - **`fromApi` devient « le `Content-Type` est `application/problem+json` »** : un signal net, que
+>   ni la page de cloudflared ni un portail captif ne peuvent imiter. Avant, il se devinait à la
+>   présence d'un `message` texte.
+> - **Better Auth garde son format, `{ code, message }` : écart assumé.** La RFC 9457 est optionnelle
+>   et ne vise pas à remplacer les formats propres à un domaine ; réécrire le corps de chaque
+>   réponse d'une bibliothèque d'authentification, c'est se mettre entre elle et son client, qui
+>   lit son format à lui. Conséquence côté clients (#699) : une erreur Better Auth n'est PAS un
+>   `application/problem+json`, donc `fromApi` la dit « non écrite par l'API » — elle doit être
+>   traitée à part (écarter `/api/auth/*`) plutôt que de partir chez Sentry comme un message
+>   fabriqué. Elle reste hors du filtre et du logger (O-3, #466).
+>
+> Le filtre global (`ProblemExceptionFilter`, `apps/api/src/problem/`) remplace `SentryExceptionFilter`
+> et fait le rendu lui-même, sans `BaseExceptionFilter`. Les refus que Fastify prononce avant la
+> route (corps au-delà de `API_BODY_LIMIT_BYTES` → 413, JSON invalide → 400, type de contenu
+> refusé → 415) traversent le filtre de Nest, qui les convertit en `HttpException` : ils sortent
+> en problèmes eux aussi, avec un `detail` en anglais — aucune app ne les provoque. Le statut lu sur
+> une erreur non HTTP porteuse d'un `statusCode` évite qu'un 413 soit pris pour un bug (500, `error`
+> chez Sentry). La ligne de journal de la requête porte `problemType`. Le 503 de `/health/ready`
+> perd son corps `{ status: "degraded", database: "down" }` : les sondes ne lisent que le statut,
+> `detail` nomme la base.
 
 ---
 

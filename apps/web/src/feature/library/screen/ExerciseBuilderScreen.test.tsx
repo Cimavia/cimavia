@@ -13,8 +13,8 @@ import {
   MetricUnit,
   MetricValueType,
   MyAccessLevel,
+  ProblemType,
   RichBlockType,
-  STALE_WRITE,
 } from "@cmv/shared";
 import { waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -498,7 +498,7 @@ describe("ExerciseBuilderScreen — édition", () => {
 describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
   const READ = "2026-10-12T08:00:00.000Z";
   const LATEST = "2026-10-12T08:03:00.000Z";
-  const stale = () => new ApiError(409, STALE_WRITE, null);
+  const stale = () => new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   beforeEach(() => {
     api.getExercise.mockResolvedValue(saved({ updatedAt: READ }));
@@ -520,7 +520,7 @@ describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
 
     expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Tractions lestées");
     expect(view.queryByText("library.builder.saveFailed")).not.toBeInTheDocument();
-    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.queryByText("Conflit")).not.toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 
@@ -574,7 +574,7 @@ describe("ExerciseBuilderScreen — conflit d'édition (#604)", () => {
     await view.findByText("library.builder.staleDelete");
     // Une seule fois : le bandeau, pas un second message sous les actions.
     expect(view.queryByText("common.staleWrite")).not.toBeInTheDocument();
-    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.queryByText("Conflit")).not.toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
 
     api.getExercise.mockResolvedValue(saved({ updatedAt: LATEST }));
@@ -682,7 +682,9 @@ describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
 
   // Le conflit se dit par le bandeau, comme au bouton : la sortie, elle, est refusée.
   it("reste sur un enregistrement refusé, et dit le conflit", async () => {
-    api.updateExercise.mockRejectedValueOnce(new ApiError(409, STALE_WRITE, null));
+    api.updateExercise.mockRejectedValueOnce(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
     const view = await edit();
     await view.user.type(await view.findByRole("textbox", { name: TITLE }), " lestées");
 

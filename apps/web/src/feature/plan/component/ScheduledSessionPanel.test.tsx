@@ -7,11 +7,11 @@ import {
   MetricSource,
   MetricUnit,
   type PlanWeekDto,
+  ProblemType,
   required,
   type ScheduledSessionDto,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
-  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
 import { fireEvent, waitFor, within } from "@testing-library/react";
@@ -443,7 +443,7 @@ describe("ScheduledSessionPanel", () => {
  */
 describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
   const STALE = "library.session.stale";
-  const stale = () => new ApiError(409, STALE_WRITE, null);
+  const stale = () => new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -463,7 +463,7 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
 
     expect(await findByText(STALE)).toBeInTheDocument();
     expect(getByRole("textbox", { name: TITLE })).toHaveValue("Saisie gardée");
-    expect(queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(queryByText("Conflit")).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -917,7 +917,7 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
 
   // Le conflit se dit par le bandeau, à côté de la saisie : le panneau reste, la question part.
   it("reste ouvert, la question fermée, quand l'enregistrement est refusé", async () => {
-    updateMock.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    updateMock.mockRejectedValue(new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE));
     const { user, getByLabelText, getByRole, queryByText, findByText, onClose } = setup({
       session: session(),
     });

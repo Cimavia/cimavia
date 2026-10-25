@@ -198,7 +198,7 @@ describe("Plusieurs coachs par athlète (#599)", () => {
 
     const foreign = await openWith(athlete, strangerId, "coach");
     expect(foreign.status).toBe(400);
-    expect(foreign.body.message).toBe("Participant inconnu");
+    expect(foreign.body.detail).toBe("Participant inconnu");
 
     const self = await openWith(athlete, tiId, "coach");
     expect(self.status).toBe(409);
@@ -519,9 +519,9 @@ describe("Capacités modifiables après coup (#13)", () => {
       (await coach.patch("/me/capabilities").send({ isCoach: true, isAthlete: true })).status,
     ).toBe(200);
     const late = await athlete.post(`/invitations/${invitation.body.id}/accept`);
-    expect({ status: late.status, message: late.body.message }).toEqual({
+    expect({ status: late.status, detail: late.body.detail }).toEqual({
       status: 410,
-      message: "Invitation retirée par le coach",
+      detail: "Invitation retirée par le coach",
     });
     expect((await athlete.get("/me/coaches")).body).toEqual([]);
   });

@@ -383,7 +383,7 @@ describe("Justificatif de facture : remplacement et retrait", () => {
     const res = await coach.put(`/plans/${planId}/billing/document`).send(document);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Enregistre d'abord la facturation avant de joindre un PDF");
+    expect(res.body.detail).toBe("Enregistre d'abord la facturation avant de joindre un PDF");
   });
 
   it("retirer un justificatif absent ne change rien et ne lève pas", async () => {

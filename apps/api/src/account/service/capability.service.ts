@@ -1,14 +1,15 @@
 import {
   type Capabilities,
-  CapabilityBlocker,
   CoachAthleteStatus,
   InvitationStatus,
+  ProblemType,
   type UpdateCapabilitiesInput,
 } from "@cmv/shared";
-import { ConflictException, ForbiddenException, Injectable } from "@nestjs/common";
+import { ForbiddenException, HttpStatus, Injectable } from "@nestjs/common";
 import { ClsService } from "nestjs-cls";
 import { personaOf } from "../../auth/persona";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { ProblemException } from "../../problem/problem.exception";
 import { currentActor } from "../../tenancy/tenant-context.type";
 
 /**
@@ -94,14 +95,22 @@ export class CapabilityService {
         where: { coachId: userId, status: CoachAthleteStatus.ACTIVE },
       });
       if (athletes > 0) {
-        throw new ConflictException(CapabilityBlocker.ACTIVE_ATHLETES);
+        throw new ProblemException(
+          HttpStatus.CONFLICT,
+          ProblemType.ACTIVE_ATHLETES,
+          "Des athlètes sont encore rattachés à ce coach",
+        );
       }
     }
 
     if (!input.isAthlete) {
       const coach = await this.prisma.coachAthlete.count({ where: { athleteId: userId } });
       if (coach > 0) {
-        throw new ConflictException(CapabilityBlocker.ACTIVE_COACH);
+        throw new ProblemException(
+          HttpStatus.CONFLICT,
+          ProblemType.ACTIVE_COACH,
+          "Cet athlète est encore rattaché à un coach",
+        );
       }
     }
   }

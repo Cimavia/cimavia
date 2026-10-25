@@ -1,4 +1,4 @@
-import { Role, STALE_WRITE } from "@cmv/shared";
+import { ProblemType, Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../src/tenancy/tenancy.extension";
@@ -349,7 +349,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       .post("/sessions")
       .send({ title: "Intrusion", exercises: [{ exerciseId: dalleId }] });
     expect(privateOne.status).toBe(400);
-    expect(privateOne.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+    expect(privateOne.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
 
     const outsider = await b
       .post("/sessions")
@@ -391,7 +391,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       exercises: [{ title: "Dalle", sourceExerciseId: dalleId }],
     });
     expect(adHoc.status).toBe(400);
-    expect(adHoc.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+    expect(adHoc.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
   });
 
   it("M réenregistre sa planification sans repasser ses lignes copiées par la bibliothèque", async () => {
@@ -444,7 +444,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       blocks: citing(mine.id),
     });
     expect(foreign.status).toBe(400);
-    expect(foreign.body.message).toMatch(/catalogue du propriétaire/);
+    expect(foreign.body.detail).toMatch(/catalogue du propriétaire/);
 
     const owners = await m.patch(`/exercises/${voieId}`).send({
       expectedUpdatedAt: await versionOf(m, `/exercises/${voieId}`),
@@ -499,7 +499,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       instructions: illustrated("Ailleurs.", elsewhere),
     });
     expect(foreign.status).toBe(400);
-    expect(foreign.body.message).toBe(
+    expect(foreign.body.detail).toBe(
       "La consigne cite une image qui n'appartient pas à cet exercice",
     );
     // Rien de l'écriture refusée ne passe.
@@ -517,7 +517,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
 
     // La séance de M qui le cite aussi garderait une copie (#609) : seule celle de C refuse.
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toBe(
+    expect(refused.body.detail).toBe(
       "Exercice utilisé dans 1 séance(s) : retire-le d'abord de ces séances",
     );
     expect((await c.get(`/exercises/${voieId}`)).body.foreignSessionCount).toBe(1);
@@ -559,7 +559,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     for (const [path, seen] of cases) {
       const stale = await c.delete(path).query({ expectedUpdatedAt: seen });
       expect(stale.status).toBe(409);
-      expect(stale.body.message).toBe(STALE_WRITE);
+      expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
       expect((await c.delete(path)).status).toBe(400);
       expect((await deleteAtLatest(c, path)).status).toBe(204);
     }
@@ -771,7 +771,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
       await grantF("WRITE", { exerciseId: voieId });
       const writer = await changeAccess(m, "exercises", voie);
       expect(writer.status).toBe(403);
-      expect(writer.body.message).toBe("Seul le propriétaire peut gérer les accès de cet élément");
+      expect(writer.body.detail).toBe("Seul le propriétaire peut gérer les accès de cet élément");
       await grantF("READ", { exerciseId: voieId });
 
       expect((await changeAccess(b, "exercises", voie)).status).toBe(404);
@@ -792,7 +792,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         changes: [{ organizationId: hId, level: "READ" }],
       });
       expect(foreign.status).toBe(400);
-      expect(foreign.body.message).toBe(
+      expect(foreign.body.detail).toBe(
         "Tu ne peux ouvrir un accès qu'à une entreprise dont tu es membre",
       );
       // Retirer une ligne qui n'existe pas n'ouvre rien : permis, et sans effet.
@@ -880,7 +880,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         .post(`/plan-weeks/${mWeekId}/sessions`)
         .send({ sourceSessionId: mixte.body.id, scheduledDate: mondayOfCurrentWeek() });
       expect(planned.status).toBe(400);
-      expect(planned.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+      expect(planned.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
       // Sans Toit dans la composition qu'il envoie, M planifie : la copie qu'il remplace n'est
       // pas validée pour rien.
       const composed = await m.post(`/plan-weeks/${mWeekId}/sessions`).send({
@@ -898,7 +898,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         .post(`/sessions/${mixte.body.id}/exercises/${toitRow.id}/reload`)
         .send({ expectedUpdatedAt: session.body.updatedAt });
       expect(reload.status).toBe(400);
-      expect(reload.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+      expect(reload.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
       const kept = [
         { id: toitRow.id, exerciseId: toitId },
         { id: voieRow.id, exerciseId: voieId },
@@ -908,7 +908,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         exercises: [...kept, { exerciseId: toitId }],
       });
       expect(added.status).toBe(400);
-      expect(added.body.message).toBe("Un ou plusieurs exercices sont inconnus");
+      expect(added.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
       const saved = await putAtLatest(m, `/sessions/${mixte.body.id}`, {
         title: "Mixte",
         exercises: kept,

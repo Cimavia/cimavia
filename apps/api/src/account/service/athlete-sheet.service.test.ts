@@ -1,4 +1,4 @@
-import { STALE_WRITE } from "@cmv/shared";
+import { ProblemType } from "@cmv/shared";
 import { Prisma } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it } from "vitest";
@@ -35,7 +35,7 @@ describe("AthleteSheetService.upsert — première fiche", () => {
   it("traduit une fiche née entre-temps en conflit d'édition", async () => {
     await expect(
       serviceCreatingWith(knownError("P2002")).upsert("ath_1", FIRST),
-    ).rejects.toMatchObject({ status: 409, message: STALE_WRITE });
+    ).rejects.toMatchObject({ status: 409, problemType: ProblemType.STALE_WRITE });
   });
 
   it.each([
