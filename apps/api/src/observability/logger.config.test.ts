@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { pinoHttp } from "pino-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildLogTargets, loggerOptions } from "./logger.config";
+import { buildLogTargets, loggerOptions, requestLogLevel } from "./logger.config";
 
 /**
  * Les lignes que pino-http écrit VRAIMENT, pour une vraie requête HTTP. Seul le transport est
@@ -13,7 +13,10 @@ import { buildLogTargets, loggerOptions } from "./logger.config";
 let lines: Record<string, unknown>[];
 let server: Server;
 
-async function request(path: string, init: RequestInit & { onRequest?: "log" } = {}) {
+async function request(
+  path: string,
+  init: RequestInit & { onRequest?: "log"; status?: number; err?: Error } = {},
+) {
   const { transport: _stdoutWorker, ...options } = loggerOptions();
   const logger = pinoHttp(options, { write: (line: string) => lines.push(JSON.parse(line)) });
   server = createServer((req, res) => {
@@ -21,7 +24,8 @@ async function request(path: string, init: RequestInit & { onRequest?: "log" } =
     if (init.onRequest === "log") req.log.info("pendant la requête");
     res.setHeader("set-cookie", "better-auth.session_token=cookie-de-reponse; HttpOnly");
     res.setHeader("location", "https://app.test/reset-password?token=jeton-de-redirection");
-    res.statusCode = 302;
+    res.statusCode = init.status ?? 302;
+    if (init.err) Object.assign(res, { err: init.err });
     res.end();
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -103,12 +107,53 @@ describe("loggerOptions", () => {
     expect(JSON.stringify(during)).not.toMatch(/cookie-de-session|secret-du-tick|jeton-de-reset/);
   });
 
+  it.each([
+    [200, "info", "request completed"],
+    [302, "info", "request completed"],
+    [401, "warn", "request completed"],
+    [422, "warn", "request completed"],
+    [503, "error", "request errored"],
+  ])("écrit la ligne d'un %i au niveau %s, avec son statut", async (status, level, msg) => {
+    await request("/x", { status });
+
+    const line = lines.find((candidate) => candidate.msg === msg);
+    expect(line).toMatchObject({ level: expect.any(Number), res: { statusCode: status } });
+    expect(line?.level).toBe({ info: 30, warn: 40, error: 50 }[level as "info"]);
+  });
+
+  it("rattache la vraie exception à la ligne de la requête, au lieu de celle de pino-http", async () => {
+    const cause = Object.assign(new Error("Object storage non configuré"), { status: 503 });
+
+    await request("/x", { status: 503, err: cause });
+
+    const line = lines.find((candidate) => candidate.msg === "request errored");
+    expect(line?.err).toMatchObject({ message: "Object storage non configuré" });
+    expect(JSON.stringify(line)).not.toContain("failed with status code");
+  });
+
+  it("garde la ligne d'un refus 401 : Sentry l'écarte, Axiom la conserve", async () => {
+    await request("/me", { status: 401, err: new Error("Unauthorized") });
+
+    expect(lines.find((line) => line.res)).toMatchObject({
+      level: 40,
+      res: { statusCode: 401 },
+      err: { message: "Unauthorized" },
+    });
+  });
+
   it("journalise en info en production, en debug ailleurs", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(loggerOptions().level).toBe("info");
 
     vi.stubEnv("NODE_ENV", "development");
     expect(loggerOptions().level).toBe("debug");
+  });
+});
+
+describe("requestLogLevel", () => {
+  it("passe en error une erreur que le serveur n'a pas rendue, même sous un statut 2xx", () => {
+    expect(requestLogLevel({}, { statusCode: 200 }, new Error("flux coupé"))).toBe("error");
+    expect(requestLogLevel({}, { statusCode: 404 }, new Error("absent"))).toBe("warn");
   });
 });
 
