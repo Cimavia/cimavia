@@ -1,10 +1,11 @@
-import { formatMmSs, type VoiceNoteCue } from "@cmv/shared";
+import { describePlaybackError, formatMmSs, type VoiceNoteCue } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
+import * as Sentry from "@sentry/react-native";
 import { type AudioPlayer, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { voiceNoteFocus } from "@/shared/lib/voice-note-focus";
 import { CmvSeekBar } from "./CmvSeekBar";
 import { CmvText } from "./CmvText";
@@ -261,6 +262,18 @@ function CmvAudioPlayerLive({
     sourceRef.current = url;
     player.replace(url);
   }, [url, player]);
+
+  // Ce que le natif a répondu n'arrivait nulle part (#701) : on ne savait pas si la note cassait
+  // sur un 403, un délai dépassé ou le réseau. Seul l'hôte de l'URL part, jamais sa signature.
+  useEffect(() => {
+    if (status.error == null) return;
+    const { host, message } = describePlaybackError(status.error, sourceRef.current);
+    Sentry.captureMessage("Lecture d'une note vocale échouée", {
+      level: "error",
+      tags: { platform: Platform.OS, ...(host == null ? {} : { host }) },
+      extra: { nativeMessage: message },
+    });
+  }, [status.error]);
 
   // (B) La lecture a cassé : on re-signe, et on reprend là où elle en était.
   useEffect(() => {

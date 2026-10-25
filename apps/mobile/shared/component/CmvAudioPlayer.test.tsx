@@ -1,4 +1,5 @@
 import type { VoiceNoteCue } from "@cmv/shared";
+import * as Sentry from "@sentry/react-native";
 import { act, waitFor } from "@testing-library/react";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useEffect } from "react";
@@ -284,6 +285,46 @@ describe("CmvAudioPlayer — la lecture casse en route", () => {
     await act(async () => settle(FRESH));
 
     expect(player.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioPlayer — remontée à Sentry (#701)", () => {
+  it("remonte ce que le natif a répondu, avec l'hôte de la note", async () => {
+    const { push } = await engaged();
+
+    push({ playing: false, isLoaded: false, error: "Response code: 403" });
+
+    await waitFor(() => expect(Sentry.captureMessage).toHaveBeenCalledTimes(1));
+    expect(Sentry.captureMessage).toHaveBeenCalledWith("Lecture d'une note vocale échouée", {
+      level: "error",
+      tags: { platform: "web", host: "s3.test" },
+      extra: { nativeMessage: "Response code: 403" },
+    });
+  });
+
+  it("n'emporte jamais l'URL signée que le natif cite", async () => {
+    const { push } = await engaged();
+
+    push({ isLoaded: false, error: `Source error: ${FIRST}` });
+
+    await waitFor(() => expect(Sentry.captureMessage).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain("X-Amz");
+  });
+
+  it("ne remonte rien tant que la lecture ne casse pas", async () => {
+    await engaged();
+
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("remonte aussi la panne qui survient après une re-signature", async () => {
+    const { push } = await engaged();
+
+    push({ isLoaded: false, error: "403" });
+    await waitFor(() => expect(player.replace).toHaveBeenCalledWith(FRESH));
+    push({ isLoaded: false, error: "timeout" });
+
+    await waitFor(() => expect(Sentry.captureMessage).toHaveBeenCalledTimes(2));
   });
 });
 

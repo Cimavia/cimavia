@@ -1125,6 +1125,8 @@ export {
 } from "./util/planned-blocks.util";
 export type { PlannedLockIssue } from "./util/planned-lock.util";
 export { PlannedLock, plannedLockIssues, takenKeys } from "./util/planned-lock.util";
+export type { PlaybackErrorReport } from "./util/playback-error.util";
+export { describePlaybackError } from "./util/playback-error.util";
 export type {
   ReminderFeedSource,
   ReminderLabel,
