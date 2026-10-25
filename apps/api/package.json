@@ -38,7 +38,7 @@
     "expo-server-sdk": "^6.1.0",
     "nestjs-cls": "7.0.1",
     "nestjs-pino": "5.3.1",
-    "nodemailer": "10.1.0",
+    "nodemailer": "10.1.4",
     "pg": "8.22.0",
     "pino": "^10.3.1",
     "pino-http": "11.0.0",
