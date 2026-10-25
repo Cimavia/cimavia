@@ -656,10 +656,24 @@ liste des domaines vivent dans l'index.
 >   REPLACEMENT{replacesKey}`), pas sur une comparaison de listes : chaque exercice a une `key`
 >   stable, unique dans la séance. Composition et valeurs se comptent chacune de son côté
 >   (`plannedChanges`). Un ajout n'a aucune place dans la référence, même si sa clé en rappelle
->   une ; une place n'est gardée ou remplacée qu'une fois (`referencePlaceOf`).
+>   une ; une place n'est gardée ou remplacée qu'une fois (`referencePlaceOf`). Les cellules se
+>   comparent TOUR PAR TOUR (`rowIndex` est le rang du tour, pas d'une ligne de la grille
+>   planifiée) : une grille réduite à une ligne vaut pour chaque tour, un tour retiré ne compte
+>   que dans les tours du bloc, et une grille planifiée sans ligne compte chaque cellule de la
+>   référence comme vidée. Qu'un exercice
+>   nouveau — ajout ou remplaçant — reçoive une clé ABSENTE de la séance-type ne se voit qu'avec
+>   elle : l'API des blocs (#716) le vérifie, sans quoi un retrait et un remplacement
+>   partageraient la même clé.
 > - **Le bloc garde ses réglages copiés** (`copiedSettings`) et son origine, structure du Coach
 >   (`sourceStructureId`) OU structure prête (`sourcePreset`), jamais les deux : « Personnalisé »
->   et « Revenir à … » en dépendent, même une fois la structure supprimée. Impacte #716.
+>   et « Revenir à … » en dépendent, même une fois la structure supprimée. Impacte #716. Le
+>   schéma ne confronte pas `copiedSettings` aux exercices du bloc : ce ne sont pas les réglages
+>   en vigueur. Le geste « Revenir à … » (#720) vérifie `roundsError` et `gridRowLimit` avant de
+>   les restaurer.
+> - **Un chrono qui tourne déjà — compte à rebours d'un « autant que possible », chrono d'une
+>   limite — ne lance pas les repos**, comme dans la maquette (`timerOf`) : le repos se prend dans
+>   le temps qui court, et un second décompte lui ferait concurrence. La phrase du bloc les annonce
+>   quand même, c'est une consigne.
 > - **Bornes** : 30 blocs par séance, 20 exercices par bloc, 50 par séance (`SESSION_MAX_EXERCISES`,
 >   *Tranché en #297*), 99 tours, 12 métriques par grille ; le suivi d'un bloc tient donc en
 >   `BLOCK_MAX_CHECKS` = 99 × 20 = 1 980 cases, bornées à l'entrée seulement (*Tranché en #297*).
@@ -670,6 +684,11 @@ liste des domaines vivent dans l'index.
 >   en reprenant celui de l'ancienne grille (`validateBlockValues`).
 > - **Laissés aux issues des écrans** : `doseCols`, `doseLines`, `lineIn`, `weekChoices`, `fill`,
 >   `fillPreview`, `addStep` et `stepError` (#720, #721, #724).
-> - **`MetricSource` et `fittingColumnCount` sont importés de l'ancien modèle de blocs** : ils
->   déménagent avec son retrait (#723), qui retire aussi la double déclaration des formes de
->   métrique (`block-grid.schema` et `exercise-block.schema`, au `collapsed` près).
+> - **La grille par blocs emprunte à l'ancien modèle** `MetricSource`, `fittingColumnCount`, les
+>   formes de métrique (`catalogMetricShape`, `customMetricShape`, `metricUnitRefinement`) et ses
+>   bornes de colonnes : ils déménagent avec son retrait (#723). Les aides de libellé
+>   (`metricLabel`, `metricCellText`…) prennent une `GridMetric`, où une colonne de l'ancienne
+>   grille se range aussi.
+> - **Les réponses des réglages vivent dans un module à part** (`structure-answer.schema`) : le
+>   schéma de structure lit les règles des réglages, qui lisent ces réponses — réunis, les deux
+>   modules s'importaient l'un l'autre.
