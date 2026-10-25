@@ -1,6 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import * as Sentry from "@sentry/react";
+import { onlineManager } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { createQueryClient } from "./query-client";
+
+vi.mock("@sentry/react", () => ({ captureException: vi.fn() }));
+
+afterEach(() => {
+  onlineManager.setOnline(true);
+  vi.clearAllMocks();
+});
 
 const unauthorized = () => new ApiError(401, "Unauthorized", null);
 
@@ -80,6 +89,73 @@ describe("createQueryClient", () => {
       // La même session serait refusée de la même façon : l'essai ne ferait que retarder la
       // fenêtre de reconnexion.
       expect(retry(0, unauthorized())).toBe(false);
+    });
+  });
+
+  // La décision, cas par cas, est éprouvée dans `@cmv/shared` ; ici, seulement le câblage (#699).
+  describe("signalement à Sentry", () => {
+    const failing = (error: unknown) => () => Promise.reject(error);
+
+    it("signale la réponse que l'API n'a pas écrite, sur une lecture", async () => {
+      const { client } = setup();
+      const proxyPage = new ApiError(502, "Erreur 502", null, false);
+
+      await client
+        .fetchQuery({ queryKey: ["athletes"], queryFn: failing(proxyPage), retry: false })
+        .catch(() => {});
+
+      expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(proxyPage);
+    });
+
+    it("signale un bug du client levé dans un enregistrement", async () => {
+      const { client } = setup();
+      const bug = new TypeError("x is undefined");
+      const save = client.getMutationCache().build(client, { mutationFn: failing(bug) });
+
+      await save.execute(undefined).catch(() => {});
+
+      expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(bug);
+    });
+
+    it("ne reprend pas la réponse que l'API a écrite : elle l'a déjà capturée (#697)", async () => {
+      const { client } = setup();
+
+      await client
+        .fetchQuery({
+          queryKey: ["plan"],
+          queryFn: failing(new ApiError(500, "Boum", null, true)),
+          retry: false,
+        })
+        .catch(() => {});
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it("ne signale rien hors-ligne", async () => {
+      onlineManager.setOnline(false);
+      const { client } = setup();
+
+      await client
+        .fetchQuery({
+          queryKey: ["athletes"],
+          queryFn: failing(new TypeError("Failed to fetch")),
+          retry: false,
+          networkMode: "always",
+        })
+        .catch(() => {});
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it("ne signale pas un 401, qui relit la session", async () => {
+      const { client, onUnauthorized } = setup();
+
+      await client
+        .fetchQuery({ queryKey: ["athletes"], queryFn: failing(unauthorized()), retry: false })
+        .catch(() => {});
+
+      expect(onUnauthorized).toHaveBeenCalledOnce();
+      expect(Sentry.captureException).not.toHaveBeenCalled();
     });
   });
 });
