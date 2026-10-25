@@ -30,14 +30,20 @@ let notificationsGranted = true;
  * donc ici comme sur le téléphone.
  */
 function fakeRecorder() {
+  // Android refuse une seconde préparation tant que l'enregistreur n'est ni arrêté ni libéré (#700).
+  let prepared = false;
   return {
     record: vi.fn(),
-    stop: vi.fn(async () => undefined),
+    stop: vi.fn(async () => {
+      prepared = false;
+    }),
     prepareToRecordAsync: vi.fn(async () => {
+      if (prepared) throw new Error("AudioRecorder has already been prepared");
       const mode = vi.mocked(setAudioModeAsync).mock.lastCall?.[0];
       if (mode?.allowsBackgroundRecording === true && !notificationsGranted) {
         throw notificationsRefused();
       }
+      prepared = true;
     }),
     uri: "file:///cache/note.m4a" as string | null,
   };
@@ -183,6 +189,50 @@ describe("CmvAudioRecorder — retour au mode lecture sur échec", () => {
     expect(onRecorded).not.toHaveBeenCalled();
   });
 
+  it("libère l'enregistreur quand record() lève après une préparation réussie", async () => {
+    recorder.record.mockImplementationOnce(() => {
+      throw new Error("service connection not bound");
+    });
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(recorder.stop).toHaveBeenCalledOnce();
+  });
+
+  it("démarre au second tap après un record() raté", async () => {
+    recorder.record.mockImplementationOnce(() => {
+      throw new Error("service connection not bound");
+    });
+    const view = setup();
+
+    press(icon(view.container, "mic-outline"));
+    await waitFor(() => expect(view.onError).toHaveBeenCalledOnce());
+    press(icon(view.container, "mic-outline"));
+
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(true));
+    expect(view.onError).toHaveBeenCalledOnce();
+  });
+
+  it("garde l'erreur d'origine quand la libération de l'enregistreur échoue aussi", async () => {
+    const cause = new Error("service connection not bound");
+    recorder.record.mockImplementationOnce(() => {
+      throw cause;
+    });
+    recorder.stop.mockRejectedValueOnce(new Error("rien à arrêter"));
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+    );
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause, expect.anything());
+  });
+
   it("garde l'erreur d'origine quand le retour au mode lecture échoue aussi", async () => {
     recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("micro occupé"));
     vi.mocked(setAudioModeAsync)
@@ -249,7 +299,9 @@ describe("CmvAudioRecorder — repli au premier plan (Android, notifications ref
       expect(onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
     );
     expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
-    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause, {
+      tags: { platform: "web" },
+    });
     expect(recorder.record).not.toHaveBeenCalled();
     expect(onRecordingChange).not.toHaveBeenCalled();
   });
@@ -361,7 +413,24 @@ describe("CmvAudioRecorder — remontée à Sentry", () => {
     press(icon(container, "mic-outline"));
 
     await waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause, {
+      tags: { platform: "web" },
+    });
+  });
+
+  it("remonte le code natif de la panne, avec la plateforme", async () => {
+    const cause = Object.assign(new Error("already prepared"), { code: "ERR_AUDIO_RECORDER" });
+    recorder.record.mockImplementationOnce(() => {
+      throw cause;
+    });
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause, {
+      tags: { platform: "web", code: "ERR_AUDIO_RECORDER" },
+    });
   });
 
   it("remonte la cause d'un arrêt échoué", async () => {
@@ -373,7 +442,9 @@ describe("CmvAudioRecorder — remontée à Sentry", () => {
     press(icon(container, "trash-outline"));
 
     await waitFor(() => expect(onError).toHaveBeenCalledOnce());
-    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause);
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause, {
+      tags: { platform: "web" },
+    });
   });
 });
 
