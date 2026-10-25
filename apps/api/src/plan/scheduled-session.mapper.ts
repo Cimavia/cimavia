@@ -2,6 +2,10 @@ import type { ScheduledSessionDto, ScheduledSessionExerciseDto } from "@cmv/shar
 import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
+import {
+  SCHEDULED_SESSION_BLOCKS_INCLUDE,
+  toScheduledSessionBlockDto,
+} from "../session/session-block.mapper";
 import { toIsoDate } from "../util/date.util";
 import {
   parseAdjustments,
@@ -12,17 +16,16 @@ import {
 } from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
-// Le coach, par le cycle : la séance n'a que la colonne `coachId`, pas la relation (#599).
+// Le coach, par le cycle : la séance n'a que la colonne `coachId`, pas la relation (#599). Ses
+// blocs (#716) arrivent imbriqués, comme ses exercices : l'athlète ne les lit qu'à travers elle.
 export const SESSION_DETAIL_INCLUDE = {
   exercises: { orderBy: { position: "asc" }, include: { documents: true, tags: true } },
+  blocks: SCHEDULED_SESSION_BLOCKS_INCLUDE,
   plan: { select: { coach: { select: { name: true } } } },
 } satisfies Prisma.ScheduledSessionInclude;
 
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
-  include: {
-    exercises: { include: { documents: true; tags: true } };
-    plan: { select: { coach: { select: { name: true } } } };
-  };
+  include: typeof SESSION_DETAIL_INCLUDE;
 }>;
 
 type ScheduledExerciseWithDocuments = ScheduledSessionWithExercises["exercises"][number];
@@ -77,5 +80,6 @@ export async function toScheduledSessionDto(
     coachId: session.coachId,
     coachName: session.plan.coach.name,
     exercises,
+    blocks: session.blocks.map(toScheduledSessionBlockDto),
   };
 }
