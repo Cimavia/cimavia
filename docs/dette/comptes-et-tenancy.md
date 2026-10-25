@@ -128,7 +128,8 @@ liste des domaines vivent dans l'index.
 > - **« Recharger » remplace la saisie** par la dernière version (maquette #597 : « Recharger
 >   remplace la saisie par la dernière version, sans fusion »), et seulement une fois celle-ci
 >   reçue : sur une relecture ratée, la saisie et le bandeau restent.
-> - **Le 409 porte un code, `STALE_WRITE`** (`isStaleWriteError`, `@cmv/shared`), comme
+> - **Le 409 porte un code** — `STALE_WRITE` à l'origine, depuis #698 le `type`
+>   `urn:cimavia:problem:stale-write` (`isStaleWriteError`, `@cmv/shared`), comme
 >   `CapabilityBlocker` : d'autres refus sont des 409, et y proposer « Recharger » ne servirait à
 >   rien. Le web ne le double pas d'un toast — le bandeau le dit à côté de la saisie.
 > - **La garde de version vient après celle du tenant** : un autre coach reçoit 404, jamais 409,
