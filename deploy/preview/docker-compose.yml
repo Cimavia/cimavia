@@ -142,6 +142,7 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       AXIOM_TOKEN: ${AXIOM_TOKEN:-}
       AXIOM_DATASET: ${AXIOM_DATASET:-}
+      AXIOM_EDGE: ${AXIOM_EDGE:-}
       EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
       # Déclencheur des rappels automatiques (#47). À déclarer ICI et pas seulement dans le `.env` :
       # ce fichier n'est lu que pour l'interpolation `${…}`, le conteneur ne reçoit QUE les
