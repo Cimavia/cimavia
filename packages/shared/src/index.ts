@@ -115,6 +115,24 @@ export {
 } from "./dto/access.schema";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
+export type { BlockGrid, GridMetric, GridRow, SuggestedMetric } from "./dto/block-grid.schema";
+export {
+  blockGridSchema,
+  GRID_LABEL_MAX_LENGTH,
+  GRID_MAX_METRICS,
+  GRID_MAX_ROWS,
+  gridMetricSchema,
+  gridRowSchema,
+  metricsFromSuggested,
+  suggestedMetricSchema,
+  suggestedMetricsSchema,
+} from "./dto/block-grid.schema";
+export type { SessionBlockTracking } from "./dto/block-tracking.schema";
+export {
+  BLOCK_MAX_CHECKS,
+  sessionBlockTrackingInputSchema,
+  sessionBlockTrackingSchema,
+} from "./dto/block-tracking.schema";
 export type { UpdateCapabilitiesInput } from "./dto/capability.schema";
 export { CapabilityBlocker, updateCapabilitiesSchema } from "./dto/capability.schema";
 export type {
@@ -671,6 +689,45 @@ export {
   updateSessionSchema,
 } from "./dto/session.schema";
 export type {
+  ScheduledBlockExercise,
+  ScheduledSessionBlock,
+  SessionBlock,
+  SessionBlockExercise,
+} from "./dto/session-block.schema";
+export {
+  BLOCK_MAX_EXERCISES,
+  CompositionOrigin,
+  compositionOriginSchema,
+  SESSION_BLOCK_LABEL_MAX_LENGTH,
+  SESSION_MAX_BLOCKS,
+  scheduledBlockExerciseSchema,
+  scheduledSessionBlockSchema,
+  scheduledSessionBlocksSchema,
+  sessionBlockExerciseSchema,
+  sessionBlockSchema,
+  sessionBlocksSchema,
+} from "./dto/session-block.schema";
+export type { StructureInput, StructureSettings } from "./dto/structure.schema";
+export {
+  STRUCTURE_INSTRUCTIONS_MAX_LENGTH,
+  STRUCTURE_MAX_ROUNDS,
+  STRUCTURE_MIN_DURATION_SECONDS,
+  STRUCTURE_MIN_ROUNDS,
+  STRUCTURE_NAME_MAX_LENGTH,
+  STRUCTURE_NOTE_MAX_LENGTH,
+  STRUCTURE_PRESET_NAME_KEY,
+  STRUCTURE_PRESETS,
+  StructureAdvance,
+  StructureOrder,
+  StructurePresetKey,
+  StructureRepeat,
+  structureAdvanceSchema,
+  structureInputSchema,
+  structurePresetKeySchema,
+  structureRepeatSchema,
+  structureSettingsSchema,
+} from "./dto/structure.schema";
+export type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
   MediaUploadTicketDto,
@@ -761,6 +818,36 @@ export {
   athleteWeekNeighbours,
   defaultAthleteMonday,
 } from "./util/athlete-week.util";
+export type {
+  BlockClock,
+  GridCell,
+  GridCellText,
+  GridReading,
+} from "./util/block-reading.util";
+export {
+  blockClock,
+  blockLetters,
+  ClockKind,
+  clockCounter,
+  exerciseCodes,
+  flowPhrase,
+  GridLayout,
+  gridLinePhrases,
+  gridReading,
+  letterAt,
+} from "./util/block-reading.util";
+export type { BlockChecks, BlockTally, CheckBox } from "./util/block-tracking.util";
+export {
+  BlockTallyState,
+  blockCheckCount,
+  blockChecks,
+  blockTally,
+  CheckBoxKind,
+  CheckUnit,
+  tickedRows,
+  trackingFitsBlock,
+  trackingNote,
+} from "./util/block-tracking.util";
 export { CHAR_COUNT_THRESHOLD, shouldShowCharCount } from "./util/char-count.util";
 export type { CoachPresence } from "./util/coach-presence.util";
 export { coachPresence } from "./util/coach-presence.util";
@@ -953,6 +1040,8 @@ export {
 } from "./util/notification.util";
 export type { Page } from "./util/pagination.util";
 export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
+export type { Phrase, PhraseParam, PhraseTools } from "./util/phrase.util";
+export { translatePhrase, translatePhrases } from "./util/phrase.util";
 export type {
   PlanAudience,
   PlanAudienceSource,
@@ -1000,6 +1089,16 @@ export {
   unassignedDraftPlans,
   visiblePlanAthleteRows,
 } from "./util/plan-row.util";
+export type {
+  CompositionChange,
+  PlannedChanges,
+  ValueChange,
+} from "./util/planned-blocks.util";
+export {
+  CompositionChangeKind,
+  plannedChanges,
+  ValueChangeKind,
+} from "./util/planned-blocks.util";
 export type {
   ReminderFeedSource,
   ReminderLabel,
@@ -1060,6 +1159,26 @@ export {
   SIGNUP_MODES,
   signUpErrorKey,
 } from "./util/signup.util";
+export type {
+  DisabledOptions,
+  SettingsIssue,
+  StructureDuration,
+} from "./util/structure-settings.util";
+export {
+  disabledOptions,
+  everyPhrase,
+  exerciseOrderShown,
+  isCustomized,
+  oneAtATime,
+  roundsError,
+  SettingOption,
+  SettingValue,
+  settingsIssues,
+  settingsPhrase,
+  settingsShape,
+  settingValues,
+  structureDuration,
+} from "./util/structure-settings.util";
 export {
   formatTrainingDuration,
   parseTrainingDuration,
