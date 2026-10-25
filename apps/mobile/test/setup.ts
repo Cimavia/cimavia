@@ -73,6 +73,7 @@ vi.mock("@sentry/react-native", () => ({
   init: vi.fn(),
   setUser: vi.fn(),
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
   wrap: <T>(component: T) => component,
 }));
 
