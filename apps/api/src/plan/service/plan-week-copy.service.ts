@@ -2,6 +2,7 @@ import type { CopyPlanWeekInput, PlanDto } from "@cmv/shared";
 import { PlanStatus, planWeekCopyShiftDays, required } from "@cmv/shared";
 import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { toScheduledSessionBlockDto } from "../../session/session-block.mapper";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toIsoDate } from "../../util/date.util";
@@ -14,7 +15,11 @@ import {
 import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { WEEK_NOT_FOUND } from "../plan-week.version";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
-import { insertScheduledSessionExercises } from "../scheduled-session.writer";
+import {
+  type BlockPlacementDraft,
+  copiedBlocksOf,
+  insertScheduledSessionExercises,
+} from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
 /**
@@ -141,6 +146,10 @@ export class PlanWeekCopyService {
           > as Prisma.ScheduledSessionUncheckedCreateInput,
         });
 
+        // Les blocs (#716) aussi, avec la référence que la source a reçue.
+        const { blocks, placements } = copiedBlocksOf(
+          session.blocks.map(toScheduledSessionBlockDto),
+        );
         // Les documents viennent de l'INSTANCE source, pas de la bibliothèque : `sourceExerciseId`
         // peut être null (exercice supprimé de la bibliothèque, SetNull) alors que l'instance porte
         // toujours ses copies. Y repasser les perdrait — c'est le sens de « copie autonome ».
@@ -170,7 +179,9 @@ export class PlanWeekCopyService {
             // ce que la SÉANCE-TYPE avait décidé, comme sur l'instance source.
             baselineAdjustments: parseAdjustments(exercise.baselineAdjustments),
             documents: exercise.documents,
+            ...placementOf(placements, exercise.id),
           })),
+          blocks,
         );
       }
     });
@@ -179,4 +190,13 @@ export class PlanWeekCopyService {
     // refusé plus haut), et un brouillon n'existe pas encore pour l'athlète.
     return this.plans.get(targetPlan.id);
   }
+}
+
+/** La place d'une ligne dans ses blocs, absente pour une ligne de l'ancien modèle. */
+function placementOf(
+  placements: ReadonlyMap<string, BlockPlacementDraft>,
+  rowId: string,
+): { placement?: BlockPlacementDraft } {
+  const placement = placements.get(rowId);
+  return placement === undefined ? {} : { placement };
 }

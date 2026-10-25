@@ -1,12 +1,17 @@
 import {
   type Adjustments,
+  type BlockGrid,
+  type CompositionOrigin,
   type ExerciseBlocks,
   imageMediaIds,
   remapImageMediaIds,
+  required,
+  type ScheduledSessionBlockDto,
   type ScheduledSessionExerciseInput,
 } from "@cmv/shared";
 import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
+import { toJsonInput } from "../util/block-json.util";
 import {
   toAdjustmentsInput,
   toBlocksInput,
@@ -63,6 +68,24 @@ export type ScheduledSessionExerciseDraft = {
    */
   baselineAdjustments: Adjustments;
   documents: readonly ScheduledSessionDocumentDraft[];
+  /** Absente pour une ligne de l'ancien modèle, sans bloc (#716). */
+  placement?: BlockPlacementDraft;
+};
+
+/**
+ * Un bloc de séance planifiée à écrire (#716) : ses champs, et la référence qu'il a reçue. Ni
+ * identifiant, ni suivi : le bloc naît sous un identifiant neuf, et NON SUIVI.
+ */
+export type ScheduledBlockDraft = Omit<ScheduledSessionBlockDto, "id" | "tracking" | "exercises">;
+
+/** La place d'un exercice dans son bloc — `block` : le rang du bloc parmi ceux à écrire. */
+export type BlockPlacementDraft = {
+  block: number;
+  blockPosition: number;
+  key: string;
+  grid: BlockGrid;
+  origin: CompositionOrigin;
+  replacesKey: string | null;
 };
 
 /**
@@ -83,10 +106,105 @@ export async function insertScheduledSessionExercises(
   scheduledSessionId: string,
   athleteId: string | null,
   drafts: readonly ScheduledSessionExerciseDraft[],
+  blocks: readonly ScheduledBlockDraft[] = [],
 ): Promise<void> {
+  const blockIds = await insertScheduledBlocks(tx, scheduledSessionId, athleteId, blocks);
   for (const [position, draft] of drafts.entries()) {
-    await insertScheduledSessionExercise(tx, scheduledSessionId, athleteId, draft, position);
+    await insertScheduledSessionExercise(
+      tx,
+      scheduledSessionId,
+      athleteId,
+      draft,
+      position,
+      blockIds,
+    );
   }
+}
+
+/** Les blocs d'abord : leurs exercices s'y rangent par identifiant. */
+async function insertScheduledBlocks(
+  tx: TenantTx,
+  scheduledSessionId: string,
+  athleteId: string | null,
+  blocks: readonly ScheduledBlockDraft[],
+): Promise<string[]> {
+  const created = await Promise.all(
+    blocks.map((block, position) =>
+      tx.scheduledSessionBlock.create({
+        // coachId injecté par la couche d'isolation ; athleteId explicite, comme pour les lignes.
+        data: {
+          athleteId,
+          scheduledSessionId,
+          position,
+          name: block.name,
+          label: block.label,
+          instructions: block.instructions,
+          settings: toJsonInput(block.settings),
+          copiedSettings: toJsonInput(block.copiedSettings),
+          sourceStructureId: block.sourceStructureId,
+          sourcePreset: block.sourcePreset,
+          baseline: toJsonInput(block.baseline),
+        } satisfies Omit<
+          Prisma.ScheduledSessionBlockUncheckedCreateInput,
+          "coachId"
+        > as Prisma.ScheduledSessionBlockUncheckedCreateInput,
+        select: { id: true },
+      }),
+    ),
+  );
+  return created.map((block) => block.id);
+}
+
+/**
+ * Les blocs d'une séance planifiée recopiés tels quels (copie de semaine, #4) : leur contenu, leur
+ * référence reçue, et la place de chaque ligne — origine comprise. Ce que la copie a reçu de la
+ * séance-type, elle le garde ; le suivi, lui, reste à l'athlète de la source.
+ */
+export function copiedBlocksOf(blocks: readonly ScheduledSessionBlockDto[]): {
+  blocks: ScheduledBlockDraft[];
+  placements: ReadonlyMap<string, BlockPlacementDraft>;
+} {
+  const placements = new Map(
+    blocks.flatMap((block, index) =>
+      block.exercises.map((exercise, blockPosition): [string, BlockPlacementDraft] => [
+        exercise.id,
+        {
+          block: index,
+          blockPosition,
+          key: exercise.key,
+          grid: exercise.grid,
+          origin: exercise.origin.kind,
+          replacesKey: "replacesKey" in exercise.origin ? exercise.origin.replacesKey : null,
+        },
+      ]),
+    ),
+  );
+  return {
+    blocks: blocks.map((block) => ({
+      name: block.name,
+      label: block.label,
+      instructions: block.instructions,
+      settings: block.settings,
+      copiedSettings: block.copiedSettings,
+      sourceStructureId: block.sourceStructureId,
+      sourcePreset: block.sourcePreset,
+      baseline: block.baseline,
+    })),
+    placements,
+  };
+}
+
+/** Les colonnes de bloc d'une ligne — toutes nulles sans placement, ce que le CHECK exige. */
+function placementColumns(placement: BlockPlacementDraft | undefined, blockIds: readonly string[]) {
+  if (placement === undefined) return {};
+  return {
+    blockId: required(blockIds[placement.block], `[plan] bloc ${placement.block} non écrit`),
+    blockPosition: placement.blockPosition,
+    key: placement.key,
+    grid: toJsonInput(placement.grid),
+    origin: placement.origin,
+    replacesKey: placement.replacesKey,
+  };
 }
 
 /**
@@ -179,6 +297,7 @@ async function insertScheduledSessionExercise(
   athleteId: string | null,
   draft: ScheduledSessionExerciseDraft,
   position: number,
+  blockIds: readonly string[] = [],
 ): Promise<void> {
   // `tracking` n'est pas écrit : une ligne qui naît est NON SUIVIE, et c'est le défaut de la
   // colonne. Le suivi d'une ligne existante ne passe jamais par ici (cf. `rewrite…`).
@@ -193,6 +312,7 @@ async function insertScheduledSessionExercise(
       baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
       baselineAdjustments: toAdjustmentsInput(draft.baselineAdjustments),
       position,
+      ...placementColumns(draft.placement, blockIds),
     } satisfies Omit<
       Prisma.ScheduledSessionExerciseUncheckedCreateInput,
       "coachId"
