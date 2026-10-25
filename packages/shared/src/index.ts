@@ -1091,8 +1091,6 @@ export {
   unassignedDraftPlans,
   visiblePlanAthleteRows,
 } from "./util/plan-row.util";
-export type { PlaybackErrorReport } from "./util/playback-error.util";
-export { describePlaybackError } from "./util/playback-error.util";
 export type {
   CompositionChange,
   PlannedChanges,
@@ -1103,6 +1101,8 @@ export {
   plannedChanges,
   ValueChangeKind,
 } from "./util/planned-blocks.util";
+export type { PlaybackErrorReport } from "./util/playback-error.util";
+export { describePlaybackError } from "./util/playback-error.util";
 export type {
   ReminderFeedSource,
   ReminderLabel,
