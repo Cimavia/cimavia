@@ -25,6 +25,7 @@ import {
   SESSION_TITLE_MAX_LENGTH,
   SESSION_TOO_MANY_EXERCISES_MESSAGE,
 } from "./session.schema";
+import { scheduledSessionBlockDtoSchema } from "./session-block-dto.schema";
 
 export const PLAN_TITLE_MAX_LENGTH = 200;
 export const PLAN_DESCRIPTION_MAX_LENGTH = 5000;
@@ -337,6 +338,11 @@ export const scheduledSessionDtoSchema = scheduledSessionSummaryDtoSchema.extend
   coachId: z.string(),
   coachName: z.string(),
   exercises: z.array(scheduledSessionExerciseDtoSchema),
+  /**
+   * La composition par blocs (#716), lue IMBRIQUÉE dans la séance : un exercice de bloc n'a de
+   * sens que dans son bloc. `[]` pour une séance encore composée à l'ancienne.
+   */
+  blocks: z.array(scheduledSessionBlockDtoSchema),
 });
 export type ScheduledSessionDto = z.infer<typeof scheduledSessionDtoSchema>;
 

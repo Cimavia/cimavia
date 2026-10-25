@@ -437,6 +437,7 @@ describe("PlanBuilderScreen — les semaines", () => {
     coachId: "coach_1",
     coachName: "Julie Renaud",
     exercises: [],
+    blocks: [],
   };
 
   const week: PlanWeekDto = {

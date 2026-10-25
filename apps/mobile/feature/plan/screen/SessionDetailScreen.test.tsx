@@ -156,6 +156,7 @@ function session(overrides: Partial<ScheduledSessionDto> = {}): ScheduledSession
     coachId: "coach_1",
     coachName: "Julie Renaud",
     exercises: [],
+    blocks: [],
     ...overrides,
   };
 }

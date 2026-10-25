@@ -69,6 +69,7 @@ function session(
     updatedAt,
     coachId: "coach-1",
     coachName: "Julie Renaud",
+    blocks: [],
     exercises: [
       {
         id: "ex-1",

@@ -24,6 +24,7 @@ import {
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
 } from "./media.schema";
 import { SESSION_MAX_EXERCISES } from "./session.schema";
+import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 
 describe("upsertSessionFeedbackSchema", () => {
   it("accepte un débrief sans texte (débrief média-seul, complété en plusieurs fois)", () => {
@@ -186,5 +187,26 @@ describe("isAllowedFeedbackAudioMime", () => {
   // messagerie.
   it.each(["audio/webm", "audio/mpeg", "video/mp4", ""])("refuse %s", (mime) => {
     expect(isAllowedFeedbackAudioMime(mime)).toBe(false);
+  });
+});
+
+describe("le suivi par bloc remonté avec un débrief (#716)", () => {
+  const withBlocks = (blockTracking: unknown) =>
+    upsertSessionFeedbackSchema.safeParse({ blockTracking });
+  const keyed = <T>(count: number, value: T) =>
+    Object.fromEntries(Array.from({ length: count }, (_, index) => [`b${index}`, value]));
+
+  it("accepte une entrée par bloc que la séance peut porter, pas une de plus", () => {
+    expect(withBlocks(keyed(SESSION_MAX_BLOCKS, null)).success).toBe(true);
+    expect(withBlocks(keyed(SESSION_MAX_BLOCKS + 1, null)).success).toBe(false);
+  });
+
+  it("accepte des cases d'exercice et « Bloc fait », pas deux fois la même", () => {
+    const checked = [
+      { row: 0, key: "a" },
+      { row: 0, key: null },
+    ];
+    expect(withBlocks({ b1: { checked } }).success).toBe(true);
+    expect(withBlocks({ b1: { checked: [...checked, checked[0]] } }).success).toBe(false);
   });
 });

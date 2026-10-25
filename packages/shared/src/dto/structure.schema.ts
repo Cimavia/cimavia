@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { settingsIssues } from "../util/structure-settings.util";
 import { exerciseTagsSchema } from "./exercise.schema";
+import { expectedVersionSchema } from "./expected-version.schema";
 import { StructureAdvance, StructureOrder, StructureRepeat } from "./structure-answer.schema";
 
 // La structure d'un bloc de séance (#714, #715) : Séries, EMOM, AMRAP… et celles du Coach.
@@ -173,3 +174,35 @@ export const structureInputSchema = z
   })
   .strict();
 export type StructureInput = z.infer<typeof structureInputSchema>;
+
+/** Modifier une structure, sous la version lue (#604) : deux onglets ne s'écrasent pas. */
+export const updateStructureSchema = structureInputSchema
+  .extend({ expectedUpdatedAt: expectedVersionSchema })
+  .strict();
+export type UpdateStructureInput = z.infer<typeof updateStructureSchema>;
+
+/**
+ * Le compteur « Séances » : les séances-types dont un bloc vient de la structure, parmi celles que
+ * le Coach peut lire. Les séances planifiées n'y comptent pas.
+ */
+const sessionCountSchema = z.number().int().nonnegative();
+
+export const structureDtoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  tags: z.array(z.string()),
+  note: z.string().nullable(),
+  instructions: z.string().nullable(),
+  settings: structureSettingsSchema,
+  sessionCount: sessionCountSchema,
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+export type StructureDto = z.infer<typeof structureDtoSchema>;
+
+/** Bibliothèque › Structures : les structures prêtes, dans leur ordre, puis celles du Coach. */
+export const structureLibraryDtoSchema = z.object({
+  presets: z.array(z.object({ key: structurePresetKeySchema, sessionCount: sessionCountSchema })),
+  structures: z.array(structureDtoSchema),
+});
+export type StructureLibraryDto = z.infer<typeof structureLibraryDtoSchema>;
