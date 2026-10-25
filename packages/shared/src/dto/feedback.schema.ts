@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { sessionBlockTrackingInputSchema } from "./block-tracking.schema";
 import {
   exerciseTrackingInputSchema,
   TrackingState,
@@ -15,6 +16,7 @@ import {
 } from "./media.schema";
 import { messageDtoSchema } from "./message.schema";
 import { SESSION_MAX_EXERCISES } from "./session.schema";
+import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -101,6 +103,19 @@ export const feedbackTrackingSchema = z
   });
 export type FeedbackTracking = z.infer<typeof feedbackTrackingSchema>;
 
+/**
+ * Le suivi d'une séance composée par blocs (#716), bloc par bloc et rangé sous l'identifiant du
+ * bloc. Même convention que `feedbackTrackingSchema` : une entrée absente laisse le bloc tel quel,
+ * une entrée à `null` le remet à « non suivi ». Le serveur refuse un bloc que la séance n'a pas, et
+ * une case que les réglages du bloc ne donnent pas (`trackingFitsBlock`).
+ */
+export const feedbackBlockTrackingSchema = z
+  .record(z.string(), sessionBlockTrackingInputSchema.nullable())
+  .refine((tracking) => Object.keys(tracking).length <= SESSION_MAX_BLOCKS, {
+    message: `Le suivi ne peut pas citer plus de ${SESSION_MAX_BLOCKS} blocs.`,
+  });
+export type FeedbackBlockTracking = z.infer<typeof feedbackBlockTrackingSchema>;
+
 export const upsertSessionFeedbackSchema = z
   .object({
     content: z.string().max(FEEDBACK_CONTENT_MAX_LENGTH).nullable().optional(),
@@ -109,6 +124,7 @@ export const upsertSessionFeedbackSchema = z
      * un débrief sans texte ni média ni coche reste un débrief valable.
      */
     tracking: feedbackTrackingSchema.optional(),
+    blockTracking: feedbackBlockTrackingSchema.optional(),
   })
   .strict();
 export type UpsertSessionFeedbackInput = z.infer<typeof upsertSessionFeedbackSchema>;

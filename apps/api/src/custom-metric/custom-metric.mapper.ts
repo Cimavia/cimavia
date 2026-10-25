@@ -1,4 +1,5 @@
 import {
+  type BlockGrid,
   type CustomMetric,
   customMetricIdsIn,
   type ExerciseBlocks,
@@ -37,9 +38,24 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
  * métrique maison.
  */
 export function citedCustomMetrics(
-  blocks: ExerciseBlocks,
+  blocks: ExerciseBlocks | readonly BlockGrid[],
   catalog: CustomMetricCatalog,
 ): CustomMetric[] {
   const wanted = new Set(customMetricIdsIn(blocks));
   return catalog.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
+}
+
+/**
+ * Le catalogue que cite la grille d'un exercice de bloc (#716) : celui du propriétaire de
+ * l'exercice, dont les métriques suggérées préremplissent les colonnes, et celui du propriétaire de
+ * la séance, qui en ajoute. Une fois chacun, quand c'est le même Coach.
+ */
+export function gridCatalogOf(
+  catalogOf: CatalogOf,
+  exerciseOwnerId: string,
+  sessionOwnerId: string,
+): CustomMetricCatalog {
+  return exerciseOwnerId === sessionOwnerId
+    ? catalogOf(exerciseOwnerId)
+    : [...catalogOf(exerciseOwnerId), ...catalogOf(sessionOwnerId)];
 }

@@ -22,10 +22,12 @@ const TABLES = [
   "scheduled_session_exercise_document",
   "scheduled_session_exercise_tag",
   "scheduled_session_exercise",
+  "scheduled_session_block",
   "scheduled_session",
   "plan_week",
   "plan",
   "session_exercise",
+  "session_block",
   "exercise_document",
   "exercise_tag",
   "sessions",
@@ -40,6 +42,7 @@ const TABLES = [
   "organization_athlete",
   "organization_coach",
   "organization",
+  "structure",
   "user",
 ];
 

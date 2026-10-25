@@ -636,6 +636,10 @@ liste des domaines vivent dans l'index.
 
 ## Post-MVP — La séance par blocs ([#714](https://github.com/Cimavia/cimavia/issues/714))
 
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
 > `docs/maquettes/composants/structure_model.js` passent dans `@cmv/shared`, typées) : structure,
 > bloc de séance et leurs règles pures, sans écran ni API. Ce qui suit a été tranché en route.
@@ -705,3 +709,64 @@ liste des domaines vivent dans l'index.
 > - **Les réponses des réglages vivent dans un module à part** (`structure-answer.schema`) : le
 >   schéma de structure lit les règles des réglages, qui lisent ces réponses — réunis, les deux
 >   modules s'importaient l'un l'autre.
+>
+> **Tranché en [#716](https://github.com/Cimavia/cimavia/issues/716)** (tables, routes et reprise
+> des données ; aucun écran). Ce qui suit a été tranché en route.
+>
+> - **Pas de colonne `adjustments` sur les blocs** : une valeur ajustée se lit par comparaison à la
+>   référence (`plannedChanges`), comme #715 l'a posé. Les deux tables de blocs portent en plus
+>   `sourcePreset` et `copiedSettings`, que l'issue ne citait pas.
+> - **Le client ne choisit aucune clé primaire** : un bloc envoyé naît sous un identifiant neuf,
+>   le sien ne sert qu'à distinguer les blocs dans l'envoi. Les exercices gardent leur `key`,
+>   la seule identité que la séance planifiée recopie.
+> - **Ce qu'une séance cite déjà ne se revérifie pas** : un exercice repris sous la même clé, une
+>   structure déjà citée, une colonne maison orpheline déjà présente (EX-2). Sans quoi le
+>   rédacteur d'une séance ouverte (#605) ne pourrait plus l'enregistrer : il ne lit pas les
+>   structures de son propriétaire, ni l'exercice dont le droit a disparu depuis. Le neuf passe le
+>   contrôle d'accès et le type de chaque cellule (`gridValueIssues`), contre les métriques du
+>   propriétaire de l'exercice et de la séance.
+> - **Une origine que l'acteur ne lit pas s'écrit nulle, sans 400** (`withReadableOrigins`).
+>   Supprimer une structure retire l'origine des blocs (`SetNull`) sans avancer la version de
+>   leurs séances : un builder ouvert avant la renvoie, et un refus ne lui laisserait aucune issue.
+>   L'origine n'est qu'une trace — le bloc garde sa copie des réglages —, et l'écrire nulle rend
+>   l'état que la base aurait de toute façon, sans rien dire d'une structure qu'on ne lit pas.
+> - **Le compteur « Séances » d'une structure** compte les séances-types, scopées au Coach — celles
+>   d'un autre Coach où il a employé sa structure comprises —, une séance une fois quels que soient
+>   ses blocs. Les séances planifiées n'y comptent pas.
+> - **Le suivi par bloc remonte avec le débrief** (`blockTracking`), indexé par identifiant de bloc
+>   planifié : un bloc que l'envoi ne cite pas garde son suivi, `null` le remet à NON SUIVI. Une
+>   case absente du bloc est refusée (`trackingFitsBlock`).
+> - **Le verrou du niveau planifié est livré pur** (`plannedLockIssues`) : aucune route de #716
+>   n'écrit un bloc planifié, #720 et #721 le brancheront. Verrouillés : le nombre de blocs, leur
+>   nom, les réponses des réglages (`settingsShape`, pas leurs nombres), l'ordre RELATIF des
+>   exercices reçus et leurs colonnes. Un ajout ou un remplaçant se glisse où il veut, avec ses
+>   colonnes. Le texte de l'issue (« l'ordre des exercices ») se lit comme le réglage `order` plus
+>   cet ordre relatif.
+> - **Un exercice nouveau prend une clé que la séance-type n'a pas** (`takenKeys`), contre les clés
+>   de la référence ET de la séance-type courante : c'est le point que #715 renvoyait à l'API des
+>   blocs, branché avec le verrou.
+> - **La reprise est une migration à part, d'écritures seules, rejouable** : seules les lignes
+>   sans bloc sont reprises, et l'ancien modèle reste intact jusqu'à #723 (BL-1). Un e2e la rejoue
+>   deux fois sur des lignes de l'ancien modèle. Ses règles :
+>   - Séries et Circuit deviennent « Séries », EMOM un bip, AMRAP « autant que possible », Libre
+>     « une seule fois » ;
+>   - un Circuit, un Libre ou un AMRAP à plusieurs lignes donne **une entrée par étape** : le bloc
+>     porte autant de fois l'exercice, une ligne chacun. La note ne va qu'à la première ; une ligne
+>     planifiée ajoutée recopie tags et documents (même clé objet), et sa consigne cite les copies ;
+>   - un exercice **sans ancien bloc** devient un bloc « Libre » à grille vide, plutôt que de
+>     disparaître de la séance ;
+>   - côté planifié, tout exercice repris est **reçu** : l'ancienne donnée ne dit pas ce qui a été
+>     ajouté, et le déduire contredirait l'origine portée par la donnée ;
+>   - ce qui ne tient plus est ramené dans les bornes : `collapsed` retiré, un repos de 0 s devient
+>     `null`, une durée tient entre 1 s et 3 h, des tours entre 1 et 99, une grille de Séries ou
+>     d'EMOM n'a pas plus de lignes que de tours, une valeur vide ou sans colonne se perd ;
+>   - l'objectif de tours d'un AMRAP, sans champ dans le nouveau modèle, passe dans la consigne
+>     du bloc (« Objectif : 5 tours ») ;
+>   - le suivi se réindexe sur les cases du nouveau bloc : une série, un bip, un tour par exercice,
+>     une étape par entrée, et « Bloc fait » pour un AMRAP qui comptait au moins un tour ;
+>   - les métriques suggérées d'un exercice sont l'union ordonnée des colonnes de ses anciens
+>     blocs, sans doublon, 12 au plus.
+>
+>   Une entrée par étape peut faire dépasser 20 exercices à un bloc, ou 50 à une séance
+>   (`SESSION_MAX_EXERCISES`) : ils se lisent, mais ne s'enregistrent plus sans être réduits. La
+>   requête de contrôle « après » compte les deux sur la preview.

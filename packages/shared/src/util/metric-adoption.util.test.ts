@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { custom, gridOf, reps } from "../../test/block-fixtures";
 import { type ExerciseBlocks, MetricSource } from "../dto/exercise-block.schema";
 import {
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
@@ -142,5 +143,14 @@ describe("remapCustomMetrics", () => {
     ]);
     // Les valeurs suivent l'identifiant de COLONNE, qui ne bouge pas.
     expect(block?.rows).toEqual([{ id: "r1", values: { k1: 3 } }]);
+  });
+});
+
+describe("remapCustomMetrics sur une grille (#716)", () => {
+  it("réécrit la colonne du Coach et garde ses valeurs, sous le même identifiant de colonne", () => {
+    const grid = gridOf([reps, custom], [6, 3]);
+    const [remapped] = remapCustomMetrics([grid], new Map([["metric_1", "metric_m"]]));
+    expect(remapped?.metrics).toEqual([reps, { ...custom, customMetricId: "metric_m" }]);
+    expect(remapped?.rows).toEqual(grid.rows);
   });
 });

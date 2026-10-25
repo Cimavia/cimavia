@@ -2,26 +2,32 @@ import {
   AdjustmentLevel,
   type ChangeAccessInput,
   type CreateSessionInput,
+  customMetricIdsIn,
   type ElementAccessDto,
   type ExerciseBlocks,
+  gridValueIssues,
   type LibraryScope,
+  MetricSource,
   type ReloadSessionExerciseInput,
   required,
+  type SessionBlock,
   type SessionDto,
   type SessionExerciseInput,
   type UpdateSessionInput,
   type VersionQuery,
 } from "@cmv/shared";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { ACCESS_INCLUDE, type AccessContext, libraryScopeWhere } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
 import { AccessGrantService } from "../../access/service/access-grant.service";
+import { gridCatalogOf, toCustomMetricDto } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { parseGrid } from "../../util/block-json.util";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
@@ -31,6 +37,7 @@ import {
   type SessionWithExercises,
   toSessionDto,
 } from "../session.mapper";
+import { insertSessionBlocks } from "../session-block.writer";
 
 const SESSION_NOT_FOUND = "Séance introuvable";
 
@@ -45,7 +52,16 @@ export class SessionService {
   ) {}
 
   async create(input: CreateSessionInput): Promise<SessionDto> {
-    const library = await this.loadCited(input.exercises, null);
+    const composition =
+      input.blocks === undefined
+        ? await this.listedComposition(input.exercises, null)
+        : {
+            blocks: await this.writableBlocksOrThrow(
+              input.blocks,
+              null,
+              (await this.access.context()).actorId,
+            ),
+          };
     const session = await this.db.$transaction(async (tx) => {
       const created = await tx.session.create({
         // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
@@ -54,7 +70,12 @@ export class SessionService {
           "coachId"
         > as Prisma.SessionUncheckedCreateInput,
       });
-      await this.replaceExercises(tx, created.id, input.exercises, [], library);
+      if ("blocks" in composition) {
+        await insertSessionBlocks(tx, created.id, composition.blocks);
+      } else {
+        const { exercises, library } = composition;
+        await this.replaceExercises(tx, created.id, exercises, [], library);
+      }
       return created;
     });
     return this.getDto(session.id);
@@ -84,7 +105,13 @@ export class SessionService {
     // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
     // Un exercice que la séance cite déjà reste citable, même privé : le droit vient d'elle.
-    const library = await this.loadCited(input.exercises, current);
+    const composition =
+      input.blocks === undefined
+        ? await this.listedComposition(
+            required(input.exercises, "[session] l'une des compositions"),
+            current,
+          )
+        : { blocks: await this.writableBlocksOrThrow(input.blocks, current, current.coachId) };
     const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
@@ -100,8 +127,15 @@ export class SessionService {
         where: { sessionId: id },
         select: { id: true, baseline: true },
       });
+      // Les deux modèles s'effacent ensemble (#716) : une séance n'en porte qu'un à la fois.
       await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
-      await this.replaceExercises(tx, id, input.exercises, previous, library);
+      await tx.sessionBlock.deleteMany({ where: { sessionId: id } });
+      if ("blocks" in composition) {
+        await insertSessionBlocks(tx, id, composition.blocks);
+      } else {
+        const { exercises, library } = composition;
+        await this.replaceExercises(tx, id, exercises, previous, library);
+      }
       // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
       // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
@@ -185,6 +219,108 @@ export class SessionService {
       context ?? this.access.context(),
     ]);
     return sessions.map((session) => toSessionDto(session, catalogOf, actor));
+  }
+
+  /**
+   * La composition par blocs à écrire (#716), ce qu'elle cite prouvé utilisable — ou 400 :
+   *
+   * - chaque exercice, accessible comme dans l'ancien modèle (#353). Celui qu'une ligne de la séance
+   *   cite déjà sous la même clé n'est pas revérifié (tranché en #605) ;
+   * - chaque cellule, dans le type de sa colonne : le schéma partagé ne connaît pas les métriques
+   *   du Coach, qui vivent en base.
+   *
+   * Les origines, elles, ne se refusent pas : `withReadableOrigins`.
+   */
+  private async writableBlocksOrThrow(
+    blocks: readonly SessionBlock[],
+    session: SessionWithExercises | null,
+    sessionOwnerId: string,
+  ): Promise<SessionBlock[]> {
+    const exercises = blocks.flatMap((block) => block.exercises);
+    const citedByKey = new Map(session?.exercises.map((row) => [row.key, row.exercise]));
+    const library = await this.library.loadAccessibleOrThrow(
+      exercises
+        .filter((exercise) => citedByKey.get(exercise.key)?.id !== exercise.exerciseId)
+        .map((exercise) => exercise.exerciseId),
+      session?.id ?? null,
+    );
+
+    const ownerOf = (exerciseId: string): string =>
+      required(
+        library.get(exerciseId) ??
+          session?.exercises.find((row) => row.exerciseId === exerciseId)?.exercise,
+        `[session] exercice ${exerciseId} ni chargé ni cité`,
+      ).coachId;
+    const catalogOf = await this.metrics.catalogOf([
+      sessionOwnerId,
+      ...exercises.map((exercise) => ownerOf(exercise.exerciseId)),
+    ]);
+    // Une colonne déjà enregistrée garde sa métrique même supprimée depuis (dette EX-2) : la
+    // refuser bloquerait tout enregistrement de la séance qui la porte.
+    const alreadyCited = new Set(
+      customMetricIdsIn(
+        session?.exercises.flatMap((row) => (row.grid === null ? [] : [parseGrid(row.grid)])) ?? [],
+      ),
+    );
+    for (const exercise of exercises) {
+      const catalog = gridCatalogOf(catalogOf, ownerOf(exercise.exerciseId), sessionOwnerId).map(
+        toCustomMetricDto,
+      );
+      const known = new Set(catalog.map((metric) => metric.id));
+      const metrics = exercise.grid.metrics.filter(
+        (metric) =>
+          metric.source !== MetricSource.CUSTOM ||
+          known.has(metric.customMetricId) ||
+          !alreadyCited.has(metric.customMetricId),
+      );
+      const [issue] = gridValueIssues({ ...exercise.grid, metrics }, catalog);
+      if (issue !== undefined) {
+        throw new BadRequestException(`Grille de l'exercice ${exercise.key} : ${issue.message}`);
+      }
+    }
+    return this.withReadableOrigins(blocks, session);
+  }
+
+  /**
+   * Les blocs, sans l'origine d'une structure que l'acteur ne lit pas.
+   *
+   * L'origine n'est qu'une trace : la séance garde sa copie des réglages, et la base la retire déjà
+   * d'elle-même quand la structure est supprimée (`SetNull`). Cette suppression n'avance pas la
+   * version de la séance : un builder ouvert avant renvoie l'origine disparue, et un 400 ne lui
+   * laisserait aucune issue — recharger ne lui dirait pas pourquoi. L'écrire nulle rend l'état que
+   * la base aurait de toute façon, sans rien dire d'une structure qu'on ne lit pas.
+   *
+   * Une structure que les blocs de la séance citent déjà reste citée sans être relue : le rédacteur
+   * d'une séance ouverte (#605) ne lit pas les structures de son propriétaire.
+   */
+  private async withReadableOrigins(
+    blocks: readonly SessionBlock[],
+    session: SessionWithExercises | null,
+  ): Promise<SessionBlock[]> {
+    const cited = new Set(session?.blocks.map((block) => block.sourceStructureId));
+    const wanted = blocks.flatMap((block) =>
+      block.sourceStructureId == null || cited.has(block.sourceStructureId)
+        ? []
+        : [block.sourceStructureId],
+    );
+    const readable =
+      wanted.length === 0
+        ? []
+        : await this.db.structure.findMany({ where: { id: { in: wanted } }, select: { id: true } });
+    const kept = new Set([...cited, ...readable.map((structure) => structure.id)]);
+    return blocks.map((block) =>
+      block.sourceStructureId == null || kept.has(block.sourceStructureId)
+        ? block
+        : { ...block, sourceStructureId: null },
+    );
+  }
+
+  /** Une composition par exercices, avec ce qu'elle cite de la bibliothèque. */
+  private async listedComposition(
+    exercises: SessionExerciseInput[],
+    session: SessionWithExercises | null,
+  ) {
+    return { exercises, library: await this.loadCited(exercises, session) };
   }
 
   /**

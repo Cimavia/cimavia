@@ -10,6 +10,7 @@ import type {
 } from "@cmv/shared";
 import {
   AdjustmentLevel,
+  CompositionOrigin,
   isDateInPlanWeek,
   PLAN_MAX_WEEKS,
   PlanStatus,
@@ -26,14 +27,16 @@ import {
 } from "@nestjs/common";
 import type { ExerciseDocument, Plan, PlanWeek, Prisma } from "@prisma/client";
 import { AccessService } from "../../access/service/access.service";
-import { citedCustomMetrics } from "../../custom-metric/custom-metric.mapper";
+import { citedCustomMetrics, gridCatalogOf } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
+import { receivedBlockOf, SESSION_BLOCKS_INCLUDE } from "../../session/session-block.mapper";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { parseGrid } from "../../util/block-json.util";
 import { toDbDate, toIsoDate } from "../../util/date.util";
 import { assertShapeLocked } from "../../util/dosage-lock.util";
 import {
@@ -58,8 +61,10 @@ import {
 import { compactDay, type PositionedSession, writeDay } from "../scheduled-session.position";
 import { type ExerciseRows, planExerciseRows } from "../scheduled-session.rows";
 import {
+  type BlockPlacementDraft,
   insertScheduledSessionExercises,
   rewriteScheduledSessionExercises,
+  type ScheduledBlockDraft,
 } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
@@ -68,6 +73,8 @@ type SessionDraft = {
   title: string;
   notes: string | null;
   exercises: DraftExercise[];
+  /** Les blocs reçus de la séance-type (#716) ; `[]` pour une composition de l'ancien modèle. */
+  blocks: ScheduledBlockDraft[];
 };
 
 /**
@@ -75,7 +82,11 @@ type SessionDraft = {
  * qu'elle a diffusés, qui deviennent la référence des marqueurs ; composé par le client, aucun —
  * il n'a rien reçu de personne, sa référence est lui-même.
  */
-type DraftExercise = { exercise: ScheduledSessionExerciseInput; baselineAdjustments: Adjustments };
+type DraftExercise = {
+  exercise: ScheduledSessionExerciseInput;
+  baselineAdjustments: Adjustments;
+  placement?: BlockPlacementDraft;
+};
 
 const composedByClient = (exercises: ScheduledSessionExerciseInput[]): DraftExercise[] =>
   exercises.map((exercise) => ({ exercise, baselineAdjustments: [] }));
@@ -519,13 +530,14 @@ export class ScheduledSessionService {
         title: required(input.title, "[plan] séance ad hoc sans titre malgré le schéma"),
         notes: input.notes ?? null,
         exercises: composedByClient(input.exercises ?? []),
+        blocks: [],
       };
       return { draft, library: new Map() };
     }
 
     const template = await this.db.session.findFirst({
       where: { id: input.sourceSessionId },
-      include: { exercises: { orderBy: { position: "asc" } } },
+      include: { exercises: { orderBy: { position: "asc" } }, blocks: SESSION_BLOCKS_INCLUDE },
     });
     if (template == null) {
       throw new BadRequestException("Séance modèle inconnue");
@@ -538,7 +550,7 @@ export class ScheduledSessionService {
     // pour un exercice que la saisie a justement retiré. Les siens se prouvent dans `loadSources`.
     if (input.exercises != null) {
       return {
-        draft: { ...heading, exercises: composedByClient(input.exercises) },
+        draft: { ...heading, exercises: composedByClient(input.exercises), blocks: [] },
         library: new Map(),
       };
     }
@@ -551,9 +563,12 @@ export class ScheduledSessionService {
     );
     // Chargés UNE fois pour toute la séance, chez le propriétaire de chaque exercice (piège n°9) :
     // le modèle peut composer l'exercice d'un autre Coach, qui cite son catalogue.
-    const catalogOf = await this.metrics.catalogOf(
-      [...library.values()].map((exercise) => exercise.coachId),
-    );
+    // Et celui du propriétaire du modèle, que citent aussi les grilles de ses blocs (#716).
+    const catalogOf = await this.metrics.catalogOf([
+      template.coachId,
+      ...[...library.values()].map((exercise) => exercise.coachId),
+    ]);
+    const blockIndex = new Map(template.blocks.map((block, index) => [block.id, index]));
     const copied = template.exercises.map((composed): DraftExercise => {
       const exercise = required(
         library.get(composed.exerciseId),
@@ -574,18 +589,30 @@ export class ScheduledSessionService {
         adjustments,
         // Les définitions des métriques maison partent AVEC la copie : sans elles l'athlète ne
         // verrait qu'un identifiant, et renommer la métrique dégraderait une planif diffusée.
-        customMetrics: citedCustomMetrics(
-          parseBlocks(composed.blocks),
-          catalogOf(exercise.coachId),
-        ),
+        customMetrics:
+          composed.grid === null
+            ? citedCustomMetrics(parseBlocks(composed.blocks), catalogOf(exercise.coachId))
+            : citedCustomMetrics(
+                [parseGrid(composed.grid)],
+                gridCatalogOf(catalogOf, exercise.coachId, template.coachId),
+              ),
         tags: exercise.tags.map((tag) => tag.name).sort(),
         note: composed.note,
       };
-      return { exercise: copy, baselineAdjustments: adjustments };
+      return {
+        exercise: copy,
+        baselineAdjustments: adjustments,
+        ...(composed.blockId === null
+          ? {}
+          : { placement: receivedPlacementOf(composed, blockIndex) }),
+      };
     });
 
     // Rendus avec le brouillon : `create` y prend les documents sans relire la bibliothèque.
-    return { draft: { ...heading, exercises: copied }, library };
+    return {
+      draft: { ...heading, exercises: copied, blocks: template.blocks.map(receivedBlockOf) },
+      library,
+    };
   }
 
   /**
@@ -675,13 +702,41 @@ export class ScheduledSessionService {
     draft: SessionDraft,
     documentsBySource: DocumentsBySource,
   ): Promise<void> {
-    const drafts = draft.exercises.map(({ exercise, baselineAdjustments }) => ({
+    const drafts = draft.exercises.map(({ exercise, ...received }) => ({
       exercise,
-      baselineAdjustments,
+      ...received,
       documents: libraryDocumentsOf(exercise, documentsBySource),
     }));
-    return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts);
+    return insertScheduledSessionExercises(tx, scheduledSessionId, athleteId, drafts, draft.blocks);
   }
+}
+
+/**
+ * La place qu'un exercice de bloc de la séance-type prend dans la séance planifiée : la même, et
+ * REÇU (#716). Les colonnes de bloc sont non nulles ensemble (CHECK de la migration).
+ */
+function receivedPlacementOf(
+  composed: {
+    id: string;
+    blockId: string | null;
+    blockPosition: number | null;
+    key: string | null;
+    grid: Prisma.JsonValue;
+  },
+  blockIndex: ReadonlyMap<string, number>,
+): BlockPlacementDraft {
+  const missing = `[plan] l'exercice de bloc ${composed.id} sans`;
+  return {
+    block: required(
+      blockIndex.get(required(composed.blockId, `${missing} bloc`)),
+      `${missing} bloc lu`,
+    ),
+    blockPosition: required(composed.blockPosition, `${missing} rang`),
+    key: required(composed.key, `${missing} clé`),
+    grid: parseGrid(required(composed.grid, `${missing} grille`)),
+    origin: CompositionOrigin.RECEIVED,
+    replacesKey: null,
+  };
 }
 
 /**

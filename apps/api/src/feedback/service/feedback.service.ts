@@ -1,10 +1,17 @@
 import type {
+  FeedbackBlockTracking,
   FeedbackTracking,
   MessageDto,
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
 } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, required, ScheduledSessionStatus } from "@cmv/shared";
+import {
+  blockChecks,
+  FEEDBACK_EVENT_MESSAGE_TYPES,
+  required,
+  ScheduledSessionStatus,
+  trackingFitsBlock,
+} from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -12,9 +19,10 @@ import { toMessageDto } from "../../message/message.mapper";
 import { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
-import { AthletePlanService } from "../../plan/service/athlete-plan.service";
+import { AthletePlanService, type PublishedSession } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { parseSettings, toJsonInput } from "../../util/block-json.util";
 import {
   FEEDBACK_DETAIL_INCLUDE,
   toSessionFeedbackDto,
@@ -66,17 +74,19 @@ export class FeedbackService {
     scheduledSessionId: string,
     input: UpsertSessionFeedbackInput,
   ): Promise<SessionFeedbackDto> {
-    if (input.tracking !== undefined) {
-      await this.assertTrackedExercisesKnown(scheduledSessionId, input.tracking);
-    }
-    const writable = await this.getOrCreateWritable(scheduledSessionId);
+    const tracking = input.tracking ?? {};
+    const blockTracking = input.blockTracking ?? {};
+    // La garde de séance passe en premier, et une seule fois : la séance d'un autre reste un 404,
+    // pas un 400 de suivi qui dirait qu'elle existe.
+    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    await this.assertTrackedExercisesKnown(scheduledSessionId, tracking);
+    await this.assertTrackedBlocksFit(scheduledSessionId, blockTracking);
+    const writable = await this.writableOf(session);
     await this.db.sessionFeedback.update({
       where: { id: writable.feedback.id },
       data: { content: input.content ?? null },
     });
-    if (input.tracking !== undefined) {
-      await this.writeTracking(scheduledSessionId, input.tracking);
-    }
+    await this.writeTracking(scheduledSessionId, tracking, blockTracking);
     // Enregistrer le texte est toujours un geste à lui seul : jamais la suite d'un lot.
     await this.markSent(writable, false);
     // Écrit juste au-dessus : le relire ne peut pas manquer.
@@ -95,8 +105,8 @@ export class FeedbackService {
    *
    * Contrôlé AVANT toute écriture, texte compris : le débrief n'est pas écrit dans une seule
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
-   * créerait un, séance passée en DONE, pour une requête refusée. La garde de séance passe en
-   * premier : la séance d'un autre reste un 404, pas un 400 qui dirait qu'elle existe.
+   * créerait un, séance passée en DONE, pour une requête refusée. L'appelant a déjà passé la garde
+   * de séance.
    */
   private async assertTrackedExercisesKnown(
     scheduledSessionId: string,
@@ -105,7 +115,6 @@ export class FeedbackService {
     const cited = Object.keys(tracking);
     if (cited.length === 0) return;
 
-    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
     const known = await this.db.scheduledSessionExercise.findMany({
       where: { scheduledSessionId, id: { in: cited } },
       select: { id: true },
@@ -117,6 +126,49 @@ export class FeedbackService {
     throw new BadRequestException(
       `Le suivi cite un exercice absent de cette séance : ${unknown.join(", ")}`,
     );
+  }
+
+  /**
+   * Refuse un suivi par bloc (#716) qui cite un bloc que la séance ne porte pas, ou une case que
+   * ses réglages ne donnent pas — même raison que `assertTrackedExercisesKnown` : un refus laisse
+   * les coches sur l'appareil, un 200 les perdrait. Les cases se lisent avec les exercices du bloc
+   * tel qu'il est : une coche sur un exercice retiré depuis n'a plus de case.
+   */
+  private async assertTrackedBlocksFit(
+    scheduledSessionId: string,
+    tracking: FeedbackBlockTracking,
+  ): Promise<void> {
+    const cited = Object.keys(tracking);
+    if (cited.length === 0) return;
+
+    const known = await this.db.scheduledSessionBlock.findMany({
+      where: { scheduledSessionId, id: { in: cited } },
+      select: {
+        id: true,
+        settings: true,
+        exercises: { select: { key: true }, orderBy: { blockPosition: "asc" } },
+      },
+    });
+    const byId = new Map(known.map((block) => [block.id, block]));
+    const unknown = cited.filter((id) => !byId.has(id));
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        `Le suivi cite un bloc absent de cette séance : ${unknown.join(", ")}`,
+      );
+    }
+    const misfit = known.filter((block) => {
+      const state = tracking[block.id];
+      if (state == null) return false;
+      const keys = block.exercises.map((row) =>
+        required(row.key, `[feedback] ligne de bloc sans clé`),
+      );
+      return !trackingFitsBlock(blockChecks(parseSettings(block.settings), keys), state);
+    });
+    if (misfit.length > 0) {
+      throw new BadRequestException(
+        `Le suivi coche une case que le bloc n'a pas : ${misfit.map((block) => block.id).join(", ")}`,
+      );
+    }
   }
 
   /**
@@ -136,12 +188,21 @@ export class FeedbackService {
   private async writeTracking(
     scheduledSessionId: string,
     tracking: FeedbackTracking,
+    blockTracking: FeedbackBlockTracking,
   ): Promise<void> {
+    if (Object.keys(tracking).length === 0 && Object.keys(blockTracking).length === 0) return;
     await this.db.$transaction(async (tx: TenantTx) => {
       for (const [exerciseId, state] of Object.entries(tracking)) {
         await tx.scheduledSessionExercise.updateMany({
           where: { id: exerciseId, scheduledSessionId },
           data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
+        });
+      }
+      // Les blocs de même (#716), dans la même transaction : la séance s'écrit d'un bloc.
+      for (const [blockId, state] of Object.entries(blockTracking)) {
+        await tx.scheduledSessionBlock.updateMany({
+          where: { id: blockId, scheduledSessionId },
+          data: { tracking: state == null ? Prisma.DbNull : toJsonInput(state) },
         });
       }
     });
@@ -162,7 +223,12 @@ export class FeedbackService {
    * tenant (son `where` unique créerait un angle mort de scope).
    */
   async getOrCreateWritable(scheduledSessionId: string): Promise<WritableFeedback> {
-    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    return this.writableOf(await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId));
+  }
+
+  /** `getOrCreateWritable` pour une séance dont la garde est déjà passée. */
+  private async writableOf(session: PublishedSession): Promise<WritableFeedback> {
+    const scheduledSessionId = session.id;
     const existing = await this.db.sessionFeedback.findFirst({ where: { scheduledSessionId } });
     if (existing != null) {
       return { feedback: existing, sessionTitle: session.title, created: false };

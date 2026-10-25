@@ -1,3 +1,4 @@
+import type { BlockGrid } from "../dto/block-grid.schema";
 import { type ExerciseBlocks, MetricSource } from "../dto/exercise-block.schema";
 import {
   type CreateCustomMetricInput,
@@ -78,13 +79,14 @@ function sameNature(a: CustomMetric, b: CustomMetric): boolean {
 }
 
 /**
- * Les blocs, citant le catalogue du destinataire. Une citation absente de `ids` reste telle
- * quelle : une métrique supprimée depuis ne se recopie pas (#605), et la ligne la rend « — ».
+ * Les blocs — ou les grilles de blocs de séance (#716) —, citant le catalogue du destinataire. Une
+ * citation absente de `ids` reste telle quelle : une métrique supprimée depuis ne se recopie pas
+ * (#605), et la ligne la rend « — ».
  */
-export function remapCustomMetrics(
-  blocks: ExerciseBlocks,
+export function remapCustomMetrics<T extends ExerciseBlocks[number] | BlockGrid>(
+  blocks: readonly T[],
   ids: ReadonlyMap<string, string>,
-): ExerciseBlocks {
+): T[] {
   return blocks.map((block) => ({
     ...block,
     metrics: block.metrics.map((metric) =>

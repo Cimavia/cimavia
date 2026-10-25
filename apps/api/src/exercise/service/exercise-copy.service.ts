@@ -1,5 +1,6 @@
 import {
   adoptMetrics,
+  type BlockGrid,
   comparableText,
   customMetricIdsIn,
   type ExerciseBlocks,
@@ -14,6 +15,7 @@ import {
 } from "../../custom-metric/custom-metric.mapper";
 import type { TenantTx } from "../../tenancy/tenancy.extension";
 import { currentActor, runAsCoach } from "../../tenancy/tenant-context.type";
+import { parseGrid, toJsonInput } from "../../util/block-json.util";
 import {
   parseBlocks,
   parseInstructions,
@@ -155,20 +157,22 @@ export class ExerciseCopyService {
     await runAsCoach(this.cls, coachId, async () => {
       const rows = await tx.sessionExercise.findMany({
         where: { exerciseId: source.id, coachId },
-        select: { id: true, sessionId: true, blocks: true, baseline: true },
+        select: { id: true, sessionId: true, blocks: true, baseline: true, grid: true },
       });
       if (rows.length === 0) return;
       const lines = rows.map((row) => ({
         ...row,
         blocks: parseBlocks(row.blocks),
         baseline: parseBlocks(row.baseline),
+        // La grille d'une ligne de bloc (#716) : `[]` pour une ligne de l'ancien modèle.
+        grid: row.grid === null ? [] : [parseGrid(row.grid)],
       }));
       const blocks = parseBlocks(source.blocks);
       // Adoptées une fois pour la copie ET ses lignes : une ligne peut citer une métrique que
       // l'exercice ne cite plus.
       const metricIds = await this.adopt(tx, source, [
         blocks,
-        ...lines.flatMap((line) => [line.blocks, line.baseline]),
+        ...lines.flatMap((line) => [line.blocks, line.baseline, line.grid]),
       ]);
       const copyId = await this.write(
         tx,
@@ -191,6 +195,7 @@ export class ExerciseCopyService {
             exerciseId: copyId,
             blocks: toBlocksInput(remapCustomMetrics(line.blocks, metricIds)),
             baseline: toBlocksInput(remapCustomMetrics(line.baseline, metricIds)),
+            ...gridColumn(remapCustomMetrics(line.grid, metricIds)),
           },
         });
       }
@@ -212,7 +217,7 @@ export class ExerciseCopyService {
   private async adopt(
     tx: TenantTx,
     source: CopySource,
-    blocks: readonly ExerciseBlocks[],
+    blocks: readonly (ExerciseBlocks | readonly BlockGrid[])[],
   ): Promise<ReadonlyMap<string, string>> {
     const cited = new Set(blocks.flatMap(customMetricIdsIn));
     if (cited.size === 0 || source.coachId === currentActor(this.cls).userId) return new Map();
@@ -235,4 +240,9 @@ export class ExerciseCopyService {
     }
     return ids;
   }
+}
+
+/** La grille remappée d'une ligne de bloc ; rien pour une ligne de l'ancien modèle, sans grille. */
+function gridColumn([grid]: readonly BlockGrid[]): { grid?: Prisma.InputJsonValue } {
+  return grid === undefined ? {} : { grid: toJsonInput(grid) };
 }

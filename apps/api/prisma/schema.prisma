@@ -60,6 +60,7 @@ model User {
   coachSessions Session[]      @relation("CoachSessions") // séances (modèles) du coach
   customMetrics CustomMetric[] @relation("CoachMetrics") // métriques et échelles maison
   frozenCopies  Exercise[]     @relation("FrozenExerciseCopies") // copies figées de ses exercices (#609)
+  structures    Structure[]    @relation("CoachStructures") // structures de bloc maison (#716)
 
   // Droits d'accès (#605) : ceux qu'il accorde sur ses éléments, et ceux qui le visent (#608).
   ownedAccessGrants    AccessGrant[] @relation("OwnedAccessGrants")
@@ -347,11 +348,15 @@ model Exercise {
   /// Consigne structurée (`RichDocument` de @cmv/shared) qui remplace `description`. Les deux
   /// cohabitent le temps que le constructeur web bascule (#163) : phase *expand* de
   /// expand/migrate/contract. `description` tombe au *contract*.
-  instructions Json?
+  instructions     Json?
   /// Blocs de structure ordonnés (`ExerciseBlocks` de @cmv/shared) : l'ordre du tableau EST
   /// l'ordre d'affichage. Stocké en JSON et non en tables — aucune requête n'interroge une
   /// cellule, et le snapshot de planification se réduit à la copie du blob.
-  blocks       Json  @default("[]")
+  blocks           Json  @default("[]")
+  /// Les métriques que l'exercice SUGGÈRE, sans valeur (`SuggestedMetric[]` de @cmv/shared) :
+  /// elles préremplissent les colonnes quand on l'ajoute à un bloc de séance (#714). Remplace
+  /// `blocks` quand l'ancien modèle tombe (#723).
+  suggestedMetrics Json  @default("[]")
 
   /// Copie figée (#609) : l'exercice d'un autre Coach, recopié pour la séance qui le citait quand
   /// il a été supprimé ou fermé. Le Coach d'origine et la date, que le badge « Copie figée —
@@ -444,6 +449,7 @@ model Session {
   updatedAt DateTime @updatedAt
 
   exercises    SessionExercise[]
+  blocks       SessionBlock[]
   // Instances posées dans des planifications (P3) : SetNull, même raison que Exercise.
   instances    ScheduledSession[]
   accessGrants AccessGrant[]
@@ -521,10 +527,99 @@ model SessionExercise {
   adjustments Json     @default("[]")
   createdAt   DateTime @default(now())
 
+  /// Le bloc qui porte l'exercice (#716), son rang dans le bloc, sa clé et sa grille de valeurs
+  /// (`BlockGrid` de @cmv/shared). Les quatre sont nuls ensemble, un CHECK le garantit : une ligne
+  /// écrite par l'ancien constructeur n'a pas de bloc, jusqu'au retrait de l'ancien modèle (#723).
+  /// La clé est STABLE : la séance planifiée la recopie, et c'est par elle que les deux niveaux se
+  /// comparent.
+  blockId       String?
+  block         SessionBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  blockPosition Int?
+  key           String?
+  grid          Json?
+
   @@unique([sessionId, position])
+  @@unique([blockId, blockPosition])
+  @@unique([sessionId, key])
   @@index([coachId])
   @@index([exerciseId])
   @@map("session_exercise")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Métier — structures et blocs de séance (#714).
+// Une STRUCTURE (Séries, EMOM… ou celle du Coach) se copie dans un BLOC de séance, sans lien
+// vivant : réglages, nom et consigne. Le bloc garde son origine, structure du Coach OU structure
+// prête, pour le compteur « Séances » — `SetNull` : supprimer la structure ne touche aucune séance.
+// Les blocs sont des tables et leurs grilles du JSON : `docs/dette/seances-et-exercices.md`,
+// « Tranché en #714 ».
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Les structures prêtes, à clé stable (`StructurePresetKey` de @cmv/shared).
+enum StructurePreset {
+  SERIES
+  EMOM
+  AMRAP
+  TABATA
+  FOR_TIME
+  FREE
+}
+
+/// D'où vient un exercice de séance planifiée (`CompositionOrigin` de @cmv/shared) : portée par la
+/// donnée, jamais déduite d'une comparaison.
+enum CompositionOrigin {
+  RECEIVED
+  ADDED
+  REPLACEMENT
+}
+
+model Structure {
+  id           String   @id @default(cuid())
+  coachId      String
+  coach        User     @relation("CoachStructures", fields: [coachId], references: [id], onDelete: Cascade)
+  name         String
+  tags         String[] @default([])
+  /// Note PRIVÉE du Coach : l'athlète ne la lit jamais, le bloc ne la copie pas.
+  note         String?
+  /// Consigne pour l'athlète, que le bloc copie.
+  instructions String?
+  /// `StructureSettings` de @cmv/shared.
+  settings     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  blocks          SessionBlock[]
+  scheduledBlocks ScheduledSessionBlock[]
+
+  @@index([coachId])
+  @@map("structure")
+}
+
+model SessionBlock {
+  id                String           @id @default(cuid())
+  coachId           String
+  sessionId         String
+  session           Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  position          Int // ordre dans la séance (0-based)
+  name              String
+  /// Le libellé facultatif du Coach. Sans libellé, le bloc prend la lettre suivante (déduite).
+  label             String?
+  instructions      String?
+  /// Les réglages du bloc, et ceux copiés de sa structure : « Personnalisé » se lit entre les deux.
+  settings          Json
+  copiedSettings    Json
+  /// Structure du Coach OU structure prête, jamais les deux (CHECK de la migration).
+  sourceStructureId String?
+  sourceStructure   Structure?       @relation(fields: [sourceStructureId], references: [id], onDelete: SetNull)
+  sourcePreset      StructurePreset?
+  createdAt         DateTime         @default(now())
+
+  exercises SessionExercise[]
+
+  @@unique([sessionId, position])
+  @@index([coachId])
+  @@index([sourceStructureId])
+  @@map("session_block")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -635,6 +730,7 @@ model ScheduledSession {
   updatedAt       DateTime               @updatedAt
 
   exercises ScheduledSessionExercise[]
+  blocks    ScheduledSessionBlock[]
   feedback  SessionFeedback? // au plus un débrief par séance (P4)
   messages  Message[] // messages rattachés à cette séance (P5) — SetNull à la suppression
 
@@ -682,14 +778,61 @@ model ScheduledSessionExercise {
   position            Int // ordre dans la séance (0-based)
   createdAt           DateTime         @default(now())
 
+  /// Comme sur `SessionExercise` (#716) : le bloc, le rang dans le bloc, la clé recopiée de la
+  /// séance-type et la grille de valeurs pour CET athlète. S'y ajoute l'origine de l'exercice dans
+  /// la composition, et la clé qu'il remplace pour un remplaçant. Un CHECK garde tout cela nul
+  /// ensemble, et `replacesKey` présent pour un remplaçant seulement.
+  blockId       String?
+  block         ScheduledSessionBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  blockPosition Int?
+  key           String?
+  grid          Json?
+  origin        CompositionOrigin?
+  replacesKey   String?
+
   documents ScheduledSessionExerciseDocument[]
   tags      ScheduledSessionExerciseTag[]
 
   @@unique([scheduledSessionId, position])
+  @@unique([blockId, blockPosition])
+  @@unique([scheduledSessionId, key])
   @@index([coachId])
   @@index([athleteId])
   @@index([sourceExerciseId])
   @@map("scheduled_session_exercise")
+}
+
+/// La jumelle planifiée de `SessionBlock` : le bloc copié pour un athlète. `baseline` est le bloc
+/// REÇU à la diffusion (`SessionBlock` de @cmv/shared, exercices compris) : la référence contre
+/// laquelle composition et valeurs se comptent, qui garde aussi un exercice retiré depuis.
+model ScheduledSessionBlock {
+  id                 String           @id @default(cuid())
+  coachId            String
+  athleteId          String?
+  scheduledSessionId String
+  scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
+  position           Int
+  name               String
+  label              String?
+  instructions       String?
+  settings           Json
+  copiedSettings     Json
+  sourceStructureId  String?
+  sourceStructure    Structure?       @relation(fields: [sourceStructureId], references: [id], onDelete: SetNull)
+  sourcePreset       StructurePreset?
+  baseline           Json
+  /// Les cases cochées (`SessionBlockTracking` de @cmv/shared). `null` = NON SUIVI, ce qui n'est
+  /// pas « rien coché ». Ne remonte qu'avec le débrief.
+  tracking           Json?
+  createdAt          DateTime         @default(now())
+
+  exercises ScheduledSessionExercise[]
+
+  @@unique([scheduledSessionId, position])
+  @@index([coachId])
+  @@index([athleteId])
+  @@index([sourceStructureId])
+  @@map("scheduled_session_block")
 }
 
 model ScheduledSessionExerciseDocument {

@@ -10,22 +10,21 @@ import { frozenFromSchema } from "./exercise.schema";
 import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
+import { sessionBlocksSchema } from "./session-block.schema";
+import { sessionBlockDtoSchema } from "./session-block-dto.schema";
+import {
+  SESSION_MAX_EXERCISES,
+  SESSION_NOTE_MAX_LENGTH,
+  SESSION_TOO_MANY_EXERCISES_MESSAGE,
+} from "./session-limits.schema";
 
 export const SESSION_TITLE_MAX_LENGTH = 200;
 export const SESSION_NOTES_MAX_LENGTH = 5000;
-/**
- * La NOTE d'un exercice dans une séance : le contexte que la grille ne dit pas. Anciennement
- * « prescription », qui portait le dosage écrit à la main — ce rôle revient à `blocks` (#164).
- */
-export const SESSION_NOTE_MAX_LENGTH = 2000;
-/**
- * Garde-fou, pas règle métier (#297) : un Coach compose quelques dizaines d'exercices au plus.
- * Sans lui, un `exerciseId` répété des milliers de fois tenait sous la limite de corps et faisait
- * recopier autant de fois les blocs de l'exercice. Il borne aussi les séances planifiées, et
- * donc le suivi qu'un débrief peut remonter.
- */
-export const SESSION_MAX_EXERCISES = 50;
-export const SESSION_TOO_MANY_EXERCISES_MESSAGE = `Une séance ne peut pas dépasser ${SESSION_MAX_EXERCISES} exercices.`;
+export {
+  SESSION_MAX_EXERCISES,
+  SESSION_NOTE_MAX_LENGTH,
+  SESSION_TOO_MANY_EXERCISES_MESSAGE,
+} from "./session-limits.schema";
 
 export const sessionExerciseInputSchema = z
   .object({
@@ -44,28 +43,42 @@ export const sessionExerciseInputSchema = z
   .strict();
 export type SessionExerciseInput = z.infer<typeof sessionExerciseInputSchema>;
 
+const sessionExercisesInputSchema = z
+  .array(sessionExerciseInputSchema)
+  .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE);
+
+/**
+ * Une séance se compose par l'ancien modèle (`exercises`) OU par blocs (`blocks`, #716), jamais
+ * les deux dans le même envoi : les deux modèles cohabitent jusqu'à #723, et une écriture n'en
+ * remplace qu'un. Enregistrer des blocs efface l'ancienne composition, et inversement.
+ */
+const ONE_COMPOSITION = "Une séance se compose par exercices ou par blocs, pas les deux à la fois.";
+
 export const createSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z
-      .array(sessionExerciseInputSchema)
-      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
-      .default([]),
+    exercises: sessionExercisesInputSchema.default([]),
+    blocks: sessionBlocksSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.blocks === undefined || input.exercises.length === 0, {
+    message: ONE_COMPOSITION,
+  });
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
 export const updateSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z
-      .array(sessionExerciseInputSchema)
-      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
+    exercises: sessionExercisesInputSchema.optional(),
+    blocks: sessionBlocksSchema.optional(),
     expectedUpdatedAt: expectedVersionSchema,
   })
-  .strict();
+  .strict()
+  .refine((input) => (input.exercises === undefined) !== (input.blocks === undefined), {
+    message: ONE_COMPOSITION,
+  });
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
 /**
@@ -119,6 +132,8 @@ export const sessionDtoSchema = z.object({
   title: z.string(),
   notes: z.string().nullable(),
   exercises: z.array(sessionExerciseDtoSchema),
+  /** La composition par blocs (#716) ; `[]` pour une séance encore composée à l'ancienne. */
+  blocks: z.array(sessionBlockDtoSchema),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

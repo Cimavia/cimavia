@@ -230,10 +230,13 @@ export const exerciseBlockSchema = z
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
 /**
- * Les métriques MAISON citées par des blocs. Sert au snapshot de diffusion : sans la définition,
- * l'athlète ne verrait qu'un identifiant — ni libellé, ni type de valeur, ni paliers d'échelle.
+ * Les métriques MAISON citées par des blocs, ou par des grilles de blocs de séance (#716). Sert au
+ * snapshot de diffusion : sans la définition, l'athlète ne verrait qu'un identifiant — ni libellé,
+ * ni type de valeur, ni paliers d'échelle.
  */
-export function customMetricIdsIn(blocks: ExerciseBlocks): string[] {
+export function customMetricIdsIn(
+  blocks: readonly { readonly metrics: readonly MetricReference[] }[],
+): string[] {
   const ids = blocks.flatMap((block) =>
     block.metrics.flatMap((metric) =>
       metric.source === MetricSource.CUSTOM ? [metric.customMetricId] : [],
@@ -1042,7 +1045,7 @@ const COLUMN_WIDE = "";
  * livrée n'aurait été vue nulle part.
  */
 export function scaleFor(
-  metric: BlockMetric,
+  metric: MetricReference,
   customMetrics: readonly CustomMetric[],
 ): OrderedScale | null {
   if (metric.source === MetricSource.CUSTOM) {
@@ -1051,9 +1054,13 @@ export function scaleFor(
   return catalogScaleOf(metric.key);
 }
 
+/** Une colonne et ses lignes : l'ancienne grille comme celle d'un exercice de bloc (#716). */
+type ValuedColumn = MetricReference & { readonly id: string };
+type ValuedRows = { readonly rows: readonly { id: string; values: Record<string, MetricValue> }[] };
+
 function cellIssues(
-  block: ExerciseBlock,
-  metric: BlockMetric,
+  block: ValuedRows,
+  metric: ValuedColumn,
   valueSchema: z.ZodType<MetricValue>,
 ): BlockValidationIssue[] {
   return block.rows.flatMap((row) => {
@@ -1075,18 +1082,8 @@ function columnIssues(
   metric: BlockMetric,
   customMetrics: readonly CustomMetric[],
 ): BlockValidationIssue[] {
-  const valueType = metricValueTypeOf(metric, customMetrics);
-  if (valueType === null) {
-    return [
-      {
-        rowId: COLUMN_WIDE,
-        metricId: metric.id,
-        message: "Cette colonne référence une métrique introuvable.",
-      },
-    ];
-  }
-
-  const valueSchema = metricValueSchemaFor(valueType, scaleFor(metric, customMetrics));
+  const valueSchema = valueSchemaOf(metric, customMetrics);
+  if (valueSchema === null) return [unknownColumn(metric)];
   const collapseIssue =
     metric.collapsed && !canCollapseMetric(block, metric.id)
       ? [
@@ -1099,6 +1096,40 @@ function columnIssues(
       : [];
 
   return [...cellIssues(block, metric, valueSchema), ...collapseIssue];
+}
+
+/** Le schéma des cellules d'une colonne, ou `null` quand sa métrique est introuvable. */
+function valueSchemaOf(
+  metric: ValuedColumn,
+  customMetrics: readonly CustomMetric[],
+): z.ZodType<MetricValue> | null {
+  const valueType = metricValueTypeOf(metric, customMetrics);
+  return valueType === null
+    ? null
+    : metricValueSchemaFor(valueType, scaleFor(metric, customMetrics));
+}
+
+function unknownColumn(metric: ValuedColumn): BlockValidationIssue {
+  return {
+    rowId: COLUMN_WIDE,
+    metricId: metric.id,
+    message: "Cette colonne référence une métrique introuvable.",
+  };
+}
+
+/**
+ * Le même croisement pour la grille d'un exercice de bloc (#716). Le serveur le fait avant
+ * d'écrire, puisque lui seul charge les métriques du Coach. La grille n'a pas de valeur orpheline
+ * à signaler : son schéma les refuse déjà (#715).
+ */
+export function gridValueIssues(
+  grid: ValuedRows & { readonly metrics: readonly ValuedColumn[] },
+  customMetrics: readonly CustomMetric[],
+): BlockValidationIssue[] {
+  return grid.metrics.flatMap((metric) => {
+    const valueSchema = valueSchemaOf(metric, customMetrics);
+    return valueSchema === null ? [unknownColumn(metric)] : cellIssues(grid, metric, valueSchema);
+  });
 }
 
 // Une valeur dont la colonne n'existe plus — colonne retirée sans nettoyer les lignes.

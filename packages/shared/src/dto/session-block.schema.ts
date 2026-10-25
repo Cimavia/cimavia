@@ -6,7 +6,7 @@ import {
   SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
   SESSION_TOO_MANY_EXERCISES_MESSAGE,
-} from "./session.schema";
+} from "./session-limits.schema";
 import {
   STRUCTURE_INSTRUCTIONS_MAX_LENGTH,
   STRUCTURE_NAME_MAX_LENGTH,
