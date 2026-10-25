@@ -1,10 +1,17 @@
 import type {
+  FeedbackBlockTracking,
   FeedbackTracking,
   MessageDto,
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
 } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, required, ScheduledSessionStatus } from "@cmv/shared";
+import {
+  blockChecks,
+  FEEDBACK_EVENT_MESSAGE_TYPES,
+  required,
+  ScheduledSessionStatus,
+  trackingFitsBlock,
+} from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type SessionFeedback } from "@prisma/client";
 import { StorageService } from "../../infra/storage/storage.service";
@@ -15,6 +22,7 @@ import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { parseSettings, toJsonInput } from "../../util/block-json.util";
 import {
   FEEDBACK_DETAIL_INCLUDE,
   toSessionFeedbackDto,
@@ -66,17 +74,16 @@ export class FeedbackService {
     scheduledSessionId: string,
     input: UpsertSessionFeedbackInput,
   ): Promise<SessionFeedbackDto> {
-    if (input.tracking !== undefined) {
-      await this.assertTrackedExercisesKnown(scheduledSessionId, input.tracking);
-    }
+    const tracking = input.tracking ?? {};
+    const blockTracking = input.blockTracking ?? {};
+    await this.assertTrackedExercisesKnown(scheduledSessionId, tracking);
+    await this.assertTrackedBlocksFit(scheduledSessionId, blockTracking);
     const writable = await this.getOrCreateWritable(scheduledSessionId);
     await this.db.sessionFeedback.update({
       where: { id: writable.feedback.id },
       data: { content: input.content ?? null },
     });
-    if (input.tracking !== undefined) {
-      await this.writeTracking(scheduledSessionId, input.tracking);
-    }
+    await this.writeTracking(scheduledSessionId, tracking, blockTracking);
     // Enregistrer le texte est toujours un geste à lui seul : jamais la suite d'un lot.
     await this.markSent(writable, false);
     // Écrit juste au-dessus : le relire ne peut pas manquer.
@@ -120,6 +127,50 @@ export class FeedbackService {
   }
 
   /**
+   * Refuse un suivi par bloc (#716) qui cite un bloc que la séance ne porte pas, ou une case que
+   * ses réglages ne donnent pas — même raison que `assertTrackedExercisesKnown` : un refus laisse
+   * les coches sur l'appareil, un 200 les perdrait. Les cases se lisent avec les exercices du bloc
+   * tel qu'il est : une coche sur un exercice retiré depuis n'a plus de case.
+   */
+  private async assertTrackedBlocksFit(
+    scheduledSessionId: string,
+    tracking: FeedbackBlockTracking,
+  ): Promise<void> {
+    const cited = Object.keys(tracking);
+    if (cited.length === 0) return;
+
+    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    const known = await this.db.scheduledSessionBlock.findMany({
+      where: { scheduledSessionId, id: { in: cited } },
+      select: {
+        id: true,
+        settings: true,
+        exercises: { select: { key: true }, orderBy: { blockPosition: "asc" } },
+      },
+    });
+    const byId = new Map(known.map((block) => [block.id, block]));
+    const unknown = cited.filter((id) => !byId.has(id));
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        `Le suivi cite un bloc absent de cette séance : ${unknown.join(", ")}`,
+      );
+    }
+    const misfit = known.filter((block) => {
+      const state = tracking[block.id];
+      if (state == null) return false;
+      const keys = block.exercises.map((row) =>
+        required(row.key, `[feedback] ligne de bloc sans clé`),
+      );
+      return !trackingFitsBlock(blockChecks(parseSettings(block.settings), keys), state);
+    });
+    if (misfit.length > 0) {
+      throw new BadRequestException(
+        `Le suivi coche une case que le bloc n'a pas : ${misfit.map((block) => block.id).join(", ")}`,
+      );
+    }
+  }
+
+  /**
    * Écrit le suivi d'exécution remonté avec le débrief.
    *
    * Chaque exercice est mis à jour SÉPARÉMENT et par son `where` scopé : un `updateMany` sur des
@@ -136,12 +187,21 @@ export class FeedbackService {
   private async writeTracking(
     scheduledSessionId: string,
     tracking: FeedbackTracking,
+    blockTracking: FeedbackBlockTracking,
   ): Promise<void> {
+    if (Object.keys(tracking).length === 0 && Object.keys(blockTracking).length === 0) return;
     await this.db.$transaction(async (tx: TenantTx) => {
       for (const [exerciseId, state] of Object.entries(tracking)) {
         await tx.scheduledSessionExercise.updateMany({
           where: { id: exerciseId, scheduledSessionId },
           data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
+        });
+      }
+      // Les blocs de même (#716), dans la même transaction : la séance s'écrit d'un bloc.
+      for (const [blockId, state] of Object.entries(blockTracking)) {
+        await tx.scheduledSessionBlock.updateMany({
+          where: { id: blockId, scheduledSessionId },
+          data: { tracking: state == null ? Prisma.DbNull : toJsonInput(state) },
         });
       }
     });
