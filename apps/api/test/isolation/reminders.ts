@@ -139,7 +139,7 @@ describe("Rappels du coach (#44)", () => {
       .post("/reminders")
       .send({ entityType: "PLAN", entityId: "pln_inexistant", dueAt: inFuture(1), note: "x" });
     expect(unknown.status).toBe(400);
-    expect(unknown.body.message).toBe(stolenPlan.body.message);
+    expect(unknown.body.detail).toBe(stolenPlan.body.detail);
   });
 
   it("le schéma partagé rejette une note vide, une échéance sans heure, un tenant transmis", async () => {

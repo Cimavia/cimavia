@@ -1,9 +1,12 @@
+import { ABOUT_BLANK, PROBLEM_CONTENT_TYPE, ProblemType, problemDetailsSchema } from "@cmv/shared";
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   NotFoundException,
   Param,
+  Post,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -12,9 +15,13 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import * as Sentry from "@sentry/nestjs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHttpAdapter } from "../app.setup";
-import { sentryOptions } from "./sentry.config";
-import { SentryExceptionFilter, sentryLevelOf } from "./sentry-exception.filter";
+import { z } from "zod";
+import { API_BODY_LIMIT_BYTES, createHttpAdapter } from "../app.setup";
+import { sentryOptions } from "../observability/sentry.config";
+import { sentryLevelOf } from "../observability/sentry-capture";
+import { StaleWriteException } from "../util/stale-write.util";
+import { zodSafeParse } from "../zod/zod.util";
+import { ProblemExceptionFilter } from "./problem-exception.filter";
 
 /**
  * Ce qui partirait chez Sentry : le vrai `init` (donc `pinoIntegration`, `beforeSend`), seul le
@@ -51,6 +58,22 @@ class FailingController {
     throw new UnauthorizedException();
   }
 
+  @Get("conflit")
+  conflit(): never {
+    throw new StaleWriteException();
+  }
+
+  @Post("valide")
+  valide(@Body() body: unknown): never {
+    zodSafeParse(z.object({ plan: z.object({ title: z.string() }) }), body);
+    throw new Error("aurait dû refuser");
+  }
+
+  @Get("jeton/:token")
+  jeton(): never {
+    throw new NotFoundException("Appareil introuvable");
+  }
+
   @Get("health/ready")
   ready(): never {
     throw new ServiceUnavailableException({ status: "degraded" });
@@ -59,7 +82,7 @@ class FailingController {
 
 let app: NestFastifyApplication;
 /** `res.err` tel que `pino-http` le lirait à la fin de la réponse, par chemin. */
-const attached = new Map<string, unknown>();
+const attached = new Map<string, { err?: unknown; problemType?: string }>();
 
 beforeAll(async () => {
   Sentry.init({
@@ -80,14 +103,14 @@ beforeAll(async () => {
 
   const module = await Test.createTestingModule({
     controllers: [FailingController],
-    providers: [{ provide: APP_FILTER, useClass: SentryExceptionFilter }],
+    providers: [{ provide: APP_FILTER, useClass: ProblemExceptionFilter }],
   }).compile();
   app = module.createNestApplication<NestFastifyApplication>(createHttpAdapter());
   app
     .getHttpAdapter()
     .getInstance()
     .addHook("onResponse", async (request, reply) => {
-      attached.set(request.url, (reply.raw as { err?: unknown }).err);
+      attached.set(request.url, reply.raw as { err?: unknown; problemType?: string });
     });
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
@@ -110,7 +133,7 @@ async function get(url: string) {
   return response;
 }
 
-describe("SentryExceptionFilter — ce que Sentry reçoit vraiment", () => {
+describe("ProblemExceptionFilter — ce que Sentry reçoit vraiment", () => {
   it("envoie un refus (4xx) en warning, regroupé par statut et route déclarée", async () => {
     await get("/refus/a1");
     await get("/refus/b2");
@@ -172,15 +195,155 @@ describe("SentryExceptionFilter — ce que Sentry reçoit vraiment", () => {
     await get("/panne");
     await get("/refus/a1");
 
-    expect(attached.get("/panne")).toBeInstanceOf(ServiceUnavailableException);
-    expect(attached.get("/refus/a1")).toBeInstanceOf(BadRequestException);
+    expect(attached.get("/panne")?.err).toBeInstanceOf(ServiceUnavailableException);
+    expect(attached.get("/refus/a1")?.err).toBeInstanceOf(BadRequestException);
   });
 
-  it("rend la même réponse qu'avant : le filtre de Nest en garde le rendu", async () => {
-    const response = await get("/refus/a1");
+  it("y dépose aussi le type du problème, que la ligne de journal reprend", async () => {
+    await get("/conflit");
+    await get("/refus/a1");
+
+    expect(attached.get("/conflit")?.problemType).toBe(ProblemType.STALE_WRITE);
+    expect(attached.get("/refus/a1")?.problemType).toBe(ABOUT_BLANK);
+  });
+});
+
+describe("ProblemExceptionFilter — la réponse est un problème (RFC 9457)", () => {
+  async function problem(url: string, init: { method?: "GET" | "POST"; payload?: string } = {}) {
+    const response = await app.inject({
+      method: init.method ?? "GET",
+      url,
+      ...(init.payload !== undefined && {
+        payload: init.payload,
+        headers: { "content-type": "application/json" },
+      }),
+    });
+    await Sentry.flush(2000);
+    return { response, body: response.json() as Record<string, unknown> };
+  }
+
+  it("rend un refus en application/problem+json, type about:blank et titre HTTP", async () => {
+    const { response, body } = await problem("/refus/a1");
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toMatchObject({ statusCode: 400, message: "Refus numéro a1" });
+    expect(response.headers["content-type"]).toContain(PROBLEM_CONTENT_TYPE);
+    expect(problemDetailsSchema.parse(body)).toEqual({
+      type: ABOUT_BLANK,
+      title: "Bad Request",
+      status: 400,
+      detail: "Refus numéro a1",
+      instance: "/refus/a1",
+    });
+    // Plus de forme maison de NestJS : le message n'est plus lu nulle part.
+    expect(body).not.toHaveProperty("message");
+    expect(body).not.toHaveProperty("statusCode");
+  });
+
+  it("rend le 404 d'une route inconnue en problème aussi", async () => {
+    const { response, body } = await problem("/nulle-part");
+
+    expect(response.statusCode).toBe(404);
+    expect(response.headers["content-type"]).toContain(PROBLEM_CONTENT_TYPE);
+    expect(body).toMatchObject({ type: ABOUT_BLANK, title: "Not Found", status: 404 });
+  });
+
+  it("n'ajoute pas de detail qui répéterait le titre (le 401)", async () => {
+    const { body } = await problem("/session");
+
+    expect(body).toEqual({
+      type: ABOUT_BLANK,
+      title: "Unauthorized",
+      status: 401,
+      instance: "/session",
+    });
+  });
+
+  it("ne livre pas le message d'une exception que personne n'a prévue", async () => {
+    const { response, body } = await problem("/bug");
+
+    expect(response.statusCode).toBe(500);
+    expect(body).toMatchObject({ title: "Internal Server Error", status: 500 });
+    expect(body).not.toHaveProperty("detail");
+    expect(JSON.stringify(body)).not.toContain("undefined n'est pas");
+  });
+
+  it("porte un code de refus dans type", async () => {
+    const { response, body } = await problem("/conflit");
+
+    expect(response.statusCode).toBe(409);
+    expect(body).toMatchObject({ type: ProblemType.STALE_WRITE, status: 409 });
+  });
+
+  it("liste les erreurs de validation avec un JSON Pointer", async () => {
+    const { response, body } = await problem("/valide", { method: "POST", payload: '{"plan":{}}' });
+
+    expect(response.statusCode).toBe(400);
+    expect(body).toMatchObject({
+      type: ABOUT_BLANK,
+      title: "Bad Request",
+      errors: [{ detail: "Ce champ est requis.", pointer: "#/plan/title" }],
+    });
+    expect(body).not.toHaveProperty("detail");
+  });
+
+  it("passe l'instance et le detail par redactUrlSecrets : le jeton d'appareil est dans le chemin", async () => {
+    const { body } = await problem("/jeton/x?token=secret");
+
+    expect(JSON.stringify(body)).not.toContain("secret");
+  });
+
+  describe("les refus de Fastify, prononcés avant la route", () => {
+    it("rend le corps trop gros (413)", async () => {
+      const { response, body } = await problem("/valide", {
+        method: "POST",
+        payload: JSON.stringify({ notes: "x".repeat(API_BODY_LIMIT_BYTES) }),
+      });
+
+      expect(response.statusCode).toBe(413);
+      expect(response.headers["content-type"]).toContain(PROBLEM_CONTENT_TYPE);
+      expect(body).toMatchObject({
+        type: ABOUT_BLANK,
+        title: "Payload Too Large",
+        status: 413,
+      });
+    });
+
+    it("rend un JSON invalide (400)", async () => {
+      const { response, body } = await problem("/valide", {
+        method: "POST",
+        payload: "{pas du json",
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.headers["content-type"]).toContain(PROBLEM_CONTENT_TYPE);
+      expect(body).toMatchObject({ title: "Bad Request", status: 400 });
+    });
+
+    it("rend un type de contenu refusé (415)", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/valide",
+        payload: "<a/>",
+        headers: { "content-type": "application/xml" },
+      });
+
+      expect(response.statusCode).toBe(415);
+      expect(response.headers["content-type"]).toContain(PROBLEM_CONTENT_TYPE);
+      expect(response.json()).toMatchObject({ title: "Unsupported Media Type", status: 415 });
+    });
+
+    it("envoie ces refus à Sentry en warning, jamais comme un bug en 500", async () => {
+      await app.inject({
+        method: "POST",
+        url: "/valide",
+        payload: "{pas du json",
+        headers: { "content-type": "application/json" },
+      });
+      await Sentry.flush(2000);
+
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.level).toBe("warning");
+    });
   });
 });
 

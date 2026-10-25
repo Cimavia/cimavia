@@ -1,4 +1,4 @@
-import { STALE_WRITE } from "@cmv/shared";
+import { ProblemType } from "@cmv/shared";
 import type request from "supertest";
 import { expect } from "vitest";
 import type { Agent } from "./actors";
@@ -73,7 +73,7 @@ export async function publishAtLatest(agent: Agent, planId: string): Promise<req
  * Refusé par un VERROU de l'élément, et non par sa version : depuis #604, les deux répondent 409,
  * et seul le message les distingue.
  */
-export function expectLocked(res: { status: number; body?: { message?: unknown } }): void {
+export function expectLocked(res: { status: number; body?: { type?: unknown } }): void {
   expect(res.status).toBe(409);
-  expect(res.body?.message).not.toBe(STALE_WRITE);
+  expect(res.body?.type).not.toBe(ProblemType.STALE_WRITE);
 }

@@ -148,18 +148,18 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
       where: { id: expired.body.id },
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    const notFound = { status: 404, message: "Invitation introuvable" };
+    const notFound = { status: 404, detail: "Invitation introuvable" };
 
     for (const action of ["accept", "decline"]) {
       for (const id of [pending.body.id, expired.body.id, "inconnu"]) {
         const res = await other.post(`/invitations/${id}/${action}`);
-        expect({ status: res.status, message: res.body.message }).toEqual(notFound);
+        expect({ status: res.status, detail: res.body.detail }).toEqual(notFound);
       }
     }
     // Rien n'a bougé pour le destinataire, qui peut toujours rejoindre.
     expect((await target.post(`/invitations/${pending.body.id}/accept`)).status).toBe(201);
     const used = await other.post(`/invitations/${pending.body.id}/decline`);
-    expect({ status: used.status, message: used.body.message }).toEqual(notFound);
+    expect({ status: used.status, detail: used.body.detail }).toEqual(notFound);
   });
 
   /**
@@ -199,7 +199,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     for (const action of ["accept", "decline"]) {
       const used = await athlete.post(`/invitations/${invitation.body.id}/${action}`);
       expect(used.status).toBe(404);
-      expect(used.body.message).toBe("Invitation introuvable ou déjà utilisée");
+      expect(used.body.detail).toBe("Invitation introuvable ou déjà utilisée");
       expect((await athlete.post(`/invitations/inconnu/${action}`)).status).toBe(404);
     }
   });
@@ -220,7 +220,7 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     for (const action of ["accept", "decline"]) {
       const late = await athlete.post(`/invitations/${invitation.body.id}/${action}`);
       expect(late.status).toBe(400);
-      expect(late.body.message).toBe("Invitation expirée");
+      expect(late.body.detail).toBe("Invitation expirée");
     }
     expect((await athlete.get("/me/coaches")).body).toEqual([]);
     const seenByCoach = (await coach.get("/invitations")).body.find(
@@ -495,9 +495,9 @@ describe("Retirer une invitation en attente (#524)", () => {
 
     for (const action of ["accept", "decline"]) {
       const late = await athlete.post(`/invitations/${invitation.body.id}/${action}`);
-      expect({ status: late.status, message: late.body.message }).toEqual({
+      expect({ status: late.status, detail: late.body.detail }).toEqual({
         status: 410,
-        message: "Invitation retirée par le coach",
+        detail: "Invitation retirée par le coach",
       });
       expect((await other.post(`/invitations/${invitation.body.id}/${action}`)).status).toBe(404);
     }
@@ -533,9 +533,9 @@ describe("Retirer une invitation en attente (#524)", () => {
 
     for (const id of [accepted.body.id, declined.body.id, revoked.body.id]) {
       const res = await coach.post(`/invitations/${id}/revoke`);
-      expect({ status: res.status, message: res.body.message }).toEqual({
+      expect({ status: res.status, detail: res.body.detail }).toEqual({
         status: 409,
-        message: "Seule une invitation en attente peut être retirée",
+        detail: "Seule une invitation en attente peut être retirée",
       });
     }
     const statuses = (await coach.get("/invitations")).body.map(

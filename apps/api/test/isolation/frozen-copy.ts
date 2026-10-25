@@ -246,7 +246,7 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
 
     const refused = await deleteAtLatest(c, `/exercises/${gainageId}`);
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toBe(
+    expect(refused.body.detail).toBe(
       "Exercice utilisé dans 1 séance(s) : retire-le d'abord de ces séances",
     );
     expect((await m.get(`/sessions/${ofM.id}`)).body.exercises[0].exerciseId).toBe(gainageId);

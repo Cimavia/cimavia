@@ -1,4 +1,4 @@
-import { EXERCISE_TAG_FILTER_MAX, EXERCISE_TAG_MAX_LENGTH, Role, STALE_WRITE } from "@cmv/shared";
+import { EXERCISE_TAG_FILTER_MAX, EXERCISE_TAG_MAX_LENGTH, ProblemType, Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, required, signUp } from "../support/actors";
 import {
@@ -396,7 +396,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
       `/exercises/${sibling.body.id}/documents/${doc.body.id}`,
     );
     expect([foreign.status, wrongParent.status]).toEqual([404, 404]);
-    expect(wrongParent.body.message).toBe("Document introuvable");
+    expect(wrongParent.body.detail).toBe("Document introuvable");
     expect(await docsOfA()).toContain(doc.body.id);
 
     await coachA.delete(`/exercises/${exerciseAId}/documents/${doc.body.id}`);
@@ -484,17 +484,17 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   it("un refus de validation sort en français, sans écraser les messages écrits (#319)", async () => {
     const tooLong = await coachA.post("/exercises").send({ title: "x".repeat(201) });
     expect(tooLong.status).toBe(400);
-    expect(tooLong.body.message).toEqual([
-      { path: "title", message: "Ce texte dépasse 200 caractères." },
+    expect(tooLong.body.errors).toEqual([
+      { pointer: "#/title", detail: "Ce texte dépasse 200 caractères." },
     ]);
 
     const empty = await coachA.post("/exercises").send({ title: "" });
-    expect(empty.body.message).toEqual([{ path: "title", message: "Ce champ est requis." }]);
+    expect(empty.body.errors).toEqual([{ pointer: "#/title", detail: "Ce champ est requis." }]);
 
     // Le message écrit par le schéma garde la main sur la table de l'API.
     const duplicateTag = await coachA.post("/exercises").send({ title: "x", tags: ["a", "a"] });
     expect(duplicateTag.status).toBe(400);
-    expect(duplicateTag.body.message[0].message).toBe(
+    expect(duplicateTag.body.errors[0].detail).toBe(
       "Un exercice ne peut pas porter deux fois le même tag.",
     );
   });
@@ -618,7 +618,7 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
       .post("/exercises")
       .send({ title: "Copie à la main", instructions: [{ type: "IMAGE", mediaId: imageId }] });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("La consigne cite une image qui n'appartient pas à cet exercice");
+    expect(res.body.detail).toBe("La consigne cite une image qui n'appartient pas à cet exercice");
   });
 
   it.each([
@@ -793,7 +793,8 @@ describe("Exercice — version lue (#604)", () => {
     const stale = await patch({ title: "Écrit dans l'onglet 2", tags: [] }, read.updatedAt);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
+    expect(stale.headers["content-type"]).toContain("application/problem+json");
     // Rien de l'écriture refusée ne passe — ni le titre, ni les tags qu'elle aurait vidés.
     expect(await current()).toEqual(kept);
   });
@@ -820,7 +821,7 @@ describe("Exercice — version lue (#604)", () => {
     );
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
   });
 
   // La comparaison et l'écriture tiennent en une requête : lancées ensemble, une seule passe.

@@ -1,4 +1,4 @@
-import { PLAN_MAX_WEEKS, Role, STALE_WRITE, shiftIsoDate } from "@cmv/shared";
+import { PLAN_MAX_WEEKS, ProblemType, Role, shiftIsoDate } from "@cmv/shared";
 import type request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
@@ -72,7 +72,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const res = await coach.post(`/plans/${plan.body.id}/weeks`).send({ type: "TRAINING" });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
+    expect(res.body.detail).toBe(`Un cycle ne peut pas dépasser ${PLAN_MAX_WEEKS} semaines`);
     expect((await coach.get(`/plans/${plan.body.id}`)).body.weekCount).toBe(PLAN_MAX_WEEKS);
   });
 
@@ -179,7 +179,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       .query(await atWeekVersion(coach, plan.body.id, week2.id));
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toContain("diffusé");
+    expect(res.body.detail).toContain("diffusé");
     const after = await coach.get(`/plans/${plan.body.id}`);
     expect(after.body.weeks.map((w: { id: string }) => w.id)).toEqual(
       plan.body.weeks.map((w: { id: string }) => w.id),
@@ -204,7 +204,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const res = await deleteAtLatest(coach, `/plans/${plan.body.id}`);
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toContain("diffusé");
+    expect(res.body.detail).toContain("diffusé");
     expect((await coach.get(`/plans/${plan.body.id}`)).body.status).toBe("PUBLISHED");
     const invoices = (await coach.get("/invoices")).body as { planId: string; status: string }[];
     expect(invoices.find((invoice) => invoice.planId === plan.body.id)?.status).toBe("PENDING");
@@ -723,7 +723,7 @@ describe("Semaine — version lue (#604)", () => {
     const stale = await gesture(g, read);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     expect(await planOf(g)).toEqual(kept);
   });
 
@@ -816,7 +816,7 @@ describe("Semaine — version lue (#604)", () => {
     const stale = await coach.delete(`/plan-weeks/${g.weekId}`).query({ expectedUpdatedAt: read });
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
   });
 
   // Le débrief raconte l'exécution, pas la composition : il ne doit pas périmer la grille du coach.
@@ -974,7 +974,7 @@ describe("Séance planifiée — version lue (#604)", () => {
     const stale = await write(coach, sessionId, read);
 
     expect(stale.status).toBe(409);
-    expect(stale.body.message).toBe(STALE_WRITE);
+    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
     expect((await coach.get(path(sessionId))).body).toEqual(kept);
   });
 
@@ -1026,7 +1026,7 @@ describe("Séance planifiée — version lue (#604)", () => {
     const refused = await coach.delete(path(sessionId)).query({ expectedUpdatedAt: read });
 
     expectLocked(refused);
-    expect(refused.body.message).toContain("débriefée");
+    expect(refused.body.detail).toContain("débriefée");
   });
 
   // Un 409 apprendrait à l'autre coach que la séance existe.

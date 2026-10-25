@@ -121,7 +121,7 @@ describe("Médias de débrief (P4)", () => {
 
     const refused = await deleteAtLatest(coachA, `/scheduled-sessions/${sessionId}`);
     expect(refused.status).toBe(409);
-    expect(refused.body.message).toContain("débriefée");
+    expect(refused.body.detail).toContain("débriefée");
 
     expect((await coachA.get(`/scheduled-sessions/${sessionId}`)).body.status).toBe("DONE");
     const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
@@ -342,7 +342,7 @@ describe("Médias de débrief (P4)", () => {
     const res = await athleteA1.delete(`${url}/media-inconnu`);
 
     expect(res.status).toBe(404);
-    expect(res.body.message).toBe("Média introuvable");
+    expect(res.body.detail).toBe("Média introuvable");
     const after = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
     expect(after.body.media).toHaveLength(before.body.media.length);
   });
