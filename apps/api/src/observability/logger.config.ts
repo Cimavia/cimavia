@@ -5,7 +5,8 @@ import type { Options } from "pino-http";
 /**
  * Cibles de transport pino :
  * - console : JSON brut en prod (capté par l'hébergeur), pino-pretty en dev ;
- * - Axiom : activé dès que AXIOM_TOKEN + AXIOM_DATASET sont fournis (logs structurés distants).
+ * - Axiom : activé dès que AXIOM_TOKEN + AXIOM_DATASET sont fournis (logs structurés distants),
+ *   AXIOM_EDGE en option pour un dataset d'une région à domaine edge dédié.
  */
 export function buildLogTargets(): TransportTargetOptions[] {
   const isProd = process.env.NODE_ENV === "production";
@@ -21,6 +22,9 @@ export function buildLogTargets(): TransportTargetOptions[] {
       options: {
         dataset: process.env.AXIOM_DATASET,
         token: process.env.AXIOM_TOKEN,
+        // Un dataset hors région par défaut refuse l'ingestion via api.axiom.co (400) : il exige
+        // le domaine edge de sa région. Vide = domaine par défaut.
+        ...(process.env.AXIOM_EDGE ? { edge: process.env.AXIOM_EDGE } : {}),
       },
     });
   }
