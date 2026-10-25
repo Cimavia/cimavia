@@ -12,7 +12,7 @@ import {
 import { useKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import { CmvText } from "./CmvText";
 
 export type RecordedAudio = { uri: string; durationSeconds: number };
@@ -66,6 +66,28 @@ function isNotificationsRefused(error: unknown): boolean {
  */
 async function restorePlayback() {
   await setAudioModeAsync(PLAYBACK_MODE).catch(() => undefined);
+}
+
+/**
+ * Remet l'enregistreur à zéro après un démarrage raté. Côté Android, `prepareRecording` pose
+ * `isPrepared` et refuse toute nouvelle préparation tant que l'enregistreur n'est ni arrêté ni
+ * libéré : sans cela, un `record()` qui lève condamne chaque tap suivant (#700). `stop()` libère le
+ * `MediaRecorder` même quand rien n'a démarré. Best-effort, comme `restorePlayback`.
+ */
+async function releaseRecorder(recorder: { stop: () => Promise<void> }) {
+  await recorder.stop().catch(() => undefined);
+}
+
+/**
+ * Le natif NOMME la panne par un `code` (`ERR_NOTIFICATION_PERMISSIONS`, …) et la plateforme dit
+ * quel natif a parlé : sans eux, seul le message générique signale l'échec (#700). Le code n'est
+ * posé que s'il existe.
+ */
+function captureRecorderError(error: unknown) {
+  const code = error instanceof Error && "code" in error ? String(error.code) : undefined;
+  Sentry.captureException(error, {
+    tags: { platform: Platform.OS, ...(code == null ? {} : { code }) },
+  });
 }
 
 type RecordingBannerProps = {
@@ -178,7 +200,8 @@ export function CmvAudioRecorder({
       // Le natif NOMME la panne (#393 : « playsInSilentMode == false and allowsRecording == true
       // cannot be set on iOS ») ; sans cette remontée, seul le message générique la signale.
       capturing.current = false;
-      Sentry.captureException(error);
+      captureRecorderError(error);
+      await releaseRecorder(recorder);
       await restorePlayback();
       onError?.("messages.audio.recordError");
     }
@@ -197,7 +220,7 @@ export function CmvAudioRecorder({
         onRecorded({ uri: recorder.uri, durationSeconds });
       }
     } catch (error) {
-      Sentry.captureException(error);
+      captureRecorderError(error);
       await restorePlayback();
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
