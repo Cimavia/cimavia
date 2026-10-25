@@ -16,13 +16,9 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
-import { captureException } from "@sentry/nestjs";
 import type { PinoLogger } from "nestjs-pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MULTIPART_SIGNED_URL_TTL_SECONDS, StorageService } from "./storage.service";
-
-// Une `HttpException` échappe au filtre Sentry : le service capture lui-même ce qu'il traduit.
-vi.mock("@sentry/nestjs", () => ({ captureException: vi.fn() }));
 
 // ConfigService réduit à ce que lit StorageService : un getteur sur les variables S3_*.
 function configWith(values: Record<string, string>): ConfigService<EnvSchema, true> {
@@ -297,8 +293,7 @@ describe("StorageService — réponses du storage", () => {
      * Tout autre refus du storage dit qu'il n'a pas pu trancher, pas que le fichier manque : un 403
      * lu comme une absence maquillerait une vraie panne de droits (#317). C'est le 403 de SILO
      * derrière Cloudflare (#649), ou un storage injoignable. Il répondait en 500 muet ; il répond
-     * 502, et sa cause part au log et à Sentry, que le filtre global n'alimente pas pour une
-     * `HttpException`.
+     * 502, et sa cause part au log, d'où `pinoIntegration` la transmet à Sentry.
      */
     it.each([
       ["un 403", Object.assign(new Error("UnknownError"), { $metadata: { httpStatusCode: 403 } })],
@@ -313,7 +308,6 @@ describe("StorageService — réponses du storage", () => {
         { err: outage, storagePath: "doc.pdf" },
         "Le storage n'a pas pu confirmer la réception du fichier",
       );
-      expect(captureException).toHaveBeenCalledWith(outage);
     });
   });
 

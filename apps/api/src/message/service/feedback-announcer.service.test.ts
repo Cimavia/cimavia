@@ -163,7 +163,11 @@ describe("FeedbackAnnouncerService", () => {
 
     expect(allPosted(create).map((data) => data.conversationId)).toEqual(["conv-m1"]);
     expect(error).toHaveBeenCalledWith(
-      expect.objectContaining({ event: "feedback.announce.failed", coachId: "c1" }),
+      expect.objectContaining({
+        event: "feedback.announce.failed",
+        coachId: "c1",
+        err: expect.any(Error),
+      }),
       expect.any(String),
     );
   });

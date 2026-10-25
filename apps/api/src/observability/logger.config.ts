@@ -61,11 +61,29 @@ const serializers = {
   res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
 };
 
+/**
+ * Le niveau de la ligne d'une requête (#697) : `error` pour une panne (statut ≥ 500, ou une erreur
+ * que le serveur n'a pas su rendre), `warn` pour un refus (4xx), `info` sinon. Par défaut tout sortait
+ * en `info` : un 503 se confondait avec un 200 dans Axiom.
+ *
+ * Le niveau `error` est aussi ce qui crée un événement chez Sentry (`pinoIntegration`) — voir
+ * `sentry.config.ts`, qui écarte ces lignes-ci : le filtre d'exception a déjà capturé la même panne.
+ */
+export function requestLogLevel(
+  _req: unknown,
+  res: { statusCode: number },
+  error?: Error,
+): "error" | "warn" | "info" {
+  if (res.statusCode >= 500 || (error && res.statusCode < 400)) return "error";
+  return res.statusCode >= 400 ? "warn" : "info";
+}
+
 export function loggerOptions(): Options {
   return {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     transport: { targets: buildLogTargets() },
     autoLogging: true,
+    customLogLevel: requestLogLevel,
     serializers,
   };
 }

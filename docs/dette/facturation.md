@@ -46,6 +46,8 @@ liste des domaines vivent dans l'index.
 > construction** — la lecture ne divulgue donc rien, elle cesse simplement de reprocher au client
 > d'avoir posé une question dont la réponse était toujours la même. Un 400 disait « tu n'avais pas
 > le droit de demander », et ces erreurs auraient fait du bruit dans Sentry sans désigner de panne.
+> *Amendé en #697* : les 4xx entrent désormais dans Sentry, en `warning` — ce n'est plus le bruit qui
+> écarte le 400, mais le fait qu'aucun brouillon ne peut exister : il n'y a rien à refuser.
 >
 > Côté web, la conséquence est structurelle et vaut d'être dite : la lecture n'a plus qu'**un seul
 > appelant** (`PlanBuilderScreen`), qui descend `billing` en prop à `PlanBillingSection`. Deux

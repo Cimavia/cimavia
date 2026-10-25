@@ -1,19 +1,79 @@
-import { type ArgumentsHost, Catch } from "@nestjs/common";
+import { type ArgumentsHost, Catch, HttpException, HttpStatus } from "@nestjs/common";
 import { BaseExceptionFilter } from "@nestjs/core";
-import { SentryExceptionCaptured } from "@sentry/nestjs";
+import * as Sentry from "@sentry/nestjs";
+
+/** Ce que le filtre lit de la requête et de la réponse Fastify, sans dépendre de `fastify`. */
+type RequestShape = { method?: string; routeOptions?: { url?: string } };
+type ReplyShape = { raw?: object };
+
+/** Le motif de route que les sondes de l'hébergeur interrogent en boucle. */
+const HEALTH_ROUTE = /^\/health(?:\/|$)/;
+
+/** Le statut que la réponse portera : celui d'une `HttpException`, sinon une 500 non maîtrisée. */
+function statusOf(exception: unknown): number {
+  return exception instanceof HttpException
+    ? exception.getStatus()
+    : HttpStatus.INTERNAL_SERVER_ERROR;
+}
 
 /**
- * Filtre d'exception global qui transmet à Sentry les erreurs *inattendues*
- * (tout ce qui n'est pas une HttpException Nest, donc les bugs/500 non maîtrisés),
- * puis délègue le rendu de la réponse au filtre par défaut de Nest.
+ * Ce qui part chez Sentry, et à quel niveau (#697) : `error` pour une panne (un statut ≥ 500, ou
+ * une exception que personne n'a prévue), `warning` pour un refus (4xx). Le niveau sépare les deux
+ * dans l'interface ; le regroupement ci-dessous évite une issue par occurrence d'un refus.
  *
- * Le décorateur `@SentryExceptionCaptured()` ignore les erreurs attendues
- * (HttpException : 4xx, 503 santé…) pour ne pas polluer Sentry.
+ * `null` pour ce qui ne dit rien du code :
+ * - le 401 : sur les routes des apps il veut dire « session perdue », l'état normal au bout de sept
+ *   jours (`isUnauthorizedError`) ;
+ * - le 503 de la sonde de santé, qu'elle répète en boucle : la panne se lit par elle.
+ */
+export function sentryLevelOf(
+  status: number,
+  route: string | undefined,
+): "error" | "warning" | null {
+  if (status === HttpStatus.UNAUTHORIZED) return null;
+  if (status === HttpStatus.SERVICE_UNAVAILABLE && route && HEALTH_ROUTE.test(route)) return null;
+  return status >= HttpStatus.INTERNAL_SERVER_ERROR ? "error" : "warning";
+}
+
+/**
+ * Filtre d'exception global : envoie l'exception à Sentry, dépose-la sur la réponse pour que la
+ * ligne de journal de la requête porte la VRAIE erreur, puis délègue le rendu au filtre de Nest.
+ *
+ * Il capture lui-même, sans `@SentryExceptionCaptured()` : ce décorateur écarte TOUTE
+ * `HttpException`, 5xx compris — un storage non configuré n'arrivait jamais chez Sentry. Les 4xx
+ * y entrent désormais, en `warning` : l'inverse du principe qui était écrit ici (« ne pas polluer
+ * Sentry »), tranché en #696 et consigné dans `docs/dette/livraison-et-deploiement.md`.
  */
 @Catch()
 export class SentryExceptionFilter extends BaseExceptionFilter {
-  @SentryExceptionCaptured()
   override catch(exception: unknown, host: ArgumentsHost): void {
+    const http = host.switchToHttp();
+    const request = http.getRequest<RequestShape | undefined>();
+    // Le motif déclaré (`/sessions/:id`), pas l'URL : elle porte des identifiants et, sur la
+    // révocation d'un appareil, un jeton. Absent pour une route inconnue (404).
+    const route = request?.routeOptions?.url;
+    const status = statusOf(exception);
+    const level = sentryLevelOf(status, route);
+
+    if (level) {
+      Sentry.withScope((scope) => {
+        scope.setLevel(level);
+        scope.setTag("http.status_code", String(status));
+        // Un refus (4xx) porte un message français par variante : sans empreinte, Sentry en ferait
+        // une issue par message. Une 5xx garde le regroupement par pile, qui sépare les sites
+        // d'où elle est levée ; une exception non HTTP aussi.
+        if (level === "warning") {
+          scope.setFingerprint([String(status), `${request?.method ?? "?"} ${route ?? "?"}`]);
+        }
+        Sentry.captureException(exception);
+      });
+    }
+
+    // `pino-http` lit `res.err` à la fin de la réponse : sans lui, il fabrique « failed with
+    // status code 503 » et la vraie exception n'est jamais rattachée à sa ligne.
+    const reply = http.getResponse<ReplyShape | undefined>();
+    if (reply?.raw) Object.assign(reply.raw, { err: exception });
+
     super.catch(exception, host);
   }
 }

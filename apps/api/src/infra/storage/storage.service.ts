@@ -29,7 +29,6 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { captureException } from "@sentry/nestjs";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 
 const UNCONFIRMED_UPLOAD = "Le storage n'a pas pu confirmer la réception du fichier";
@@ -385,7 +384,6 @@ export class StorageService {
           throw new NotFoundException("Aucun fichier n'a été envoyé à ce chemin de storage");
         }
         this.logger.error({ err: error, storagePath: key }, UNCONFIRMED_UPLOAD);
-        captureException(error);
         throw new BadGatewayException(UNCONFIRMED_UPLOAD);
       });
     if (head.ContentType !== declared.mimeType || head.ContentLength !== declared.size) {

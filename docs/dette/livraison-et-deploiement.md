@@ -340,6 +340,33 @@ liste des domaines vivent dans l'index.
 > une montée qui n'en prend qu'un ne compile pas (#588). `@sentry/react-native` reste ignoré, et
 > `@sentry/cli` le rejoint : épinglé sur ce qu'il exige (O-2), il n'avance qu'avec lui.
 
+> **Tranché en #697** (ce que l'API envoie à Sentry, épic [#696](https://github.com/Cimavia/cimavia/issues/696)) :
+> `@SentryExceptionCaptured()` écartait toute `HttpException`, 5xx compris — un storage non
+> configuré (#649) n'atteignait jamais Sentry, et les `catch` qui journalisent sans relancer non
+> plus. Quatre décisions :
+> - **Les 4xx entrent dans Sentry, en `warning`** (décision du 2026-10-23). C'est l'inverse du
+>   principe qu'écrivait `SentryExceptionFilter` (« ne pas polluer Sentry ») et de la décision de
+>   facturation (`facturation.md`, « du bruit dans Sentry sans désigner de panne »). Le niveau
+>   sépare les pannes (`error`) des refus (`warning`) ; l'empreinte `[statut, méthode + motif de la
+>   route]` évite une issue par message français. Une 5xx garde le regroupement par pile, qui
+>   sépare les sites d'où elle est levée. Aucun échantillonnage d'avance : le volume se regarde au
+>   bout d'une semaine sur la preview.
+> - **Deux exclusions** : le 503 de la sonde de santé (`/health*`, répété en boucle — la panne se
+>   lit par la sonde) et le **401**, qui sur les routes des apps veut dire « session perdue », un
+>   état normal au bout de sept jours (`isUnauthorizedError`). Ni l'un ni l'autre ne quitte Axiom :
+>   la ligne de la requête y reste, en `warn`.
+> - **Les erreurs avalées passent par `pinoIntegration`** (niveaux `error` et `fatal` seulement,
+>   `log.levels: []`, sans `enableLogs`) : un `logger.error` dans un `catch` devient un événement,
+>   en un seul point plutôt qu'un `captureException` à ne pas oublier. Axiom reste le canal des
+>   journaux. Les lignes `request errored` / `request completed` sont écartées par `beforeSend` :
+>   passées en `error` par `customLogLevel`, elles doubleraient l'événement que le filtre a déjà
+>   envoyé. Conséquence : le 502 `UNCONFIRMED_UPLOAD` fait désormais DEUX événements — la cause S3
+>   (par le `logger.error` du service, qui remplace le `captureException` manuel) et le 502 lui-même.
+> - **Les journaux disent le niveau et la vraie exception** : `customLogLevel` range un 4xx en
+>   `warn` et un 5xx en `error` ; le filtre pose l'exception sur `res.err`, que `pino-http` lit pour
+>   écrire `err` au lieu de « failed with status code 503 ». Les routes Better Auth (`/api/auth/*`)
+>   restent hors du filtre et du logger (O-3, #466) : leur capture se décide avec #698.
+
 ---
 
 ## Post-MVP — Numéro de version du produit ([#184](https://github.com/Cimavia/cimavia/issues/184))
