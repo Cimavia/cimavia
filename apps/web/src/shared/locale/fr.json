@@ -1517,5 +1517,120 @@
       },
       "hint": "L'athlète sera suivi par tous les coachs de {{name}}."
     }
+  },
+  "block": {
+    "preset": {
+      "series": "Séries",
+      "emom": "EMOM",
+      "amrap": "AMRAP",
+      "tabata": "Tabata",
+      "forTime": "For time",
+      "free": "Libre"
+    },
+    "disabled": {
+      "roundsWithBeep": "Avec un bip, indique un nombre de tours.",
+      "roundsWithCycle": "Avec effort et repos imposés, indique un nombre de tours.",
+      "beepIsRest": "Le temps avant le bip sert déjà de repos.",
+      "includedInCycle": "Déjà compris dans le repos imposé.",
+      "singlePass": "Un seul passage : choisis un nombre de tours.",
+      "clockRuns": "Le chrono tourne : l'athlète se repose sur son temps.",
+      "capAlready": "Inutile : le bloc dure déjà {{cap}}.",
+      "durationDerived": "Inutile : la durée se calcule seule ({{count}} × {{unit}} = {{total}})."
+    },
+    "settings": {
+      "tooFewBeeps": "Au moins {{count}} bips pour {{count}} exercices.",
+      "tooFewIntervals": "Au moins {{count}} intervalles pour {{count}} exercices."
+    },
+    "every": {
+      "second": "chaque seconde",
+      "minute": "chaque minute",
+      "hour": "chaque heure",
+      "interval": "toutes les {{duration}}"
+    },
+    "count": {
+      "sets": "{{count}} série",
+      "sets_other": "{{count}} séries",
+      "rounds": "{{count}} tour",
+      "rounds_other": "{{count}} tours",
+      "beeps": "{{count}} bip",
+      "beeps_other": "{{count}} bips",
+      "intervals": "{{count}} intervalle",
+      "intervals_other": "{{count}} intervalles"
+    },
+    "pace": {
+      "ownPace": "à son rythme",
+      "fastest": "le plus vite possible"
+    },
+    "phrase": {
+      "once": "Une fois, {{pace}}",
+      "onceEach": "Chaque exercice une fois, {{pace}}",
+      "max": "Le plus de tours possible en {{cap}}",
+      "rounds": "{{rounds}} {{pace}}",
+      "roundsBeep": "{{rounds}}, un bip {{every}}",
+      "roundsCycle": "{{rounds}} : {{work}} d'effort, {{rest}} de repos",
+      "restBetweenExercises": "{{rest}} entre exercices",
+      "restBetweenSets": "{{rest}} de repos entre séries",
+      "restBetweenRounds": "{{rest}} de repos entre tours",
+      "limit": "{{limit}} au plus",
+      "separator": ", ",
+      "beepsEvery": "{{beeps}}, {{every}}",
+      "intervalsCycle": "{{intervals}}, {{work}} d'effort et {{rest}} de repos",
+      "alternating": "{{names}} en alternance",
+      "eachInTurn": "un exercice à chaque fois",
+      "oneByOne": "{{what}} : {{who}}, {{times}}",
+      "timesEach": "{{count}} fois chacun",
+      "timesFirst": "{{times}} fois pour le premier",
+      "timesFirst_other": "{{times}} fois pour les {{count}} premiers",
+      "timesOthers": "{{times}} pour les autres",
+      "timesOther": "{{times}} pour l'autre",
+      "timesLast": "{{times}} pour le dernier",
+      "timesUneven": "{{first}}, {{rest}}"
+    },
+    "grid": {
+      "eachSet": "À chaque série : ",
+      "eachRound": "À chaque tour : ",
+      "eachBeep": "À chaque bip : ",
+      "eachInterval": "À chaque intervalle : ",
+      "set": "Série {{index}}",
+      "round": "Tour {{index}}",
+      "pass": "Passage {{index}}",
+      "emptyCell": "{{metric}} —",
+      "repetitions": "{{value}} répétition",
+      "repetitions_other": "{{value}} répétitions",
+      "effort": "{{value}} d'effort",
+      "value": "{{value}}",
+      "joinAt": " à ",
+      "joinComma": ", "
+    },
+    "flow": "{{labels}} à la suite, puis on recommence.",
+    "counter": {
+      "set": "Série {{index}} / {{total}}",
+      "round": "Tour {{index}} / {{total}}",
+      "beep": "Bip {{index}} / {{total}}",
+      "interval": "Intervalle {{index}} / {{total}}",
+      "beepNamed": "Bip {{index}} / {{total}} · {{name}}",
+      "intervalNamed": "Intervalle {{index}} / {{total}} · {{name}}"
+    },
+    "checks": {
+      "beep": "Bip {{index}}",
+      "interval": "Intervalle {{index}}"
+    },
+    "tally": {
+      "done": "Terminé",
+      "firstRoundInProgress": "Tour 1 en cours",
+      "exercises": "{{count}} exercice sur {{total}}",
+      "exercises_other": "{{count}} exercices sur {{total}}",
+      "beeps": "{{count}} bip sur {{total}}",
+      "beeps_other": "{{count}} bips sur {{total}}",
+      "intervals": "{{count}} intervalle sur {{total}}",
+      "intervals_other": "{{count}} intervalles sur {{total}}",
+      "sets": "{{count}} série sur {{total}}",
+      "sets_other": "{{count}} séries sur {{total}}",
+      "rounds": "{{count}} tour sur {{total}}",
+      "rounds_other": "{{count}} tours sur {{total}}",
+      "noteRound": "Un tour compte quand ses {{count}} cases sont cochées. Décocher est toujours possible.",
+      "noteNoRounds": "Le nombre de tours n'est pas noté. Décocher est toujours possible.",
+      "note": "Décocher est toujours possible."
+    }
   }
 }
