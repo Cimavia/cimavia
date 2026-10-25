@@ -1,4 +1,4 @@
-import { ApiError, type AthleteSheetDto, athleteKeys, STALE_WRITE } from "@cmv/shared";
+import { ApiError, type AthleteSheetDto, athleteKeys, ProblemType } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
@@ -133,7 +133,7 @@ describe("AthleteSheetPanel — la version lue (#440)", () => {
     content: "Écrit dans l'autre onglet.",
     updatedAt: "2026-09-02T10:00:00.000Z",
   };
-  const staleWrite = () => new ApiError(409, STALE_WRITE, null);
+  const staleWrite = () => new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   it("cite la version de la fiche reçue", async () => {
     const { user } = render();
@@ -200,7 +200,7 @@ describe("AthleteSheetPanel — la version lue (#440)", () => {
     expect(screen.getByRole("textbox")).toHaveValue(`${SHEET.content} Genou OK.`);
     expect(onClose).not.toHaveBeenCalled();
     // Le code brut de l'API n'atteint pas l'écran : le bandeau le dit déjà, traduit.
-    expect(screen.queryByText(STALE_WRITE)).toBeNull();
+    expect(screen.queryByText("Conflit")).toBeNull();
   });
 
   it("« Recharger » remplace la saisie par la dernière version", async () => {

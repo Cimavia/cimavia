@@ -1,4 +1,4 @@
-import { ApiError, CapabilityBlocker } from "@cmv/shared";
+import { ApiError, ProblemType } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { capabilityApi } from "@/feature/account/api";
@@ -173,12 +173,12 @@ describe("AccountScreen — l'enregistrement", () => {
   it.each([
     [
       "un coach qui a encore des athlètes",
-      new ApiError(409, CapabilityBlocker.ACTIVE_ATHLETES, null),
+      new ApiError(409, "Refus", null, true, ProblemType.ACTIVE_ATHLETES),
       "account.capabilities.blocked.ACTIVE_ATHLETES",
     ],
     [
       "un athlète encore lié à son coach",
-      new ApiError(409, CapabilityBlocker.ACTIVE_COACH, null),
+      new ApiError(409, "Refus", null, true, ProblemType.ACTIVE_COACH),
       "account.capabilities.blocked.ACTIVE_COACH",
     ],
     ["un code inconnu", new ApiError(409, "NOUVEAU_CODE", null), "common.error"],

@@ -1,4 +1,4 @@
-import { STALE_WRITE } from "@cmv/shared";
+import { ProblemType } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { renderWithProviders } from "../../../test/render";
@@ -49,10 +49,10 @@ describe("CmvFormError", () => {
 
   it("traduit une version périmée, qui n'a qu'un code à montrer", () => {
     const { getByText, queryByText } = renderWithProviders(
-      <CmvFormError error={new ApiError(409, STALE_WRITE, null)} />,
+      <CmvFormError error={new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE)} />,
     );
 
     expect(getByText("common.staleWrite")).toBeInTheDocument();
-    expect(queryByText(STALE_WRITE)).toBeNull();
+    expect(queryByText("Conflit")).toBeNull();
   });
 });

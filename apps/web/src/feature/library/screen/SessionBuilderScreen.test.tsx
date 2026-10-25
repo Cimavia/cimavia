@@ -9,10 +9,10 @@ import {
   MetricSource,
   MetricValueType,
   MyAccessLevel,
+  ProblemType,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   type SessionDto,
-  STALE_WRITE,
   structurePath,
 } from "@cmv/shared";
 import { useSearch } from "@tanstack/react-router";
@@ -594,7 +594,7 @@ describe("SessionBuilderScreen — conflit d'édition (#604)", () => {
   const LATEST = "2026-10-12T08:03:00.000Z";
   const STALE = "library.session.stale";
   const RELOAD = "common.staleReload";
-  const stale = () => new ApiError(409, STALE_WRITE, null);
+  const stale = () => new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   async function editThenConflict() {
     api.updateSession.mockRejectedValueOnce(stale());
@@ -612,7 +612,7 @@ describe("SessionBuilderScreen — conflit d'édition (#604)", () => {
 
     expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force max");
     expect(view.queryByText("library.session.saveFailed")).not.toBeInTheDocument();
-    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.queryByText("Conflit")).not.toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
 
@@ -1209,7 +1209,9 @@ describe("SessionBuilderScreen — suppression", () => {
   });
 
   it("une suppression qui trouve la séance changée le dit par le bandeau, qui la recharge", async () => {
-    api.deleteSession.mockRejectedValue(new ApiError(409, STALE_WRITE, null));
+    api.deleteSession.mockRejectedValue(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
     const view = await edit();
 
     await view.user.click(view.getByRole("button", { name: DELETE }));
@@ -1218,7 +1220,7 @@ describe("SessionBuilderScreen — suppression", () => {
     expect(await view.findByText("library.session.staleDelete")).toBeInTheDocument();
     // Une seule fois : le bandeau, pas un second message sous les actions.
     expect(view.queryByText("common.staleWrite")).not.toBeInTheDocument();
-    expect(view.queryByText(STALE_WRITE)).not.toBeInTheDocument();
+    expect(view.queryByText("Conflit")).not.toBeInTheDocument();
     expect(view.getByRole("button", { name: "common.staleReload" })).toBeInTheDocument();
   });
 

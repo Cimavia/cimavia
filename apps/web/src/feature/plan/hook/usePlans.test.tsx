@@ -1,4 +1,4 @@
-import { ApiError, myPlanKeys, STALE_WRITE } from "@cmv/shared";
+import { ApiError, myPlanKeys, ProblemType } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoiceKeys } from "@/feature/invoice/api";
@@ -144,7 +144,7 @@ describe("diffuser ou supprimer un cycle qui a changé", () => {
 
   // Et ce qu'une réaffectation ou une diffusion de l'autre Coach a changé avec lui (#14).
   it.each(actions)("%s refusée sur une version périmée relit le cycle", async (_, api, hook) => {
-    const stale = new ApiError(409, STALE_WRITE, null);
+    const stale = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
     api.mockRejectedValue(stale);
     const { wrapper, stale: invalidated } = seeded();
     const { result } = renderHook(() => hook(), { wrapper });
