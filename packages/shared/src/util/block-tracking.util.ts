@@ -1,5 +1,6 @@
 import type { SessionBlockTracking } from "../dto/block-tracking.schema";
-import { StructureAdvance, StructureRepeat, type StructureSettings } from "../dto/structure.schema";
+import type { StructureSettings } from "../dto/structure.schema";
+import { StructureAdvance, StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 import { required } from "./invariant.util";
 import type { Phrase } from "./phrase.util";
@@ -171,6 +172,7 @@ export function blockTally(
     return { state: BlockTallyState.PARTIAL, label };
   }
   // Une case unique — « Bloc fait » — ne peut pas être à moitié cochée : un partiel a une unité.
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
   const unit = required(checks.unit, "décompte partiel d'un bloc sans unité");
   return {
     state: BlockTallyState.PARTIAL,
@@ -182,6 +184,7 @@ export function blockTally(
 export function trackingNote(checks: BlockChecks): Phrase {
   if (checks.byRound) {
     // Le nombre de cases d'un tour est celui des exercices : toutes les rangées en ont autant.
+    // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
     const first = required(checks.rows[0], "bloc par tours sans tour");
     return { key: "block.tally.noteRound", params: { count: first.boxes.length } };
   }

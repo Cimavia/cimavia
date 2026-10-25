@@ -19,9 +19,11 @@ const checkIndexSchema = z.number().int().nonnegative();
  * dire NON SUIVI, ce qui n'est pas « rien coché ».
  *
  * C'est le schéma de RELECTURE : il ne borne rien, pour qu'un suivi déjà stocké qui dépasserait
- * une borne posée après coup ne fasse pas échouer la lecture de toute la séance (cf. #297).
+ * une borne posée après coup ne fasse pas échouer la lecture de toute la séance (cf. #297). Pour la
+ * même raison il n'est pas strict : un champ ajouté plus tard est retiré de la lecture, pas
+ * refusé. Rien ne réécrit le suivi depuis cette lecture : un envoi passe par le schéma d'envoi.
  */
-export const sessionBlockTrackingSchema = z.object({ checked: z.array(checkIndexSchema) }).strict();
+export const sessionBlockTrackingSchema = z.object({ checked: z.array(checkIndexSchema) });
 export type SessionBlockTracking = z.infer<typeof sessionBlockTrackingSchema>;
 
 /**

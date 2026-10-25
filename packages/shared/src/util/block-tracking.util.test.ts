@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { cycle, oneByBeep, presets, rounds, settingsOf } from "../../test/block-fixtures";
+import { cycle, issuesOf, oneByBeep, presets, rounds, settingsOf } from "../../test/block-fixtures";
 import { say } from "../../test/french";
 import {
   BLOCK_MAX_CHECKS,
   sessionBlockTrackingInputSchema,
   sessionBlockTrackingSchema,
 } from "../dto/block-tracking.schema";
-import { StructureOrder } from "../dto/structure.schema";
+import { StructureOrder } from "../dto/structure-answer.schema";
 import {
   type BlockChecks,
   BlockTallyState,
@@ -62,6 +62,8 @@ describe("blockChecks", () => {
       { label: "Bip 2", boxes: [1] },
       { label: "Bip 3", boxes: [0] },
     ]);
+    const boxes = rowsOf(blockChecks(oneByBeep(60, 4), 3)).map((row) => row.boxes);
+    expect(boxes).toEqual([[0], [1], [2], [0]]);
   });
 
   it("donne une case par intervalle avec un seul par intervalle", () => {
@@ -99,6 +101,7 @@ describe("le nombre de cases et l'appartenance au bloc", () => {
   it("refuse un suivi qui coche une case que le bloc n'a pas", () => {
     expect(trackingFitsBlock(checks, tracked(0, 5))).toBe(true);
     expect(trackingFitsBlock(checks, tracked(6))).toBe(false);
+    expect(trackingFitsBlock(checks, tracked(0, 6))).toBe(false);
   });
 
   it("range les cases cochées par rangée, et ignore celles au-delà du bloc", () => {
@@ -170,6 +173,12 @@ describe("le suivi d'un bloc", () => {
     expect(sessionBlockTrackingSchema.safeParse(tracked(-1)).success).toBe(false);
   });
 
+  it("se relit en ignorant un champ ajouté après coup, que l'envoi refuse", () => {
+    const later = { checked: [0], updatedAt: "2026-10-25" };
+    expect(sessionBlockTrackingSchema.parse(later)).toEqual({ checked: [0] });
+    expect(sessionBlockTrackingInputSchema.safeParse(later).success).toBe(false);
+  });
+
   it("s'envoie dans la borne de tout bloc, chaque case une seule fois", () => {
     expect(
       sessionBlockTrackingInputSchema.safeParse(tracked(0, BLOCK_MAX_CHECKS - 1)).success,
@@ -177,7 +186,9 @@ describe("le suivi d'un bloc", () => {
     expect(sessionBlockTrackingInputSchema.safeParse(tracked(BLOCK_MAX_CHECKS)).success).toBe(
       false,
     );
-    expect(sessionBlockTrackingInputSchema.safeParse(tracked(2, 2)).success).toBe(false);
+    expect(issuesOf(sessionBlockTrackingInputSchema, tracked(2, 2))).toEqual([
+      "checked: Une case ne peut être cochée qu'une fois.",
+    ]);
   });
 
   it("borne tout bloc à 99 tours de 20 exercices", () => {
