@@ -1,4 +1,4 @@
-import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto, STALE_WRITE } from "@cmv/shared";
+import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto, ProblemType } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -225,7 +225,7 @@ describe("AthleteSheetScreen — la version lue (#440)", () => {
     ...sheet("Écrit sur le web"),
     updatedAt: "2026-09-02T10:00:00.000Z",
   };
-  const STALE = new ApiError(409, STALE_WRITE, null);
+  const STALE = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
 
   /** Ouvre l'édition, remplace le texte, enregistre. */
   async function editAndSave(content: string) {
