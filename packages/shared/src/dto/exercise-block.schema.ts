@@ -11,6 +11,7 @@ import {
   catalogScaleOf,
   METRIC_CATALOG,
   MetricKey,
+  type MetricUnit,
   type MetricValue,
   type MetricValueType,
   metricAcceptsUnit,
@@ -146,25 +147,32 @@ export const MetricSource = {
 } as const;
 export type MetricSource = TypesValuesOf<typeof MetricSource>;
 
+// Ce qui désigne la métrique d'une colonne, partagé avec la grille par blocs (`block-grid.schema`)
+// jusqu'au retrait de ce modèle (#723).
+export const catalogMetricShape = {
+  source: z.literal(MetricSource.CATALOG),
+  key: metricKeySchema,
+  unit: metricUnitSchema,
+};
+export const customMetricShape = {
+  source: z.literal(MetricSource.CUSTOM),
+  customMetricId: z.string().min(1),
+};
+export const metricUnitRefinement: [
+  (metric: { key: MetricKey; unit: MetricUnit }) => boolean,
+  { message: string; path: string[] },
+] = [
+  (metric) => metricAcceptsUnit(metric.key, metric.unit),
+  { message: "Cette unité n'est pas admise par la métrique.", path: ["unit"] },
+];
+
 export const catalogBlockMetricSchema = z
-  .object({
-    ...blockMetricBaseSchema,
-    source: z.literal(MetricSource.CATALOG),
-    key: metricKeySchema,
-    unit: metricUnitSchema,
-  })
+  .object({ ...blockMetricBaseSchema, ...catalogMetricShape })
   .strict()
-  .refine((metric) => metricAcceptsUnit(metric.key, metric.unit), {
-    message: "Cette unité n'est pas admise par la métrique.",
-    path: ["unit"],
-  });
+  .refine(...metricUnitRefinement);
 
 export const customBlockMetricSchema = z
-  .object({
-    ...blockMetricBaseSchema,
-    source: z.literal(MetricSource.CUSTOM),
-    customMetricId: z.string().min(1),
-  })
+  .object({ ...blockMetricBaseSchema, ...customMetricShape })
   .strict();
 
 export const blockMetricSchema = z.discriminatedUnion("source", [
@@ -973,9 +981,17 @@ export type ExerciseBlocks = z.infer<typeof exerciseBlocksSchema>;
 
 // ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────
 
+/**
+ * Ce qui désigne la métrique d'une colonne, de l'ancienne grille comme de la grille par blocs.
+ * Écrit ici plutôt qu'importé de `block-grid.schema`, qui dépend déjà de ce module.
+ */
+type MetricReference =
+  | { source: typeof MetricSource.CATALOG; key: MetricKey }
+  | { source: typeof MetricSource.CUSTOM; customMetricId: string };
+
 /** Le type de valeur d'une colonne — catalogue ou métrique du coach. */
 export function metricValueTypeOf(
-  metric: BlockMetric,
+  metric: MetricReference,
   customMetrics: readonly CustomMetric[] = [],
 ): MetricValueType | null {
   if (metric.source === MetricSource.CATALOG) return METRIC_CATALOG[metric.key].valueType;

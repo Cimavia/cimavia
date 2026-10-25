@@ -1,5 +1,5 @@
+import type { GridMetric } from "../dto/block-grid.schema";
 import {
-  type BlockMetric,
   type ExerciseBlock,
   MetricSource,
   metricValueTypeOf,
@@ -26,6 +26,9 @@ import { formatTrainingDuration } from "./training-duration.util";
  * `translate` est INJECTÉ et typé structurellement : `@cmv/shared` ne connaît pas i18next, et
  * chaque app a son instance. Même dispositif que `notificationSubject` et `formatRelativeOrDateTime`.
  * La `locale` vient en dernier, comme pour tous les formateurs du paquet.
+ *
+ * Une colonne s'y passe en `GridMetric`, celle de la grille par blocs : la colonne de l'ancienne
+ * grille, qui n'a que `collapsed` en plus, s'y range aussi.
  */
 
 /** L'absence, écrite. Un seul caractère, mais c'est le contrat de tout ce module. */
@@ -38,7 +41,7 @@ const ABSENT = "—";
  *  3. le catalogue livré, traduit.
  */
 export function metricLabel(
-  metric: BlockMetric,
+  metric: GridMetric,
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
 ): string {
@@ -54,7 +57,7 @@ export function metricLabel(
  * pas une unité, c'est l'absence d'unité, et l'afficher mettrait un mot là où il n'y a rien.
  */
 export function metricUnitLabel(
-  metric: BlockMetric,
+  metric: GridMetric,
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
 ): string | null {
@@ -72,7 +75,7 @@ export function metricUnitLabel(
  */
 export function formatMetricValue(
   value: MetricValue,
-  metric: BlockMetric,
+  metric: GridMetric,
   customMetrics: readonly CustomMetric[],
   locale: string,
 ): string {
@@ -97,7 +100,7 @@ export function formatMetricValue(
  */
 export function metricCellText(
   value: MetricValue,
-  metric: BlockMetric,
+  metric: GridMetric,
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
   locale: string,

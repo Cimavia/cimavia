@@ -1,42 +1,27 @@
 import { z } from "zod";
-import { MetricSource } from "./exercise-block.schema";
 import {
-  metricAcceptsUnit,
-  metricKeySchema,
-  metricUnitSchema,
-  metricValueSchema,
-} from "./exercise-metric.schema";
+  BLOCK_LABEL_MAX_LENGTH,
+  BLOCK_MAX_METRICS,
+  catalogMetricShape,
+  customMetricShape,
+  MetricSource,
+  metricUnitRefinement,
+} from "./exercise-block.schema";
+import { metricValueSchema } from "./exercise-metric.schema";
 import { STRUCTURE_MAX_ROUNDS } from "./structure.schema";
 
 // La grille d'un exercice de bloc (#715) : ses colonnes et ses lignes de valeurs.
 //
 // Reprend la grille de `exercise-block.schema` sans le repli de colonne (`collapsed`), que le
-// modèle par blocs n'a plus. L'ancienne grille tombe avec #723.
+// modèle par blocs n'a plus, et en partage les formes et les bornes. Seul écart : le libellé de
+// colonne est taillé ici, pas dans l'ancienne grille, dont les données stockées ne changent pas.
+// L'ancienne grille tombe avec #723, qui rapatrie ici formes et bornes ; les noms `GRID_*` sont
+// ceux qui restent.
 
-export const GRID_MAX_METRICS = 12;
-export const GRID_LABEL_MAX_LENGTH = 60;
+export const GRID_MAX_METRICS = BLOCK_MAX_METRICS;
+export const GRID_LABEL_MAX_LENGTH = BLOCK_LABEL_MAX_LENGTH;
 /** Une ligne par tour, série ou passage : autant que de tours au plus. */
 export const GRID_MAX_ROWS = STRUCTURE_MAX_ROUNDS;
-
-const catalogMetric = {
-  source: z.literal(MetricSource.CATALOG),
-  key: metricKeySchema,
-  unit: metricUnitSchema,
-};
-const customMetric = {
-  source: z.literal(MetricSource.CUSTOM),
-  customMetricId: z.string().min(1),
-};
-const acceptedUnit: [
-  (metric: {
-    key: z.infer<typeof metricKeySchema>;
-    unit: z.infer<typeof metricUnitSchema>;
-  }) => boolean,
-  { message: string; path: string[] },
-] = [
-  (metric) => metricAcceptsUnit(metric.key, metric.unit),
-  { message: "Cette unité n'est pas admise par la métrique.", path: ["unit"] },
-];
 
 // ── Les métriques suggérées d'un exercice ───────────────────────────────────────────────────
 
@@ -46,10 +31,10 @@ const acceptedUnit: [
  */
 export const suggestedMetricSchema = z.discriminatedUnion("source", [
   z
-    .object(catalogMetric)
+    .object(catalogMetricShape)
     .strict()
-    .refine(...acceptedUnit),
-  z.object(customMetric).strict(),
+    .refine(...metricUnitRefinement),
+  z.object(customMetricShape).strict(),
 ]);
 export type SuggestedMetric = z.infer<typeof suggestedMetricSchema>;
 
@@ -72,15 +57,15 @@ export const suggestedMetricsSchema = z
 /** `label` remplace l'en-tête par défaut quand le Coach le renseigne (« Voie » plutôt que « Libellé »). */
 const gridMetricBase = {
   id: z.string().min(1),
-  label: z.string().min(1).max(GRID_LABEL_MAX_LENGTH).nullable(),
+  label: z.string().trim().min(1).max(GRID_LABEL_MAX_LENGTH).nullable(),
 };
 
 export const gridMetricSchema = z.discriminatedUnion("source", [
   z
-    .object({ ...gridMetricBase, ...catalogMetric })
+    .object({ ...gridMetricBase, ...catalogMetricShape })
     .strict()
-    .refine(...acceptedUnit),
-  z.object({ ...gridMetricBase, ...customMetric }).strict(),
+    .refine(...metricUnitRefinement),
+  z.object({ ...gridMetricBase, ...customMetricShape }).strict(),
 ]);
 export type GridMetric = z.infer<typeof gridMetricSchema>;
 

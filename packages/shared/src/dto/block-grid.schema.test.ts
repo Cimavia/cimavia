@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { custom, gridOf, load, reps } from "../../test/block-fixtures";
+import { custom, gridOf, issuesOf, load, reps } from "../../test/block-fixtures";
 import {
   blockGridSchema,
   GRID_MAX_METRICS,
@@ -27,12 +27,22 @@ describe("suggestedMetricsSchema", () => {
     expect(suggestedMetricsSchema.safeParse([wrong]).success).toBe(false);
   });
 
+  it("accepte plusieurs métriques différentes, du catalogue comme du Coach", () => {
+    const suggestedLoad = {
+      source: MetricSource.CATALOG,
+      key: MetricKey.LOAD,
+      unit: MetricUnit.KILOGRAMS,
+    };
+    const otherCustom = { ...suggestedCustom, customMetricId: "metric_2" };
+    expect(issuesOf(suggestedMetricsSchema, [suggestedReps, suggestedLoad])).toEqual([]);
+    expect(issuesOf(suggestedMetricsSchema, [suggestedCustom, otherCustom])).toEqual([]);
+  });
+
   it("refuse deux fois la même métrique, même avec une autre unité", () => {
+    const twice = ": Un exercice ne peut pas suggérer deux fois la même métrique.";
     const perSide = { ...suggestedReps, unit: MetricUnit.REPS_PER_SIDE };
-    expect(suggestedMetricsSchema.safeParse([suggestedReps, perSide]).success).toBe(false);
-    expect(suggestedMetricsSchema.safeParse([suggestedCustom, suggestedCustom]).success).toBe(
-      false,
-    );
+    expect(issuesOf(suggestedMetricsSchema, [suggestedReps, perSide])).toEqual([twice]);
+    expect(issuesOf(suggestedMetricsSchema, [suggestedCustom, suggestedCustom])).toEqual([twice]);
   });
 
   it("borne le nombre de métriques", () => {
@@ -61,21 +71,36 @@ describe("blockGridSchema", () => {
     expect(blockGridSchema.safeParse(gridOf([])).success).toBe(true);
   });
 
+  it("refuse un libellé de colonne fait d'espaces : sans libellé, c'est `null`", () => {
+    expect(blockGridSchema.safeParse(gridOf([{ ...load, label: "   " }])).success).toBe(false);
+    expect(blockGridSchema.parse(gridOf([{ ...load, label: " Voie " }])).metrics[0]?.label).toBe(
+      "Voie",
+    );
+  });
+
   it("refuse une colonne à l'unité inadmise", () => {
     const wrong = { ...load, unit: MetricUnit.REPS };
-    expect(blockGridSchema.safeParse(gridOf([wrong], [60])).success).toBe(false);
+    expect(issuesOf(blockGridSchema, gridOf([wrong], [60]))).toEqual([
+      "metrics.0.unit: Cette unité n'est pas admise par la métrique.",
+    ]);
   });
 
   it("refuse des identifiants de colonne ou de ligne en double", () => {
-    expect(blockGridSchema.safeParse(gridOf([reps, reps])).success).toBe(false);
+    expect(issuesOf(blockGridSchema, gridOf([reps, reps]))).toEqual([
+      "metrics: Deux colonnes ne peuvent pas partager le même identifiant.",
+    ]);
     const grid = gridOf([reps], [6], [8]);
     const [first] = grid.rows;
-    expect(blockGridSchema.safeParse({ ...grid, rows: [first, first] }).success).toBe(false);
+    expect(issuesOf(blockGridSchema, { ...grid, rows: [first, first] })).toEqual([
+      "rows: Deux lignes ne peuvent pas partager le même identifiant.",
+    ]);
   });
 
-  it("refuse une valeur dont la colonne n'existe pas", () => {
-    const grid = { metrics: [reps], rows: [{ id: "row_0", values: { col_gone: 6 } }] };
-    expect(blockGridSchema.safeParse(grid).success).toBe(false);
+  it("refuse une valeur dont la colonne n'existe pas, même à côté de valeurs connues", () => {
+    const values = { [reps.id]: 6, col_gone: 6 };
+    expect(issuesOf(blockGridSchema, { metrics: [reps], rows: [{ id: "row_0", values }] })).toEqual(
+      ["rows: Une ligne porte une valeur pour une colonne inexistante."],
+    );
   });
 
   it("borne les lignes au nombre de tours", () => {
