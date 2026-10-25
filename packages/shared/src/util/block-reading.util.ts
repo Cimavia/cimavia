@@ -1,7 +1,8 @@
 import type { BlockGrid, GridMetric } from "../dto/block-grid.schema";
 import { fittingColumnCount, MetricSource } from "../dto/exercise-block.schema";
-import { MetricKey, type MetricValue } from "../dto/exercise-metric.schema";
-import { StructureAdvance, StructureRepeat, type StructureSettings } from "../dto/structure.schema";
+import { MetricKey, MetricUnit, type MetricValue } from "../dto/exercise-metric.schema";
+import type { StructureSettings } from "../dto/structure.schema";
+import { StructureAdvance, StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 import type { Phrase } from "./phrase.util";
 import { oneAtATime } from "./structure-settings.util";
@@ -74,6 +75,7 @@ function cellsOf(grid: BlockGrid, values: Readonly<Record<string, MetricValue>>)
 }
 
 function sameCells(a: readonly GridCell[], b: readonly GridCell[]): boolean {
+  // Stryker disable next-line OptionalChaining: les lignes d'une grille ont toutes une cellule par colonne
   return a.every((cell, index) => cell.value === b[index]?.value);
 }
 
@@ -97,6 +99,7 @@ export function gridReading(
     return { layout: GridLayout.NONE };
   }
 
+  // Stryker disable next-line ArrayDeclaration: une grille sans ligne n'a aucune cellule remplie, elle s'arrête au-dessus
   const [first = [], ...others] = rows;
   if (others.every((cells) => sameCells(cells, first))) {
     return { layout: GridLayout.LINE, each: eachPhrase(settings, exerciseCount), cells: first };
@@ -132,10 +135,14 @@ function rowLabel(settings: StructureSettings, exerciseCount: number, index: num
     : { key: "block.grid.round", params: { index } };
 }
 
-/** Ce que l'app sait d'une cellule : le nom de sa colonne et sa valeur écrite (`metricCellText`). */
-export type GridCellText = { label: string; text: string };
+/**
+ * Ce que l'app sait d'une cellule, écrit dans sa langue : le nom de la colonne (`metricLabel`), la
+ * valeur sans unité (`formatMetricValue`) et l'unité, `null` sans unité (`metricUnitLabel`).
+ */
+export type GridCellText = { label: string; value: string; unit: string | null };
 
 function isCatalog(metric: GridMetric, key: MetricKey): boolean {
+  // Stryker disable next-line ConditionalExpression: une métrique du Coach n'a pas de clé
   return metric.source === MetricSource.CATALOG && metric.key === key;
 }
 
@@ -158,19 +165,39 @@ export function gridLinePhrases(
   });
 }
 
+/**
+ * Des répétitions s'accordent au nombre, en tout comme par côté : « 1 répétition », « 1 répétition
+ * par côté », « 6 répétitions ». Toute autre unité suit la valeur telle quelle : « 60 kg ».
+ */
 function cellPhrase(cell: GridCell, described: GridCellText): Phrase {
-  if (cell.value == null)
-    return { key: "block.grid.emptyCell", params: { metric: described.label } };
-  if (isCatalog(cell.metric, MetricKey.REPETITIONS) && typeof cell.value === "number") {
-    return {
-      key: "block.grid.repetitions",
-      params: { count: cell.value, value: described.text },
-    };
+  const { label, value, unit } = described;
+  if (cell.value == null) return { key: "block.grid.emptyCell", params: { metric: label } };
+  const { metric } = cell;
+  // Stryker disable next-line ConditionalExpression: un texte, « 8-10 », s'accorderait au pluriel comme il se lit déjà
+  const counted =
+    typeof cell.value === "number" ? repetitionsPhrase(metric, cell.value, value) : null;
+  if (counted != null) return counted;
+  if (isCatalog(metric, MetricKey.EFFORT_DURATION)) {
+    return { key: "block.grid.effort", params: { value } };
   }
-  if (isCatalog(cell.metric, MetricKey.EFFORT_DURATION)) {
-    return { key: "block.grid.effort", params: { value: described.text } };
+  if (unit == null) return { key: "block.grid.value", params: { value } };
+  return { key: "block.grid.valueWithUnit", params: { value, unit } };
+}
+
+/**
+ * Seules les répétitions se comptent en `REPS` ou `REPS_PER_SIDE` (`METRIC_CATALOG`) : l'unité
+ * suffit à les reconnaître. `null` pour toute autre métrique.
+ */
+function repetitionsPhrase(metric: GridMetric, count: number, value: string): Phrase | null {
+  // Stryker disable next-line ConditionalExpression: une métrique du Coach n'a pas d'unité de catalogue
+  if (metric.source !== MetricSource.CATALOG) return null;
+  if (metric.unit === MetricUnit.REPS) {
+    return { key: "block.grid.repetitions", params: { count, value } };
   }
-  return { key: "block.grid.value", params: { value: described.text } };
+  if (metric.unit === MetricUnit.REPS_PER_SIDE) {
+    return { key: "block.grid.repetitionsPerSide", params: { count, value } };
+  }
+  return null;
 }
 
 /** « à » entre des répétitions et leur charge, toutes deux remplies ; une virgule sinon. */
@@ -232,6 +259,9 @@ export type BlockClock =
  *
  * `null` quand il n'y a rien à chronométrer — une seule fois, sans limite ni repos : inventer un
  * temps ferait passer une supposition pour une consigne (règle dure n°5).
+ *
+ * Un chrono qui tourne déjà — compte à rebours, limite — ne lance pas les repos, comme dans la
+ * maquette : ils se prennent dans le temps qui court.
  */
 export function blockClock(settings: StructureSettings, exerciseCount: number): BlockClock | null {
   const { advance, repeat } = settings;

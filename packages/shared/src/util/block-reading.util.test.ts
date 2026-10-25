@@ -5,6 +5,7 @@ import {
   effort,
   gridOf,
   load,
+  once,
   oneByBeep,
   presets,
   reps,
@@ -13,7 +14,9 @@ import {
 } from "../../test/block-fixtures";
 import { say } from "../../test/french";
 import type { GridMetric } from "../dto/block-grid.schema";
-import { StructureOrder } from "../dto/structure.schema";
+import { MetricSource } from "../dto/exercise-block.schema";
+import { METRIC_CATALOG, MetricKey, MetricUnit } from "../dto/exercise-metric.schema";
+import { StructureOrder } from "../dto/structure-answer.schema";
 import {
   blockClock,
   blockLetters,
@@ -29,19 +32,32 @@ import {
   letterAt,
 } from "./block-reading.util";
 
+const perSide: GridMetric = {
+  id: "col_side",
+  label: null,
+  source: MetricSource.CATALOG,
+  key: MetricKey.REPETITIONS,
+  unit: MetricUnit.REPS_PER_SIDE,
+};
+
 const LABELS = new Map<GridMetric, string>([
   [reps, "répétitions"],
+  [perSide, "répétitions"],
   [load, "charge"],
   [effort, "durée d'effort"],
   [custom, "cotation"],
 ]);
 
-/** Ce que l'app fournirait : le nom de la colonne, la valeur écrite avec son unité. */
+const UNITS = new Map<GridMetric, string>([
+  [reps, "répétitions"],
+  [perSide, "répétitions par côté"],
+  [load, "kg"],
+]);
+
+/** Ce que l'app fournirait : le nom de la colonne, la valeur écrite, son unité. */
 function describeCell(cell: GridCell) {
-  const unit = cell.metric === load ? " kg" : "";
-  const written = String(cell.value).replace(".", ",");
-  const text = cell.metric === effort ? "1'30" : `${written}${unit}`;
-  return { label: LABELS.get(cell.metric) ?? "?", text };
+  const value = cell.metric === effort ? "1'30" : String(cell.value).replace(".", ",");
+  return { label: LABELS.get(cell.metric) ?? "?", value, unit: UNITS.get(cell.metric) ?? null };
 }
 
 const line = (cells: readonly GridCell[]) => say(gridLinePhrases(cells, describeCell));
@@ -132,6 +148,8 @@ describe("gridReading", () => {
   it("passe en cartes au-delà de trois colonnes : jamais de défilement horizontal", () => {
     const grid = gridOf([reps, load, effort, custom], [6, 60, 90, "6a"], [5]);
     expect(gridReading(grid, presets.SERIES, 1).layout).toBe(GridLayout.CARDS);
+    const three = gridOf([reps, load, effort], [6, 60, 90], [5]);
+    expect(gridReading(three, presets.SERIES, 1).layout).toBe(GridLayout.TABLE);
   });
 
   it("garde la grille dès qu'une cellule est remplie, une cellule vide y valant `null`", () => {
@@ -157,8 +175,23 @@ describe("gridLinePhrases", () => {
     expect(line([cell(effort, 90)])).toBe("1'30 d'effort");
   });
 
-  it("écrit telle quelle une valeur sans tournure propre", () => {
-    expect(line([cell(reps, "8-10"), cell(custom, "6a")])).toBe("8-10, 6a");
+  it("écrit telle quelle une valeur sans tournure propre, suivie de son unité s'il y en a une", () => {
+    expect(line([cell(reps, "8-10"), cell(custom, "6a")])).toBe("8-10 répétitions, 6a");
+    expect(line([cell(perSide, 6), cell(load, 20)])).toBe("6 répétitions par côté à 20 kg");
+  });
+
+  it("accorde aussi les répétitions par côté", () => {
+    expect(line([cell(perSide, 1)])).toBe("1 répétition par côté");
+    expect(line([cell(perSide, "8-10")])).toBe("8-10 répétitions par côté");
+  });
+
+  it("s'appuie sur des unités que seules les répétitions admettent", () => {
+    for (const unit of [MetricUnit.REPS, MetricUnit.REPS_PER_SIDE]) {
+      const counted = Object.entries(METRIC_CATALOG).filter(([, entry]) =>
+        (entry.units as readonly MetricUnit[]).includes(unit),
+      );
+      expect(counted.map(([key]) => key)).toEqual([MetricKey.REPETITIONS]);
+    }
   });
 });
 
@@ -166,6 +199,9 @@ describe("flowPhrase", () => {
   it("enchaîne au moins deux exercices tour après tour", () => {
     expect(say(flowPhrase(presets.SERIES, ["A1", "A2", "A3"]))).toBe(
       "A1, A2 et A3 à la suite, puis on recommence.",
+    );
+    expect(say(flowPhrase(presets.SERIES, ["A1", "A2"]))).toBe(
+      "A1 et A2 à la suite, puis on recommence.",
     );
   });
 
@@ -201,6 +237,8 @@ describe("blockClock", () => {
       restBetweenExercisesSeconds: 30,
     });
     expect(blockClock(betweenExercises, 1)).toBeNull();
+    const onceWithRest = settingsOf({ repeat: once, restBetweenRoundsSeconds: 60 });
+    expect(blockClock(onceWithRest, 1)).toBeNull();
   });
 
   it("est `null` quand il n'y a rien à chronométrer", () => {
@@ -227,6 +265,10 @@ describe("clockCounter", () => {
     });
     expect(say(clockCounter(intervals, 2, 5, names))).toBe("Intervalle 5 / 8 · KB swing");
     expect(say(clockCounter(intervals, 2, 5))).toBe("Intervalle 5 / 8");
+    const three = ["A", "B", "C"];
+    expect([1, 3, 4].map((index) => say(clockCounter(oneByBeep(60, 10), 3, index, three)))).toEqual(
+      ["Bip 1 / 10 · A", "Bip 3 / 10 · C", "Bip 4 / 10 · A"],
+    );
   });
 
   it("est `null` sans nombre de tours, avec un chrono qui monte, ou sans chrono", () => {

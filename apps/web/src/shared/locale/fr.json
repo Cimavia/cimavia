@@ -1597,8 +1597,11 @@
       "emptyCell": "{{metric}} —",
       "repetitions": "{{value}} répétition",
       "repetitions_other": "{{value}} répétitions",
+      "repetitionsPerSide": "{{value}} répétition par côté",
+      "repetitionsPerSide_other": "{{value}} répétitions par côté",
       "effort": "{{value}} d'effort",
       "value": "{{value}}",
+      "valueWithUnit": "{{value}} {{unit}}",
       "joinAt": " à ",
       "joinComma": ", "
     },
