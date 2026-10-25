@@ -12,7 +12,13 @@ import {
 } from "../support/actors";
 import { app } from "../support/app";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { ANY_VERSION, atWeekVersion, deleteAtLatest, putAtLatest } from "../support/version";
+import {
+  ANY_VERSION,
+  atWeekVersion,
+  deleteAtLatest,
+  patchAtLatest,
+  putAtLatest,
+} from "../support/version";
 
 const SERIES = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 const FREE = STRUCTURE_PRESETS[StructurePresetKey.FREE];
@@ -27,12 +33,14 @@ const structureInput = (name: string) => ({
   settings: SERIES,
 });
 
+type BlockOrigin = { sourceStructureId?: string | null; sourcePreset?: string | null };
+
+const FROM_SERIES: BlockOrigin = { sourcePreset: StructurePresetKey.SERIES };
+
 /** Un bloc de séance tel que l'éditeur l'envoie : réglages copiés, origine, exercices. */
 function blockOf(
   exercises: { key: string; exerciseId: string; values?: Record<string, unknown> }[],
-  origin: { sourceStructureId?: string | null; sourcePreset?: string | null } = {
-    sourcePreset: StructurePresetKey.SERIES,
-  },
+  origin: BlockOrigin = FROM_SERIES,
 ) {
   return {
     id: `blk_${exercises[0]?.key}`,
@@ -139,7 +147,7 @@ describe("Structures du Coach (#716)", () => {
     expect((await athlete.get("/structures")).status).toBe(403);
   });
 
-  it("refuse qu'un bloc cite la structure d'un autre Coach", async () => {
+  it("n'écrit pas l'origine d'une structure d'un autre Coach", async () => {
     const intruderExercise = (await coachB.post("/exercises").send({ title: "Gainage" })).body.id;
     const res = await coachB.post("/sessions").send({
       title: "Emprunt",
@@ -147,7 +155,13 @@ describe("Structures du Coach (#716)", () => {
         blockOf([{ key: "a1", exerciseId: intruderExercise }], { sourceStructureId: structureId }),
       ],
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    expect(res.body.blocks[0].sourceStructureId).toBeNull();
+    // Et la séance de B ne compte pas chez A.
+    const library = await coachA.get("/structures");
+    expect(library.body.structures).toEqual([
+      expect.objectContaining({ id: structureId, sessionCount: 1 }),
+    ]);
   });
 
   it("se supprime sans toucher les séances, qui en perdent l'origine", async () => {
@@ -162,6 +176,14 @@ describe("Structures du Coach (#716)", () => {
       sourcePreset: null,
       settings: SERIES,
     });
+
+    // Un builder ouvert avant la suppression la cite encore, sous une version qui n'a pas bougé.
+    const stale = await putAtLatest(coachA, `/sessions/${session.id}`, {
+      title: "Force",
+      blocks: [blockOf([{ key: "a1", exerciseId }], { sourceStructureId: structureId })],
+    });
+    expect(stale.status).toBe(200);
+    expect(stale.body.blocks[0].sourceStructureId).toBeNull();
   });
 });
 
@@ -403,6 +425,51 @@ describe("Séances composées par blocs (#716)", () => {
         .put(`/me/scheduled-sessions/${scheduledId}/feedback`)
         .send({ content: null, blockTracking: { [blockIds[0] as string]: { checked: [] } } });
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("un brouillon composé sans destinataire (#144)", () => {
+    let draftId: string;
+    let draftSessionId: string;
+
+    beforeAll(async () => {
+      const draft = await coach
+        .post("/plans")
+        .send({ title: "Brouillon blocs", startDate: monday, weeks: [{ type: "TRAINING" }] });
+      draftId = draft.body.id;
+      const scheduled = await coach
+        .post(`/plan-weeks/${draft.body.weeks[0].id}/sessions`)
+        .send({ sourceSessionId: templateId, scheduledDate: monday });
+      expect(scheduled.status).toBe(201);
+      draftSessionId = scheduled.body.id;
+    });
+
+    it("affecté puis diffusé, ses blocs suivent l'athlète jusqu'au débrief", async () => {
+      expect((await patchAtLatest(coach, `/plans/${draftId}`, { athleteId })).status).toBe(200);
+      expect((await billAndPublish(coach, draftId)).status).toBe(200);
+
+      const read = await athlete.get(`/me/scheduled-sessions/${draftSessionId}`);
+      const [blockId] = read.body.blocks.map((block: { id: string }) => block.id);
+      // Le suivi s'écrit par un accès scopé à l'athlète : un bloc resté sans lui serait « absent ».
+      const sent = await athlete
+        .put(`/me/scheduled-sessions/${draftSessionId}/feedback`)
+        .send({ content: null, blockTracking: { [blockId]: { checked: [] } } });
+      expect(sent.status).toBe(200);
+    });
+
+    it("enregistré par le panneau par exercices, il perd ses blocs et garde ses lignes", async () => {
+      const [kept] = (await coach.get(`/scheduled-sessions/${draftSessionId}`)).body.exercises;
+      const saved = await putAtLatest(coach, `/scheduled-sessions/${draftSessionId}`, {
+        title: "Force",
+        notes: null,
+        scheduledDate: monday,
+        exercises: [{ id: kept.id, sourceExerciseId: kept.sourceExerciseId, title: kept.title }],
+      });
+      expect(saved.status).toBe(200);
+      expect(saved.body.blocks).toEqual([]);
+      expect(saved.body.exercises.map((exercise: { id: string }) => exercise.id)).toEqual([
+        kept.id,
+      ]);
     });
   });
 });

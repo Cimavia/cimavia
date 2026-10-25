@@ -9,7 +9,9 @@ import {
   type ScheduledSessionBlockDto,
   type ScheduledSessionExerciseInput,
 } from "@cmv/shared";
-import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
+import { Prisma, type ScheduledSessionExerciseDocument } from "@prisma/client";
+import { blockContentOf } from "../session/session-block.mapper";
+import { toBlockContentData } from "../session/session-block.writer";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { toJsonInput } from "../util/block-json.util";
 import {
@@ -136,13 +138,7 @@ async function insertScheduledBlocks(
           athleteId,
           scheduledSessionId,
           position,
-          name: block.name,
-          label: block.label,
-          instructions: block.instructions,
-          settings: toJsonInput(block.settings),
-          copiedSettings: toJsonInput(block.copiedSettings),
-          sourceStructureId: block.sourceStructureId,
-          sourcePreset: block.sourcePreset,
+          ...toBlockContentData(block),
           baseline: toJsonInput(block.baseline),
         } satisfies Omit<
           Prisma.ScheduledSessionBlockUncheckedCreateInput,
@@ -180,16 +176,7 @@ export function copiedBlocksOf(blocks: readonly ScheduledSessionBlockDto[]): {
     ),
   );
   return {
-    blocks: blocks.map((block) => ({
-      name: block.name,
-      label: block.label,
-      instructions: block.instructions,
-      settings: block.settings,
-      copiedSettings: block.copiedSettings,
-      sourceStructureId: block.sourceStructureId,
-      sourcePreset: block.sourcePreset,
-      baseline: block.baseline,
-    })),
+    blocks: blocks.map((block) => ({ ...blockContentOf(block), baseline: block.baseline })),
     placements,
   };
 }
@@ -231,6 +218,22 @@ export async function rewriteScheduledSessionExercises(
     exercise: ScheduledSessionExerciseInput,
   ) => readonly ScheduledSessionDocumentDraft[],
 ): Promise<void> {
+  // Le panneau par exercices ne connaît pas les blocs (#716) : il les efface, comme la séance-type
+  // enregistrée par exercices (BL-1). Les lignes quittent leur bloc AVANT qu'il parte, sans quoi la
+  // cascade les emporterait — et leur suivi, leurs documents avec.
+  await tx.scheduledSessionExercise.updateMany({
+    where: { scheduledSessionId, blockId: { not: null } },
+    data: {
+      blockId: null,
+      blockPosition: null,
+      key: null,
+      grid: Prisma.DbNull,
+      origin: null,
+      replacesKey: null,
+    },
+  });
+  await tx.scheduledSessionBlock.deleteMany({ where: { scheduledSessionId } });
+
   if (rows.removedIds.length > 0) {
     // Les copies de documents partent en cascade ; les objets en storage appartiennent à la
     // bibliothèque et ne sont jamais touchés d'ici.

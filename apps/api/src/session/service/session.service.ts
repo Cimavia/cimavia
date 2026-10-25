@@ -52,11 +52,16 @@ export class SessionService {
   ) {}
 
   async create(input: CreateSessionInput): Promise<SessionDto> {
-    const { blocks } = input;
-    const library =
-      blocks === undefined
-        ? await this.loadCited(input.exercises, null)
-        : await this.assertBlocksWritable(blocks, null, (await this.access.context()).actorId);
+    const composition =
+      input.blocks === undefined
+        ? await this.listedComposition(input.exercises, null)
+        : {
+            blocks: await this.writableBlocksOrThrow(
+              input.blocks,
+              null,
+              (await this.access.context()).actorId,
+            ),
+          };
     const session = await this.db.$transaction(async (tx) => {
       const created = await tx.session.create({
         // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
@@ -65,10 +70,11 @@ export class SessionService {
           "coachId"
         > as Prisma.SessionUncheckedCreateInput,
       });
-      if (blocks === undefined) {
-        await this.replaceExercises(tx, created.id, input.exercises, [], library);
+      if ("blocks" in composition) {
+        await insertSessionBlocks(tx, created.id, composition.blocks);
       } else {
-        await insertSessionBlocks(tx, created.id, blocks);
+        const { exercises, library } = composition;
+        await this.replaceExercises(tx, created.id, exercises, [], library);
       }
       return created;
     });
@@ -98,12 +104,14 @@ export class SessionService {
     const expected = new Date(input.expectedUpdatedAt);
     // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
-    const { exercises, blocks } = input;
     // Un exercice que la séance cite déjà reste citable, même privé : le droit vient d'elle.
-    const library =
-      blocks === undefined
-        ? await this.loadCited(required(exercises, "[session] l'une des compositions"), current)
-        : await this.assertBlocksWritable(blocks, current, current.coachId);
+    const composition =
+      input.blocks === undefined
+        ? await this.listedComposition(
+            required(input.exercises, "[session] l'une des compositions"),
+            current,
+          )
+        : { blocks: await this.writableBlocksOrThrow(input.blocks, current, current.coachId) };
     const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
@@ -122,10 +130,11 @@ export class SessionService {
       // Les deux modèles s'effacent ensemble (#716) : une séance n'en porte qu'un à la fois.
       await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
       await tx.sessionBlock.deleteMany({ where: { sessionId: id } });
-      if (blocks === undefined) {
-        await this.replaceExercises(tx, id, required(exercises, "[session]"), previous, library);
+      if ("blocks" in composition) {
+        await insertSessionBlocks(tx, id, composition.blocks);
       } else {
-        await insertSessionBlocks(tx, id, blocks);
+        const { exercises, library } = composition;
+        await this.replaceExercises(tx, id, exercises, previous, library);
       }
       // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
@@ -213,21 +222,20 @@ export class SessionService {
   }
 
   /**
-   * Ce qu'une composition par blocs cite, prouvé utilisable (#716) — ou 400 :
+   * La composition par blocs à écrire (#716), ce qu'elle cite prouvé utilisable — ou 400 :
    *
    * - chaque exercice, accessible comme dans l'ancien modèle (#353). Celui qu'une ligne de la séance
    *   cite déjà sous la même clé n'est pas revérifié (tranché en #605) ;
-   * - chaque structure d'origine, que l'acteur lit. Celle que les blocs de la séance citent déjà ne
-   *   l'est pas non plus : le rédacteur d'une séance ouverte (#605) ne lit pas les structures de son
-   *   propriétaire, et doit pouvoir enregistrer sans retirer leur origine aux blocs ;
    * - chaque cellule, dans le type de sa colonne : le schéma partagé ne connaît pas les métriques
    *   du Coach, qui vivent en base.
+   *
+   * Les origines, elles, ne se refusent pas : `withReadableOrigins`.
    */
-  private async assertBlocksWritable(
+  private async writableBlocksOrThrow(
     blocks: readonly SessionBlock[],
     session: SessionWithExercises | null,
     sessionOwnerId: string,
-  ): Promise<Map<string, LibraryExercise>> {
+  ): Promise<SessionBlock[]> {
     const exercises = blocks.flatMap((block) => block.exercises);
     const citedByKey = new Map(session?.exercises.map((row) => [row.key, row.exercise]));
     const library = await this.library.loadAccessibleOrThrow(
@@ -236,7 +244,6 @@ export class SessionService {
         .map((exercise) => exercise.exerciseId),
       session?.id ?? null,
     );
-    await this.assertStructuresReadable(blocks, session);
 
     const ownerOf = (exerciseId: string): string =>
       required(
@@ -271,28 +278,49 @@ export class SessionService {
         throw new BadRequestException(`Grille de l'exercice ${exercise.key} : ${issue.message}`);
       }
     }
-    return library;
+    return this.withReadableOrigins(blocks, session);
   }
 
-  private async assertStructuresReadable(
+  /**
+   * Les blocs, sans l'origine d'une structure que l'acteur ne lit pas.
+   *
+   * L'origine n'est qu'une trace : la séance garde sa copie des réglages, et la base la retire déjà
+   * d'elle-même quand la structure est supprimée (`SetNull`). Cette suppression n'avance pas la
+   * version de la séance : un builder ouvert avant renvoie l'origine disparue, et un 400 ne lui
+   * laisserait aucune issue — recharger ne lui dirait pas pourquoi. L'écrire nulle rend l'état que
+   * la base aurait de toute façon, sans rien dire d'une structure qu'on ne lit pas.
+   *
+   * Une structure que les blocs de la séance citent déjà reste citée sans être relue : le rédacteur
+   * d'une séance ouverte (#605) ne lit pas les structures de son propriétaire.
+   */
+  private async withReadableOrigins(
     blocks: readonly SessionBlock[],
     session: SessionWithExercises | null,
-  ): Promise<void> {
+  ): Promise<SessionBlock[]> {
     const cited = new Set(session?.blocks.map((block) => block.sourceStructureId));
-    const wanted = [
-      ...new Set(
-        blocks.flatMap((block) =>
-          block.sourceStructureId == null || cited.has(block.sourceStructureId)
-            ? []
-            : [block.sourceStructureId],
-        ),
-      ),
-    ];
-    if (wanted.length === 0) return;
-    const readable = await this.db.structure.count({ where: { id: { in: wanted } } });
-    if (readable !== wanted.length) {
-      throw new BadRequestException("Une structure citée par un bloc est introuvable");
-    }
+    const wanted = blocks.flatMap((block) =>
+      block.sourceStructureId == null || cited.has(block.sourceStructureId)
+        ? []
+        : [block.sourceStructureId],
+    );
+    const readable =
+      wanted.length === 0
+        ? []
+        : await this.db.structure.findMany({ where: { id: { in: wanted } }, select: { id: true } });
+    const kept = new Set([...cited, ...readable.map((structure) => structure.id)]);
+    return blocks.map((block) =>
+      block.sourceStructureId == null || kept.has(block.sourceStructureId)
+        ? block
+        : { ...block, sourceStructureId: null },
+    );
+  }
+
+  /** Une composition par exercices, avec ce qu'elle cite de la bibliothèque. */
+  private async listedComposition(
+    exercises: SessionExerciseInput[],
+    session: SessionWithExercises | null,
+  ) {
+    return { exercises, library: await this.loadCited(exercises, session) };
   }
 
   /**

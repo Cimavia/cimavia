@@ -255,8 +255,8 @@ export class PlanService {
    * l'affectation. Un cycle à moitié affecté est un cycle dont la moitié des séances reste
    * invisible de son athlète — une panne silencieuse, et la pire qui soit ici.
    *
-   * SIX tables, parce que l'extension tenant filtre par un champ du modèle INTERROGÉ et ne sait
-   * pas remonter la relation. Les trois dernières ne portent pas `planId` : on descend donc par
+   * SEPT tables, parce que l'extension tenant filtre par un champ du modèle INTERROGÉ et ne sait
+   * pas remonter la relation. Les quatre dernières ne portent pas `planId` : on descend donc par
    * identifiants collectés plutôt que par filtre relationnel imbriqué, dont le SQL n'est
    * vérifiable qu'à l'exécution — sur un invariant de tenant, on préfère le chemin qui se lit.
    *
@@ -284,6 +284,8 @@ export class PlanService {
 
     const inSessions = { scheduledSessionId: { in: sessions.map((session) => session.id) } };
     await tx.scheduledSessionExercise.updateMany({ where: inSessions, data: { athleteId } });
+    // Les blocs aussi (#716) : sinon l'athlète ne lit ni ne suit ceux de sa séance.
+    await tx.scheduledSessionBlock.updateMany({ where: inSessions, data: { athleteId } });
 
     const exercises = await tx.scheduledSessionExercise.findMany({
       where: inSessions,
