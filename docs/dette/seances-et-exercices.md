@@ -638,7 +638,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs, et l'inverse. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
 > `docs/maquettes/composants/structure_model.js` passent dans `@cmv/shared`, typées) : structure,
@@ -725,6 +725,11 @@ liste des domaines vivent dans l'index.
 >   structures de son propriétaire, ni l'exercice dont le droit a disparu depuis. Le neuf passe le
 >   contrôle d'accès et le type de chaque cellule (`gridValueIssues`), contre les métriques du
 >   propriétaire de l'exercice et de la séance.
+> - **Une origine que l'acteur ne lit pas s'écrit nulle, sans 400** (`withReadableOrigins`).
+>   Supprimer une structure retire l'origine des blocs (`SetNull`) sans avancer la version de
+>   leurs séances : un builder ouvert avant la renvoie, et un refus ne lui laisserait aucune issue.
+>   L'origine n'est qu'une trace — le bloc garde sa copie des réglages —, et l'écrire nulle rend
+>   l'état que la base aurait de toute façon, sans rien dire d'une structure qu'on ne lit pas.
 > - **Le compteur « Séances » d'une structure** compte les séances-types, scopées au Coach — celles
 >   d'un autre Coach où il a employé sa structure comprises —, une séance une fois quels que soient
 >   ses blocs. Les séances planifiées n'y comptent pas.
@@ -762,5 +767,6 @@ liste des domaines vivent dans l'index.
 >   - les métriques suggérées d'un exercice sont l'union ordonnée des colonnes de ses anciens
 >     blocs, sans doublon, 12 au plus.
 >
->   Une entrée par étape peut faire dépasser 20 exercices à un bloc : il se lit, mais ne
->   s'enregistre plus sans être réduit. La requête de contrôle « après » le compte sur la preview.
+>   Une entrée par étape peut faire dépasser 20 exercices à un bloc, ou 50 à une séance
+>   (`SESSION_MAX_EXERCISES`) : ils se lisent, mais ne s'enregistrent plus sans être réduits. La
+>   requête de contrôle « après » compte les deux sur la preview.
