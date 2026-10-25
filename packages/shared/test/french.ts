@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Phrase, PhraseTools } from "../src/util/phrase.util";
 import { translatePhrase, translatePhrases } from "../src/util/phrase.util";
 
@@ -9,8 +11,24 @@ import { translatePhrase, translatePhrases } from "../src/util/phrase.util";
 
 type Catalog = { [key: string]: string | Catalog };
 
+const CATALOG_PATH = join("apps", "web", "src", "shared", "locale", "fr.json");
+
+/**
+ * Le catalogue se cherche en REMONTANT, pas par un chemin relatif fixe : Stryker (#626) rejoue les
+ * tests depuis une copie du paquet, `.stryker-tmp/sandbox-…/`, deux dossiers plus bas. Le chemin
+ * fixe y manquait le catalogue, et chaque test qui le lit y échouait : leurs mutants passaient
+ * pour non couverts.
+ */
+function findCatalog(from: string): string {
+  const candidate = join(from, CATALOG_PATH);
+  if (existsSync(candidate)) return candidate;
+  const parent = dirname(from);
+  if (parent === from) throw new Error(`catalogue introuvable : ${CATALOG_PATH}`);
+  return findCatalog(parent);
+}
+
 const catalog = JSON.parse(
-  readFileSync(new URL("../../../apps/web/src/shared/locale/fr.json", import.meta.url), "utf8"),
+  readFileSync(findCatalog(dirname(fileURLToPath(import.meta.url))), "utf8"),
 ) as Catalog;
 
 function lookup(key: string): string | undefined {
