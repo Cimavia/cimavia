@@ -257,12 +257,10 @@ describe("StructureBuilderScreen — création", () => {
 
     await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
 
-    // Supprimée entre-temps : la relecture ne la trouve pas, le nom redevient libre.
+    // Supprimée entre-temps : la relecture ne la trouve pas, le nom est libre et se renvoie.
     await waitFor(() => expect(api.listStructures).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(view.queryByText("library.structure.nameTaken")).not.toBeInTheDocument(),
-    );
-    expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeEnabled();
+    await waitFor(() => expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeEnabled());
+    expect(view.queryByText("library.structure.nameTaken")).not.toBeInTheDocument();
   });
 
   it("une valeur refusée ferme l'enregistrement, et compte parmi les points à régler", async () => {
@@ -318,6 +316,17 @@ describe("StructureBuilderScreen — modification", () => {
         settings: expect.objectContaining({ repeat: { kind: "ONCE" } }),
       }),
     );
+  });
+
+  it("un doublon d'avant la règle s'enregistre sous son nom, comme l'API l'accepte", async () => {
+    api.listStructures.mockResolvedValue(library([grimpe(), grimpe({ id: "st-2" })]));
+    const view = await edit();
+    const note = await view.findByRole("textbox", { name: "library.structure.noteLabel" });
+
+    await view.user.type(note, " Et pas plus.");
+
+    expect(view.queryByText("library.structure.nameTaken")).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
   });
 
   it("dit un conflit d'édition par le bandeau, et recharge la dernière version", async () => {

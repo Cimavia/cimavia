@@ -59,11 +59,12 @@ export function useSaveStructure() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: structureKeys.all });
     },
-    // Un nom refusé est porté par une structure que la liste ne connaît pas encore : elle se relit,
-    // et c'est elle qui dira ensuite si le nom est toujours pris.
-    onError: (error) => {
+    // Un nom refusé est porté par une structure que la liste ne connaît pas encore : elle se relit
+    // AVANT que l'échec soit rendu, et c'est elle qui dit alors le nom pris — sous l'orthographe de
+    // celle qui le porte, ou plus du tout si elle a disparu entre-temps (#717).
+    onError: async (error) => {
       if (error instanceof ApiError && error.type === ProblemType.STRUCTURE_NAME_TAKEN) {
-        void queryClient.invalidateQueries({ queryKey: structureKeys.library() });
+        await queryClient.invalidateQueries({ queryKey: structureKeys.library() });
       }
     },
   });
