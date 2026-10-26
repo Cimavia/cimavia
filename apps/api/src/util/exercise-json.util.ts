@@ -9,6 +9,8 @@ import {
   exerciseTrackingSchema,
   type RichDocument,
   richDocumentSchema,
+  type SuggestedMetric,
+  suggestedMetricsSchema,
 } from "@cmv/shared";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -18,7 +20,7 @@ import { z } from "zod";
  * `docs/dette/seances-et-exercices.md` § « Refonte du modèle d'exercice »). Prisma les rend en
  * `JsonValue`, sans contrat, et les attend en `InputJsonValue`, qu'un type Zod ne satisfait pas seul.
  *
- * Ces quatre fonctions sont le SEUL passage entre les deux mondes. Elles vivent ici et non dans
+ * Ces fonctions sont le SEUL passage entre les deux mondes. Elles vivent ici et non dans
  * `exercise.mapper` parce que la planification en a autant besoin que la bibliothèque : une séance
  * diffusée copie la consigne et les blocs de l'exercice source.
  */
@@ -37,6 +39,22 @@ export function parseInstructions(value: Prisma.JsonValue): RichDocument | null 
 
 export function parseBlocks(value: Prisma.JsonValue): ExerciseBlocks {
   return exerciseBlocksSchema.parse(value);
+}
+
+/** Les métriques suggérées d'un exercice (#718), même trajet que les blocs. */
+export function parseSuggestedMetrics(value: Prisma.JsonValue): SuggestedMetric[] {
+  return suggestedMetricsSchema.parse(value);
+}
+
+/**
+ * Repasse par le schéma à l'ÉCRITURE aussi : la copie entre Coachs les réécrit sans corps de
+ * requête validé, et une liste invalide stockée ferait tomber en 500 toute la bibliothèque qui la
+ * lit — mieux vaut refuser l'écriture.
+ */
+export function toSuggestedMetricsInput(
+  metrics: readonly SuggestedMetric[],
+): Prisma.InputJsonValue {
+  return suggestedMetricsSchema.parse(metrics);
 }
 
 /**

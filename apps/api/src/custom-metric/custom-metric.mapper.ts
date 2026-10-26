@@ -1,8 +1,7 @@
 import {
-  type BlockGrid,
   type CustomMetric,
   customMetricIdsIn,
-  type ExerciseBlocks,
+  type MetricCitations,
   orderedScaleSchema,
 } from "@cmv/shared";
 import type { CustomMetric as CustomMetricRow } from "@prisma/client";
@@ -29,8 +28,9 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
 }
 
 /**
- * Les définitions que ces blocs citent, prises dans le catalogue de leur propriétaire (piège n°9).
- * Une citation orpheline est ignorée : la métrique a été supprimée depuis (dette EX-2).
+ * Les définitions que ces blocs, ces grilles ou ces métriques suggérées citent, prises dans le
+ * catalogue de leur propriétaire (piège n°9). Une citation orpheline est ignorée : la métrique a
+ * été supprimée depuis (dette EX-2).
  *
  * Passe par `toCustomMetricDto` et non par `customMetricSchema.parse` : le schéma est `.strict()`,
  * et une ligne Prisma porte `coachId`, `createdAt`, `updatedAt` qu'il refuse. Parser une ligne de
@@ -38,7 +38,7 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
  * métrique maison.
  */
 export function citedCustomMetrics(
-  blocks: ExerciseBlocks | readonly BlockGrid[],
+  blocks: MetricCitations,
   catalog: CustomMetricCatalog,
 ): CustomMetric[] {
   const wanted = new Set(customMetricIdsIn(blocks));

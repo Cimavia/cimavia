@@ -11,6 +11,7 @@ import {
 } from "./exercise-block.schema";
 import { metricValueSchema } from "./exercise-metric.schema";
 import { STRUCTURE_MAX_ROUNDS } from "./structure.schema";
+import type { SuggestedMetric } from "./suggested-metric.schema";
 
 // La grille d'un exercice de bloc (#715) : ses colonnes et ses lignes de valeurs.
 //
@@ -24,35 +25,6 @@ export const GRID_MAX_METRICS = BLOCK_MAX_METRICS;
 export const GRID_LABEL_MAX_LENGTH = BLOCK_LABEL_MAX_LENGTH;
 /** Une ligne par tour, série ou passage : autant que de tours au plus. */
 export const GRID_MAX_ROWS = STRUCTURE_MAX_ROUNDS;
-
-// ── Les métriques suggérées d'un exercice ───────────────────────────────────────────────────
-
-/**
- * Une métrique que l'exercice SUGGÈRE, sans valeur : elle préremplit une colonne quand on ajoute
- * l'exercice à un bloc. L'exercice ne porte plus de dosage (#718).
- */
-export const suggestedMetricSchema = z.discriminatedUnion("source", [
-  z
-    .object(catalogMetricShape)
-    .strict()
-    .refine(...metricUnitRefinement),
-  z.object(customMetricShape).strict(),
-]);
-export type SuggestedMetric = z.infer<typeof suggestedMetricSchema>;
-
-/** Ce qui fait d'une métrique la même colonne : sa clé du catalogue, ou la métrique du Coach. */
-function metricIdentity(metric: SuggestedMetric): string {
-  return metric.source === MetricSource.CATALOG
-    ? `${metric.source}:${metric.key}`
-    : `${metric.source}:${metric.customMetricId}`;
-}
-
-export const suggestedMetricsSchema = z
-  .array(suggestedMetricSchema)
-  .max(GRID_MAX_METRICS)
-  .refine((metrics) => new Set(metrics.map(metricIdentity)).size === metrics.length, {
-    message: "Un exercice ne peut pas suggérer deux fois la même métrique.",
-  });
 
 // ── La grille ───────────────────────────────────────────────────────────────────────────────
 

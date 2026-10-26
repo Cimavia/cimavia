@@ -230,13 +230,17 @@ export const exerciseBlockSchema = z
 export type ExerciseBlock = z.infer<typeof exerciseBlockSchema>;
 
 /**
- * Les métriques MAISON citées par des blocs, ou par des grilles de blocs de séance (#716). Sert au
+ * Ce qui cite des métriques : des blocs, des grilles de blocs de séance (#716), ou les métriques
+ * suggérées d'un exercice, sous la forme `[{ metrics }]` (#718).
+ */
+export type MetricCitations = readonly { readonly metrics: readonly MetricReference[] }[];
+
+/**
+ * Les métriques MAISON citées par des blocs, des grilles ou des métriques suggérées. Sert au
  * snapshot de diffusion : sans la définition, l'athlète ne verrait qu'un identifiant — ni libellé,
  * ni type de valeur, ni paliers d'échelle.
  */
-export function customMetricIdsIn(
-  blocks: readonly { readonly metrics: readonly MetricReference[] }[],
-): string[] {
+export function customMetricIdsIn(blocks: MetricCitations): string[] {
   const ids = blocks.flatMap((block) =>
     block.metrics.flatMap((metric) =>
       metric.source === MetricSource.CUSTOM ? [metric.customMetricId] : [],

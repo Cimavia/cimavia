@@ -4,9 +4,11 @@ import { type ExerciseBlocks, MetricSource } from "../dto/exercise-block.schema"
 import {
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   type CustomMetric,
+  MetricKey,
+  MetricUnit,
   MetricValueType,
 } from "../dto/exercise-metric.schema";
-import { adoptMetrics, remapCustomMetrics } from "./metric-adoption.util";
+import { adoptMetrics, remapCustomMetrics, remapSuggestedMetrics } from "./metric-adoption.util";
 
 function metric(id: string, label: string, over: Partial<CustomMetric> = {}): CustomMetric {
   return { id, label, unit: null, valueType: MetricValueType.NUMBER, scale: null, ...over };
@@ -152,5 +154,42 @@ describe("remapCustomMetrics sur une grille (#716)", () => {
     const [remapped] = remapCustomMetrics([grid], new Map([["metric_1", "metric_m"]]));
     expect(remapped?.metrics).toEqual([reps, { ...custom, customMetricId: "metric_m" }]);
     expect(remapped?.rows).toEqual(grid.rows);
+  });
+});
+
+describe("remapSuggestedMetrics (#718)", () => {
+  it("réécrit la métrique du Coach, garde celle du catalogue et une citation inconnue", () => {
+    const catalog = {
+      source: MetricSource.CATALOG,
+      key: MetricKey.LOAD,
+      unit: MetricUnit.KILOGRAMS,
+    };
+    const suggested = [
+      catalog,
+      { source: MetricSource.CUSTOM, customMetricId: "c1" },
+      { source: MetricSource.CUSTOM, customMetricId: "gone" },
+    ];
+    expect(remapSuggestedMetrics(suggested, new Map([["c1", "m1"]]))).toEqual([
+      catalog,
+      { source: MetricSource.CUSTOM, customMetricId: "m1" },
+      { source: MetricSource.CUSTOM, customMetricId: "gone" },
+    ]);
+  });
+
+  it("garde la première de deux métriques reprises sous la même, à son rang", () => {
+    const suggested = [
+      { source: MetricSource.CUSTOM, customMetricId: "c1" },
+      { source: MetricSource.CATALOG, key: MetricKey.LOAD, unit: MetricUnit.KILOGRAMS },
+      { source: MetricSource.CUSTOM, customMetricId: "c2" },
+    ];
+    const ids = new Map([
+      ["c1", "m1"],
+      ["c2", "m1"],
+    ]);
+    expect(remapSuggestedMetrics(suggested, ids)).toEqual(
+      suggested
+        .slice(0, 2)
+        .map((metric, index) => (index === 0 ? { ...metric, customMetricId: "m1" } : metric)),
+    );
   });
 });

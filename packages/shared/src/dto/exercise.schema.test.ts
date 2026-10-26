@@ -15,6 +15,8 @@ import {
   MAX_DOCUMENT_SIZE_BYTES,
   updateExerciseSchema,
 } from "./exercise.schema";
+import { MetricSource } from "./exercise-block.schema";
+import { MetricKey, MetricUnit } from "./exercise-metric.schema";
 
 describe("exerciseTagsSchema", () => {
   it("normalise en minuscules et coupe les espaces", () => {
@@ -160,6 +162,39 @@ describe("consigne structurée et blocs", () => {
     expect(
       updateExerciseSchema.parse({ instructions: null, expectedUpdatedAt }).instructions,
     ).toBeNull();
+  });
+});
+
+describe("métriques suggérées (#718)", () => {
+  const base = { title: "Tractions lestées" };
+  const reps = { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS };
+  const expectedUpdatedAt = "2026-10-12T08:00:00.000Z";
+
+  it("les accepte à la création, et rien n'oblige à en suggérer", () => {
+    expect(
+      createExerciseSchema.parse({ ...base, suggestedMetrics: [reps] }).suggestedMetrics,
+    ).toEqual([reps]);
+    expect(createExerciseSchema.parse(base).suggestedMetrics).toBeUndefined();
+  });
+
+  it("distingue « métriques absentes » de « métriques vidées »", () => {
+    expect(updateExerciseSchema.parse({ expectedUpdatedAt }).suggestedMetrics).toBeUndefined();
+    expect(
+      updateExerciseSchema.parse({ suggestedMetrics: [], expectedUpdatedAt }).suggestedMetrics,
+    ).toEqual([]);
+  });
+
+  it("refuse une métrique suggérée deux fois", () => {
+    expect(
+      createExerciseSchema.safeParse({ ...base, suggestedMetrics: [reps, reps] }).success,
+    ).toBe(false);
+  });
+
+  // La variante les reprend de la SOURCE, côté serveur, comme la consigne et les tags.
+  it("ne se choisissent pas à la duplication", () => {
+    expect(duplicateExerciseSchema.safeParse({ title: "x", suggestedMetrics: [] }).success).toBe(
+      false,
+    );
   });
 });
 
