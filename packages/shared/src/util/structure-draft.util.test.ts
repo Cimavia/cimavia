@@ -258,6 +258,11 @@ describe("structureTimeline", () => {
     expect(timeline.segments).toHaveLength(TIMELINE_MAX_ROUNDS);
     expect(timeline.segments.at(-1)).toEqual(work(TIMELINE_MAX_ROUNDS));
   });
+
+  it("au-delà de 24 tours, l'axe gradue les tours dessinés, pas le bloc entier", () => {
+    const timeline = structureTimeline(settingsOf({ advance: beep(60), repeat: rounds(50) }));
+    expect(timeline.axisSeconds).toEqual([0, 720, 1440]);
+  });
 });
 
 describe("sameStructureName", () => {
@@ -267,6 +272,10 @@ describe("sameStructureName", () => {
 
   it("garde les accents : ce sont deux noms", () => {
     expect(sameStructureName("Départ", "Depart")).toBe(false);
+  });
+
+  it("un accent saisi en deux caractères reste le même nom", () => {
+    expect(sameStructureName("Départ", "De\u0301part")).toBe(true);
   });
 });
 
@@ -283,6 +292,13 @@ describe("takenStructureName", () => {
 
   it("la structure modifiée garde le sien", () => {
     expect(takenStructureName("4×4 GRIMPE", mine, "s1")).toBeNull();
+  });
+
+  it("même porté par une autre, un doublon d'avant la règle", () => {
+    const doubled = [...mine, { id: "s3", name: "4×4 GRIMPE" }];
+    expect(takenStructureName("4×4 grimpe", doubled, "s3")).toBeNull();
+    // Mais il ne prend pas celui de l'autre en changeant de nom.
+    expect(takenStructureName("Tabata 30/10", doubled, "s3")).toBe("Tabata 30/10");
   });
 
   it("un nom neuf, ou vide, n'est pas pris", () => {

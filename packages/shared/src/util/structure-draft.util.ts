@@ -210,12 +210,14 @@ export function structureTimeline(settings: StructureSettings): StructureTimelin
     }
   }
 
+  // L'axe gradue ce que la frise dessine : au-delà de 24 tours, les premiers, pas le bloc entier
+  // — sa durée totale se lit à côté.
   const duration = structureDuration(settings);
+  const drawnSeconds = duration == null ? null : count * duration.unitSeconds;
   return {
     segments,
     legend: legendOf(settings),
-    axisSeconds:
-      duration == null ? null : [0, Math.round(duration.totalSeconds / 2), duration.totalSeconds],
+    axisSeconds: drawnSeconds == null ? null : [0, Math.round(drawnSeconds / 2), drawnSeconds],
   };
 }
 
@@ -244,16 +246,25 @@ function legendOf(settings: StructureSettings): TimelineLegend {
 /**
  * Deux noms désignent la même structure, sans tenir compte des majuscules ni des espaces de bord
  * (maquette, frame 6). Les accents comptent : « Départ » et « Depart » sont deux structures. Le
- * formulaire et l'API appliquent cette même règle.
+ * formulaire et l'API appliquent cette même règle — d'où une casse sans locale, qui ferait
+ * différer un navigateur turc de Node, et un « é » normalisé, qu'il soit saisi en un ou deux
+ * caractères.
  */
 export function sameStructureName(a: string, b: string): boolean {
-  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
+  return nameKey(a) === nameKey(b);
+}
+
+function nameKey(name: string): string {
+  return name.trim().normalize("NFC").toLowerCase();
 }
 
 /**
  * Le nom de l'AUTRE structure du Coach qui porte déjà ce nom, tel qu'elle l'écrit — le formulaire
- * le cite —, ou `null` quand il est libre. Celle qu'on modifie garde le sien. Un nom vide n'est
- * pris par personne : c'est un autre refus.
+ * le cite —, ou `null` quand il est libre. Un nom vide n'est pris par personne : c'est un autre
+ * refus.
+ *
+ * Celle qu'on modifie garde toujours le sien, même si une autre le porte aussi : un doublon d'avant
+ * la règle (#716) ne doit pas forcer à renommer pour changer une note.
  */
 export function takenStructureName(
   name: string,
@@ -261,6 +272,8 @@ export function takenStructureName(
   selfId: string | null,
 ): string | null {
   if (name.trim() === "") return null;
+  const self = structures.find((structure) => structure.id === selfId);
+  if (self != null && sameStructureName(self.name, name)) return null;
   const owner = structures.find(
     (structure) => structure.id !== selfId && sameStructureName(structure.name, name),
   );
