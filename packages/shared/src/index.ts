@@ -1188,6 +1188,26 @@ export {
   signUpErrorKey,
 } from "./util/signup.util";
 export type {
+  StructureTimeline,
+  TimelineLegend,
+  TimelineSegment,
+} from "./util/structure-draft.util";
+export {
+  NEW_STRUCTURE_SETTINGS,
+  STRUCTURE_DEFAULTS,
+  StructureToggle,
+  sameStructureName,
+  structureCopyName,
+  structureTimeline,
+  TIMELINE_MAX_ROUNDS,
+  takenStructureName,
+  withAdvance,
+  withoutDisabled,
+  withRepeat,
+  withSettingValue,
+  withToggle,
+} from "./util/structure-draft.util";
+export type {
   DisabledOptions,
   SettingsIssue,
   StructureDuration,
