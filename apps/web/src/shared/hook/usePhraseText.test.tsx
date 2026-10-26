@@ -5,7 +5,7 @@ import { I18nextProvider } from "react-i18next";
 import { describe, expect, it } from "vitest";
 import { usePhraseText } from "./usePhraseText";
 
-/** Une vraie instance en français : la liste et l'interpolation sont ce qu'on éprouve. */
+/** Une vraie instance en français : la liste, sa conjonction traduite et l'interpolation. */
 async function frenchWrapper() {
   const instance = i18next.createInstance();
   await instance.init({
@@ -13,6 +13,7 @@ async function frenchWrapper() {
     resources: {
       fr: {
         translation: {
+          common: { and: "et" },
           phrase: { who: "{{names}} en alternance", every: "toutes les {{duration}}" },
         },
       },

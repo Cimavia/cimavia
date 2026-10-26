@@ -6,6 +6,7 @@
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessaie.",
     "cancel": "Annuler",
+    "and": "et",
     "requiredLegend": "* champs obligatoires",
     "charCount": "{{length, number}} / {{max, number}}",
     "crash": {
