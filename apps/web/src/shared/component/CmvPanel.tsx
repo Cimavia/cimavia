@@ -13,7 +13,7 @@ const SIZE_CLASSES: Record<CmvPanelSize, string> = {
 type CmvPanelProps = {
   open: boolean;
   title: string;
-  description?: string;
+  description?: string | undefined;
   onClose: () => void;
   children: ReactNode;
   // Zone d'actions en pied de panneau (Annuler / Enregistrer).
