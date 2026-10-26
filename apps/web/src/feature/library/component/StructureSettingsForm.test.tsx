@@ -175,6 +175,17 @@ describe("StructurePreview", () => {
     expect(view.getByText("library.structure.preview.beep")).toBeInTheDocument();
   });
 
+  it("sur une seconde, l'axe garde ses trois graduations", () => {
+    const view = setup({
+      ...STRUCTURE_PRESETS.EMOM,
+      advance: { kind: "BEEP", everySeconds: 1 },
+      repeat: { kind: "ROUNDS", rounds: 1 },
+    });
+
+    // La durée, puis le milieu arrondi et la fin de l'axe, qui valent tous une seconde.
+    expect(view.getAllByText(formatTrainingDuration(1) as string)).toHaveLength(3);
+  });
+
   it("légende l'effort et le repos d'un cycle", () => {
     const view = setup(STRUCTURE_PRESETS.TABATA);
 

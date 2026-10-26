@@ -74,15 +74,7 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
             ),
           )}
         </div>
-        {timeline.axisSeconds == null ? null : (
-          <div aria-hidden className="flex justify-between text-cmv-caption text-cmv-text-lo">
-            {timeline.axisSeconds.map((seconds) => (
-              <span key={seconds} className="tabular-nums">
-                {seconds === 0 ? "0" : formatTrainingDuration(seconds)}
-              </span>
-            ))}
-          </div>
-        )}
+        {timeline.axisSeconds == null ? null : <Axis seconds={timeline.axisSeconds} />}
         <ul className="flex flex-wrap gap-cmv-md text-cmv-caption text-cmv-text-mid">
           {legendItems(timeline.legend, t, (seconds) => text([everyPhrase(seconds)])).map(
             (item) => (
@@ -100,6 +92,21 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
           )}
         </ul>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Le début, le milieu et la fin de la frise. Repérés par leur place, pas par leur valeur : sur une
+ * seconde, le milieu arrondi vaut la fin.
+ */
+function Axis({ seconds }: Readonly<{ seconds: readonly [number, number, number] }>) {
+  const [, middle, end] = seconds;
+  return (
+    <div aria-hidden className="flex justify-between text-cmv-caption text-cmv-text-lo">
+      <span className="tabular-nums">0</span>
+      <span className="tabular-nums">{formatTrainingDuration(middle)}</span>
+      <span className="tabular-nums">{formatTrainingDuration(end)}</span>
     </div>
   );
 }
