@@ -847,6 +847,44 @@ describe("Métriques suggérées d'un exercice (#718)", () => {
     expect(saved.body.customMetrics).toEqual([]);
     await deleteAtLatest(coachA, `/exercises/${id}`);
   });
+
+  // L'exception EX-2 garde ce que chaque collection citait, rien de plus : une citation que seuls
+  // les blocs portaient ne gagne pas les métriques suggérées sans contrôle.
+  it("refuse de suggérer une métrique hors catalogue que seuls les blocs citaient (400)", async () => {
+    const gone = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Passagère", unit: null, valueType: "NUMBER", scale: null });
+    const created = await coachA.post("/exercises").send({
+      title: "Bloc orphelin",
+      blocks: [
+        {
+          id: "blk",
+          label: null,
+          structure: { type: "FREE" },
+          metrics: [
+            {
+              id: "col",
+              source: "CUSTOM",
+              customMetricId: gone.body.id,
+              label: null,
+              collapsed: false,
+            },
+          ],
+          rows: [],
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+    const id: string = created.body.id;
+    expect((await coachA.delete(`/custom-metrics/${gone.body.id}`)).status).toBe(204);
+
+    const moved = await patchAtLatest(id, {
+      suggestedMetrics: [{ source: "CUSTOM", customMetricId: gone.body.id }],
+    });
+    expect(moved.status).toBe(400);
+    expect(moved.body.detail).toMatch(/catalogue du propriétaire/);
+    await deleteAtLatest(coachA, `/exercises/${id}`);
+  });
 });
 
 /**

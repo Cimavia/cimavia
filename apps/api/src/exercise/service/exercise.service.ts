@@ -345,14 +345,19 @@ export class ExerciseService {
     let catalogOf: CatalogOf | undefined;
     if (input.blocks !== undefined || input.suggestedMetrics !== undefined) {
       catalogOf = await this.metrics.catalogOf([current.coachId]);
-      assertCitesCatalog(
-        metricCitationsOf(input.blocks ?? [], input.suggestedMetrics ?? []),
-        metricCitationsOf(
-          parseBlocks(current.blocks),
-          parseSuggestedMetrics(current.suggestedMetrics),
-        ),
-        catalogOf(current.coachId),
-      );
+      const catalog = catalogOf(current.coachId);
+      // Chaque collection contre ce qu'ELLE citait : une métrique hors catalogue que les blocs
+      // citaient encore ne passe pas aux métriques suggérées sans contrôle (EX-2).
+      if (input.blocks !== undefined) {
+        assertCitesCatalog(input.blocks, parseBlocks(current.blocks), catalog);
+      }
+      if (input.suggestedMetrics !== undefined) {
+        assertCitesCatalog(
+          metricCitationsOf([], input.suggestedMetrics),
+          metricCitationsOf([], parseSuggestedMetrics(current.suggestedMetrics)),
+          catalog,
+        );
+      }
     }
     const data: Prisma.ExerciseUpdateManyMutationInput = {};
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
