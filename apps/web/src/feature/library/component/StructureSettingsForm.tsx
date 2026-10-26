@@ -252,7 +252,16 @@ type ChoiceProps = {
 };
 
 /** Une réponse : son titre, ce qu'elle veut dire, et ses valeurs une fois choisie. */
-function Choice({ type, name, title, sub, checked, reason, onToggle, children }: ChoiceProps) {
+function Choice({
+  type,
+  name,
+  title,
+  sub,
+  checked,
+  reason,
+  onToggle,
+  children,
+}: Readonly<ChoiceProps>) {
   const text = usePhraseText();
   const closed = reason != null;
   // Une réponse grisée n'est jamais choisie (`withoutDisabled`) : ses valeurs n'existent pas.
@@ -265,21 +274,24 @@ function Choice({ type, name, title, sub, checked, reason, onToggle, children }:
         closed && "opacity-60",
       )}
     >
-      <label className={cn("flex items-start gap-cmv-sm", !closed && "cursor-pointer")}>
+      {/* Une grille plutôt qu'une colonne imbriquée : le texte du libellé reste à portée des
+          lecteurs d'écran — et de la règle d'accessibilité, qui ne descend que de deux niveaux. */}
+      <label
+        className={cn(
+          "grid grid-cols-[auto_1fr] items-start gap-x-cmv-sm",
+          !closed && "cursor-pointer",
+        )}
+      >
         <input
           type={type}
           name={name}
           checked={on}
           disabled={closed}
           onChange={(event) => onToggle(event.target.checked)}
-          className="mt-1 accent-cmv-accent"
+          className="row-span-2 mt-1 accent-cmv-accent"
         />
-        <span className="flex flex-col">
-          <span className="text-cmv-body text-cmv-text-hi">{title}</span>
-          <span className="text-cmv-caption text-cmv-text-mid">
-            {closed ? text([reason]) : sub}
-          </span>
-        </span>
+        <span className="text-cmv-body text-cmv-text-hi">{title}</span>
+        <span className="text-cmv-caption text-cmv-text-mid">{closed ? text([reason]) : sub}</span>
       </label>
       {on && children != null ? (
         <div className="flex flex-wrap gap-cmv-md pl-cmv-xl">{children}</div>
