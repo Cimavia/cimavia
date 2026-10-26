@@ -1,8 +1,8 @@
 import {
-  type BlockMetric,
   type CustomMetric,
   formatDecimal,
   formatTrainingDuration,
+  type GridMetric,
   METRIC_TEXT_VALUE_MAX_LENGTH,
   type MetricValue,
   MetricValueType,
@@ -18,7 +18,8 @@ import { useReportRefused } from "@/shared/hook/useRefusedFields";
 import { cn } from "@/shared/util/cn.util";
 
 type GridCellProps = {
-  metric: BlockMetric;
+  /** Une colonne de la grille par blocs, ou de l'ancienne, qui s'y range. */
+  metric: GridMetric;
   customMetrics: readonly CustomMetric[];
   value: MetricValue;
   onChange: (value: MetricValue) => void;

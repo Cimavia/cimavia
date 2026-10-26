@@ -8,15 +8,17 @@ import {
   type ExerciseBlock,
   fillableRows,
   fillColumn,
+  type GridMetric,
   MetricSource,
   type MetricUnit,
+  type MetricValue,
   MetricValueType,
   metricLabel,
   metricValueTypeOf,
   parseDecimal,
   scaleFor,
 } from "@cmv/shared";
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoChevronDown } from "react-icons/io5";
 import { UnitChoice } from "@/feature/library/component/UnitChoice";
@@ -52,46 +54,117 @@ export function ColumnMenu({
   onChange,
 }: Readonly<ColumnMenuProps>) {
   const { t } = useTranslation();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  const open = openMetricId === metric.id;
-  const position = useAnchoredPosition(triggerRef, open);
-  const setOpen = (next: boolean) => onOpenChange(next ? metric.id : null);
-
   const collapsible = canCollapseMetric(block, metric.id);
   // Rien à replier quand il n'y a aucune ligne : la « valeur commune » n'aurait pas de référent,
   // et la saisir n'écrirait nulle part.
   const canFold = collapsible && block.rows.length > 0;
+  const setOpen = (next: boolean) => onOpenChange(next ? metric.id : null);
 
   function apply(next: ExerciseBlock) {
     onChange(next);
     setOpen(false);
   }
 
-  function setUnit(unit: MetricUnit) {
+  function setMetric(change: Partial<BlockMetric>) {
     apply({
       ...block,
       metrics: block.metrics.map((current) =>
-        current.id === metric.id ? { ...current, unit } : current,
+        current.id === metric.id ? ({ ...current, ...change } as BlockMetric) : current,
       ),
     });
   }
 
-  function setCollapsed(collapsed: boolean) {
-    apply({
-      ...block,
-      metrics: block.metrics.map((current) =>
-        current.id === metric.id ? { ...current, collapsed } : current,
-      ),
-    });
-  }
+  return (
+    <ColumnPopover
+      metric={metric}
+      customMetrics={customMetrics}
+      open={openMetricId === metric.id}
+      onOpenChange={setOpen}
+      firstValue={columnValues(block, metric.id)[0] ?? null}
+      hasRows={block.rows.length > 0}
+      onUnit={(unit) => setMetric({ unit })}
+      // En Séries, le remplissage couvre les N séries — fantômes compris : la grille les affiche,
+      // et « 8 · 10 · 12 · 14 » qui s'arrêterait à la deuxième ligne mentirait sur ce qu'elle montre.
+      onFill={(plan) =>
+        apply({
+          ...block,
+          rows: fillColumn(
+            { ...block, rows: fillableRows(block, () => crypto.randomUUID()) },
+            metric.id,
+            plan,
+          ),
+        })
+      }
+    >
+      {/* Sans ligne, il n'y a rien à replier ET rien à contredire : afficher « la valeur
+          change d'une ligne à l'autre » serait faux, puisqu'il n'y a pas de ligne. Le
+          message de remplissage dit déjà ce qui manque. */}
+      {block.rows.length === 0 ? null : (
+        <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
+          {metric.collapsed ? (
+            <CmvButton variant="ghost" onClick={() => setMetric({ collapsed: false })}>
+              {t("library.builder.column.expand")}
+            </CmvButton>
+          ) : (
+            <CmvButton
+              variant="ghost"
+              disabled={!canFold}
+              onClick={() => setMetric({ collapsed: true })}
+            >
+              {t("library.builder.column.collapse")}
+            </CmvButton>
+          )}
+          {metric.collapsed || canFold ? null : (
+            <span className="text-cmv-caption text-cmv-text-lo">
+              {t("library.builder.column.cannotCollapse")}
+            </span>
+          )}
+        </div>
+      )}
+    </ColumnPopover>
+  );
+}
+
+type ColumnPopoverProps = {
+  metric: GridMetric;
+  customMetrics: readonly CustomMetric[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** La valeur de la première ligne, d'où partent les remplissages ; `null` sans valeur. */
+  firstValue: MetricValue;
+  hasRows: boolean;
+  onUnit: (unit: MetricUnit) => void;
+  onFill: (plan: ColumnFillPlan) => void;
+  /** Ce que la grille ajoute au menu : le repli de l'ancienne, le retrait de la colonne. */
+  children?: ReactNode;
+};
+
+/**
+ * Le menu d'une colonne, commun aux deux grilles : son libellé en bouton, puis l'unité et les
+ * remplissages en masse. Chaque grille dit comment s'écrit un remplissage — l'ancienne sur ses
+ * séries, celle d'un exercice de bloc sur ses tours.
+ */
+export function ColumnPopover({
+  metric,
+  customMetrics,
+  open,
+  onOpenChange,
+  firstValue,
+  hasRows,
+  onUnit,
+  onFill,
+  children,
+}: Readonly<ColumnPopoverProps>) {
+  const { t } = useTranslation();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const position = useAnchoredPosition(triggerRef, open);
 
   return (
     <div>
       <button
         type="button"
         ref={triggerRef}
-        onClick={() => setOpen(!open)}
+        onClick={() => onOpenChange(!open)}
         aria-expanded={open}
         className={cn(CMV_TABLE.headLabel, "flex items-center gap-cmv-xs hover:text-cmv-text-hi")}
       >
@@ -113,38 +186,18 @@ export function ColumnMenu({
             <UnitChoice
               metric={metric}
               label={t("library.builder.column.unit")}
-              onChange={setUnit}
+              onChange={onUnit}
             />
           ) : null}
 
           <FillActions
-            block={block}
+            first={firstValue}
+            hasRows={hasRows}
             metric={metric}
             customMetrics={customMetrics}
-            onFill={(rows) => apply({ ...block, rows })}
+            onFill={onFill}
           />
-
-          {/* Sans ligne, il n'y a rien à replier ET rien à contredire : afficher « la valeur
-              change d'une ligne à l'autre » serait faux, puisqu'il n'y a pas de ligne. Le
-              message de remplissage dit déjà ce qui manque. */}
-          {block.rows.length === 0 ? null : (
-            <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
-              {metric.collapsed ? (
-                <CmvButton variant="ghost" onClick={() => setCollapsed(false)}>
-                  {t("library.builder.column.expand")}
-                </CmvButton>
-              ) : (
-                <CmvButton variant="ghost" disabled={!canFold} onClick={() => setCollapsed(true)}>
-                  {t("library.builder.column.collapse")}
-                </CmvButton>
-              )}
-              {metric.collapsed || canFold ? null : (
-                <span className="text-cmv-caption text-cmv-text-lo">
-                  {t("library.builder.column.cannotCollapse")}
-                </span>
-              )}
-            </div>
-          )}
+          {children}
         </div>
       ) : null}
     </div>
@@ -168,10 +221,11 @@ function usableStep(text: string, valueType: MetricValueType | null): number | n
 }
 
 type FillActionsProps = {
-  block: ExerciseBlock;
-  metric: BlockMetric;
+  first: MetricValue;
+  hasRows: boolean;
+  metric: GridMetric;
   customMetrics: readonly CustomMetric[];
-  onFill: (rows: ExerciseBlock["rows"]) => void;
+  onFill: (plan: ColumnFillPlan) => void;
 };
 
 /**
@@ -179,12 +233,16 @@ type FillActionsProps = {
  * dit comment la suite s'en déduit. Demander un point de départ dans le menu dupliquerait une
  * information qui est déjà à l'écran.
  */
-function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActionsProps>) {
+function FillActions({
+  first,
+  hasRows,
+  metric,
+  customMetrics,
+  onFill,
+}: Readonly<FillActionsProps>) {
   const { t } = useTranslation();
   const [step, setStep] = useState(DEFAULT_FILL_STEP);
 
-  const values = columnValues(block, metric.id);
-  const first = values[0] ?? null;
   const valueType = metricValueTypeOf(metric, customMetrics);
   const scale = scaleFor(metric, customMetrics);
 
@@ -203,21 +261,11 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
     parsedStep != null && typeof first === "number"
       ? { mode: ColumnFillMode.STEP, start: first, step: parsedStep }
       : null;
-  // En Séries, le remplissage couvre les N séries — fantômes compris : la grille les affiche, et
-  // « 8 · 10 · 12 · 14 » qui s'arrêterait à la deuxième ligne mentirait sur ce qu'elle montre.
-  const fill = (plan: ColumnFillPlan) =>
-    onFill(
-      fillColumn(
-        { ...block, rows: fillableRows(block, () => crypto.randomUUID()) },
-        metric.id,
-        plan,
-      ),
-    );
-  const fillWith = (plan: ColumnFillPlan | null) => (plan == null ? undefined : () => fill(plan));
+  const fillWith = (plan: ColumnFillPlan | null) => (plan == null ? undefined : () => onFill(plan));
 
   // Sans ligne, aucun remplissage n'a de sens — mais un menu à moitié vide se lit comme un bug.
   // On dit ce qui manque plutôt que de ne rien montrer.
-  if (block.rows.length === 0) {
+  if (!hasRows) {
     return (
       <p className="border-cmv-border border-t pt-cmv-sm text-cmv-caption text-cmv-text-lo">
         {t("library.builder.column.needsRow")}
@@ -233,12 +281,12 @@ function FillActions({ block, metric, customMetrics, onFill }: Readonly<FillActi
       <div className="flex flex-col items-start gap-cmv-xs pl-cmv-sm">
         <CmvButton
           variant="ghost"
-          onClick={() => fill({ mode: ColumnFillMode.SAME, value: first })}
+          onClick={() => onFill({ mode: ColumnFillMode.SAME, value: first })}
         >
           {t("library.builder.column.fillSame")}
         </CmvButton>
 
-        <CmvButton variant="ghost" onClick={() => fill({ mode: ColumnFillMode.MIRROR })}>
+        <CmvButton variant="ghost" onClick={() => onFill({ mode: ColumnFillMode.MIRROR })}>
           {t("library.builder.column.fillMirror")}
         </CmvButton>
 
