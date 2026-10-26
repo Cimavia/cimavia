@@ -81,9 +81,26 @@ describe("ExercisePreview", () => {
 
     expect(getByText("library.builder.suggested.title")).toBeInTheDocument();
     expect(getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "exercise.metric.repetitions",
+      "exercise.metric.repetitions · exercise.unit.reps",
       "Ressenti",
-      "exercise.metric.load",
+      "exercise.metric.load · exercise.unit.kilograms",
+    ]);
+  });
+
+  it("lit l'unité suggérée avec la métrique, la maison comprise, et rien sans unité", () => {
+    const { getAllByRole } = setup({
+      suggestedMetrics: [
+        { source: MetricSource.CATALOG, key: MetricKey.LOAD, unit: MetricUnit.KILOGRAMS_ADDED },
+        { source: MetricSource.CATALOG, key: MetricKey.RPE, unit: MetricUnit.NONE },
+        { source: MetricSource.CUSTOM, customMetricId: "cm-2" },
+      ],
+      customMetrics: [{ id: "cm-2", label: "Cotation", unit: "fb" } as CustomMetric],
+    });
+
+    expect(getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "exercise.metric.load · exercise.unit.kilogramsAdded",
+      "exercise.metric.rpe",
+      "Cotation · fb",
     ]);
   });
 

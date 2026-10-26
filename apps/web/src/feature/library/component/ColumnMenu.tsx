@@ -8,8 +8,6 @@ import {
   type ExerciseBlock,
   fillableRows,
   fillColumn,
-  METRIC_CATALOG,
-  METRIC_UNIT_LABEL_KEY,
   MetricSource,
   type MetricUnit,
   MetricValueType,
@@ -21,6 +19,7 @@ import {
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoChevronDown } from "react-icons/io5";
+import { UnitChoice } from "@/feature/library/component/UnitChoice";
 import { CMV_EDIT, CMV_TABLE, CmvButton } from "@/shared/component";
 import { useAnchoredPosition } from "@/shared/hook/useAnchoredPosition";
 import { cn } from "@/shared/util/cn.util";
@@ -111,7 +110,11 @@ export function ColumnMenu({
           className="fixed z-20 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md shadow-lg"
         >
           {metric.source === MetricSource.CATALOG ? (
-            <UnitChoice metric={metric} onChange={setUnit} />
+            <UnitChoice
+              metric={metric}
+              label={t("library.builder.column.unit")}
+              onChange={setUnit}
+            />
           ) : null}
 
           <FillActions
@@ -145,36 +148,6 @@ export function ColumnMenu({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function UnitChoice({
-  metric,
-  onChange,
-}: Readonly<{
-  metric: Extract<BlockMetric, { source: "CATALOG" }>;
-  onChange: (unit: MetricUnit) => void;
-}>) {
-  const { t } = useTranslation();
-  const units = METRIC_CATALOG[metric.key].units;
-  // Une seule unité admise = aucun choix à offrir. Un select à une option est du bruit.
-  if (units.length < 2) return null;
-
-  return (
-    <label className="flex flex-col gap-cmv-xs">
-      <span className="text-cmv-caption text-cmv-text-mid">{t("library.builder.column.unit")}</span>
-      <select
-        value={metric.unit}
-        onChange={(event) => onChange(event.target.value as MetricUnit)}
-        className="rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
-      >
-        {units.map((unit) => (
-          <option key={unit} value={unit}>
-            {t(METRIC_UNIT_LABEL_KEY[unit])}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

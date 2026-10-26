@@ -60,7 +60,7 @@ export function metricLabel(
  * pas une unité, c'est l'absence d'unité, et l'afficher mettrait un mot là où il n'y a rien.
  */
 export function metricUnitLabel(
-  metric: GridMetric,
+  metric: SuggestedMetric,
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
 ): string | null {

@@ -1,5 +1,7 @@
 import {
   type CustomMetric,
+  MetricSource,
+  type MetricUnit,
   metricLabel,
   type SuggestedMetric,
   suggestedMetricIdentity,
@@ -7,6 +9,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MetricPicker } from "@/feature/library/component/MetricPicker";
+import { UnitChoice } from "@/feature/library/component/UnitChoice";
 import { CMV_EDIT, CmvButton } from "@/shared/component";
 
 type SuggestedMetricsSectionProps = {
@@ -56,6 +59,23 @@ export function SuggestedMetricsSection({
             >
               <span className="text-cmv-caption text-cmv-text-lo">{index + 1}</span>
               {metricLabel(metric, customMetrics, t)}
+              {/* L'unité suggérée est celle que la colonne prendra dans le bloc : « par côté », « lb »
+                  ne se retrouvent pas après coup si l'exercice ne les porte pas. */}
+              {metric.source === MetricSource.CATALOG ? (
+                <UnitChoice
+                  metric={metric}
+                  label={t("library.builder.suggested.unitOf", {
+                    metric: metricLabel(metric, customMetrics, t),
+                  })}
+                  hideLabel
+                  onChange={(unit) => onChange(withUnit(metrics, index, unit))}
+                />
+              ) : null}
+              {isOrphan(metric, customMetrics) ? (
+                <span className="text-cmv-caption text-cmv-warning-on">
+                  {t("library.builder.suggested.orphan")}
+                </span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -78,5 +98,27 @@ export function SuggestedMetricsSection({
         onClose={() => setPicking(false)}
       />
     </section>
+  );
+}
+
+/**
+ * Une métrique maison que plus rien ne définit : supprimée depuis (dette EX-2). Elle se lit « — » ;
+ * sans le dire, le coach ne saurait pas quoi retirer.
+ */
+function isOrphan(metric: SuggestedMetric, customMetrics: readonly CustomMetric[]): boolean {
+  return (
+    metric.source === MetricSource.CUSTOM &&
+    !customMetrics.some((custom) => custom.id === metric.customMetricId)
+  );
+}
+
+/** La liste, l'unité de sa métrique n° `index` changée — une métrique du catalogue seulement. */
+function withUnit(
+  metrics: readonly SuggestedMetric[],
+  index: number,
+  unit: MetricUnit,
+): SuggestedMetric[] {
+  return metrics.map((metric, position) =>
+    position === index && metric.source === MetricSource.CATALOG ? { ...metric, unit } : metric,
   );
 }

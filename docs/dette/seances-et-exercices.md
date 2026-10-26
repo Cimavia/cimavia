@@ -23,7 +23,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | EX-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). *Nommée **R-1** avant [#624](https://github.com/Cimavia/cimavia/issues/624), comme une dette des rappels — la migration `20260824070000_reprise_descriptions_en_consigne` la cite encore sous ce nom.* | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
-| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient — et, depuis [#718](https://github.com/Cimavia/cimavia/issues/718), une métrique suggérée orpheline, qui se nomme « — ». *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
+| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient — et, depuis [#718](https://github.com/Cimavia/cimavia/issues/718), une métrique suggérée orpheline. L'une et l'autre se lisent « — ». *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(le constructeur d'exercice signale une métrique suggérée orpheline au coach — depuis #718, plus une colonne de l'ancienne grille ; le nettoyage en masse attend un besoin réel)* |
 
 > **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
 > donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
@@ -813,6 +813,9 @@ liste des domaines vivent dans l'index.
 >   une par colonne qu'elles préremplissent), jamais deux fois la même — même clé du catalogue, ou
 >   même métrique du Coach (`suggestedMetricIdentity`). Aucune est un état valide. « Dupliquer en
 >   variante » ne les reçoit pas du client : la variante reprend celles de la source.
+> - **Une métrique suggérée du catalogue porte son unité**, choisie dans le constructeur parmi celles
+>   qu'elle admet (`UnitChoice`, partagé avec la grille) : « par côté », « lest » ne se devinent pas
+>   quand le bloc préremplit sa colonne. L'aperçu la lit avec la métrique (« Charge · kg »).
 > - **Le catalogue ne contrôle que les citations nouvelles**, comme pour les blocs (#716) : une
 >   métrique suggérée maison supprimée depuis reste citée, et l'exercice s'enregistre encore (EX-2).
 > - **Une copie adopte les métriques maison suggérées** (`adoptMetrics`), en variante comme en copie

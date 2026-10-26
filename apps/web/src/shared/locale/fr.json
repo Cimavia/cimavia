@@ -432,7 +432,9 @@
       "suggested": {
         "title": "Métriques suggérées",
         "hint": "Elles deviennent les colonnes de l'exercice quand tu l'ajoutes à un bloc de séance. Les valeurs se saisissent dans la séance.",
-        "none": "Aucune métrique suggérée."
+        "none": "Aucune métrique suggérée.",
+        "orphan": "Métrique maison supprimée depuis : retire-la pour ne plus la suggérer.",
+        "unitOf": "Unité de {{metric}}"
       }
     },
     "noMatch": {

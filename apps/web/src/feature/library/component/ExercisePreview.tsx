@@ -4,6 +4,7 @@ import {
   DocumentUsage,
   type ExerciseDocumentDto,
   metricLabel,
+  metricUnitLabel,
   type RichDocument,
   type SuggestedMetric,
   suggestedMetricIdentity,
@@ -95,12 +96,23 @@ function PreviewMetrics({
       <ul className="flex flex-wrap gap-cmv-xs">
         {metrics.map((metric) => (
           <li key={suggestedMetricIdentity(metric)}>
-            <CmvBadge>{metricLabel(metric, customMetrics, t)}</CmvBadge>
+            <CmvBadge>{chipText(metric, customMetrics, t)}</CmvBadge>
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+/** « Charge · kg » : l'unité suggérée se lit avec la métrique ; rien à ajouter sans unité. */
+function chipText(
+  metric: SuggestedMetric,
+  customMetrics: readonly CustomMetric[],
+  t: (key: string) => string,
+): string {
+  const label = metricLabel(metric, customMetrics, t);
+  const unit = metricUnitLabel(metric, customMetrics, t);
+  return unit == null ? label : `${label} · ${unit}`;
 }
 
 /**
