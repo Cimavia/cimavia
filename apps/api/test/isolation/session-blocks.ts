@@ -103,6 +103,33 @@ describe("Structures du Coach (#716)", () => {
     expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
   });
 
+  it("refuse un nom déjà pris par une autre de ses structures, sans tenir compte des majuscules", async () => {
+    const taken = await coachA.post("/structures").send(structureInput("  PYRAMIDE inversée "));
+    expect(taken.status).toBe(409);
+    expect(taken.body.type).toBe(ProblemType.STRUCTURE_NAME_TAKEN);
+
+    const other = (await coachA.post("/structures").send(structureInput("Paliers courts"))).body;
+    const renamed = await putAtLatest(coachA, `/structures/${other.id}`, {
+      ...structureInput("pyramide INVERSÉE"),
+    });
+    expect(renamed.status).toBe(409);
+    expect(renamed.body.type).toBe(ProblemType.STRUCTURE_NAME_TAKEN);
+
+    // Elle garde son propre nom, à la casse près.
+    const kept = await putAtLatest(coachA, `/structures/${structureId}`, {
+      ...structureInput("PYRAMIDE INVERSÉE"),
+      settings: FREE,
+    });
+    expect(kept.status).toBe(200);
+    expect((await deleteAtLatest(coachA, `/structures/${other.id}`)).status).toBe(204);
+  });
+
+  it("laisse un autre Coach prendre le même nom", async () => {
+    const res = await coachB.post("/structures").send(structureInput("Pyramide inversée"));
+    expect(res.status).toBe(201);
+    expect((await deleteAtLatest(coachB, `/structures/${res.body.id}`)).status).toBe(204);
+  });
+
   it("refuse des réglages grisés par les autres réponses", async () => {
     const res = await coachA.post("/structures").send({
       ...structureInput("Incohérente"),
