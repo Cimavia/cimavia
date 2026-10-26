@@ -94,6 +94,7 @@ export function StructureList({ onCreate, onEdit, onDuplicate }: Readonly<Struct
               <section className="flex flex-col gap-cmv-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-cmv-md">
                   <h2 className={CMV_TABLE.headLabel}>{t("library.structure.mine.title")}</h2>
+                  {/* Pas de « Créer » ici : l'en-tête de la page le porte déjà, et l'état vide aussi. */}
                   {filtered ? (
                     <span className="text-cmv-caption text-cmv-text-mid">
                       {t("library.structure.mine.results", { count: rows.mine.length })}
@@ -106,11 +107,7 @@ export function StructureList({ onCreate, onEdit, onDuplicate }: Readonly<Struct
                         {t("library.structure.mine.clearFilter")}
                       </button>
                     </span>
-                  ) : (
-                    <CmvButton variant="ghost" onClick={onCreate}>
-                      {t("library.structure.create")}
-                    </CmvButton>
-                  )}
+                  ) : null}
                 </div>
                 {loaded.structures.length === 0 ? (
                   <CmvEmptyState

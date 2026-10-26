@@ -105,9 +105,8 @@ describe("StructureList — affichage", () => {
 
     expect(tables(view)).toHaveLength(1);
     expect(view.getByText("library.structure.empty.title")).toBeInTheDocument();
-    // Celui de l'en-tête de section, et celui de l'état vide.
-    const [, fromEmpty] = view.getAllByRole("button", { name: "library.structure.create" });
-    await view.user.click(fromEmpty as HTMLElement);
+    // Le seul de la liste : l'en-tête de la page porte l'autre.
+    await view.user.click(view.getByRole("button", { name: "library.structure.create" }));
 
     expect(view.onCreate).toHaveBeenCalled();
   });
