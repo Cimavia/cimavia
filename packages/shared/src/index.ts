@@ -277,6 +277,7 @@ export {
   exerciseTrackingSchema,
   fillableRows,
   fillColumn,
+  fillRows,
   fittingColumnCount,
   GridSlotKind,
   gridSlots,
@@ -1158,6 +1159,40 @@ export { shouldReportQueryError } from "./util/report-query-error.util";
 export { sameJson } from "./util/same-json.util";
 export { comparableText, searchMatcher } from "./util/search.util";
 export { sentryDataCollection } from "./util/sentry-data-collection.util";
+export type {
+  BlockGridSlot,
+  BlockSlotKind as BlockSlotKindType,
+  CompositionIssue,
+  CopiedStructure,
+} from "./util/session-composition.util";
+export {
+  BlockSlotKind,
+  blockExerciseFrom,
+  blockFrom,
+  blockGridSlots,
+  blockRowLimits,
+  blockStructureInput,
+  blocksFromDto,
+  compositionIssues,
+  detachedExercise,
+  duplicatedBlock,
+  duplicatedExercise,
+  filledGridRows,
+  fittedBlock,
+  movedExercise,
+  movedItem,
+  presetSource,
+  replacedExercise,
+  revertedBlock,
+  rowsBeyond,
+  structureSource,
+  withAddedExercise,
+  withBlock,
+  withExerciseChange,
+  withGridMetrics,
+  withoutExercise,
+  withStructure,
+} from "./util/session-composition.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkedUnitsOf,

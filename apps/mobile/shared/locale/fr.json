@@ -849,6 +849,9 @@
       "noteRound": "Un tour compte quand ses {{count}} cases sont cochées. Décocher est toujours possible.",
       "noteNoRounds": "Le nombre de tours n'est pas noté. Décocher est toujours possible.",
       "note": "Décocher est toujours possible."
+    },
+    "issue": {
+      "empty": "Ce bloc est vide."
     }
   }
 }
