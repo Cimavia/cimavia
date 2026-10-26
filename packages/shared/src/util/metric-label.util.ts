@@ -13,6 +13,7 @@ import {
   type MetricValue,
   MetricValueType,
 } from "../dto/exercise-metric.schema";
+import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 import { formatDecimal } from "./decimal.util";
 import { formatTrainingDuration } from "./training-duration.util";
 
@@ -39,9 +40,11 @@ const ABSENT = "—";
  *  1. le libellé que le coach a écrit sur CETTE colonne (« Voie » plutôt que « Libellé ») ;
  *  2. le nom de sa métrique maison, qui est SA donnée — donc jamais une clé i18n ;
  *  3. le catalogue livré, traduit.
+ *
+ * Une métrique suggérée par un exercice (#718) n'a pas de libellé propre : elle s'y nomme aussi.
  */
 export function metricLabel(
-  metric: GridMetric,
+  metric: SuggestedMetric & { readonly label?: string | null },
   customMetrics: readonly CustomMetric[],
   translate: (key: string) => string,
 ): string {

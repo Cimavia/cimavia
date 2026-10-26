@@ -750,7 +750,11 @@ export {
 } from "./dto/structure.schema";
 export { StructureAdvance, StructureOrder, StructureRepeat } from "./dto/structure-answer.schema";
 export type { SuggestedMetric } from "./dto/suggested-metric.schema";
-export { suggestedMetricSchema, suggestedMetricsSchema } from "./dto/suggested-metric.schema";
+export {
+  suggestedMetricIdentity,
+  suggestedMetricSchema,
+  suggestedMetricsSchema,
+} from "./dto/suggested-metric.schema";
 export type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
