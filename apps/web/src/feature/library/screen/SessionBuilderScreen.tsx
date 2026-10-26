@@ -30,6 +30,7 @@ import {
   useSession,
 } from "@/feature/library/hook/useSessions";
 import { myRightText } from "@/feature/library/util/access-text.util";
+import { LibraryTab } from "@/feature/library/util/library-tab.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import {
   CMV_EDIT,
@@ -128,7 +129,8 @@ export function SessionBuilderScreen({
       key={`${session?.id ?? "new"}:${generation}`}
       session={session ?? null}
       added={added.data ?? null}
-      onLeave={() => navigate({ to: "/library" })}
+      // Retour à l'onglet Séances, d'où le coach est parti (#717).
+      onLeave={() => navigate({ to: "/library", search: { tab: LibraryTab.SESSIONS } })}
       onReload={reload}
       isReloading={isReloading}
     />
@@ -223,10 +225,14 @@ function SessionBuilder({
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
-  const { titleMissing, touchTitle, cannotSave, save } = useBuilderSave(draft, refused.hasRefused, {
-    titleRequired: "library.session.titleRequired",
-    saveFailed: "library.session.saveFailed",
-  });
+  const { blockedBy, titleMissing, touchTitle, cannotSave, save } = useBuilderSave(
+    draft,
+    refused.hasRefused,
+    {
+      titleRequired: "library.session.titleRequired",
+      saveFailed: "library.session.saveFailed",
+    },
+  );
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
   // composition (#327), et proposent de l'enregistrer (#682). Seules les sorties qui SUIVENT un
   // enregistrement passent sans demander.
@@ -234,8 +240,6 @@ function SessionBuilder({
     draft.isDirty || refused.hasRefused,
     async () => (await save("library.session.saved")) != null,
   );
-  // Ferme le bouton ET en devient l'infobulle : une seule valeur pour les deux (#514).
-  const blockedBy = refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined;
   const writes = useSessionWrites(draft);
   const { reload, removeSession, staleMessage } = writes;
   const edited = draft.edited;
