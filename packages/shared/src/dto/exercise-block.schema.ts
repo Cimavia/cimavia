@@ -629,23 +629,6 @@ export function dosageLayout(block: ExerciseBlock, usableWidth?: number): Dosage
   return columns <= fittingColumnCount(usableWidth) ? DosageLayout.TABLE : DosageLayout.CARDS;
 }
 
-// ── Lignes incomplètes ──────────────────────────────────────────────────────────────────────
-
-/**
- * Les positions (0-based) des lignes qui ne portent AUCUNE valeur.
- *
- * Ce n'est pas une erreur de schéma — `blockRowSchema` accepte `values: {}` — et ça ne doit pas
- * l'être : une ligne se crée vide, et le coach la remplit ensuite. Mais une ligne restée vide à
- * l'enregistrement ne dit rien à l'athlète, qui verrait « — » sur toute la ligne. D'où un
- * AVERTISSEMENT, jamais un blocage : c'est au coach de choisir entre la remplir et la retirer.
- */
-export function emptyRowIndexes(block: ExerciseBlock): number[] {
-  return block.rows.flatMap((row, index) => {
-    const hasValue = block.metrics.some((metric) => (row.values[metric.id] ?? null) !== null);
-    return hasValue ? [] : [index];
-  });
-}
-
 // ── La phrase de dosage ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -953,37 +936,6 @@ export function fillableRows(
 
 // ── Valeurs de départ ───────────────────────────────────────────────────────────────────────
 
-/**
- * Le bandeau d'un bloc qu'on vient d'ajouter. Des valeurs PLAUSIBLES plutôt que des champs vides :
- * un bandeau vide obligerait le coach à tout saisir avant de voir quoi que ce soit, alors que
- * « 4 séries » ou « toutes les minutes pendant 10 min » sont ce qu'il écrit neuf fois sur dix.
- *
- * Le repos est `null` : contrairement au reste, il n'a pas de valeur évidente, et l'inventer
- * ferait passer une supposition pour une consigne (règle nullable n°5).
- */
-export const DEFAULT_BLOCK_STRUCTURE = {
-  [BlockType.SERIES]: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
-  [BlockType.EMOM]: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 },
-  [BlockType.AMRAP]: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
-  [BlockType.CIRCUIT]: { type: BlockType.CIRCUIT, roundCount: 4, restBetweenRoundsSeconds: null },
-  [BlockType.FREE]: { type: BlockType.FREE },
-} as const satisfies Record<BlockType, BlockStructure>;
-
-/**
- * Les colonnes d'un bloc qu'on vient d'ajouter. `exerciseBlockSchema` en exige au moins une : un
- * bloc sans colonne ne pourrait rien porter, et le coach n'aurait aucune grille où écrire.
- *
- * Circuit et Libre partent d'un LIBELLÉ parce que leurs lignes sont des étapes nommées — « Voie 1 »,
- * « Mobilité épaules » — là où les autres types répètent le MÊME effort et n'ont rien à nommer.
- */
-export const DEFAULT_BLOCK_METRIC_KEYS = {
-  [BlockType.SERIES]: [MetricKey.REPETITIONS],
-  [BlockType.EMOM]: [MetricKey.REPETITIONS],
-  [BlockType.AMRAP]: [MetricKey.REPETITIONS],
-  [BlockType.CIRCUIT]: [MetricKey.LABEL],
-  [BlockType.FREE]: [MetricKey.LABEL],
-} as const satisfies Record<BlockType, readonly MetricKey[]>;
-
 export const exerciseBlocksSchema = z
   .array(exerciseBlockSchema)
   .max(EXERCISE_MAX_BLOCKS)
@@ -1081,27 +1033,6 @@ function cellIssues(
   });
 }
 
-function columnIssues(
-  block: ExerciseBlock,
-  metric: BlockMetric,
-  customMetrics: readonly CustomMetric[],
-): BlockValidationIssue[] {
-  const valueSchema = valueSchemaOf(metric, customMetrics);
-  if (valueSchema === null) return [unknownColumn(metric)];
-  const collapseIssue =
-    metric.collapsed && !canCollapseMetric(block, metric.id)
-      ? [
-          {
-            rowId: COLUMN_WIDE,
-            metricId: metric.id,
-            message: "Une colonne aux valeurs différentes ne peut pas être repliée.",
-          },
-        ]
-      : [];
-
-  return [...cellIssues(block, metric, valueSchema), ...collapseIssue];
-}
-
 /** Le schéma des cellules d'une colonne, ou `null` quand sa métrique est introuvable. */
 function valueSchemaOf(
   metric: ValuedColumn,
@@ -1122,8 +1053,10 @@ function unknownColumn(metric: ValuedColumn): BlockValidationIssue {
 }
 
 /**
- * Le même croisement pour la grille d'un exercice de bloc (#716). Le serveur le fait avant
- * d'écrire, puisque lui seul charge les métriques du Coach. La grille n'a pas de valeur orpheline
+ * Croise chaque cellule de la grille d'un exercice de bloc (#716) avec le type de sa colonne. Ce
+ * contrôle ne peut pas vivre dans le schéma Zod : le type d'une colonne maison n'est connu qu'avec
+ * les métriques du Coach, que seul le serveur charge — il le fait avant d'écrire. Rend des anomalies
+ * LOCALISÉES, pour que l'éditeur surligne la bonne cellule. La grille n'a pas de valeur orpheline
  * à signaler : son schéma les refuse déjà (#715).
  */
 export function gridValueIssues(
@@ -1134,38 +1067,6 @@ export function gridValueIssues(
     const valueSchema = valueSchemaOf(metric, customMetrics);
     return valueSchema === null ? [unknownColumn(metric)] : cellIssues(grid, metric, valueSchema);
   });
-}
-
-// Une valeur dont la colonne n'existe plus — colonne retirée sans nettoyer les lignes.
-function orphanValueIssues(block: ExerciseBlock): BlockValidationIssue[] {
-  const known = new Set(block.metrics.map((metric) => metric.id));
-  return block.rows.flatMap((row) =>
-    Object.keys(row.values)
-      .filter((metricId) => !known.has(metricId))
-      .map((metricId) => ({
-        rowId: row.id,
-        metricId,
-        message: "Cette ligne porte une valeur pour une colonne inexistante.",
-      })),
-  );
-}
-
-/**
- * Croise chaque cellule avec le type de sa colonne. Ce contrôle ne peut pas vivre dans le schéma
- * Zod du bloc : le type d'une colonne personnalisée n'est connu qu'avec les métriques du coach,
- * qui vivent à côté de l'exercice.
- *
- * Rend une liste d'anomalies LOCALISÉES plutôt qu'un booléen — l'éditeur doit pouvoir surligner
- * la bonne cellule.
- */
-export function validateBlockValues(
-  block: ExerciseBlock,
-  customMetrics: readonly CustomMetric[] = [],
-): BlockValidationIssue[] {
-  return [
-    ...block.metrics.flatMap((metric) => columnIssues(block, metric, customMetrics)),
-    ...orphanValueIssues(block),
-  ];
 }
 
 // ── Dérouler un bloc ────────────────────────────────────────────────────────────────────────

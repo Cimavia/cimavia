@@ -10,15 +10,11 @@ import {
   canCollapseMetric,
   columnValues,
   customMetricIdsIn,
-  DEFAULT_BLOCK_METRIC_KEYS,
-  DEFAULT_BLOCK_STRUCTURE,
   DosageLayout,
-  defaultUnitOf,
   dosageLayout,
   EXERCISE_MAX_BLOCKS,
   type ExerciseBlock,
   emomTopCount,
-  emptyRowIndexes,
   exerciseBlockSchema,
   exerciseBlocksSchema,
   fillableRows,
@@ -26,6 +22,7 @@ import {
   fittingColumnCount,
   GridSlotKind,
   gridSlots,
+  gridValueIssues,
   MetricKey,
   MetricSource,
   MetricUnit,
@@ -47,7 +44,6 @@ import {
   trackingSummary,
   trackingUnits,
   unitValues,
-  validateBlockValues,
   withCellValue,
   withDuplicatedLastRow,
   withMaterializedSeries,
@@ -217,42 +213,22 @@ describe("canCollapseMetric", () => {
   });
 });
 
-describe("validateBlockValues", () => {
+describe("gridValueIssues — sur une colonne de l'ancienne grille", () => {
   it("ne signale rien sur un bloc cohérent", () => {
     const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_load: 12 } }]);
-    expect(validateBlockValues(block)).toEqual([]);
+    expect(gridValueIssues(block, [])).toEqual([]);
   });
 
   it("signale du texte dans une colonne numérique", () => {
     const block = seriesBlock([{ id: "r1", values: { col_reps: "beaucoup", col_load: 12 } }]);
-    const issues = validateBlockValues(block);
+    const issues = gridValueIssues(block, []);
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({ rowId: "r1", metricId: "col_reps" });
   });
 
   it("accepte une cellule vide — la dernière série n'a pas de repos", () => {
     const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_load: null } }]);
-    expect(validateBlockValues(block)).toEqual([]);
-  });
-
-  it("signale une colonne repliée aux valeurs divergentes", () => {
-    const block = seriesBlock(
-      [
-        { id: "r1", values: { col_reps: 6, col_load: 12 } },
-        { id: "r2", values: { col_reps: 6, col_load: 14 } },
-      ],
-      [reps, { ...load, collapsed: true }],
-    );
-    const issues = validateBlockValues(block);
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.metricId).toBe("col_load");
-  });
-
-  it("signale une valeur portée pour une colonne inexistante", () => {
-    const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_fantome: 3 } }]);
-    const issues = validateBlockValues(block);
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.metricId).toBe("col_fantome");
+    expect(gridValueIssues(block, [])).toEqual([]);
   });
 
   it("résout le type d'une colonne personnalisée depuis les métriques du coach", () => {
@@ -284,7 +260,7 @@ describe("validateBlockValues", () => {
     const column = block.metrics.at(0);
     if (!column) throw new Error("La colonne personnalisée devrait exister.");
     expect(metricValueTypeOf(column, [custom])).toBe(MetricValueType.SCALE);
-    const issues = validateBlockValues(block, [custom]);
+    const issues = gridValueIssues(block, [custom]);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.rowId).toBe("r2");
   });
@@ -315,7 +291,7 @@ describe("validateBlockValues", () => {
         { id: "r2", values: { col_n: "beaucoup" } },
       ],
     });
-    const issues = validateBlockValues(block, [custom]);
+    const issues = gridValueIssues(block, [custom]);
     expect(issues).toHaveLength(1);
     expect(issues[0]?.rowId).toBe("r2");
   });
@@ -336,7 +312,7 @@ describe("validateBlockValues", () => {
       ],
       rows: [],
     });
-    expect(validateBlockValues(block, [])).toHaveLength(1);
+    expect(gridValueIssues(block, [])).toHaveLength(1);
   });
 });
 
@@ -360,36 +336,6 @@ describe("exerciseBlocksSchema", () => {
   it("refuse au-delà du plafond de blocs", () => {
     const blocks = Array.from({ length: EXERCISE_MAX_BLOCKS + 1 }, (_, i) => block(`b${i}`));
     expect(exerciseBlocksSchema.safeParse(blocks).success).toBe(false);
-  });
-});
-
-describe("valeurs de départ", () => {
-  const column = (key: (typeof DEFAULT_BLOCK_METRIC_KEYS)[BlockType][number]) => ({
-    id: "col_1",
-    source: MetricSource.CATALOG,
-    key,
-    unit: defaultUnitOf(key),
-    label: null,
-    collapsed: false,
-  });
-
-  it.each(Object.values(BlockType))("produit un bloc %s valide sans rien saisir", (type) => {
-    const block = {
-      id: "blk_1",
-      label: null,
-      structure: DEFAULT_BLOCK_STRUCTURE[type],
-      metrics: DEFAULT_BLOCK_METRIC_KEYS[type].map(column),
-      rows: [],
-    };
-    expect(exerciseBlockSchema.safeParse(block).success).toBe(true);
-  });
-
-  it("ne devine pas le repos — il reste nul", () => {
-    // Le nombre de séries a une valeur plausible, pas le repos : l'inventer ferait passer une
-    // supposition pour une consigne.
-    expect(DEFAULT_BLOCK_STRUCTURE.SERIES.restBetweenSetsSeconds).toBeNull();
-    expect(DEFAULT_BLOCK_STRUCTURE.CIRCUIT.restBetweenRoundsSeconds).toBeNull();
-    expect(DEFAULT_BLOCK_STRUCTURE.AMRAP.targetRounds).toBeNull();
   });
 });
 
@@ -556,30 +502,6 @@ describe("structurePhrase / restPhrase", () => {
   it("ne dit RIEN d'un bloc libre — il n'a aucun paramètre d'ensemble", () => {
     expect(structurePhrase({ type: BlockType.FREE })).toBeNull();
     expect(restPhrase({ type: BlockType.FREE })).toBeNull();
-  });
-});
-
-describe("emptyRowIndexes", () => {
-  it("repère les lignes sans aucune valeur", () => {
-    const block = seriesBlock([
-      { id: "r1", values: { col_reps: 6 } },
-      { id: "r2", values: {} },
-      { id: "r3", values: { col_reps: null, col_load: null } },
-    ]);
-    expect(emptyRowIndexes(block)).toEqual([1, 2]);
-  });
-
-  it("ne signale pas une ligne partiellement remplie — une cellule vide est légitime", () => {
-    // La dernière série n'a pas de repos, un étirement n'a pas de charge : l'incomplet normal
-    // n'est pas un défaut.
-    const block = seriesBlock([{ id: "r1", values: { col_reps: 6, col_load: null } }]);
-    expect(emptyRowIndexes(block)).toEqual([]);
-  });
-
-  it("ignore les valeurs de colonnes disparues", () => {
-    // Une valeur orpheline ne rend pas la ligne « remplie » : elle ne s'affiche nulle part.
-    const block = seriesBlock([{ id: "r1", values: { col_fantome: 3 } }]);
-    expect(emptyRowIndexes(block)).toEqual([0]);
   });
 });
 
@@ -977,7 +899,7 @@ describe("scaleFor", () => {
       rows: [{ id: "r1", values: { col_grade: "12z" } }],
     });
 
-    expect(validateBlockValues(block, [])).toHaveLength(1);
+    expect(gridValueIssues(block, [])).toHaveLength(1);
   });
 
   it("une métrique maison garde SON échelle, et une métrique sans échelle rend null", () => {

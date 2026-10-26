@@ -1,9 +1,18 @@
-import { type BlockStructure, BlockType, DEFAULT_BLOCK_STRUCTURE } from "@cmv/shared";
+import { type BlockStructure, BlockType } from "@cmv/shared";
 import { fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { BlockBandeau } from "./BlockBandeau";
+
+/** Un bandeau plausible de chaque type. */
+const STRUCTURE = {
+  [BlockType.SERIES]: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
+  [BlockType.EMOM]: { type: BlockType.EMOM, intervalSeconds: 60, totalDurationSeconds: 600 },
+  [BlockType.AMRAP]: { type: BlockType.AMRAP, totalDurationSeconds: 480, targetRounds: null },
+  [BlockType.CIRCUIT]: { type: BlockType.CIRCUIT, roundCount: 4, restBetweenRoundsSeconds: null },
+  [BlockType.FREE]: { type: BlockType.FREE },
+} as const satisfies Record<BlockType, BlockStructure>;
 
 const field = (name: string) => `library.builder.bandeau.${name}`;
 
@@ -42,7 +51,7 @@ function setup(initial: BlockStructure) {
 describe("BlockBandeau — Libre", () => {
   // Rien ne vaut pour toutes les lignes : le bandeau n'a rien à montrer.
   it("ne montre aucun champ", () => {
-    const { queryByRole } = setup(DEFAULT_BLOCK_STRUCTURE[BlockType.FREE]);
+    const { queryByRole } = setup(STRUCTURE[BlockType.FREE]);
 
     expect(queryByRole("spinbutton")).not.toBeInTheDocument();
     expect(queryByRole("textbox")).not.toBeInTheDocument();
@@ -50,7 +59,7 @@ describe("BlockBandeau — Libre", () => {
 });
 
 describe("BlockBandeau — Séries", () => {
-  const series = DEFAULT_BLOCK_STRUCTURE[BlockType.SERIES];
+  const series = STRUCTURE[BlockType.SERIES];
 
   it("écrit le nombre de séries", () => {
     const { count, last } = setup(series);
@@ -100,7 +109,7 @@ describe("BlockBandeau — Séries", () => {
 describe("BlockBandeau — les exemples (#526)", () => {
   it("laisse vide un repos non renseigné, et n'en montre que l'exemple", () => {
     const { duration } = setup({
-      ...DEFAULT_BLOCK_STRUCTURE[BlockType.SERIES],
+      ...STRUCTURE[BlockType.SERIES],
       restBetweenSetsSeconds: null,
     });
 
@@ -117,14 +126,14 @@ describe("BlockBandeau — les exemples (#526)", () => {
     [BlockType.AMRAP, "totalDurationSeconds", "amrapDurationPlaceholder"],
     [BlockType.CIRCUIT, "restBetweenRoundsSeconds", "restBetweenRoundsPlaceholder"],
   ] as const)("%s : « %s » tire son exemple du catalogue", (type, name, placeholder) => {
-    const { duration } = setup(DEFAULT_BLOCK_STRUCTURE[type]);
+    const { duration } = setup(STRUCTURE[type]);
 
     expect(duration(name)).toHaveAttribute("placeholder", field(placeholder));
   });
 });
 
 describe("BlockBandeau — EMOM", () => {
-  const emom = DEFAULT_BLOCK_STRUCTURE[BlockType.EMOM];
+  const emom = STRUCTURE[BlockType.EMOM];
 
   it.each([
     ["intervalSeconds", "1:30", 90],
@@ -156,7 +165,7 @@ describe("BlockBandeau — EMOM", () => {
 
 describe("BlockBandeau — AMRAP", () => {
   // Un objectif posé : le cas sans objectif relève de #331 (repli `?? 1`), laissé à ce bug.
-  const amrap = { ...DEFAULT_BLOCK_STRUCTURE[BlockType.AMRAP], targetRounds: 5 };
+  const amrap = { ...STRUCTURE[BlockType.AMRAP], targetRounds: 5 };
 
   it("écrit la durée totale", async () => {
     const { typeDuration, last } = setup(amrap);
@@ -185,7 +194,7 @@ describe("BlockBandeau — AMRAP", () => {
 });
 
 describe("BlockBandeau — Circuit", () => {
-  const circuit = DEFAULT_BLOCK_STRUCTURE[BlockType.CIRCUIT];
+  const circuit = STRUCTURE[BlockType.CIRCUIT];
 
   it("écrit le nombre de tours", () => {
     const { count, last } = setup(circuit);
