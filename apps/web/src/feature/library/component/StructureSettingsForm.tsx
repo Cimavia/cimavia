@@ -267,11 +267,14 @@ function Choice({
   // Une réponse grisée n'est jamais choisie (`withoutDisabled`) : ses valeurs n'existent pas.
   const on = checked && !closed;
   return (
+    // Grisée comme la maquette : pointillés et titre éteint, mais la raison reste lisible — c'est
+    // elle qui dit au Coach quelle réponse changer pour la rouvrir.
     <div
       className={cn(
         "flex flex-col gap-cmv-sm rounded-cmv-md border px-cmv-md py-cmv-sm",
-        on ? "border-cmv-accent bg-cmv-accent-soft" : "border-cmv-border bg-cmv-surface",
-        closed && "opacity-60",
+        on && "border-cmv-accent bg-cmv-accent-soft",
+        !on && !closed && "border-cmv-border bg-cmv-surface",
+        closed && "border-dashed border-cmv-border",
       )}
     >
       {/* Une grille plutôt qu'une colonne imbriquée : le texte du libellé reste à portée des
@@ -279,7 +282,7 @@ function Choice({
       <label
         className={cn(
           "grid grid-cols-[auto_1fr] items-start gap-x-cmv-sm",
-          !closed && "cursor-pointer",
+          closed ? "cursor-not-allowed" : "cursor-pointer",
         )}
       >
         <input
@@ -290,7 +293,9 @@ function Choice({
           onChange={(event) => onToggle(event.target.checked)}
           className="row-span-2 mt-1 accent-cmv-accent"
         />
-        <span className="text-cmv-body text-cmv-text-hi">{title}</span>
+        <span className={cn("text-cmv-body", closed ? "text-cmv-text-lo" : "text-cmv-text-hi")}>
+          {title}
+        </span>
         <span className="text-cmv-caption text-cmv-text-mid">{closed ? text([reason]) : sub}</span>
       </label>
       {on && children != null ? (
