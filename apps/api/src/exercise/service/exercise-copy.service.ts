@@ -4,7 +4,10 @@ import {
   comparableText,
   customMetricIdsIn,
   type ExerciseBlocks,
+  type MetricCitations,
   remapCustomMetrics,
+  remapSuggestedMetrics,
+  type SuggestedMetric,
 } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -19,11 +22,13 @@ import { parseGrid, toJsonInput } from "../../util/block-json.util";
 import {
   parseBlocks,
   parseInstructions,
+  parseSuggestedMetrics,
   toBlocksInput,
   toInstructionsInput,
+  toSuggestedMetricsInput,
 } from "../../util/exercise-json.util";
 import { withCopiedImages } from "../../util/instruction-images.util";
-import type { ExerciseWithDocuments } from "../exercise.mapper";
+import { type ExerciseWithDocuments, metricCitationsOf } from "../exercise.mapper";
 
 /**
  * Ce qu'une copie reprend de sa source : le contenu, et le propriétaire dont elle cite le
@@ -40,6 +45,7 @@ export type CopySource = Pick<
   | "description"
   | "instructions"
   | "blocks"
+  | "suggestedMetrics"
   | "documents"
   | "tags"
 > & { catalog: CustomMetricCatalog };
@@ -61,8 +67,9 @@ export type CopyOptions = {
  *
  * Les documents suivent sous la MÊME clé objet — aucun binaire dupliqué, la garde de purge compte
  * ces lignes avant d'effacer (`DocumentCleanupService`). La consigne est réécrite vers les copies
- * de ses images. Les métriques maison citées passent du catalogue du propriétaire de la source à
- * celui de l'acteur (`adoptMetrics`) : `CustomMetric` est le catalogue d'UN Coach.
+ * de ses images. Les métriques maison citées, par les blocs comme par les métriques suggérées
+ * (#718), passent du catalogue du propriétaire de la source à celui de l'acteur (`adoptMetrics`) :
+ * `CustomMetric` est le catalogue d'UN Coach.
  *
  * Toutes les lectures et écritures passent par le client tenant de la transaction de l'appelant :
  * l'acteur possède tout ce qu'elles créent, l'extension l'y injecte. Le catalogue du propriétaire
@@ -74,14 +81,19 @@ export class ExerciseCopyService {
 
   /** La copie, créée chez l'acteur courant ; rend son id. */
   async create(tx: TenantTx, source: CopySource, options: CopyOptions): Promise<string> {
-    return this.write(tx, source, options, await this.adopt(tx, source, [options.blocks]));
+    const suggested = parseSuggestedMetrics(source.suggestedMetrics);
+    const metricIds = await this.adopt(tx, source, [metricCitationsOf(options.blocks, suggested)]);
+    return this.write(tx, source, { ...options, suggested }, metricIds);
   }
 
-  /** `metricIds` : les métriques déjà adoptées, que `options.blocks` cite chez la source. */
+  /**
+   * `metricIds` : les métriques déjà adoptées, que `options.blocks` et les métriques suggérées de la
+   * source citent chez son propriétaire.
+   */
   private async write(
     tx: TenantTx,
     source: CopySource,
-    options: CopyOptions,
+    options: CopyOptions & { suggested: readonly SuggestedMetric[] },
     metricIds: ReadonlyMap<string, string>,
   ): Promise<string> {
     const created = await tx.exercise.create({
@@ -90,6 +102,9 @@ export class ExerciseCopyService {
         titleSearch: comparableText(options.title),
         description: source.description,
         blocks: toBlocksInput(remapCustomMetrics(options.blocks, metricIds)),
+        suggestedMetrics: toSuggestedMetricsInput(
+          remapSuggestedMetrics(options.suggested, metricIds),
+        ),
         frozenFromCoachId: options.frozen?.coachId ?? null,
         frozenAt: options.frozen?.at ?? null,
       } satisfies Omit<
@@ -168,10 +183,11 @@ export class ExerciseCopyService {
         grid: row.grid === null ? [] : [parseGrid(row.grid)],
       }));
       const blocks = parseBlocks(source.blocks);
+      const suggested = parseSuggestedMetrics(source.suggestedMetrics);
       // Adoptées une fois pour la copie ET ses lignes : une ligne peut citer une métrique que
       // l'exercice ne cite plus.
       const metricIds = await this.adopt(tx, source, [
-        blocks,
+        metricCitationsOf(blocks, suggested),
         ...lines.flatMap((line) => [line.blocks, line.baseline, line.grid]),
       ]);
       const copyId = await this.write(
@@ -180,6 +196,7 @@ export class ExerciseCopyService {
         {
           title: source.title,
           blocks,
+          suggested,
           documents: source.documents,
           frozen: { coachId: source.coachId, at },
         },
@@ -217,7 +234,7 @@ export class ExerciseCopyService {
   private async adopt(
     tx: TenantTx,
     source: CopySource,
-    blocks: readonly (ExerciseBlocks | readonly BlockGrid[])[],
+    blocks: readonly MetricCitations[],
   ): Promise<ReadonlyMap<string, string>> {
     const cited = new Set(blocks.flatMap(customMetricIdsIn));
     if (cited.size === 0 || source.coachId === currentActor(this.cls).userId) return new Map();
