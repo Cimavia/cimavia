@@ -42,8 +42,10 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
   parseBlocks,
   parseInstructions,
+  parseSuggestedMetrics,
   toBlocksInput,
   toInstructionsInput,
+  toSuggestedMetricsInput,
 } from "../../util/exercise-json.util";
 import {
   assertInstructionImagesOwned,
@@ -58,6 +60,7 @@ import {
   type ExerciseWithDocuments,
   LIBRARY_EXERCISE_INCLUDE,
   type LibraryExercise,
+  metricCitationsOf,
   toExerciseDto,
 } from "../exercise.mapper";
 import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
@@ -206,7 +209,12 @@ export class ExerciseService {
     // Un exercice qui naît n'a aucun document : sa consigne ne peut encore citer aucune image. Le
     // client les rattache APRÈS, puis réécrit la consigne (`useSaveExercise`).
     assertInstructionImagesOwned(input.instructions, []);
-    assertCitesCatalog(input.blocks ?? [], [], await this.metrics.ownCatalog());
+    const suggestedMetrics = input.suggestedMetrics ?? [];
+    assertCitesCatalog(
+      metricCitationsOf(input.blocks ?? [], suggestedMetrics),
+      [],
+      await this.metrics.ownCatalog(),
+    );
     const created = await this.db.exercise.create({
       data: {
         title: input.title,
@@ -216,6 +224,7 @@ export class ExerciseService {
         // C'est à la mise à jour qu'ils divergent — là, `undefined` veut dire « ne touche pas ».
         instructions: toInstructionsInput(input.instructions ?? null),
         blocks: toBlocksInput(input.blocks ?? []),
+        suggestedMetrics: toSuggestedMetricsInput(suggestedMetrics),
       } satisfies Omit<
         Prisma.ExerciseUncheckedCreateInput,
         "coachId"
@@ -334,9 +343,16 @@ export class ExerciseService {
     assertInstructionImagesOwned(input.instructions, current.documents);
     // Lu une fois : la réponse résout les mêmes citations dans le même catalogue.
     let catalogOf: CatalogOf | undefined;
-    if (input.blocks !== undefined) {
+    if (input.blocks !== undefined || input.suggestedMetrics !== undefined) {
       catalogOf = await this.metrics.catalogOf([current.coachId]);
-      assertCitesCatalog(input.blocks, parseBlocks(current.blocks), catalogOf(current.coachId));
+      assertCitesCatalog(
+        metricCitationsOf(input.blocks ?? [], input.suggestedMetrics ?? []),
+        metricCitationsOf(
+          parseBlocks(current.blocks),
+          parseSuggestedMetrics(current.suggestedMetrics),
+        ),
+        catalogOf(current.coachId),
+      );
     }
     const data: Prisma.ExerciseUpdateManyMutationInput = {};
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
@@ -349,6 +365,8 @@ export class ExerciseService {
     if (input.instructions !== undefined)
       data.instructions = toInstructionsInput(input.instructions);
     if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
+    if (input.suggestedMetrics !== undefined)
+      data.suggestedMetrics = toSuggestedMetricsInput(input.suggestedMetrics);
 
     const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.exercise, id, expected, data, EXERCISE_NOT_FOUND);

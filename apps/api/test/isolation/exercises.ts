@@ -749,6 +749,107 @@ describe("Métriques maison du coach (#162)", () => {
 });
 
 /**
+ * Les métriques suggérées d'un exercice (#718) : les colonnes qu'il préremplit dans un bloc, sans
+ * valeur. Elles citent le catalogue du propriétaire de l'exercice, comme ses blocs.
+ */
+describe("Métriques suggérées d'un exercice (#718)", () => {
+  const reps = { source: "CATALOG", key: "REPETITIONS", unit: "REPS" };
+  const load = { source: "CATALOG", key: "LOAD", unit: "KILOGRAMS" };
+  let coachA: Agent;
+  let coachB: Agent;
+  let gradeId: string;
+
+  beforeAll(async () => {
+    coachA = await signUp("suggested-coach-a@cmv.test", Role.COACH);
+    coachB = await signUp("suggested-coach-b@cmv.test", Role.COACH);
+    const grade = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Cotation", unit: null, valueType: "SCALE", scale: ["6a", "6b"] });
+    gradeId = grade.body.id;
+  });
+
+  const patchAtLatest = async (id: string, fields: object) =>
+    coachA.patch(`/exercises/${id}`).send({
+      expectedUpdatedAt: await versionOf(coachA, `/exercises/${id}`),
+      ...fields,
+    });
+
+  it("un exercice sans métrique en suggère aucune", async () => {
+    const created = await coachA.post("/exercises").send({ title: "Respiration" });
+    expect(created.body.suggestedMetrics).toEqual([]);
+    await deleteAtLatest(coachA, `/exercises/${created.body.id}`);
+  });
+
+  it("font l'aller-retour dans l'ordre, et la métrique maison arrive avec sa définition", async () => {
+    const custom = { source: "CUSTOM", customMetricId: gradeId };
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Voie", suggestedMetrics: [custom, reps] });
+    expect(created.status).toBe(201);
+    expect(created.body.suggestedMetrics).toEqual([custom, reps]);
+    expect(created.body.customMetrics.map((m: { id: string }) => m.id)).toEqual([gradeId]);
+
+    const id: string = created.body.id;
+    expect((await coachA.get(`/exercises/${id}`)).body.suggestedMetrics).toEqual([custom, reps]);
+    await deleteAtLatest(coachA, `/exercises/${id}`);
+  });
+
+  it("remplace, garde ou vide les métriques selon ce que la modification envoie", async () => {
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Squat", suggestedMetrics: [reps] });
+    const id: string = created.body.id;
+
+    const replaced = await patchAtLatest(id, { suggestedMetrics: [load, reps] });
+    expect(replaced.status).toBe(200);
+    expect(replaced.body.suggestedMetrics).toEqual([load, reps]);
+
+    // Sans `suggestedMetrics`, la liste reste celle d'avant : un renommage ne la vide pas.
+    const renamed = await patchAtLatest(id, { title: "Squat avant" });
+    expect(renamed.body.suggestedMetrics).toEqual([load, reps]);
+
+    const cleared = await patchAtLatest(id, { suggestedMetrics: [] });
+    expect(cleared.body.suggestedMetrics).toEqual([]);
+    await deleteAtLatest(coachA, `/exercises/${id}`);
+  });
+
+  it("refuse la même métrique deux fois (400)", async () => {
+    const res = await coachA
+      .post("/exercises")
+      .send({ title: "Doublon", suggestedMetrics: [reps, { ...reps, unit: "REPS_PER_SIDE" }] });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse la métrique maison d'un autre coach (400)", async () => {
+    const res = await coachB
+      .post("/exercises")
+      .send({ title: "Intrus", suggestedMetrics: [{ source: "CUSTOM", customMetricId: gradeId }] });
+    expect(res.status).toBe(400);
+    expect(res.body.detail).toMatch(/catalogue du propriétaire/);
+  });
+
+  // Dette EX-2 : une métrique supprimée laisse une citation orpheline. La refuser bloquerait tout
+  // enregistrement de l'exercice qui la porte.
+  it("garde une métrique maison supprimée depuis, sans bloquer l'enregistrement", async () => {
+    const gone = await coachA
+      .post("/custom-metrics")
+      .send({ label: "Éphémère", unit: null, valueType: "NUMBER", scale: null });
+    const orphan = { source: "CUSTOM", customMetricId: gone.body.id };
+    const created = await coachA
+      .post("/exercises")
+      .send({ title: "Orphelin", suggestedMetrics: [orphan, reps] });
+    const id: string = created.body.id;
+    expect((await coachA.delete(`/custom-metrics/${gone.body.id}`)).status).toBe(204);
+
+    const saved = await patchAtLatest(id, { suggestedMetrics: [reps, orphan] });
+    expect(saved.status).toBe(200);
+    expect(saved.body.suggestedMetrics).toEqual([reps, orphan]);
+    expect(saved.body.customMetrics).toEqual([]);
+    await deleteAtLatest(coachA, `/exercises/${id}`);
+  });
+});
+
+/**
  * Un exercice refuse une écriture fondée sur une version périmée (#604) : deux onglets — bientôt
  * deux Coachs d'une même entreprise — ouverts sur le même exercice s'écrasaient sans un message.
  */

@@ -2,7 +2,7 @@ import {
   type CreateCustomMetricInput,
   type CustomMetric,
   customMetricIdsIn,
-  type ExerciseBlocks,
+  type MetricCitations,
   type UpdateCustomMetricInput,
 } from "@cmv/shared";
 import {
@@ -151,16 +151,16 @@ export class CustomMetricService {
 }
 
 /**
- * Une écriture d'exercice ne cite que des métriques du catalogue de son propriétaire (#605) — ou
- * 400. Sinon un rédacteur poserait les siennes dans l'exercice de C, que C et ses autres lecteurs
- * ne sauraient pas afficher.
+ * Une écriture d'exercice — ses blocs comme ses métriques suggérées (#718) — ne cite que des
+ * métriques du catalogue de son propriétaire (#605), ou 400. Sinon un rédacteur poserait les
+ * siennes dans l'exercice de C, que C et ses autres lecteurs ne sauraient pas afficher.
  *
  * Seules les citations NOUVELLES se vérifient : une métrique supprimée depuis laisse une colonne
  * orpheline (dette EX-2), et la refuser bloquerait tout enregistrement de l'exercice qui la porte.
  */
 export function assertCitesCatalog(
-  blocks: ExerciseBlocks,
-  before: ExerciseBlocks,
+  blocks: MetricCitations,
+  before: MetricCitations,
   catalog: CustomMetricCatalog,
 ): void {
   const known = new Set([...customMetricIdsIn(before), ...catalog.map((metric) => metric.id)]);
