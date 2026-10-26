@@ -4,7 +4,6 @@ import {
   type StructureInput,
   type StructureLibraryDto,
   StructurePresetKey,
-  sameStructureName,
   takenStructureName,
   type UpdateStructureInput,
   type VersionQuery,
@@ -15,7 +14,7 @@ import { ProblemException } from "../../problem/problem.exception";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toJsonInput } from "../../util/block-json.util";
-import { deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { toStructureDto } from "../structure.mapper";
 
 const STRUCTURE_NOT_FOUND = "Structure introuvable";
@@ -77,14 +76,13 @@ export class StructureService {
    * la structure d'un autre (404, le scope ne la voit pas) de la version dépassée (409).
    */
   async update(id: string, input: UpdateStructureInput): Promise<StructureDto> {
+    // La structure d'abord : celle d'un autre répond 404, une version dépassée 409 — le bandeau
+    // « Recharger » —, avant qu'un nom soit jugé contre un état que la saisie n'a pas vu.
+    const current = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    assertReadAtVersion(current.updatedAt, expected);
     await this.assertNameFree(input.name, id);
-    await writeAtVersion(
-      this.db.structure,
-      id,
-      new Date(input.expectedUpdatedAt),
-      dataOf(input),
-      STRUCTURE_NOT_FOUND,
-    );
+    await writeAtVersion(this.db.structure, id, expected, dataOf(input), STRUCTURE_NOT_FOUND);
     return this.get(id);
   }
 
@@ -104,16 +102,11 @@ export class StructureService {
    * le même nom chez un autre Coach ne gêne pas. Pas d'index unique — Prisma ne déclare pas
    * d'index sur `lower(name)` : deux enregistrements simultanés peuvent encore passer (BL-2).
    *
-   * Une structure qui GARDE son nom passe toujours : un doublon d'avant la règle (#716) ne doit pas
-   * forcer à renommer pour changer une note.
-   *
    * Les noms sont comparés ici plutôt que par `mode: "insensitive"` : Prisma le traduit en `ILIKE`,
    * où `_` et `%` d'un nom deviendraient des jokers. Le Coach a quelques dizaines de structures.
    */
   private async assertNameFree(name: string, selfId: string | null): Promise<void> {
     const mine = await this.db.structure.findMany({ select: { id: true, name: true } });
-    const self = mine.find((structure) => structure.id === selfId);
-    if (self != null && sameStructureName(self.name, name)) return;
     if (takenStructureName(name, mine, selfId) != null) {
       throw new ProblemException(
         HttpStatus.CONFLICT,

@@ -776,9 +776,11 @@ liste des domaines vivent dans l'index.
 > web seul : l'onglet, et la page d'une structure du Coach). Ce qui suit a été tranché en route.
 >
 > - **Le nom est unique par Coach, sans tenir compte des majuscules** (`sameStructureName` : bords
->   rognés, casse ignorée, accents gardés). La règle est écrite une fois dans `@cmv/shared` : le
->   formulaire prévient avant d'envoyer, le service refuse d'un 409 dédié — sans index (BL-2). Le
->   même nom chez un autre Coach ne gêne pas.
+>   rognés, casse ignorée sans locale, accents gardés et normalisés NFC). La règle est écrite une
+>   fois dans `@cmv/shared` : le formulaire prévient avant d'envoyer, le service refuse d'un 409
+>   dédié — sans index (BL-2). Le même nom chez un autre Coach ne gêne pas, et une structure garde
+>   toujours le sien, même en doublon d'avant la règle (#716). Le service juge la structure avant
+>   son nom : 404 chez un autre Coach, 409 de version dépassée, puis seulement le nom pris.
 > - **L'ordre des exercices n'est pas dans le formulaire de la bibliothèque** : il n'a de sens qu'à
 >   partir de deux exercices, dans le panneau du bloc (#719). Une structure copiée garde le sien.
 > - **Les durées s'écrivent comme partout ailleurs** (*Tranché en #528*) : la maquette annonce
