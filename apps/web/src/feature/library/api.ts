@@ -14,9 +14,13 @@ import {
   type ReloadSessionExerciseInput,
   type RequestUploadUrlInput,
   type SessionDto,
+  type StructureDto,
+  type StructureInput,
+  type StructureLibraryDto,
   type UpdateCustomMetricInput,
   type UpdateExerciseInput,
   type UpdateSessionInput,
+  type UpdateStructureInput,
   type UploadUrlDto,
   type VersionQuery,
 } from "@cmv/shared";
@@ -209,6 +213,36 @@ export function deleteSession(id: string, query: VersionQuery): Promise<void> {
 /** Les droits de plusieurs séances d'un coup, sur le même contrat que les exercices. */
 export function changeSessionAccess(input: ChangeAccessInput): Promise<ElementAccessDto[]> {
   return api.patch<ElementAccessDto[]>("/sessions/access", input);
+}
+
+// ── Structures (#717) ────────────────────────────────────────────────────────
+
+export const structureKeys = {
+  all: ["structures"] as const,
+  library: () => ["structures", "library"] as const,
+  detail: (id: string) => ["structures", "detail", id] as const,
+};
+
+/** Les structures prêtes et celles du Coach, chacune avec son compteur « Séances ». */
+export function listStructures(): Promise<StructureLibraryDto> {
+  return api.get<StructureLibraryDto>("/structures");
+}
+
+export function getStructure(id: string): Promise<StructureDto> {
+  return api.get<StructureDto>(`/structures/${id}`);
+}
+
+export function createStructure(input: StructureInput): Promise<StructureDto> {
+  return api.post<StructureDto>("/structures", input);
+}
+
+export function updateStructure(id: string, input: UpdateStructureInput): Promise<StructureDto> {
+  return api.put<StructureDto>(`/structures/${id}`, input);
+}
+
+// Sous la version affichée (#604) : la structure a pu changer dans un autre onglet.
+export function deleteStructure(id: string, query: VersionQuery): Promise<void> {
+  return api.delete<void>(`/structures/${id}?${new URLSearchParams(query)}`);
 }
 
 // ── Entreprises du coach ─────────────────────────────────────────────────────

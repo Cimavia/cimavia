@@ -5,9 +5,16 @@ import { CmvErrorState } from "@/shared/component";
 
 type Loaded<T> = { data: T | undefined; isError: boolean; refetch: () => unknown };
 
+/** Ce qui ne se partage pas — les structures (#717) — ne lit pas les entreprises. */
+const NO_ORGANIZATIONS: Loaded<CoachOrganizationDto[]> = {
+  data: [],
+  isError: false,
+  refetch: () => undefined,
+};
+
 type LibraryListStateProps<T> = {
   list: Loaded<T>;
-  organizations: Loaded<CoachOrganizationDto[]>;
+  organizations?: Loaded<CoachOrganizationDto[]>;
   children: (list: T, organizations: CoachOrganizationDto[]) => ReactNode;
 };
 
@@ -23,7 +30,7 @@ type LibraryListStateProps<T> = {
  */
 export function LibraryListState<T>({
   list,
-  organizations,
+  organizations = NO_ORGANIZATIONS,
   children,
 }: Readonly<LibraryListStateProps<T>>) {
   const { t } = useTranslation();

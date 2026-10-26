@@ -1,4 +1,4 @@
-import { LibraryScope } from "@cmv/shared";
+import { LibraryScope, STRUCTURE_PRESETS } from "@cmv/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   attachDocument,
@@ -7,25 +7,31 @@ import {
   createCustomMetric,
   createExercise,
   createSession,
+  createStructure,
   deleteCustomMetric,
   deleteDocument,
   deleteExercise,
   deleteSession,
+  deleteStructure,
   exerciseKeys,
   getExercise,
   getSession,
+  getStructure,
   listCustomMetrics,
   listExerciseCustomMetrics,
   listExercises,
   listExerciseTags,
   listMyOrganizations,
   listSessions,
+  listStructures,
   reloadSessionExercise,
   requestUploadUrl,
   sessionKeys,
+  structureKeys,
   updateCustomMetric,
   updateExercise,
   updateSession,
+  updateStructure,
 } from "./api";
 
 const { apiMock } = vi.hoisted(() => ({
@@ -241,5 +247,44 @@ describe("sessionKeys", () => {
   it("range deux portées sous deux clés, sous la racine commune", () => {
     expect(sessionKeys.list(LibraryScope.MINE)).not.toEqual(sessionKeys.list(LibraryScope.ALL));
     expect(sessionKeys.list(LibraryScope.MINE).slice(0, 1)).toEqual(sessionKeys.all);
+  });
+});
+
+describe("structures (#717)", () => {
+  const input = {
+    name: "4×4 grimpe",
+    tags: [],
+    note: null,
+    instructions: null,
+    settings: STRUCTURE_PRESETS.SERIES,
+  };
+
+  it("range ses clés sous une racine commune", () => {
+    expect(structureKeys.library()).toEqual(["structures", "library"]);
+    expect(structureKeys.detail("s1")).toEqual(["structures", "detail", "s1"]);
+    expect(structureKeys.library()[0]).toBe(structureKeys.all[0]);
+  });
+
+  it("lit la bibliothèque et une structure", async () => {
+    await listStructures();
+    await getStructure("s1");
+
+    expect(apiMock.get).toHaveBeenNthCalledWith(1, "/structures");
+    expect(apiMock.get).toHaveBeenNthCalledWith(2, "/structures/s1");
+  });
+
+  it("crée, modifie sous sa version, et supprime sous sa version", async () => {
+    await createStructure(input);
+    await updateStructure("s1", { ...input, expectedUpdatedAt: "2026-10-26T10:00:00.000Z" });
+    await deleteStructure("s1", { expectedUpdatedAt: "2026-10-26T10:00:00.000Z" });
+
+    expect(apiMock.post).toHaveBeenCalledWith("/structures", input);
+    expect(apiMock.put).toHaveBeenCalledWith("/structures/s1", {
+      ...input,
+      expectedUpdatedAt: "2026-10-26T10:00:00.000Z",
+    });
+    expect(apiMock.delete).toHaveBeenCalledWith(
+      "/structures/s1?expectedUpdatedAt=2026-10-26T10%3A00%3A00.000Z",
+    );
   });
 });
