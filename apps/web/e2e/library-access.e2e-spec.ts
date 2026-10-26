@@ -33,7 +33,13 @@ async function sharedLibrary(seed: Seed) {
   );
   const voie = await json<{ id: string }>(
     await c.api.post("/exercises", {
-      data: { title: "Voie", tags: ["grimpe"], blocks: citing(grade.id) },
+      data: {
+        title: "Voie",
+        tags: ["grimpe"],
+        // Les blocs pour la séance Grimpe, qui la dose encore dans l'ancien modèle (#723).
+        blocks: citing(grade.id),
+        suggestedMetrics: [{ source: "CUSTOM", customMetricId: grade.id }],
+      },
     }),
     "Voie",
   );
@@ -143,25 +149,22 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await expect(m.locator("tbody tr", { hasText: "Voie" })).toContainText(world.c.name);
     await expect(m.locator("tbody tr", { hasText: "Dalle" })).toContainText(world.c.name);
 
-    // Voie en Lecture : figée, « Fermer » seul, sans rien de ce qui ne sert qu'à éditer. Sa grille
-    // reste, et la colonne maison se nomme d'après le catalogue de C.
+    // Voie en Lecture : figée, « Fermer » seul, sans rien de ce qui ne sert qu'à éditer. Sa
+    // métrique suggérée maison se nomme d'après le catalogue de C (#718).
     await m.getByRole("button", { name: "Voie", exact: true }).click();
     await expect(m.getByText(t("library.builder.readOnly", { owner: world.c.name }))).toBeVisible();
     await expect(m.getByRole("textbox", { name: t("library.builder.titleLabel") })).toBeDisabled();
     await expect(m.getByRole("button", { name: t("common.close"), exact: true })).toBeVisible();
     await expect(m.getByRole("button", { name: t("library.builder.deleteExercise") })).toBeHidden();
-    await expect(m.getByRole("columnheader", { name: /Cotation/ })).toBeVisible();
+    await expect(m.getByRole("listitem").filter({ hasText: "Cotation" }).first()).toBeVisible();
     await expect(m.getByText(t("library.builder.attachment.none"))).toBeVisible();
     await Promise.all(
       [
-        m.getByRole("button", { name: t("library.builder.addBlock") }),
-        m.getByRole("button", { name: t("library.builder.removeBlock") }),
         m.getByRole("button", { name: t("library.builder.metrics.edit") }),
         m.getByRole("button", { name: `${t("library.tags.remove")} grimpe` }),
         m.getByRole("textbox", { name: t("library.builder.attachment.addLink") }),
         m.getByText(t("library.builder.attachment.add")),
         m.getByText(t("common.requiredLegend")),
-        m.getByRole("columnheader", { name: t("library.builder.grid.rowActions") }),
       ].map((control) => expect(control).toBeHidden()),
     );
     // La consigne finit de charger, et ne s'édite pas.
@@ -174,7 +177,7 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await m.goto(`/library/exercises/${world.dalleId}`);
     const title = m.getByRole("textbox", { name: t("library.builder.titleLabel") });
     await expect(title).toBeEnabled();
-    await expect(m.getByRole("button", { name: t("library.builder.addBlock") })).toBeVisible();
+    await expect(m.getByRole("button", { name: t("library.builder.metrics.edit") })).toBeVisible();
     await expect(m.getByRole("button", { name: t("library.builder.deleteExercise") })).toBeHidden();
     await title.fill("Dalle lente");
     await m.getByRole("button", { name: t("library.builder.submitEdit"), exact: true }).click();

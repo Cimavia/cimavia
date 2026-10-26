@@ -1,7 +1,7 @@
 import {
-  type ExerciseBlocks,
   type ExerciseDto,
   type RichDocument,
+  type SuggestedMetric,
   sameJson,
   toExerciseInput,
 } from "@cmv/shared";
@@ -52,7 +52,11 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
   const [title, setTitle] = useState(exercise?.title ?? initialTitle ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
-  const [blocks, setBlocks] = useState<ExerciseBlocks>(exercise?.blocks ?? []);
+  // Plus de blocs (#718) : l'exercice ne se dose plus, la séance le fait. L'API garde ceux d'un
+  // exercice repris tant que l'ancien modèle vit (#723) — le brouillon ne les envoie pas.
+  const [suggestedMetrics, setSuggestedMetrics] = useState<SuggestedMetric[]>(
+    exercise?.suggestedMetrics ?? [],
+  );
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [pendingLinks, setPendingLinks] = useState<string[]>([]);
   const media = useInstructionMedia(current?.documents ?? []);
@@ -67,10 +71,10 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
    */
   const [saved, setSaved] = useState(() =>
     toExerciseInput(
-      exercise ?? { title: initialTitle ?? "", tags: [], instructions: null, blocks: [] },
+      exercise ?? { title: initialTitle ?? "", tags: [], instructions: null, suggestedMetrics: [] },
     ),
   );
-  const input = toExerciseInput({ title, tags, instructions, blocks });
+  const input = toExerciseInput({ title, tags, instructions, suggestedMetrics });
   // Un fichier ou un lien en attente n'est dans aucun champ : il compte à part.
   const isDirty = !sameJson(input, saved) || pendingFiles.length > 0 || pendingLinks.length > 0;
 
@@ -112,8 +116,8 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
     setTags,
     instructions,
     setInstructions,
-    blocks,
-    setBlocks,
+    suggestedMetrics,
+    setSuggestedMetrics,
     pendingFiles,
     setPendingFiles,
     pendingLinks,

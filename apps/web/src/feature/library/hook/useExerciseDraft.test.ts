@@ -2,9 +2,13 @@ import {
   ApiError,
   DocumentType,
   type ExerciseDto,
+  MetricKey,
+  MetricSource,
+  MetricUnit,
   ProblemType,
   type RichBlock,
   RichBlockType,
+  type SuggestedMetric,
 } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -199,6 +203,39 @@ describe("useExerciseDraft — le titre de départ", () => {
     const { result } = renderHook(() => useExerciseDraft(loaded, initialTitle), { wrapper });
 
     expect(result.current.title).toBe(expected);
+  });
+});
+
+describe("useExerciseDraft — les métriques suggérées (#718)", () => {
+  const reps: SuggestedMetric = {
+    source: MetricSource.CATALOG,
+    key: MetricKey.REPETITIONS,
+    unit: MetricUnit.REPS,
+  };
+
+  function draftOf(loaded: ExerciseDto) {
+    const { wrapper } = renderWithQueryClient();
+    return renderHook(() => useExerciseDraft(loaded), { wrapper });
+  }
+
+  it("part de celles de l'exercice, sans se croire modifié", () => {
+    const { result } = draftOf(exercise({ tags: [], suggestedMetrics: [reps] }));
+
+    expect(result.current.suggestedMetrics).toEqual([reps]);
+    expect(result.current.isDirty).toBe(false);
+  });
+
+  // Sans `blocks` : envoyés, ils réécriraient ceux d'un exercice repris, que l'API garde (#723).
+  it("les envoie, et plus les blocs", async () => {
+    const { result } = draftOf(exercise({ tags: [], suggestedMetrics: [] }));
+
+    act(() => result.current.setSuggestedMetrics([reps]));
+    expect(result.current.isDirty).toBe(true);
+    await act(() => result.current.submit());
+
+    const [, sent] = api.updateExercise.mock.calls[0] as [string, Record<string, unknown>];
+    expect(sent.suggestedMetrics).toEqual([reps]);
+    expect(sent).not.toHaveProperty("blocks");
   });
 });
 

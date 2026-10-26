@@ -5,6 +5,7 @@ import {
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   type CustomMetric,
 } from "../dto/exercise-metric.schema";
+import { type SuggestedMetric, suggestedMetricIdentity } from "../dto/suggested-metric.schema";
 
 /**
  * Ce que deviennent les métriques maison d'un exercice qui change de catalogue (#609) : la copie
@@ -87,12 +88,37 @@ export function remapCustomMetrics<T extends ExerciseBlocks[number] | BlockGrid>
   blocks: readonly T[],
   ids: ReadonlyMap<string, string>,
 ): T[] {
-  return blocks.map((block) => ({
-    ...block,
-    metrics: block.metrics.map((metric) =>
-      metric.source === MetricSource.CUSTOM
-        ? { ...metric, customMetricId: ids.get(metric.customMetricId) ?? metric.customMetricId }
-        : metric,
-    ),
-  }));
+  return blocks.map((block) => ({ ...block, metrics: remapMetrics(block.metrics, ids) }));
+}
+
+/**
+ * Les métriques suggérées d'un exercice copié (#718), même règle que les colonnes de ses blocs.
+ *
+ * Deux métriques de la source peuvent être reprises sous la même chez le destinataire (« Cotation »
+ * et « Cotation (C) », de même nature). Une colonne de bloc garde son identifiant et survit au
+ * doublon ; une métrique suggérée n'en a pas : la seconde tombe, la première garde son rang.
+ */
+export function remapSuggestedMetrics(
+  metrics: readonly SuggestedMetric[],
+  ids: ReadonlyMap<string, string>,
+): SuggestedMetric[] {
+  const seen = new Set<string>();
+  return remapMetrics(metrics, ids).filter((metric) => {
+    const identity = suggestedMetricIdentity(metric);
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+/** Chaque métrique du Coach, citant le catalogue du destinataire ; celles du catalogue, intactes. */
+function remapMetrics<T extends SuggestedMetric>(
+  metrics: readonly T[],
+  ids: ReadonlyMap<string, string>,
+): T[] {
+  return metrics.map((metric) =>
+    metric.source === MetricSource.CUSTOM
+      ? { ...metric, customMetricId: ids.get(metric.customMetricId) ?? metric.customMetricId }
+      : metric,
+  );
 }

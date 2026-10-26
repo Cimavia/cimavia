@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { MetricSource } from "../dto/exercise-block.schema";
+import { MetricKey, MetricUnit } from "../dto/exercise-metric.schema";
 import { RichBlockType, type RichDocument } from "../dto/rich-document.schema";
+import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 import { toExerciseInput, toSessionInput } from "./library-input.util";
 
 describe("toExerciseInput", () => {
@@ -8,7 +11,7 @@ describe("toExerciseInput", () => {
       title: "  Gainage  ",
       tags: [],
       instructions: null,
-      blocks: [],
+      suggestedMetrics: [],
     });
     expect(input.title).toBe("Gainage");
   });
@@ -16,19 +19,26 @@ describe("toExerciseInput", () => {
   // « Pas de consigne » est une absence : un document vide part en `null` (règle nullable n°5).
   it("envoie une consigne vide en null", () => {
     expect(
-      toExerciseInput({ title: "x", tags: [], instructions: [], blocks: [] }).instructions,
+      toExerciseInput({ title: "x", tags: [], instructions: [], suggestedMetrics: [] })
+        .instructions,
     ).toBeNull();
     expect(
-      toExerciseInput({ title: "x", tags: [], instructions: null, blocks: [] }).instructions,
+      toExerciseInput({ title: "x", tags: [], instructions: null, suggestedMetrics: [] })
+        .instructions,
     ).toBeNull();
   });
 
-  it("garde une consigne écrite, les tags et les blocs tels quels", () => {
+  // Sans `blocks` (#718) : envoyés, ils réécriraient ceux d'un exercice repris, que l'API garde.
+  it("garde une consigne écrite, les tags et les métriques suggérées tels quels", () => {
     const instructions: RichDocument = [
       { type: RichBlockType.PARAGRAPH, content: [{ text: "Dos droit" }] },
     ];
-    const input = toExerciseInput({ title: "x", tags: ["core"], instructions, blocks: [] });
-    expect(input).toEqual({ title: "x", tags: ["core"], instructions, blocks: [] });
+    const suggestedMetrics: SuggestedMetric[] = [
+      { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
+      { source: MetricSource.CUSTOM, customMetricId: "cm-1" },
+    ];
+    const input = toExerciseInput({ title: "x", tags: ["core"], instructions, suggestedMetrics });
+    expect(input).toEqual({ title: "x", tags: ["core"], instructions, suggestedMetrics });
   });
 });
 

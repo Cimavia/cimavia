@@ -115,7 +115,7 @@ export {
 } from "./dto/access.schema";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
-export type { BlockGrid, GridMetric, GridRow, SuggestedMetric } from "./dto/block-grid.schema";
+export type { BlockGrid, GridMetric, GridRow } from "./dto/block-grid.schema";
 export {
   blockGridSchema,
   GRID_LABEL_MAX_LENGTH,
@@ -124,8 +124,6 @@ export {
   gridMetricSchema,
   gridRowSchema,
   metricsFromSuggested,
-  suggestedMetricSchema,
-  suggestedMetricsSchema,
 } from "./dto/block-grid.schema";
 export type { BlockCheck, SessionBlockTracking } from "./dto/block-tracking.schema";
 export {
@@ -237,6 +235,7 @@ export type {
   ExerciseTracking,
   GridSlot,
   GridSlotKind as GridSlotKindType,
+  MetricCitations,
   MetricSource as MetricSourceType,
   ReadingRow,
   TimerKind as TimerKindType,
@@ -267,14 +266,11 @@ export {
   canCollapseMetric,
   columnValues,
   customMetricIdsIn,
-  DEFAULT_BLOCK_METRIC_KEYS,
-  DEFAULT_BLOCK_STRUCTURE,
   DosageLayout,
   dosageLayout,
   EMOM_MIN_INTERVAL_SECONDS,
   EXERCISE_MAX_BLOCKS,
   emomTopCount,
-  emptyRowIndexes,
   exerciseBlockSchema,
   exerciseBlocksSchema,
   exerciseTrackingInputSchema,
@@ -305,7 +301,6 @@ export {
   trackingUnitSchema,
   trackingUnits,
   unitValues,
-  validateBlockValues,
   withCellValue,
   withDuplicatedLastRow,
   withMaterializedSeries,
@@ -750,6 +745,12 @@ export {
   updateStructureSchema,
 } from "./dto/structure.schema";
 export { StructureAdvance, StructureOrder, StructureRepeat } from "./dto/structure-answer.schema";
+export type { SuggestedMetric } from "./dto/suggested-metric.schema";
+export {
+  suggestedMetricIdentity,
+  suggestedMetricSchema,
+  suggestedMetricsSchema,
+} from "./dto/suggested-metric.schema";
 export type {
   AbortMultipartUploadInput,
   CompleteMultipartUploadInput,
@@ -1031,7 +1032,11 @@ export { draftAfterSend } from "./util/message-draft.util";
 export type { ReadMarker } from "./util/message-read.util";
 export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
-export { adoptMetrics, remapCustomMetrics } from "./util/metric-adoption.util";
+export {
+  adoptMetrics,
+  remapCustomMetrics,
+  remapSuggestedMetrics,
+} from "./util/metric-adoption.util";
 export {
   formatMetricValue,
   metricCellText,

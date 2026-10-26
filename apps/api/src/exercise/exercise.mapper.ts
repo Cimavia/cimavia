@@ -1,4 +1,10 @@
-import type { ExerciseDto, FrozenFrom } from "@cmv/shared";
+import type {
+  ExerciseBlocks,
+  ExerciseDto,
+  FrozenFrom,
+  MetricCitations,
+  SuggestedMetric,
+} from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { ACCESS_INCLUDE, type AccessContext, toAccessView } from "../access/access.mapper";
 import {
@@ -7,7 +13,7 @@ import {
 } from "../custom-metric/custom-metric.mapper";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
-import { parseBlocks, parseInstructions } from "../util/exercise-json.util";
+import { parseBlocks, parseInstructions, parseSuggestedMetrics } from "../util/exercise-json.util";
 
 /** Le Coach d'origine d'une copie figée (#609), que l'exercice, et la ligne qui le cite, nomment. */
 export const FROZEN_FROM_INCLUDE = {
@@ -74,6 +80,17 @@ export type ExerciseWithDocuments = Prisma.ExerciseGetPayload<{
 }>;
 
 /**
+ * Ce qu'un exercice cite du catalogue de son propriétaire : ses blocs, et ses métriques suggérées
+ * (#718). L'écriture le vérifie, le DTO le résout, la copie l'adopte : une seule règle pour les trois.
+ */
+export function metricCitationsOf(
+  blocks: ExerciseBlocks,
+  suggested: readonly SuggestedMetric[],
+): MetricCitations {
+  return [...blocks, { metrics: suggested }];
+}
+
+/**
  * `catalog` : celui du PROPRIÉTAIRE de l'exercice, que ses blocs citent (piège n°9). `context` :
  * l'acteur et ses entreprises, de quoi dire son droit sur l'exercice.
  */
@@ -84,6 +101,7 @@ export async function toExerciseDto(
   context: AccessContext,
 ): Promise<ExerciseDto> {
   const blocks = parseBlocks(exercise.blocks);
+  const suggestedMetrics = parseSuggestedMetrics(exercise.suggestedMetrics);
   const citations = citationsOf(exercise);
   // Documents ordonnés par ancienneté ; chaque FILE reçoit une URL GET signée.
   const documents = await Promise.all(
@@ -99,7 +117,8 @@ export async function toExerciseDto(
     description: exercise.description,
     instructions: parseInstructions(exercise.instructions),
     blocks,
-    customMetrics: citedCustomMetrics(blocks, catalog),
+    suggestedMetrics,
+    customMetrics: citedCustomMetrics(metricCitationsOf(blocks, suggestedMetrics), catalog),
     // Triés : l'ordre d'insertion n'a aucun sens pour un tag, et une liste stable évite un
     // faux diff à chaque relecture côté client.
     tags: exercise.tags.map((tag) => tag.name).sort(),

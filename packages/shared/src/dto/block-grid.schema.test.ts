@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import { custom, gridOf, issuesOf, load, reps } from "../../test/block-fixtures";
 import {
   blockGridSchema,
-  GRID_MAX_METRICS,
   GRID_MAX_ROWS,
   metricsFromSuggested,
   sameGridMetrics,
-  suggestedMetricsSchema,
 } from "./block-grid.schema";
 import { customMetricIdsIn, gridValueIssues, MetricSource } from "./exercise-block.schema";
 import { MetricKey, MetricUnit, MetricValueType } from "./exercise-metric.schema";
@@ -17,43 +15,6 @@ const suggestedReps = {
   unit: MetricUnit.REPS,
 };
 const suggestedCustom = { source: MetricSource.CUSTOM, customMetricId: "metric_1" };
-
-describe("suggestedMetricsSchema", () => {
-  it("accepte des métriques sans valeur, du catalogue ou du Coach", () => {
-    expect(suggestedMetricsSchema.safeParse([suggestedReps, suggestedCustom]).success).toBe(true);
-  });
-
-  it("refuse une unité que la métrique n'admet pas", () => {
-    const wrong = { ...suggestedReps, unit: MetricUnit.KILOGRAMS };
-    expect(suggestedMetricsSchema.safeParse([wrong]).success).toBe(false);
-  });
-
-  it("accepte plusieurs métriques différentes, du catalogue comme du Coach", () => {
-    const suggestedLoad = {
-      source: MetricSource.CATALOG,
-      key: MetricKey.LOAD,
-      unit: MetricUnit.KILOGRAMS,
-    };
-    const otherCustom = { ...suggestedCustom, customMetricId: "metric_2" };
-    expect(issuesOf(suggestedMetricsSchema, [suggestedReps, suggestedLoad])).toEqual([]);
-    expect(issuesOf(suggestedMetricsSchema, [suggestedCustom, otherCustom])).toEqual([]);
-  });
-
-  it("refuse deux fois la même métrique, même avec une autre unité", () => {
-    const twice = ": Un exercice ne peut pas suggérer deux fois la même métrique.";
-    const perSide = { ...suggestedReps, unit: MetricUnit.REPS_PER_SIDE };
-    expect(issuesOf(suggestedMetricsSchema, [suggestedReps, perSide])).toEqual([twice]);
-    expect(issuesOf(suggestedMetricsSchema, [suggestedCustom, suggestedCustom])).toEqual([twice]);
-  });
-
-  it("borne le nombre de métriques", () => {
-    const many = Array.from({ length: GRID_MAX_METRICS + 1 }, (_unused, index) => ({
-      source: MetricSource.CUSTOM,
-      customMetricId: `metric_${index}`,
-    }));
-    expect(suggestedMetricsSchema.safeParse(many).success).toBe(false);
-  });
-});
 
 describe("metricsFromSuggested", () => {
   it("préremplit les colonnes dans l'ordre suggéré, sans libellé", () => {

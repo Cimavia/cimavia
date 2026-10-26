@@ -1,16 +1,12 @@
 import {
   ApiError,
-  BlockType,
   type CustomMetric,
   DocumentType,
   DocumentUsage,
   EXERCISE_TAG_MAX_LENGTH,
   EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
-  formatTrainingDuration,
-  MetricKey,
   MetricSource,
-  MetricUnit,
   MetricValueType,
   MyAccessLevel,
   ProblemType,
@@ -74,6 +70,7 @@ const saved = (over: Partial<ExerciseDto> = {}) =>
     description: null,
     instructions: null,
     blocks: [],
+    suggestedMetrics: [],
     customMetrics: [],
     tags: ["force"],
     documents: [],
@@ -395,57 +392,28 @@ describe("ExerciseBuilderScreen — édition", () => {
     expect(view.queryByRole("link", { name: "schema.png" })).not.toBeInTheDocument();
   });
 
-  // Une colonne maison se lit sous le nom du coach : sans ses métriques, elle n'aurait pas de nom.
-  it("nomme les colonnes maison des blocs par les métriques du coach", async () => {
+  // Une métrique maison se lit sous le nom du coach : sans ses métriques, elle n'aurait pas de nom.
+  it("nomme les métriques maison suggérées par les métriques du coach", async () => {
     api.getExercise.mockResolvedValue(
-      saved({
-        blocks: [
-          {
-            id: "b-1",
-            label: null,
-            structure: { type: BlockType.FREE },
-            metrics: [
-              {
-                id: "c-1",
-                source: MetricSource.CUSTOM,
-                customMetricId: "cm-1",
-                label: null,
-                collapsed: false,
-              },
-            ],
-            rows: [{ id: "r-1", values: { "c-1": 12 } }],
-          },
-        ] as unknown as ExerciseDto["blocks"],
-      }),
+      saved({ suggestedMetrics: [{ source: MetricSource.CUSTOM, customMetricId: "cm-1" }] }),
     );
     const view = await edit();
 
-    await waitFor(() => expect(view.getAllByText(/^Prises/).length).toBeGreaterThan(0));
+    // Dans le formulaire ET dans l'aperçu.
+    await waitFor(() =>
+      expect(
+        view.getAllByRole("listitem").filter((item) => item.textContent?.endsWith("Prises")),
+      ).toHaveLength(2),
+    );
   });
 
-  // Supprimée du catalogue, une métrique que l'exercice cite nomme encore sa colonne ; posée
+  // Supprimée du catalogue, une métrique que l'exercice suggère se nomme encore ; choisie
   // ailleurs, elle ferait refuser l'enregistrement (400).
   it("ne propose que le catalogue vivant, pas les métriques que l'exercice embarque", async () => {
     const gone: CustomMetric = { ...prises, id: "cm-gone", label: "Cotation" };
     api.getExercise.mockResolvedValue(
       saved({
-        blocks: [
-          {
-            id: "b-1",
-            label: null,
-            structure: { type: BlockType.FREE },
-            metrics: [
-              {
-                id: "c-1",
-                source: MetricSource.CUSTOM,
-                customMetricId: "cm-gone",
-                label: null,
-                collapsed: false,
-              },
-            ],
-            rows: [],
-          },
-        ] as unknown as ExerciseDto["blocks"],
+        suggestedMetrics: [{ source: MetricSource.CUSTOM, customMetricId: "cm-gone" }],
         customMetrics: [gone],
       }),
     );
@@ -455,13 +423,30 @@ describe("ExerciseBuilderScreen — édition", () => {
       await view.findByRole("button", { name: "library.builder.metrics.edit" }),
     );
 
-    // Dans le panneau : la colonne posée, elle, garde son menu sous le même nom.
     const picker = within(
       await view.findByRole("complementary", { name: "library.builder.metrics.title" }),
     );
     expect(picker.getByRole("button", { name: "Prises" })).toBeInTheDocument();
     expect(picker.getByText("Cotation")).toBeInTheDocument();
     expect(picker.queryByRole("button", { name: /^Cotation/ })).not.toBeInTheDocument();
+  });
+
+  it("enregistre les métriques suggérées choisies, sans blocs", async () => {
+    const view = await edit();
+
+    await view.user.click(
+      await view.findByRole("button", { name: "library.builder.metrics.edit" }),
+    );
+    await view.user.click(view.getByRole("button", { name: "Prises" }));
+    await view.user.click(view.getByRole("button", { name: "library.builder.metrics.done" }));
+    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
+
+    await waitFor(() => expect(api.updateExercise).toHaveBeenCalled());
+    const [, sent] = api.updateExercise.mock.calls[0] ?? [];
+    expect(sent.suggestedMetrics).toEqual([
+      { source: MetricSource.CUSTOM, customMetricId: "cm-1" },
+    ]);
+    expect(sent).not.toHaveProperty("blocks");
   });
 
   it("supprime l'exercice après confirmation, et revient à la bibliothèque", async () => {
@@ -748,142 +733,6 @@ describe("ExerciseBuilderScreen — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(view.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-});
-
-/**
- * #566 : « eff » dans le repos, « 31 sfffff » dans une durée d'effort. Le champ gardait la saisie,
- * l'enregistrement partait avec l'ancienne valeur — le coach croyait avoir enregistré ce qu'il
- * voyait.
- */
-describe("ExerciseBuilderScreen — saisie refusée (#566)", () => {
-  const REST = "library.builder.bandeau.restBetweenSetsSeconds";
-  const BLOCKED = "library.builder.refusedBlocksSave";
-
-  const effort = {
-    id: "c-effort",
-    source: MetricSource.CATALOG,
-    key: MetricKey.EFFORT_DURATION,
-    unit: MetricUnit.NONE,
-    label: null,
-    collapsed: false,
-  };
-
-  /** Une Séries pour le repos du bandeau, un bloc libre pour une ligne qu'on peut retirer. */
-  function withBlocks() {
-    api.getExercise.mockResolvedValue(
-      saved({
-        title: "Gainage 306",
-        blocks: [
-          {
-            id: "b-series",
-            label: null,
-            structure: { type: BlockType.SERIES, setCount: 1, restBetweenSetsSeconds: 30 },
-            metrics: [],
-            rows: [],
-          },
-          {
-            id: "b-free",
-            label: null,
-            structure: { type: BlockType.FREE },
-            metrics: [effort],
-            rows: [{ id: "r-1", values: { "c-effort": 31 } }],
-          },
-        ] as unknown as ExerciseDto["blocks"],
-      }),
-    );
-    return edit();
-  }
-
-  async function refuse(view: Awaited<ReturnType<typeof edit>>, input: HTMLElement, text: string) {
-    await view.user.clear(input);
-    await view.user.type(input, text);
-    await view.user.tab();
-  }
-
-  const effortCell = (view: Awaited<ReturnType<typeof edit>>) =>
-    view.findByDisplayValue(formatTrainingDuration(31));
-
-  it("ferme l'enregistrement sur une durée refusée du bandeau, et dit pourquoi", async () => {
-    const view = await withBlocks();
-    const submit = await view.findByRole("button", { name: SUBMIT_EDIT });
-
-    await refuse(view, view.getByLabelText(REST), "eff");
-
-    expect(submit).toBeDisabled();
-    expect(submit).toHaveAttribute("title", BLOCKED);
-  });
-
-  it("ferme l'enregistrement sur une cellule refusée, qui le dit sous elle", async () => {
-    const view = await withBlocks();
-    const cell = await effortCell(view);
-
-    await refuse(view, cell, "31 sfffff");
-
-    expect(cell).toHaveAttribute("aria-invalid", "true");
-    expect(cell).toHaveAccessibleDescription("library.builder.grid.durationInvalid");
-    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled();
-  });
-
-  // Le clic sur le bouton fait sortir du champ : le refus doit le fermer AVANT que le clic n'arrive.
-  it("n'envoie rien quand on clique sur Enregistrer sans avoir quitté le champ refusé", async () => {
-    const view = await withBlocks();
-    const rest = await view.findByLabelText(REST);
-    await view.user.clear(rest);
-    await view.user.type(rest, "eff");
-
-    await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
-
-    expect(rest).toHaveAttribute("aria-invalid", "true");
-    expect(api.updateExercise).not.toHaveBeenCalled();
-  });
-
-  it("rouvre l'enregistrement quand la saisie est corrigée, et envoie la valeur corrigée", async () => {
-    const view = await withBlocks();
-    const rest = await view.findByLabelText(REST);
-    await refuse(view, rest, "eff");
-
-    await refuse(view, rest, "45");
-    const submit = view.getByRole("button", { name: SUBMIT_EDIT });
-    expect(submit).toBeEnabled();
-    expect(submit).not.toHaveAttribute("title");
-
-    await view.user.click(submit);
-    await waitFor(() => expect(api.updateExercise).toHaveBeenCalled());
-    const [, sent] = api.updateExercise.mock.calls[0] ?? [];
-    expect(sent.blocks[0].structure.restBetweenSetsSeconds).toBe(45);
-  });
-
-  it("rouvre l'enregistrement quand la saisie refusée est vidée", async () => {
-    const view = await withBlocks();
-    const cell = await effortCell(view);
-    await refuse(view, cell, "31 sfffff");
-
-    await view.user.clear(cell);
-    await view.user.tab();
-
-    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
-  });
-
-  // Sans ça, la ligne supprimée laisserait le bouton fermé pour de bon, sans champ où le rouvrir.
-  it("rouvre l'enregistrement quand la ligne refusée est retirée", async () => {
-    const view = await withBlocks();
-    await refuse(view, await effortCell(view), "31 sfffff");
-
-    await view.user.click(view.getByRole("button", { name: "library.builder.grid.removeRow" }));
-
-    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
-  });
-
-  // Une saisie refusée n'est pas dans le brouillon : la garde de #327 ne la voyait pas.
-  it("demande avant de partir en laissant une saisie refusée", async () => {
-    const view = await withBlocks();
-    await refuse(view, await view.findByLabelText(REST), "eff");
-
-    await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
-
-    expect(await view.findByRole("dialog")).toBeInTheDocument();
-    expect(view.router.state.location.pathname).toBe("/library/exercises/ex-1");
   });
 });
 

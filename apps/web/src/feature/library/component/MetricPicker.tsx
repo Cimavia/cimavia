@@ -1,13 +1,13 @@
 import {
   BLOCK_MAX_METRICS,
-  type BlockMetric,
   type CustomMetric,
   defaultUnitOf,
-  type ExerciseBlock,
   METRIC_LABEL_KEY,
   type MetricKey,
   MetricSource,
   metricLabel,
+  type SuggestedMetric,
+  suggestedMetricIdentity,
 } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,9 +28,24 @@ import { cn } from "@/shared/util/cn.util";
 // i18n-values exercise.metric: MetricKey
 // i18n-values library.builder.family: MetricFamily
 
-type MetricPickerProps = {
+/**
+ * Une métrique retenue : celle d'une colonne de bloc, ou celle qu'un exercice suggère. Une colonne
+ * porte son `id` : un bloc peut citer deux fois la même métrique, quand une copie en a fusionné
+ * deux (`remapCustomMetrics`). Une métrique suggérée n'en a pas, et n'a jamais de doublon.
+ */
+type PickedMetric = SuggestedMetric & { readonly id?: string; readonly label?: string | null };
+
+type MetricPickerProps<M extends PickedMetric> = {
   open: boolean;
-  block: ExerciseBlock;
+  /** Les métriques retenues, dans l'ordre : celui des colonnes qu'elles donneront. */
+  metrics: readonly M[];
+  /**
+   * Combien doivent rester : un bloc garde au moins une colonne, un exercice peut n'en suggérer
+   * aucune.
+   */
+  minMetrics?: number;
+  /** La métrique choisie, sous la forme de la liste (une colonne de bloc lui donne un id). */
+  create: (metric: SuggestedMetric) => M;
   /**
    * Où se nomment les colonnes déjà posées : le catalogue, et les définitions que l'exercice
    * embarque (#605) — dont une a pu quitter le catalogue depuis.
@@ -40,101 +55,63 @@ type MetricPickerProps = {
   pickable: readonly CustomMetric[] | null;
   /** Le propriétaire du catalogue s'il n'est pas l'acteur : on y choisit, on n'y crée rien. */
   catalogOwner?: string | null;
-  onChange: (block: ExerciseBlock) => void;
+  onChange: (metrics: M[]) => void;
   onClose: () => void;
 };
 
 const FAMILIES = catalogByFamily();
 
 /**
- * Le choix des colonnes d'un bloc. L'ordre de la liste retenue EST l'ordre des colonnes — d'où la
- * poignée de réordonnancement plutôt qu'un simple jeu de cases à cocher.
+ * Le choix des métriques d'un bloc ou d'un exercice (#718). L'ordre de la liste retenue EST l'ordre
+ * des colonnes — d'où la poignée de réordonnancement plutôt qu'un simple jeu de cases à cocher.
  *
- * Retirer une colonne retire AUSSI ses valeurs dans les lignes : les laisser produirait des
- * valeurs orphelines, que `validateBlockValues` signale à juste titre comme une incohérence.
+ * Une ligne du catalogue est une bascule, sur l'identité de sa métrique (`suggestedMetricIdentity`).
+ * Une colonne retenue se retire, elle, par sa position : deux colonnes d'un bloc peuvent citer la
+ * même métrique, et retirer l'une ne doit pas emporter l'autre.
  */
-export function MetricPicker({
+export function MetricPicker<M extends PickedMetric>({
   open,
-  block,
+  metrics,
+  minMetrics = 0,
+  create,
   customMetrics,
   pickable,
   catalogOwner = null,
   onChange,
   onClose,
-}: Readonly<MetricPickerProps>) {
+}: Readonly<MetricPickerProps<M>>) {
   const { t } = useTranslation();
   // La métrique en cours de modification : le formulaire du dessus s'y remplit, et son bouton
   // passe de « Ajouter » à « Modifier ».
   const [editing, setEditing] = useState<CustomMetric | null>(null);
   const removeMetric = useDeleteCustomMetric();
 
-  const chosenKeys = new Set(
-    block.metrics
-      .filter((metric) => metric.source === MetricSource.CATALOG)
-      .map((metric) => metric.key),
-  );
-  const chosenCustomIds = new Set(
-    block.metrics
-      .filter((metric) => metric.source === MetricSource.CUSTOM)
-      .map((metric) => metric.customMetricId),
-  );
-  const isFull = block.metrics.length >= BLOCK_MAX_METRICS;
+  const chosen = new Set(metrics.map(suggestedMetricIdentity));
+  const isFull = metrics.length >= BLOCK_MAX_METRICS;
 
   /** Bascule : recliquer une métrique déjà retenue la retire, comme une case à cocher. */
-  function toggleCatalog(key: MetricKey) {
-    const existing = block.metrics.find(
-      (metric) => metric.source === MetricSource.CATALOG && metric.key === key,
-    );
-    // Au plafond, toute ligne non retenue est fermée : on n'arrive ici que sous le plafond.
-    if (existing != null) return remove(existing.id);
-    const metric: BlockMetric = {
-      id: crypto.randomUUID(),
-      source: MetricSource.CATALOG,
-      key,
-      unit: defaultUnitOf(key),
-      label: null,
-      collapsed: false,
-    };
-    onChange({ ...block, metrics: [...block.metrics, metric] });
-  }
-
-  function toggleCustom(customMetricId: string) {
-    const existing = block.metrics.find(
-      (metric) => metric.source === MetricSource.CUSTOM && metric.customMetricId === customMetricId,
-    );
-    if (existing != null) return remove(existing.id);
+  function toggle(metric: SuggestedMetric) {
+    const identity = suggestedMetricIdentity(metric);
+    if (chosen.has(identity)) {
+      return remove(metrics.findIndex((current) => suggestedMetricIdentity(current) === identity));
+    }
     // Atteint au plafond : la CRÉATION d'une métrique maison passe aussi par ici, et elle reste
-    // ouverte bloc plein — la métrique naît dans la bibliothèque sans être posée.
+    // ouverte liste pleine — la métrique naît dans la bibliothèque sans être posée. Les autres
+    // lignes non retenues y sont fermées.
     if (isFull) return;
-    const metric: BlockMetric = {
-      id: crypto.randomUUID(),
-      source: MetricSource.CUSTOM,
-      customMetricId,
-      label: null,
-      collapsed: false,
-    };
-    onChange({ ...block, metrics: [...block.metrics, metric] });
+    onChange([...metrics, create(metric)]);
   }
 
-  function remove(metricId: string) {
-    // `exerciseBlockSchema` exige au moins une colonne : un bloc sans colonne ne pourrait rien
-    // porter, et la grille n'aurait plus rien à afficher.
-    if (block.metrics.length <= 1) return;
-    onChange({
-      ...block,
-      metrics: block.metrics.filter((metric) => metric.id !== metricId),
-      rows: block.rows.map((row) => {
-        const { [metricId]: _removed, ...rest } = row.values;
-        return { ...row, values: rest };
-      }),
-    });
+  function remove(index: number) {
+    if (metrics.length <= minMetrics) return;
+    onChange(metrics.filter((_, position) => position !== index));
   }
 
   function move(index: number, to: number) {
-    if (to < 0 || to >= block.metrics.length) return;
-    const next = [...block.metrics];
+    if (to < 0 || to >= metrics.length) return;
+    const next = [...metrics];
     next.splice(to, 0, ...next.splice(index, 1));
-    onChange({ ...block, metrics: next });
+    onChange(next);
   }
 
   return (
@@ -147,7 +124,8 @@ export function MetricPicker({
     >
       <div className="flex flex-col gap-cmv-xl">
         <ChosenColumns
-          block={block}
+          metrics={metrics}
+          minMetrics={minMetrics}
           customMetrics={customMetrics}
           onMove={move}
           onRemove={remove}
@@ -159,7 +137,7 @@ export function MetricPicker({
         {catalogOwner == null ? (
           <CustomMetricForm
             editing={editing}
-            onCreated={(metric) => toggleCustom(metric.id)}
+            onCreated={(metric) => toggle(customOf(metric.id))}
             onUpdated={() => setEditing(null)}
             onCancelEdit={() => setEditing(null)}
           />
@@ -180,42 +158,45 @@ export function MetricPicker({
               )}
             </span>
           ) : null}
-          {(pickable ?? []).map((custom) => (
-            <div key={custom.id} className="flex items-center gap-cmv-xs">
-              <button
-                type="button"
-                disabled={isFull && !chosenCustomIds.has(custom.id)}
-                onClick={() => toggleCustom(custom.id)}
-                className="flex flex-1 items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
-              >
-                <CmvCheckmark checked={chosenCustomIds.has(custom.id)} />
-                <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
-                {custom.unit == null ? null : (
-                  <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
-                )}
-              </button>
+          {(pickable ?? []).map((custom) => {
+            const isChosen = chosen.has(suggestedMetricIdentity(customOf(custom.id)));
+            return (
+              <div key={custom.id} className="flex items-center gap-cmv-xs">
+                <button
+                  type="button"
+                  disabled={isFull && !isChosen}
+                  onClick={() => toggle(customOf(custom.id))}
+                  className="flex flex-1 items-baseline gap-cmv-sm rounded-cmv-sm px-cmv-sm py-cmv-xs text-left hover:bg-cmv-surface-hi disabled:opacity-40"
+                >
+                  <CmvCheckmark checked={isChosen} />
+                  <span className="text-cmv-body text-cmv-text-hi">{custom.label}</span>
+                  {custom.unit == null ? null : (
+                    <span className="text-cmv-caption text-cmv-text-lo">{custom.unit}</span>
+                  )}
+                </button>
 
-              {catalogOwner == null ? (
-                <>
-                  <CmvButton
-                    variant="ghost"
-                    title={t("library.builder.custom.edit")}
-                    onClick={() => setEditing(custom)}
-                  >
-                    <IoPencil />
-                  </CmvButton>
-                  <CmvConfirmButton
-                    label={t("library.builder.custom.remove")}
-                    icon={<IoTrashOutline />}
-                    confirmLabel={t("common.confirmDelete")}
-                    cancelLabel={t("common.cancel")}
-                    disabled={removeMetric.isPending}
-                    onConfirm={() => removeMetric.mutate(custom.id)}
-                  />
-                </>
-              ) : null}
-            </div>
-          ))}
+                {catalogOwner == null ? (
+                  <>
+                    <CmvButton
+                      variant="ghost"
+                      title={t("library.builder.custom.edit")}
+                      onClick={() => setEditing(custom)}
+                    >
+                      <IoPencil />
+                    </CmvButton>
+                    <CmvConfirmButton
+                      label={t("library.builder.custom.remove")}
+                      icon={<IoTrashOutline />}
+                      confirmLabel={t("common.confirmDelete")}
+                      cancelLabel={t("common.cancel")}
+                      disabled={removeMetric.isPending}
+                      onConfirm={() => removeMetric.mutate(custom.id)}
+                    />
+                  </>
+                ) : null}
+              </div>
+            );
+          })}
         </section>
 
         {[...FAMILIES].map(([family, keys]) => (
@@ -223,20 +204,35 @@ export function MetricPicker({
             <span className="text-cmv-body text-cmv-text-hi">
               {t(`library.builder.family.${family}`)}
             </span>
-            {keys.map((key) => (
-              <CatalogRow
-                key={key}
-                metricKey={key}
-                chosen={chosenKeys.has(key)}
-                disabled={isFull && !chosenKeys.has(key)}
-                onToggle={() => toggleCatalog(key)}
-              />
-            ))}
+            {keys.map((key) => {
+              const isChosen = chosen.has(suggestedMetricIdentity(catalogOf(key)));
+              return (
+                <CatalogRow
+                  key={key}
+                  metricKey={key}
+                  chosen={isChosen}
+                  disabled={isFull && !isChosen}
+                  onToggle={() => toggle(catalogOf(key))}
+                />
+              );
+            })}
           </section>
         ))}
       </div>
     </CmvPanel>
   );
+}
+
+/**
+ * Une métrique du catalogue livré, avec son unité par défaut : sans unité, une colonne ne saurait
+ * pas formater ses valeurs.
+ */
+function catalogOf(key: MetricKey): SuggestedMetric {
+  return { source: MetricSource.CATALOG, key, unit: defaultUnitOf(key) };
+}
+
+function customOf(customMetricId: string): SuggestedMetric {
+  return { source: MetricSource.CUSTOM, customMetricId };
 }
 
 function CatalogRow({
@@ -264,15 +260,17 @@ function CatalogRow({
 }
 
 function ChosenColumns({
-  block,
+  metrics,
+  minMetrics,
   customMetrics,
   onMove,
   onRemove,
 }: Readonly<{
-  block: ExerciseBlock;
+  metrics: readonly PickedMetric[];
+  minMetrics: number;
   customMetrics: readonly CustomMetric[];
   onMove: (index: number, to: number) => void;
-  onRemove: (metricId: string) => void;
+  onRemove: (index: number) => void;
 }>) {
   const { t } = useTranslation();
   const drag = useReorderDrag(onMove);
@@ -282,9 +280,9 @@ function ChosenColumns({
       <span className="text-cmv-caption text-cmv-text-mid">
         {t("library.builder.metrics.chosen")}
       </span>
-      {block.metrics.map((metric, index) => (
+      {metrics.map((metric, index) => (
         <div
-          key={metric.id}
+          key={metric.id ?? suggestedMetricIdentity(metric)}
           {...drag.rowProps(index)}
           className={cn(
             "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border px-cmv-sm py-cmv-xs",
@@ -305,8 +303,8 @@ function ChosenColumns({
           <CmvButton
             variant="ghost"
             title={t("library.builder.metrics.removeColumn")}
-            disabled={block.metrics.length <= 1}
-            onClick={() => onRemove(metric.id)}
+            disabled={metrics.length <= minMetrics}
+            onClick={() => onRemove(index)}
           >
             <IoTrashOutline />
           </CmvButton>

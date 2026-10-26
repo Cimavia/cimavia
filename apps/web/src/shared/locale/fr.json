@@ -303,30 +303,6 @@
         "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo.",
         "width": "Largeur de l'image"
       },
-      "structure": "Structure",
-      "addBlock": "Ajouter une structure",
-      "noBlockTitle": "Aucune structure",
-      "noBlockDescription": "C'est un état valide — tu peux enregistrer. Ajoute une structure si l'exercice se dose.",
-      "noBlockReadOnly": "Cet exercice n'a pas de structure.",
-      "blockLabel": "Libellé du bloc",
-      "blockLabelPlaceholder": "Ex. Échauffement, Travail…",
-      "moveBlockUp": "Monter le bloc",
-      "moveBlockDown": "Descendre le bloc",
-      "removeBlock": "Retirer le bloc",
-      "blockType": {
-        "SERIES": "Séries",
-        "EMOM": "EMOM",
-        "AMRAP": "AMRAP",
-        "CIRCUIT": "Circuit",
-        "FREE": "Libre"
-      },
-      "blockTypeHint": {
-        "SERIES": "Le même effort répété N fois, avec un repos entre les séries.",
-        "EMOM": "Un effort à réaliser au début de chaque minute, pendant N minutes.",
-        "AMRAP": "Un maximum de tours dans un temps imparti.",
-        "CIRCUIT": "Une suite d'étapes enchaînées, répétée en tours.",
-        "FREE": "Grille sans structure imposée — lignes ajoutées librement."
-      },
       "bandeau": {
         "setCount": "Séries",
         "restBetweenSetsSeconds": "Repos entre séries",
@@ -374,7 +350,7 @@
       "metrics": {
         "title": "Métriques de l'exercice",
         "edit": "Modifier les métriques",
-        "chosen": "Colonnes de ce bloc",
+        "chosen": "Retenues, dans l'ordre",
         "orderHint": "L'ordre des colonnes retenues est celui de la grille — glisse pour réordonner.",
         "moveColumn": "Déplacer la colonne",
         "removeColumn": "Retirer la colonne",
@@ -425,12 +401,6 @@
         "noRow": "Les valeurs apparaîtront ici dès la première ligne."
       },
       "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
-      "issue": {
-        "emptyRow": "Ligne {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
-        "emptySet": "Série {{index}} incomplète — renseigne au moins une valeur, ou supprime la ligne.",
-        "badValue": "Colonne « {{column}} » : une valeur ne correspond pas au type attendu.",
-        "orphanValue": "Une valeur appartient à une colonne qui n'existe plus."
-      },
       "deleteExercise": "Supprimer l'exercice",
       "attachment": {
         "title": "Pièces jointes et liens",
@@ -458,6 +428,13 @@
         "SMALL": "Petite",
         "MEDIUM": "Moyenne",
         "FULL": "Pleine largeur"
+      },
+      "suggested": {
+        "title": "Métriques suggérées",
+        "hint": "Elles deviennent les colonnes de l'exercice quand tu l'ajoutes à un bloc de séance. Les valeurs se saisissent dans la séance.",
+        "none": "Aucune métrique suggérée.",
+        "orphan": "Métrique maison supprimée depuis : retire-la pour ne plus la suggérer.",
+        "unitOf": "Unité de {{metric}}"
       }
     },
     "noMatch": {

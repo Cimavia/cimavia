@@ -23,7 +23,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | EX-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). *Nommée **R-1** avant [#624](https://github.com/Cimavia/cimavia/issues/624), comme une dette des rappels — la migration `20260824070000_reprise_descriptions_en_consigne` la cite encore sous ce nom.* | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
-| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient. *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(`validateBlockValues` la signale au coach ; le nettoyage en masse attend un besoin réel)* |
+| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient — et, depuis [#718](https://github.com/Cimavia/cimavia/issues/718), une métrique suggérée orpheline. L'une et l'autre se lisent « — ». *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(le constructeur d'exercice signale une métrique suggérée orpheline au coach — depuis #718, plus une colonne de l'ancienne grille ; le nettoyage en masse attend un besoin réel)* |
 
 > **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
 > donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
@@ -800,3 +800,33 @@ liste des domaines vivent dans l'index.
 >   pas cet écran.
 > - **Le mobile reste en l'état** : la bibliothèque y est absente, la création reste web et coach
 >   (*Tranché en #20*).
+
+> **Tranché en [#718](https://github.com/Cimavia/cimavia/issues/718)** (l'exercice ne porte plus que
+> son contenu et ses métriques suggérées). Ce qui suit a été tranché en route.
+>
+> - **Un trou accepté sur `main`, entre #718 et #719** : le web n'envoie plus `blocks`, et l'ancien
+>   constructeur de séance lit la forme d'un exercice dans ses blocs. Un exercice NEUF ne s'y dose
+>   donc plus, tant que le constructeur par blocs (#719) n'est pas livré. La preview ne le voit pas :
+>   l'épic se promeut d'un bloc, #715 à #723 ensemble. L'API accepte `blocks` jusqu'à #723, et un
+>   exercice existant garde les siens.
+> - **Les métriques suggérées sont une liste ordonnée, sans valeur** : 12 au plus (`GRID_MAX_METRICS`,
+>   une par colonne qu'elles préremplissent), jamais deux fois la même — même clé du catalogue, ou
+>   même métrique du Coach (`suggestedMetricIdentity`). Aucune est un état valide. « Dupliquer en
+>   variante » ne les reçoit pas du client : la variante reprend celles de la source.
+> - **Une métrique suggérée du catalogue porte son unité**, choisie dans le constructeur parmi celles
+>   qu'elle admet (`UnitChoice`, partagé avec la grille) : « par côté », « lest » ne se devinent pas
+>   quand le bloc préremplit sa colonne. L'aperçu la lit avec la métrique (« Charge · kg »).
+> - **Le catalogue ne contrôle que les citations nouvelles**, comme pour les blocs (#716) : une
+>   métrique suggérée maison supprimée depuis reste citée, et l'exercice s'enregistre encore (EX-2).
+> - **Une copie adopte les métriques maison suggérées** (`adoptMetrics`), en variante comme en copie
+>   figée (#609). Deux métriques de la source peuvent devenir la même chez l'acteur : la copie n'en
+>   garde que la première (`remapSuggestedMetrics`), sans quoi elle violerait son propre schéma.
+> - **`StructureSection` part dès #718, pas avec #723**, et avec elle `BlockTypePicker`,
+>   `BlockIssues`, `CollapsedColumns`, `createBlock` et leurs clés : plus rien ne les appelait.
+>   `BlockBandeau` et `BlockGrid` restent, pour l'ancien constructeur de séance.
+> - **`MetricPicker` choisit une liste de métriques, plus un bloc** (`minMetrics`, `create`), pour
+>   resservir au bloc de séance (#719). Il ne touche plus aux valeurs : un appelant dont les lignes
+>   portent des valeurs retire lui-même celles d'une colonne retirée.
+> - **L'aperçu montre les métriques en puces**, et plus la grille : un exercice repris par #716
+>   n'y montre plus son ancien dosage.
+> - **Le mobile reste en l'état** : il ne crée ni ne modifie d'exercice (*Tranché en #20*).

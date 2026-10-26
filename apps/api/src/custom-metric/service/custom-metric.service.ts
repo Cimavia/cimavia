@@ -2,7 +2,7 @@ import {
   type CreateCustomMetricInput,
   type CustomMetric,
   customMetricIdsIn,
-  type ExerciseBlocks,
+  type MetricCitations,
   type UpdateCustomMetricInput,
 } from "@cmv/shared";
 import {
@@ -28,8 +28,8 @@ import {
  * l'exercice : une cotation inventée une fois sert dans toute la bibliothèque.
  *
  * Les blocs les référencent par `customMetricId` DANS du JSON — ce n'est donc pas une clé
- * étrangère, et supprimer une métrique laisse des colonnes orphelines que `validateBlockValues`
- * signale à l'affichage. Choix assumé : dette EX-2.
+ * étrangère, et supprimer une métrique laisse des colonnes orphelines, et des métriques suggérées
+ * que le constructeur d'exercice signale. Choix assumé : dette EX-2.
  */
 @Injectable()
 export class CustomMetricService {
@@ -151,16 +151,16 @@ export class CustomMetricService {
 }
 
 /**
- * Une écriture d'exercice ne cite que des métriques du catalogue de son propriétaire (#605) — ou
- * 400. Sinon un rédacteur poserait les siennes dans l'exercice de C, que C et ses autres lecteurs
- * ne sauraient pas afficher.
+ * Une écriture d'exercice — ses blocs comme ses métriques suggérées (#718) — ne cite que des
+ * métriques du catalogue de son propriétaire (#605), ou 400. Sinon un rédacteur poserait les
+ * siennes dans l'exercice de C, que C et ses autres lecteurs ne sauraient pas afficher.
  *
  * Seules les citations NOUVELLES se vérifient : une métrique supprimée depuis laisse une colonne
  * orpheline (dette EX-2), et la refuser bloquerait tout enregistrement de l'exercice qui la porte.
  */
 export function assertCitesCatalog(
-  blocks: ExerciseBlocks,
-  before: ExerciseBlocks,
+  blocks: MetricCitations,
+  before: MetricCitations,
   catalog: CustomMetricCatalog,
 ): void {
   const known = new Set([...customMetricIdsIn(before), ...catalog.map((metric) => metric.id)]);

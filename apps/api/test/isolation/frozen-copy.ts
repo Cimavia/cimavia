@@ -1,7 +1,14 @@
 import { Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
-import { type Agent, idOf, joinOrganization, signUp, signUpWith } from "../support/actors";
+import {
+  type Agent,
+  idOf,
+  joinOrganization,
+  required,
+  signUp,
+  signUpWith,
+} from "../support/actors";
 import { app } from "../support/app";
 import { putExerciseFile, uploadInstructionImage } from "../support/fixtures";
 import { deleteAtLatest, versionOf } from "../support/version";
@@ -20,6 +27,16 @@ const C_NAME = "frozen-c@cmv.test";
 
 const GRADE = { label: "Cotation", unit: null, valueType: "SCALE", scale: ["6a", "6b"] };
 const EFFORT = { label: "Effort", unit: "pts", valueType: "NUMBER", scale: null };
+/** Suggérée par l'exercice, et citée par aucun bloc : elle doit suivre la copie quand même (#718). */
+const PACE = { label: "Allure", unit: "min/km", valueType: "NUMBER", scale: null };
+const REPS = { source: "CATALOG", key: "REPETITIONS", unit: "REPS" };
+
+/** Les métriques que l'exercice de C suggère : la sienne seule, l'une de ses blocs, le catalogue. */
+const suggestedCiting = (paceId: string, gradeId: string) => [
+  { source: "CUSTOM", customMetricId: paceId },
+  { source: "CUSTOM", customMetricId: gradeId },
+  REPS,
+];
 
 /** Un bloc qui cite deux métriques maison, et la valeur que la séance de M y pose. */
 const blocksCiting = (gradeId: string, effortId: string, grade: string | null = null) => [
@@ -52,6 +69,7 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
   let organizationId: string;
   let gradeId: string;
   let effortId: string;
+  let paceId: string;
 
   const changeAccess = (body: object) => c.patch("/exercises/access").send(body);
 
@@ -61,9 +79,12 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
 
   /** Un exercice de C ouvert à F en Lecture, qui cite ses deux métriques. */
   async function sharedExercise(title: string): Promise<string> {
-    const created = await c
-      .post("/exercises")
-      .send({ title, tags: ["tirage"], blocks: blocksCiting(gradeId, effortId) });
+    const created = await c.post("/exercises").send({
+      title,
+      tags: ["tirage"],
+      blocks: blocksCiting(gradeId, effortId),
+      suggestedMetrics: suggestedCiting(paceId, gradeId),
+    });
     expect(created.status).toBe(201);
     await grant(created.body.id, { organizationId }, "READ");
     return created.body.id;
@@ -94,12 +115,13 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     for (const coach of [c, m, n]) await joinOrganization(company, coach);
     [organizationId, cId, mId, nId] = await Promise.all([idOf(company), idOf(c), idOf(m), idOf(n)]);
 
-    const [grade, effort] = await Promise.all([
+    const [grade, effort, pace] = await Promise.all([
       c.post("/custom-metrics").send(GRADE),
       c.post("/custom-metrics").send(EFFORT),
+      c.post("/custom-metrics").send(PACE),
     ]);
-    expect([grade.status, effort.status]).toEqual([201, 201]);
-    [gradeId, effortId] = [grade.body.id, effort.body.id];
+    expect([grade.status, effort.status, pace.status]).toEqual([201, 201, 201]);
+    [gradeId, effortId, paceId] = [grade.body.id, effort.body.id, pace.body.id];
 
     // M a déjà une « Cotation », d'une autre nature, et un « Effort » identique à celui de C.
     const [mGrade, mEffort] = await Promise.all([
@@ -174,10 +196,12 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
       expect((await fetch(document.url)).status).toBe(200);
     }
 
-    // Les métriques citées passent au catalogue de M : « Effort » repris, « Cotation » suffixée.
+    // Les métriques citées passent au catalogue de M : « Effort » repris, « Cotation » suffixée,
+    // et « Allure », que seules les métriques suggérées citent, créée.
     const metrics = (await m.get("/custom-metrics")).body as { id: string; label: string }[];
     const idOfLabel = (label: string) => metrics.find((metric) => metric.label === label)?.id;
     expect(metrics.map((metric) => metric.label).sort()).toEqual([
+      "Allure",
       "Cotation",
       `Cotation (${C_NAME})`,
       "Effort",
@@ -192,6 +216,12 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
         (metric: { customMetricId: string }) => metric.customMetricId,
       ),
     ).toEqual(cited);
+    expect(copy.body.suggestedMetrics).toEqual(
+      suggestedCiting(
+        required(idOfLabel("Allure"), "Allure de M"),
+        required(idOfLabel(`Cotation (${C_NAME})`), "Cotation adoptée"),
+      ),
+    );
   });
 
   it("une seconde copie reprend la métrique suffixée que la première a créée", async () => {
@@ -276,9 +306,23 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     });
     expect(variant.body.blocks[0].rows[0].values.col_grade).toBe("6a");
     expect(variant.body.customMetrics.map((metric: { label: string }) => metric.label)).toEqual([
+      "Allure",
       `Cotation (${C_NAME})`,
       "Effort",
     ]);
+    // Les métriques suggérées viennent de la source, et citent le catalogue de M.
+    const ofM = new Map<string, string>(
+      variant.body.customMetrics.map((metric: { id: string; label: string }) => [
+        metric.label,
+        metric.id,
+      ]),
+    );
+    expect(variant.body.suggestedMetrics).toEqual(
+      suggestedCiting(
+        required(ofM.get("Allure"), "Allure de M"),
+        required(ofM.get(`Cotation (${C_NAME})`), "Cotation adoptée"),
+      ),
+    );
     // L'image de consigne suit, sous la clé objet de C ; le lien reste à la source.
     expect(variant.body.documents).toHaveLength(1);
     const [source, copy] = await Promise.all([

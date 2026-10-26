@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { CmvDurationField } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par `pnpm check:i18n`.
-// i18n-values library.builder.blockType: BlockType
 //
 // Les clés de `bandeau` portent le NOM DU CHAMP du schéma (`totalDurationSeconds`, pas
 // `totalDuration`) : le marqueur d'ajustement les assemble à partir du champ modifié, et deux

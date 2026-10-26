@@ -1,12 +1,10 @@
 import {
   BLOCK_MAX_METRICS,
-  type BlockMetric,
-  BlockType,
   type CustomMetric,
-  type ExerciseBlock,
   MetricKey,
   MetricSource,
   MetricUnit,
+  type SuggestedMetric,
 } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { useState } from "react";
@@ -31,29 +29,32 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
 const REPETITIONS = /exercise\.metric\.repetitions/;
 const REMOVE_COLUMN = "library.builder.metrics.removeColumn";
 
-const catalogMetric = (id: string, key: MetricKey): BlockMetric => ({
+/** Une colonne de bloc : le parent donne un id et un libellé à ce qu'il pose. */
+type Column = SuggestedMetric & { id: string; label: string | null };
+
+const catalogMetric = (id: string, key: MetricKey): Column => ({
   id,
   source: MetricSource.CATALOG,
   key,
   unit: MetricUnit.NONE,
   label: null,
-  collapsed: false,
 });
 
-const blockWith = (metrics: BlockMetric[], rows: ExerciseBlock["rows"] = []): ExerciseBlock => ({
-  id: "block-1",
-  label: null,
-  structure: { type: BlockType.FREE },
-  metrics,
-  rows,
-});
+const asColumn = (metric: SuggestedMetric): Column => ({ ...metric, id: "neuve", label: null });
 
-function setup(block: ExerciseBlock, customMetrics: readonly CustomMetric[] = []) {
+/** Comme un bloc, qui garde au moins une colonne ; `minMetrics` 0 pour un exercice. */
+const BLOCK_MIN = 1;
+
+const ids = (metrics: readonly Column[]) => metrics.map((metric) => metric.id);
+
+function setup(metrics: Column[], customMetrics: readonly CustomMetric[] = []) {
   const onChange = vi.fn();
   const view = renderWithProviders(
     <MetricPicker
       open
-      block={block}
+      metrics={metrics}
+      minMetrics={BLOCK_MIN}
+      create={asColumn}
       customMetrics={customMetrics}
       pickable={customMetrics}
       onChange={onChange}
@@ -73,7 +74,8 @@ describe("MetricPicker", () => {
     const { queryByRole } = renderWithProviders(
       <MetricPicker
         open={false}
-        block={blockWith([catalogMetric("m-1", MetricKey.LOAD)])}
+        metrics={[catalogMetric("m-1", MetricKey.LOAD)]}
+        create={asColumn}
         customMetrics={[]}
         pickable={[]}
         onChange={onChange}
@@ -86,16 +88,15 @@ describe("MetricPicker", () => {
 
   describe("le choix des colonnes", () => {
     it("pose la métrique avec son unité par défaut", async () => {
-      const { user, getByRole, onChange } = setup(
-        blockWith([catalogMetric("m-1", MetricKey.LOAD)]),
-      );
+      const { user, getByRole, onChange } = setup([catalogMetric("m-1", MetricKey.LOAD)]);
 
       await user.click(getByRole("button", { name: REPETITIONS }));
 
       // L'unité vient du catalogue et non d'un choix ultérieur : une colonne sans unité ne
       // saurait pas formater ses valeurs à l'affichage.
-      const [next] = onChange.mock.calls[0] as [ExerciseBlock];
-      expect(next.metrics.at(-1)).toMatchObject({
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(next.at(-1)).toMatchObject({
+        id: "neuve",
         source: MetricSource.CATALOG,
         key: MetricKey.REPETITIONS,
         // `MetricUnit.REPS` en dur, et non `defaultUnitOf(REPETITIONS)` : rappeler la fonction
@@ -105,26 +106,22 @@ describe("MetricPicker", () => {
     });
 
     it("retire la métrique quand on la reclique", async () => {
-      const { user, getByRole, onChange } = setup(
-        blockWith([
-          catalogMetric("m-1", MetricKey.LOAD),
-          catalogMetric("m-2", MetricKey.REPETITIONS),
-        ]),
-      );
+      const { user, getByRole, onChange } = setup([
+        catalogMetric("m-1", MetricKey.LOAD),
+        catalogMetric("m-2", MetricKey.REPETITIONS),
+      ]);
 
       await user.click(getByRole("button", { name: REPETITIONS }));
 
       // La ligne du catalogue est une bascule, pas un bouton « ajouter » : recliquer ce qui est
       // déjà coché doit défaire, sinon la case cochée ne veut plus rien dire.
-      const [next] = onChange.mock.calls[0] as [ExerciseBlock];
-      expect(next.metrics.map((metric) => metric.id)).toEqual(["m-1"]);
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(ids(next)).toEqual(["m-1"]);
     });
 
     it("ferme les métriques non retenues une fois le plafond atteint", () => {
       const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS);
-      const { getByRole } = setup(
-        blockWith(keys.map((key, index) => catalogMetric(`m-${index}`, key))),
-      );
+      const { getByRole } = setup(keys.map((key, index) => catalogMetric(`m-${index}`, key)));
 
       // Retenue : elle reste cliquable, sinon on ne pourrait plus rien retirer une fois au
       // plafond — c'est-à-dire précisément quand on en a besoin.
@@ -134,28 +131,58 @@ describe("MetricPicker", () => {
   });
 
   describe("le retrait d'une colonne", () => {
-    it("efface aussi les valeurs qu'elle portait dans les lignes", async () => {
-      const { user, getAllByRole, onChange } = setup(
-        blockWith(
-          [catalogMetric("m-1", MetricKey.LOAD), catalogMetric("m-2", MetricKey.REPETITIONS)],
-          [{ id: "row-1", values: { "m-1": 60, "m-2": 8 } }],
-        ),
-      );
+    it("retire la colonne désignée, et elle seule", async () => {
+      const { user, getAllByRole, onChange } = setup([
+        catalogMetric("m-1", MetricKey.LOAD),
+        catalogMetric("m-2", MetricKey.REPETITIONS),
+      ]);
 
       await user.click(getAllByRole("button", { name: REMOVE_COLUMN })[0] as HTMLElement);
 
-      // Les laisser produirait des valeurs orphelines, que `validateBlockValues` signale à juste
-      // titre comme une incohérence — le bloc deviendrait inenregistrable sans rien montrer.
-      const [next] = onChange.mock.calls[0] as [ExerciseBlock];
-      expect(next.rows[0]?.values).toEqual({ "m-2": 8 });
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(ids(next)).toEqual(["m-2"]);
     });
 
-    it("refuse de retirer la dernière colonne", () => {
-      const { getAllByRole } = setup(blockWith([catalogMetric("m-1", MetricKey.LOAD)]));
+    // Une copie peut fusionner deux métriques en une (`remapCustomMetrics`) : le bloc garde alors
+    // deux colonnes qui la citent, et retirer l'une ne doit pas emporter l'autre.
+    it("retire une seule des deux colonnes qui citent la même métrique", async () => {
+      const { user, getAllByRole, onChange } = setup([
+        catalogMetric("m-1", MetricKey.LOAD),
+        catalogMetric("m-2", MetricKey.LOAD),
+      ]);
+
+      await user.click(getAllByRole("button", { name: REMOVE_COLUMN })[1] as HTMLElement);
+
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(ids(next)).toEqual(["m-1"]);
+    });
+
+    it("refuse de descendre sous le minimum", () => {
+      const { getAllByRole } = setup([catalogMetric("m-1", MetricKey.LOAD)]);
 
       // `exerciseBlockSchema` exige au moins une colonne : un bloc vide n'aurait plus rien à
       // afficher, et le refus se dit ICI plutôt qu'à l'enregistrement.
       expect(getAllByRole("button", { name: REMOVE_COLUMN })[0]).toBeDisabled();
+    });
+
+    // Un exercice peut ne suggérer aucune métrique (#718).
+    it("retire la dernière métrique sans minimum", async () => {
+      const onChange = vi.fn();
+      const { user, getByRole } = renderWithProviders(
+        <MetricPicker
+          open
+          metrics={[catalogMetric("m-1", MetricKey.LOAD)]}
+          create={asColumn}
+          customMetrics={[]}
+          pickable={[]}
+          onChange={onChange}
+          onClose={vi.fn()}
+        />,
+      );
+
+      await user.click(getByRole("button", { name: REMOVE_COLUMN }));
+
+      expect(onChange).toHaveBeenCalledExactlyOnceWith([]);
     });
   });
 
@@ -169,9 +196,7 @@ describe("MetricPicker", () => {
         scale: null,
       } as unknown as CustomMetric;
       createMock.mockResolvedValue(created);
-      const { user, getByRole, onChange } = setup(
-        blockWith([catalogMetric("m-1", MetricKey.LOAD)]),
-      );
+      const { user, getByRole, onChange } = setup([catalogMetric("m-1", MetricKey.LOAD)]);
 
       await user.type(getByRole("textbox", { name: "library.builder.custom.label" }), "Ressenti");
       await user.click(getByRole("button", { name: "library.builder.custom.submit" }));
@@ -179,15 +204,15 @@ describe("MetricPicker", () => {
       // Créée ICI et posée aussitôt : sortir du constructeur pour définir une cotation puis y
       // revenir ferait perdre le fil de l'exercice en cours.
       await waitFor(() => expect(onChange).toHaveBeenCalled());
-      const [next] = onChange.mock.calls[0] as [ExerciseBlock];
-      expect(next.metrics.at(-1)).toMatchObject({
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(next.at(-1)).toMatchObject({
         source: MetricSource.CUSTOM,
         customMetricId: "cm-neuve",
       });
     });
 
     it("annonce l'absence de cotation maison", () => {
-      const { getByText } = setup(blockWith([catalogMetric("m-1", MetricKey.LOAD)]));
+      const { getByText } = setup([catalogMetric("m-1", MetricKey.LOAD)]);
 
       expect(getByText("library.builder.custom.none")).toBeInTheDocument();
     });
@@ -197,44 +222,45 @@ describe("MetricPicker", () => {
 const customMetric = (id: string, label: string, unit: string | null = null): CustomMetric =>
   ({ id, label, unit, valueType: "NUMBER", scale: null }) as unknown as CustomMetric;
 
-const customColumn = (id: string, customMetricId: string): BlockMetric => ({
+const customColumn = (id: string, customMetricId: string): Column => ({
   id,
   source: MetricSource.CUSTOM,
   customMetricId,
   label: null,
-  collapsed: false,
 });
 
-/** Le parent GARDE le bloc, comme `StructureSection` : chaque geste se relit à l'écran. */
+/** Le parent GARDE la liste, comme le constructeur : chaque geste se relit à l'écran. */
 function Harness({
   initial,
   customMetrics,
-  onBlock,
+  onMetrics,
 }: Readonly<{
-  initial: ExerciseBlock;
+  initial: Column[];
   customMetrics: readonly CustomMetric[];
-  onBlock: (block: ExerciseBlock) => void;
+  onMetrics: (metrics: Column[]) => void;
 }>) {
-  const [block, setBlock] = useState(initial);
+  const [metrics, setMetrics] = useState(initial);
   return (
     <MetricPicker
       open
-      block={block}
+      metrics={metrics}
+      minMetrics={BLOCK_MIN}
+      create={asColumn}
       customMetrics={customMetrics}
       pickable={customMetrics}
       onChange={(next) => {
-        setBlock(next);
-        onBlock(next);
+        setMetrics(next);
+        onMetrics(next);
       }}
       onClose={vi.fn()}
     />
   );
 }
 
-function mount(initial: ExerciseBlock, customMetrics: readonly CustomMetric[] = []) {
+function mount(initial: Column[], customMetrics: readonly CustomMetric[] = []) {
   const onBlock = vi.fn();
   const view = renderWithProviders(
-    <Harness initial={initial} customMetrics={customMetrics} onBlock={onBlock} />,
+    <Harness initial={initial} customMetrics={customMetrics} onMetrics={onBlock} />,
   );
   const handle = (rank: number) =>
     view.getByRole("button", { name: `library.builder.metrics.moveColumn ${rank}` });
@@ -243,16 +269,15 @@ function mount(initial: ExerciseBlock, customMetrics: readonly CustomMetric[] = 
     view
       .queryAllByRole("button", { name: /^library\.builder\.metrics\.moveColumn/ })
       .map((button) => button.parentElement?.textContent ?? null);
-  const last = () => onBlock.mock.lastCall?.[0] as ExerciseBlock;
+  const last = () => onBlock.mock.lastCall?.[0] as Column[];
   return { ...view, onBlock, handle, order, last };
 }
 
-const threeColumns = () =>
-  blockWith([
-    catalogMetric("m-1", MetricKey.LOAD),
-    catalogMetric("m-2", MetricKey.REPETITIONS),
-    catalogMetric("m-3", MetricKey.NOTE),
-  ]);
+const threeColumns = () => [
+  catalogMetric("m-1", MetricKey.LOAD),
+  catalogMetric("m-2", MetricKey.REPETITIONS),
+  catalogMetric("m-3", MetricKey.NOTE),
+];
 
 describe("MetricPicker — ordre des colonnes retenues", () => {
   describeReorder(
@@ -289,7 +314,7 @@ describe("MetricPicker — ordre des colonnes retenues", () => {
 describe("MetricPicker — dernière colonne", () => {
   // Recliquer l'unique métrique retenue ne la retire pas : un bloc sans colonne ne porte rien.
   it("garde l'unique colonne quand on reclique sa métrique", async () => {
-    const { user, getByRole, onBlock } = mount(blockWith([catalogMetric("m-1", MetricKey.LOAD)]));
+    const { user, getByRole, onBlock } = mount([catalogMetric("m-1", MetricKey.LOAD)]);
 
     await user.click(getByRole("button", { name: /exercise\.metric\.load/, pressed: true }));
 
@@ -314,7 +339,7 @@ describe("MetricPicker — les métriques maison du coach", () => {
 
     await user.click(getByRole("button", { name: "Prises" }));
 
-    expect(last().metrics.at(-1)).toMatchObject({
+    expect(last().at(-1)).toMatchObject({
       source: MetricSource.CUSTOM,
       customMetricId: "cm-2",
     });
@@ -322,33 +347,33 @@ describe("MetricPicker — les métriques maison du coach", () => {
 
   // Une bascule, comme le catalogue : recliquer une métrique retenue la retire.
   it("retire une métrique maison retenue quand on la reclique", async () => {
-    const block = blockWith([catalogMetric("m-1", MetricKey.LOAD), customColumn("c-1", "cm-1")]);
-    const { user, getByRole, last, order } = mount(block, mine);
+    const columns = [catalogMetric("m-1", MetricKey.LOAD), customColumn("c-1", "cm-1")];
+    const { user, getByRole, last, order } = mount(columns, mine);
 
     expect(order()).toEqual(["exercise.metric.load", "Ressenti"]);
     await user.click(getByRole("button", { name: /^Ressenti/ }));
 
-    expect(last().metrics.map((metric) => metric.id)).toEqual(["m-1"]);
+    expect(ids(last())).toEqual(["m-1"]);
   });
 
   it("ferme au plafond les métriques maison non retenues, pas celles retenues", () => {
     const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS - 1);
-    const block = blockWith([
+    const columns = [
       ...keys.map((key, index) => catalogMetric(`m-${index}`, key)),
       customColumn("c-1", "cm-1"),
-    ]);
-    const { getByRole } = mount(block, mine);
+    ];
+    const { getByRole } = mount(columns, mine);
 
     expect(getByRole("button", { name: /^Ressenti/ })).toBeEnabled();
     expect(getByRole("button", { name: "Prises" })).toBeDisabled();
   });
 
-  // La création pose la métrique d'office — sauf au plafond, où la poser rendrait le bloc invalide.
+  // La création pose la métrique d'office — sauf au plafond, où la poser rendrait la liste invalide.
   it("crée la métrique sans la poser quand le bloc est au plafond", async () => {
     createMock.mockResolvedValue(customMetric("cm-neuve", "Fatigue"));
     const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS);
     const { user, getByRole, onBlock } = mount(
-      blockWith(keys.map((key, index) => catalogMetric(`m-${index}`, key))),
+      keys.map((key, index) => catalogMetric(`m-${index}`, key)),
     );
 
     await user.type(getByRole("textbox", { name: "library.builder.custom.label" }), "Fatigue");
@@ -416,7 +441,8 @@ describe("MetricPicker — ce qui se propose : le catalogue vivant", () => {
     const { getByText, queryByRole } = renderWithProviders(
       <MetricPicker
         open
-        block={blockWith([customColumn("c-1", "cm-gone")])}
+        metrics={[customColumn("c-1", "cm-gone")]}
+        create={asColumn}
         customMetrics={[gone, customMetric("cm-1", "Ressenti")]}
         pickable={[customMetric("cm-1", "Ressenti")]}
         onChange={vi.fn()}
@@ -434,7 +460,8 @@ describe("MetricPicker — ce qui se propose : le catalogue vivant", () => {
     const { getByText, queryByText } = renderWithProviders(
       <MetricPicker
         open
-        block={threeColumns()}
+        metrics={threeColumns()}
+        create={asColumn}
         customMetrics={[]}
         pickable={null}
         onChange={vi.fn()}
@@ -455,7 +482,8 @@ describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
     const view = renderWithProviders(
       <MetricPicker
         open
-        block={threeColumns()}
+        metrics={threeColumns()}
+        create={asColumn}
         customMetrics={ofM}
         pickable={ofM}
         catalogOwner="M"
@@ -472,7 +500,7 @@ describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
     expect(getByText("library.builder.custom.ofOwner")).toBeInTheDocument();
     await user.click(getByRole("button", { name: "Cotation de M" }));
 
-    expect((onChange.mock.lastCall?.[0] as ExerciseBlock).metrics.at(-1)).toMatchObject({
+    expect((onChange.mock.lastCall?.[0] as Column[]).at(-1)).toMatchObject({
       customMetricId: "cm-9",
     });
   });

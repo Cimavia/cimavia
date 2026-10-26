@@ -77,6 +77,20 @@ describe("metricLabel", () => {
   it("prend la métrique maison citée, pas la première du Coach", () => {
     expect(metricLabel(customMetric(), [otherMetric, voie], fakeT)).toBe("Voie");
   });
+
+  // Sans libellé propre ni id de colonne : celle qu'un exercice suggère (#718).
+  it("nomme une métrique suggérée, maison comme du catalogue", () => {
+    expect(
+      metricLabel({ source: MetricSource.CUSTOM, customMetricId: "cm-1" }, [voie], fakeT),
+    ).toBe("Voie");
+    expect(
+      metricLabel(
+        { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
+        [],
+        fakeT,
+      ),
+    ).toBe(METRIC_LABEL_KEY[MetricKey.REPETITIONS]);
+  });
 });
 
 describe("metricUnitLabel", () => {

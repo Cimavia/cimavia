@@ -10,6 +10,7 @@ import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
+import { suggestedMetricsSchema } from "./suggested-metric.schema";
 
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
 export const EXERCISE_DESCRIPTION_MAX_LENGTH = 5000;
@@ -101,6 +102,8 @@ export const createExerciseSchema = z
     // Absent = aucun bloc, ce qui est un exercice LÉGITIME : un coach peut n'écrire qu'une
     // consigne. Pas de bloc par défaut, qui obligerait ensuite à le supprimer.
     blocks: exerciseBlocksSchema.optional(),
+    // Absent = aucune : l'exercice se pose alors dans un bloc avec une grille vide (#718).
+    suggestedMetrics: suggestedMetricsSchema.optional(),
     tags: exerciseTagsSchema.optional(),
   })
   .strict();
@@ -114,6 +117,7 @@ export const updateExerciseSchema = z
     // intentions distinctes que le service doit pouvoir séparer.
     instructions: richDocumentSchema.nullable().optional(),
     blocks: exerciseBlocksSchema.optional(),
+    suggestedMetrics: suggestedMetricsSchema.optional(),
     tags: exerciseTagsSchema.optional(),
     expectedUpdatedAt: expectedVersionSchema,
   })
@@ -245,9 +249,12 @@ export const exerciseDtoSchema = z.object({
   description: z.string().nullable(),
   instructions: richDocumentSchema.nullable(),
   blocks: exerciseBlocksSchema,
+  /** Les colonnes que l'exercice préremplit dans un bloc, dans l'ordre et sans valeur (#718). */
+  suggestedMetrics: suggestedMetricsSchema,
   /**
-   * Les définitions des métriques maison que `blocks` cite, prises chez le PROPRIÉTAIRE de
-   * l'exercice (#605) : celui d'un autre Coach cite son catalogue, que le lecteur n'a pas.
+   * Les définitions des métriques maison que `blocks` et `suggestedMetrics` citent, prises chez le
+   * PROPRIÉTAIRE de l'exercice (#605) : celui d'un autre Coach cite son catalogue, que le lecteur
+   * n'a pas.
    */
   customMetrics: z.array(customMetricSchema),
   tags: z.array(z.string()),
