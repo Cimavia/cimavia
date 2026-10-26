@@ -177,8 +177,13 @@ export const TIMELINE_MAX_ROUNDS = 24;
 /** « Autant que possible » n'a pas de nombre de tours : la frise en montre quelques-uns, muets. */
 const TIMELINE_OPEN_ROUNDS = 6;
 
-/** Un segment de la frise : un tour, numéroté quand on sait le compter, ou un repos. */
-export type TimelineSegment = { kind: "work"; round: number | null } | { kind: "rest" };
+/**
+ * Un segment de la frise : un tour, numéroté quand on sait le compter, ou le repos qui le suit.
+ * `position` : le rang du tour dans la frise, même muet — de quoi le repérer quand elle se redessine.
+ */
+export type TimelineSegment =
+  | { kind: "work"; position: number; round: number | null }
+  | { kind: "rest"; position: number };
 
 /**
  * Ce que dit la légende, en données : l'app la traduit. Un bip, un cycle effort-repos, ou des tours
@@ -203,10 +208,14 @@ export function structureTimeline(settings: StructureSettings): StructureTimelin
   const cycles = advance.kind === StructureAdvance.CYCLE;
   const segments: TimelineSegment[] = [];
   for (let round = 1; round <= count; round++) {
-    segments.push({ kind: "work", round: repeat.kind === StructureRepeat.MAX ? null : round });
+    segments.push({
+      kind: "work",
+      position: round,
+      round: repeat.kind === StructureRepeat.MAX ? null : round,
+    });
     // Le cycle se repose après chaque effort, le dernier compris ; le repos entre tours, entre deux.
     if (cycles || (settings.restBetweenRoundsSeconds != null && round < count)) {
-      segments.push({ kind: "rest" });
+      segments.push({ kind: "rest", position: round });
     }
   }
 

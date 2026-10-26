@@ -58,19 +58,18 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
         <h2 className="text-cmv-caption text-cmv-text-mid">
           {t("library.structure.preview.timeline")}
         </h2>
-        {/* La frise est un dessin : la phrase au-dessus la dit déjà, en mots. Ses segments n'ont
-            pas d'identité — elle se redessine à chaque réponse —, leur rang leur en tient lieu. */}
+        {/* La frise est un dessin : la phrase au-dessus la dit déjà, en mots. */}
         <div aria-hidden className="flex h-6 gap-px overflow-hidden rounded-cmv-sm">
-          {timeline.segments.map((segment, index) =>
+          {timeline.segments.map((segment) =>
             segment.kind === "work" ? (
               <span
-                key={`work-${index}`}
+                key={`work-${segment.position}`}
                 className="flex flex-[3] items-center justify-center bg-cmv-accent text-cmv-caption text-cmv-text-hi tabular-nums"
               >
                 {segment.round}
               </span>
             ) : (
-              <span key={`rest-${index}`} className="flex-1 bg-cmv-surface-hi" />
+              <span key={`rest-${segment.position}`} className="flex-1 bg-cmv-surface-hi" />
             ),
           )}
         </div>

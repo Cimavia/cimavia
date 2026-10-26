@@ -217,21 +217,22 @@ describe("withSettingValue", () => {
 });
 
 describe("structureTimeline", () => {
-  const work = (round: number | null) => ({ kind: "work", round }) as const;
-  const rest = { kind: "rest" } as const;
+  const work = (position: number, round: number | null = position) =>
+    ({ kind: "work", position, round }) as const;
+  const rest = (position: number) => ({ kind: "rest", position }) as const;
 
   it("des séries avec repos : un repos ENTRE deux tours, pas après le dernier", () => {
     const timeline = structureTimeline(
       settingsOf({ repeat: rounds(3), restBetweenRoundsSeconds: 120 }),
     );
-    expect(timeline.segments).toEqual([work(1), rest, work(2), rest, work(3)]);
+    expect(timeline.segments).toEqual([work(1), rest(1), work(2), rest(2), work(3)]);
     expect(timeline.legend).toEqual({ kind: "ownPace", capSeconds: null, restSeconds: 120 });
     expect(timeline.axisSeconds).toBeNull();
   });
 
   it("un cycle se repose après chaque effort, et sa durée se lit sur l'axe", () => {
     const timeline = structureTimeline(settingsOf({ advance: cycle(20, 10), repeat: rounds(2) }));
-    expect(timeline.segments).toEqual([work(1), rest, work(2), rest]);
+    expect(timeline.segments).toEqual([work(1), rest(1), work(2), rest(2)]);
     expect(timeline.legend).toEqual({ kind: "cycle", workSeconds: 20, restSeconds: 10 });
     expect(timeline.axisSeconds).toEqual([0, 30, 60]);
   });
@@ -245,7 +246,9 @@ describe("structureTimeline", () => {
 
   it("autant que possible : quelques tours muets, pendant le temps donné", () => {
     const timeline = structureTimeline(presets.AMRAP);
-    expect(timeline.segments).toEqual(Array.from({ length: 6 }, () => work(null)));
+    expect(timeline.segments).toEqual(
+      Array.from({ length: 6 }, (_, index) => work(index + 1, null)),
+    );
     expect(timeline.legend).toEqual({ kind: "ownPace", capSeconds: 720, restSeconds: null });
   });
 
