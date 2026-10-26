@@ -16,7 +16,7 @@ import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
 import { SaveExerciseError } from "@/feature/library/component/SaveExerciseError";
-import { StructureSection } from "@/feature/library/component/StructureSection";
+import { SuggestedMetricsSection } from "@/feature/library/component/SuggestedMetricsSection";
 import { useBuilderSave } from "@/feature/library/hook/useBuilderSave";
 import { useExerciseCatalog } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDraft } from "@/feature/library/hook/useExerciseDraft";
@@ -71,12 +71,12 @@ type ExerciseBuilderScreenProps = {
 };
 
 /**
- * Le constructeur d'exercice (#163) — pleine page et non panneau, parce qu'il porte à terme la
- * consigne structurée, les blocs de dosage et l'aperçu athlète : trois choses qu'un tiroir de
- * 480 px ne peut pas montrer côte à côte.
+ * Le constructeur d'exercice (#163) — pleine page et non panneau, parce qu'il porte la consigne
+ * structurée, les documents et l'aperçu athlète : ce qu'un tiroir de 480 px ne peut pas montrer
+ * côte à côte. L'exercice ne porte plus que son contenu et ses métriques suggérées (#718) : la
+ * séance le dose.
  *
- * L'aperçu est en LECTURE SEULE, et le restera : le coach n'y configure ni les timers ni le suivi
- * d'exécution, qui découlent des valeurs qu'il saisit. Rien ne doit y laisser croire le contraire.
+ * L'aperçu est en LECTURE SEULE, et le restera : rien ne doit y laisser croire qu'il se configure.
  */
 export function ExerciseBuilderScreen({
   exerciseId,
@@ -262,7 +262,7 @@ function ExerciseBuilder({
         </div>
       ) : null}
       {/* Deux colonnes dès `xl` seulement : en dessous, l'aperçu passe SOUS le formulaire plutôt
-          que de le comprimer — une grille de dosage étroite devient illisible. */}
+          que de le comprimer — une consigne étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
       {staleMessage != null && edited != null ? (
@@ -327,12 +327,12 @@ function ExerciseBuilder({
                 />
               </Suspense>
 
-              <StructureSection
-                blocks={draft.blocks}
+              <SuggestedMetricsSection
+                metrics={draft.suggestedMetrics}
                 customMetrics={catalog}
                 pickable={liveCatalog ?? null}
                 catalogOwner={foreign?.owner.name ?? null}
-                onChange={draft.setBlocks}
+                onChange={draft.setSuggestedMetrics}
               />
 
               <AttachmentsSection
@@ -354,7 +354,7 @@ function ExerciseBuilder({
                 title={draft.trimmedTitle}
                 tags={draft.tags}
                 instructions={draft.instructions}
-                blocks={draft.blocks}
+                suggestedMetrics={draft.suggestedMetrics}
                 customMetrics={catalog}
                 documents={edited?.documents ?? []}
                 resolveImage={draft.media.resolve}

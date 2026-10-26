@@ -3,6 +3,7 @@ import type { CreateExerciseInput } from "../dto/exercise.schema";
 import type { ExerciseBlocks } from "../dto/exercise-block.schema";
 import type { RichDocument } from "../dto/rich-document.schema";
 import type { CreateSessionInput } from "../dto/session.schema";
+import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 
 /**
  * Ce que le constructeur d'exercice ENVERRAIT — depuis sa saisie, ou depuis l'exercice enregistré.
@@ -15,7 +16,8 @@ export type ExerciseFields = {
   title: string;
   tags: string[];
   instructions: RichDocument | null;
-  blocks: ExerciseBlocks;
+  /** Plus de blocs (#718) : l'exercice ne se dose plus, la séance le fait. */
+  suggestedMetrics: SuggestedMetric[];
 };
 
 export function toExerciseInput(fields: ExerciseFields): CreateExerciseInput {
@@ -26,7 +28,7 @@ export function toExerciseInput(fields: ExerciseFields): CreateExerciseInput {
     // sans bloc (règle nullable n°5).
     instructions:
       fields.instructions == null || fields.instructions.length === 0 ? null : fields.instructions,
-    blocks: fields.blocks,
+    suggestedMetrics: fields.suggestedMetrics,
   };
 }
 
