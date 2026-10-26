@@ -638,7 +638,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; la séance planifiée s'écrit encore par exercices jusqu'à #720 et #721. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 | BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
@@ -680,7 +680,7 @@ liste des domaines vivent dans l'index.
 >   (`sourceStructureId`) OU structure prête (`sourcePreset`), jamais les deux : « Personnalisé »
 >   et « Revenir à … » en dépendent, même une fois la structure supprimée. Impacte #716. Le
 >   schéma ne confronte pas `copiedSettings` aux exercices du bloc : ce ne sont pas les réglages
->   en vigueur. Le geste « Revenir à … » (#720) vérifie `roundsError` et `gridRowLimit` avant de
+>   en vigueur. Le geste « Revenir à … » (#719) vérifie `roundsError` et `gridRowLimit` avant de
 >   les restaurer.
 > - **Un chrono qui tourne déjà — compte à rebours d'un « autant que possible », chrono d'une
 >   limite — ne lance pas les repos**, comme dans la maquette (`timerOf`) : le repos se prend dans
@@ -696,7 +696,7 @@ liste des domaines vivent dans l'index.
 > - **Une valeur sans colonne est refusée par le schéma de la grille, à sa cellule**
 >   (`rows.<i>.values.<colonne>`), là où l'ancienne grille la tolérait pour la signaler à part
 >   (`orphanValueIssues`) : le modèle par blocs n'a pas de données stockées à ménager, et l'éditeur
->   (#720) retire les valeurs avec leur colonne.
+>   (#719) retire les valeurs avec leur colonne.
 > - **La valeur d'une cellule n'est pas encore confrontée au type de sa colonne** : il faut les
 >   métriques du Coach, que seul le serveur charge. Ce contrôle vient avec l'API des blocs (#716),
 >   en reprenant celui de l'ancienne grille (`validateBlockValues`).
@@ -830,3 +830,44 @@ liste des domaines vivent dans l'index.
 > - **L'aperçu montre les métriques en puces**, et plus la grille : un exercice repris par #716
 >   n'y montre plus son ancien dosage.
 > - **Le mobile reste en l'état** : il ne crée ni ne modifie d'exercice (*Tranché en #20*).
+
+> **Tranché en [#719](https://github.com/Cimavia/cimavia/issues/719)** (le constructeur de
+> séance-type par blocs, web seul). Ce qui suit a été tranché en route.
+>
+> - **Le constructeur n'écrit plus que des blocs** : il ferme le trou laissé par #718. Les gestes
+>   de composition sont des fonctions pures de `@cmv/shared` (`session-composition.util`), que le
+>   brouillon applique ; #720 et #721 les reprendront pour la séance planifiée.
+> - **Partent avec l'ancien constructeur** : « Dupliquer en variante », « Recharger » et « Tout
+>   réinitialiser », avec `useSessionDraft`, `CompositionCard` et `SessionPreview`. La route de
+>   rechargement de l'API reste jusqu'à #723. `SessionBlockGrid` et `BlockBandeau` restent, pour
+>   `DosageEditor` (séance planifiée, #722).
+> - **Un exercice ajouté arrive sans ligne** : toutes ses lignes sont des fantômes de la dernière,
+>   jusqu'à `gridRowLimit`. Une ligne AU-DELÀ des tours — après un changement de structure ou de
+>   tours — reste dans le brouillon, signalée et modifiable, et n'est coupée qu'à l'enregistrement.
+>   Le récapitulatif d'un changement de structure est cet avertissement vivant, pas une boîte de
+>   confirmation.
+> - **Retirer une colonne retire ses valeurs** (la règle que #715 renvoyait à l'éditeur), depuis
+>   l'en-tête comme depuis le choix des métriques.
+> - **« Remplacer » garde la grille et la note**, sous une clé neuve. **Déplacer le dernier
+>   exercice d'un bloc supprime le bloc** ; le RETIRER laisse un bloc vide, que l'enregistrement
+>   refuse (`block.issue.empty`) : le Coach choisit s'il le remplit ou le supprime. « Sortir en bloc
+>   à part » crée le bloc juste après, mêmes réglages, sans libellé ; « Dupliquer le bloc » recopie
+>   son libellé, et ses exercices prennent des clés neuves.
+> - **Changer de structure garde la consigne que le Coach a écrite**, et remplace celle que le bloc
+>   tient de la structure quittée — la consigne que cette structure porte encore. Le bloc ne garde
+>   pas de copie de sa consigne d'origine : une structure retouchée ou illisible depuis laisse la
+>   consigne en place. « Revenir à … » est fermé quand les réglages copiés seraient refusés
+>   (`roundsError`). « Enregistrer comme structure »
+>   s'ouvre dans un panneau, puis le bloc prend la structure créée pour origine.
+> - **Le bandeau du bloc ne fait que lire** : tout se règle dans le panneau du bloc. « Compact » est
+>   un affichage de toute la séance, pas d'un bloc. Un bloc d'un seul exercice tient en une carte,
+>   aux menus réunis.
+> - **Glisser un exercice le pose à la place d'un autre, ou en fin de bloc** ; le sortir en bloc à
+>   part passe par le menu seulement.
+> - **« Remplacer » ne propose pas de créer l'exercice manquant** (#303) : l'exercice créé revient
+>   ajouté au bloc, la route ne sait pas dire lequel il remplacerait.
+> - **L'aperçu athlète lit les grilles taillées à leurs tours**, comme elles partiront : une ligne
+>   au-delà ne s'y montre pas.
+> - **Une séance d'un autre Coach n'offre pas son catalogue de métriques maison** (`pickable` nul) :
+>   il ne se lit pas d'ici. Créer un exercice manquant (#303) depuis un bloc rapporte son rang
+>   (`block`), mais un bloc vide refuse l'enregistrement qui précède la création : limite connue.
