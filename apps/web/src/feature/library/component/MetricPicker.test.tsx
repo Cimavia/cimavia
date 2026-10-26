@@ -143,6 +143,20 @@ describe("MetricPicker", () => {
       expect(ids(next)).toEqual(["m-2"]);
     });
 
+    // Une copie peut fusionner deux métriques en une (`remapCustomMetrics`) : le bloc garde alors
+    // deux colonnes qui la citent, et retirer l'une ne doit pas emporter l'autre.
+    it("retire une seule des deux colonnes qui citent la même métrique", async () => {
+      const { user, getAllByRole, onChange } = setup([
+        catalogMetric("m-1", MetricKey.LOAD),
+        catalogMetric("m-2", MetricKey.LOAD),
+      ]);
+
+      await user.click(getAllByRole("button", { name: REMOVE_COLUMN })[1] as HTMLElement);
+
+      const [next] = onChange.mock.calls[0] as [Column[]];
+      expect(ids(next)).toEqual(["m-1"]);
+    });
+
     it("refuse de descendre sous le minimum", () => {
       const { getAllByRole } = setup([catalogMetric("m-1", MetricKey.LOAD)]);
 

@@ -28,8 +28,12 @@ import { cn } from "@/shared/util/cn.util";
 // i18n-values exercise.metric: MetricKey
 // i18n-values library.builder.family: MetricFamily
 
-/** Une métrique retenue : celle d'une colonne de bloc, ou celle qu'un exercice suggère. */
-type PickedMetric = SuggestedMetric & { readonly label?: string | null };
+/**
+ * Une métrique retenue : celle d'une colonne de bloc, ou celle qu'un exercice suggère. Une colonne
+ * porte son `id` : un bloc peut citer deux fois la même métrique, quand une copie en a fusionné
+ * deux (`remapCustomMetrics`). Une métrique suggérée n'en a pas, et n'a jamais de doublon.
+ */
+type PickedMetric = SuggestedMetric & { readonly id?: string; readonly label?: string | null };
 
 type MetricPickerProps<M extends PickedMetric> = {
   open: boolean;
@@ -61,8 +65,9 @@ const FAMILIES = catalogByFamily();
  * Le choix des métriques d'un bloc ou d'un exercice (#718). L'ordre de la liste retenue EST l'ordre
  * des colonnes — d'où la poignée de réordonnancement plutôt qu'un simple jeu de cases à cocher.
  *
- * Une métrique s'y désigne par son identité (`suggestedMetricIdentity`) : la liste n'en porte pas
- * deux fois la même, chaque ligne du catalogue étant une bascule.
+ * Une ligne du catalogue est une bascule, sur l'identité de sa métrique (`suggestedMetricIdentity`).
+ * Une colonne retenue se retire, elle, par sa position : deux colonnes d'un bloc peuvent citer la
+ * même métrique, et retirer l'une ne doit pas emporter l'autre.
  */
 export function MetricPicker<M extends PickedMetric>({
   open,
@@ -87,7 +92,9 @@ export function MetricPicker<M extends PickedMetric>({
   /** Bascule : recliquer une métrique déjà retenue la retire, comme une case à cocher. */
   function toggle(metric: SuggestedMetric) {
     const identity = suggestedMetricIdentity(metric);
-    if (chosen.has(identity)) return remove(identity);
+    if (chosen.has(identity)) {
+      return remove(metrics.findIndex((current) => suggestedMetricIdentity(current) === identity));
+    }
     // Atteint au plafond : la CRÉATION d'une métrique maison passe aussi par ici, et elle reste
     // ouverte liste pleine — la métrique naît dans la bibliothèque sans être posée. Les autres
     // lignes non retenues y sont fermées.
@@ -95,9 +102,9 @@ export function MetricPicker<M extends PickedMetric>({
     onChange([...metrics, create(metric)]);
   }
 
-  function remove(identity: string) {
+  function remove(index: number) {
     if (metrics.length <= minMetrics) return;
-    onChange(metrics.filter((metric) => suggestedMetricIdentity(metric) !== identity));
+    onChange(metrics.filter((_, position) => position !== index));
   }
 
   function move(index: number, to: number) {
@@ -263,7 +270,7 @@ function ChosenColumns({
   minMetrics: number;
   customMetrics: readonly CustomMetric[];
   onMove: (index: number, to: number) => void;
-  onRemove: (identity: string) => void;
+  onRemove: (index: number) => void;
 }>) {
   const { t } = useTranslation();
   const drag = useReorderDrag(onMove);
@@ -275,7 +282,7 @@ function ChosenColumns({
       </span>
       {metrics.map((metric, index) => (
         <div
-          key={suggestedMetricIdentity(metric)}
+          key={metric.id ?? suggestedMetricIdentity(metric)}
           {...drag.rowProps(index)}
           className={cn(
             "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border px-cmv-sm py-cmv-xs",
@@ -297,7 +304,7 @@ function ChosenColumns({
             variant="ghost"
             title={t("library.builder.metrics.removeColumn")}
             disabled={metrics.length <= minMetrics}
-            onClick={() => onRemove(suggestedMetricIdentity(metric))}
+            onClick={() => onRemove(index)}
           >
             <IoTrashOutline />
           </CmvButton>
