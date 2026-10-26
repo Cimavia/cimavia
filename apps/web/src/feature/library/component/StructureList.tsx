@@ -10,7 +10,8 @@ import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoCopyOutline, IoTrashOutline } from "react-icons/io5";
-import { LibraryListState } from "@/feature/library/component/LibraryListState";
+import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
+import { LibraryListState, NO_ORGANIZATIONS } from "@/feature/library/component/LibraryListState";
 import {
   HeadCell,
   LIBRARY_ROW,
@@ -19,7 +20,6 @@ import {
 } from "@/feature/library/component/LibraryTableCells";
 import { LibraryFilterBar } from "@/feature/library/component/LibraryToolbar";
 import { useDeleteStructure, useStructureLibrary } from "@/feature/library/hook/useStructures";
-import { libraryEmpty } from "@/feature/library/util/library-empty.util";
 import { type PresetRow, structureRows } from "@/feature/library/util/structure-rows.util";
 import { CMV_TABLE, CmvButton, CmvConfirmButton, CmvEmptyState } from "@/shared/component";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -67,26 +67,23 @@ export function StructureList({ onCreate, onEdit, onDuplicate }: Readonly<Struct
         chosenTags={tags}
         onChosenTags={setTags}
       />
-      <LibraryListState list={library}>
+      <LibraryListState list={library} organizations={NO_ORGANIZATIONS}>
         {(loaded) => {
           const rows = structureRows(loaded, { search: search.trim(), tags }, (key) =>
             t(STRUCTURE_PRESET_NAME_KEY[key]),
           );
           if (filtered && rows.presets.length === 0 && rows.mine.length === 0) {
             // Rien ne se crée depuis une recherche vaine : le nom n'est pas tout d'une structure.
-            const empty = libraryEmpty({
-              search: search.trim(),
-              tagged: tags.length > 0,
-              sharedOnly: false,
-            });
+            // Filtrée, la liste n'est jamais « vide » : l'état dit toujours le filtre.
             return (
-              <CmvEmptyState
-                title={
-                  empty.kind === "noMatch"
-                    ? t("library.structure.noMatch", { search: search.trim() })
-                    : t("library.noFilterMatch")
-                }
-              />
+              <LibraryEmptyState
+                search={search.trim()}
+                tags={tags}
+                sharedOnly={false}
+                noMatch={t("library.structure.noMatch", { search: search.trim() })}
+              >
+                {null}
+              </LibraryEmptyState>
             );
           }
           return (
