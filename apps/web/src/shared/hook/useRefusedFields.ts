@@ -11,6 +11,8 @@ export const RefusedFieldsContext = createContext<ReportRefused | null>(null);
 export type RefusedFields = {
   /** Vrai tant qu'au moins un champ montre une saisie qu'il a refusée. */
   hasRefused: boolean;
+  /** Combien de champs refusent leur saisie : l'en-tête compte les points à régler (#717). */
+  count: number;
   /** À donner tel quel à `RefusedFieldsContext`. */
   report: ReportRefused;
 };
@@ -38,7 +40,7 @@ export function useRefusedFields(): RefusedFields {
     });
   }, []);
 
-  return { hasRefused: refused.size > 0, report };
+  return { hasRefused: refused.size > 0, count: refused.size, report };
 }
 
 /**

@@ -33,6 +33,7 @@ function setup(fields: Fields) {
   const view = render(<Screen refused={fields} />);
   return {
     hasRefused: () => seen.current?.hasRefused,
+    count: () => seen.current?.count,
     rerender: (next: Fields) => view.rerender(<Screen refused={next} />),
   };
 }
@@ -55,6 +56,7 @@ describe("useRefusedFields", () => {
 
   it("reste signalé tant qu'un SEUL champ refuse encore", () => {
     const screen = setup({ repos: true, charge: true });
+    expect(screen.count()).toBe(2);
 
     screen.rerender({ repos: false, charge: true });
 

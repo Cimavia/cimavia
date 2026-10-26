@@ -6,6 +6,7 @@ export { CmvCard } from "./CmvCard";
 export { CmvCharCount } from "./CmvCharCount";
 export { CmvCheckmark } from "./CmvCheckmark";
 export { CmvConfirmButton } from "./CmvConfirmButton";
+export { CmvCountField } from "./CmvCountField";
 export { CmvCrashScreen } from "./CmvCrashScreen";
 export { CmvDragHandle } from "./CmvDragHandle";
 export { CmvDurationField } from "./CmvDurationField";
