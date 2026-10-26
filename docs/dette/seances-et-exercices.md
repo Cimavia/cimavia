@@ -639,6 +639,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
 > `docs/maquettes/composants/structure_model.js` passent dans `@cmv/shared`, typées) : structure,
@@ -770,3 +771,32 @@ liste des domaines vivent dans l'index.
 >   Une entrée par étape peut faire dépasser 20 exercices à un bloc, ou 50 à une séance
 >   (`SESSION_MAX_EXERCISES`) : ils se lisent, mais ne s'enregistrent plus sans être réduits. La
 >   requête de contrôle « après » compte les deux sur la preview.
+
+> **Tranché en [#717](https://github.com/Cimavia/cimavia/issues/717)** (Bibliothèque › Structures,
+> web seul : l'onglet, et la page d'une structure du Coach). Ce qui suit a été tranché en route.
+>
+> - **Le nom est unique par Coach, sans tenir compte des majuscules** (`sameStructureName` : bords
+>   rognés, casse ignorée sans locale, accents gardés et normalisés NFC). La règle est écrite une
+>   fois dans `@cmv/shared` : le formulaire prévient avant d'envoyer, le service refuse d'un 409
+>   dédié — sans index (BL-2). Le même nom chez un autre Coach ne gêne pas, et une structure garde
+>   toujours le sien, même en doublon d'avant la règle (#716). Le service juge la structure avant
+>   son nom : 404 chez un autre Coach, 409 de version dépassée, puis seulement le nom pris.
+> - **L'ordre des exercices n'est pas dans le formulaire de la bibliothèque** : il n'a de sens qu'à
+>   partir de deux exercices, dans le panneau du bloc (#719). Une structure copiée garde le sien.
+> - **Les durées s'écrivent comme partout ailleurs** (*Tranché en #528*) : la maquette annonce
+>   « 1 h 20 », que `parseTrainingDuration` ne lit pas — on écrit `80'`. Bornes de 1 s à 3 h et de 1
+>   à 99 tours, refusées à la saisie (#566) plutôt qu'à l'enregistrement.
+> - **Le menu ⋯ d'une ligne devient deux actions directes**, Dupliquer et Supprimer (avec sa
+>   confirmation) : le design system n'a pas de menu, et en créer un pour deux gestes ne se justifie
+>   pas. **« Dupliquer pour l'adapter » d'une structure prête reste visible**, quand la maquette ne
+>   le montre qu'au survol : une tablette ne survole pas, et c'est le seul geste de la ligne.
+> - **Dupliquer ouvre la création pré-remplie** (`/library/structures/new?from=`), pas une copie
+>   enregistrée d'office : « Tabata (copie) », numérotée si le nom est pris, et rognée pour tenir
+>   en 60 caractères. Quitter sans enregistrer ne perd rien — la source reste.
+> - **L'onglet de la bibliothèque tient dans l'URL** (`?tab=`) : chaque constructeur ramène à celui
+>   d'où il vient, séances comprises.
+> - **La légende du Déroulé est une donnée de `@cmv/shared`** (`structureTimeline`), pas des
+>   `Phrase` : chaque clé citée par `@cmv/shared` doit exister aussi au catalogue mobile, qui n'a
+>   pas cet écran.
+> - **Le mobile reste en l'état** : la bibliothèque y est absente, la création reste web et coach
+>   (*Tranché en #20*).

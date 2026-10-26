@@ -77,4 +77,54 @@ describe("CmvDurationField", () => {
     expect(input).toHaveAttribute("aria-invalid", "false");
     expect(queryByText("common.durationInvalid")).toBeNull();
   });
+
+  it("refuse une durée hors de ses bornes, et la laisse à l'écran", async () => {
+    const onChange = vi.fn();
+    const { user, getByLabelText, getByText } = renderWithProviders(
+      <CmvDurationField
+        label={LABEL}
+        value={60}
+        onChange={onChange}
+        bounds={{ min: 1, max: 10_800 }}
+      />,
+    );
+    const input = getByLabelText(LABEL);
+
+    await user.clear(input);
+    await user.type(input, "200'{Enter}");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue("200'");
+    expect(getByText("common.durationOutOfBounds")).toBeInTheDocument();
+
+    await user.clear(input);
+    await user.type(input, "0{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.type(input, "180'{Enter}");
+    expect(onChange).toHaveBeenCalledWith(10_800);
+  });
+
+  it("exigée, refuse d'être vidée plutôt que de remonter null", async () => {
+    const onChange = vi.fn();
+    const { user, getByLabelText, getByText } = renderWithProviders(
+      <CmvDurationField
+        label={LABEL}
+        labelHidden
+        value={60}
+        onChange={onChange}
+        nullable={false}
+      />,
+    );
+    const input = getByLabelText(LABEL);
+
+    await user.clear(input);
+    await user.tab();
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(getByText("common.durationRequired")).toBeInTheDocument();
+    // Le libellé reste lu, même caché.
+    expect(getByText(LABEL)).toHaveClass("sr-only");
+  });
 });

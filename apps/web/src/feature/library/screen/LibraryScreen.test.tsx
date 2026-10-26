@@ -1,4 +1,10 @@
-import { type ExerciseDto, MyAccessLevel, type SessionDto } from "@cmv/shared";
+import {
+  type ExerciseDto,
+  MyAccessLevel,
+  type SessionDto,
+  type StructureLibraryDto,
+  StructurePresetKey,
+} from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -8,6 +14,7 @@ import {
 } from "@/feature/library/hook/useExercises";
 import { useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { useChangeSessionAccess, useSessions } from "@/feature/library/hook/useSessions";
+import { useDeleteStructure, useStructureLibrary } from "@/feature/library/hook/useStructures";
 import { renderInRoute } from "../../../../test/render";
 import { LibraryScreen } from "./LibraryScreen";
 
@@ -23,6 +30,10 @@ vi.mock("@/feature/library/hook/useMyOrganizations", async (importOriginal) => (
 vi.mock("@/feature/library/hook/useSessions", () => ({
   useSessions: vi.fn(),
   useChangeSessionAccess: vi.fn(),
+}));
+vi.mock("@/feature/library/hook/useStructures", () => ({
+  useStructureLibrary: vi.fn(),
+  useDeleteStructure: vi.fn(),
 }));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
@@ -57,13 +68,19 @@ const exercise = {
   updatedAt: "2026-10-06T08:00:00.000Z",
 } as unknown as ExerciseDto;
 
-function served({
-  exercises,
-  sessions,
-}: {
+const structures: StructureLibraryDto = {
+  presets: [{ key: StructurePresetKey.TABATA, sessionCount: 2 }],
+  structures: [],
+};
+
+function served(served: {
   exercises: ExerciseDto[] | undefined;
   sessions: SessionDto[] | undefined;
+  /** Absente : la bibliothèque des structures prêtes. `undefined` : pas encore chargée. */
+  library?: StructureLibraryDto | undefined;
 }) {
+  const { exercises, sessions } = served;
+  const library = "library" in served ? served.library : structures;
   const query = (data: unknown) => ({
     data,
     isPending: data == null,
@@ -76,6 +93,12 @@ function served({
   vi.mocked(useSessions).mockReturnValue(
     query(sessions) as unknown as ReturnType<typeof useSessions>,
   );
+  vi.mocked(useStructureLibrary).mockReturnValue(
+    query(library) as unknown as ReturnType<typeof useStructureLibrary>,
+  );
+  vi.mocked(useDeleteStructure).mockReturnValue({
+    isPending: false,
+  } as unknown as ReturnType<typeof useDeleteStructure>);
   vi.mocked(useExerciseTags).mockReturnValue({ data: [] } as unknown as ReturnType<
     typeof useExerciseTags
   >);
@@ -91,9 +114,10 @@ function served({
   } as unknown as ReturnType<typeof useMyOrganizations>);
 }
 
-function setup() {
+function setup(search: Record<string, string> = {}) {
   return renderInRoute(<LibraryScreen />, {
     path: "/library",
+    search,
     links: [
       "/",
       "/messages",
@@ -105,6 +129,8 @@ function setup() {
       "/library/exercises/$exerciseId",
       "/library/sessions/new",
       "/library/sessions/$sessionId",
+      "/library/structures/new",
+      "/library/structures/$structureId",
     ],
   });
 }
@@ -133,16 +159,25 @@ describe("LibraryScreen", () => {
     served({ exercises: [exercise, { ...exercise, id: "ex-2" }], sessions: [session] });
     const view = await setup();
 
-    expect(tabs(view)).toEqual(["library.tabs.exercises2", "library.tabs.sessions1"]);
+    // Les structures prêtes comptent avec celles du Coach.
+    expect(tabs(view)).toEqual([
+      "library.tabs.exercises2",
+      "library.tabs.sessions1",
+      "library.tabs.structures1",
+    ]);
     expect(vi.mocked(useExercises)).toHaveBeenCalledWith({});
   });
 
   // Pas encore chargé n'est pas zéro : l'onglet se tait plutôt que d'afficher « 0 ».
   it("n'affiche aucun compteur tant que la bibliothèque n'est pas chargée", async () => {
-    served({ exercises: undefined, sessions: undefined });
+    served({ exercises: undefined, sessions: undefined, library: undefined });
     const view = await setup();
 
-    expect(tabs(view)).toEqual(["library.tabs.exercises", "library.tabs.sessions"]);
+    expect(tabs(view)).toEqual([
+      "library.tabs.exercises",
+      "library.tabs.sessions",
+      "library.tabs.structures",
+    ]);
   });
 
   it("crée un exercice depuis l'onglet des exercices", async () => {
@@ -161,6 +196,8 @@ describe("LibraryScreen", () => {
     await user.click(getByRole("tab", { name: /library\.tabs\.sessions/ }));
     expect(getByText("Force max")).toBeInTheDocument();
     expect(queryByText("Tractions")).not.toBeInTheDocument();
+    // L'onglet tient dans l'URL : un constructeur y ramène (#717).
+    expect(router.state.location.search).toEqual({ tab: "sessions" });
     await user.click(getByRole("button", { name: "library.newSession" }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/library/sessions/new"));
@@ -185,5 +222,71 @@ describe("LibraryScreen", () => {
     await user.click(getByRole("button", { name: /Force max/ }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/library/sessions/s-7"));
+  });
+
+  it("s'ouvre sur l'onglet que porte l'URL", async () => {
+    served({ exercises: [exercise], sessions: [session] });
+    const { getByRole } = await setup({ tab: "structures" });
+
+    expect(getByRole("tab", { name: /library\.tabs\.structures/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(getByRole("button", { name: "library.newStructure" })).toBeInTheDocument();
+  });
+
+  it("revient aux exercices, et l'URL perd son onglet", async () => {
+    served({ exercises: [exercise], sessions: [session] });
+    const { user, getByRole, router } = await setup({ tab: "sessions" });
+
+    await user.click(getByRole("tab", { name: /library\.tabs\.exercises/ }));
+
+    expect(router.state.location.search).toEqual({});
+  });
+
+  it("crée une structure depuis leur onglet", async () => {
+    served({ exercises: [exercise], sessions: [session] });
+    const { user, getByRole, router } = await setup({ tab: "structures" });
+
+    await user.click(getByRole("button", { name: "library.newStructure" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/library/structures/new"));
+  });
+
+  it("duplique une structure prête vers une création d'après elle", async () => {
+    served({ exercises: [exercise], sessions: [session] });
+    const { user, getByRole, router } = await setup({ tab: "structures" });
+
+    await user.click(getByRole("button", { name: "library.structure.duplicate" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/library/structures/new"));
+    expect(router.state.location.search).toEqual({ from: "TABATA" });
+  });
+
+  it("duplique et ouvre une structure du Coach", async () => {
+    const mine = {
+      id: "st-1",
+      name: "4×4 grimpe",
+      tags: [],
+      note: null,
+      instructions: null,
+      settings: { advance: { kind: "ATHLETE" }, repeat: { kind: "ONCE" } },
+      sessionCount: 0,
+      createdAt: "2026-10-06T08:00:00.000Z",
+      updatedAt: "2026-10-06T08:00:00.000Z",
+    } as unknown as StructureLibraryDto["structures"][number];
+    served({
+      exercises: [exercise],
+      sessions: [session],
+      library: { presets: [], structures: [mine] },
+    });
+    const { user, getByRole, router } = await setup({ tab: "structures" });
+
+    await user.click(getByRole("button", { name: "library.structure.duplicateNamed" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ from: "st-1" }));
+
+    router.history.back();
+    await user.click(await waitFor(() => getByRole("button", { name: /4×4 grimpe/ })));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/library/structures/st-1"));
   });
 });

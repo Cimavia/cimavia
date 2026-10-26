@@ -178,7 +178,7 @@ function ExerciseBuilder({
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
-  const { titleMissing, touchTitle, save } = useBuilderSave(draft, refused.hasRefused, {
+  const { blockedBy, titleMissing, touchTitle, save } = useBuilderSave(draft, refused.hasRefused, {
     titleRequired: "library.builder.titleRequired",
     saveFailed: "library.builder.saveFailed",
   });
@@ -246,7 +246,7 @@ function ExerciseBuilder({
             isWriting={draft.isSaving}
             submitLabel={submitLabel(draft.isSaving, edited != null, t)}
             canSubmit={draft.trimmedTitle !== ""}
-            blockedBy={refused.hasRefused ? t("library.builder.refusedBlocksSave") : undefined}
+            blockedBy={blockedBy}
             onCancel={onLeave}
             onSubmit={onSubmit}
           />

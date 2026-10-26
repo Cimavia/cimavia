@@ -4,6 +4,7 @@ import { Route as AthletesRoute } from "@/routes/athletes";
 import { Route as FeedbacksRoute } from "@/routes/feedbacks";
 import { Route as ExerciseNewRoute } from "@/routes/library.exercises.new";
 import { Route as SessionEditRoute } from "@/routes/library.sessions.$sessionId";
+import { Route as StructureNewRoute } from "@/routes/library.structures.new";
 import { Route as MessagesRoute } from "@/routes/messages";
 import { Route as SessionsRoute } from "@/routes/sessions.index";
 
@@ -91,6 +92,17 @@ describe("paramètres d'url lus en ligne", () => {
     [{}, {}],
   ])("/library/sessions/$sessionId lit %j comme %j", (search, expected) => {
     expect(parse(SessionEditRoute, search)).toStrictEqual(expected);
+  });
+
+  // La structure à copier (#717) : une structure prête ou celle du Coach — rien, sans source.
+  it.each([
+    [{ from: "TABATA" }, { from: "TABATA" }],
+    [{ from: "st-1" }, { from: "st-1" }],
+    [{ from: "" }, {}],
+    [{ from: 1 }, {}],
+    [{}, {}],
+  ])("/library/structures/new lit %j comme %j", (search, expected) => {
+    expect(parse(StructureNewRoute, search)).toStrictEqual(expected);
   });
 });
 

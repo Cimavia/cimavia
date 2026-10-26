@@ -5,8 +5,16 @@ import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { isStaleWriteError } from "@/shared/lib/api";
 
-/** Ce qu'un constructeur enregistre : un titre, obligatoire, et l'envoi du brouillon. */
-type SavableDraft<Saved> = { trimmedTitle: string; submit: () => Promise<Saved> };
+/**
+ * Ce qu'un constructeur enregistre : un titre, obligatoire, et l'envoi du brouillon. `refusal` :
+ * la clé i18n de ce qui retient encore le brouillon une fois le titre posé — le nom d'une
+ * structure déjà pris (#717) —, ou `null`.
+ */
+type SavableDraft<Saved> = {
+  trimmedTitle: string;
+  submit: () => Promise<Saved>;
+  refusal?: string | null;
+};
 
 /** Les textes propres au constructeur : le titre manquant, l'échec de l'enregistrement. */
 type BuilderSaveKeys = { titleRequired: string; saveFailed: string };
@@ -34,13 +42,16 @@ export function useBuilderSave<Saved>(
   const { onFailure } = useMutationToast();
   const [titleTouched, setTitleTouched] = useState(false);
 
+  /** Ce qui retient encore l'enregistrement une fois le titre posé, ou `null`. */
+  const held = draft.refusal ?? (hasRefused ? "library.builder.refusedBlocksSave" : null);
+
   /** Ce qui retient l'enregistrement — le titre manquant, que le champ réclame alors —, ou `null`. */
   function blocker(): string | null {
     if (draft.trimmedTitle === "") {
       setTitleTouched(true);
       return keys.titleRequired;
     }
-    return hasRefused ? "library.builder.refusedBlocksSave" : null;
+    return held;
   }
 
   /** Le titre manque ou une saisie est refusée : rien ne s'enregistrerait, et le coach l'apprend. */
@@ -69,6 +80,11 @@ export function useBuilderSave<Saved>(
   );
 
   return {
+    /**
+     * Ce qui ferme « Enregistrer » une fois le titre posé, traduit : il ferme le bouton ET en
+     * devient l'infobulle (#514). Le titre manquant n'y est pas — le bouton se ferme déjà sans lui.
+     */
+    blockedBy: held == null ? undefined : t(held),
     titleMissing: titleTouched && draft.trimmedTitle === "",
     touchTitle: () => setTitleTouched(true),
     cannotSave,

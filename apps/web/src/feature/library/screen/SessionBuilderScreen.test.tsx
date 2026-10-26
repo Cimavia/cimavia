@@ -296,6 +296,8 @@ describe("SessionBuilderScreen — création", () => {
     await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
+    // À l'onglet Séances, d'où le coach est parti (#717).
+    expect(view.router.state.location.search).toEqual({ tab: "sessions" });
     expect(view.getByText("library.session.saved")).toBeInTheDocument();
     const input = api.createSession.mock.lastCall?.[0];
     expect(input).toEqual({

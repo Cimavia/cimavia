@@ -1,17 +1,20 @@
 import {
+  ProblemType,
   type StructureDto,
   type StructureInput,
   type StructureLibraryDto,
   StructurePresetKey,
+  takenStructureName,
   type UpdateStructureInput,
   type VersionQuery,
 } from "@cmv/shared";
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import { ProblemException } from "../../problem/problem.exception";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { toJsonInput } from "../../util/block-json.util";
-import { deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
+import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { toStructureDto } from "../structure.mapper";
 
 const STRUCTURE_NOT_FOUND = "Structure introuvable";
@@ -56,6 +59,7 @@ export class StructureService {
   }
 
   async create(input: StructureInput): Promise<StructureDto> {
+    await this.assertNameFree(input.name, null);
     const created = await this.db.structure.create({
       // coachId injecté par la couche d'isolation — d'où le cast.
       data: dataOf(input) satisfies Omit<
@@ -72,13 +76,13 @@ export class StructureService {
    * la structure d'un autre (404, le scope ne la voit pas) de la version dépassée (409).
    */
   async update(id: string, input: UpdateStructureInput): Promise<StructureDto> {
-    await writeAtVersion(
-      this.db.structure,
-      id,
-      new Date(input.expectedUpdatedAt),
-      dataOf(input),
-      STRUCTURE_NOT_FOUND,
-    );
+    // La structure d'abord : celle d'un autre répond 404, une version dépassée 409 — le bandeau
+    // « Recharger » —, avant qu'un nom soit jugé contre un état que la saisie n'a pas vu.
+    const current = await this.getOwnedOrThrow(id);
+    const expected = new Date(input.expectedUpdatedAt);
+    assertReadAtVersion(current.updatedAt, expected);
+    await this.assertNameFree(input.name, id);
+    await writeAtVersion(this.db.structure, id, expected, dataOf(input), STRUCTURE_NOT_FOUND);
     return this.get(id);
   }
 
@@ -90,6 +94,26 @@ export class StructureService {
       new Date(query.expectedUpdatedAt),
       STRUCTURE_NOT_FOUND,
     );
+  }
+
+  /**
+   * Un nom par structure, parmi celles du Coach, sans tenir compte des majuscules (#717). La règle
+   * est celle du formulaire (`takenStructureName`), appliquée aux noms que le scope laisse lire :
+   * le même nom chez un autre Coach ne gêne pas. Pas d'index unique — Prisma ne déclare pas
+   * d'index sur `lower(name)` : deux enregistrements simultanés peuvent encore passer (BL-2).
+   *
+   * Les noms sont comparés ici plutôt que par `mode: "insensitive"` : Prisma le traduit en `ILIKE`,
+   * où `_` et `%` d'un nom deviendraient des jokers. Le Coach a quelques dizaines de structures.
+   */
+  private async assertNameFree(name: string, selfId: string | null): Promise<void> {
+    const mine = await this.db.structure.findMany({ select: { id: true, name: true } });
+    if (takenStructureName(name, mine, selfId) != null) {
+      throw new ProblemException(
+        HttpStatus.CONFLICT,
+        ProblemType.STRUCTURE_NAME_TAKEN,
+        "Le Coach a déjà une structure de ce nom",
+      );
+    }
   }
 
   private async getOwnedOrThrow(id: string) {

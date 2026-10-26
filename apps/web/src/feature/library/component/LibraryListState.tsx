@@ -5,6 +5,13 @@ import { CmvErrorState } from "@/shared/component";
 
 type Loaded<T> = { data: T | undefined; isError: boolean; refetch: () => unknown };
 
+/** Ce qui ne se partage pas — les structures (#717) — le dit, plutôt que d'omettre les entreprises. */
+export const NO_ORGANIZATIONS: Loaded<CoachOrganizationDto[]> = {
+  data: [],
+  isError: false,
+  refetch: () => undefined,
+};
+
 type LibraryListStateProps<T> = {
   list: Loaded<T>;
   organizations: Loaded<CoachOrganizationDto[]>;

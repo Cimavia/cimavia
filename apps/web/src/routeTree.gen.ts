@@ -31,6 +31,8 @@ import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
 import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
+import { Route as LibraryStructuresNewRouteImport } from './routes/library.structures.new'
+import { Route as LibraryStructuresStructureIdRouteImport } from './routes/library.structures.$structureId'
 import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
 import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
 import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
@@ -147,6 +149,17 @@ const SessionsSessionIdFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => SessionsSessionIdRoute,
   } as any)
+const LibraryStructuresNewRoute = LibraryStructuresNewRouteImport.update({
+  id: '/library/structures/new',
+  path: '/library/structures/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryStructuresStructureIdRoute =
+  LibraryStructuresStructureIdRouteImport.update({
+    id: '/library/structures/$structureId',
+    path: '/library/structures/$structureId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LibrarySessionsNewRoute = LibrarySessionsNewRouteImport.update({
   id: '/library/sessions/new',
   path: '/library/sessions/new',
@@ -195,6 +208,8 @@ export interface FileRoutesByFullPath {
   '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
   '/library/sessions/new': typeof LibrarySessionsNewRoute
+  '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
+  '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -222,6 +237,8 @@ export interface FileRoutesByTo {
   '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
   '/library/sessions/new': typeof LibrarySessionsNewRoute
+  '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
+  '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
 }
@@ -251,6 +268,8 @@ export interface FileRoutesById {
   '/library/exercises/new': typeof LibraryExercisesNewRoute
   '/library/sessions/$sessionId': typeof LibrarySessionsSessionIdRoute
   '/library/sessions/new': typeof LibrarySessionsNewRoute
+  '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
+  '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
 }
@@ -281,6 +300,8 @@ export interface FileRouteTypes {
     | '/library/exercises/new'
     | '/library/sessions/$sessionId'
     | '/library/sessions/new'
+    | '/library/structures/$structureId'
+    | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
@@ -308,6 +329,8 @@ export interface FileRouteTypes {
     | '/library/exercises/new'
     | '/library/sessions/$sessionId'
     | '/library/sessions/new'
+    | '/library/structures/$structureId'
+    | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId'
   id:
@@ -336,6 +359,8 @@ export interface FileRouteTypes {
     | '/library/exercises/new'
     | '/library/sessions/$sessionId'
     | '/library/sessions/new'
+    | '/library/structures/$structureId'
+    | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
   fileRoutesById: FileRoutesById
@@ -365,6 +390,8 @@ export interface RootRouteChildren {
   LibraryExercisesNewRoute: typeof LibraryExercisesNewRoute
   LibrarySessionsSessionIdRoute: typeof LibrarySessionsSessionIdRoute
   LibrarySessionsNewRoute: typeof LibrarySessionsNewRoute
+  LibraryStructuresStructureIdRoute: typeof LibraryStructuresStructureIdRoute
+  LibraryStructuresNewRoute: typeof LibraryStructuresNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -523,6 +550,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
       parentRoute: typeof SessionsSessionIdRoute
     }
+    '/library/structures/new': {
+      id: '/library/structures/new'
+      path: '/library/structures/new'
+      fullPath: '/library/structures/new'
+      preLoaderRoute: typeof LibraryStructuresNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/structures/$structureId': {
+      id: '/library/structures/$structureId'
+      path: '/library/structures/$structureId'
+      fullPath: '/library/structures/$structureId'
+      preLoaderRoute: typeof LibraryStructuresStructureIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library/sessions/new': {
       id: '/library/sessions/new'
       path: '/library/sessions/new'
@@ -592,6 +633,8 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryExercisesNewRoute: LibraryExercisesNewRoute,
   LibrarySessionsSessionIdRoute: LibrarySessionsSessionIdRoute,
   LibrarySessionsNewRoute: LibrarySessionsNewRoute,
+  LibraryStructuresStructureIdRoute: LibraryStructuresStructureIdRoute,
+  LibraryStructuresNewRoute: LibraryStructuresNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
