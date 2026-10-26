@@ -11,7 +11,6 @@ import {
   type ExerciseDocumentDto,
   type ExerciseDto,
   LibraryScope,
-  type ReloadSessionExerciseInput,
   type RequestUploadUrlInput,
   type SessionDto,
   type StructureDto,
@@ -179,21 +178,6 @@ export function listSessions(scope: LibraryScope): Promise<SessionDto[]> {
 
 export function getSession(id: string): Promise<SessionDto> {
   return api.get<SessionDto>(`/sessions/${id}`);
-}
-
-/**
- * « Recharger depuis la bibliothèque » : action serveur, parce qu'elle déplace la RÉFÉRENCE de
- * dosage — la seule chose que le client n'a pas le droit d'envoyer.
- */
-export function reloadSessionExercise(
-  sessionId: string,
-  sessionExerciseId: string,
-  input: ReloadSessionExerciseInput,
-): Promise<SessionDto> {
-  return api.post<SessionDto>(
-    `/sessions/${sessionId}/exercises/${sessionExerciseId}/reload`,
-    input,
-  );
 }
 
 export function createSession(input: CreateSessionInput): Promise<SessionDto> {

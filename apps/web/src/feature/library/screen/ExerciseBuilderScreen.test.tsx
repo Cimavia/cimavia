@@ -280,11 +280,14 @@ describe("ExerciseBuilderScreen — création", () => {
 });
 
 describe("ExerciseBuilderScreen — ouvert depuis une séance (#303)", () => {
-  function fromSession() {
-    return renderInRoute(<ExerciseBuilderScreen initialTitle="Planche" fromSessionId="s-1" />, {
-      path: "/library/exercises/new",
-      links: [...SHELL_LINKS, "/library", "/library/sessions/$sessionId"],
-    });
+  function fromSession(fromBlock?: number) {
+    return renderInRoute(
+      <ExerciseBuilderScreen initialTitle="Planche" fromSessionId="s-1" fromBlock={fromBlock} />,
+      {
+        path: "/library/exercises/new",
+        links: [...SHELL_LINKS, "/library", "/library/sessions/$sessionId"],
+      },
+    );
   }
 
   it("ramène à la séance en y faisant ajouter l'exercice enregistré", async () => {
@@ -296,6 +299,18 @@ describe("ExerciseBuilderScreen — ouvert depuis une séance (#303)", () => {
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/sessions/s-1"));
     expect(view.router.state.location.search).toEqual({ add: "ex-9" });
     expect(view.getByText("library.builder.saved")).toBeInTheDocument();
+  });
+
+  // Le rang du bloc d'où il est parti (#719) fait le voyage retour.
+  it("ramène le rang du bloc où ajouter l'exercice", async () => {
+    api.createExercise.mockResolvedValue(saved({ id: "ex-9", title: "Planche" }));
+    const view = await fromSession(1);
+
+    await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
+
+    await waitFor(() =>
+      expect(view.router.state.location.search).toEqual({ add: "ex-9", block: 1 }),
+    );
   });
 
   it("ramène à la séance sans rien y ajouter quand le coach renonce", async () => {

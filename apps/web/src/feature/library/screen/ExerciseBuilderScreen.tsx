@@ -68,6 +68,8 @@ type ExerciseBuilderScreenProps = {
    * à la bibliothèque ; présente, il ramène à la séance, et y fait ajouter l'exercice enregistré.
    */
   fromSessionId?: string | undefined;
+  /** Le rang du bloc où l'exercice entrera (#719) ; absent, dans un bloc neuf. */
+  fromBlock?: number | undefined;
 };
 
 /**
@@ -82,6 +84,7 @@ export function ExerciseBuilderScreen({
   exerciseId,
   initialTitle,
   fromSessionId,
+  fromBlock,
 }: Readonly<ExerciseBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -126,7 +129,8 @@ export function ExerciseBuilderScreen({
     navigate({
       to: "/library/sessions/$sessionId",
       params: { sessionId: fromSessionId },
-      search: saved == null ? {} : { add: saved.id },
+      search:
+        saved == null ? {} : { add: saved.id, ...(fromBlock == null ? {} : { block: fromBlock }) },
       replace: true,
     });
   }

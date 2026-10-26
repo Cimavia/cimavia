@@ -1,12 +1,12 @@
-import { type CreateSessionInput, LibraryScope, type SessionDto } from "@cmv/shared";
+import { LibraryScope, type SessionBlock, type SessionDto } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sessionKeys } from "@/feature/library/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import {
+  type SessionBlocksInput,
   useChangeSessionAccess,
   useDeleteSession,
-  useReloadSessionExercise,
   useSaveSession,
   useSession,
   useSessions,
@@ -20,7 +20,6 @@ const { apiMock } = vi.hoisted(() => ({
     createSession: vi.fn(),
     updateSession: vi.fn(),
     deleteSession: vi.fn(),
-    reloadSessionExercise: vi.fn(),
   },
 }));
 
@@ -31,11 +30,8 @@ vi.mock("@/feature/library/api", async (importOriginal) => ({
 }));
 
 const session = { id: "s-1", title: "Force", updatedAt: "2026-10-12T08:00:00.000Z" } as SessionDto;
-const input = {
-  title: "Force max",
-  notes: "À jeun",
-  exercises: [{ exerciseId: "ex-1" }],
-} as unknown as CreateSessionInput;
+const blocks = [{ id: "b-1" }] as unknown as SessionBlock[];
+const input: SessionBlocksInput = { title: "Force max", notes: "À jeun", blocks };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -103,7 +99,8 @@ describe("useSaveSession", () => {
     const { result } = renderHook(() => useSaveSession(), { wrapper });
     await act(() => result.current.save({ session: null, input }));
 
-    expect(apiMock.createSession).toHaveBeenCalledExactlyOnceWith(input);
+    // Une seule composition : des blocs, la liste par exercices vide.
+    expect(apiMock.createSession).toHaveBeenCalledExactlyOnceWith({ ...input, exercises: [] });
     expect(apiMock.updateSession).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
@@ -119,30 +116,12 @@ describe("useSaveSession", () => {
     expect(apiMock.updateSession).toHaveBeenCalledExactlyOnceWith("s-1", {
       title: "Force max",
       notes: "À jeun",
-      exercises: input.exercises,
+      blocks,
       // La version sur laquelle la saisie a commencé (#604).
       expectedUpdatedAt: session.updatedAt,
     });
     expect(apiMock.createSession).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
-  });
-
-  // Sans note, le PUT dit explicitement « pas de note » : omise, elle ne serait pas effacée.
-  it("envoie une note absente comme null", async () => {
-    apiMock.updateSession.mockResolvedValue(session);
-    const { wrapper } = renderWithQueryClient();
-
-    const { result } = renderHook(() => useSaveSession(), { wrapper });
-    await act(() =>
-      result.current.save({ session, input: { title: "Force", exercises: [] } as never }),
-    );
-
-    expect(apiMock.updateSession).toHaveBeenCalledWith("s-1", {
-      title: "Force",
-      notes: null,
-      exercises: [],
-      expectedUpdatedAt: session.updatedAt,
-    });
   });
 
   it("expose l'enregistrement en cours puis l'erreur", async () => {
@@ -203,21 +182,6 @@ describe("useDeleteSession", () => {
 
     expect(queryClient.getQueryState(sessionKeys.detail("s-1"))).toBeUndefined();
     expect(apiMock.getSession).toHaveBeenCalledOnce();
-  });
-});
-
-describe("useReloadSessionExercise", () => {
-  it("recharge l'exercice de CETTE séance, à sa version, puis invalide les séances", async () => {
-    apiMock.reloadSessionExercise.mockResolvedValue(session);
-    const { wrapper, invalidate } = spyInvalidate();
-
-    const { result } = renderHook(() => useReloadSessionExercise(), { wrapper });
-    await act(() => result.current.mutateAsync({ session, sessionExerciseId: "se-1" }));
-
-    expect(apiMock.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-1", {
-      expectedUpdatedAt: session.updatedAt,
-    });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });
 });
 

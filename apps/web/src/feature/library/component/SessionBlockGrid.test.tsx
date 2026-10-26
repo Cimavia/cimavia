@@ -1,22 +1,29 @@
 import {
   AdjustmentLevel,
+  adjustCell,
+  adjustRows,
   BLOCK_MAX_ROWS,
   BlockType,
   cellPath,
+  type DosageScope,
   type ExerciseBlocks,
   MetricKey,
   MetricSource,
   MetricUnit,
+  revertCell,
   type SessionDto,
 } from "@cmv/shared";
 import { fireEvent, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { describeReorder, dragOnto } from "../../../../test/reorder";
-import { useSessionDraft } from "../hook/useSessionDraft";
 import { SessionBlockGrid } from "./SessionBlockGrid";
 
 const REVERT = "library.session.revert";
+
+/** Le niveau SÉANCE, dont la référence des marqueurs est vide. */
+const SESSION_SCOPE: DosageScope = { level: AdjustmentLevel.SESSION, reference: [] };
 
 const blocks: ExerciseBlocks = [
   {
@@ -65,15 +72,15 @@ const session = {
 } as unknown as SessionDto;
 
 /**
- * Le VRAI brouillon de séance, et non un parent simulé : #299 naissait de la rencontre entre
- * l'écriture de la cellule, qui pose son marqueur, et l'ajout de ligne, qui remonte les lignes en
- * entier. Seul le brouillon réel les fait se croiser comme à l'écran.
+ * Le dosage de la ligne passé par les VRAIS gestes de `@cmv/shared`, et non par un parent simulé :
+ * #299 naissait de la rencontre entre l'écriture de la cellule, qui pose son marqueur, et l'ajout
+ * de ligne, qui remonte les lignes en entier. Seuls les gestes réels les font se croiser comme à
+ * l'écran — ceux du dosage planifié (`DosageEditor`), le seul à monter cette grille depuis #719.
  */
 function Harness({ initial = session }: Readonly<{ initial?: SessionDto }>) {
-  const draft = useSessionDraft(initial);
-  const item = draft.items[0];
-  const block = item?.blocks[0];
-  if (item == null || block == null) return null;
+  const [item, setItem] = useState(() => initial.exercises[0] as SessionDto["exercises"][number]);
+  const block = item.blocks[0];
+  if (block == null) return null;
 
   return (
     <SessionBlockGrid
@@ -83,10 +90,16 @@ function Harness({ initial = session }: Readonly<{ initial?: SessionDto }>) {
       adjustments={item.adjustments}
       customMetrics={[]}
       onCellChange={(rowId, metricId, value) =>
-        draft.setCellValue(item.key, block.id, rowId, metricId, value)
+        setItem((current) =>
+          adjustCell(current, SESSION_SCOPE, { blockId: block.id, rowId, metricId }, value),
+        )
       }
-      onRowsChange={(rows) => draft.setRows(item.key, block.id, rows)}
-      onRevertCell={(rowId, metricId) => draft.revertCell(item.key, block.id, rowId, metricId)}
+      onRowsChange={(rows) => setItem((current) => adjustRows(current, block.id, rows))}
+      onRevertCell={(rowId, metricId) =>
+        setItem((current) =>
+          revertCell(current, SESSION_SCOPE, { blockId: block.id, rowId, metricId }),
+        )
+      }
     />
   );
 }

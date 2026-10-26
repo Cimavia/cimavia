@@ -1,22 +1,25 @@
 import {
-  AdjustmentLevel,
   ApiError,
-  BlockType,
   type CustomMetric,
-  cellPath,
-  type ExerciseBlocks,
   type ExerciseDto,
+  type GridMetric,
+  MetricKey,
   MetricSource,
+  MetricUnit,
   MetricValueType,
   MyAccessLevel,
   ProblemType,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
+  type SessionBlockDto,
   type SessionDto,
-  structurePath,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
+  StructureRepeat,
+  type StructureSettings,
 } from "@cmv/shared";
 import { useSearch } from "@tanstack/react-router";
-import { fireEvent, waitFor, within } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { describeReorder, dragOnto } from "../../../../test/reorder";
@@ -27,13 +30,13 @@ const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   updateSession: vi.fn(),
   deleteSession: vi.fn(),
-  reloadSessionExercise: vi.fn(),
   listExercises: vi.fn(),
   listExerciseTags: vi.fn(),
   listCustomMetrics: vi.fn(),
   getExercise: vi.fn(),
-  duplicateExercise: vi.fn(),
   listMyOrganizations: vi.fn(),
+  listStructures: vi.fn(),
+  createStructure: vi.fn(),
 }));
 
 // Les appels sont remplacés, les hooks et les clés de cache restent les VRAIS.
@@ -54,51 +57,74 @@ vi.mock("@/feature/notification", () => ({
 
 const TITLE = "library.session.titleLabel";
 const NOTES = "library.session.notesLabel";
+const NOTE = "library.session.noteLabel";
 const SUBMIT_CREATE = "library.session.submitCreate";
 const SUBMIT_EDIT = "library.session.submitEdit";
-const PICK = "library.session.pickerTitle";
-const MENU = "library.session.cardMenu";
+const ADD_EXERCISE = "library.session.blocks.addExercise";
+const ADD_BLOCK = "library.session.blocks.addBlock";
+const BLOCK_MENU = "library.session.blocks.blockMenu";
+const EXERCISE_MENU = "library.session.blocks.exerciseMenu";
+const ISSUES = "library.session.blocks.issuesBlockSave";
 
-/** Un bloc SERIES à une ligne : de quoi ajuster le bandeau ET une cellule. */
-const series = (id: string, reps: number) =>
-  [
-    {
-      id,
-      label: null,
-      structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
-      metrics: [
-        {
-          id: `${id}-reps`,
-          source: "CATALOG",
-          key: "REPETITIONS",
-          unit: "REPS",
-          label: null,
-          collapsed: false,
-        },
-      ],
-      rows: [{ id: `${id}-r1`, values: { [`${id}-reps`]: reps } }],
-    },
-  ] as unknown as ExerciseBlocks;
+const SERIES: StructureSettings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 
-const composed = (
+const repsOf = (id: string): GridMetric => ({
+  id,
+  label: null,
+  source: MetricSource.CATALOG,
+  key: MetricKey.REPETITIONS,
+  unit: MetricUnit.REPS,
+});
+
+/** Un exercice de bloc : sa ligne de séance `id`, une colonne de répétitions, une ligne par valeur. */
+const exerciseOf = (id: string, exerciseId: string, ...values: number[]) => ({
+  id,
+  key: `k-${id}`,
+  exerciseId,
+  note: null,
+  grid: {
+    metrics: [repsOf(`${id}-reps`)],
+    rows: values.map((value, index) => ({
+      id: `${id}-r${index + 1}`,
+      values: { [`${id}-reps`]: value },
+    })),
+  },
+});
+
+const blockOf = (
   id: string,
-  exerciseId: string,
-  title: string,
-  blocks = series(`${id}-b`, 6),
-) => ({
+  exercises: SessionBlockDto["exercises"],
+  settings: StructureSettings = SERIES,
+): SessionBlockDto => ({
+  id,
+  name: "Séries",
+  label: null,
+  instructions: null,
+  settings,
+  copiedSettings: settings,
+  sourceStructureId: null,
+  sourcePreset: StructurePresetKey.SERIES,
+  exercises,
+});
+
+/** La ligne de séance qui nomme un exercice de bloc, par le même `id`. */
+const lineOf = (id: string, exerciseId: string, title: string, over: object = {}) => ({
   id,
   exerciseId,
   title,
   tags: [],
   note: null,
-  blocks,
-  baseline: blocks,
+  blocks: [],
+  baseline: [],
   adjustments: [],
   customMetrics: [] as CustomMetric[],
+  frozenFrom: null,
+  ...over,
 });
 
 const READ = "2026-10-12T08:00:00.000Z";
 
+/** Force : le bloc A enchaîne Tractions et Gainage, le bloc B porte Suspensions seul. */
 const saved = (over: Partial<SessionDto> = {}) =>
   ({
     id: "s-1",
@@ -109,10 +135,14 @@ const saved = (over: Partial<SessionDto> = {}) =>
     grants: [],
     coachGrants: [],
     updatedAt: READ,
+    blocks: [
+      blockOf("b-1", [exerciseOf("se-1", "ex-1", 6), exerciseOf("se-2", "ex-2", 8)]),
+      blockOf("b-2", [exerciseOf("se-3", "ex-3", 5)]),
+    ],
     exercises: [
-      composed("se-1", "ex-1", "Tractions"),
-      composed("se-2", "ex-2", "Gainage"),
-      composed("se-3", "ex-3", "Suspensions"),
+      lineOf("se-1", "ex-1", "Tractions"),
+      lineOf("se-2", "ex-2", "Gainage"),
+      lineOf("se-3", "ex-3", "Suspensions"),
     ],
     ...over,
   }) as unknown as SessionDto;
@@ -121,11 +151,18 @@ const planche = {
   id: "ex-9",
   title: "Planche",
   tags: ["gainage"],
-  blocks: series("p-b", 3),
+  blocks: [],
+  suggestedMetrics: [repsOf("p-reps")],
   customMetrics: [],
+  frozenFrom: null,
   owner: { id: "coach-1", name: "Cédric" },
   myAccess: { level: MyAccessLevel.OWNER, via: null },
 } as unknown as ExerciseDto;
+
+const library = {
+  presets: Object.values(StructurePresetKey).map((key) => ({ key, sessionCount: 0 })),
+  structures: [],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -136,6 +173,7 @@ beforeEach(() => {
   api.listExerciseTags.mockResolvedValue([]);
   api.listCustomMetrics.mockResolvedValue([]);
   api.listMyOrganizations.mockResolvedValue([]);
+  api.listStructures.mockResolvedValue(library);
 });
 
 const LINKS = [
@@ -167,24 +205,65 @@ async function edit() {
   return withReaders(view);
 }
 
+const escaped = (text: string) => text.replaceAll(".", "\\.");
+
+type SentBlock = {
+  label: string | null;
+  instructions: string | null;
+  sourcePreset: string | null;
+  sourceStructureId: string | null;
+  name: string;
+  settings: StructureSettings;
+  exercises: {
+    key: string;
+    exerciseId: string;
+    note: string | null;
+    grid: { rows: { values: object }[] };
+  }[];
+};
+
 function withReaders<V extends Awaited<ReturnType<typeof renderInRoute>>>(view: V) {
   const heading = () => view.getAllByRole("heading", { level: 1 })[0]?.textContent;
-  /** La carte d'un exercice de la composition, par son titre — l'aperçu le montre aussi. */
-  const card = (title: string) =>
-    view.getByRole("button", { name: title, expanded: false }).closest("article") as HTMLElement;
-  const openCard = (title: string) =>
-    view.user.click(view.getByRole("button", { name: title, expanded: false }));
-  const menu = async (title: string, action: string) => {
-    await view.user.click(within(card(title)).getByRole("button", { name: MENU }));
-    await view.user.click(within(card(title)).getByRole("button", { name: action }));
+  /** Les cartes de bloc, dans l'ordre : l'aperçu athlète n'en est pas une. */
+  const cards = () => [...view.container.querySelectorAll("article")] as HTMLElement[];
+  const card = (rank: number) => cards()[rank - 1] as HTMLElement;
+  /** Choisit un geste du menu ouvert, par sa clé — l'indication éventuelle suit le libellé. */
+  const choose = (name: string) =>
+    view.user.click(view.getByRole("menuitem", { name: new RegExp(`^${escaped(name)}`) }));
+  const blockMenu = async (rank: number, action: string) => {
+    await view.user.click(within(card(rank)).getByRole("button", { name: BLOCK_MENU }));
+    await choose(action);
   };
+  const exerciseMenu = async (rank: number, exercise: number, action: string) => {
+    const menus = within(card(rank)).getAllByRole("button", { name: EXERCISE_MENU });
+    await view.user.click(menus[exercise - 1] as HTMLElement);
+    await choose(action);
+  };
+  const pickExercise = async (title = /Planche/) =>
+    view.user.click(await view.findByRole("button", { name: title }));
   /** Ce que l'écran a envoyé au serveur, au dernier enregistrement de la séance. */
   const sent = () => api.updateSession.mock.lastCall?.[1];
+  const sentBlocks = (): SentBlock[] => sent().blocks;
+  const sentIds = () =>
+    sentBlocks().map((block) => block.exercises.map((exercise) => exercise.exerciseId));
   const save = async () => {
     await view.user.click(view.getByRole("button", { name: SUBMIT_EDIT }));
     await waitFor(() => expect(api.updateSession).toHaveBeenCalled());
   };
-  return { ...view, heading, card, openCard, menu, sent, save };
+  return {
+    ...view,
+    heading,
+    cards,
+    card,
+    choose,
+    blockMenu,
+    exerciseMenu,
+    pickExercise,
+    sent,
+    sentBlocks,
+    sentIds,
+    save,
+  };
 }
 
 describe("SessionBuilderScreen — chargement", () => {
@@ -223,6 +302,8 @@ describe("SessionBuilderScreen — création", () => {
     expect(view.heading()).toBe("library.session.createTitle");
     expect(view.getByText("library.session.emptyTitle")).toBeInTheDocument();
     expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeDisabled();
+    // Rien à replier tant qu'il n'y a pas de bloc.
+    expect(view.queryByRole("button", { name: "library.session.blocks.compact" })).toBeNull();
   });
 
   it("borne le titre et la consigne à ce que l'API accepte (#319)", async () => {
@@ -259,63 +340,78 @@ describe("SessionBuilderScreen — création", () => {
     expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeDisabled();
   });
 
-  it("ajoute l'exercice choisi dans la bibliothèque, puis referme le sélecteur", async () => {
+  it("ajoute l'exercice choisi dans un bloc Séries neuf, puis referme le sélecteur", async () => {
     const view = await create();
 
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+    await view.user.click(view.getByRole("button", { name: ADD_EXERCISE }));
+    expect(view.getByText("library.session.blocks.newSeriesBlock")).toBeInTheDocument();
+    await view.pickExercise();
 
-    expect(view.card("Planche")).toBeInTheDocument();
+    expect(view.cards()).toHaveLength(1);
+    expect(within(view.card(1)).getByText("Planche")).toBeInTheDocument();
+    expect(within(view.card(1)).getByText("block.preset.series")).toBeInTheDocument();
     expect(view.queryByText("library.session.emptyTitle")).not.toBeInTheDocument();
-    expect(view.getByRole("button", { name: PICK })).toBeInTheDocument();
+    await waitFor(() => expect(view.queryByRole("searchbox")).not.toBeInTheDocument());
     // Et l'aperçu athlète le montre aussitôt.
     expect(view.getAllByText("Planche").length).toBeGreaterThan(1);
   });
 
-  it("referme le sélecteur sans rien ajouter", async () => {
-    const view = await create();
-
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.findByRole("button", { name: /Planche/ });
-    // Celui du sélecteur : l'en-tête de page porte son propre « Annuler », qui quitte la séance.
-    await view.user.click(
-      view.getAllByRole("button", { name: "library.builder.cancel" }).at(-1) as HTMLElement,
-    );
-
-    expect(view.getByRole("button", { name: PICK })).toBeInTheDocument();
-    expect(view.getByText("library.session.emptyTitle")).toBeInTheDocument();
-  });
-
-  // Une ligne AJOUTÉE n'a pas d'id : c'est au serveur de poser sa référence (schéma de séance).
-  it("crée la séance avec ses exercices ajoutés, sans id de ligne, puis revient à la bibliothèque", async () => {
+  // Une séance neuve se compose par blocs : la composition par exercices part vide.
+  it("crée la séance avec ses blocs, puis revient à la bibliothèque", async () => {
     const view = await create();
 
     await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force du lundi");
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+    await view.user.click(view.getByRole("button", { name: ADD_EXERCISE }));
+    await view.pickExercise();
     await view.user.click(view.getByRole("button", { name: SUBMIT_CREATE }));
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     // À l'onglet Séances, d'où le coach est parti (#717).
     expect(view.router.state.location.search).toEqual({ tab: "sessions" });
     expect(view.getByText("library.session.saved")).toBeInTheDocument();
-    const input = api.createSession.mock.lastCall?.[0];
-    expect(input).toEqual({
+    expect(api.createSession.mock.lastCall?.[0]).toEqual({
       title: "Force du lundi",
       notes: null,
-      exercises: [{ exerciseId: "ex-9", note: null, blocks: planche.blocks, adjustments: [] }],
+      exercises: [],
+      blocks: [
+        expect.objectContaining({
+          name: "block.preset.series",
+          label: null,
+          sourcePreset: StructurePresetKey.SERIES,
+          sourceStructureId: null,
+          settings: SERIES,
+          // Les colonnes suggérées par l'exercice, sans ligne : chaque tour est un fantôme.
+          exercises: [
+            {
+              key: expect.any(String),
+              exerciseId: "ex-9",
+              note: null,
+              // Une colonne à soi, sous un id neuf : la séance ne partage rien avec l'exercice.
+              grid: { metrics: [{ ...repsOf("p-reps"), id: expect.any(String) }], rows: [] },
+            },
+          ],
+        }),
+      ],
     });
-    expect(input.exercises[0]).not.toHaveProperty("id");
   });
 
-  it("ferme le rechargement d'un exercice pas encore enregistré", async () => {
+  it("ajoute un bloc vide, qui retient l'enregistrement tant qu'il le reste", async () => {
     const view = await create();
+    await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force");
 
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
-    await view.user.click(within(view.card("Planche")).getByRole("button", { name: MENU }));
+    await view.user.click(view.getByRole("button", { name: ADD_BLOCK }));
+    await view.user.click(await view.findByRole("button", { name: /^block\.preset\.emom/ }));
 
-    expect(view.getByRole("button", { name: "library.session.reload" })).toBeDisabled();
+    expect(within(view.card(1)).getByText("library.session.blocks.empty")).toBeInTheDocument();
+    expect(within(view.card(1)).getByRole("alert")).toHaveTextContent("block.issue.empty");
+    expect(view.getByRole("button", { name: SUBMIT_CREATE })).toHaveAttribute("title", ISSUES);
+
+    await view.user.click(within(view.card(1)).getByRole("button", { name: ADD_EXERCISE }));
+    expect(view.getByText("library.session.blocks.inBlock")).toBeInTheDocument();
+    await view.pickExercise();
+
+    expect(view.getByRole("button", { name: SUBMIT_CREATE })).toBeEnabled();
+    expect(view.cards()).toHaveLength(1);
   });
 
   it("dit que l'enregistrement tourne, et ferme les actions le temps qu'il finisse", async () => {
@@ -330,7 +426,7 @@ describe("SessionBuilderScreen — création", () => {
   });
 
   it("reste sur la page et dit l'échec quand l'enregistrement échoue", async () => {
-    api.createSession.mockRejectedValue(new ApiError(400, "Trop d'exercices", null));
+    api.createSession.mockRejectedValue(new ApiError(400, "Trop de blocs", null));
     const view = await create();
 
     await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force");
@@ -338,7 +434,7 @@ describe("SessionBuilderScreen — création", () => {
 
     expect(await view.findByText("library.session.saveFailed")).toBeInTheDocument();
     // Le message du serveur, lui, reste sous le formulaire.
-    expect(view.getByText("Trop d'exercices")).toBeInTheDocument();
+    expect(view.getByText("Trop de blocs")).toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/sessions/new");
   });
 
@@ -353,27 +449,32 @@ describe("SessionBuilderScreen — création", () => {
 });
 
 describe("SessionBuilderScreen — édition", () => {
-  it("s'ouvre sur la séance chargée", async () => {
+  it("s'ouvre sur la séance chargée, bloc par bloc", async () => {
     const view = await edit();
 
     expect(view.heading()).toBe("Force");
     expect(view.getByRole("textbox", { name: TITLE })).toHaveValue("Force");
-    expect(view.getByRole("textbox", { name: NOTES })).toHaveValue("Au calme");
-    expect(view.queryByText("library.session.emptyTitle")).not.toBeInTheDocument();
+    expect(view.cards()).toHaveLength(2);
+    expect(within(view.card(1)).getByText("A1")).toBeInTheDocument();
+    expect(within(view.card(1)).getByText("Tractions")).toBeInTheDocument();
+    expect(within(view.card(1)).getByText("Gainage")).toBeInTheDocument();
+    expect(within(view.card(2)).getByText("Suspensions")).toBeInTheDocument();
   });
 
-  it("enregistre la séance entière, ids de ligne compris, puis revient à la bibliothèque", async () => {
+  it("enregistre la séance entière, clés comprises, à la version lue, puis revient", async () => {
     const view = await edit();
 
     await view.save();
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(api.updateSession.mock.lastCall?.[0]).toBe("s-1");
-    expect(view.sent().exercises.map((row: { id: string }) => row.id)).toEqual([
-      "se-1",
-      "se-2",
-      "se-3",
+    expect(view.sent().expectedUpdatedAt).toBe(READ);
+    expect(view.sentBlocks().map((block) => block.exercises.map(({ key }) => key))).toEqual([
+      ["k-se-1", "k-se-2"],
+      ["k-se-3"],
     ]);
+    // Les tours fantômes ne partent pas : ils ne sont que la dernière ligne, répétée.
+    expect(view.sentBlocks()[0]?.exercises[0]?.grid.rows).toHaveLength(1);
     expect(api.createSession).not.toHaveBeenCalled();
   });
 
@@ -390,205 +491,358 @@ describe("SessionBuilderScreen — édition", () => {
     expect(view.sent().notes).toBe(expected);
   });
 
-  describeReorder(["Tractions", "Gainage", "Suspensions"], async () => {
-    const view = await edit();
-    const arrow = (name: string, rank: number) =>
-      view.getAllByRole("button", { name })[rank - 1] as HTMLElement;
-    const handle = (rank: number) =>
-      view.getByRole("button", { name: `library.session.moveExercise ${rank}` });
-    return {
-      // Les titres des cartes repliées, dans l'ordre du document — l'aperçu les répète ailleurs.
-      order: () =>
-        view.getAllByRole("button", { expanded: false }).map((button) => button.textContent),
-      moveUp: (rank) => view.user.click(arrow("library.session.moveUp", rank)),
-      moveDown: (rank) => view.user.click(arrow("library.session.moveDown", rank)),
-      drag: (from, to) => dragOnto(handle(from), handle(to)),
-    };
+  describe("ordre des blocs", () => {
+    describeReorder(["Tractions", "Gainage", "Suspensions"], async () => {
+      api.getSession.mockResolvedValue(
+        saved({
+          blocks: [
+            blockOf("b-1", [exerciseOf("se-1", "ex-1", 6)]),
+            blockOf("b-2", [exerciseOf("se-2", "ex-2", 8)]),
+            blockOf("b-3", [exerciseOf("se-3", "ex-3", 5)]),
+          ],
+        }),
+      );
+      const view = await edit();
+      const handle = (rank: number) =>
+        view.getAllByRole("button", { name: "library.session.blocks.moveBlock" })[
+          rank - 1
+        ] as HTMLElement;
+      const press = async (rank: number, key: string) => {
+        handle(rank).focus();
+        await view.user.keyboard(key);
+      };
+      return {
+        // Seul dans son bloc, l'exercice se nomme en tête de carte.
+        order: () =>
+          view
+            .cards()
+            .map((card) => card.querySelector("header .text-cmv-body")?.textContent ?? null),
+        moveUp: (rank) => press(rank, "{ArrowUp}"),
+        moveDown: (rank) => press(rank, "{ArrowDown}"),
+        drag: (from, to) => dragOnto(handle(from), handle(to)),
+      };
+    });
   });
 
   // Le glisser est inaccessible au clavier : la poignée, elle, répond aux flèches.
-  it("déplace un exercice au clavier depuis sa poignée", async () => {
+  it("déplace un exercice dans son bloc au clavier depuis sa poignée", async () => {
     const view = await edit();
 
-    view.getByRole("button", { name: "library.session.moveExercise 3" }).focus();
+    within(view.card(1))
+      .getAllByRole("button", { name: "library.session.blocks.moveExercise" })[1]
+      ?.focus();
     await view.user.keyboard("{ArrowUp}");
     await view.save();
 
-    expect(view.sent().exercises.map((row: { id: string }) => row.id)).toEqual([
-      "se-1",
-      "se-3",
-      "se-2",
-    ]);
+    expect(view.sentIds()).toEqual([["ex-2", "ex-1"], ["ex-3"]]);
   });
 
-  it("écrit la note sur SON exercice", async () => {
+  it("glisse un exercice sur celui d'un autre bloc, qui lui cède sa place", async () => {
     const view = await edit();
+    const handles = within(view.card(1)).getAllByRole("button", {
+      name: "library.session.blocks.moveExercise",
+    });
 
-    await view.openCard("Gainage");
-    await view.user.type(view.getByRole("textbox", { name: "library.session.noteLabel" }), "Lesté");
+    // Sur sa grille : seul dans son bloc, Suspensions porte son titre en tête de carte.
+    dragOnto(handles[0] as HTMLElement, within(view.card(2)).getByRole("table"));
     await view.save();
 
-    expect(view.sent().exercises.map((row: { note: string | null }) => row.note)).toEqual([
-      null,
-      "Lesté",
-      null,
-    ]);
+    expect(view.sentIds()).toEqual([["ex-2"], ["ex-1", "ex-3"]]);
+  });
+
+  it("glisse un exercice au bout d'un autre bloc", async () => {
+    const view = await edit();
+    const handles = within(view.card(1)).getAllByRole("button", {
+      name: "library.session.blocks.moveExercise",
+    });
+
+    dragOnto(
+      handles[0] as HTMLElement,
+      within(view.card(2)).getByRole("button", { name: "library.session.blocks.addToArriving" }),
+    );
+    await view.save();
+
+    expect(view.sentIds()).toEqual([["ex-2"], ["ex-3", "ex-1"]]);
+  });
+
+  it("déplace un exercice vers un autre bloc par son menu", async () => {
+    const view = await edit();
+
+    await view.exerciseMenu(1, 1, "library.session.blocks.moveTo");
+    await view.save();
+
+    expect(view.sentIds()).toEqual([["ex-2"], ["ex-3", "ex-1"]]);
+  });
+
+  // Un bloc vidé par un déplacement n'a plus rien à porter : il part avec son dernier exercice.
+  it("emporte le bloc que son dernier exercice quitte", async () => {
+    const view = await edit();
+
+    await view.blockMenu(2, "library.session.blocks.moveTo");
+
+    expect(view.cards()).toHaveLength(1);
+    await view.save();
+    expect(view.sentIds()).toEqual([["ex-1", "ex-2", "ex-3"]]);
+  });
+
+  it("sort un exercice en bloc à part, juste après le sien", async () => {
+    const view = await edit();
+
+    await view.exerciseMenu(1, 2, "library.session.blocks.detach");
+    await view.save();
+
+    expect(view.sentIds()).toEqual([["ex-1"], ["ex-2"], ["ex-3"]]);
+  });
+
+  it("duplique un exercice dans son bloc, sous une clé neuve", async () => {
+    const view = await edit();
+
+    await view.exerciseMenu(1, 1, "library.session.blocks.duplicateExercise");
+
+    expect(within(view.card(1)).getAllByText("Tractions")).toHaveLength(2);
+    await view.save();
+    expect(view.sentIds()).toEqual([["ex-1", "ex-1", "ex-2"], ["ex-3"]]);
+    const keys = view.sentBlocks()[0]?.exercises.map(({ key }) => key) ?? [];
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("duplique un bloc juste après lui, titres compris", async () => {
+    const view = await edit();
+
+    await view.blockMenu(1, "library.session.blocks.duplicateBlock");
+
+    expect(view.cards()).toHaveLength(3);
+    expect(within(view.card(2)).getByText("Tractions")).toBeInTheDocument();
+    await view.save();
+    expect(view.sentIds()).toEqual([["ex-1", "ex-2"], ["ex-1", "ex-2"], ["ex-3"]]);
   });
 
   it("retire l'exercice désigné, et lui seul", async () => {
     const view = await edit();
 
-    await view.menu("Gainage", "library.session.remove");
+    await view.exerciseMenu(1, 2, "library.session.blocks.removeExercise");
     await view.save();
 
-    expect(view.sent().exercises.map((row: { id: string }) => row.id)).toEqual(["se-1", "se-3"]);
+    expect(view.sentIds()).toEqual([["ex-1"], ["ex-3"]]);
   });
 
-  it("ajuste une valeur de SON exercice et la marque ajustée", async () => {
+  it("supprime un bloc et ses exercices", async () => {
     const view = await edit();
 
-    await view.openCard("Gainage");
-    // La première série : les suivantes, fantômes, la reprennent (#520).
-    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
-    await view.user.clear(cell);
-    await view.user.type(cell, "8");
+    await view.blockMenu(2, "library.session.blocks.deleteBlock");
+    await view.save();
+
+    expect(view.sentIds()).toEqual([["ex-1", "ex-2"]]);
+  });
+
+  it("remplace un exercice en gardant sa grille et sa place", async () => {
+    const view = await edit();
+
+    await view.exerciseMenu(1, 1, "library.session.blocks.replace");
+    expect(view.getByText("library.session.blocks.replaceTitle")).toBeInTheDocument();
+    await view.pickExercise();
+
+    expect(within(view.card(1)).queryByText("Tractions")).not.toBeInTheDocument();
+    expect(within(view.card(1)).getByText("Planche")).toBeInTheDocument();
+    await view.save();
+    const [replaced] = view.sentBlocks()[0]?.exercises ?? [];
+    expect(replaced?.exerciseId).toBe("ex-9");
+    expect(replaced?.key).not.toBe("k-se-1");
+    expect(replaced?.grid.rows).toEqual([{ id: "se-1-r1", values: { "se-1-reps": 6 } }]);
+  });
+
+  // Un fantôme n'est que la dernière ligne répétée : y écrire en fait une ligne propre.
+  it("fait d'un tour fantôme une ligne quand on y écrit", async () => {
+    const view = await edit();
+    const table = within(view.card(1)).getAllByRole("table")[0] as HTMLElement;
+    const ghost = within(table).getAllByRole("textbox")[1] as HTMLElement;
+
+    await view.user.clear(ghost);
+    await view.user.type(ghost, "7");
     await view.user.tab();
     await view.save();
 
-    const [first, second] = view.sent().exercises;
-    expect(second.blocks[0].rows[0].values).toEqual({ "se-2-b-reps": 8 });
-    expect(second.adjustments).toEqual([
-      { path: cellPath("se-2-b", "se-2-b-r1", "se-2-b-reps"), level: AdjustmentLevel.SESSION },
-    ]);
-    expect(first.adjustments).toEqual([]);
+    const rows = view.sentBlocks()[0]?.exercises[0]?.grid.rows ?? [];
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.values).toEqual({ "se-1-reps": 7 });
   });
 
-  it("rend une valeur ajustée à son défaut", async () => {
-    const adjusted = {
-      ...composed("se-1", "ex-1", "Tractions"),
-      blocks: series("se-1-b", 8),
-      adjustments: [
-        { path: cellPath("se-1-b", "se-1-b-r1", "se-1-b-reps"), level: AdjustmentLevel.SESSION },
-      ],
-    };
-    api.getSession.mockResolvedValue(saved({ exercises: [adjusted] } as never));
+  it("écrit la note sur SON exercice", async () => {
     const view = await edit();
 
-    await view.openCard("Tractions");
-    await view.user.click(
-      within(view.getByRole("table")).getByRole("button", { name: "library.session.revert" }),
+    await view.user.type(view.getAllByRole("textbox", { name: NOTE })[1] as HTMLElement, "Lent");
+    await view.save();
+
+    expect(view.sentBlocks()[0]?.exercises.map(({ note }) => note)).toEqual([null, "Lent"]);
+  });
+
+  it("règle le bloc dans son panneau, qui ne change rien sans « Appliquer »", async () => {
+    const view = await edit();
+    const tag = () => within(view.card(1)).getByRole("button", { name: "Séries" });
+
+    await view.user.click(tag());
+    await view.user.type(view.getByRole("textbox", { name: "library.session.blocks.label" }), "X");
+    await view.user.click(view.getByRole("button", { name: "common.cancel" }));
+    await view.user.click(tag());
+    await view.user.type(
+      view.getByRole("textbox", { name: "library.session.blocks.label" }),
+      "Échauffement",
     );
+    await view.user.click(view.getByRole("button", { name: "library.session.blocks.apply" }));
     await view.save();
 
-    const [row] = view.sent().exercises;
-    expect(row.blocks[0].rows[0].values).toEqual({ "se-1-b-reps": 6 });
-    expect(row.adjustments).toEqual([]);
+    expect(view.sentBlocks().map(({ label }) => label)).toEqual(["Échauffement", null]);
   });
 
-  it("ajuste un paramètre du bandeau de SON exercice, et le marque ajusté", async () => {
+  it("change la structure d'un bloc en gardant ses exercices", async () => {
     const view = await edit();
 
-    await view.openCard("Suspensions");
-    fireEvent.change(view.getByRole("spinbutton", { name: "library.builder.bandeau.setCount" }), {
-      target: { value: "5" },
+    await view.blockMenu(1, "library.session.blocks.changeStructure");
+    await view.user.click(await view.findByRole("button", { name: /^block\.preset\.emom/ }));
+    await view.save();
+
+    const [changed] = view.sentBlocks();
+    expect(changed?.sourcePreset).toBe(StructurePresetKey.EMOM);
+    expect(changed?.settings).toEqual(STRUCTURE_PRESETS[StructurePresetKey.EMOM]);
+    expect(view.sentIds()[0]).toEqual(["ex-1", "ex-2"]);
+  });
+
+  // La consigne copiée de la structure quittée n'est pas celle du Coach : elle part avec elle.
+  it("change la consigne tenue de la structure quittée, garde celle que le Coach a écrite", async () => {
+    const structureOf = (id: string, name: string, instructions: string) => ({
+      id,
+      name,
+      tags: [],
+      note: null,
+      instructions,
+      settings: SERIES,
+      sessionCount: 1,
+      createdAt: READ,
+      updatedAt: READ,
     });
-    await view.save();
-
-    const [first, , adjusted] = view.sent().exercises;
-    expect(adjusted.blocks[0].structure.setCount).toBe(5);
-    expect(adjusted.adjustments).toEqual([
-      { path: structurePath("se-3-b", "setCount"), level: AdjustmentLevel.SESSION },
-    ]);
-    expect(first.blocks[0].structure.setCount).toBe(4);
-  });
-
-  it("rend un paramètre du bandeau à son défaut", async () => {
-    const [block] = series("se-1-b", 6);
-    const adjusted = {
-      ...composed("se-1", "ex-1", "Tractions"),
-      blocks: [{ ...block, structure: { ...block?.structure, setCount: 5 } }],
-      adjustments: [{ path: structurePath("se-1-b", "setCount"), level: AdjustmentLevel.SESSION }],
-    };
-    api.getSession.mockResolvedValue(saved({ exercises: [adjusted] } as never));
-    const view = await edit();
-
-    await view.openCard("Tractions");
-    await view.user.click(view.getByRole("button", { name: "library.session.revert" }));
-    await view.save();
-
-    const [row] = view.sent().exercises;
-    expect(row.blocks[0].structure.setCount).toBe(4);
-    expect(row.adjustments).toEqual([]);
-  });
-
-  // Une Séries n'ajoute pas de ligne : la saisie dans une série fantôme lui en donne une (#520).
-  it("donne sa ligne à une série de SON exercice", async () => {
-    const view = await edit();
-
-    await view.openCard("Tractions");
-    const series2 = within(view.getByRole("table")).getAllByRole("textbox")[1] as HTMLElement;
-    await view.user.clear(series2);
-    await view.user.type(series2, "8");
-    await view.user.tab();
-    await view.save();
-
-    expect(
-      view.sent().exercises.map((row: { blocks: ExerciseBlocks }) => row.blocks[0]?.rows.length),
-    ).toEqual([2, 1, 1]);
-  });
-
-  it("réinitialise un exercice ajusté sur sa référence", async () => {
-    const adjusted = {
-      ...composed("se-2", "ex-2", "Gainage"),
-      blocks: series("se-2-b", 9),
-      adjustments: [
-        { path: cellPath("se-2-b", "se-2-b-r1", "se-2-b-reps"), level: AdjustmentLevel.SESSION },
+    api.listStructures.mockResolvedValue({
+      ...library,
+      structures: [
+        structureOf("st-1", "Tempo", "3 s en descente"),
+        structureOf("st-2", "Explosif", "Pousse vite"),
       ],
-    };
+    });
+    const fromTempo = (
+      id: string,
+      instructions: string,
+      exercises: SessionBlockDto["exercises"],
+    ) => ({
+      ...blockOf(id, exercises),
+      name: "Tempo",
+      instructions,
+      sourceStructureId: "st-1",
+      sourcePreset: null,
+    });
     api.getSession.mockResolvedValue(
-      saved({ exercises: [composed("se-1", "ex-1", "Tractions"), adjusted] } as never),
+      saved({
+        blocks: [
+          fromTempo("b-1", "3 s en descente", [exerciseOf("se-1", "ex-1", 6)]),
+          fromTempo("b-2", "Coudes serrés", [exerciseOf("se-3", "ex-3", 5)]),
+        ],
+      }),
     );
     const view = await edit();
 
-    await view.menu("Gainage", "library.session.resetAll");
+    for (const rank of [1, 2]) {
+      await view.blockMenu(rank, "library.session.blocks.changeStructure");
+      // Le choix s'affiche après les cartes, dont l'étiquette peut déjà dire « Explosif ».
+      const choices = await view.findAllByRole("button", { name: /^Explosif/ });
+      await view.user.click(choices.at(-1) as HTMLElement);
+    }
     await view.save();
 
-    const [, row] = view.sent().exercises;
-    expect(row.blocks).toEqual(series("se-2-b", 6));
-    expect(row.adjustments).toEqual([]);
+    expect(view.sentBlocks().map(({ instructions }) => instructions)).toEqual([
+      "Pousse vite",
+      "Coudes serrés",
+    ]);
   });
 
-  // #300 : la réponse porte toute la séance ENREGISTRÉE — seule la ligne rechargée en est reprise,
-  // la note tapée sur une autre et pas encore enregistrée survit.
-  it("recharge un exercice depuis la bibliothèque, sans toucher aux autres", async () => {
-    const fresh = series("se-2-b", 12);
-    api.reloadSessionExercise.mockResolvedValue(
-      saved({
-        exercises: [
-          composed("se-1", "ex-1", "Tractions"),
-          { ...composed("se-2", "ex-2", "Gainage"), blocks: fresh, baseline: fresh },
-          composed("se-3", "ex-3", "Suspensions"),
-        ],
-      } as never),
+  it("signale les lignes au-delà des tours, et les retire à l'enregistrement", async () => {
+    const twoRounds = { ...SERIES, repeat: { kind: StructureRepeat.ROUNDS, rounds: 2 } };
+    api.getSession.mockResolvedValue(
+      saved({ blocks: [blockOf("b-1", [exerciseOf("se-1", "ex-1", 6, 7, 8)], twoRounds)] }),
     );
     const view = await edit();
-    await view.openCard("Tractions");
-    await view.user.type(view.getByRole("textbox", { name: "library.session.noteLabel" }), "Lesté");
 
-    await view.menu("Gainage", "library.session.reload");
-    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
-    // La valeur rechargée s'affiche : sans ça, le serveur répond et l'écran ne change pas.
-    await view.openCard("Gainage");
-    // La première série et ses fantômes affichent la même valeur rechargée.
-    expect((await view.findAllByDisplayValue("12"))[0]).toBeInTheDocument();
+    expect(view.getByText("library.session.blocks.beyondNotice")).toBeInTheDocument();
+    expect(view.getAllByText("library.session.blocks.beyond")).toHaveLength(1);
+    // L'aperçu lit ce que l'athlète recevra : deux séries, pas la ligne en trop.
+    const sets = within(
+      view.getByRole("complementary", { name: "library.session.blocks.previewTitle" }),
+    )
+      .getAllByRole("listitem")
+      .filter((item) => item.textContent?.startsWith("block.grid.set"));
+    expect(sets).toHaveLength(2);
     await view.save();
 
-    expect(api.reloadSessionExercise).toHaveBeenCalledExactlyOnceWith("s-1", "se-2", {
-      expectedUpdatedAt: READ,
+    expect(view.sentBlocks()[0]?.exercises[0]?.grid.rows).toHaveLength(2);
+  });
+
+  it("enregistre un bloc comme structure, que le bloc prend aussitôt", async () => {
+    api.createStructure.mockResolvedValue({
+      id: "st-1",
+      name: "Mon circuit",
+      tags: [],
+      note: null,
+      instructions: null,
+      settings: SERIES,
+      sessionCount: 0,
+      createdAt: READ,
+      updatedAt: READ,
     });
-    const [first, second] = view.sent().exercises;
-    expect(second.blocks).toEqual(fresh);
-    expect(first.note).toBe("Lesté");
+    const view = await edit();
+
+    await view.blockMenu(1, "library.session.blocks.saveAsStructure");
+    await view.user.type(
+      await view.findByRole("textbox", { name: "library.structure.nameLabel" }),
+      "Mon circuit",
+    );
+    await view.user.click(view.getByRole("button", { name: "library.structure.submitCreate" }));
+
+    await waitFor(() =>
+      expect(api.createStructure).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Mon circuit", settings: SERIES }),
+      ),
+    );
+    await waitFor(() =>
+      expect(within(view.card(1)).getByRole("button", { name: "Mon circuit" })).toBeInTheDocument(),
+    );
+    await view.save();
+    expect(view.sentBlocks()[0]).toMatchObject({ sourceStructureId: "st-1", sourcePreset: null });
+  });
+
+  it("replie grilles et notes en affichage compact", async () => {
+    const view = await edit();
+
+    await view.user.click(view.getByRole("button", { name: "library.session.blocks.compact" }));
+
+    expect(view.queryAllByRole("table")).toHaveLength(0);
+    expect(view.queryAllByRole("textbox", { name: NOTE })).toHaveLength(0);
+    expect(within(view.card(1)).getByText("Gainage")).toBeInTheDocument();
+  });
+
+  // Seul dans son bloc, l'exercice ne se retire pas : le bloc vide retiendrait l'enregistrement.
+  it("fond les gestes d'un exercice seul dans le menu de son bloc", async () => {
+    const view = await edit();
+
+    expect(within(view.card(2)).queryByRole("button", { name: EXERCISE_MENU })).toBeNull();
+    await view.user.click(within(view.card(2)).getByRole("button", { name: BLOCK_MENU }));
+
+    const items = view.getAllByRole("menuitem").map((item) => item.textContent);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        "library.session.blocks.replace",
+        "library.session.blocks.duplicateExercise",
+        "library.session.blocks.deleteBlock",
+      ]),
+    );
+    expect(items).not.toContain("library.session.blocks.removeExercise");
+    expect(items.some((item) => item?.startsWith("library.session.blocks.detach"))).toBe(false);
   });
 });
 
@@ -652,86 +906,45 @@ describe("SessionBuilderScreen — conflit d'édition (#604)", () => {
     // Sans un mot, le bouton se rouvrirait et rien ne dirait pourquoi la saisie n'a pas bougé.
     expect(await view.findByText("common.staleReloadFailed")).toBeInTheDocument();
   });
-
-  // Recharger un exercice depuis la bibliothèque est une écriture : elle aussi peut arriver tard.
-  it("le dit aussi quand le rechargement d'un exercice trouve la séance changée", async () => {
-    api.reloadSessionExercise.mockRejectedValueOnce(stale());
-    const view = await edit();
-
-    await view.menu("Gainage", "library.session.reload");
-    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
-
-    expect(await view.findByText(STALE)).toBeInTheDocument();
-  });
-
-  it("dit l'échec d'un rechargement d'exercice qui n'est pas un conflit", async () => {
-    api.reloadSessionExercise.mockRejectedValueOnce(
-      new ApiError(404, "Exercice de séance introuvable", null),
-    );
-    const view = await edit();
-
-    await view.menu("Gainage", "library.session.reload");
-    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
-
-    expect(await view.findByText("Exercice de séance introuvable")).toBeInTheDocument();
-    expect(view.queryByText(STALE)).not.toBeInTheDocument();
-  });
-
-  // Lancées ensemble, les deux écritures citeraient la même version : la seconde prendrait pour
-  // un conflit l'écriture du coach lui-même.
-  it("ferme l'enregistrement tant qu'un exercice se recharge", async () => {
-    api.reloadSessionExercise.mockReturnValue(new Promise(() => undefined));
-    const view = await edit();
-
-    await view.menu("Gainage", "library.session.reload");
-    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
-
-    await waitFor(() => expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled());
-  });
 });
 
 describe("SessionBuilderScreen — retour d'un exercice créé depuis la séance (#303)", () => {
-  /** L'écran tel que la route le monte : `add` lu dans l'URL, qui change sous ses pieds. */
+  /** L'écran tel que la route le monte : `add` et `block` lus dans l'URL, qui change sous ses pieds. */
   function Routed() {
-    const { add } = useSearch({ strict: false }) as { add?: string };
-    return <SessionBuilderScreen sessionId="s-1" addExerciseId={add} />;
+    const { add, block } = useSearch({ strict: false }) as { add?: string; block?: number };
+    return <SessionBuilderScreen sessionId="s-1" addExerciseId={add} addToBlock={block} />;
   }
 
-  async function back() {
+  async function back(search: Record<string, string> = { add: "ex-9" }) {
     const view = await renderInRoute(<Routed />, {
       path: "/library/sessions/s-1",
-      search: { add: "ex-9" },
+      search,
       links: [...LINKS, "/library/sessions/$sessionId"],
     });
     await view.findByRole("button", { name: SUBMIT_EDIT });
     return withReaders(view);
   }
 
-  it("ajoute l'exercice créé, une seule fois, et le retire de l'url", async () => {
+  it("ajoute l'exercice créé dans un bloc neuf, une seule fois, et le retire de l'url", async () => {
     api.getExercise.mockResolvedValue(planche);
     const view = await back();
 
-    expect(view.card("Planche")).toBeInTheDocument();
+    expect(view.cards()).toHaveLength(3);
+    expect(within(view.card(3)).getByText("Planche")).toBeInTheDocument();
     await waitFor(() => expect(view.router.state.location.search).toEqual({}));
-    expect(view.getAllByRole("button", { name: "Planche", expanded: false })).toHaveLength(1);
+    expect(view.cards()).toHaveLength(3);
     expect(api.getExercise).toHaveBeenCalledExactlyOnceWith("ex-9");
   });
 
-  it("l'enregistre à la suite de la séance, sans id de ligne", async () => {
+  it("l'ajoute au bout du bloc d'où le coach est parti", async () => {
     api.getExercise.mockResolvedValue(planche);
-    const view = await back();
+    const view = await back({ add: "ex-9", block: "1" });
 
     await view.save();
 
-    expect(
-      view
-        .sent()
-        .exercises.map((row: { id?: string; exerciseId: string }) => [row.id, row.exerciseId]),
-    ).toEqual([
-      ["se-1", "ex-1"],
-      ["se-2", "ex-2"],
-      ["se-3", "ex-3"],
-      [undefined, "ex-9"],
+    expect(view.sentIds()).toEqual([
+      ["ex-1", "ex-2"],
+      ["ex-3", "ex-9"],
     ]);
   });
 
@@ -741,10 +954,8 @@ describe("SessionBuilderScreen — retour d'un exercice créé depuis la séance
 
     expect(await view.findByText("library.session.addCreatedFailed")).toBeInTheDocument();
     await waitFor(() => expect(view.router.state.location.search).toEqual({}));
-    expect(
-      view.queryByRole("button", { name: "Planche", expanded: false }),
-    ).not.toBeInTheDocument();
-    expect(view.card("Suspensions")).toBeInTheDocument();
+    expect(view.queryByText("Planche")).not.toBeInTheDocument();
+    expect(view.cards()).toHaveLength(2);
   });
 
   it("ne cherche aucun exercice sans retour de création", async () => {
@@ -758,8 +969,8 @@ describe("SessionBuilderScreen — créer l'exercice manquant (#303)", () => {
   const CREATE_MISSING = "library.noMatch.create";
 
   /** Cherche un exercice absent de la bibliothèque, puis demande à le créer. */
-  async function createMissing(view: Awaited<ReturnType<typeof create>>) {
-    await view.user.click(view.getByRole("button", { name: PICK }));
+  async function createMissing(view: Awaited<ReturnType<typeof create>>, from?: HTMLElement) {
+    await view.user.click(from ?? view.getByRole("button", { name: ADD_EXERCISE }));
     await view.user.type(await view.findByRole("searchbox"), "Gainage");
     await view.user.click(view.getByRole("button", { name: CREATE_MISSING }));
   }
@@ -768,29 +979,44 @@ describe("SessionBuilderScreen — créer l'exercice manquant (#303)", () => {
   it("enregistre la séance neuve, puis ouvre la création en sachant où revenir", async () => {
     const view = await create();
     await view.user.type(view.getByRole("textbox", { name: TITLE }), "Force du lundi");
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+    await view.user.click(view.getByRole("button", { name: ADD_EXERCISE }));
+    await view.pickExercise();
 
     await createMissing(view);
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/exercises/new"));
     expect(view.router.state.location.search).toEqual({ title: "Gainage", session: "s-1" });
-    expect(api.createSession).toHaveBeenCalledExactlyOnceWith({
-      title: "Force du lundi",
-      notes: null,
-      exercises: [{ exerciseId: "ex-9", note: null, blocks: planche.blocks, adjustments: [] }],
-    });
+    expect(api.createSession).toHaveBeenCalledOnce();
     expect(view.getByText("library.session.savedBeforeExercise")).toBeInTheDocument();
   });
 
-  it("enregistre la séance éditée, puis ouvre la création", async () => {
+  // Les ids des blocs changent à l'enregistrement : le bloc voyage par son rang.
+  it("ouvert depuis un bloc, emporte son rang", async () => {
     const view = await edit();
 
-    await createMissing(view);
+    await createMissing(
+      view,
+      within(view.card(2)).getByRole("button", { name: "library.session.blocks.addToArriving" }),
+    );
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/exercises/new"));
+    expect(view.router.state.location.search).toEqual({
+      title: "Gainage",
+      session: "s-1",
+      block: 1,
+    });
     expect(api.updateSession).toHaveBeenCalledOnce();
-    expect(api.createSession).not.toHaveBeenCalled();
+  });
+
+  // L'exercice créé revient AJOUTÉ au bloc : il ne remplacerait pas celui qu'on visait.
+  it("ne propose pas de créer l'exercice manquant pour en remplacer un", async () => {
+    const view = await edit();
+
+    await view.exerciseMenu(1, 1, "library.session.blocks.replace");
+    await view.user.type(await view.findByRole("searchbox"), "Gainage");
+
+    expect(view.getByText("library.noMatch.title")).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: CREATE_MISSING })).toBeNull();
   });
 
   // Sans titre la séance ne peut pas s'enregistrer : rien ne part, le champ le réclame.
@@ -828,137 +1054,6 @@ describe("SessionBuilderScreen — créer l'exercice manquant (#303)", () => {
   });
 });
 
-describe("SessionBuilderScreen — dupliquer en variante", () => {
-  beforeEach(() => {
-    api.getExercise.mockResolvedValue({
-      id: "ex-1",
-      title: "Tractions",
-      description: null,
-      instructions: null,
-      blocks: series("lib-b", 5),
-      tags: ["force"],
-      owner: { id: "coach-1", name: "Cédric" },
-      myAccess: { level: MyAccessLevel.OWNER, via: null },
-    });
-    api.duplicateExercise.mockResolvedValue({ id: "ex-new" });
-  });
-
-  // Quitter pour l'éditeur d'exercice sans enregistrer ferait perdre la composition en cours.
-  it("enregistre la séance, puis ouvre la variante gravée du dosage de la SÉANCE", async () => {
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    await waitFor(() =>
-      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
-    );
-    expect(api.updateSession).toHaveBeenCalledOnce();
-    expect(api.updateSession.mock.invocationCallOrder[0]).toBeLessThan(
-      api.duplicateExercise.mock.invocationCallOrder[0] as number,
-    );
-    expect(view.getByText("library.session.savedBeforeVariant")).toBeInTheDocument();
-    expect(api.duplicateExercise).toHaveBeenCalledWith("ex-1", {
-      title: "Tractions library.session.variantSuffix",
-      blocks: series("se-1-b", 6),
-    });
-  });
-
-  // Même garde que la création d'exercice manquant : une séance sans titre ne s'enregistre pas.
-  it("ne duplique rien et réclame le titre quand la séance neuve n'en a pas", async () => {
-    const view = await create();
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
-
-    await view.menu("Planche", "library.session.duplicate");
-
-    expect(view.getAllByText("library.session.titleRequired")).toHaveLength(2);
-    expect(api.createSession).not.toHaveBeenCalled();
-    expect(api.getExercise).not.toHaveBeenCalled();
-    expect(api.duplicateExercise).not.toHaveBeenCalled();
-  });
-
-  // Depuis #609, la variante de l'exercice d'un autre Coach, même en Lecture, est à l'acteur.
-  it("crée la variante de l'exercice d'un autre Coach lu en Lecture", async () => {
-    api.getExercise.mockResolvedValue({
-      ...planche,
-      id: "ex-1",
-      title: "Tractions",
-      owner: { id: "coach-m", name: "Marc" },
-      myAccess: { level: MyAccessLevel.READ, via: { id: "org-f", name: "F" } },
-    });
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    await waitFor(() =>
-      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
-    );
-    expect(api.updateSession).toHaveBeenCalledOnce();
-    expect(api.duplicateExercise).toHaveBeenCalledWith("ex-1", {
-      title: "Tractions library.session.variantSuffix",
-      blocks: series("se-1-b", 6),
-    });
-  });
-
-  // La lecture ouvre un enregistrement : une autre écriture lancée pendant qu'elle court citerait
-  // la même version, et la seconde prendrait l'écriture du Coach lui-même pour un conflit.
-  it("ferme l'enregistrement tant que l'exercice source se lit", async () => {
-    let answer: (exercise: unknown) => void = () => {};
-    api.getExercise.mockReturnValue(
-      new Promise((resolve) => {
-        answer = resolve;
-      }),
-    );
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    const submit = view.getByRole("button", { name: "library.session.submitEdit" });
-    await waitFor(() => expect(submit).toBeDisabled());
-    answer({
-      ...planche,
-      id: "ex-1",
-      owner: { id: "coach-m", name: "Marc" },
-      myAccess: { level: MyAccessLevel.READ, via: { id: "org-f", name: "F" } },
-    });
-    await waitFor(() => expect(submit).toBeEnabled());
-  });
-
-  it("ne touche pas à la séance quand l'exercice ne se lit pas, et le dit", async () => {
-    api.getExercise.mockRejectedValue(new ApiError(404, "Exercice introuvable", null));
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    expect(await view.findByText("Exercice introuvable")).toBeInTheDocument();
-    expect(api.updateSession).not.toHaveBeenCalled();
-    expect(api.duplicateExercise).not.toHaveBeenCalled();
-  });
-
-  it("dit pourquoi le serveur refuse la variante, et reste sur la séance", async () => {
-    api.duplicateExercise.mockRejectedValue(
-      new ApiError(400, "Colonne absente de ton catalogue", null),
-    );
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    expect(await view.findByText("Colonne absente de ton catalogue")).toBeInTheDocument();
-    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
-  });
-
-  it("ne duplique rien quand la séance ne s'enregistre pas, et le dit", async () => {
-    api.updateSession.mockRejectedValue(new Error("500"));
-    const view = await edit();
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    expect(await view.findByText("library.session.saveFailed")).toBeInTheDocument();
-    expect(api.duplicateExercise).not.toHaveBeenCalled();
-    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
-  });
-});
-
 describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
   const CANCEL = "library.builder.cancel";
   const STAY = "common.leave.cancel";
@@ -980,8 +1075,8 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
 
   it("part sans rien enregistrer quand le coach confirme", async () => {
     const view = await create();
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
+    await view.user.click(view.getByRole("button", { name: ADD_EXERCISE }));
+    await view.pickExercise();
 
     await view.user.click(view.getByRole("button", { name: CANCEL }));
     await view.user.click(await view.findByRole("button", { name: LEAVE }));
@@ -1003,20 +1098,6 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
     expect(await view.findByText("library.session.saved")).toBeInTheDocument();
   });
 
-  it("reste sur une séance neuve sans titre, et le réclame", async () => {
-    const view = await create();
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.click(await view.findByRole("button", { name: /Planche/ }));
-
-    await view.user.click(view.getByRole("button", { name: CANCEL }));
-    await view.user.click(await view.findByRole("button", { name: SAVE }));
-
-    await waitFor(() => expect(view.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(view.getAllByText("library.session.titleRequired")).toHaveLength(2);
-    expect(api.createSession).not.toHaveBeenCalled();
-    expect(view.router.state.location.pathname).toBe("/library/sessions/new");
-  });
-
   it("laisse partir sans friction une séance ouverte sans être modifiée", async () => {
     const view = await edit();
 
@@ -1024,6 +1105,19 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
     expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Une ligne au-delà des tours ne part pas : la retirer à l'enregistrement n'est pas une saisie.
+  it("laisse partir une séance dont seules des lignes non jouées dépassent", async () => {
+    const twoRounds = { ...SERIES, repeat: { kind: StructureRepeat.ROUNDS, rounds: 2 } };
+    api.getSession.mockResolvedValue(
+      saved({ blocks: [blockOf("b-1", [exerciseOf("se-1", "ex-1", 6, 7)], twoRounds)] }),
+    );
+    const view = await edit();
+
+    await view.user.click(view.getByRole("button", { name: CANCEL }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
   });
 
   // L'exercice créé en détour entre dans la séance sans y être enregistré : partir le perdrait.
@@ -1043,61 +1137,19 @@ describe("SessionBuilderScreen — saisie non enregistrée (#327)", () => {
     expect(await view.findByRole("dialog")).toBeInTheDocument();
     expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
   });
-
-  // Le rechargement s'écrit côté serveur : il ne laisse rien en attente.
-  it("ne retient pas une séance dont un exercice vient d'être rechargé", async () => {
-    const fresh = series("se-2-b", 12);
-    api.reloadSessionExercise.mockResolvedValue(
-      saved({
-        exercises: [
-          composed("se-1", "ex-1", "Tractions"),
-          { ...composed("se-2", "ex-2", "Gainage"), blocks: fresh, baseline: fresh },
-          composed("se-3", "ex-3", "Suspensions"),
-        ],
-      } as never),
-    );
-    const view = await edit();
-    await view.menu("Gainage", "library.session.reload");
-    await view.user.click(view.getByRole("button", { name: "library.session.reloadConfirm" }));
-    await view.openCard("Gainage");
-    await view.findAllByDisplayValue("12");
-
-    await view.user.click(view.getByRole("button", { name: CANCEL }));
-
-    await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
-    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  // La variante enregistre d'abord : la sortie qui suit n'a plus rien à perdre.
-  it("ouvre la variante sans demander, la saisie partie avec la séance", async () => {
-    api.getExercise.mockResolvedValue({ ...planche, id: "ex-1", title: "Tractions" });
-    api.duplicateExercise.mockResolvedValue({ id: "ex-new" });
-    const view = await edit();
-    await view.user.type(view.getByRole("textbox", { name: NOTES }), ", dos droit");
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    await waitFor(() =>
-      expect(view.router.state.location.pathname).toBe("/library/exercises/ex-new"),
-    );
-    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
-  });
 });
 
 /**
  * #566 : une valeur refusée reste à l'écran sans entrer dans le brouillon. Enregistrer — par le
- * bouton, ou par les deux gestes qui enregistrent avant de partir — enverrait l'ancienne.
+ * bouton, ou par le geste qui enregistre avant de partir — enverrait l'ancienne.
  */
 describe("SessionBuilderScreen — saisie refusée (#566)", () => {
-  const REST = "library.builder.bandeau.restBetweenSetsSeconds";
   const BLOCKED = "library.builder.refusedBlocksSave";
-  // Le même texte que l'infobulle du bouton fermé — un attribut, pas un texte : c'est le toast.
-  const REFUSED_TOAST = BLOCKED;
 
-  /** Ouvre « Gainage » et refuse une saisie dans sa première cellule de répétitions. */
+  /** Refuse une saisie dans la première cellule de Tractions. */
   async function refuseCell(view: Awaited<ReturnType<typeof edit>>) {
-    await view.openCard("Gainage");
-    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
+    const table = within(view.card(1)).getAllByRole("table")[0] as HTMLElement;
+    const cell = within(table).getAllByRole("textbox")[0] as HTMLElement;
     await view.user.clear(cell);
     await view.user.type(cell, "12kgg");
     await view.user.tab();
@@ -1115,16 +1167,6 @@ describe("SessionBuilderScreen — saisie refusée (#566)", () => {
     expect(submit).toHaveAttribute("title", BLOCKED);
   });
 
-  it("ferme l'enregistrement sur une durée refusée du bandeau", async () => {
-    const view = await edit();
-    await view.openCard("Suspensions");
-
-    await view.user.type(view.getByLabelText(REST), "eff");
-    await view.user.tab();
-
-    expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeDisabled();
-  });
-
   it("rouvre l'enregistrement quand la saisie est corrigée, et envoie la valeur corrigée", async () => {
     const view = await edit();
     const cell = await refuseCell(view);
@@ -1135,46 +1177,17 @@ describe("SessionBuilderScreen — saisie refusée (#566)", () => {
     expect(view.getByRole("button", { name: SUBMIT_EDIT })).not.toHaveAttribute("title");
     await view.save();
 
-    expect(view.sent().exercises[1].blocks[0].rows[0].values).toEqual({ "se-2-b-reps": 8 });
+    expect(view.sentBlocks()[0]?.exercises[0]?.grid.rows[0]?.values).toEqual({ "se-1-reps": 8 });
   });
 
   // L'exercice retiré emporte sa cellule : rien ne doit rester fermé derrière lui.
   it("rouvre l'enregistrement quand l'exercice refusé est retiré", async () => {
     const view = await edit();
     await refuseCell(view);
-    const card = view
-      .getByRole("button", { name: "Gainage", expanded: true })
-      .closest("article") as HTMLElement;
 
-    await view.user.click(within(card).getByRole("button", { name: MENU }));
-    await view.user.click(within(card).getByRole("button", { name: "library.session.remove" }));
+    await view.exerciseMenu(1, 1, "library.session.blocks.removeExercise");
 
     expect(view.getByRole("button", { name: SUBMIT_EDIT })).toBeEnabled();
-  });
-
-  // Ce geste enregistre SANS le bouton, puis quitte la séance : la saisie partirait en silence.
-  it("n'enregistre rien avant de créer l'exercice manquant, et dit pourquoi", async () => {
-    const view = await edit();
-    await refuseCell(view);
-
-    await view.user.click(view.getByRole("button", { name: PICK }));
-    await view.user.type(await view.findByRole("searchbox"), "Gainage");
-    await view.user.click(view.getByRole("button", { name: "library.noMatch.create" }));
-
-    expect(view.getByText(REFUSED_TOAST)).toBeInTheDocument();
-    expect(api.updateSession).not.toHaveBeenCalled();
-    expect(view.router.state.location.pathname).toBe("/library/sessions/s-1");
-  });
-
-  it("ne duplique rien en variante tant qu'une saisie est refusée", async () => {
-    const view = await edit();
-    await refuseCell(view);
-
-    await view.menu("Tractions", "library.session.duplicate");
-
-    expect(view.getByText(REFUSED_TOAST)).toBeInTheDocument();
-    expect(api.updateSession).not.toHaveBeenCalled();
-    expect(api.duplicateExercise).not.toHaveBeenCalled();
   });
 
   it("demande avant de partir en laissant une saisie refusée", async () => {
@@ -1248,25 +1261,14 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
   };
   /** Un exercice de M, dont la colonne cite le catalogue de M : le lecteur ne l'a pas. */
   const ofMExercise = {
-    ...composed("se-9", "ex-m", "Pan Güllich", [
-      {
-        id: "b-m",
-        label: null,
-        structure: { type: BlockType.FREE },
-        metrics: [
-          {
-            id: "c-m",
-            source: MetricSource.CUSTOM,
-            customMetricId: "cm-m",
-            label: null,
-            // Repliée, la colonne se lit dans la phrase de l'aperçu : « · Prises 12 ».
-            collapsed: true,
-          },
-        ],
-        rows: [{ id: "r-m", values: { "c-m": 12 } }],
-      },
-    ] as unknown as ExerciseBlocks),
-    customMetrics: [prises],
+    id: "se-9",
+    key: "k-se-9",
+    exerciseId: "ex-m",
+    note: null,
+    grid: {
+      metrics: [{ id: "c-m", label: null, source: MetricSource.CUSTOM, customMetricId: "cm-m" }],
+      rows: [{ id: "r-m", values: { "c-m": 12 } }],
+    },
   };
   const ofM = (level: MyAccessLevel) =>
     saved({
@@ -1274,11 +1276,15 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
       myAccess: { level, via: { id: "org-f", name: "F" } },
       grants: null,
       coachGrants: null,
+      blocks: [
+        blockOf("b-1", [exerciseOf("se-1", "ex-1", 6)]),
+        blockOf("b-2", [ofMExercise] as SessionBlockDto["exercises"]),
+      ],
       exercises: [
-        composed("se-1", "ex-1", "Tractions"),
-        ofMExercise,
-      ] as unknown as SessionDto["exercises"],
-    });
+        lineOf("se-1", "ex-1", "Tractions"),
+        lineOf("se-9", "ex-m", "Pan Güllich", { customMetrics: [prises] }),
+      ],
+    } as unknown as Partial<SessionDto>);
 
   /** Ouvre la séance de M — en Lecture, il n'y a pas le bouton d'enregistrement qu'attend `edit()`. */
   async function openOfM(session: SessionDto) {
@@ -1298,29 +1304,32 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
 
     expect(view.getByRole("textbox", { name: TITLE })).toBeDisabled();
     expect(view.getByRole("textbox", { name: NOTES })).toBeDisabled();
-    expect(view.getByText("library.session.ofOwner")).toBeInTheDocument();
-    for (const name of [SUBMIT_EDIT, "library.session.deleteSession", PICK, MENU]) {
+    for (const name of [
+      SUBMIT_EDIT,
+      "library.session.deleteSession",
+      ADD_EXERCISE,
+      ADD_BLOCK,
+      BLOCK_MENU,
+      "library.session.blocks.moveBlock",
+    ]) {
       expect(view.queryByRole("button", { name })).not.toBeInTheDocument();
     }
-    expect(view.queryByRole("button", { name: /library\.session\.moveExercise/ })).toBeNull();
+    expect(within(view.card(1)).getByRole("button", { name: "Séries" })).toBeDisabled();
 
     await view.user.click(view.getByRole("button", { name: "common.close" }));
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library"));
   });
 
-  it("en Lecture, une carte se déplie, mais son dosage et sa note restent figés", async () => {
+  it("en Lecture, la grille et la note restent figées", async () => {
     const view = await openOfM(ofM(MyAccessLevel.READ));
 
-    await view.openCard("Tractions");
-
-    const card = view.getByRole("button", { name: "Tractions", expanded: true }).closest("article");
-    const fields = within(card as HTMLElement).getAllByRole("textbox");
+    const fields = within(view.card(1)).getAllByRole("textbox");
     expect(fields.length).toBeGreaterThan(0);
     for (const field of fields) expect(field).toBeDisabled();
   });
 
   it("en Lecture, une séance vide dit qu'elle l'est, sans inviter à la composer", async () => {
-    const view = await openOfM({ ...ofM(MyAccessLevel.READ), exercises: [] });
+    const view = await openOfM({ ...ofM(MyAccessLevel.READ), blocks: [], exercises: [] });
 
     expect(view.getByText("library.session.readOnlyEmpty")).toBeInTheDocument();
     expect(view.queryByText("library.session.emptyTitle")).not.toBeInTheDocument();
@@ -1331,7 +1340,7 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
     const view = await edit();
 
     expect(view.getByRole("textbox", { name: TITLE })).toBeEnabled();
-    expect(view.getByRole("button", { name: PICK })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: ADD_EXERCISE })).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "library.session.deleteSession" })).toBeNull();
     expect(view.queryByText("library.session.readOnly")).not.toBeInTheDocument();
   });
@@ -1339,6 +1348,6 @@ describe("SessionBuilderScreen — séance d'un autre Coach (#606)", () => {
   it("nomme les colonnes d'un exercice par les métriques de son propriétaire", async () => {
     const view = await openOfM(ofM(MyAccessLevel.READ));
 
-    await waitFor(() => expect(view.getAllByText(/Prises/).length).toBeGreaterThan(0));
+    expect(within(view.card(2)).getAllByText(/Prises/).length).toBeGreaterThan(0);
   });
 });

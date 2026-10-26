@@ -77,6 +77,17 @@ describe("paramètres d'url lus en ligne", () => {
       { title: "gainage", session: "s-1" },
     ],
     [{ session: "s-1" }, { session: "s-1" }],
+    [
+      { session: "s-1", block: 2 },
+      { session: "s-1", block: 2 },
+    ],
+    [
+      { session: "s-1", block: 0 },
+      { session: "s-1", block: 0 },
+    ],
+    [{ session: "s-1", block: -1 }, { session: "s-1" }],
+    [{ session: "s-1", block: 1.5 }, { session: "s-1" }],
+    [{ session: "s-1", block: "2" }, { session: "s-1" }],
     [{ title: 3, session: "" }, {}],
     [{ session: 1 }, {}],
     [{}, {}],
@@ -84,9 +95,16 @@ describe("paramètres d'url lus en ligne", () => {
     expect(parse(ExerciseNewRoute, search)).toStrictEqual(expected);
   });
 
-  // Un exercice à ajouter au retour (#303) : une chaîne vide n'en désigne aucun.
+  // Un exercice à ajouter au retour (#303) : une chaîne vide n'en désigne aucun. Le rang du bloc
+  // (#719) ne dit rien sans exercice à y ajouter.
   it.each([
     [{ add: "ex-9" }, { add: "ex-9" }],
+    [
+      { add: "ex-9", block: 1 },
+      { add: "ex-9", block: 1 },
+    ],
+    [{ add: "ex-9", block: -2 }, { add: "ex-9" }],
+    [{ block: 1 }, {}],
     [{ add: "" }, {}],
     [{ add: 9 }, {}],
     [{}, {}],
