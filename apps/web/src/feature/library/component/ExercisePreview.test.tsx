@@ -1,37 +1,30 @@
 import {
-  BlockType,
+  type CustomMetric,
   DocumentType,
   DocumentUsage,
-  type ExerciseBlock,
   type ExerciseDocumentDto,
-  exerciseBlockSchema,
   MetricKey,
   MetricSource,
   MetricUnit,
   RichBlockType,
+  type SuggestedMetric,
 } from "@cmv/shared";
 import type { ComponentProps } from "react";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { ExercisePreview } from "./ExercisePreview";
 
-const block = (id: string, label: string): ExerciseBlock =>
-  exerciseBlockSchema.parse({
-    id,
-    label,
-    structure: { type: BlockType.FREE },
-    metrics: [
-      {
-        id: `${id}-reps`,
-        source: MetricSource.CATALOG,
-        key: MetricKey.REPETITIONS,
-        unit: MetricUnit.REPS,
-        label: null,
-        collapsed: false,
-      },
-    ],
-    rows: [],
-  });
+const reps: SuggestedMetric = {
+  source: MetricSource.CATALOG,
+  key: MetricKey.REPETITIONS,
+  unit: MetricUnit.REPS,
+};
+const load: SuggestedMetric = {
+  source: MetricSource.CATALOG,
+  key: MetricKey.LOAD,
+  unit: MetricUnit.KILOGRAMS,
+};
+const ressenti = { id: "cm-1", label: "Ressenti" } as CustomMetric;
 
 const document = (overrides: Partial<ExerciseDocumentDto>): ExerciseDocumentDto => ({
   id: crypto.randomUUID(),
@@ -50,7 +43,7 @@ function setup(overrides: Partial<ComponentProps<typeof ExercisePreview>> = {}) 
       title="Tractions"
       tags={["force"]}
       instructions={[{ type: RichBlockType.PARAGRAPH, content: [{ text: "Omoplates serrées" }] }]}
-      blocks={[]}
+      suggestedMetrics={[]}
       customMetrics={[]}
       documents={[]}
       resolveImage={() => null}
@@ -80,16 +73,26 @@ describe("ExercisePreview", () => {
     expect(queryByText("library.builder.previewEmpty")).not.toBeInTheDocument();
   });
 
-  it("montre chaque bloc, séparé du précédent par un filet", () => {
-    const { getByText } = setup({
-      blocks: [block("b1", "Échauffement"), block("b2", "Travail"), block("b3", "Retour au calme")],
+  it("montre les métriques suggérées en puces, dans leur ordre, maison comprise", () => {
+    const { getAllByRole, getByText } = setup({
+      suggestedMetrics: [reps, { source: MetricSource.CUSTOM, customMetricId: "cm-1" }, load],
+      customMetrics: [ressenti],
     });
 
-    expect(
-      ["Échauffement", "Travail", "Retour au calme"].map((label) =>
-        getByText(label).closest("section")?.parentElement?.classList.contains("border-t"),
-      ),
-    ).toEqual([false, true, true]);
+    expect(getByText("library.builder.suggested.title")).toBeInTheDocument();
+    expect(getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "exercise.metric.repetitions",
+      "Ressenti",
+      "exercise.metric.load",
+    ]);
+  });
+
+  // « Étirements au ressenti » : sans métrique, ni intitulé ni liste vide.
+  it("ne dit rien des métriques quand l'exercice n'en suggère aucune", () => {
+    const { queryByRole, queryByText } = setup();
+
+    expect(queryByText("library.builder.suggested.title")).not.toBeInTheDocument();
+    expect(queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("n'offre aucun lien sans pièce jointe", () => {

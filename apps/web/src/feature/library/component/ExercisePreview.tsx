@@ -2,19 +2,27 @@ import {
   type CustomMetric,
   DocumentType,
   DocumentUsage,
-  type ExerciseBlocks,
   type ExerciseDocumentDto,
+  metricLabel,
   type RichDocument,
+  type SuggestedMetric,
+  suggestedMetricIdentity,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { PreviewBlock } from "@/feature/library/component/PreviewBlock";
-import { CmvCard, CmvRichDocument, CmvTagList, type ResolveImage } from "@/shared/component";
+import {
+  CmvBadge,
+  CmvCard,
+  CmvRichDocument,
+  CmvTagList,
+  type ResolveImage,
+} from "@/shared/component";
 
 type ExercisePreviewProps = {
   title: string;
   tags: readonly string[];
   instructions: RichDocument;
-  blocks: ExerciseBlocks;
+  suggestedMetrics: readonly SuggestedMetric[];
+  /** Où se nomment les métriques maison suggérées. */
   customMetrics: readonly CustomMetric[];
   /** Ce que l'athlète pourra ouvrir. Les images de consigne n'en sont pas : elles sont DANS le texte. */
   documents: readonly ExerciseDocumentDto[];
@@ -22,9 +30,9 @@ type ExercisePreviewProps = {
 };
 
 /**
- * Ce que l'athlète verra, mis à jour à la frappe. **Lecture seule** : ni timer ni case à cocher
- * n'y sont paramétrables, ils découlent des valeurs saisies dans la structure. Rien ici ne doit
- * ressembler à un réglage.
+ * Ce que l'athlète verra, mis à jour à la frappe. **Lecture seule** : rien ici ne doit ressembler
+ * à un réglage. Le dosage n'y est plus (#718) : la séance le porte. Les métriques suggérées s'y
+ * lisent en puces, dans leur ordre — celui des colonnes qu'elles prérempliront.
  *
  * Tant qu'il n'y a pas de titre, l'aperçu ne montre pas une carte vide : il dit ce qu'il attend.
  */
@@ -32,7 +40,7 @@ export function ExercisePreview({
   title,
   tags,
   instructions,
-  blocks,
+  suggestedMetrics,
   customMetrics,
   documents,
   resolveImage,
@@ -52,31 +60,46 @@ export function ExercisePreview({
           {t("library.builder.previewEmpty")}
         </p>
       ) : (
-        // `min-w-0` : sans lui, un enfant à défilement (le tableau) impose sa largeur
-        // intrinsèque au conteneur flex, et la carte s'élargit au lieu de laisser défiler.
+        // `min-w-0` : sans lui, un enfant à défilement impose sa largeur intrinsèque au conteneur
+        // flex, et la carte s'élargit au lieu de laisser défiler.
         <CmvCard className="flex min-w-0 flex-col gap-cmv-sm">
           <h3 className="text-cmv-subtitle text-cmv-text-hi">{title}</h3>
           <CmvTagList tags={tags} />
           <CmvRichDocument blocks={instructions} resolveImage={resolveImage} />
 
-          {/* Un exercice SANS aucun bloc est légitime — « étirements au ressenti ». L'athlète
-              voit alors titre et consigne, rien d'autre : pas de grille vide, pas de phrase de
-              dosage. La phrase complète arrive avec la grille. */}
-          {/* Un filet entre les structures : sans lui, deux blocs successifs se lisent comme un
-              seul, et l'athlète confond le dosage de l'un avec celui de l'autre. */}
-          {blocks.map((block, index) => (
-            <div
-              key={block.id}
-              className={index === 0 ? "" : "border-cmv-border border-t pt-cmv-sm"}
-            >
-              <PreviewBlock block={block} customMetrics={customMetrics} />
-            </div>
-          ))}
+          <PreviewMetrics metrics={suggestedMetrics} customMetrics={customMetrics} />
 
           <PreviewAttachments documents={attachments} />
         </CmvCard>
       )}
     </section>
+  );
+}
+
+/**
+ * Les métriques suggérées, en puces. Aucune est légitime — « étirements au ressenti » : rien ne
+ * s'affiche alors, pas même un intitulé.
+ */
+function PreviewMetrics({
+  metrics,
+  customMetrics,
+}: Readonly<{ metrics: readonly SuggestedMetric[]; customMetrics: readonly CustomMetric[] }>) {
+  const { t } = useTranslation();
+  if (metrics.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-cmv-xs">
+      <span className="text-cmv-caption text-cmv-text-lo">
+        {t("library.builder.suggested.title")}
+      </span>
+      <ul className="flex flex-wrap gap-cmv-xs">
+        {metrics.map((metric) => (
+          <li key={suggestedMetricIdentity(metric)}>
+            <CmvBadge>{metricLabel(metric, customMetrics, t)}</CmvBadge>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
