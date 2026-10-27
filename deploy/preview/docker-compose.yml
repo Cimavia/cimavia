@@ -189,7 +189,7 @@ services:
     # Une version et son digest, plus `latest` (#379) : le NAS retirait la dernière publiée à
     # chaque déploiement, et un `cloudflared` cassé rend le tier injoignable. Dependabot propose
     # les suivantes, sept jours après leur sortie.
-    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    image: cloudflare/cloudflared:2026.10.2@sha256:0e56c13c7058fcef9c4f0e7d83372f82330548dbf8f8b366f3d8b506526d93b2
     container_name: cimavia_preview_tunnel
     restart: unless-stopped
     command: tunnel --no-autoupdate run
