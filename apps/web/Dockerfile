@@ -108,7 +108,7 @@ RUN find /app/apps/web/dist -name "*.map" -delete
 # Branche `stable` épinglée par DIGEST : `1.27-alpine`, la mainline d'avant, était close depuis
 # avril 2025 et plus jamais reconstruite — nginx et Alpine y étaient figés sans qu'aucune PR ne le
 # dise. Dependabot réécrit désormais ce digest à chaque reconstruction de `stable`.
-FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:4714e0b1b2577eaa1a6131d07c958b67f0eb68e6d0521e90c6e5287db8cf0bc5 AS runtime
+FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03 AS runtime
 
 # Server block avec fallback SPA, politique de cache et `/config.js` (cf. nginx.conf). Un TEMPLATE,
 # réécrit au démarrage par l'entrypoint de l'image (`20-envsubst-on-templates.sh`) dans
