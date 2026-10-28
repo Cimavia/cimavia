@@ -5,6 +5,7 @@ import {
   type ReadBlock,
   sessionBlockTally,
 } from "@cmv/shared";
+import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockMark } from "@/feature/library/component/BlockMark";
 import { TallyBadge } from "@/feature/plan/component/AthleteBlockSession";
@@ -18,6 +19,8 @@ type BlockRailSectionProps = {
   selected: string | null;
   onSelect: (blockId: string) => void;
   onToggle: (blockId: string, check: BlockCheck) => void;
+  /** Le panneau « Mon suivi », que l'écran amène à la vue quand un bloc l'ouvre. */
+  trackingRef?: Ref<HTMLElement>;
 };
 
 /**
@@ -30,6 +33,7 @@ export function BlockRailSection({
   selected,
   onSelect,
   onToggle,
+  trackingRef,
 }: Readonly<BlockRailSectionProps>) {
   const { t } = useTranslation();
   const current = blocks.find((read) => read.block.id === selected) ?? null;
@@ -62,7 +66,12 @@ export function BlockRailSection({
       </CmvCard>
 
       <CmvCard>
-        <div className="flex flex-col gap-cmv-sm">
+        <section
+          ref={trackingRef}
+          tabIndex={-1}
+          aria-label={t("plan.athlete.blocks.tracking")}
+          className="flex flex-col gap-cmv-sm"
+        >
           <span className="text-cmv-caption text-cmv-text-mid">
             {t("plan.athlete.blocks.tracking")}
           </span>
@@ -75,7 +84,7 @@ export function BlockRailSection({
               onToggle={(check) => onToggle(current.block.id, check)}
             />
           )}
-        </div>
+        </section>
       </CmvCard>
     </>
   );

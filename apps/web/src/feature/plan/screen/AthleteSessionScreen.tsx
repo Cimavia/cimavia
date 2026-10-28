@@ -1,6 +1,6 @@
-import { blockTrackingOf, readScheduledBlocks, type ScheduledSessionDto } from "@cmv/shared";
+import { readScheduledBlocks, type ScheduledSessionDto } from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AthleteBlockSession } from "@/feature/plan/component/AthleteBlockSession";
 import { AthleteExerciseCard } from "@/feature/plan/component/AthleteExerciseCard";
@@ -93,10 +93,21 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
   // Une séance par blocs se lit bloc par bloc (#722) ; une séance sans bloc garde sa lecture par
   // exercice jusqu'à #723.
   const blocks = useMemo(() => readScheduledBlocks(session), [session]);
-  const remoteBlocks = useMemo(() => blockTrackingOf(session.blocks), [session]);
-  const localBlocks = useLocalBlockTracking(session.id, remoteBlocks);
+  const localBlocks = useLocalBlockTracking(session.id, session.blocks);
   const [selected, setSelected] = useState<string | null>(null);
   const byBlock = blocks.length > 0;
+  const trackingPanel = useRef<HTMLElement>(null);
+
+  /**
+   * « Mon suivi » d'un bloc s'ouvre dans le rail : sous `xl`, le rail passe SOUS les blocs, et le
+   * bouton semblait ne rien faire. On amène le panneau à l'écran — sans bouger quand il y est déjà —
+   * et le focus avec lui, pour le clavier et le lecteur d'écran.
+   */
+  const trackBlock = (blockId: string) => {
+    setSelected(blockId);
+    trackingPanel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    trackingPanel.current?.focus({ preventScroll: true });
+  };
 
   return (
     // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
@@ -129,7 +140,7 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
               blocks={blocks}
               tracking={localBlocks.tracking}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={trackBlock}
             />
           ) : (
             <SessionExercises session={session} local={local} />
@@ -148,6 +159,7 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
                     selected={selected}
                     onSelect={setSelected}
                     onToggle={localBlocks.toggle}
+                    trackingRef={trackingPanel}
                   />
                 ),
               }

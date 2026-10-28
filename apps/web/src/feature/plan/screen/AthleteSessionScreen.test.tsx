@@ -298,12 +298,19 @@ describe("AthleteSessionScreen", () => {
     });
 
     it("ouvre « Mon suivi » du bloc choisi dans le rail, et garde la coche en local", async () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
       const { findAllByRole, findByText, queryByText, user } = await setup();
       expect(await findByText("plan.athlete.blocks.choose")).toBeInTheDocument();
 
       const [first] = await findAllByRole("button", { name: "plan.athlete.blocks.tracking" });
       await user.click(first as HTMLElement);
       expect(queryByText("plan.athlete.blocks.choose")).not.toBeInTheDocument();
+      // Sous `xl`, le rail est sous les blocs : le panneau vient à l'écran, le focus avec lui.
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "plan.athlete.blocks.tracking",
+      );
 
       const [box] = await findAllByRole("button", { pressed: false });
       await user.click(box as HTMLElement);
