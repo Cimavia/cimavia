@@ -871,8 +871,10 @@ liste des domaines vivent dans l'index.
 >   blocs, « Tout déplier » rouvre tout. Ce qui arrive est déplié. Replié, un bloc garde son en-tête,
 >   la phrase de ses réglages et la liste de ses exercices (`seance_bloc_replie`) ; un exercice, son
 >   en-tête. Le repli n'est pas enregistré.
-> - **Les quatre ajouts sont une même tuile pointillée** (`CmvAddTile`), l'indice à droite ; celle
->   d'un bloc, vide compris, reçoit aussi le dépôt d'un exercice glissé.
+> - **Les quatre ajouts sont le même bouton**, le `secondary` ordinaire, à rebours des tuiles
+>   pointillées pleine largeur de la maquette v2. Celui d'un bloc, vide compris, dit le code que
+>   l'exercice prendra et reçoit aussi le dépôt d'un exercice glissé. Les chevrons de repli sont à
+>   droite de l'en-tête, après le menu.
 > - **Glisser un exercice le pose à la place d'un autre, ou en fin de bloc** ; le sortir en bloc à
 >   part passe par le menu seulement.
 > - **« Remplacer » ne propose pas de créer l'exercice manquant** (#303) : l'exercice créé revient
