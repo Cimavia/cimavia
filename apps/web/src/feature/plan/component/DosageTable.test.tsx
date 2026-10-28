@@ -281,6 +281,90 @@ describe("DosageTable", () => {
     expect(view.queryByRole("dialog")).toBeNull();
   });
 
+  it("se referme sur un clic ailleurs, pas sur un clic dans la fenêtre", async () => {
+    const view = render();
+    const [cell] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    await view.user.click(cell as HTMLElement);
+    const dialog = view.getByRole("dialog");
+    const [field] = within(dialog).getAllByRole("textbox");
+    // Bordé en permanence : hors de la grille, rien d'autre ne le montre.
+    expect(field).toHaveClass("border-cmv-border");
+
+    await view.user.click(field as HTMLElement);
+    expect(view.getByRole("dialog")).toBeTruthy();
+
+    await view.user.click(view.getByText("plan.dosage.value"));
+    expect(view.queryByRole("dialog")).toBeNull();
+  });
+
+  it("passe d'une cellule à une autre sans refermer celle qui s'ouvre", async () => {
+    const view = render();
+    const [w1, w2] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    await view.user.click(w1 as HTMLElement);
+    await view.user.click(w2 as HTMLElement);
+
+    expect(view.getAllByRole("dialog")).toHaveLength(1);
+    expect(within(view.getByRole("dialog")).getByText("plan.dosage.sessionTypeValue")).toBeTruthy();
+  });
+
+  it("ouvre vers la gauche la fenêtre de la dernière semaine", async () => {
+    const view = render([W1, W2], { columns: dosageColumns(WEEKS.slice(0, 2), [W1, W2]) });
+    const [w1, w2] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+
+    await view.user.click(w1 as HTMLElement);
+    expect(view.getByRole("dialog")).toHaveClass("left-0");
+    await view.user.click(w2 as HTMLElement);
+    expect(view.getByRole("dialog")).toHaveClass("right-0");
+  });
+
+  it("dit la phrase de la séance-type tant que chaque semaine la fait", () => {
+    const view = render();
+
+    const [header] = view.getAllByRole("columnheader", { name: /Séries/ });
+    expect(header).toHaveAttribute("colSpan", "4");
+  });
+
+  it("donne sa phrase à chaque semaine dès que l'une en change les valeurs", () => {
+    const more = { ...SETTINGS, repeat: { ...SETTINGS.repeat, rounds: 10 } };
+    const moved = {
+      ...W2,
+      blocks: [{ ...(W2.blocks[0] as ScheduledSessionBlockDto), settings: more }, W2.blocks[1]],
+    } as unknown as ScheduledSessionCopyDto;
+    const view = render([W1, moved]);
+
+    const [header] = view.getAllByRole("columnheader", { name: /Séries/ });
+    expect(header).toHaveAttribute("colSpan", "1");
+    // S1, S2, puis S3 où la séance n'est pas posée : une case chacune, hachurée pour S3.
+    const cells = within(header?.closest("tr") as HTMLElement).getAllByRole("cell");
+    expect(cells).toHaveLength(3);
+    expect(cells[2]?.className).not.toBe(cells[0]?.className);
+  });
+
+  it("appelle séries les tours d'un exercice seul, dans la ligne comme dans sa saisie", async () => {
+    const alone = {
+      ...W1,
+      blocks: [
+        blockOf([planned("w1-a", "a", gridOf(8, 8))], {
+          baseline: {
+            settings: SETTINGS,
+            exercises: [{ key: "a", exerciseId: "ex-a", note: null, grid: gridOf(8) }],
+          },
+        }),
+      ],
+      exercises: [row("w1-a", "Tractions")],
+    } as unknown as ScheduledSessionCopyDto;
+    const view = render([alone]);
+
+    const [sets] = within(rowOf(view, "plan.dosage.setting.SETS")).getAllByRole("button");
+    await view.user.click(sets as HTMLElement);
+
+    expect(view.getByRole("textbox", { name: "plan.dosage.setting.SETS" })).toBeTruthy();
+    expect(view.getByText("plan.dosage.setsNote")).toBeTruthy();
+    expect(
+      view.getByRole("rowheader", { name: "plan.dosage.setting.REST_BETWEEN_SETS" }),
+    ).toBeTruthy();
+  });
+
   it("règle un repos en durée, et le bouton Fermer referme", async () => {
     const view = render();
     const [rest] = within(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS")).getAllByRole(

@@ -21,14 +21,16 @@ import {
   type MetricValue,
   metricLabel,
   metricUnitLabel,
+  type Phrase,
   type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
   SettingValue,
+  sameJson,
   settingsPhrase,
   shownSeries,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockMark } from "@/feature/library/component/BlockMark";
@@ -37,6 +39,12 @@ import { CmvMenu } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
 import { formatDayLabel } from "@/shared/util/date.util";
+
+/**
+ * La largeur d'une semaine, fixée par son contenu : le tableau ne s'étire pas sur l'écran, et une
+ * longue suite de séries passe à la ligne plutôt que d'élargir toute la colonne.
+ */
+const COLUMN_WIDTH = "w-40";
 
 /** Une seule façon de griser : les hachures — séance non posée, ou rien à régler cette semaine. */
 const HATCHED =
@@ -76,8 +84,16 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   const groups = useMemo(() => dosageGroups(copies), [copies]);
   const rows = useMemo(() => rowIndex(copies), [copies]);
   const byId = useMemo(() => new Map(copies.map((copy) => [copy.id, copy])), [copies]);
-  const copyOf = (column: DosageColumn) =>
-    column.kind === DosageColumnKind.COPY ? (byId.get(column.copyId) ?? null) : null;
+  const copyOf = useCallback(
+    (column: DosageColumn) =>
+      column.kind === DosageColumnKind.COPY ? (byId.get(column.copyId) ?? null) : null,
+    [byId],
+  );
+  // Ne referme que la cellule qui le demande : un clic sur une autre vient de l'ouvrir.
+  const close = useCallback(
+    (cellId: string) => setOpen((current) => (current === cellId ? null : current)),
+    [],
+  );
   // Numérotés comme la séance les montre : un bloc sans valeur, absent d'ici, garde son rang.
   const longest = copies.reduce<ScheduledSessionCopyDto | null>(
     (kept, copy) => (kept == null || copy.blocks.length > kept.blocks.length ? copy : kept),
@@ -85,10 +101,10 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   );
   const numbers = blockNumbers(longest?.blocks ?? []);
 
-  const rowProps = { ...props, rows, copyOf, open, setOpen };
+  const rowProps = { ...props, rows, copyOf, open, setOpen, close };
   return (
     <div className="overflow-x-auto rounded-cmv-md border border-cmv-border bg-cmv-bg-1">
-      <table className="w-full min-w-max border-collapse">
+      <table className="border-collapse">
         <thead>
           <tr className="border-cmv-border border-b bg-cmv-surface">
             <th
@@ -131,8 +147,8 @@ function ColumnHead({ column, copy, readOnly, onRevertCopy, onCompose }: ColumnH
   const week = t("plan.composition.week", { number: column.weekNumber });
   if (column.kind === DosageColumnKind.ABSENT || copy === null) {
     return (
-      <th scope="col" className={cn("min-w-32 px-cmv-md py-cmv-sm text-left", HATCHED)}>
-        <span className="block text-cmv-body text-cmv-text-lo">{week}</span>
+      <th scope="col" className={cn("px-cmv-md py-cmv-sm text-left", HATCHED)}>
+        <span className={cn("block text-cmv-body text-cmv-text-lo", COLUMN_WIDTH)}>{week}</span>
         <span className="block text-cmv-caption text-cmv-text-lo">
           {t("plan.dosage.notPlaced")}
         </span>
@@ -147,12 +163,9 @@ function ColumnHead({ column, copy, readOnly, onRevertCopy, onCompose }: ColumnH
   return (
     <th
       scope="col"
-      className={cn(
-        "min-w-32 px-cmv-md py-cmv-sm text-left align-top",
-        column.deload && "bg-cmv-bg-0",
-      )}
+      className={cn("px-cmv-md py-cmv-sm text-left align-top", column.deload && "bg-cmv-bg-0")}
     >
-      <div className="flex items-start gap-cmv-xs">
+      <div className={cn("flex items-start gap-cmv-xs", COLUMN_WIDTH)}>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="text-cmv-body text-cmv-text-hi">{name}</span>
           <span className="text-cmv-caption text-cmv-text-lo">
@@ -196,6 +209,7 @@ type RowProps = DosageTableProps & {
   copyOf: (column: DosageColumn) => ScheduledSessionCopyDto | null;
   open: string | null;
   setOpen: (cell: string | null) => void;
+  close: (cell: string) => void;
 };
 
 /** Un bloc : son en-tête, ses valeurs, puis chaque métrique de chacun de ses exercices. */
@@ -206,22 +220,25 @@ function GroupRows({
 }: RowProps & { group: DosageGroup<ScheduledSessionBlockDto>; number: string | null }) {
   const { t } = useTranslation();
   const text = usePhraseText();
-  const { block, blockIndex, reference, received } = group;
-  const titleOf = (rowId: string) => props.rows.byId.get(rowId)?.title ?? "—";
-  // La phrase dit la séance-type reçue, pas le brouillon : ce qu'une semaine change se lit en
-  // cellule. Un exercice retiré de toutes les semaines n'a plus de ligne, donc plus de titre.
-  const names = reference.exercises.map(({ key }) => {
-    const line = group.exercises.find((each) => each.key === key);
-    return line == null ? "—" : titleOf(line.rowId);
-  });
-  const phrase = settingsPhrase(reference.settings, reference.exercises.length, names);
+  const { block, blockIndex, received } = group;
+  const { columns, copyOf, rows } = props;
+  // Relues à chaque frappe du brouillon sinon : une phrase par semaine et par bloc.
+  const phrases = useMemo(
+    () => blockPhrases(group, columns, copyOf, rows, text),
+    [group, columns, copyOf, rows, text],
+  );
   const codes = exerciseCodes(number, received.length);
-  const span = props.columns.length + 1;
+  // Sur la séance-type reçue, comme la phrase : le nom ne change pas sous la saisie.
+  const sets = group.reference.exercises.length === 1;
 
   return (
     <tbody>
       <tr className="border-cmv-border border-t">
-        <th colSpan={span} scope="colgroup" className="px-cmv-md pt-cmv-md pb-cmv-xs text-left">
+        <th
+          colSpan={phrases.perWeek == null ? props.columns.length + 1 : 1}
+          scope="colgroup"
+          className="px-cmv-md pt-cmv-md pb-cmv-xs text-left"
+        >
           <span className="flex flex-wrap items-center gap-cmv-sm">
             {number == null ? (
               <span className="text-cmv-subtitle text-cmv-text-hi">{block.label}</span>
@@ -231,19 +248,30 @@ function GroupRows({
             <span className="rounded-cmv-pill border border-cmv-border border-dashed px-cmv-sm text-cmv-caption text-cmv-text-mid">
               {block.name}
             </span>
-            {phrase == null ? null : (
-              <span className="text-cmv-caption text-cmv-text-lo">{text(phrase)}</span>
+            {phrases.received == null ? null : (
+              <span className="text-cmv-caption text-cmv-text-lo">{phrases.received}</span>
             )}
           </span>
         </th>
+        {phrases.perWeek?.map(({ key, phrase, absent }) => (
+          <td
+            key={key}
+            className={cn(
+              "px-cmv-sm pt-cmv-md pb-cmv-xs align-bottom text-cmv-caption text-cmv-text-mid",
+              absent && HATCHED,
+            )}
+          >
+            <span className={cn("block", COLUMN_WIDTH)}>{phrase}</span>
+          </td>
+        ))}
       </tr>
       {group.settings.map((field) => (
         <ValueRow
           key={field}
           {...props}
           id={`${blockIndex}:${field}`}
-          name={t(DOSAGE_SETTING_LABEL[field])}
-          note={field === SettingValue.ROUNDS ? t("plan.dosage.roundsNote") : null}
+          name={t(settingLabel(field, sets))}
+          note={roundsNote(field, sets, t)}
           target={{ kind: "setting", blockIndex, field }}
           cellOf={(copy) => dosageSettingCell(copy, blockIndex, field)}
         />
@@ -255,7 +283,7 @@ function GroupRows({
             {...props}
             id={`${blockIndex}:${line.key}:${metric.id}`}
             code={received.includes(line.key) ? (codes[received.indexOf(line.key)] ?? null) : null}
-            name={titleOf(line.rowId)}
+            name={titleOf(rows, line.rowId)}
             metricName={metricLabel(metric, props.rows.metricsOf(line.key), t)}
             tag={tagOf(line, received, codes, t)}
             target={{ kind: "metric", blockIndex, key: line.key, metric }}
@@ -266,6 +294,75 @@ function GroupRows({
     </tbody>
   );
 }
+
+/** Le nom d'une valeur du bloc : ses tours, et le repos entre eux, sont des séries pour un exercice seul. */
+function settingLabel(field: SettingValue, sets: boolean): string {
+  if (sets && field === SettingValue.ROUNDS) return "plan.dosage.setting.SETS";
+  if (sets && field === SettingValue.REST_BETWEEN_ROUNDS) {
+    return "plan.dosage.setting.REST_BETWEEN_SETS";
+  }
+  return DOSAGE_SETTING_LABEL[field];
+}
+
+/** Sous les tours, combien de lignes ils donnent : des séries pour un exercice seul. */
+function roundsNote(field: SettingValue, sets: boolean, t: TFunction): string | null {
+  if (field !== SettingValue.ROUNDS) return null;
+  return t(sets ? "plan.dosage.setsNote" : "plan.dosage.roundsNote");
+}
+
+type BlockPhrases = {
+  /** Ce que dit la séance-type reçue — seule, tant qu'aucune semaine n'en change le sens. */
+  received: string | null;
+  /** Une phrase par colonne, dès qu'une semaine se lit autrement ; vide où le bloc n'est pas. */
+  perWeek: { key: string; phrase: string | null; absent: boolean }[] | null;
+};
+
+/**
+ * La phrase du bloc. Celle de la séance-type tant que chaque semaine la dit encore ; une par
+ * semaine, sur SES valeurs, dès que l'une a bougé — « 5 séries » en S1, « 10 séries » en S2 —
+ * plutôt qu'une phrase que plus aucune semaine ne fait.
+ */
+function blockPhrases(
+  group: DosageGroup<ScheduledSessionBlockDto>,
+  columns: readonly DosageColumn[],
+  copyOf: (column: DosageColumn) => ScheduledSessionCopyDto | null,
+  rows: RowIndex,
+  text: (phrases: readonly Phrase[]) => string,
+): BlockPhrases {
+  const { reference, blockIndex } = group;
+  // Un exercice retiré de toutes les semaines n'a plus de ligne, donc plus de titre.
+  const names = reference.exercises.map(({ key }) => {
+    const line = group.exercises.find((each) => each.key === key);
+    return line == null ? "—" : titleOf(rows, line.rowId);
+  });
+  const said = settingsPhrase(reference.settings, reference.exercises.length, names);
+  const weeks = columns.map((column) => ({
+    key: columnKey(column),
+    absent: column.kind === DosageColumnKind.ABSENT,
+    said: weekPhrase(copyOf(column)?.blocks[blockIndex], rows),
+  }));
+  // Comparées avant d'être mises en mots : « 5 séries » et « 4 séries » ne diffèrent que d'un nombre.
+  const moved = weeks.some((week) => week.said !== null && !sameJson(week.said, said));
+  if (!moved) return { received: said == null ? null : text(said), perWeek: null };
+  return {
+    received: null,
+    perWeek: weeks.map((week) => ({
+      key: week.key,
+      absent: week.absent,
+      phrase: week.said == null ? null : text(week.said),
+    })),
+  };
+}
+
+/** Ce que dit le bloc d'une semaine, sur ses valeurs et ses exercices ; rien où il n'est pas. */
+function weekPhrase(block: ScheduledSessionBlockDto | undefined, rows: RowIndex): Phrase[] | null {
+  if (block == null) return null;
+  const names = block.exercises.map((exercise) => titleOf(rows, exercise.id));
+  return settingsPhrase(block.settings, block.exercises.length, names);
+}
+
+const columnKey = (column: DosageColumn) =>
+  column.kind === DosageColumnKind.COPY ? column.copyId : String(column.weekNumber);
 
 /** « ajouté », ou « remplace A1 » : ce que certaines semaines seulement portent. */
 function tagOf(
@@ -278,6 +375,10 @@ function tagOf(
   if (line.origin.kind !== CompositionOrigin.REPLACEMENT) return null;
   const code = codes[received.indexOf(line.origin.replacesKey)] ?? null;
   return code == null ? t("plan.dosage.replacement") : t("plan.dosage.replaces", { code });
+}
+
+function titleOf(rows: RowIndex, rowId: string): string {
+  return rows.byId.get(rowId)?.title ?? "—";
 }
 
 type RowIndex = {
@@ -335,10 +436,12 @@ function ValueRow(props: Readonly<ValueRowProps>) {
             )}
           </span>
         </th>
-        {columns.map((column) => (
+        {columns.map((column, index) => (
           <ValueCell
             key={column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}
             {...props}
+            // La fenêtre de la dernière semaine s'ouvre vers la gauche : le tableau s'arrête là.
+            alignEnd={columns.length > 1 && index === columns.length - 1}
             column={column}
             copy={copyOf(column)}
             cellId={`${id}@${column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}`}
@@ -360,6 +463,7 @@ function ValueRow(props: Readonly<ValueRowProps>) {
 }
 
 type ValueCellProps = ValueRowProps & {
+  alignEnd: boolean;
   column: DosageColumn;
   copy: ScheduledSessionCopyDto | null;
   cellId: string;
@@ -413,7 +517,8 @@ function ValueButton(props: Readonly<ValueButtonProps>) {
         aria-expanded={isOpen}
         onClick={() => setOpen(isOpen ? null : cellId)}
         className={cn(
-          "flex min-h-8 w-full items-center gap-cmv-xs rounded-cmv-sm border px-cmv-sm py-cmv-xs text-left font-cmv-mono text-cmv-caption",
+          "flex min-h-8 items-center gap-cmv-xs rounded-cmv-sm border px-cmv-sm py-cmv-xs text-left font-cmv-mono text-cmv-caption",
+          COLUMN_WIDTH,
           cell.adjusted
             ? "border-cmv-info-line bg-cmv-info-soft text-cmv-info-on"
             : "border-cmv-border bg-cmv-bg-0 text-cmv-text-hi",
@@ -427,12 +532,14 @@ function ValueButton(props: Readonly<ValueButtonProps>) {
       {isOpen ? (
         <DosageCellEditor
           target={target}
+          label={props.name}
           values={cell.values}
           reference={cell.adjusted ? cell.reference : null}
           referenceText={cell.reference == null ? null : show(cell.reference)}
           customMetrics={customMetrics}
           onChange={(values) => props.onChange(copy.id, target, values)}
-          onClose={() => setOpen(null)}
+          alignEnd={props.alignEnd}
+          onClose={() => props.close(cellId)}
         />
       ) : null}
     </>

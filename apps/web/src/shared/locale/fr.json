@@ -1070,6 +1070,7 @@
       "columnActions": "Actions de {{week}}",
       "compose": "Composer cette séance",
       "roundsNote": "autant de lignes que de tours",
+      "setsNote": "autant de lignes que de séries",
       "added": "ajouté",
       "replacement": "remplaçant",
       "replaces": "remplace {{code}}",
@@ -1080,6 +1081,8 @@
       "missing": "{{label}} : —",
       "setting": {
         "ROUNDS": "Tours",
+        "SETS": "Séries",
+        "REST_BETWEEN_SETS": "Repos entre séries",
         "CAP": "Temps donné",
         "EVERY": "Toutes les",
         "WORK": "Effort",

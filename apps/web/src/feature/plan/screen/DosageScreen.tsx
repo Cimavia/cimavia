@@ -326,17 +326,16 @@ function DosageEditor({
     >
       <div className="flex flex-col gap-cmv-md">
         <BackToPlan planId={plan.id} />
-        {types.length > 1 ? (
-          <div className="max-w-sm">
-            <CmvSelect
-              label={t("plan.dosage.sessionType")}
-              name="dosageSessionType"
-              value={current.key}
-              onChange={(event) => void selectType(event.target.value)}
-              options={types.map((each) => ({ value: each.key, label: each.title }))}
-            />
-          </div>
-        ) : null}
+        {/* Toujours là, même seule : la page dit ce qu'elle règle, et où en changer. */}
+        <div className="max-w-sm">
+          <CmvSelect
+            label={t("plan.dosage.sessionType")}
+            name="dosageSessionType"
+            value={current.key}
+            onChange={(event) => void selectType(event.target.value)}
+            options={types.map((each) => ({ value: each.key, label: each.title }))}
+          />
+        </div>
 
         {isStaleWriteError(doseSession.error) ? (
           <CmvStaleBanner

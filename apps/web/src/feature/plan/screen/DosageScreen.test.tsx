@@ -366,17 +366,30 @@ describe("DosageScreen", () => {
     expect(view.getByRole("button", { name: "plan.dosage.save" })).toBeDisabled();
   });
 
-  it("règle les tours d'une semaine, et l'en rend à la séance-type", async () => {
+  it("règle les tours d'une semaine, et l'en rend à la séance-type, cellule ou colonne", async () => {
     const view = await mount();
-    const row = (
-      await view.findByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" })
-    ).closest("tr") as HTMLElement;
+    const row = (await view.findByRole("rowheader", { name: "plan.dosage.setting.SETS" })).closest(
+      "tr",
+    ) as HTMLElement;
     await view.user.click(within(row).getAllByRole("button")[0] as HTMLElement);
-    const field = view.getByRole("textbox", { name: "plan.dosage.setting.ROUNDS" });
+    const field = view.getByRole("textbox", { name: "plan.dosage.setting.SETS" });
     await view.user.clear(field);
     await view.user.type(field, "5");
     fireEvent.blur(field);
     expect(view.getByRole("button", { name: "plan.dosage.save" })).toBeEnabled();
+
+    // Le bouton disparaît sous son propre clic : la fenêtre n'y lit pas un clic ailleurs.
+    await view.user.click(
+      within(view.getByRole("dialog")).getByRole("button", {
+        name: "plan.composition.backToSessionType",
+      }),
+    );
+    expect(view.getByRole("dialog")).toBeTruthy();
+    expect(view.getByRole("button", { name: "plan.dosage.saved" })).toBeDisabled();
+    await view.user.clear(field);
+    await view.user.type(field, "5");
+    fireEvent.blur(field);
+    await view.user.keyboard("{Escape}");
 
     const [w1Menu] = view.getAllByRole("button", { name: "plan.dosage.columnActions" });
     await view.user.click(w1Menu as HTMLElement);

@@ -5,11 +5,13 @@ import {
   STRUCTURE_MAX_ROUNDS,
   STRUCTURE_MIN_ROUNDS,
 } from "@cmv/shared";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { GridCell } from "@/feature/library/component/GridCell";
 import { DURATION_BOUNDS } from "@/feature/library/component/StructureSettingsForm";
 import type { DosageTarget } from "@/feature/plan/component/DosageTable";
 import { CmvButton, CmvCountField, CmvDurationField } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
 
 /** Le nom de chaque valeur du bloc, en ligne de Dosage comme dans sa saisie. */
 export const DOSAGE_SETTING_LABEL: Record<SettingValue, string> = {
@@ -25,6 +27,10 @@ export const DOSAGE_SETTING_LABEL: Record<SettingValue, string> = {
 
 type DosageCellEditorProps = {
   target: DosageTarget;
+  /** Le nom de la ligne : celui d'une valeur du bloc nomme aussi son champ (« Séries », « Repos »). */
+  label: string;
+  /** Ouverte vers la gauche, depuis le bord droit de sa cellule : celle de la dernière semaine. */
+  alignEnd: boolean;
   /** Une valeur par tour, série ou passage — une seule pour une valeur du bloc. */
   values: readonly MetricValue[];
   /** Les valeurs de la séance-type reçue, quand la cellule en diffère : la bulle les cite. */
@@ -42,16 +48,45 @@ type DosageCellEditorProps = {
  */
 export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
   const { t } = useTranslation();
-  const { reference, referenceText, onChange, onClose } = props;
+  const { reference, referenceText, onChange, onClose, alignEnd } = props;
+  const dialog = useRef<HTMLDivElement>(null);
+  const latestClose = useRef(onClose);
+  latestClose.current = onClose;
+
+  // Un clic ailleurs referme, comme un menu. Au clic et non à l'appui : la sortie du champ a déjà
+  // validé sa saisie. Où il a COMMENCÉ se lit à l'appui — « Revenir à la séance-type » disparaît
+  // dès son clic, et ne serait plus dans la cellule quand le document le reçoit. Sa propre cellule
+  // n'en est pas un : son bouton referme déjà, et le compter la rouvrirait aussitôt.
+  useEffect(() => {
+    let pressedOutside = false;
+    function onPress(event: MouseEvent) {
+      const cell = dialog.current?.parentElement;
+      pressedOutside = cell != null && event.target instanceof Node && !cell.contains(event.target);
+    }
+    function onClick() {
+      if (pressedOutside) latestClose.current();
+      pressedOutside = false;
+    }
+    document.addEventListener("mousedown", onPress, true);
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("mousedown", onPress, true);
+      document.removeEventListener("click", onClick);
+    };
+  }, []);
 
   return (
     <div
+      ref={dialog}
       role="dialog"
       aria-label={t("plan.dosage.editCell")}
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
       }}
-      className="absolute top-full left-0 z-10 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi p-cmv-md shadow-lg"
+      className={cn(
+        "absolute top-full z-10 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi p-cmv-md shadow-lg",
+        alignEnd ? "right-0" : "left-0",
+      )}
     >
       <Fields {...props} />
       {reference == null ? null : (
@@ -73,14 +108,19 @@ export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
   );
 }
 
-function Fields({ target, values, customMetrics, onChange }: Readonly<DosageCellEditorProps>) {
+function Fields({
+  target,
+  label,
+  values,
+  customMetrics,
+  onChange,
+}: Readonly<DosageCellEditorProps>) {
   const { t } = useTranslation();
   const at = (index: number, value: MetricValue) =>
     onChange(values.map((each, rank) => (rank === index ? value : each)));
 
   if (target.kind === "setting") {
     const [value] = values;
-    const label = t(DOSAGE_SETTING_LABEL[target.field]);
     // Une valeur exigée du bloc est toujours là ; sans elle, rien à saisir (règle 5).
     if (typeof value !== "number") {
       return (
@@ -130,6 +170,7 @@ function Fields({ target, values, customMetrics, onChange }: Readonly<DosageCell
               value={value}
               onChange={(next) => at(index, next)}
               onCommitLine={() => undefined}
+              framed
             />
           </fieldset>
         );
