@@ -12,6 +12,7 @@ import type { BlockGrid } from "../dto/block-grid.schema";
 import { PlanWeekType, ScheduledSessionStatus } from "../dto/plan.schema";
 import { CompositionOrigin, type ScheduledBlockExercise } from "../dto/session-block.schema";
 import type { StructureSettings } from "../dto/structure.schema";
+import { StructureAdvance, StructureOrder, StructureRepeat } from "../dto/structure-answer.schema";
 import {
   type DosageBlock,
   DosageCellKind,
@@ -23,6 +24,8 @@ import {
   dosageGroups,
   dosageInput,
   dosageMetricCell,
+  dosageRoundsIssues,
+  dosageSessionTypes,
   dosageSettingCell,
   revertedDosage,
   shownSeries,
@@ -96,6 +99,53 @@ const week = (n: number, type: PlanWeekType = PlanWeekType.TRAINING) => ({
   type,
 });
 
+describe("dosageSessionTypes", () => {
+  const summary = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    sourceSessionId: "tpl-force",
+    title: "Force",
+    scheduledDate: "2026-11-02",
+    position: 0,
+    blockCount: 2,
+    ...over,
+  });
+  const weekOf = (weekNumber: number, sessions: ReturnType<typeof summary>[]) =>
+    ({ weekNumber, sessions }) as never;
+
+  it("donne chaque séance-type une fois, lue depuis sa première copie du calendrier", () => {
+    const types = dosageSessionTypes([
+      weekOf(2, [summary("s2-force", { scheduledDate: "2026-11-09" })]),
+      weekOf(1, [
+        summary("s1-mob", {
+          sourceSessionId: "tpl-mob",
+          title: "Mobilité",
+          scheduledDate: "2026-11-05",
+        }),
+        summary("s1-force-bis", { position: 1 }),
+        summary("s1-force"),
+      ]),
+    ]);
+
+    expect(types).toEqual([
+      { key: "tpl-force", anchorId: "s1-force", title: "Force", sourceSessionId: "tpl-force" },
+      { key: "tpl-mob", anchorId: "s1-mob", title: "Mobilité", sourceSessionId: "tpl-mob" },
+    ]);
+  });
+
+  it("laisse les séances sans bloc à leur panneau, et range une séance sans modèle à part", () => {
+    const types = dosageSessionTypes([
+      weekOf(1, [
+        summary("old", { blockCount: 0 }),
+        summary("lone", { sourceSessionId: null, title: "Libre" }),
+      ]),
+    ]);
+
+    expect(types).toEqual([
+      { key: "lone", anchorId: "lone", title: "Libre", sourceSessionId: null },
+    ]);
+  });
+});
+
 describe("dosageColumns", () => {
   it("donne une colonne par copie, et garde hachurée une semaine sans la séance", () => {
     const columns = dosageColumns(
@@ -154,6 +204,16 @@ describe("dosageGroups", () => {
       ["x", CompositionOrigin.ADDED, "row-x"],
       ["y", CompositionOrigin.REPLACEMENT, "row-y"],
     ]);
+  });
+
+  it("réunit les exercices reçus sur toutes les copies, dans l'ordre de la séance-type", () => {
+    // S1 a reçu une séance-type plus courte : ce qu'elle n'a pas eu ne lui retire pas son code.
+    const groups = dosageGroups([
+      copyOf("s1", [blockOf([planned("a")], [reference("a")])]),
+      copyOf("s2", [blockOf([planned("a"), planned("b")], [reference("a"), reference("b")])]),
+    ]);
+    expect(groups[0]?.received).toEqual(["a", "b"]);
+    expect(groups[0]?.reference.exercises.map(({ key }) => key)).toEqual(["a", "b"]);
   });
 
   it("n'a pas de ligne pour un exercice que toutes les copies ont retiré", () => {
@@ -328,6 +388,25 @@ describe("dosageMetricCell", () => {
 
   it("hachure la semaine où la séance n'est pas posée", () => {
     expect(dosageMetricCell(null, 0, "a", load.id)).toEqual({ kind: DosageCellKind.ABSENT });
+  });
+});
+
+describe("dosageRoundsIssues", () => {
+  it("désigne le bloc dont les bips ne suffisent plus à ses exercices", () => {
+    const emom = settingsOf({
+      advance: { kind: StructureAdvance.BEEP, everySeconds: 60 },
+      repeat: { kind: StructureRepeat.ROUNDS, rounds: 1 },
+      order: StructureOrder.ONE,
+    });
+    const copy = copyOf("c", [
+      blockOf([planned("a")]),
+      blockOf([planned("b"), planned("c")], undefined, emom),
+    ]);
+
+    expect(dosageRoundsIssues(copy)).toEqual([
+      { blockIndex: 1, phrase: { key: "block.settings.tooFewBeeps", params: { count: 2 } } },
+    ]);
+    expect(dosageRoundsIssues(copyOf("ok", [blockOf([planned("a")])]))).toEqual([]);
   });
 });
 

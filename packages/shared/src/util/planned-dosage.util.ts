@@ -8,6 +8,7 @@ import { CompositionOrigin, type ScheduledBlockExercise } from "../dto/session-b
 import type { ScheduledSessionBlockDto } from "../dto/session-block-dto.schema";
 import type { TypesValuesOf } from "../type/generics.type";
 import { required } from "./invariant.util";
+import type { Phrase } from "./phrase.util";
 import { gridValueAt, plannedChanges } from "./planned-blocks.util";
 import { sameJson } from "./same-json.util";
 import { isDebriefed } from "./scheduled-composition.util";
@@ -30,6 +31,50 @@ export type DosageCopy = Pick<
   ScheduledSessionCopyDto,
   "id" | "planWeekId" | "scheduledDate" | "status" | "updatedAt"
 > & { blocks: readonly DosageBlock[] };
+
+// ── Les séances-types du cycle ─────────────────────────────────────────────────────────────
+
+/**
+ * Une séance-type que Dosage règle : ses copies dans le cycle, lues depuis la première posée. Une
+ * séance sans séance-type est sa propre copie.
+ */
+export type DosageSessionType = {
+  key: string;
+  /** La première copie, dans l'ordre du calendrier : c'est par elle que les autres se lisent. */
+  anchorId: string;
+  title: string;
+  sourceSessionId: string | null;
+};
+
+/**
+ * Les séances-types que Dosage règle dans ce cycle, dans l'ordre où elles arrivent. Seules celles
+ * par blocs : une séance de l'ancien modèle se dose dans son panneau (BL-1).
+ */
+export function dosageSessionTypes(
+  weeks: readonly Pick<PlanWeekDto, "weekNumber" | "sessions">[],
+): DosageSessionType[] {
+  const sessions = [...weeks]
+    .sort((left, right) => left.weekNumber - right.weekNumber)
+    .flatMap((week) =>
+      [...week.sessions].sort(
+        (left, right) =>
+          left.scheduledDate.localeCompare(right.scheduledDate) || left.position - right.position,
+      ),
+    )
+    .filter((session) => session.blockCount > 0);
+  const types = new Map<string, DosageSessionType>();
+  for (const session of sessions) {
+    const key = session.sourceSessionId ?? session.id;
+    if (types.has(key)) continue;
+    types.set(key, {
+      key,
+      anchorId: session.id,
+      title: session.title,
+      sourceSessionId: session.sourceSessionId,
+    });
+  }
+  return [...types.values()];
+}
 
 // ── Les colonnes ────────────────────────────────────────────────────────────────────────────
 
@@ -106,10 +151,20 @@ export type DosageExerciseLine = Pick<DosageExercise, "key" | "origin"> & {
   metrics: GridMetric[];
 };
 
-export type DosageGroup = {
+export type DosageGroup<B extends DosageBlock = DosageBlock> = {
   blockIndex: number;
-  /** Le bloc de la première copie qui l'a : il donne le nom, le libellé et la phrase du groupe. */
-  block: DosageBlock;
+  /** Le bloc de la première copie qui l'a : il donne le nom et le libellé du groupe. */
+  block: B;
+  /**
+   * La séance-type reçue la plus complète — celle d'une semaine posée après qu'un exercice y est
+   * entré : la phrase du groupe la lit, réglages et exercices ensemble.
+   */
+  reference: DosageBlock["baseline"];
+  /**
+   * Les clés des exercices que la séance-type a donnés, dans son ordre, réunies sur toutes les
+   * copies : une semaine qui a remplacé A1 ne doit pas faire perdre son code aux autres.
+   */
+  received: string[];
   settings: SettingValue[];
   exercises: DosageExerciseLine[];
 };
@@ -122,10 +177,12 @@ export type DosageGroup = {
  * - Un exercice qu'aucune copie ne porte plus — retiré partout — n'a rien à régler : il n'a pas de
  *   ligne. Pas plus qu'un bloc sans valeur ni métrique, comme un échauffement libre.
  */
-export function dosageGroups(copies: readonly DosageCopy[]): DosageGroup[] {
+export function dosageGroups<B extends DosageBlock>(
+  copies: readonly (Omit<DosageCopy, "blocks"> & { blocks: readonly B[] })[],
+): DosageGroup<B>[] {
   const blockCount = Math.max(0, ...copies.map((copy) => copy.blocks.length));
   return Array.from({ length: blockCount }, (_unused, blockIndex) => blockIndex).flatMap(
-    (blockIndex): DosageGroup[] => {
+    (blockIndex): DosageGroup<B>[] => {
       const blocks = copies.flatMap((copy) => copy.blocks[blockIndex] ?? []);
       // Un rang en deçà du plus long existe dans au moins une copie.
       // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
@@ -133,20 +190,28 @@ export function dosageGroups(copies: readonly DosageCopy[]): DosageGroup[] {
       const settings = DOSAGE_SETTINGS.filter((field) =>
         blocks.some((each) => settingValues(each.settings)[field] !== null),
       );
-      const exercises = exerciseLines(blocks);
+      const received = [
+        ...new Set(blocks.flatMap((each) => each.baseline.exercises.map(({ key }) => key))),
+      ];
+      const reference = blocks.reduce(
+        (kept, each) =>
+          each.baseline.exercises.length > kept.exercises.length ? each.baseline : kept,
+        block.baseline,
+      );
+      const exercises = exerciseLines(blocks, received);
       const measured = exercises.some((exercise) => exercise.metrics.length > 0);
       if (settings.length === 0 && !measured) return [];
-      return [{ blockIndex, block, settings, exercises }];
+      return [{ blockIndex, block, reference, received, settings, exercises }];
     },
   );
 }
 
-function exerciseLines(blocks: readonly DosageBlock[]): DosageExerciseLine[] {
+function exerciseLines(
+  blocks: readonly DosageBlock[],
+  referenceKeys: readonly string[],
+): DosageExerciseLine[] {
   const all = blocks.flatMap((block) => block.exercises);
-  const referenceKeys = new Set(
-    blocks.flatMap((block) => block.baseline.exercises.map((exercise) => exercise.key)),
-  );
-  const received = [...referenceKeys].flatMap((key) =>
+  const received = referenceKeys.flatMap((key) =>
     all
       .filter(
         (exercise) => exercise.key === key && exercise.origin.kind === CompositionOrigin.RECEIVED,
@@ -244,6 +309,19 @@ function rowLimitOf(block: DosageBlock, exerciseIndex: number): number | null {
   const count = block.exercises.length;
   if (roundsError(block.settings, count) != null) return null;
   return gridRowLimit(block.settings, count, exerciseIndex);
+}
+
+/**
+ * Les blocs d'une copie dont les tours ne suffisent plus : « un seul par bip » avec moins de bips
+ * que d'exercices. L'API refuserait tout l'envoi ; Dosage le dit avant, bloc par bloc.
+ */
+export function dosageRoundsIssues(
+  copy: Pick<DosageCopy, "blocks">,
+): { blockIndex: number; phrase: Phrase }[] {
+  return copy.blocks.flatMap((block, blockIndex) => {
+    const phrase = roundsError(block.settings, block.exercises.length);
+    return phrase == null ? [] : [{ blockIndex, phrase }];
+  });
 }
 
 /** Les séries qu'une cellule montre : au moins une, même quand le bloc est à régler. */

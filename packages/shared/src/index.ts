@@ -1152,6 +1152,7 @@ export type {
   DosageCopy,
   DosageExerciseLine,
   DosageGroup,
+  DosageSessionType,
 } from "./util/planned-dosage.util";
 export {
   DOSAGE_SETTINGS,
@@ -1163,6 +1164,8 @@ export {
   dosageGroups,
   dosageInput,
   dosageMetricCell,
+  dosageRoundsIssues,
+  dosageSessionTypes,
   dosageSettingCell,
   revertedDosage,
   shownSeries,
