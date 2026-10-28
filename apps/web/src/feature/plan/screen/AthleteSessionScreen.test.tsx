@@ -1,6 +1,7 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
 import { BlockType, ScheduledSessionStatus } from "@cmv/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
 
@@ -47,6 +48,7 @@ const session = (): ScheduledSessionDto =>
         blocks: [{ id: "b-1", label: null, structure: { type: "FREE" }, metrics: [], rows: [] }],
       },
     ],
+    blocks: [],
   }) as unknown as ScheduledSessionDto;
 
 /**
@@ -274,6 +276,40 @@ describe("AthleteSessionScreen", () => {
       expect(stored()).toEqual({
         "sx-1": { "b-amrap": { rounds: 1 } },
       });
+    });
+  });
+
+  /** #722 : une séance composée par blocs se lit bloc par bloc, et se coche dans le rail. */
+  describe("une séance par blocs", () => {
+    const stored = () =>
+      JSON.parse(window.localStorage.getItem(`cimavia-block-tracking:${SESSION_ID}`) ?? "null");
+
+    beforeEach(() => {
+      getSessionMock.mockResolvedValue(blockSession({ id: SESSION_ID, coachId: COACH_ID }));
+    });
+
+    it("lit les blocs à la place des exercices, sans sommaire ni progression d'exercice", async () => {
+      const { findByText, queryByText, getByText } = await setup();
+
+      expect(await findByText("plan.athlete.blocks.count")).toBeInTheDocument();
+      expect(getByText("plan.athlete.blocks.title")).toBeInTheDocument();
+      expect(getByText("plan.athlete.blocks.sent")).toBeInTheDocument();
+      expect(queryByText("plan.athlete.summary")).not.toBeInTheDocument();
+    });
+
+    it("ouvre « Mon suivi » du bloc choisi dans le rail, et garde la coche en local", async () => {
+      const { findAllByRole, findByText, queryByText, user } = await setup();
+      expect(await findByText("plan.athlete.blocks.choose")).toBeInTheDocument();
+
+      const [first] = await findAllByRole("button", { name: "plan.athlete.blocks.tracking" });
+      await user.click(first as HTMLElement);
+      expect(queryByText("plan.athlete.blocks.choose")).not.toBeInTheDocument();
+
+      const [box] = await findAllByRole("button", { pressed: false });
+      await user.click(box as HTMLElement);
+
+      expect(stored()).toMatchObject({ "blk-1": { checked: [{ key: "a1", row: 0 }] } });
+      expect(window.localStorage.getItem(`cimavia-tracking:${SESSION_ID}`)).toBeNull();
     });
   });
 });

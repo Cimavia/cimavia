@@ -1,24 +1,7 @@
-import {
-  blockNumbers,
-  type CustomMetric,
-  exerciseCodes,
-  flowPhrase,
-  formatMetricValue,
-  type GridCell,
-  GridLayout,
-  type GridReading,
-  gridLinePhrases,
-  gridReading,
-  metricLabel,
-  metricUnitLabel,
-  type Phrase,
-  type SessionBlock,
-  settingsPhrase,
-} from "@cmv/shared";
+import { blockNumbers, type CustomMetric, type SessionBlock } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { BlockMark } from "@/feature/library/component/BlockMark";
+import { BlockReading } from "@/feature/library/component/BlockReading";
 import { CmvCard } from "@/shared/component";
-import { usePhraseText } from "@/shared/hook/usePhraseText";
 
 type BlockSessionPreviewProps = {
   blocks: readonly SessionBlock[];
@@ -29,11 +12,7 @@ type BlockSessionPreviewProps = {
 
 /**
  * Ce que l'athlète lira de la séance (#719, maquette `coach_constructeur_seance_v2`, frame 8) :
- * bloc par bloc, le rythme une fois en tête, chaque exercice sous son code. Une valeur absente ne
- * s'affiche pas ; sans valeur, l'athlète voit juste le nom.
- *
- * Il ne lit que des blocs : le constructeur de séance-type le montre, la séance planifiée (#722)
- * le réutilisera.
+ * bloc par bloc, comme `BlockReading` les rend — la séance planifiée (#722) les lit de même.
  */
 export function BlockSessionPreview({
   blocks,
@@ -53,102 +32,23 @@ export function BlockSessionPreview({
           <p className="text-cmv-body text-cmv-text-lo">{t("library.session.previewEmpty")}</p>
         ) : (
           blocks.map((block, index) => (
-            <PreviewOfBlock
+            <BlockReading
               key={block.id}
-              block={block}
               number={numbers[index] ?? null}
-              titleOf={titleOf}
-              customMetrics={customMetrics}
+              label={block.label}
+              settings={block.settings}
+              instructions={block.instructions}
+              exercises={block.exercises.map((exercise) => ({
+                id: exercise.key,
+                name: titleOf(exercise.key) ?? "—",
+                grid: exercise.grid,
+                note: exercise.note,
+                customMetrics,
+              }))}
             />
           ))
         )}
       </div>
     </CmvCard>
-  );
-}
-
-type PreviewOfBlockProps = {
-  block: SessionBlock;
-  number: string | null;
-  titleOf: (key: string) => string | null;
-  customMetrics: readonly CustomMetric[];
-};
-
-function PreviewOfBlock({ block, number, titleOf, customMetrics }: Readonly<PreviewOfBlockProps>) {
-  const text = usePhraseText();
-  const count = block.exercises.length;
-  const codes = exerciseCodes(number, count);
-  const names = block.exercises.map((exercise) => titleOf(exercise.key) ?? "—");
-  const labels = names.map((name, index) => codes[index] ?? name);
-  const phrase = settingsPhrase(block.settings, count, names);
-  const flow = flowPhrase(block.settings, labels);
-
-  return (
-    <section className="flex flex-col gap-cmv-sm">
-      <h3 className="text-cmv-h3 text-cmv-text-hi">
-        {number == null ? block.label : <BlockMark mark={number} kind="block" />}
-      </h3>
-      {phrase == null ? null : <p className="text-cmv-body text-cmv-text-hi">{text(phrase)}</p>}
-      {flow == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{text([flow])}</p>}
-      {block.instructions == null ? null : (
-        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid">
-          {block.instructions}
-        </p>
-      )}
-      <ol className="flex flex-col gap-cmv-sm border-cmv-border border-l pl-cmv-md">
-        {block.exercises.map((exercise, index) => (
-          <li key={exercise.key} className="flex flex-col gap-cmv-xs">
-            <span className="text-cmv-body text-cmv-text-hi">
-              {codes[index] == null ? null : (
-                <span className="mr-cmv-sm text-cmv-text-mid tabular-nums">{codes[index]}</span>
-              )}
-              {names[index]}
-            </span>
-            <ExerciseValues
-              reading={gridReading(exercise.grid, block.settings, count)}
-              customMetrics={customMetrics}
-            />
-            {exercise.note == null ? null : (
-              <span className="text-cmv-caption text-cmv-text-lo">{exercise.note}</span>
-            )}
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function ExerciseValues({
-  reading,
-  customMetrics,
-}: Readonly<{ reading: GridReading; customMetrics: readonly CustomMetric[] }>) {
-  const { t, i18n } = useTranslation();
-  const text = usePhraseText();
-  const line = (cells: readonly GridCell[]) =>
-    text(
-      gridLinePhrases(cells, (cell) => ({
-        label: metricLabel(cell.metric, customMetrics, t),
-        value: formatMetricValue(cell.value, cell.metric, customMetrics, i18n.language),
-        unit: metricUnitLabel(cell.metric, customMetrics, t),
-      })),
-    );
-
-  if (reading.layout === GridLayout.NONE) return null;
-  if (reading.layout === GridLayout.LINE) {
-    const each: Phrase[] = reading.each == null ? [] : [reading.each];
-    return (
-      <span className="text-cmv-caption text-cmv-text-mid">
-        {[...(each.length === 0 ? [] : [text(each)]), line(reading.cells)].join(" ")}
-      </span>
-    );
-  }
-  return (
-    <ul className="flex flex-col text-cmv-caption text-cmv-text-mid">
-      {reading.rows.map((row) => (
-        <li key={text([row.label])}>
-          {text([row.label])} · {line(row.cells)}
-        </li>
-      ))}
-    </ul>
   );
 }

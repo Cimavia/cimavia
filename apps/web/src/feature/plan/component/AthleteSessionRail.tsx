@@ -5,6 +5,7 @@ import {
   trackingSummary,
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvCard } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
@@ -12,6 +13,11 @@ import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 type AthleteSessionRailProps = {
   session: ScheduledSessionDto;
   tracking: Record<string, ExerciseTracking | null>;
+  /**
+   * Le sommaire d'une séance par blocs (#722) : il remplace celui des exercices et leur compteur,
+   * et rappelle que le suivi part avec le débrief.
+   */
+  blocks?: ReactNode;
   onOpenFeedback: () => void;
 };
 
@@ -25,12 +31,13 @@ type AthleteSessionRailProps = {
 export function AthleteSessionRail({
   session,
   tracking,
+  blocks,
   onOpenFeedback,
 }: Readonly<AthleteSessionRailProps>) {
   const { t } = useTranslation();
   // Une séance qu'il s'est programmée lui-même : il n'y a personne à qui écrire.
   const isSelf = useIsSelfAthlete()(session.coachId);
-  const hasExercises = session.exercises.length > 0;
+  const hasExercises = blocks == null && session.exercises.length > 0;
 
   /**
    * LE compteur de la page, et le seul. L'en-tête ne compte rien — deux compteurs finissent par
@@ -67,7 +74,9 @@ export function AthleteSessionRail({
         </CmvCard>
       ) : null}
 
-      {totals.done === 0 ? null : (
+      {blocks}
+
+      {totals.done === 0 || blocks != null ? null : (
         <CmvCard>
           <div className="flex flex-col gap-cmv-xs">
             <span className="text-cmv-caption text-cmv-text-mid">{t("plan.athlete.progress")}</span>
@@ -113,6 +122,9 @@ export function AthleteSessionRail({
           ? t("feedback.openDone")
           : t("feedback.open")}
       </CmvButton>
+      {blocks == null ? null : (
+        <p className="text-cmv-caption text-cmv-text-lo">{t("plan.athlete.blocks.sent")}</p>
+      )}
     </aside>
   );
 }
