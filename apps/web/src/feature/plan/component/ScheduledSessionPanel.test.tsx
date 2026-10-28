@@ -996,6 +996,7 @@ describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
     planWeekId: "week-1",
     scheduledDate: DATE,
     updatedAt,
+    status: "PLANNED",
     blocks,
   });
   const byBlocks = () => session({ blocks } as unknown as Partial<ScheduledSessionDto>);
@@ -1043,6 +1044,31 @@ describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
     );
   });
 
+  it("n'absorbe pas l'écriture d'un autre : un geste parti d'une version plus récente laisse la saisie où elle était", async () => {
+    const OTHER = "2026-09-01T12:00:00.000Z";
+    copiesMock.mockResolvedValue([copy(OTHER)]);
+    composeMock.mockResolvedValue([copy(LATER)]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await addRower(view);
+    await waitFor(() =>
+      expect(composeMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ apply: [{ id: "ss-1", expectedUpdatedAt: OTHER }] }),
+      ),
+    );
+    await view.user.type(view.getByLabelText(NOTES), " !");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: VERSION }),
+      ),
+    );
+  });
+
   it("réinitialise la composition, puis enregistre sous la version qu'elle rend", async () => {
     const without = [{ ...blocks[0], exercises: [] }];
     copiesMock.mockResolvedValue([{ ...copy(VERSION), blocks: without }]);
@@ -1064,6 +1090,45 @@ describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
         expect.objectContaining({ expectedUpdatedAt: LATER }),
       ),
     );
+  });
+
+  it("garde sa version quand le geste ne touche qu'une autre semaine", async () => {
+    const other = { ...copy(LATER), id: "ss-2", planWeekId: "week-2" };
+    copiesMock.mockResolvedValue([copy(VERSION), other]);
+    composeMock.mockResolvedValue([copy(VERSION), { ...other, updatedAt: VERSION }]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await view.user.click(await view.findByRole("button", { name: /plan\.composition\.add/ }));
+    await view.user.click(await view.findByRole("button", { name: /Rameur/ }));
+    const [, here, next] = view.getAllByRole("checkbox", { hidden: true });
+    await view.user.click(here as HTMLElement);
+    await view.user.click(next as HTMLElement);
+    await view.user.click(
+      view.getByRole("button", { name: "plan.composition.dialog.validate", hidden: true }),
+    );
+    await waitFor(() => expect(composeMock).toHaveBeenCalledOnce());
+    await view.user.type(view.getByLabelText(NOTES), " !");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: VERSION }),
+      ),
+    );
+  });
+
+  it("dit par le bandeau qu'une réinitialisation a été refusée", async () => {
+    const without = [{ ...blocks[0], exercises: [] }];
+    copiesMock.mockResolvedValue([{ ...copy(VERSION), blocks: without }]);
+    resetMock.mockRejectedValue(new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE));
+    const view = setup({ session: byBlocks() });
+
+    await view.user.click(await view.findByRole("button", { name: "plan.composition.resetAll" }));
+    await view.user.click(view.getByRole("button", { name: "plan.composition.resetConfirm" }));
+
+    expect(await view.findByText("plan.composition.stale")).toBeInTheDocument();
   });
 
   it("dit par le bandeau qu'un geste a été refusé sur une version dépassée", async () => {

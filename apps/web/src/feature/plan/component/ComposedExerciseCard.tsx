@@ -59,14 +59,9 @@ export function ComposedExerciseCard(props: Readonly<ComposedExerciseCardProps>)
         </span>
         {removed || tags.length === 0 ? null : <CmvTagList tags={tags} />}
         {change == null ? null : (
-          <button
-            type="button"
-            onClick={change.onReopen}
-            disabled={readOnly || isBusy}
-            className="rounded-cmv-sm border border-cmv-accent-line bg-cmv-accent-soft px-cmv-sm py-cmv-xs text-cmv-accent-on text-cmv-caption font-semibold"
-          >
+          <CmvButton variant="secondary" onClick={change.onReopen} disabled={readOnly || isBusy}>
             {change.label}
-          </button>
+          </CmvButton>
         )}
       </div>
       {removed ? null : <ExerciseContent {...props} />}

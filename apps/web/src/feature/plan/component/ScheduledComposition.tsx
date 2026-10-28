@@ -5,12 +5,12 @@ import {
   type CompositionLibrary,
   CompositionOrigin,
   compositionChangeCount,
-  copyChoices,
   type ExerciseDto,
   editOfExercise,
   exerciseCodes,
   type PlanWeekDto,
   removedReferences,
+  required,
   type ScheduledCompositionInput,
   type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
@@ -32,23 +32,21 @@ import {
 import { useScheduledSessionCopies } from "@/feature/plan/hook/usePlan";
 import {
   type ChangeWords,
+  changeLabel,
   compositionLibrary,
   weeksInPlace,
-  weeksText,
 } from "@/feature/plan/util/composition.util";
 import { CmvButton, CmvConfirmButton, CmvErrorState } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { newId } from "@/shared/util/new-id.util";
 
-// i18n-values plan.composition.change: CompositionEditKind
-
 /** L'exercice que le Coach va choisir : à ajouter en fin de bloc, ou à mettre à une place. */
 type Picking =
   | { kind: "add"; blockIndex: number; block: string }
-  | { kind: "replace"; blockIndex: number; replacesKey: string; was: string };
+  | { kind: "replace"; blockIndex: number; block: string; replacesKey: string; was: string };
 
 /** La fenêtre « Pour quelles semaines ? » ouverte sur un changement. */
-type Choosing = { edit: CompositionEdit; reopened: boolean; what: string; words: ChangeWords };
+type Choosing = { edit: CompositionEdit; reopened: boolean; words: ChangeWords };
 
 type ScheduledCompositionProps = {
   session: ScheduledSessionDto;
@@ -118,54 +116,47 @@ function Composition(props: Readonly<CompositionProps>) {
   }
 
   /** L'étiquette d'une carte : le changement, les semaines où il est, et ses deux gestes. */
-  function changeOf(edit: CompositionEdit, what: string, words: ChangeWords): CardChange {
-    const where = weeksInPlace(copies, copyChoices(copies, edit, library), weeks);
-    const kind = t(`plan.composition.change.${edit.kind}`, { name: athleteName });
+  function changeOf(edit: CompositionEdit, words: ChangeWords): CardChange {
+    const where = weeksInPlace(copies, edit, weeks);
     return {
-      label: `${kind} ${weeksText(where, copies.length, t)}`.trim(),
+      label: changeLabel(edit.kind, athleteName, where, copies.length, t),
       sessionType: words.was,
-      onReopen: () => setChoosing({ edit, reopened: true, what, words }),
+      onReopen: () => setChoosing({ edit, reopened: true, words }),
       onRevert: () => void compose(edit, { apply: [], revert: [here] }),
     };
   }
 
+  // La bibliothèque ne s'ouvre que sur un choix en cours : `picking` y est toujours posé.
   function onPick(exercise: ExerciseDto) {
-    if (picking == null) return;
+    const current = required(picking, "exercice choisi hors sélection");
     const words: ChangeWords = {
-      kind: picking.kind === "add" ? CompositionEditKind.ADD : CompositionEditKind.REPLACE,
+      kind: current.kind === "add" ? CompositionEditKind.ADD : CompositionEditKind.REPLACE,
       athlete: athleteName,
       exercise: exercise.title,
-      was: picking.kind === "add" ? null : picking.was,
+      was: current.kind === "add" ? null : current.was,
+      block: current.block,
     };
     setChoosing(
-      picking.kind === "add"
+      current.kind === "add"
         ? {
             edit: {
               kind: CompositionEditKind.ADD,
-              blockIndex: picking.blockIndex,
+              blockIndex: current.blockIndex,
               key: newId(),
               exerciseId: exercise.id,
             },
             reopened: false,
-            what: t("plan.composition.dialog.what.ADD", {
-              exercise: exercise.title,
-              block: picking.block,
-            }),
             words,
           }
         : {
             edit: {
               kind: CompositionEditKind.REPLACE,
-              blockIndex: picking.blockIndex,
-              replacesKey: picking.replacesKey,
+              blockIndex: current.blockIndex,
+              replacesKey: current.replacesKey,
               key: newId(),
               exerciseId: exercise.id,
             },
             reopened: false,
-            what: t("plan.composition.dialog.what.REPLACE", {
-              was: picking.was,
-              exercise: exercise.title,
-            }),
             words,
           },
     );
@@ -183,13 +174,7 @@ function Composition(props: Readonly<CompositionProps>) {
     changeOf,
     onPickStart: setPicking,
     onPick,
-    onRemove: (edit, was) =>
-      setChoosing({
-        edit,
-        reopened: false,
-        what: t("plan.composition.dialog.what.REMOVE", { was }),
-        words: { kind: CompositionEditKind.REMOVE, athlete: athleteName, exercise: null, was },
-      }),
+    onRemove: (edit, words) => setChoosing({ edit, reopened: false, words }),
   };
   const numbers = blockNumbers(anchor.blocks);
 
@@ -287,10 +272,10 @@ type BlockGestures = {
   picking: Picking | null;
   exercises: readonly ExerciseDto[];
   titleOfExercise: (exerciseId: string | null) => string;
-  changeOf: (edit: CompositionEdit, what: string, words: ChangeWords) => CardChange;
+  changeOf: (edit: CompositionEdit, words: ChangeWords) => CardChange;
   onPickStart: (picking: Picking | null) => void;
   onPick: (exercise: ExerciseDto) => void;
-  onRemove: (edit: CompositionEdit, was: string) => void;
+  onRemove: (edit: CompositionEdit, words: ChangeWords) => void;
 };
 
 type CompositionBlockProps = {
@@ -365,11 +350,12 @@ function CompositionBlock({
               customMetrics={[]}
               note={null}
               removed
-              change={gestures.changeOf(edit, t("plan.composition.dialog.what.REMOVE", { was }), {
+              change={gestures.changeOf(edit, {
                 kind: CompositionEditKind.REMOVE,
                 athlete: athleteName,
                 exercise: null,
                 was,
+                block: blockName,
               })}
               onReplace={null}
               onRemove={null}
@@ -429,7 +415,6 @@ function PlannedExerciseCard({
   referenceCodes,
   gestures,
 }: Readonly<PlannedExerciseCardProps>) {
-  const { t } = useTranslation();
   const row = gestures.session.exercises.find((each) => each.id === exercise.id);
   const title = row?.title ?? "—";
   const edit = editOfExercise(blockIndex, exercise, row?.sourceExerciseId ?? null);
@@ -447,10 +432,6 @@ function PlannedExerciseCard({
         );
   const atPlace = exercise.origin.kind !== CompositionOrigin.ADDED;
   const placeName = was ?? named(code, title);
-  const what =
-    edit?.kind === CompositionEditKind.ADD
-      ? t("plan.composition.dialog.what.ADD", { exercise: title, block: blockName })
-      : t("plan.composition.dialog.what.REPLACE", { was: placeName, exercise: title });
 
   return (
     <ComposedExerciseCard
@@ -464,11 +445,12 @@ function PlannedExerciseCard({
       change={
         edit == null
           ? null
-          : gestures.changeOf(edit, what, {
+          : gestures.changeOf(edit, {
               kind: edit.kind,
               athlete: gestures.athleteName,
               exercise: title,
               was,
+              block: blockName,
             })
       }
       onReplace={
@@ -477,6 +459,7 @@ function PlannedExerciseCard({
               gestures.onPickStart({
                 kind: "replace",
                 blockIndex,
+                block: blockName,
                 replacesKey: placeKey,
                 was: placeName,
               })
@@ -487,7 +470,13 @@ function PlannedExerciseCard({
           ? () =>
               gestures.onRemove(
                 { kind: CompositionEditKind.REMOVE, blockIndex, key: placeKey },
-                placeName,
+                {
+                  kind: CompositionEditKind.REMOVE,
+                  athlete: gestures.athleteName,
+                  exercise: null,
+                  was: placeName,
+                  block: blockName,
+                },
               )
           : null
       }

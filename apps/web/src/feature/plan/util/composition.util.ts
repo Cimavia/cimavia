@@ -1,13 +1,17 @@
 import {
-  type CompositionEditKind,
+  type CompositionEdit,
+  CompositionEditKind,
   type CompositionLibrary,
   type CopyChoice,
   type ExerciseDto,
+  editInPlace,
   joinNames,
   type PlanWeekDto,
   type ScheduledSessionCopyDto,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
+
+// i18n-values plan.composition.change: CompositionEditKind
 
 /**
  * Les exercices que le Coach peut placer, tels que la fenêtre les juge (`copyChoices`) : ceux de
@@ -65,14 +69,30 @@ export function weeksText(numbers: readonly number[], total: number, t: TFunctio
   return t("plan.composition.inWeeks", { weeks: weeksList(numbers, t) });
 }
 
-/** Les semaines où le changement est en place, telles que l'étiquette de la carte les dit. */
+/**
+ * Les semaines où le changement est en place, telles que l'étiquette de la carte les dit. Lues sur
+ * la composition seule (`editInPlace`), sans juger le changement copie par copie : l'étiquette se
+ * redessine à chaque frappe dans le panneau.
+ */
 export function weeksInPlace(
   copies: readonly ScheduledSessionCopyDto[],
-  choices: readonly CopyChoice[],
+  edit: CompositionEdit,
   weeks: readonly PlanWeekDto[],
 ): number[] {
-  const inPlace = new Set(choices.filter((choice) => choice.inPlace).map((choice) => choice.id));
-  return weekNumbers(copies, weeks, (copy) => inPlace.has(copy.id));
+  return weekNumbers(copies, weeks, (copy) => editInPlace(copy.blocks, edit));
+}
+
+/** « remplacé pour Léa en S2 et S5 » : le changement, et les semaines où il est. */
+export function changeLabel(
+  kind: CompositionEditKind,
+  athlete: string,
+  numbers: readonly number[],
+  total: number,
+  t: TFunction,
+): string {
+  const label = t(`plan.composition.change.${kind}`, { name: athlete });
+  const where = weeksText(numbers, total, t);
+  return where === "" ? label : [label, where].join(" ");
 }
 
 /**
@@ -97,7 +117,27 @@ export type ChangeWords = {
   exercise: string | null;
   /** L'exercice de la séance-type remplacé ou retiré ; `null` pour un ajout. */
   was: string | null;
+  /** Le bloc où l'exercice arrive, tel qu'il se nomme : « 2 », ou son libellé. */
+  block: string;
 };
+
+/** La phrase de tête de la fenêtre : « Remplacer 2.4 Corde à sauter par Rameur. » */
+export function changeSentence(words: ChangeWords, t: TFunction): string {
+  switch (words.kind) {
+    case CompositionEditKind.ADD:
+      return t("plan.composition.dialog.what.ADD", {
+        exercise: words.exercise,
+        block: words.block,
+      });
+    case CompositionEditKind.REPLACE:
+      return t("plan.composition.dialog.what.REPLACE", {
+        was: words.was,
+        exercise: words.exercise,
+      });
+    case CompositionEditKind.REMOVE:
+      return t("plan.composition.dialog.what.REMOVE", { was: words.was });
+  }
+}
 
 /**
  * La ligne du bas : où le changement sera — « remplacé pour Léa en S2 » —, puis ce que deviennent
@@ -122,9 +162,7 @@ export function dialogFoot(
   const dropped = weekNumbers(copies, weeks, (copy) => had(copy) && !has(copy));
 
   const keep =
-    kept.length === 0
-      ? ""
-      : `${t(`plan.composition.change.${words.kind}`, { name: words.athlete })} ${weeksText(kept, copies.length, t)}`;
+    kept.length === 0 ? "" : changeLabel(words.kind, words.athlete, kept, copies.length, t);
   const back = dropped.length === 0 ? "" : comingBack(words, weeksList(dropped, t), t);
   if (keep !== "" && back !== "") return `${keep} · ${back}`;
   return keep === "" && back !== "" ? `${back}.` : keep;

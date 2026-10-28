@@ -133,10 +133,19 @@ function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
   const forgetOthers = (kept: (typeof writes)[number]) => {
     for (const write of writes) if (write !== kept) write.reset();
   };
-  function advance(copies: readonly ScheduledSessionCopyDto[]) {
+  /**
+   * Avance la version figée sur celle que le geste a écrite — seulement si le geste est parti de
+   * cette version-là. Écrit sur une version plus récente que la saisie (un autre Coach est passé
+   * entre-temps), il ne doit pas absorber cette écriture : « Enregistrer » se fera refuser, et
+   * c'est juste.
+   */
+  function advance(copies: readonly ScheduledSessionCopyDto[], cited: string | undefined) {
     const { id } = edited();
     const anchor = copies.find((copy) => copy.id === id);
-    if (anchor != null) setOpened({ id, version: anchor.updatedAt });
+    if (anchor == null || cited === undefined) return;
+    setOpened((current) =>
+      current?.id === id && current.version === cited ? { id, version: anchor.updatedAt } : current,
+    );
   }
 
   return {
@@ -163,14 +172,15 @@ function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
       const copies = await composeSession
         .mutateAsync({ sessionId: edited().id, input })
         .catch(() => null);
-      if (copies != null) advance(copies);
+      const here = [...input.apply, ...input.revert].find((copy) => copy.id === edited().id);
+      if (copies != null) advance(copies, here?.expectedUpdatedAt);
     },
     async reset(expectedUpdatedAt: string) {
       forgetOthers(resetComposition);
       const copies = await resetComposition
         .mutateAsync({ sessionId: edited().id, expectedUpdatedAt })
         .catch(() => null);
-      if (copies != null) advance(copies);
+      if (copies != null) advance(copies, expectedUpdatedAt);
     },
     staleMessage: staleMessageOf(
       saveSession.error,

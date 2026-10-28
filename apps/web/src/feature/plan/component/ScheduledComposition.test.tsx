@@ -10,6 +10,7 @@ import {
   type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
   type ScheduledSessionDto,
+  ScheduledSessionStatus,
   STRUCTURE_PRESETS,
   StructurePresetKey,
 } from "@cmv/shared";
@@ -87,6 +88,7 @@ const copyOf = (
   planWeekId,
   scheduledDate: planWeekId === "pw-1" ? "2026-09-09" : "2026-09-16",
   updatedAt: id === "ss-1" ? V1 : V2,
+  status: ScheduledSessionStatus.PLANNED,
   blocks,
 });
 
@@ -397,6 +399,29 @@ describe("ScheduledComposition", () => {
       );
     });
 
+    it("garde la semaine débriefée telle quelle, et annule le changement là où il peut l'être", async () => {
+      const [here, done] = replaced() as [ScheduledSessionCopyDto, ScheduledSessionCopyDto];
+      const view = mount([here, { ...done, status: ScheduledSessionStatus.DONE }]);
+
+      await view.user.click(
+        await view.findByRole("button", { name: /plan\.composition\.change\.REPLACE/ }),
+      );
+      const [, mine, debriefed] = weekBoxes(view);
+      expect(debriefed).toBeDisabled();
+      expect(debriefed).toBeChecked();
+      expect(view.getByText("plan.composition.dialog.refusal.DEBRIEFED")).toBeInTheDocument();
+      await view.user.click(mine as HTMLElement);
+      await view.user.click(
+        view.getByRole("button", { name: "plan.composition.dialog.cancelChange", hidden: true }),
+      );
+
+      await waitFor(() =>
+        expect(view.onCompose).toHaveBeenCalledWith(
+          expect.objectContaining({ apply: [], revert: [{ id: "ss-1", expectedUpdatedAt: V1 }] }),
+        ),
+      );
+    });
+
     it("montre barré l'exercice retiré, que son étiquette rend", async () => {
       const blocks = [blockOf([received("a")])];
       const view = mount([copyOf("ss-1", "pw-1", blocks), copyOf("ss-2", "pw-2")]);
@@ -406,6 +431,83 @@ describe("ScheduledComposition", () => {
         view.getByRole("button", { name: /plan\.composition\.change\.REMOVE/ }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("nomme un bloc à libellé sans codes, et ne remplace ni ne retire un ajout", async () => {
+    const note = (key: string, exerciseId: string) => ({ key, exerciseId, note: null, grid: GRID });
+    const labelled: ScheduledSessionBlockDto = {
+      ...blockOf([
+        received("a"),
+        received("q"),
+        { ...received("n"), origin: { kind: CompositionOrigin.ADDED } },
+      ]),
+      label: "Échauffement",
+      baseline: {
+        settings: SETTINGS,
+        exercises: [note("a", "ex-a"), note("q", "ex-q"), note("z", "ex-gone")],
+      },
+    };
+    const view = mount([copyOf("ss-1", "pw-1", [labelled]), copyOf("ss-2", "pw-2")]);
+
+    expect(await view.findByText("Échauffement")).toBeInTheDocument();
+    // Un exercice que la séance ne nomme plus, et un retrait dont la source a disparu.
+    expect(view.getByText("—")).toBeInTheDocument();
+    expect(view.getByText("plan.composition.noSource")).toHaveClass("line-through");
+    // Tractions et l'exercice sans nom se remplacent ; Rameur, ajouté, se défait par son étiquette.
+    expect(view.getAllByRole("button", { name: "plan.composition.replace" })).toHaveLength(2);
+    expect(view.queryByText("plan.composition.arrivesAt")).toBeNull();
+  });
+
+  it("dit l'ajout dans un bloc à libellé, sans semaine pour une copie hors du cycle", async () => {
+    const labelled = { ...blockOf(RECEIVED), label: "Échauffement" };
+    const view = mount([copyOf("ss-1", "pw-1", [labelled]), copyOf("ss-2", "pw-9", [labelled])]);
+
+    await view.user.click(await view.findByRole("button", { name: /plan\.composition\.add/ }));
+    await view.user.click(view.getByRole("button", { name: /Rameur/ }));
+
+    expect(view.getByText("plan.composition.dialog.what.ADD")).toBeInTheDocument();
+    // La copie sans semaine se dit par son jour seul.
+    expect(view.getAllByText(/plan\.composition\.week/)).toHaveLength(1);
+  });
+
+  it("ne dit rien en bas tant qu'aucune semaine n'est cochée, et attend l'envoi pour se fermer", async () => {
+    const view = mount(twoWeeks(), { isBusy: false });
+
+    await view.findByText("Gainage");
+    await view.user.click(nthButton(view, "plan.composition.remove", 1));
+    const [, here] = weekBoxes(view);
+    await view.user.click(here as HTMLElement);
+
+    expect(view.queryByText(/plan\.composition\.change\.REMOVE/)).toBeNull();
+    expect(view.getByRole("button", { name: VALIDATE, hidden: true })).toBeDisabled();
+  });
+
+  it("garde la fenêtre ouverte sur Échap pendant un envoi", async () => {
+    const view = mount(replaced());
+    await view.user.click(
+      await view.findByRole("button", { name: /plan\.composition\.change\.REPLACE/ }),
+    );
+    view.rerender(
+      <ScheduledComposition
+        session={sessionOf(replaced()[0]?.blocks ?? [])}
+        weeks={WEEKS}
+        athleteName="Léa"
+        isPublished={false}
+        readOnly={false}
+        exercises={LIBRARY}
+        isBusy
+        onCompose={view.onCompose}
+        onReset={view.onReset}
+      />,
+    );
+
+    act(() => {
+      view
+        .getByRole("dialog", { hidden: true })
+        .dispatchEvent(new Event("cancel", { cancelable: true }));
+    });
+
+    expect(view.getByText("plan.composition.dialog.title")).toBeInTheDocument();
   });
 
   it("se lit seulement, en Lecture", async () => {

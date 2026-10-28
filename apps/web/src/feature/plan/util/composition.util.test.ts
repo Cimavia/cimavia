@@ -9,6 +9,7 @@ import {
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
 import {
+  changeSentence,
   compositionLibrary,
   dialogFoot,
   initiallyChecked,
@@ -25,8 +26,22 @@ const weeks = [1, 2, 3].map((weekNumber) => ({
   id: `w${weekNumber}`,
   weekNumber,
 })) as PlanWeekDto[];
-const copy = (week: number) =>
-  ({ id: `s${week}`, planWeekId: `w${week}` }) as ScheduledSessionCopyDto;
+// Un bloc dont la place `a` a été remplacée par `n` dans les semaines `replacedIn`.
+const copy = (week: number, replaced = false) =>
+  ({
+    id: `s${week}`,
+    planWeekId: `w${week}`,
+    blocks: [
+      {
+        baseline: { exercises: [{ key: "a" }] },
+        exercises: [
+          replaced
+            ? { key: "n", origin: { kind: "REPLACEMENT", replacesKey: "a" } }
+            : { key: "a", origin: { kind: "RECEIVED" } },
+        ],
+      },
+    ],
+  }) as unknown as ScheduledSessionCopyDto;
 const copies = [copy(1), copy(2), copy(3)];
 const choice = (id: string, inPlace: boolean, refusal: CopyChoice["refusal"] = null) => ({
   id,
@@ -57,8 +72,14 @@ describe("semaines", () => {
     expect(weeksText([], 3, t)).toBe("");
     expect(weeksText([2], 1, t)).toBe("plan.composition.inWeeks(plan.composition.week(2))");
     expect(weeksText([1, 2, 3], 3, t)).toBe("plan.composition.allWeeks");
-    const choices = [choice("s1", true), choice("s2", false), choice("s3", true)];
-    expect(weeksInPlace(copies, choices, weeks)).toEqual([1, 3]);
+    const edit = {
+      kind: CompositionEditKind.REPLACE,
+      blockIndex: 0,
+      replacesKey: "a",
+      key: "n",
+      exerciseId: null,
+    };
+    expect(weeksInPlace([copy(1, true), copy(2), copy(3, true)], edit, weeks)).toEqual([1, 3]);
   });
 });
 
@@ -83,6 +104,7 @@ describe("dialogFoot", () => {
     athlete: "Léa",
     exercise: "Rameur",
     was: "Corde",
+    block: "2",
   };
   const choices = [choice("s1", true), choice("s2", false), choice("s3", true)];
 
@@ -108,6 +130,22 @@ describe("dialogFoot", () => {
     const refusing = [choice("s1", true, CompositionRefusal.NOT_IN_LIBRARY)];
     expect(dialogFoot([copy(1)], refusing, new Set(), weeks, replaced, t)).toBe(
       "plan.composition.change.REPLACE(Léa) plan.composition.inWeeks(plan.composition.week(1))",
+    );
+  });
+});
+
+describe("changeSentence", () => {
+  const words = { athlete: "Léa", exercise: "Rameur", was: "Corde", block: "2" };
+
+  it("dit le changement que la fenêtre propose", () => {
+    expect(changeSentence({ ...words, kind: CompositionEditKind.ADD }, t)).toBe(
+      "plan.composition.dialog.what.ADD(Rameur|2)",
+    );
+    expect(changeSentence({ ...words, kind: CompositionEditKind.REPLACE }, t)).toBe(
+      "plan.composition.dialog.what.REPLACE(Corde|Rameur)",
+    );
+    expect(changeSentence({ ...words, kind: CompositionEditKind.REMOVE }, t)).toBe(
+      "plan.composition.dialog.what.REMOVE(Corde)",
     );
   });
 });

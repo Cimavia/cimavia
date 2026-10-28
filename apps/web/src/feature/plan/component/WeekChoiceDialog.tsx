@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   type ChangeWords,
+  changeSentence,
   dialogFoot,
   initiallyChecked,
   weekNumberOf,
@@ -34,8 +35,6 @@ type WeekChoiceDialogProps = {
   /** La séance du panneau : sa semaine est désignée, et cochée d'avance pour un changement nouveau. */
   here: string;
   library: CompositionLibrary;
-  /** La phrase de tête : « Remplacer 2.4 Corde à sauter par Rameur. » */
-  what: string;
   words: ChangeWords;
   isBusy: boolean;
   onValidate: (targets: CompositionTargets) => void;
@@ -52,10 +51,13 @@ type WeekChoiceDialogProps = {
  * faire : le bouton se ferme.
  */
 export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
-  const { edit, reopened, copies, weeks, here, library, what, words, isBusy } = props;
+  const { edit, reopened, weeks, here, library, words, isBusy } = props;
   const { t } = useTranslation();
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
+  // Les copies et leur jugement se figent à l'ouverture : une relecture en fond ne change pas les
+  // semaines sous les cases cochées, et ce qui part reste ce que le Coach a vu.
+  const [copies] = useState(props.copies);
   const [choices] = useState(() => copyChoices(copies, edit, library));
   const [checked, setChecked] = useState(() => initiallyChecked(choices, here, reopened));
 
@@ -73,7 +75,8 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
   const allOn = open.length > 0 && open.every((choice) => checked.has(choice.id));
   const targets = compositionTargets(copies, choices, checked);
   const nothing = targets.apply.length === 0 && targets.revert.length === 0;
-  const cancelling = reopened && checked.size === 0;
+  // Ce qui compte, ce sont les semaines ouvertes : une grisée garde son état, quoi que dise sa case.
+  const cancelling = reopened && open.every((choice) => !checked.has(choice.id));
   const foot = dialogFoot(copies, choices, checked, weeks, words, t);
 
   function toggle(id: string, on: boolean) {
@@ -109,7 +112,7 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
           {t("plan.composition.dialog.all")}
         </label>
       </div>
-      <p className="mb-cmv-md text-cmv-body text-cmv-text-mid">{what}</p>
+      <p className="mb-cmv-md text-cmv-body text-cmv-text-mid">{changeSentence(words, t)}</p>
 
       <ul className="mb-cmv-md flex flex-col gap-cmv-sm">
         {copies.map((copy, index) => (
