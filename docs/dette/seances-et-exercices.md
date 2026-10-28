@@ -989,10 +989,14 @@ liste des domaines vivent dans l'index.
 >   séance se lit par blocs dès qu'elle en porte un.
 > - **Le débrief compte une ligne une seule fois** : `trackedExercises` ne lit plus que les lignes
 >   sans bloc, et le suivi par bloc part dans `trackedBlocks` — la matière des cases et du
->   décompte, que chaque app rend dans sa langue.
+>   décompte, que chaque app rend dans sa langue. L'API **refuse** (400) un suivi par exercice qui
+>   cite un exercice de bloc : écrit, il ne se relirait jamais — la perte silencieuse de #311.
 > - **Le suivi par bloc se garde en local sous sa propre clé** (`cimavia-block-tracking:`), à côté
 >   de l'ancien : les deux modèles cohabitent sans se mêler. Il part avec le débrief, filtré des
 >   blocs retirés (`blockTrackingOfSession`), et le local ne s'efface que s'il n'a pas bougé
->   pendant l'envoi (#499). Le web partage le stockage des deux modèles (`useStoredTracking`).
+>   pendant l'envoi (#499). Les deux modèles partagent un socle de stockage par surface
+>   (`useStoredTracking`). Décocher la dernière case rend le bloc NON SUIVI (`null`), et le local ne
+>   se dit modifié que sur ce qui partirait (`sameBlockTracking`) : un bloc ajouté par le Coach ne
+>   rouvre pas « Enregistrer ».
 > - **Les rangées « Série 1 », « Tour 2 » ont leur phrase pour clé React** (`phraseId`), jamais
 >   leur texte traduit, qui peut se répéter.
