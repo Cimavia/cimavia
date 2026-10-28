@@ -942,20 +942,26 @@ liste des domaines vivent dans l'index.
 >   refuse (`DEBRIEFED`), comme la composition.
 > - **Dosage ne change que des valeurs** : mêmes blocs, mêmes exercices, mêmes colonnes — ids
 >   compris —, sinon 400. La forme des réglages reste verrouillée (`assertLocked`, partagé avec
->   la composition), et chaque cellule se valide contre les métriques que sa ligne a figées ; une
->   colonne maison sans définition (EX-2) ne bloque pas la copie.
+>   la composition), et chaque cellule se valide contre les métriques que sa ligne a figées. Une
+>   colonne maison sans définition (EX-2) ne bloque pas la copie et ne reçoit rien de neuf : une
+>   ligne gardée garde sa valeur, une série ajoutée ne reprend qu'une valeur que la colonne avait
+>   déjà, et une ligne retirée emporte la sienne.
 > - **L'écart se calcule, il ne s'écrit pas** : la référence est le `baseline` de chaque copie, et
 >   aucun marqueur d'ajustement n'est stocké au niveau du bloc. « Revenir à la séance-type » rend
 >   les valeurs seules ; la composition ne bouge pas.
 > - **Hors périmètre** : réinitialiser toute la séance (#724) et la progression (#722).
-> - **« Dosage » ne s'ouvre que du panneau d'une séance par blocs**, en Lecture comprise : une
->   séance sans bloc (BL-1) garde son éditeur à plat.
+> - **« Dosage » s'ouvre de l'en-tête du cycle**, en Lecture comprise, et règle une séance-type à
+>   la fois : un sélecteur en tête de page (`?type=`, la première du cycle sans lui), aucune
+>   colonne mise en avant. Le bouton ne se montre pas sans séance par blocs : une séance sans bloc
+>   (BL-1) garde son éditeur à plat. Retour au cycle par « ← Retour au cycle », pas de légende.
+> - **Des tours trop courts pour le bloc ne partent pas** : le bandeau dit la semaine et le bloc,
+>   et « Enregistrer » reste fermé tant qu'il en reste.
 > - **Un exercice retiré partout n'a pas de ligne** ; un ajout ou un remplaçant se lit en fin de
 >   bloc, hachuré hors des semaines qui le portent.
 > - **Les copies portent le titre et les métriques figées de chaque ligne** (`exercises`) : le
 >   tableau se lit sans relire le détail de chaque semaine.
 > - **« Composer cette séance » rouvre le cycle par `?session=`**, retiré une fois lu. Dosage est
->   une route sœur du builder (`plans.$planId_.dosage.$sessionId`), pas un enfant : le builder ne
->   devient pas un layout.
+>   une route sœur du builder (`plans.$planId_.dosage`), pas un enfant : le builder ne devient pas
+>   un layout.
 > - **La bulle de la maquette est fusionnée dans la saisie** : la fenêtre d'une cellule cite la
 >   valeur de la séance-type et offre d'y revenir.
