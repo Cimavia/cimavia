@@ -54,6 +54,8 @@ export function useGridRows(
 
   return {
     slots: blockGridSlots(rows, limit),
+    /** L'identifiant réservé du tour `index` : le remplissage d'une colonne matérialise SES fantômes. */
+    reservedId,
     keyOf: (slot: BlockGridSlot) =>
       slot.kind === BlockSlotKind.GHOST ? reservedId(slot.index) : slot.row.id,
     drag,

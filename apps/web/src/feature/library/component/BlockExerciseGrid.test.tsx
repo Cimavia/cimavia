@@ -134,12 +134,15 @@ describe("BlockExerciseGrid", () => {
   it("remplit une colonne jusqu'au dernier tour depuis son menu", async () => {
     const view = mount(gridOf({ reps: 8, load: 60 }), 3);
     const [repsHeader] = view.getAllByRole("button", { expanded: false });
+    const ghost = view.cells()[4];
 
     await view.user.click(repsHeader as HTMLElement);
     await view.user.click(view.getByRole("button", { name: "library.builder.column.fillStep" }));
 
     expect(view.last().rows.map((row) => row.values.reps)).toEqual([8, 10, 12]);
     expect(view.queryByRole("button", { expanded: true })).toBeNull();
+    // Les fantômes deviennent leurs lignes sous la même clé : rien n'est remonté.
+    expect(view.cells()[4]).toBe(ghost);
   });
 
   it("change l'unité d'une colonne du catalogue", async () => {

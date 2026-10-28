@@ -18,6 +18,7 @@ import { MetricPicker } from "@/feature/library/component/MetricPicker";
 import { useGridRows } from "@/feature/library/hook/useGridRows";
 import { CMV_EDIT, CMV_TABLE, CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
+import { newId } from "@/shared/util/new-id.util";
 
 type BlockExerciseGridProps = {
   grid: BlockGrid;
@@ -30,8 +31,6 @@ type BlockExerciseGridProps = {
   catalogOwner: string | null;
   onChange: (grid: BlockGrid) => void;
 };
-
-const newId = () => crypto.randomUUID();
 
 /**
  * La grille d'un exercice de bloc (#719, maquette `coach_constructeur_seance_v2`, frames 3 à 5) :
@@ -96,7 +95,13 @@ export function BlockExerciseGrid({
                         onFill={(plan) => {
                           onChange({
                             ...grid,
-                            rows: filledGridRows(grid.rows, limit, metric.id, plan, () => newId()),
+                            rows: filledGridRows(
+                              grid.rows,
+                              limit,
+                              metric.id,
+                              plan,
+                              rows.reservedId,
+                            ),
                           });
                           setOpenMetricId(null);
                         }}
