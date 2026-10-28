@@ -11,13 +11,14 @@ import {
 } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
 import { RestBanner } from "@/feature/plan/component/RestBanner";
 import { SessionBlocks } from "@/feature/plan/component/SessionBlocks";
 import { TimerOverlay } from "@/feature/plan/component/TimerOverlay";
+import { useBlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { type RunnerContext, useSegmentRunner } from "@/feature/plan/hook/useSegmentRunner";
@@ -70,10 +71,10 @@ export function SessionDetailScreen() {
 
   const [expanded, setExpanded] = useState(false);
   const scroll = useRef<ScrollView>(null);
-  const [scrollY, setScrollY] = useState(0);
   // Une séance par blocs se lit bloc par bloc (#722) ; une séance sans bloc garde sa lecture par
   // exercice jusqu'à #723.
   const byBlock = isBlockSession(session);
+  const spy = useBlockScrollSpy(scroll, session?.blocks.length ?? 0);
 
   /**
    * Le déroulé coche au fil des segments, sans que l'athlète ait à y penser : c'est la moitié du
@@ -109,9 +110,9 @@ export function SessionDetailScreen() {
         ref={scroll}
         contentContainerClassName="gap-6 p-4"
         scrollEventThrottle={64}
-        // Seule la liste des blocs lit la position, pour sa puce en cours : une séance sans bloc
-        // ne se re-rend pas à chaque défilement.
-        onScroll={byBlock ? (event) => setScrollY(event.nativeEvent.contentOffset.y) : undefined}
+        // Seule la liste des blocs lit la position, pour sa puce en cours.
+        onScroll={byBlock ? spy.onScroll : undefined}
+        onScrollBeginDrag={spy.release}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
       >
         {isPending ? <ActivityIndicator /> : null}
@@ -119,45 +120,9 @@ export function SessionDetailScreen() {
         {isError && session == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
         {session == null ? null : (
-          <>
-            <View className="gap-1">
-              <CmvText className="text-cmv-text-lo text-xs">
-                {formatFullDay(session.scheduledDate)}
-              </CmvText>
-              <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                {session.title}
-              </CmvText>
-              <CmvText className="text-cmv-accent text-xs">
-                {t(`plan.sessionStatus.${session.status}`)}
-              </CmvText>
-            </View>
-
-            {session.notes == null ? null : (
-              <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-                <CmvText className="text-cmv-text-mid text-xs">{t("plan.session.notes")}</CmvText>
-                <CmvText className="text-cmv-text-hi">{session.notes}</CmvText>
-              </View>
-            )}
-
-            {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-                déroulé, pas enterrée sous la liste des exercices.
-                INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
-                lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
-            <CmvButton
-              label={
-                session.status === ScheduledSessionStatus.DONE
-                  ? t("feedback.openDone")
-                  : t("feedback.open")
-              }
-              onPress={() => router.push(`/session/${session.id}/feedback`)}
-            />
-
+          <SessionContent session={session}>
             {byBlock ? (
-              <SessionBlocks
-                session={session}
-                scrollY={scrollY}
-                onScrollTo={(y) => scroll.current?.scrollTo({ y, animated: true })}
-              />
+              <SessionBlocks session={session} spy={spy} />
             ) : (
               <SessionExercises
                 session={session}
@@ -171,7 +136,7 @@ export function SessionDetailScreen() {
                 }}
               />
             )}
-          </>
+          </SessionContent>
         )}
       </ScrollView>
 
@@ -195,6 +160,52 @@ export function SessionDetailScreen() {
         onReduce={() => setExpanded(false)}
       />
     </CmvScreen>
+  );
+}
+
+/**
+ * L'en-tête de la séance chargée — date, titre, statut, consignes — puis le bouton de débrief, au
+ * dessus de son déroulé (`children`). Extrait de l'écran pour le seuil de complexité.
+ */
+function SessionContent({
+  session,
+  children,
+}: Readonly<{ session: ScheduledSessionDto; children: ReactNode }>) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <View className="gap-1">
+        <CmvText className="text-cmv-text-lo text-xs">
+          {formatFullDay(session.scheduledDate)}
+        </CmvText>
+        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">{session.title}</CmvText>
+        <CmvText className="text-cmv-accent text-xs">
+          {t(`plan.sessionStatus.${session.status}`)}
+        </CmvText>
+      </View>
+
+      {session.notes == null ? null : (
+        <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+          <CmvText className="text-cmv-text-mid text-xs">{t("plan.session.notes")}</CmvText>
+          <CmvText className="text-cmv-text-hi">{session.notes}</CmvText>
+        </View>
+      )}
+
+      {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
+          déroulé, pas enterrée sous la liste des exercices.
+          INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
+          lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
+      <CmvButton
+        label={
+          session.status === ScheduledSessionStatus.DONE
+            ? t("feedback.openDone")
+            : t("feedback.open")
+        }
+        onPress={() => router.push(`/session/${session.id}/feedback`)}
+      />
+
+      {children}
+    </>
   );
 }
 
