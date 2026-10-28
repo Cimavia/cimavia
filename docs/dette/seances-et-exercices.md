@@ -653,6 +653,7 @@ liste des domaines vivent dans l'index.
 >   #528*) : L-1 n'est pas aggravée. Les nombres en lettres de `suiviNote` passent en chiffres.
 > - **Rien de ce qui se déduit n'est stocké** : la lettre du bloc (A… Z, puis AA… jusqu'à 30
 >   blocs), les codes A1, A2…, la disposition de la grille (ligne, tableau, cartes) et le chrono.
+>   Depuis #719, la lettre est un numéro (1, 2) et les codes 1.1, 1.2.
 > - **La grille perd `collapsed`** : une grille dont toutes les lignes sont identiques se LIT en une
 >   ligne (`gridReading`), elle ne se replie pas.
 > - **Le suivi d'un « autant que possible » est une seule case, « Bloc fait »** : son nombre de
@@ -848,7 +849,9 @@ liste des domaines vivent dans l'index.
 >   confirmation.
 > - **Retirer une colonne retire ses valeurs** (la règle que #715 renvoyait à l'éditeur), depuis
 >   l'en-tête comme depuis le choix des métriques.
-> - **« Remplacer » garde la grille et la note**, sous une clé neuve. **Déplacer le dernier
+> - **« Remplacer » prend les métriques suggérées du nouvel exercice**, sous une clé neuve : une
+>   colonne de même mesure (métrique du catalogue, ou même métrique maison) garde son unité et ses
+>   valeurs, les autres partent avec les leurs. Le nombre de lignes et la note restent. **Déplacer le dernier
 >   exercice d'un bloc supprime le bloc** ; le RETIRER laisse un bloc vide, que l'enregistrement
 >   refuse (`block.issue.empty`) : le Coach choisit s'il le remplit ou le supprime. « Sortir en bloc
 >   à part » crée le bloc juste après, mêmes réglages, sans libellé ; « Dupliquer le bloc » recopie
@@ -859,9 +862,17 @@ liste des domaines vivent dans l'index.
 >   consigne en place. « Revenir à … » est fermé quand les réglages copiés seraient refusés
 >   (`roundsError`). « Enregistrer comme structure »
 >   s'ouvre dans un panneau, puis le bloc prend la structure créée pour origine.
-> - **Le bandeau du bloc ne fait que lire** : tout se règle dans le panneau du bloc. « Compact » est
->   un affichage de toute la séance, pas d'un bloc. Un bloc d'un seul exercice tient en une carte,
->   aux menus réunis.
+> - **Le bandeau du bloc ne fait que lire** : tout se règle dans le panneau du bloc. Un bloc d'un
+>   seul exercice tient en une carte, aux menus réunis.
+> - **Un bloc se désigne par un CHIFFRE encadré, ses exercices par 1.1, 1.2** (`blockNumbers`,
+>   `exerciseCodes`), à rebours des lettres de la maquette v2 : la bordure distingue le numéro du
+>   nom qui le suit. Un bloc à libellé n'a ni numéro ni codes.
+> - **Chaque bloc et chaque exercice se replie** par son chevron ; « Tout replier » replie les
+>   blocs, « Tout déplier » rouvre tout. Ce qui arrive est déplié. Replié, un bloc garde son en-tête,
+>   la phrase de ses réglages et la liste de ses exercices (`seance_bloc_replie`) ; un exercice, son
+>   en-tête. Le repli n'est pas enregistré.
+> - **Les quatre ajouts sont une même tuile pointillée** (`CmvAddTile`), l'indice à droite ; celle
+>   d'un bloc, vide compris, reçoit aussi le dépôt d'un exercice glissé.
 > - **Glisser un exercice le pose à la place d'un autre, ou en fin de bloc** ; le sortir en bloc à
 >   part passe par le menu seulement.
 > - **« Remplacer » ne propose pas de créer l'exercice manquant** (#303) : l'exercice créé revient
@@ -870,4 +881,13 @@ liste des domaines vivent dans l'index.
 >   au-delà ne s'y montre pas.
 > - **Une séance d'un autre Coach n'offre pas son catalogue de métriques maison** (`pickable` nul) :
 >   il ne se lit pas d'ici. Créer un exercice manquant (#303) depuis un bloc rapporte son rang
->   (`block`), mais un bloc vide refuse l'enregistrement qui précède la création : limite connue.
+>   (`block`). L'enregistrement qui précède la création laisse de côté le bloc vide d'où elle part
+>   (tout autre bloc vide la retient) : l'exercice revient dans un bloc neuf de la même structure
+>   (`structure`), au même rang — sans le libellé ni les réglages retouchés du bloc vide, que rien
+>   n'a enregistrés. Annuler la création perd ce bloc vide : limite connue.
+> - **Une métrique maison suggérée mais supprimée depuis ne devient pas une colonne** : l'ajout et
+>   le remplacement ne gardent que celles que l'exercice résout encore (`customMetrics`, EX-2). Une
+>   grille que l'API refuse quand même désigne son exercice (`#/blocks/i/exercises/j/grid`) : la
+>   carte passe au rouge, et le message dit « 1.2 Titre », pas un identifiant.
+> - **Une séance encore composée exercice par exercice (BL-1) ne s'enregistre pas ici** : le
+>   constructeur ne sait pas la reprendre, et l'enregistrer effacerait ses exercices.
