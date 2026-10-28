@@ -68,12 +68,15 @@ export const scheduledSessionDetailQuery = (id: string) => ({
   queryFn: () => getScheduledSession(id),
 });
 
+/** Les copies de la séance-type dans le cycle (#720), partagées par la composition et Dosage (#721). */
+export const scheduledSessionCopiesQuery = (sessionId: string) => ({
+  queryKey: scheduledSessionKeys.copies(sessionId),
+  queryFn: () => getScheduledSessionCopies(sessionId),
+});
+
 /** Les copies de la séance-type dans le cycle (#720) : la fenêtre « Pour quelles semaines ? » les coche. */
 export function useScheduledSessionCopies(sessionId: string) {
-  return useQuery({
-    queryKey: scheduledSessionKeys.copies(sessionId),
-    queryFn: () => getScheduledSessionCopies(sessionId),
-  });
+  return useQuery(scheduledSessionCopiesQuery(sessionId));
 }
 
 export function usePlan(planId: string) {

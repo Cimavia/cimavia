@@ -1045,21 +1045,21 @@
           "ROUNDS": "Les tours du bloc ne se répartiraient plus sur ses exercices.",
           "KEY_TAKEN": "Un autre changement occupe déjà cette place."
         }
-      },
-      "dosage": "Dosage"
+      }
     },
     "dosage": {
       "title": "Dosage",
       "subtitle": "Les valeurs de {{name}}, semaine par semaine",
-      "breadcrumb": "Fil d'Ariane",
-      "intro": "Chaque colonne est une semaine où la séance est posée. Clique une valeur pour la régler ; « Enregistrer » envoie toutes les semaines d'un coup. La composition, elle, se change dans le panneau de la séance.",
-      "legend": {
-        "adjusted": "diffère de la séance-type, pour {{name}}",
-        "off": "Hachuré : rien à régler cette semaine"
+      "back": "← Retour au cycle",
+      "sessionType": "Séance-type",
+      "empty": {
+        "title": "Rien à doser",
+        "description": "Aucune séance par blocs n'est posée dans ce cycle. Pose une séance-type depuis le cycle : ses valeurs se régleront ici, semaine par semaine."
       },
       "save": "Enregistrer",
       "saved": "Enregistré",
       "stale": "Une de ces semaines a changé depuis que tu l'as ouverte. Recharge pour repartir de sa dernière version — ta saisie sera perdue.",
+      "roundsIssue": "{{week}}, bloc {{block}} : {{reason}}",
       "value": "Valeur",
       "notPlaced": "Séance non posée",
       "deloadDay": "{{day}} · décharge",
@@ -1067,7 +1067,6 @@
       "adjusted_other": "{{count}} valeurs ajustées",
       "adjusted_zero": "Comme la séance-type",
       "debriefed": "Débriefée : en lecture seule",
-      "openedHere": "Ouverte depuis ici",
       "columnActions": "Actions de {{week}}",
       "compose": "Composer cette séance",
       "roundsNote": "autant de lignes que de tours",
@@ -1078,6 +1077,7 @@
       "sessionTypeValue": "Séance-type : {{value}}",
       "series": "Série {{number}}",
       "sameEverywhere": "Même valeur partout",
+      "missing": "{{label}} : —",
       "setting": {
         "ROUNDS": "Tours",
         "CAP": "Temps donné",

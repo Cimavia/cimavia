@@ -9,8 +9,6 @@ import {
   ProblemType,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
-  STRUCTURE_PRESETS,
-  StructurePresetKey,
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
@@ -18,11 +16,7 @@ import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { listMyOrganizations } from "@/feature/library/api";
-import {
-  getScheduledSession,
-  getScheduledSessionCopies,
-  scheduledSessionKeys,
-} from "@/feature/plan/api";
+import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
@@ -38,15 +32,15 @@ const getPlan = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
   // La VRAIE clé du détail : une clé recopiée ici survivrait à un renommage de l'application.
   const { planKeys } = await import("@/feature/plan/api");
-  const real = await importOriginal<typeof import("@/feature/plan/hook/usePlan")>();
   return {
     usePlan: vi.fn(),
     usePlanMutations: vi.fn(),
     // « Recharger » relit le cycle par cette requête (#604) : sa lecture est la seule doublure.
     planDetailQuery: (id: string) => ({ queryKey: planKeys.detail(id), queryFn: getPlan }),
-    // Les vraies : elles lisent la séance, et ses copies, par les doublures de `api.ts`.
-    scheduledSessionDetailQuery: real.scheduledSessionDetailQuery,
-    useScheduledSessionCopies: real.useScheduledSessionCopies,
+    // La vraie : elle lit la séance par la doublure de `api.ts`.
+    scheduledSessionDetailQuery: (
+      await importOriginal<typeof import("@/feature/plan/hook/usePlan")>()
+    ).scheduledSessionDetailQuery,
   };
 });
 const saveBilling = vi.hoisted(() => vi.fn());
@@ -95,8 +89,6 @@ vi.mock("@/feature/reminder", () => ({ ScheduleReminderButton: () => null }));
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
   getScheduledSession: vi.fn(),
-  // La composition par blocs se lit sur les copies (#720) : la séance n'en a qu'une, elle-même.
-  getScheduledSessionCopies: vi.fn(),
 }));
 // Le panneau pioche dans la bibliothèque : ses deux listes sont des entrées, vides ici.
 vi.mock("@/feature/library/api", async (importOriginal) => ({
@@ -183,7 +175,7 @@ const mount = async (
   return renderInRoute(<PlanBuilderScreen />, {
     path: "/plans/$planId",
     params: { planId: "pln_1" },
-    links: ["/plans", "/invoices", "/plans/$planId/dosage/$sessionId"],
+    links: ["/plans", "/invoices", "/plans/$planId/dosage"],
     search,
   });
 };
@@ -590,32 +582,24 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(router.state.location.search).toEqual({ session: "ss_1" });
   });
 
-  it("« Dosage » mène aux valeurs de la séance ouverte", async () => {
-    const SERIES = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
-    const block = {
-      id: "blk_1",
-      name: "Séries",
-      label: null,
-      instructions: null,
-      settings: SERIES,
-      copiedSettings: SERIES,
-      sourceStructureId: null,
-      sourcePreset: StructurePresetKey.SERIES,
-      baseline: { settings: SERIES, exercises: [] },
-      tracking: null,
-      exercises: [],
-    };
-    const byBlocks = { ...summary, blocks: [block], blockCount: 1 };
-    vi.mocked(getScheduledSession).mockResolvedValue(byBlocks);
-    vi.mocked(getScheduledSessionCopies).mockResolvedValue([
-      { ...byBlocks, exercises: [] } as never,
-    ]);
-    const { findByRole, getByRole, router, user } = await mount({ weeks: [week] });
-    await user.click(getByRole("button", { name: /Force max/ }));
+  // Dosage règle tout le cycle, séance-type par séance-type (#721) : son entrée est dans l'en-tête.
+  it("« Dosage » ouvre les valeurs du cycle, en Lecture comme ailleurs", async () => {
+    const byBlocks = { ...week, sessions: [{ ...summary, blockCount: 1 }] };
+    const read = { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } };
+    const reader = await mount({ weeks: [byBlocks], coachId: "coach_c", myAccess: read } as never);
+    expect(reader.getByRole("button", { name: "plan.dosage.title" })).toBeTruthy();
+    reader.unmount();
 
-    await user.click(await findByRole("button", { name: "plan.composition.dosage" }));
+    const { getByRole, router, user } = await mount({ weeks: [byBlocks] });
+    await user.click(getByRole("button", { name: "plan.dosage.title" }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe("/plans/pln_1/dosage/ss_1"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans/pln_1/dosage"));
+  });
+
+  it("n'offre pas Dosage sans séance par blocs : rien n'y serait à régler", async () => {
+    const { queryByRole } = await mount({ weeks: [week] });
+
+    expect(queryByRole("button", { name: "plan.dosage.title" })).toBeNull();
   });
 
   it("ajoute une semaine d'entraînement en fin de cycle", async () => {

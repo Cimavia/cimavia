@@ -22,7 +22,8 @@ import { CmvCountField, CmvDurationField } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
 
-const DURATION_BOUNDS = {
+/** Les bornes d'une durée de bloc, dans la séance-type comme dans Dosage (#721). */
+export const DURATION_BOUNDS = {
   min: STRUCTURE_MIN_DURATION_SECONDS,
   max: STRUCTURE_MAX_DURATION_SECONDS,
 };

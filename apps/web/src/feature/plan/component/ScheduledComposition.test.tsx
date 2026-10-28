@@ -129,7 +129,6 @@ function render(
 ) {
   const onCompose = vi.fn().mockResolvedValue(undefined);
   const onReset = vi.fn().mockResolvedValue(undefined);
-  const onOpenDosage = vi.fn();
   const view = renderWithProviders(
     <ScheduledComposition
       session={sessionOf(blocks)}
@@ -141,11 +140,10 @@ function render(
       isBusy={false}
       onCompose={onCompose}
       onReset={onReset}
-      onOpenDosage={onOpenDosage}
       {...over}
     />,
   );
-  return { ...view, onCompose, onReset, onOpenDosage };
+  return { ...view, onCompose, onReset };
 }
 
 function mount(
@@ -210,15 +208,6 @@ describe("ScheduledComposition", () => {
       "href",
       "/library/sessions/tpl-1",
     );
-  });
-
-  // Les valeurs ne se règlent que dans Dosage (#721) : le panneau y mène, même en Lecture.
-  it("ouvre Dosage, aussi sur le cycle d'un autre", async () => {
-    const view = mount(twoWeeks(), { readOnly: true });
-
-    await view.user.click(await view.findByRole("button", { name: "plan.composition.dosage" }));
-
-    expect(view.onOpenDosage).toHaveBeenCalledTimes(1);
   });
 
   it("ajoute un exercice en fin de bloc, sur les semaines cochées", async () => {
@@ -510,7 +499,6 @@ describe("ScheduledComposition", () => {
         isBusy
         onCompose={view.onCompose}
         onReset={view.onReset}
-        onOpenDosage={view.onOpenDosage}
       />,
     );
 

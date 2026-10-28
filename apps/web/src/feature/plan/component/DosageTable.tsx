@@ -21,6 +21,7 @@ import {
   type MetricValue,
   metricLabel,
   metricUnitLabel,
+  type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
   SettingValue,
   settingsPhrase,
@@ -57,8 +58,6 @@ type DosageTableProps = {
   columns: readonly DosageColumn[];
   /** Les copies telles que le brouillon les porte. */
   copies: readonly ScheduledSessionCopyDto[];
-  /** La séance d'où Dosage a été ouvert : sa colonne est mise en avant. */
-  focusId: string;
   readOnly: boolean;
   onChange: (copyId: string, target: DosageTarget, values: readonly MetricValue[]) => void;
   onRevertCopy: (copyId: string) => void;
@@ -76,10 +75,9 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   const [open, setOpen] = useState<string | null>(null);
   const groups = useMemo(() => dosageGroups(copies), [copies]);
   const rows = useMemo(() => rowIndex(copies), [copies]);
+  const byId = useMemo(() => new Map(copies.map((copy) => [copy.id, copy])), [copies]);
   const copyOf = (column: DosageColumn) =>
-    column.kind === DosageColumnKind.COPY
-      ? (copies.find((copy) => copy.id === column.copyId) ?? null)
-      : null;
+    column.kind === DosageColumnKind.COPY ? (byId.get(column.copyId) ?? null) : null;
   // Numérotés comme la séance les montre : un bloc sans valeur, absent d'ici, garde son rang.
   const longest = copies.reduce<ScheduledSessionCopyDto | null>(
     (kept, copy) => (kept == null || copy.blocks.length > kept.blocks.length ? copy : kept),
@@ -128,7 +126,7 @@ type ColumnHeadProps = DosageTableProps & {
 };
 
 /** « S2 », son jour, ses valeurs ajustées ; et son menu : revenir à la séance-type, composer. */
-function ColumnHead({ column, copy, focusId, readOnly, onRevertCopy, onCompose }: ColumnHeadProps) {
+function ColumnHead({ column, copy, readOnly, onRevertCopy, onCompose }: ColumnHeadProps) {
   const { t } = useTranslation();
   const week = t("plan.composition.week", { number: column.weekNumber });
   if (column.kind === DosageColumnKind.ABSENT || copy === null) {
@@ -142,7 +140,6 @@ function ColumnHead({ column, copy, focusId, readOnly, onRevertCopy, onCompose }
     );
   }
   const count = dosageAdjustedCount(copy);
-  const focused = column.copyId === focusId;
   // Posée deux fois la même semaine, la séance a deux colonnes : son jour les distingue.
   const name = column.showDay
     ? t("plan.dosage.weekOnDay", { week, day: formatDayLabel(column.date) })
@@ -150,10 +147,8 @@ function ColumnHead({ column, copy, focusId, readOnly, onRevertCopy, onCompose }
   return (
     <th
       scope="col"
-      aria-current={focused ? "true" : undefined}
       className={cn(
-        "min-w-32 border-t-4 px-cmv-md py-cmv-sm text-left align-top",
-        focused ? "border-t-cmv-accent bg-cmv-accent-soft" : "border-t-transparent",
+        "min-w-32 px-cmv-md py-cmv-sm text-left align-top",
         column.deload && "bg-cmv-bg-0",
       )}
     >
@@ -176,11 +171,6 @@ function ColumnHead({ column, copy, focusId, readOnly, onRevertCopy, onCompose }
           </span>
           {column.locked ? (
             <span className="text-cmv-caption text-cmv-text-lo">{t("plan.dosage.debriefed")}</span>
-          ) : null}
-          {focused ? (
-            <span className="text-cmv-caption text-cmv-accent-on">
-              {t("plan.dosage.openedHere")}
-            </span>
           ) : null}
         </div>
         <CmvMenu
@@ -213,17 +203,19 @@ function GroupRows({
   group,
   number,
   ...props
-}: RowProps & { group: DosageGroup; number: string | null }) {
+}: RowProps & { group: DosageGroup<ScheduledSessionBlockDto>; number: string | null }) {
   const { t } = useTranslation();
   const text = usePhraseText();
-  const { block, blockIndex } = group;
-  const anchor = props.copies.find((copy) => copy.blocks[blockIndex]?.id === block.id);
+  const { block, blockIndex, reference, received } = group;
   const titleOf = (rowId: string) => props.rows.byId.get(rowId)?.title ?? "—";
-  const names = block.exercises.map((exercise) => titleOf(exercise.id));
-  const phrase = settingsPhrase(block.settings, block.exercises.length, names);
-  const received = anchor?.blocks[blockIndex]?.baseline.exercises.map(({ key }) => key) ?? [];
-  const codes = exerciseCodes(number, block.exercises.length);
-  const shown = anchor?.blocks[blockIndex] ?? null;
+  // La phrase dit la séance-type reçue, pas le brouillon : ce qu'une semaine change se lit en
+  // cellule. Un exercice retiré de toutes les semaines n'a plus de ligne, donc plus de titre.
+  const names = reference.exercises.map(({ key }) => {
+    const line = group.exercises.find((each) => each.key === key);
+    return line == null ? "—" : titleOf(line.rowId);
+  });
+  const phrase = settingsPhrase(reference.settings, reference.exercises.length, names);
+  const codes = exerciseCodes(number, received.length);
   const span = props.columns.length + 1;
 
   return (
@@ -232,12 +224,12 @@ function GroupRows({
         <th colSpan={span} scope="colgroup" className="px-cmv-md pt-cmv-md pb-cmv-xs text-left">
           <span className="flex flex-wrap items-center gap-cmv-sm">
             {number == null ? (
-              <span className="text-cmv-subtitle text-cmv-text-hi">{shown?.label}</span>
+              <span className="text-cmv-subtitle text-cmv-text-hi">{block.label}</span>
             ) : (
               <BlockMark mark={number} kind="block" />
             )}
             <span className="rounded-cmv-pill border border-cmv-border border-dashed px-cmv-sm text-cmv-caption text-cmv-text-mid">
-              {shown?.name}
+              {block.name}
             </span>
             {phrase == null ? null : (
               <span className="text-cmv-caption text-cmv-text-lo">{text(phrase)}</span>
@@ -297,14 +289,18 @@ type RowIndex = {
 /** Les lignes de toutes les copies, lues une fois par rendu et non à chaque cellule. */
 function rowIndex(copies: readonly ScheduledSessionCopyDto[]): RowIndex {
   const byId = new Map(copies.flatMap((copy) => copy.exercises.map((row) => [row.id, row])));
-  const byKey = new Map<string, CustomMetric[]>();
+  // Chaque copie fige les mêmes définitions : une par identifiant suffit.
+  const byKey = new Map<string, Map<string, CustomMetric>>();
   for (const exercise of copies.flatMap((copy) =>
     copy.blocks.flatMap((block) => block.exercises),
   )) {
-    const frozen = byId.get(exercise.id)?.customMetrics ?? [];
-    byKey.set(exercise.key, [...(byKey.get(exercise.key) ?? []), ...frozen]);
+    const metrics = byKey.get(exercise.key) ?? new Map<string, CustomMetric>();
+    for (const metric of byId.get(exercise.id)?.customMetrics ?? []) {
+      if (!metrics.has(metric.id)) metrics.set(metric.id, metric);
+    }
+    byKey.set(exercise.key, metrics);
   }
-  return { byId, metricsOf: (key) => byKey.get(key) ?? [] };
+  return { byId, metricsOf: (key) => [...(byKey.get(key)?.values() ?? [])] };
 }
 
 type ValueRowProps = RowProps & {

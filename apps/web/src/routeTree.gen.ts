@@ -31,13 +31,13 @@ import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
 import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
+import { Route as PlansPlanIdDosageRouteImport } from './routes/plans.$planId_.dosage'
 import { Route as LibraryStructuresNewRouteImport } from './routes/library.structures.new'
 import { Route as LibraryStructuresStructureIdRouteImport } from './routes/library.structures.$structureId'
 import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
 import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
 import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
 import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
-import { Route as PlansPlanIdDosageSessionIdRouteImport } from './routes/plans.$planId_.dosage.$sessionId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -150,6 +150,11 @@ const SessionsSessionIdFeedbackRoute =
     path: '/feedback',
     getParentRoute: () => SessionsSessionIdRoute,
   } as any)
+const PlansPlanIdDosageRoute = PlansPlanIdDosageRouteImport.update({
+  id: '/plans/$planId_/dosage',
+  path: '/plans/$planId/dosage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryStructuresNewRoute = LibraryStructuresNewRouteImport.update({
   id: '/library/structures/new',
   path: '/library/structures/new',
@@ -183,12 +188,6 @@ const LibraryExercisesExerciseIdRoute =
     path: '/library/exercises/$exerciseId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const PlansPlanIdDosageSessionIdRoute =
-  PlansPlanIdDosageSessionIdRouteImport.update({
-    id: '/plans/$planId_/dosage/$sessionId',
-    path: '/plans/$planId/dosage/$sessionId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -217,9 +216,9 @@ export interface FileRoutesByFullPath {
   '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
   '/library/structures/new': typeof LibraryStructuresNewRoute
+  '/plans/$planId/dosage': typeof PlansPlanIdDosageRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
-  '/plans/$planId/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -247,9 +246,9 @@ export interface FileRoutesByTo {
   '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
   '/library/structures/new': typeof LibraryStructuresNewRoute
+  '/plans/$planId/dosage': typeof PlansPlanIdDosageRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
-  '/plans/$planId/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -279,9 +278,9 @@ export interface FileRoutesById {
   '/library/sessions/new': typeof LibrarySessionsNewRoute
   '/library/structures/$structureId': typeof LibraryStructuresStructureIdRoute
   '/library/structures/new': typeof LibraryStructuresNewRoute
+  '/plans/$planId_/dosage': typeof PlansPlanIdDosageRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
-  '/plans/$planId_/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -312,9 +311,9 @@ export interface FileRouteTypes {
     | '/library/sessions/new'
     | '/library/structures/$structureId'
     | '/library/structures/new'
+    | '/plans/$planId/dosage'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
-    | '/plans/$planId/dosage/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -342,9 +341,9 @@ export interface FileRouteTypes {
     | '/library/sessions/new'
     | '/library/structures/$structureId'
     | '/library/structures/new'
+    | '/plans/$planId/dosage'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId'
-    | '/plans/$planId/dosage/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -373,9 +372,9 @@ export interface FileRouteTypes {
     | '/library/sessions/new'
     | '/library/structures/$structureId'
     | '/library/structures/new'
+    | '/plans/$planId_/dosage'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
-    | '/plans/$planId_/dosage/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -405,7 +404,7 @@ export interface RootRouteChildren {
   LibrarySessionsNewRoute: typeof LibrarySessionsNewRoute
   LibraryStructuresStructureIdRoute: typeof LibraryStructuresStructureIdRoute
   LibraryStructuresNewRoute: typeof LibraryStructuresNewRoute
-  PlansPlanIdDosageSessionIdRoute: typeof PlansPlanIdDosageSessionIdRoute
+  PlansPlanIdDosageRoute: typeof PlansPlanIdDosageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -564,6 +563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
       parentRoute: typeof SessionsSessionIdRoute
     }
+    '/plans/$planId_/dosage': {
+      id: '/plans/$planId_/dosage'
+      path: '/plans/$planId/dosage'
+      fullPath: '/plans/$planId/dosage'
+      preLoaderRoute: typeof PlansPlanIdDosageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library/structures/new': {
       id: '/library/structures/new'
       path: '/library/structures/new'
@@ -604,13 +610,6 @@ declare module '@tanstack/react-router' {
       path: '/library/exercises/$exerciseId'
       fullPath: '/library/exercises/$exerciseId'
       preLoaderRoute: typeof LibraryExercisesExerciseIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/plans/$planId_/dosage/$sessionId': {
-      id: '/plans/$planId_/dosage/$sessionId'
-      path: '/plans/$planId/dosage/$sessionId'
-      fullPath: '/plans/$planId/dosage/$sessionId'
-      preLoaderRoute: typeof PlansPlanIdDosageSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -656,7 +655,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibrarySessionsNewRoute: LibrarySessionsNewRoute,
   LibraryStructuresStructureIdRoute: LibraryStructuresStructureIdRoute,
   LibraryStructuresNewRoute: LibraryStructuresNewRoute,
-  PlansPlanIdDosageSessionIdRoute: PlansPlanIdDosageSessionIdRoute,
+  PlansPlanIdDosageRoute: PlansPlanIdDosageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

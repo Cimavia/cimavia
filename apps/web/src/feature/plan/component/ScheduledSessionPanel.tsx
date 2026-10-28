@@ -255,8 +255,6 @@ type ScheduledSessionPanelProps = {
    */
   onReload: () => void;
   isReloading: boolean;
-  /** Ouvre Dosage sur cette séance (#721) : ses valeurs, semaine par semaine. */
-  onOpenDosage: (sessionId: string) => void;
 };
 
 /**
@@ -281,7 +279,6 @@ export function ScheduledSessionPanel({
   onUnsavedChange,
   onReload,
   isReloading,
-  onOpenDosage,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
   const writes = useSessionWrites(planId, session);
@@ -437,7 +434,6 @@ export function ScheduledSessionPanel({
                   isBusy={isBusy}
                   onCompose={writes.compose}
                   onReset={writes.reset}
-                  onOpenDosage={() => onOpenDosage(session.id)}
                 />
               </>
             ) : (
@@ -501,7 +497,6 @@ type EditedSessionFieldsProps = {
   isBusy: boolean;
   onCompose: (input: ScheduledCompositionInput) => Promise<void>;
   onReset: (expectedUpdatedAt: string) => Promise<void>;
-  onOpenDosage: () => void;
 };
 
 /**
@@ -535,7 +530,6 @@ function EditedSessionFields(props: Readonly<EditedSessionFieldsProps>) {
           isBusy={props.isBusy}
           onCompose={props.onCompose}
           onReset={props.onReset}
-          onOpenDosage={props.onOpenDosage}
         />
       ) : (
         <FlatComposition {...props} forWhom={forWhom} />

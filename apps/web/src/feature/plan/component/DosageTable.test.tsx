@@ -125,7 +125,6 @@ function render(
     <DosageTable
       columns={dosageColumns(WEEKS, copies)}
       copies={copies}
-      focusId="ss-1"
       readOnly={false}
       {...handlers}
       {...over}
@@ -146,11 +145,8 @@ describe("DosageTable", () => {
     const [head] = view.getAllByRole("rowgroup");
     expect(within(head as HTMLElement).getAllByRole("columnheader")).toHaveLength(4);
     expect(view.getByText("plan.dosage.notPlaced")).toBeTruthy();
-    expect(view.getByText("plan.dosage.openedHere")).toBeTruthy();
     // La décharge le dit en tête de sa colonne.
     expect(view.getByText("plan.dosage.deloadDay")).toBeTruthy();
-    const focused = view.getAllByRole("columnheader").find((head) => head.ariaCurrent === "true");
-    expect(focused).toHaveTextContent("plan.dosage.openedHere");
   });
 
   it("nomme par leur jour deux séances posées la même semaine", () => {
@@ -176,6 +172,31 @@ describe("DosageTable", () => {
     const rower = rowOf(view, /Rameur/);
     expect(within(rower).getByText("plan.dosage.added")).toBeTruthy();
     expect(within(rower).getByText("plan.dosage.off.NOT_THIS_WEEK")).toBeTruthy();
+  });
+
+  it("code les exercices reçus par n'importe quelle semaine, pas seulement la première", () => {
+    // S1 a reçu la séance-type avant que Gainage y entre : S2 l'a reçu, et le code reste.
+    const older = {
+      ...W1,
+      blocks: [
+        blockOf([planned("w1-a", "a", gridOf(8))], {
+          baseline: {
+            settings: SETTINGS,
+            exercises: [{ key: "a", exerciseId: "ex-a", note: null, grid: gridOf(8) }],
+          },
+        }),
+      ],
+      exercises: [row("w1-a", "Tractions")],
+    } as unknown as ScheduledSessionCopyDto;
+    const received = {
+      ...W2,
+      blocks: [blockOf([planned("w2-a", "a", gridOf(8)), planned("w2-b", "b", gridOf(8))])],
+      exercises: [row("w2-a", "Tractions"), row("w2-b", "Gainage")],
+    } as unknown as ScheduledSessionCopyDto;
+    const view = render([older, received]);
+
+    expect(within(rowOf(view, /Tractions/)).getByText("1.1")).toBeTruthy();
+    expect(within(rowOf(view, /Gainage/)).getByText("1.2")).toBeTruthy();
   });
 
   it("marque une semaine remplacée, et le code de l'exercice qu'elle remplace", () => {

@@ -60,11 +60,6 @@ type ScheduledCompositionProps = {
   isBusy: boolean;
   onCompose: (input: ScheduledCompositionInput) => Promise<unknown>;
   onReset: (expectedUpdatedAt: string) => Promise<unknown>;
-  /**
-   * Ouvre Dosage (#721). Les valeurs ne se règlent que là : le panneau compose, Dosage dose. Le
-   * bouton se montre aussi en Lecture — Dosage s'y lit.
-   */
-  onOpenDosage: () => void;
 };
 
 /**
@@ -225,7 +220,6 @@ function CompositionHeader({
   readOnly,
   isBusy,
   onReset,
-  onOpenDosage,
 }: Readonly<CompositionProps>) {
   const { t } = useTranslation();
   const count = compositionChangeCount(anchor.blocks);
@@ -247,9 +241,6 @@ function CompositionHeader({
             disabled={isBusy}
           />
         )}
-        <CmvButton variant="secondary" onClick={onOpenDosage}>
-          {t("plan.composition.dosage")}
-        </CmvButton>
         {session.sourceSessionId == null ? null : (
           // Un autre onglet : le panneau reste ouvert, avec ce qu'il porte.
           <a

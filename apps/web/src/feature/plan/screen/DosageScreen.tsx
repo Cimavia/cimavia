@@ -1,100 +1,194 @@
 import {
-  AdjustmentLevel,
+  blockNumbers,
   canWrite,
   type DosageColumn,
+  DosageColumnKind,
+  type DosageSessionType,
   dosageColumns,
   dosageInput,
+  dosageRoundsIssues,
+  dosageSessionTypes,
   type MetricValue,
   type PlanDto,
   PlanStatus,
   required,
   revertedDosage,
   type ScheduledSessionCopyDto,
-  type ScheduledSessionDto,
   withDosageCell,
   withDosageSetting,
 } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { DosageTable, type DosageTarget } from "@/feature/plan/component/DosageTable";
 import {
-  scheduledSessionDetailQuery,
+  scheduledSessionCopiesQuery,
   usePlan,
   usePlanMutations,
-  useScheduledSessionCopies,
 } from "@/feature/plan/hook/usePlan";
 import {
   CmvAppShell,
   CmvButton,
+  CmvEmptyState,
   CmvErrorState,
   CmvLeaveDialog,
+  CmvSelect,
   CmvStaleBanner,
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
-import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { confirmLeave, useLeaveGuard } from "@/shared/hook/useLeaveGuard";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
+import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { isStaleWriteError } from "@/shared/lib/api";
 import { newId } from "@/shared/util/new-id.util";
 
 /**
- * Dosage (#721, maquette `coach_planification_blocs` frames 3 à 5) : toutes les valeurs d'une
- * séance planifiée, semaine par semaine — une colonne par copie de sa séance-type dans le Plan.
- * Les valeurs ne se règlent qu'ici, la composition que dans le panneau (#720) : chaque colonne
- * rouvre le panneau de sa semaine.
+ * Dosage (#721, maquette `coach_planification_blocs` frames 3 à 5) : les valeurs d'une séance-type
+ * du cycle, semaine par semaine — une colonne par copie posée. Le cycle s'y règle séance-type par
+ * séance-type (`?type`, la première par défaut). Les valeurs ne se règlent qu'ici, la composition
+ * que dans le panneau (#720) : chaque colonne rouvre le panneau de sa semaine.
  */
 export function DosageScreen() {
   const { t } = useTranslation();
-  const { planId, sessionId } = useParams({ from: "/plans/$planId_/dosage/$sessionId" });
+  const { planId } = useParams({ from: "/plans/$planId_/dosage" });
+  const { type } = useSearch({ from: "/plans/$planId_/dosage" });
   const plan = usePlan(planId);
-  const copies = useScheduledSessionCopies(sessionId);
-  const session = useQuery(scheduledSessionDetailQuery(sessionId));
+  const types = useMemo(() => dosageSessionTypes(plan.data?.weeks ?? []), [plan.data]);
+  // Sans `?type`, la première séance-type À L'OUVERTURE : le cycle relu en fond peut en mettre
+  // une autre en tête, et la page ne doit pas changer de séance-type sous la saisie.
+  const [opening, setOpening] = useState<string | null>(null);
+  const first = types[0]?.key ?? null;
+  if (opening === null && first !== null) setOpening(first);
 
-  if (plan.isError || copies.isError || session.isError) {
+  // Une relecture qui échoue garde ce qui est lu : seule une première lecture en panne se dit ici.
+  if (plan.data == null) {
+    return plan.isError ? (
+      <DosageUnreadable onRetry={() => void plan.refetch()} />
+    ) : (
+      <DosageLoading />
+    );
+  }
+  const current = types.find((each) => each.key === (type ?? opening)) ?? types[0];
+  if (current === undefined) {
     return (
       <CmvAppShell title={t("plan.dosage.title")}>
-        <CmvErrorState
-          title={t("common.errorTitle")}
-          description={t("common.errorDescription")}
-          retryLabel={t("common.retry")}
-          onRetry={() => {
-            void plan.refetch();
-            void copies.refetch();
-            void session.refetch();
-          }}
-        />
+        <div className="flex flex-col gap-cmv-md">
+          <BackToPlan planId={plan.data.id} />
+          <CmvEmptyState
+            title={t("plan.dosage.empty.title")}
+            description={t("plan.dosage.empty.description")}
+          />
+        </div>
       </CmvAppShell>
     );
   }
-  if (plan.data == null || copies.data == null || session.data == null) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
   return (
-    <DosageEditor
+    <DosageLoader
+      // Une autre séance-type : ses copies, relues, et un brouillon neuf. Sa clé, pas sa première
+      // copie : le cycle relu en fond (retour sur l'onglet) ne doit pas jeter la saisie.
+      key={current.key}
       plan={plan.data}
-      session={session.data}
-      copies={copies.data}
-      // Le cycle avec : une copie déplacée, ou posée dans une semaine neuve, change les colonnes.
-      onReload={async () => {
-        const [fresh] = await Promise.all([copies.refetch(), plan.refetch()]);
-        return fresh.data ?? null;
+      types={types}
+      current={current}
+      onReloadPlan={async () => {
+        const fresh = await plan.refetch();
+        if (fresh.isError) throw fresh.error;
       }}
     />
   );
 }
 
-type DosageEditorProps = {
+type DosageLoaderProps = {
   plan: PlanDto;
-  session: ScheduledSessionDto;
+  types: readonly DosageSessionType[];
+  current: DosageSessionType;
+  onReloadPlan: () => Promise<void>;
+};
+
+/**
+ * Les copies de la séance-type, RELUES à chaque ouverture, même en cache : un geste du panneau a pu
+ * faire avancer une semaine, et « Enregistrer » citerait la version d'avant (#604). Une copie en
+ * cache ne suffit donc pas : l'éditeur n'ouvre que sur une lecture réussie. Ouvert, il le reste —
+ * une relecture qui échoue le dit, sans jeter la saisie.
+ *
+ * La copie qui les désigne est figée à l'ouverture : celle que le cycle relu met en tête peut
+ * changer, la séance-type non.
+ */
+function DosageLoader({ onReloadPlan, ...props }: Readonly<DosageLoaderProps>) {
+  const [anchorId] = useState(props.current.anchorId);
+  const [isOpen, setOpen] = useState(false);
+  const copies = useQuery({ ...scheduledSessionCopiesQuery(anchorId), refetchOnMount: "always" });
+  const isRead = copies.isFetchedAfterMount && !copies.isError && copies.data != null;
+  if (isRead && !isOpen) setOpen(true);
+
+  if (!isOpen && !isRead) {
+    return copies.isError ? (
+      <DosageUnreadable onRetry={() => void copies.refetch()} />
+    ) : (
+      <DosageLoading />
+    );
+  }
+  return (
+    <DosageEditor
+      {...props}
+      anchorId={anchorId}
+      copies={required(copies.data, "copies lues à l'ouverture")}
+      // Le cycle avec : une copie déplacée, ou posée dans une semaine neuve, change les colonnes.
+      onReload={async () => {
+        const [fresh] = await Promise.all([copies.refetch(), onReloadPlan()]);
+        if (fresh.isError) throw fresh.error;
+        return required(fresh.data, "copies relues");
+      }}
+    />
+  );
+}
+
+function DosageUnreadable({ onRetry }: Readonly<{ onRetry: () => void }>) {
+  const { t } = useTranslation();
+  return (
+    <CmvAppShell title={t("plan.dosage.title")}>
+      <CmvErrorState
+        title={t("common.errorTitle")}
+        description={t("common.errorDescription")}
+        retryLabel={t("common.retry")}
+        onRetry={onRetry}
+      />
+    </CmvAppShell>
+  );
+}
+
+function DosageLoading() {
+  const { t } = useTranslation();
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
+      {t("common.loading")}
+    </main>
+  );
+}
+
+/** Le retour au cycle, comme « ← Planifications » le fait depuis le cycle. */
+function BackToPlan({ planId }: Readonly<{ planId: string }>) {
+  const { t } = useTranslation();
+  return (
+    <Link
+      to="/plans/$planId"
+      params={{ planId }}
+      className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
+    >
+      {t("plan.dosage.back")}
+    </Link>
+  );
+}
+
+type DosageEditorProps = Omit<DosageLoaderProps, "onReloadPlan"> & {
+  /** La copie par laquelle Dosage lit et enregistre la séance-type. */
+  anchorId: string;
   copies: readonly ScheduledSessionCopyDto[];
-  /** Relit les copies après un conflit, ou `null` si la relecture échoue. */
-  onReload: () => Promise<readonly ScheduledSessionCopyDto[] | null>;
+  /** Relit les copies et le cycle après un conflit ; rejette si la relecture échoue. */
+  onReload: () => Promise<readonly ScheduledSessionCopyDto[]>;
 };
 
 /**
@@ -102,32 +196,42 @@ type DosageEditorProps = {
  * leurs versions. Une copie relue en fond ne remplace pas le brouillon : « Enregistrer » citerait
  * sinon une version que la saisie n'a pas vue.
  */
-function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditorProps>) {
+function DosageEditor({
+  plan,
+  types,
+  current,
+  anchorId,
+  copies,
+  onReload,
+}: Readonly<DosageEditorProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const athleteLabel = useAthleteLabel();
+  const { onError } = useMutationToast();
+  const text = usePhraseText();
   const { doseSession, isBusy } = usePlanMutations(plan.id);
   const refused = useRefusedFields();
   const [base, setBase] = useState(copies);
   const [drafts, setDrafts] = useState(copies);
   const [isReloading, setReloading] = useState(false);
 
-  const input = dosageInput(drafts, base);
+  const input = useMemo(() => dosageInput(drafts, base), [drafts, base]);
   const isDirty = input.length > 0 || refused.hasRefused;
   const readOnly = !canWrite(required(plan.myAccess, "droit du coach sur son cycle"));
   const athleteName =
     plan.athleteId == null || plan.athleteName == null
       ? t("plan.session.dosage.theAthlete")
       : athleteLabel(plan.athleteId, plan.athleteName);
-  const columns: DosageColumn[] = dosageColumns(plan.weeks, drafts);
+  const columns = useMemo(() => dosageColumns(plan.weeks, drafts), [plan.weeks, drafts]);
+  const issues = useMemo(() => roundsIssues(drafts, columns, t, text), [drafts, columns, t, text]);
 
   /** Vrai si tout est parti — ou s'il n'y avait rien à envoyer. Ne rejette jamais (#682). */
   async function save(): Promise<boolean> {
-    if (refused.hasRefused) return false;
+    if (refused.hasRefused || issues.length > 0) return false;
     if (input.length === 0) return true;
     try {
       const saved = await doseSession.mutateAsync({
-        sessionId: session.id,
+        sessionId: anchorId,
         input: { sessions: input },
       });
       setBase(saved);
@@ -169,25 +273,38 @@ function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditor
     setReloading(true);
     try {
       const fresh = await onReload();
-      if (fresh == null) return;
       setBase(fresh);
       setDrafts(fresh);
       doseSession.reset();
+    } catch (error) {
+      // La saisie reste : le bandeau aussi, et « Recharger » se retente.
+      onError(error);
     } finally {
       setReloading(false);
     }
   }
 
+  /** Une autre séance-type : le brouillon de celle-ci se garde, ou se perd, d'abord (#682). */
+  async function selectType(key: string) {
+    if ((await confirmLeave()) === "stay") return;
+    guard.release();
+    void navigate({
+      to: "/plans/$planId/dosage",
+      params: { planId: plan.id },
+      search: { type: key },
+    });
+  }
+
   return (
     <CmvAppShell
-      title={session.title}
+      title={current.title}
       subtitle={t("plan.dosage.subtitle", { name: athleteName })}
       actions={
         <>
-          {session.sourceSessionId == null ? null : (
+          {current.sourceSessionId == null ? null : (
             // Un autre onglet : le brouillon reste ici, intact.
             <a
-              href={`/library/sessions/${session.sourceSessionId}`}
+              href={`/library/sessions/${current.sourceSessionId}`}
               target="_blank"
               rel="noreferrer"
               className="text-cmv-caption text-cmv-accent-on underline"
@@ -198,7 +315,7 @@ function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditor
           {readOnly ? null : (
             <CmvButton
               variant="primary"
-              disabled={!isDirty || refused.hasRefused || isBusy}
+              disabled={!isDirty || refused.hasRefused || issues.length > 0 || isBusy}
               onClick={() => void save()}
             >
               {isDirty ? t("plan.dosage.save") : t("plan.dosage.saved")}
@@ -208,22 +325,18 @@ function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditor
       }
     >
       <div className="flex flex-col gap-cmv-md">
-        <nav
-          aria-label={t("plan.dosage.breadcrumb")}
-          className="flex flex-wrap items-center gap-cmv-xs text-cmv-caption"
-        >
-          <Link
-            to="/plans/$planId"
-            params={{ planId: plan.id }}
-            className="text-cmv-text-mid hover:text-cmv-text-hi"
-          >
-            {t("plan.builder.titleWithAthlete", { title: plan.title, name: athleteName })}
-          </Link>
-          <span aria-hidden="true" className="text-cmv-text-lo">
-            /
-          </span>
-          <span className="text-cmv-text-hi">{t("plan.dosage.title")}</span>
-        </nav>
+        <BackToPlan planId={plan.id} />
+        {types.length > 1 ? (
+          <div className="max-w-sm">
+            <CmvSelect
+              label={t("plan.dosage.sessionType")}
+              name="dosageSessionType"
+              value={current.key}
+              onChange={(event) => void selectType(event.target.value)}
+              options={types.map((each) => ({ value: each.key, label: each.title }))}
+            />
+          </div>
+        ) : null}
 
         {isStaleWriteError(doseSession.error) ? (
           <CmvStaleBanner
@@ -238,22 +351,18 @@ function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditor
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-cmv-xs">
-          <p className="text-cmv-caption text-cmv-text-mid">{t("plan.dosage.intro")}</p>
-          <div className="flex flex-wrap items-center gap-cmv-md text-cmv-caption text-cmv-text-lo">
-            <span className="flex items-center gap-cmv-xs">
-              <AdjustmentMarker level={AdjustmentLevel.SCHEDULED} />
-              {t("plan.dosage.legend.adjusted", { name: athleteName })}
-            </span>
-            <span>{t("plan.dosage.legend.off")}</span>
-          </div>
-        </div>
+        {issues.length === 0 ? null : (
+          <ul className="flex flex-col gap-cmv-xs rounded-cmv-md border border-cmv-error-line bg-cmv-error-soft px-cmv-md py-cmv-sm text-cmv-caption text-cmv-error-on">
+            {issues.map((issue) => (
+              <li key={issue.id}>{issue.text}</li>
+            ))}
+          </ul>
+        )}
 
         <RefusedFieldsContext value={refused.report}>
           <DosageTable
             columns={columns}
             copies={drafts}
-            focusId={session.id}
             readOnly={readOnly}
             onChange={onChange}
             onRevertCopy={(copyId) =>
@@ -272,4 +381,34 @@ function DosageEditor({ plan, session, copies, onReload }: Readonly<DosageEditor
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
   );
+}
+
+/**
+ * Des tours que les réglages d'une semaine refusent — trop peu de bips pour ses exercices : rien ne
+ * part tant qu'il en reste, et chacun dit sa semaine et son bloc.
+ */
+function roundsIssues(
+  copies: readonly ScheduledSessionCopyDto[],
+  columns: readonly DosageColumn[],
+  t: TFunction,
+  text: ReturnType<typeof usePhraseText>,
+): { id: string; text: string }[] {
+  const weekOf = new Map(
+    columns.flatMap((column) =>
+      column.kind === DosageColumnKind.COPY ? [[column.copyId, column.weekNumber] as const] : [],
+    ),
+  );
+  return copies.flatMap((copy) => {
+    const number = weekOf.get(copy.id);
+    const week = number === undefined ? "—" : t("plan.composition.week", { number });
+    const numbers = blockNumbers(copy.blocks);
+    return dosageRoundsIssues(copy).map(({ blockIndex, phrase }) => ({
+      id: `${copy.id}:${blockIndex}`,
+      text: t("plan.dosage.roundsIssue", {
+        week,
+        block: numbers[blockIndex] ?? copy.blocks[blockIndex]?.label ?? "—",
+        reason: text([phrase]),
+      }),
+    }));
+  });
 }

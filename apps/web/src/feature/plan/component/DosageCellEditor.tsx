@@ -2,20 +2,14 @@ import {
   type CustomMetric,
   type MetricValue,
   SettingValue,
-  STRUCTURE_MAX_DURATION_SECONDS,
   STRUCTURE_MAX_ROUNDS,
-  STRUCTURE_MIN_DURATION_SECONDS,
   STRUCTURE_MIN_ROUNDS,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { GridCell } from "@/feature/library/component/GridCell";
+import { DURATION_BOUNDS } from "@/feature/library/component/StructureSettingsForm";
 import type { DosageTarget } from "@/feature/plan/component/DosageTable";
 import { CmvButton, CmvCountField, CmvDurationField } from "@/shared/component";
-
-const DURATION_BOUNDS = {
-  min: STRUCTURE_MIN_DURATION_SECONDS,
-  max: STRUCTURE_MAX_DURATION_SECONDS,
-};
 
 /** Le nom de chaque valeur du bloc, en ligne de Dosage comme dans sa saisie. */
 export const DOSAGE_SETTING_LABEL: Record<SettingValue, string> = {
@@ -87,11 +81,19 @@ function Fields({ target, values, customMetrics, onChange }: Readonly<DosageCell
   if (target.kind === "setting") {
     const [value] = values;
     const label = t(DOSAGE_SETTING_LABEL[target.field]);
+    // Une valeur exigée du bloc est toujours là ; sans elle, rien à saisir (règle 5).
+    if (typeof value !== "number") {
+      return (
+        <span className="text-cmv-caption text-cmv-text-mid">
+          {t("plan.dosage.missing", { label })}
+        </span>
+      );
+    }
     if (target.field === SettingValue.ROUNDS) {
       return (
         <CmvCountField
           label={label}
-          value={typeof value === "number" ? value : STRUCTURE_MIN_ROUNDS}
+          value={value}
           min={STRUCTURE_MIN_ROUNDS}
           max={STRUCTURE_MAX_ROUNDS}
           onChange={(count) => onChange([count])}
@@ -101,7 +103,7 @@ function Fields({ target, values, customMetrics, onChange }: Readonly<DosageCell
     return (
       <CmvDurationField
         label={label}
-        value={typeof value === "number" ? value : null}
+        value={value}
         bounds={DURATION_BOUNDS}
         nullable={false}
         onChange={(seconds) => {

@@ -258,18 +258,22 @@ export function PlanBuilderScreen() {
       actions={
         // En Lecture, le cycle se consulte et se quitte : rien d'autre ne s'y fait (#607).
         readOnly ? (
-          <CmvButton
-            onClick={() =>
-              navigate({
-                to: "/plans",
-                search: { q: undefined, state: undefined, athlete: undefined },
-              })
-            }
-          >
-            {t("common.close")}
-          </CmvButton>
+          <>
+            <DosageButton plan={plan} />
+            <CmvButton
+              onClick={() =>
+                navigate({
+                  to: "/plans",
+                  search: { q: undefined, state: undefined, athlete: undefined },
+                })
+              }
+            >
+              {t("common.close")}
+            </CmvButton>
+          </>
         ) : (
           <>
+            <DosageButton plan={plan} />
             {isMine ? (
               <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
             ) : null}
@@ -407,13 +411,33 @@ export function PlanBuilderScreen() {
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
           onUnsavedChange={reportPanel}
-          onOpenDosage={(sessionId) =>
-            void navigate({ to: "/plans/$planId/dosage/$sessionId", params: { planId, sessionId } })
-          }
         />
       )}
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
+  );
+}
+
+/**
+ * Dosage (#721) : les valeurs de chaque séance-type du cycle, semaine par semaine. En Lecture
+ * aussi — il s'y lit. Rien à doser sans séance par blocs : le bouton ne se montre pas.
+ */
+function DosageButton({ plan }: Readonly<{ plan: PlanDto }>) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const hasBlocks = plan.weeks.some((week) =>
+    week.sessions.some(({ blockCount }) => blockCount > 0),
+  );
+  if (!hasBlocks) return null;
+  return (
+    <CmvButton
+      variant="secondary"
+      onClick={() =>
+        void navigate({ to: "/plans/$planId/dosage", params: { planId: plan.id }, search: {} })
+      }
+    >
+      {t("plan.dosage.title")}
+    </CmvButton>
   );
 }
 
@@ -471,7 +495,6 @@ type SessionPanelHostProps = {
   athleteName: string | null;
   onClose: () => void;
   onUnsavedChange: (save: SaveBeforeLeaving | null) => void;
-  onOpenDosage: (sessionId: string) => void;
 };
 
 /**
