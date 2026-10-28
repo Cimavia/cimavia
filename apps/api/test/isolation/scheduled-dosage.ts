@@ -84,9 +84,9 @@ describe("Dosage d'une séance planifiée, semaine par semaine (#721)", () => {
   }
 
   beforeAll(async () => {
-    coach = await signUp("dosage-coach@cmv.test", Role.COACH);
-    otherCoach = await signUp("dosage-other@cmv.test", Role.COACH);
-    athlete = await signUp("dosage-athlete@cmv.test", Role.ATHLETE);
+    coach = await signUp("cycle-dosage-coach@cmv.test", Role.COACH);
+    otherCoach = await signUp("cycle-dosage-other@cmv.test", Role.COACH);
+    athlete = await signUp("cycle-dosage-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
     athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body[0].athleteId;
     const tractionsId = (await coach.post("/exercises").send({ title: "Tractions" })).body.id;
