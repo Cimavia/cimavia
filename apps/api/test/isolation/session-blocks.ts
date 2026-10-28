@@ -460,6 +460,15 @@ describe("Séances composées par blocs (#716)", () => {
       ).toBe(400);
     });
 
+    it("refuse un suivi par exercice sur un exercice de bloc : il se coche avec son bloc", async () => {
+      const read = await athlete.get(`/me/scheduled-sessions/${scheduledId}`);
+      const exerciseId = read.body.blocks[0].exercises[0].id as string;
+      const res = await athlete
+        .put(`/me/scheduled-sessions/${scheduledId}/feedback`)
+        .send({ content: null, tracking: { [exerciseId]: null } });
+      expect(res.status).toBe(400);
+    });
+
     it("écrit les cases cochées, et `null` remet le bloc à NON SUIVI", async () => {
       const [series, free] = blockIds as [string, string];
       const sent = await feedback({

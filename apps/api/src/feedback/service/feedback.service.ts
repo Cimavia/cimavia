@@ -110,6 +110,9 @@ export class FeedbackService {
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
    * créerait un, séance passée en DONE, pour une requête refusée. L'appelant a déjà passé la garde
    * de séance.
+   *
+   * Un exercice de bloc compte pour inconnu (#722) : il se suit avec son bloc, et le débrief ne
+   * rendrait jamais un suivi écrit sur lui — ce serait la même perte silencieuse.
    */
   private async assertTrackedExercisesKnown(
     scheduledSessionId: string,
@@ -119,7 +122,7 @@ export class FeedbackService {
     if (cited.length === 0) return;
 
     const known = await this.db.scheduledSessionExercise.findMany({
-      where: { scheduledSessionId, id: { in: cited } },
+      where: { scheduledSessionId, blockId: null, id: { in: cited } },
       select: { id: true },
     });
     if (known.length === cited.length) return;
