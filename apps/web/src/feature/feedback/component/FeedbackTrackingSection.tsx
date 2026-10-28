@@ -119,7 +119,7 @@ function TrackingRecap({
 }
 
 /** Le crayon du bouton « corriger ». Inline : une icône de plus ne vaut pas une dépendance. */
-function PencilIcon() {
+export function PencilIcon() {
   return (
     <svg
       width="14"

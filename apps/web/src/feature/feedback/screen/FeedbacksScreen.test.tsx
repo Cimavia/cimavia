@@ -201,6 +201,7 @@ describe("FeedbacksScreen", () => {
           { id: "md-3", type: "VIDEO", url: "https://x/3", fileName: "essai.mp4" },
         ],
         trackedExercises: [],
+        trackedBlocks: [],
         messages: [],
       } as unknown as SessionFeedbackDto,
       isPending: false,
@@ -221,6 +222,7 @@ describe("FeedbacksScreen", () => {
           { id: "md-3", type: "VIDEO", url: "https://x/3", fileName: "essai.mp4" },
         ],
         trackedExercises: [],
+        trackedBlocks: [],
         messages: [],
       } as unknown as SessionFeedbackDto,
       isPending: false,
@@ -243,6 +245,7 @@ describe("FeedbacksScreen", () => {
           { id: "md-3", type: "AUDIO", url: "https://x/3", fileName: "suite.m4a" },
         ],
         trackedExercises: [],
+        trackedBlocks: [],
         messages: [
           {
             id: "m-1",
