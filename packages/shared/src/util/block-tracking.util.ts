@@ -105,6 +105,17 @@ export function blockChecks(
   };
 }
 
+/** Les cases d'un bloc de séance, d'après ses réglages et les clés de ses exercices. */
+export function checksOfBlock(block: {
+  settings: StructureSettings;
+  exercises: readonly { key: string }[];
+}): BlockChecks {
+  return blockChecks(
+    block.settings,
+    block.exercises.map((exercise) => exercise.key),
+  );
+}
+
 function exerciseAt(exercises: readonly CheckBox[], index: number): CheckBox {
   // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
   return required(exercises[index], "case d'un exercice que le bloc n'a pas");
@@ -120,7 +131,8 @@ export function blockCheckCount(checks: BlockChecks): number {
   return checks.rows.reduce((sum, row) => sum + row.boxes.length, 0);
 }
 
-function boxIds(checks: BlockChecks): Set<string> {
+/** L'identité de chaque case du bloc (`blockCheckId`) : ce qu'une coche doit désigner. */
+export function blockCheckIds(checks: BlockChecks): Set<string> {
   return new Set(
     checks.rows.flatMap((row, rowIndex) =>
       row.boxes.map((box) => blockCheckId(checkOf(rowIndex, box))),
@@ -130,7 +142,7 @@ function boxIds(checks: BlockChecks): Set<string> {
 
 /** Toutes les cases cochées existent dans ce bloc. Un débrief qui en cite une autre est refusé. */
 export function trackingFitsBlock(checks: BlockChecks, tracking: SessionBlockTracking): boolean {
-  const boxes = boxIds(checks);
+  const boxes = blockCheckIds(checks);
   return tracking.checked.every((check) => boxes.has(blockCheckId(check)));
 }
 

@@ -32,6 +32,7 @@ const API = { upsert: vi.fn(() => Promise.resolve(FEEDBACK)) };
 const SESSION = {
   id: "s-1",
   exercises: [{ id: "sx-1", tracking: { "b-1": { checked: [0, 1, 2] } } }],
+  blocks: [{ id: "blk-1", tracking: null }],
 } as unknown as ScheduledSessionDto;
 
 describe("feedbackSaveMutation — au succès", () => {
@@ -51,7 +52,25 @@ describe("feedbackSaveMutation — au succès", () => {
 
     expect(seenAtSave).toEqual(sent["sx-1"]);
     // Ce qui est parti accompagne l'appel : l'écran n'efface que si le local n'a pas bougé (#499).
-    expect(onSaved).toHaveBeenCalledWith(sent);
+    expect(onSaved).toHaveBeenCalledWith(sent, undefined);
+  });
+
+  it("la séance en cache porte aussi le suivi par bloc envoyé, et onSaved le reçoit", () => {
+    const { cache, get, put } = fakeCache();
+    put(myPlanKeys.session("s-1"), SESSION);
+    const sentBlocks = { "blk-1": { checked: [{ row: 0, key: null }] } };
+    const onSaved = vi.fn();
+
+    feedbackSaveMutation(cache, API, "s-1", onSaved).onSuccess(FEEDBACK, {
+      content: null,
+      blockTracking: sentBlocks,
+    });
+
+    const session = get(myPlanKeys.session("s-1")) as ScheduledSessionDto;
+    expect(session.blocks[0]?.tracking).toEqual(sentBlocks["blk-1"]);
+    // Le suivi par exercice, lui, n'est pas parti : il reste tel quel.
+    expect(session.exercises).toBe(SESSION.exercises);
+    expect(onSaved).toHaveBeenCalledWith(undefined, sentBlocks);
   });
 
   it("sans séance en cache, n'en invente pas une", () => {
@@ -70,7 +89,7 @@ describe("feedbackSaveMutation — au succès", () => {
     feedbackSaveMutation(cache, API, "s-1", onSaved).onSuccess(FEEDBACK, { content: "Bien tenu" });
 
     expect(get(myPlanKeys.session("s-1"))).toBe(SESSION);
-    expect(onSaved).toHaveBeenCalledWith(undefined);
+    expect(onSaved).toHaveBeenCalledWith(undefined, undefined);
   });
 
   it("range le débrief, et relit la séance, le cycle et la liste coach", () => {

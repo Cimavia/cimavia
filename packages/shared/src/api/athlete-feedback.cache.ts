@@ -1,9 +1,11 @@
 import type {
+  FeedbackBlockTracking,
   FeedbackTracking,
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
 } from "../dto/feedback.schema";
 import type { ScheduledSessionDto } from "../dto/plan.schema";
+import { withSentBlockTracking } from "../util/session-block-tracking.util";
 import { withSentTracking } from "../util/session-tracking.util";
 import { type AthleteFeedbackApi, myFeedbackKeys } from "./athlete-feedback.api";
 import { myPlanKeys } from "./athlete-plan.api";
@@ -20,10 +22,11 @@ export type FeedbackCache = Pick<CacheClient, "setQueryData" | "invalidateQuerie
  * n'invalidait pas la liste coach, le web ne relisait pas la séance sur un refus.
  *
  * Au SUCCÈS, dans cet ordre :
- * 1. la séance en cache prend le suivi envoyé (#346, #499) — sitôt le local effacé, c'est elle que
- *    les écrans affichent, et elle porterait sinon le décompte d'avant l'envoi jusqu'à sa relecture ;
- * 2. `onSaved` reçoit ce qui est PARTI, pour que l'écran n'efface pas une coche posée pendant
- *    l'envoi (#499) ;
+ * 1. la séance en cache prend le suivi envoyé (#346, #499), par exercice comme par bloc (#722) —
+ *    sitôt le local effacé, c'est elle que les écrans affichent, et elle porterait sinon le
+ *    décompte d'avant l'envoi jusqu'à sa relecture ;
+ * 2. `onSaved` reçoit ce qui est PARTI, l'un et l'autre, pour que l'écran n'efface pas une coche
+ *    posée pendant l'envoi (#499) ;
  * 3. le débrief est rangé, et la séance relue avec le cycle : débriefer la passe en `DONE`, et le
  *    planning afficherait sinon « À faire » sur une séance qu'on vient de débriefer. La liste COACH
  *    aussi, dès qu'un compte cumule les deux capacités (#14) — sans effet pour un athlète pur.
@@ -37,20 +40,23 @@ export function feedbackSaveMutation(
   cache: FeedbackCache,
   api: Pick<AthleteFeedbackApi, "upsert">,
   sessionId: string,
-  onSaved?: (sent: FeedbackTracking | undefined) => void,
+  onSaved?: (
+    sent: FeedbackTracking | undefined,
+    sentBlocks: FeedbackBlockTracking | undefined,
+  ) => void,
 ) {
   return {
     mutationFn: (input: UpsertSessionFeedbackInput) => api.upsert(sessionId, input),
     onSuccess: (feedback: SessionFeedbackDto, input: UpsertSessionFeedbackInput) => {
-      const sent = input.tracking;
-      if (sent != null) {
+      const { tracking: sent, blockTracking: sentBlocks } = input;
+      if (sent != null || sentBlocks != null) {
         cache.setQueryData(
           myPlanKeys.session(sessionId),
           (session: ScheduledSessionDto | undefined) =>
-            session == null ? session : withSentTracking(session, sent),
+            session == null ? session : withSent(session, sent, sentBlocks),
         );
       }
-      onSaved?.(sent);
+      onSaved?.(sent, sentBlocks);
       cache.setQueryData(myFeedbackKeys.detail(sessionId), feedback);
       cache.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
       cache.invalidateQueries({ queryKey: myPlanKeys.visible() });
@@ -62,4 +68,13 @@ export function feedbackSaveMutation(
       }
     },
   };
+}
+
+function withSent(
+  session: ScheduledSessionDto,
+  sent: FeedbackTracking | undefined,
+  sentBlocks: FeedbackBlockTracking | undefined,
+): ScheduledSessionDto {
+  const tracked = sent == null ? session : withSentTracking(session, sent);
+  return sentBlocks == null ? tracked : withSentBlockTracking(tracked, sentBlocks);
 }

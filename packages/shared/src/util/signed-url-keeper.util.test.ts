@@ -58,6 +58,7 @@ function feedback(media: FeedbackMediaDto[], messages: MessageDto[]): SessionFee
     content: null,
     media,
     trackedExercises: [],
+    trackedBlocks: [],
     messages,
     createdAt: "2026-09-25T12:00:00.000Z",
     updatedAt: "2026-09-25T12:00:00.000Z",

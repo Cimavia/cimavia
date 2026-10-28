@@ -51,3 +51,12 @@ function renderParam(value: PhraseParam, tools: PhraseTools): string | number {
 function isPhrase(value: Phrase | readonly string[]): value is Phrase {
   return !Array.isArray(value);
 }
+
+/**
+ * Une clé React tirée de la phrase elle-même, et non de son texte : deux phrases distinctes peuvent
+ * se rendre pareil (une langue, un catalogue incomplet), deux phrases égales jamais l'une sans
+ * l'autre. Pour des rangées « Série 1 », « Série 2 », qui n'ont pas d'autre identité.
+ */
+export function phraseId(phrase: Phrase): string {
+  return JSON.stringify(phrase);
+}

@@ -54,7 +54,11 @@ export type GridReading =
       rows: { label: Phrase; cells: GridCell[] }[];
     };
 
-function cellsOf(grid: BlockGrid, values: Readonly<Record<string, MetricValue>>): GridCell[] {
+/** Une ligne de valeurs en cellules, une par colonne, vide (`null`) là où rien n'est saisi. */
+export function gridCells(
+  grid: BlockGrid,
+  values: Readonly<Record<string, MetricValue>>,
+): GridCell[] {
   return grid.metrics.map((metric) => ({ metric, value: values[metric.id] ?? null }));
 }
 
@@ -78,7 +82,7 @@ export function gridReading(
   settings: StructureSettings,
   exerciseCount: number,
 ): GridReading {
-  const rows = grid.rows.map((row) => cellsOf(grid, row.values));
+  const rows = grid.rows.map((row) => gridCells(grid, row.values));
   if (!rows.some((cells) => cells.some((cell) => cell.value != null))) {
     return { layout: GridLayout.NONE };
   }

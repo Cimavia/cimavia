@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type PhraseTools, translatePhrase, translatePhrases } from "./phrase.util";
+import { type PhraseTools, phraseId, translatePhrase, translatePhrases } from "./phrase.util";
 
 // Un traducteur qui montre ce qu'il reçoit : la clé, puis les paramètres déjà rendus.
 const tools: PhraseTools = {
@@ -41,5 +41,15 @@ describe("translatePhrases", () => {
 
   it("rend une chaîne vide pour aucun morceau", () => {
     expect(translatePhrases([], tools)).toBe("");
+  });
+});
+
+describe("phraseId", () => {
+  it("distingue deux rangées que seul leur paramètre sépare", () => {
+    const first = phraseId({ key: "block.grid.set", params: { index: 1 } });
+    const second = phraseId({ key: "block.grid.set", params: { index: 2 } });
+
+    expect(first).not.toBe(second);
+    expect(phraseId({ key: "block.grid.set", params: { index: 1 } })).toBe(first);
   });
 });
