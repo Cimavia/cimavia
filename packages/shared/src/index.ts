@@ -670,6 +670,7 @@ export {
 export type {
   CreateSessionInput,
   ReloadSessionExerciseInput,
+  SessionBlocksInput,
   SessionDto,
   SessionExerciseDto,
   SessionExerciseInput,
@@ -851,7 +852,7 @@ export type {
 } from "./util/block-reading.util";
 export {
   blockClock,
-  blockLetters,
+  blockNumbers,
   ClockKind,
   clockCounter,
   exerciseCodes,
@@ -859,7 +860,6 @@ export {
   GridLayout,
   gridLinePhrases,
   gridReading,
-  letterAt,
 } from "./util/block-reading.util";
 export type { BlockChecks, BlockTally, CheckBox } from "./util/block-tracking.util";
 export {
@@ -1174,9 +1174,11 @@ export {
   blockStructureInput,
   blocksFromDto,
   compositionIssues,
+  creationPlaceOf,
   detachedExercise,
   duplicatedBlock,
   duplicatedExercise,
+  exerciseKeyAt,
   filledGridRows,
   fittedBlock,
   movedExercise,

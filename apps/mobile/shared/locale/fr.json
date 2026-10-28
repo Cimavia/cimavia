@@ -851,7 +851,10 @@
       "note": "Décocher est toujours possible."
     },
     "issue": {
-      "empty": "Ce bloc est vide."
+      "empty": "Ce bloc est vide.",
+      "tooManyBlocks": "Une séance compte au plus {{count}} blocs : celui-ci est de trop.",
+      "tooManyExercises": "Un bloc compte au plus {{count}} exercices.",
+      "sessionFull": "Une séance compte au plus {{count}} exercices : ce bloc dépasse."
     }
   }
 }

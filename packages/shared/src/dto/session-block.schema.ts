@@ -33,7 +33,7 @@ export const SESSION_BLOCK_LABEL_MAX_LENGTH = 60;
  * deux niveaux se comparent (`plannedChanges`). Un même exercice peut figurer deux fois dans un
  * bloc, son `exerciseId` ne suffit donc pas.
  *
- * Pas de code « A1 » : il se déduit de la lettre du bloc et du rang (`exerciseCodes`).
+ * Pas de code « 1.1 » : il se déduit du numéro du bloc et du rang (`exerciseCodes`).
  */
 export const sessionBlockExerciseSchema = z
   .object({

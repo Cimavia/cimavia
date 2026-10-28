@@ -3,15 +3,22 @@ import { metricsFromSuggested } from "../dto/block-grid.schema";
 import {
   type ColumnFillPlan,
   fillRows,
+  MetricSource,
   withMaterializedSeries,
 } from "../dto/exercise-block.schema";
-import type { SessionBlock, SessionBlockExercise } from "../dto/session-block.schema";
+import {
+  BLOCK_MAX_EXERCISES,
+  SESSION_MAX_BLOCKS,
+  type SessionBlock,
+  type SessionBlockExercise,
+} from "../dto/session-block.schema";
 import type { SessionBlockDto } from "../dto/session-block-dto.schema";
+import { SESSION_MAX_EXERCISES } from "../dto/session-limits.schema";
 import {
   STRUCTURE_PRESETS,
   type StructureDto,
   type StructureInput,
-  type StructurePresetKey,
+  StructurePresetKey,
 } from "../dto/structure.schema";
 import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 import type { TypesValuesOf } from "../type/generics.type";
@@ -97,11 +104,36 @@ export function blockStructureInput(block: SessionBlock, name: string): Structur
 // ── Les exercices d'un bloc ─────────────────────────────────────────────────────────────────
 
 /**
+ * Un exercice de la bibliothèque, tel qu'un bloc le reçoit : ses métriques suggérées, et celles du
+ * Coach qu'il cite et qui existent ENCORE (`ExerciseDto.customMetrics`).
+ */
+export type SuggestingExercise = {
+  id: string;
+  suggestedMetrics: readonly SuggestedMetric[];
+  customMetrics: readonly { id: string }[];
+};
+
+/**
+ * Les colonnes que l'exercice préremplit. Une métrique maison supprimée depuis reste suggérée
+ * (dette EX-2) : la reprendre poserait une colonne que l'enregistrement refuse, faute de métrique.
+ */
+function suggestedColumns(
+  exercise: SuggestingExercise,
+  newId: (index: number) => string,
+): GridMetric[] {
+  const known = new Set(exercise.customMetrics.map((metric) => metric.id));
+  const usable = exercise.suggestedMetrics.filter(
+    (metric) => metric.source !== MetricSource.CUSTOM || known.has(metric.customMetricId),
+  );
+  return metricsFromSuggested(usable, newId);
+}
+
+/**
  * Un exercice ajouté à un bloc : une colonne par métrique suggérée, et aucune ligne — toutes ses
  * lignes s'affichent en fantôme (`blockGridSlots`) jusqu'à ce que le Coach en remplisse une.
  */
 export function blockExerciseFrom(
-  exercise: { id: string; suggestedMetrics: readonly SuggestedMetric[] },
+  exercise: SuggestingExercise,
   key: string,
   newId: (index: number) => string,
 ): SessionBlockExercise {
@@ -109,8 +141,40 @@ export function blockExerciseFrom(
     key,
     exerciseId: exercise.id,
     note: null,
-    grid: { metrics: metricsFromSuggested(exercise.suggestedMetrics, newId), rows: [] },
+    grid: { metrics: suggestedColumns(exercise, newId), rows: [] },
   };
+}
+
+const EXERCISE_POINTER = /^#\/blocks\/(\d+)\/exercises\/(\d+)(\/|$)/;
+
+/**
+ * La clé de l'exercice qu'un refus de l'API désigne (`#/blocks/1/exercises/0/grid`, RFC 9457), dans
+ * les blocs ENVOYÉS — `null` quand le refus vise autre chose qu'un exercice.
+ */
+export function exerciseKeyAt(blocks: readonly SessionBlock[], pointer: string): string | null {
+  const match = EXERCISE_POINTER.exec(pointer);
+  if (match == null) return null;
+  return blocks[Number(match[1])]?.exercises[Number(match[2])]?.key ?? null;
+}
+
+/**
+ * Où revient l'exercice créé depuis le bloc de rang `rank` (#303), une fois la séance enregistrée
+ * SANS ses blocs vides — l'API les refuse. `rank` : son rang parmi les blocs enregistrés. Un bloc
+ * vide n'y est pas : il revient comme un bloc neuf, à sa place, copié de la même structure
+ * (`source` : la clé de la structure prête, ou l'id de celle du Coach). Son libellé et ses
+ * réglages ajustés, eux, ne survivent pas à l'aller-retour.
+ */
+export function creationPlaceOf(
+  blocks: readonly SessionBlock[],
+  rank: number,
+): { rank: number; source: string | null } | null {
+  const target = blocks[rank];
+  if (target === undefined) return null;
+  const kept = blocks.slice(0, rank).filter((block) => block.exercises.length > 0).length;
+  if (target.exercises.length > 0) return { rank: kept, source: null };
+  // Une structure supprimée depuis ne laisse aucune origine : le bloc revient en Séries.
+  const source = target.sourceStructureId ?? target.sourcePreset ?? StructurePresetKey.SERIES;
+  return { rank: kept, source };
 }
 
 /** Les blocs que rend l'API, sans l'`id` de ligne que leurs exercices portent en plus. */
@@ -257,17 +321,40 @@ export function duplicatedExercise(
   });
 }
 
+/** Ce qui fait d'une colonne la même mesure : sa clé du catalogue, ou la métrique du Coach. */
+const measureOf = (metric: GridMetric): string =>
+  metric.source === MetricSource.CATALOG
+    ? `catalog:${metric.key}`
+    : `custom:${metric.customMetricId}`;
+
 /**
- * Un autre exercice à la même place : colonnes, valeurs et note restent, c'est le dosage que le
- * Coach a écrit. La clé change — ce n'est plus le même exercice pour la séance planifiée.
+ * Un autre exercice à la même place, sous une clé neuve — ce n'est plus le même exercice pour la
+ * séance planifiée. Ses colonnes sont celles qu'IL suggère : une colonne de même mesure garde la
+ * sienne, unité et valeurs comprises ; les autres partent avec leurs valeurs. Les lignes restent,
+ * comme la note : c'est le nombre de tours que le Coach a posé.
  */
 export function replacedExercise(
   blocks: readonly SessionBlock[],
   key: string,
-  exerciseId: string,
+  exercise: SuggestingExercise,
   newKey: string,
+  newId: (index: number) => string,
 ): SessionBlock[] {
-  return withExerciseChange(blocks, key, (exercise) => ({ ...exercise, key: newKey, exerciseId }));
+  return withExerciseChange(blocks, key, (current) => {
+    // Chaque colonne gardée ne sert qu'une fois : une mesure en double, d'un côté ou de l'autre,
+    // ne doit pas donner deux colonnes du même identifiant.
+    const unused = [...current.grid.metrics];
+    const metrics = suggestedColumns(exercise, newId).map((metric) => {
+      const rank = unused.findIndex((column) => measureOf(column) === measureOf(metric));
+      return rank < 0 ? metric : (unused.splice(rank, 1)[0] ?? metric);
+    });
+    return {
+      ...current,
+      key: newKey,
+      exerciseId: exercise.id,
+      grid: withGridMetrics(current.grid, metrics),
+    };
+  });
 }
 
 /** La copie du bloc, juste après lui : ses exercices prennent des clés neuves (`newKey()`). */
@@ -400,15 +487,31 @@ export function filledGridRows(
 export type CompositionIssue = { blockId: string; phrase: Phrase };
 
 /**
- * Ce qui empêche d'enregistrer, bloc par bloc : un bloc sans exercice, et « un seul par bip » qui
- * manque de bips. Le constructeur les montre au bloc et refuse d'enregistrer, comme l'API.
+ * Ce qui empêche d'enregistrer, bloc par bloc : un bloc sans exercice, « un seul par bip » qui
+ * manque de bips, et les bornes de l'API — un bloc trop garni, ou le bloc qui dépasse celles de la
+ * séance. Le constructeur les montre au bloc et refuse d'enregistrer, comme l'API.
  */
 export function compositionIssues(blocks: readonly SessionBlock[]): CompositionIssue[] {
-  return blocks.flatMap((block) => {
-    if (block.exercises.length === 0) {
-      return [{ blockId: block.id, phrase: { key: "block.issue.empty", params: {} } }];
-    }
-    const error = roundsError(block.settings, block.exercises.length);
-    return error == null ? [] : [{ blockId: block.id, phrase: error }];
+  let before = 0;
+  return blocks.flatMap((block, index) => {
+    const phrase = blockIssue(block, index, before);
+    before += block.exercises.length;
+    return phrase == null ? [] : [{ blockId: block.id, phrase }];
   });
+}
+
+/** Ce qui retient le bloc de rang `index`, que précèdent `before` exercices — ou `null`. */
+function blockIssue(block: SessionBlock, index: number, before: number): Phrase | null {
+  const count = block.exercises.length;
+  if (index >= SESSION_MAX_BLOCKS) {
+    return { key: "block.issue.tooManyBlocks", params: { count: SESSION_MAX_BLOCKS } };
+  }
+  if (count === 0) return { key: "block.issue.empty", params: {} };
+  if (count > BLOCK_MAX_EXERCISES) {
+    return { key: "block.issue.tooManyExercises", params: { count: BLOCK_MAX_EXERCISES } };
+  }
+  if (before + count > SESSION_MAX_EXERCISES) {
+    return { key: "block.issue.sessionFull", params: { count: SESSION_MAX_EXERCISES } };
+  }
+  return roundsError(block.settings, count);
 }

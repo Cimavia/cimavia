@@ -19,9 +19,11 @@ import {
   blocksFromDto,
   ColumnFillMode,
   compositionIssues,
+  creationPlaceOf,
   detachedExercise,
   duplicatedBlock,
   duplicatedExercise,
+  exerciseKeyAt,
   filledGridRows,
   fittedBlock,
   MetricKey,
@@ -157,6 +159,7 @@ describe("les exercices d'un bloc", () => {
         suggestedMetrics: [
           { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
         ],
+        customMetrics: [],
       },
       "k1",
       (index) => `col_${index}`,
@@ -178,6 +181,46 @@ describe("les exercices d'un bloc", () => {
         rows: [],
       },
     });
+  });
+
+  // Une métrique maison supprimée reste suggérée (EX-2) : sa colonne serait refusée à l'enregistrement.
+  it("un exercice ajouté laisse de côté une métrique maison qui n'existe plus", () => {
+    const exercise = blockExerciseFrom(
+      {
+        id: "e1",
+        suggestedMetrics: [
+          { source: MetricSource.CUSTOM, customMetricId: "gone" },
+          { source: MetricSource.CUSTOM, customMetricId: "kept" },
+        ],
+        customMetrics: [{ id: "kept" }],
+      },
+      "k1",
+      (index) => `col_${index}`,
+    );
+    expect(exercise.grid.metrics).toEqual([
+      { id: "col_0", label: null, source: MetricSource.CUSTOM, customMetricId: "kept" },
+    ]);
+  });
+
+  // L'enregistrement qui précède la création laisse les blocs vides de côté : l'API les refuse.
+  it("place l'exercice créé parmi les blocs enregistrés, un bloc vide revenant par sa structure", () => {
+    const empty = { ...blockOf("b2"), sourcePreset: null, sourceStructureId: "st-1" };
+    const blocks = [blockOf("b0"), blockOf("b1", "k1"), empty, blockOf("b3", "k3")];
+    expect(creationPlaceOf(blocks, 3)).toEqual({ rank: 1, source: null });
+    expect(creationPlaceOf(blocks, 2)).toEqual({ rank: 1, source: "st-1" });
+    expect(creationPlaceOf(blocks, 0)).toEqual({ rank: 0, source: StructurePresetKey.SERIES });
+    expect(creationPlaceOf(blocks, 4)).toBeNull();
+    const orphan = [{ ...blockOf("b9"), sourcePreset: null }];
+    expect(creationPlaceOf(orphan, 0)).toEqual({ rank: 0, source: StructurePresetKey.SERIES });
+  });
+
+  it("retrouve l'exercice qu'un refus de l'API désigne, et seulement lui", () => {
+    const blocks = [blockOf("b1", "k1"), blockOf("b2", "k2", "k3")];
+    expect(exerciseKeyAt(blocks, "#/blocks/1/exercises/1/grid")).toBe("k3");
+    expect(exerciseKeyAt(blocks, "#/blocks/0/exercises/0")).toBe("k1");
+    expect(exerciseKeyAt(blocks, "#/blocks/0/exercises/10")).toBeNull();
+    expect(exerciseKeyAt(blocks, "#/blocks/0/name")).toBeNull();
+    expect(exerciseKeyAt(blocks, "#/blocks/0/exercises/01x")).toBeNull();
   });
 
   it("les blocs de l'API perdent l'identifiant de ligne de leurs exercices", () => {
@@ -240,13 +283,59 @@ describe("les exercices d'un bloc", () => {
     expect(duplicated[0]?.exercises[1]?.grid).toEqual(blocks[0]?.exercises[0]?.grid);
   });
 
-  it("remplacer un exercice garde sa place et son dosage, sous une clé neuve", () => {
+  it("remplacer un exercice garde sa place, ses lignes et sa note, sous une clé neuve", () => {
     const blocks = [blockOf("b1", "k1", "k2")];
-    expect(replacedExercise(blocks, "k1", "e9", "k9")[0]?.exercises[0]).toEqual({
+    const same = { id: "e9", suggestedMetrics: [reps], customMetrics: [] };
+    expect(replacedExercise(blocks, "k1", same, "k9", String)[0]?.exercises[0]).toEqual({
       ...exerciseOf("k1"),
       key: "k9",
       exerciseId: "e9",
     });
+  });
+
+  // Une colonne de même mesure garde la sienne — son unité, ses valeurs ; les autres partent.
+  it("remplacer un exercice prend les métriques du nouveau, en gardant les mesures communes", () => {
+    const kilos = load;
+    const line = { ...exerciseOf("k1", gridOf([reps, kilos], [8, 60], [6, 70])), note: "Lent" };
+    const blocks = [{ ...blockOf("b1"), exercises: [line] }];
+    const next = {
+      id: "e9",
+      suggestedMetrics: [
+        { source: MetricSource.CATALOG, key: MetricKey.LOAD, unit: MetricUnit.PERCENT_BODYWEIGHT },
+        { source: MetricSource.CATALOG, key: MetricKey.EFFORT_DURATION, unit: MetricUnit.NONE },
+      ],
+      customMetrics: [],
+    } as const;
+
+    const [replaced] =
+      replacedExercise(blocks, "k1", next, "k9", (index) => `new_${index}`)[0]?.exercises ?? [];
+
+    expect(replaced?.note).toBe("Lent");
+    expect(replaced?.grid.metrics).toEqual([
+      kilos,
+      { id: "new_1", label: null, ...next.suggestedMetrics[1] },
+    ]);
+    expect(replaced?.grid.rows.map((row) => row.values)).toEqual([
+      { [kilos.id]: 60 },
+      { [kilos.id]: 70 },
+    ]);
+  });
+
+  it("remplacer par un exercice qui suggère deux fois la même mesure ne garde la colonne qu'une fois", () => {
+    const blocks = [{ ...blockOf("b1"), exercises: [exerciseOf("k1", gridOf([reps], [8]))] }];
+    const twice = {
+      id: "e9",
+      suggestedMetrics: [
+        { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
+        { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
+      ],
+      customMetrics: [],
+    } as const;
+
+    const [replaced] =
+      replacedExercise(blocks, "k1", twice, "k9", (index) => `new_${index}`)[0]?.exercises ?? [];
+
+    expect(replaced?.grid.metrics.map((metric) => metric.id)).toEqual([reps.id, "new_1"]);
   });
 
   it("dupliquer un bloc pose sa copie juste après lui, ses exercices sous des clés neuves", () => {
@@ -357,6 +446,26 @@ describe("ce qui reste à régler", () => {
     expect(compositionIssues(blocks)).toEqual([
       { blockId: "b1", phrase: { key: "block.issue.empty", params: {} } },
       { blockId: "b2", phrase: { key: "block.settings.tooFewBeeps", params: { count: 2 } } },
+    ]);
+  });
+
+  // Les bornes de l'API, dites au bloc qui les dépasse plutôt que par un refus générique.
+  it("un bloc trop garni, puis ceux qui dépassent les bornes de la séance", () => {
+    const keys = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_unused, index) => `${prefix}${index}`);
+    expect(compositionIssues([blockOf("b1", ...keys("a", 21))])).toEqual([
+      { blockId: "b1", phrase: { key: "block.issue.tooManyExercises", params: { count: 20 } } },
+    ]);
+
+    const full = [blockOf("b1", ...keys("a", 20)), blockOf("b2", ...keys("b", 20))];
+    expect(compositionIssues([...full, blockOf("b3", ...keys("c", 10))])).toEqual([]);
+    expect(compositionIssues([...full, blockOf("b3", ...keys("c", 11))])).toEqual([
+      { blockId: "b3", phrase: { key: "block.issue.sessionFull", params: { count: 50 } } },
+    ]);
+
+    const many = Array.from({ length: 31 }, (_unused, index) => blockOf(`b${index}`, `k${index}`));
+    expect(compositionIssues(many)).toEqual([
+      { blockId: "b30", phrase: { key: "block.issue.tooManyBlocks", params: { count: 30 } } },
     ]);
   });
 });
