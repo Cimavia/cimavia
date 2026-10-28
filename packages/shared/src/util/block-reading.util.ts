@@ -29,6 +29,15 @@ export function exerciseCodes(number: string | null, exerciseCount: number): (st
   );
 }
 
+/**
+ * Ce qui désigne chaque exercice dans la ligne d'un tour : son code, son titre dans un bloc à
+ * libellé. Commun à la séance planifiée (`readScheduledBlocks`) et à l'aperçu du constructeur.
+ */
+export function exerciseLabels(number: string | null, names: readonly string[]): string[] {
+  const codes = exerciseCodes(number, names.length);
+  return names.map((name, index) => codes[index] ?? name);
+}
+
 // ── La grille ───────────────────────────────────────────────────────────────────────────────
 
 export const GridLayout = {

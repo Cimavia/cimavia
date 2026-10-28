@@ -1,6 +1,7 @@
 import {
   type BlockCheck,
   type BlockSessionTracking,
+  blockHeading,
   readScheduledBlocks,
   type ScheduledSessionDto,
   sessionBlockTally,
@@ -51,7 +52,7 @@ export function FeedbackBlocksSection({
             <Pressable
               onPress={() => setEditing(isEditing ? null : block.id)}
               accessibilityRole="button"
-              accessibilityLabel={t("feedback.tracking.edit", { exercise: block.name })}
+              accessibilityLabel={t("feedback.tracking.edit", { exercise: blockHeading(read) })}
               className="flex-row items-center gap-3"
             >
               <BlockMark number={read.number} label={block.label} />

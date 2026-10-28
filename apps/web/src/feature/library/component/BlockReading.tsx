@@ -2,6 +2,7 @@ import {
   type BlockGrid,
   type CustomMetric,
   exerciseCodes,
+  exerciseLabels,
   flowPhrase,
   formatMetricValue,
   type GridCell,
@@ -58,9 +59,8 @@ export function BlockReading({
   const count = exercises.length;
   const codes = exerciseCodes(number, count);
   const names = exercises.map((exercise) => exercise.name);
-  const labels = names.map((name, index) => codes[index] ?? name);
   const phrase = settingsPhrase(settings, count, names);
-  const flow = flowPhrase(settings, labels);
+  const flow = flowPhrase(settings, exerciseLabels(number, names));
 
   return (
     <section className="flex flex-col gap-cmv-sm">

@@ -1,6 +1,6 @@
 import type { ScheduledSessionDto, ScheduledSessionExerciseDto } from "../dto/plan.schema";
 import type { ScheduledSessionBlockDto } from "../dto/session-block-dto.schema";
-import { blockNumbers, exerciseCodes } from "./block-reading.util";
+import { blockNumbers, exerciseCodes, exerciseLabels } from "./block-reading.util";
 import { required } from "./invariant.util";
 
 // La séance planifiée telle que l'athlète la lit, bloc par bloc (#722) : ce que le web et le
@@ -48,7 +48,7 @@ export function readScheduledBlocks(session: ScheduledSessionDto): ReadBlock[] {
       number,
       exercises,
       names,
-      labels: exercises.map((exercise, position) => exercise.code ?? names[position] ?? ""),
+      labels: exerciseLabels(number, names),
     };
   });
 }

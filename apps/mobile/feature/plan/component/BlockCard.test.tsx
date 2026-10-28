@@ -108,7 +108,7 @@ describe("BlockCard", () => {
     const { rerender } = renderRn(
       <BlockCard read={read} planId="p-1" sessionId="s-1" tally={null} />,
     );
-    expect(screen.queryByText(/block\.flow/)).toBeTruthy();
+    expect(screen.getByText(/block\.flow/)).toBeTruthy();
 
     rerender(<BlockCard read={read} planId="p-1" sessionId="s-1" tally={null} showFlow={false} />);
     expect(screen.queryByText(/block\.flow/)).toBeNull();

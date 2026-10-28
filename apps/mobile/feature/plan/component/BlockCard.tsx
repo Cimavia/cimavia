@@ -1,6 +1,7 @@
 import {
   type BlockTally,
   BlockTallyState,
+  blockHeading,
   flowPhrase,
   gridReading,
   type ReadBlock,
@@ -80,7 +81,7 @@ export function BlockCard({
         <Pressable
           onPress={onOpen}
           accessibilityRole="button"
-          accessibilityLabel={t("plan.blocks.open", { block: number ?? block.label ?? "" })}
+          accessibilityLabel={t("plan.blocks.open", { block: blockHeading(read) })}
         >
           {header}
         </Pressable>
