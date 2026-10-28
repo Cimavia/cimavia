@@ -215,6 +215,10 @@ export type CreateScheduledSessionInput = z.infer<typeof createScheduledSessionS
  * Elle cite la version de la séance OUVERTE (#604) : deux Coachs d'une entreprise peuvent ajuster
  * la même séance, et le second effacerait sinon le premier sans un mot. Le débrief de l'athlète ne
  * la fait pas avancer — il ne touche à rien de ce que le Coach a composé.
+ *
+ * Sans `exercises`, la composition reste intacte (#720) : celle d'une séance par blocs s'écrit
+ * geste par geste (`scheduledCompositionInputSchema`), et « Enregistrer » ne porte plus que le
+ * titre, les notes et le jour.
  */
 export const updateScheduledSessionSchema = z
   .object({
@@ -223,7 +227,8 @@ export const updateScheduledSessionSchema = z
     scheduledDate: z.iso.date(),
     exercises: z
       .array(scheduledSessionExerciseInputSchema)
-      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE),
+      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
+      .optional(),
     expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
@@ -320,6 +325,8 @@ export const scheduledSessionSummaryDtoSchema = z.object({
   position: z.number().int(),
   status: scheduledSessionStatusSchema,
   exerciseCount: z.number().int(),
+  /** `0` pour une séance de l'ancien modèle, composée d'exercices sans blocs. */
+  blockCount: z.number().int(),
   /**
    * La dernière écriture sur la séance (#307). Le mobile s'en sert pour savoir si le déroulé qu'il
    * garde hors-ligne est encore le bon : retoucher une séance ne touche pas la ligne `Plan`, et

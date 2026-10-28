@@ -135,7 +135,16 @@ describe("updateScheduledSessionSchema", () => {
       expectedUpdatedAt: VERSION,
     });
     expect(parsed.exercises).toHaveLength(2);
-    expect(parsed.exercises[1]?.sourceExerciseId).toBeUndefined();
+    expect(parsed.exercises?.[1]?.sourceExerciseId).toBeUndefined();
+  });
+
+  it("laisse la composition intacte sans exercices : titre, notes et jour seuls (#720)", () => {
+    const parsed = updateScheduledSessionSchema.parse({
+      title: "Bloc force max",
+      scheduledDate: "2026-10-14",
+      expectedUpdatedAt: VERSION,
+    });
+    expect(parsed.exercises).toBeUndefined();
   });
 
   it("refuse un champ inconnu dans la composition (schéma strict)", () => {

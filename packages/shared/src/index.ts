@@ -668,6 +668,19 @@ export {
   richDocumentToPlainText,
 } from "./dto/rich-document.schema";
 export type {
+  CompositionEdit,
+  ScheduledCompositionInput,
+  ScheduledSessionCopyDto,
+  SessionVersion,
+} from "./dto/scheduled-composition.schema";
+export {
+  COMPOSITION_MAX_SESSIONS,
+  CompositionEditKind,
+  compositionEditSchema,
+  scheduledCompositionInputSchema,
+  scheduledSessionCopyDtoSchema,
+} from "./dto/scheduled-composition.schema";
+export type {
   CreateSessionInput,
   ReloadSessionExerciseInput,
   SessionBlocksInput,
@@ -1157,6 +1170,27 @@ export {
 } from "./util/reminder.util";
 export { shouldReportQueryError } from "./util/report-query-error.util";
 export { sameJson } from "./util/same-json.util";
+export type {
+  ComposedExercise,
+  CompositionLibrary,
+  CompositionOutcome,
+  CopyChoice,
+  PlannedCompositionBlock,
+  PlannedExercise,
+} from "./util/scheduled-composition.util";
+export {
+  appliedEdit,
+  CompositionOutcomeKind,
+  CompositionRefusal,
+  compositionChangeCount,
+  compositionTargets,
+  copyChoices,
+  editInPlace,
+  editOfExercise,
+  removedReferences,
+  resetComposition,
+  revertedEdit,
+} from "./util/scheduled-composition.util";
 export { comparableText, searchMatcher } from "./util/search.util";
 export { sentryDataCollection } from "./util/sentry-data-collection.util";
 export type {
@@ -1185,6 +1219,7 @@ export {
   movedItem,
   presetSource,
   replacedExercise,
+  replacementGrid,
   revertedBlock,
   rowsBeyond,
   structureSource,

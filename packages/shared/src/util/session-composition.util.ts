@@ -328,10 +328,28 @@ const measureOf = (metric: GridMetric): string =>
     : `custom:${metric.customMetricId}`;
 
 /**
+ * La grille d'un remplaçant : les colonnes qu'IL suggère. Une colonne de même mesure garde la
+ * sienne, unité et valeurs comprises ; les autres partent avec leurs valeurs. Les lignes restent :
+ * c'est le nombre de tours que le Coach a posé.
+ */
+export function replacementGrid(
+  grid: BlockGrid,
+  exercise: SuggestingExercise,
+  newId: (index: number) => string,
+): BlockGrid {
+  // Chaque colonne gardée ne sert qu'une fois : une mesure en double, d'un côté ou de l'autre,
+  // ne doit pas donner deux colonnes du même identifiant.
+  const unused = [...grid.metrics];
+  const metrics = suggestedColumns(exercise, newId).map((metric) => {
+    const rank = unused.findIndex((column) => measureOf(column) === measureOf(metric));
+    return rank < 0 ? metric : (unused.splice(rank, 1)[0] ?? metric);
+  });
+  return withGridMetrics(grid, metrics);
+}
+
+/**
  * Un autre exercice à la même place, sous une clé neuve — ce n'est plus le même exercice pour la
- * séance planifiée. Ses colonnes sont celles qu'IL suggère : une colonne de même mesure garde la
- * sienne, unité et valeurs comprises ; les autres partent avec leurs valeurs. Les lignes restent,
- * comme la note : c'est le nombre de tours que le Coach a posé.
+ * séance planifiée. Sa grille suit `replacementGrid` ; la note reste.
  */
 export function replacedExercise(
   blocks: readonly SessionBlock[],
@@ -340,21 +358,12 @@ export function replacedExercise(
   newKey: string,
   newId: (index: number) => string,
 ): SessionBlock[] {
-  return withExerciseChange(blocks, key, (current) => {
-    // Chaque colonne gardée ne sert qu'une fois : une mesure en double, d'un côté ou de l'autre,
-    // ne doit pas donner deux colonnes du même identifiant.
-    const unused = [...current.grid.metrics];
-    const metrics = suggestedColumns(exercise, newId).map((metric) => {
-      const rank = unused.findIndex((column) => measureOf(column) === measureOf(metric));
-      return rank < 0 ? metric : (unused.splice(rank, 1)[0] ?? metric);
-    });
-    return {
-      ...current,
-      key: newKey,
-      exerciseId: exercise.id,
-      grid: withGridMetrics(current.grid, metrics),
-    };
-  });
+  return withExerciseChange(blocks, key, (current) => ({
+    ...current,
+    key: newKey,
+    exerciseId: exercise.id,
+    grid: replacementGrid(current.grid, exercise, newId),
+  }));
 }
 
 /** La copie du bloc, juste après lui : ses exercices prennent des clés neuves (`newKey()`). */
