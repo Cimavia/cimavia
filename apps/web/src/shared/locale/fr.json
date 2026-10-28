@@ -1011,6 +1011,7 @@
       "allWeeks": "toutes les semaines",
       "week": "S{{number}}",
       "sessionType": "séance-type : {{title}}",
+      "metrics": "Métriques :",
       "backToSessionType": "Revenir à la séance-type",
       "noSource": "Exercice retiré de la bibliothèque",
       "pick": {

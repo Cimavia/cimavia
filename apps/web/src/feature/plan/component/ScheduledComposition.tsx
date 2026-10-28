@@ -511,17 +511,14 @@ function AddOrPick({
   const { t } = useTranslation();
   if (picking == null) {
     return (
-      <button
-        type="button"
-        onClick={onStart}
-        disabled={isBusy}
-        className="flex items-center gap-cmv-sm rounded-cmv-md border border-cmv-border border-dashed px-cmv-md py-cmv-sm text-left text-cmv-body text-cmv-text-hi"
-      >
-        <span>{label}</span>
+      <div className="flex items-center gap-cmv-sm">
+        <CmvButton variant="secondary" onClick={onStart} disabled={isBusy}>
+          {label}
+        </CmvButton>
         {hint == null ? null : (
           <span className="ml-auto text-cmv-caption text-cmv-text-lo">{hint}</span>
         )}
-      </button>
+      </div>
     );
   }
   return (

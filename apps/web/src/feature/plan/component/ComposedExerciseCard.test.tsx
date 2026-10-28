@@ -1,3 +1,4 @@
+import { MetricKey, MetricSource, MetricUnit } from "@cmv/shared";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { ComposedExerciseCard } from "./ComposedExerciseCard";
@@ -37,6 +38,28 @@ describe("ComposedExerciseCard", () => {
     expect(view.getByText("Allure régulière")).toBeInTheDocument();
     expect(view.queryByRole("list")).toBeNull();
     expect(view.container.textContent).not.toMatch(/^\d/);
+  });
+
+  it("préfixe les métriques de la grille, pour ne pas les confondre avec les tags", () => {
+    const view = setup({
+      tags: ["renfo"],
+      grid: {
+        metrics: [
+          {
+            id: "reps",
+            label: null,
+            source: MetricSource.CATALOG,
+            key: MetricKey.REPETITIONS,
+            unit: MetricUnit.REPS,
+          },
+        ],
+        rows: [],
+      },
+    });
+
+    const metrics = view.getByRole("list", { name: "plan.composition.metrics" });
+    expect(metrics).toHaveTextContent("plan.composition.metrics");
+    expect(metrics).not.toHaveTextContent("renfo");
   });
 
   it("rouvre le changement par son étiquette, un bouton comme les autres", async () => {

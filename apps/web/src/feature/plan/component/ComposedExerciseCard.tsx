@@ -59,7 +59,7 @@ export function ComposedExerciseCard(props: Readonly<ComposedExerciseCardProps>)
         </span>
         {removed || tags.length === 0 ? null : <CmvTagList tags={tags} />}
         {change == null ? null : (
-          <CmvButton variant="secondary" onClick={change.onReopen} disabled={readOnly || isBusy}>
+          <CmvButton variant="change" onClick={change.onReopen} disabled={readOnly || isBusy}>
             {change.label}
           </CmvButton>
         )}
@@ -77,7 +77,14 @@ function ExerciseContent({ grid, customMetrics, note }: Readonly<ComposedExercis
   return (
     <>
       {metrics.length === 0 ? null : (
-        <ul className="flex flex-wrap gap-cmv-xs">
+        // Préfixées, les métriques ne se confondent pas avec les tags de la ligne du nom.
+        <ul
+          aria-label={t("plan.composition.metrics")}
+          className="flex flex-wrap items-center gap-cmv-xs"
+        >
+          <li aria-hidden className="text-cmv-caption text-cmv-text-lo">
+            {t("plan.composition.metrics")}
+          </li>
           {metrics.map((metric, index) => (
             <li
               // Deux colonnes peuvent porter le même libellé : le rang les distingue.
@@ -115,7 +122,7 @@ function ExerciseGestures({
       {readOnly ? null : (
         <div className="flex flex-wrap gap-cmv-sm">
           {change == null ? null : (
-            <CmvButton variant="ghost" onClick={change.onRevert} disabled={isBusy}>
+            <CmvButton variant="secondary" onClick={change.onRevert} disabled={isBusy}>
               {t("plan.composition.backToSessionType")}
             </CmvButton>
           )}
