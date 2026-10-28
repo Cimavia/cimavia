@@ -98,16 +98,14 @@ export function CmvMenu({ label, groups, disabled = false }: Readonly<CmvMenuPro
           onKeyDown={onKeyDown}
           className="fixed z-30 flex w-72 flex-col rounded-cmv-md border border-cmv-border bg-cmv-surface py-cmv-xs shadow-lg"
         >
-          {groups.map((group, index) => (
+          {keyedGroups(groups).map(({ key, items }, index) => (
             <div
-              // Les groupes ne bougent pas pendant que le menu est ouvert : leur rang les nomme.
-              key={index}
+              key={key}
               className={cn(index > 0 && "mt-cmv-xs border-cmv-border border-t pt-cmv-xs")}
             >
-              {/* Deux blocs au même libellé donnent deux « Déplacer vers » au même nom. */}
-              {group.map((item, rank) => (
+              {items.map(({ key: itemKey, item }) => (
                 <button
-                  key={rank}
+                  key={itemKey}
                   type="button"
                   role="menuitem"
                   disabled={item.disabled}
@@ -136,4 +134,20 @@ export function CmvMenu({ label, groups, disabled = false }: Readonly<CmvMenuPro
       ) : null}
     </>
   );
+}
+
+/**
+ * Les clés des groupes et des gestes, tirées de leurs libellés. Deux blocs au même libellé donnent
+ * deux « Déplacer vers » au même nom : le second prend son rang d'occurrence (« …#1 »).
+ */
+function keyedGroups(groups: readonly (readonly CmvMenuItem[])[]) {
+  const seen = new Map<string, number>();
+  return groups.map((group) => {
+    const items = group.map((item) => {
+      const occurrence = seen.get(item.label) ?? 0;
+      seen.set(item.label, occurrence + 1);
+      return { key: occurrence === 0 ? item.label : `${item.label}#${occurrence}`, item };
+    });
+    return { key: items.map(({ key }) => key).join("|"), items };
+  });
 }

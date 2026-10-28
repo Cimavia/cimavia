@@ -136,10 +136,9 @@ export function useBlocksDraft(
   );
   const input = inputOf(title, notes, blocks);
   const issues = compositionIssues(blocks);
-  // Sans les blocs vides : ce qu'enregistre la création d'un exercice manquant (#303).
   // Encore composée par exercices (BL-1) : des blocs l'effaceraient. Aucun constructeur n'en crée
   // plus, mais l'API en accepte encore : on la lit sans l'écraser.
-  const legacy = session != null && session.blocks.length === 0 && session.exercises.length > 0;
+  const legacy = session?.blocks.length === 0 && session.exercises.length > 0;
 
   /** Un exercice de la bibliothèque, au bout du bloc `blockId` — ou dans un bloc Séries neuf. */
   function addExercise(blockId: string | null, exercise: ExerciseDto) {
@@ -176,9 +175,9 @@ export function useBlocksDraft(
       setEdited(result);
       setSaved(sent);
       return result;
-    } catch (failure) {
-      setRefusedKey(refusedKeyOf(failure, sent.blocks));
-      throw failure;
+    } catch (error_) {
+      setRefusedKey(refusedKeyOf(error_, sent.blocks));
+      throw error_;
     }
   }
 

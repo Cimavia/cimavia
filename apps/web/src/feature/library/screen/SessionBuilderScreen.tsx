@@ -1,15 +1,10 @@
-import type {
-  CustomMetric,
-  ExerciseDto,
-  SessionBlock,
-  SessionDto,
-  StructureDto,
-} from "@cmv/shared";
 import {
   blockNumbers,
   type CopiedStructure,
+  type CustomMetric,
   canWrite,
   creationPlaceOf,
+  type ExerciseDto,
   exerciseCodes,
   foreignOf,
   movedExercise,
@@ -17,7 +12,10 @@ import {
   presetSource,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
+  type SessionBlock,
+  type SessionDto,
   STRUCTURE_PRESET_NAME_KEY,
+  type StructureDto,
   StructurePresetKey,
   structureSource,
   withBlock,
