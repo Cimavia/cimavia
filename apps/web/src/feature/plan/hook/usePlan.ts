@@ -3,6 +3,7 @@ import type {
   PlanDto,
   PlanWeekInput,
   ScheduledCompositionInput,
+  ScheduledDosageInput,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
@@ -16,6 +17,7 @@ import {
   createScheduledSession,
   deletePlanWeek,
   deleteScheduledSession,
+  doseScheduledSession,
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
@@ -66,12 +68,15 @@ export const scheduledSessionDetailQuery = (id: string) => ({
   queryFn: () => getScheduledSession(id),
 });
 
+/** Les copies de la séance-type dans le cycle (#720), partagées par la composition et Dosage (#721). */
+export const scheduledSessionCopiesQuery = (sessionId: string) => ({
+  queryKey: scheduledSessionKeys.copies(sessionId),
+  queryFn: () => getScheduledSessionCopies(sessionId),
+});
+
 /** Les copies de la séance-type dans le cycle (#720) : la fenêtre « Pour quelles semaines ? » les coche. */
 export function useScheduledSessionCopies(sessionId: string) {
-  return useQuery({
-    queryKey: scheduledSessionKeys.copies(sessionId),
-    queryFn: () => getScheduledSessionCopies(sessionId),
-  });
+  return useQuery(scheduledSessionCopiesQuery(sessionId));
 }
 
 export function usePlan(planId: string) {
@@ -254,6 +259,18 @@ export function usePlanMutations(planId: string) {
 
   const isBusy = useIsMutating({ mutationKey }) > 0;
 
+  /**
+   * « Enregistrer » de Dosage (#721) : les valeurs de toutes les semaines changées, en une
+   * requête. Rend les copies, sous leurs nouvelles versions.
+   */
+  const doseSession = useMutation({
+    mutationKey,
+    mutationFn: ({ sessionId, input }: { sessionId: string; input: ScheduledDosageInput }) =>
+      doseScheduledSession(sessionId, input),
+    onSuccess: done("plan.toast.dosageSaved"),
+    onError: onFormError,
+  });
+
   return {
     saveHeader,
     addWeek,
@@ -266,6 +283,7 @@ export function usePlanMutations(planId: string) {
     removeSession,
     composeSession,
     resetComposition,
+    doseSession,
     isBusy,
   };
 }

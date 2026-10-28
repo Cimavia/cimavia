@@ -141,6 +141,8 @@ const mount = async (
   headerError: unknown = null,
   // Celui du dernier enregistrement de séance, que le panneau lit de même.
   sessionError: unknown = null,
+  // L'URL d'arrivée : Dosage rouvre le cycle sur une séance (#721).
+  search: Record<string, string> = {},
 ) => {
   vi.mocked(usePlans).mockReturnValue({
     data: coachPlans ?? undefined,
@@ -173,7 +175,8 @@ const mount = async (
   return renderInRoute(<PlanBuilderScreen />, {
     path: "/plans/$planId",
     params: { planId: "pln_1" },
-    links: ["/plans", "/invoices"],
+    links: ["/plans", "/invoices", "/plans/$planId/dosage"],
+    search,
   });
 };
 
@@ -538,6 +541,65 @@ describe("PlanBuilderScreen — les semaines", () => {
 
     expect(await findByText("Séance planifiée introuvable")).toBeTruthy();
     expect(queryByText("plan.session.editTitle")).toBeNull();
+  });
+
+  // « Composer cette séance », depuis Dosage : le cycle s'ouvre sur son panneau, une seule fois.
+  it("ouvre la séance que l'URL demande, puis retire la demande", async () => {
+    const { findByText, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
+      session: "ss_1",
+    });
+
+    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(router.state.location.pathname).toBe("/plans/pln_1");
+  });
+
+  it("n'ouvre rien pour une séance que le cycle n'a plus", async () => {
+    const { queryByText, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
+      session: "ss_retiree",
+    });
+
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(queryByText("plan.session.editTitle")).toBeNull();
+    expect(getScheduledSession).not.toHaveBeenCalled();
+  });
+
+  // Le cycle en cache peut précéder la copie que Dosage a rouverte : sa relecture la dira.
+  it("garde la demande tant que le cycle se relit", async () => {
+    const { findByText, router } = await mount(
+      {},
+      null,
+      [],
+      { isFetching: true } as never,
+      null,
+      null,
+      {
+        session: "ss_1",
+      },
+    );
+
+    expect(await findByText("plan.builder.addWeek")).toBeTruthy();
+    expect(router.state.location.search).toEqual({ session: "ss_1" });
+  });
+
+  // Dosage règle tout le cycle, séance-type par séance-type (#721) : son entrée est dans l'en-tête.
+  it("« Dosage » ouvre les valeurs du cycle, en Lecture comme ailleurs", async () => {
+    const byBlocks = { ...week, sessions: [{ ...summary, blockCount: 1 }] };
+    const read = { level: MyAccessLevel.READ, via: { id: "org_f", name: "F" } };
+    const reader = await mount({ weeks: [byBlocks], coachId: "coach_c", myAccess: read } as never);
+    expect(reader.getByRole("button", { name: "plan.dosage.title" })).toBeTruthy();
+    reader.unmount();
+
+    const { getByRole, router, user } = await mount({ weeks: [byBlocks] });
+    await user.click(getByRole("button", { name: "plan.dosage.title" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans/pln_1/dosage"));
+  });
+
+  it("n'offre pas Dosage sans séance par blocs : rien n'y serait à régler", async () => {
+    const { queryByRole } = await mount({ weeks: [week] });
+
+    expect(queryByRole("button", { name: "plan.dosage.title" })).toBeNull();
   });
 
   it("ajoute une semaine d'entraînement en fin de cycle", async () => {

@@ -9,6 +9,7 @@ import {
   deletePlan,
   deletePlanWeek,
   deleteScheduledSession,
+  doseScheduledSession,
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
@@ -169,6 +170,12 @@ describe.each([
     () => resetScheduledComposition("s-1", { expectedUpdatedAt: VERSION }),
     "post",
     ["/scheduled-sessions/s-1/composition/reset", { expectedUpdatedAt: VERSION }],
+  ],
+  [
+    "doseScheduledSession",
+    () => doseScheduledSession("s-1", { sessions: [] }),
+    "post",
+    ["/scheduled-sessions/s-1/values", { sessions: [] }],
   ],
 ] as const)("%s", (_, call, verb, args) => {
   it(`part en ${verb.toUpperCase()} sur la bonne ressource`, async () => {

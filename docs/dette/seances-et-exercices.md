@@ -633,7 +633,7 @@ liste des domaines vivent dans l'index.
 >   client, et sont passés dans `feature/plan`, sans préfixe ni recherche.
 > - **Depuis [#720](https://github.com/Cimavia/cimavia/issues/720), ce panneau à plat ne sert plus
 >   qu'aux séances planifiées SANS bloc** (BL-1) : une séance par blocs se compose dans
->   `ScheduledComposition`, et son dosage revient avec #721.
+>   `ScheduledComposition`, et se dose dans Dosage depuis #721.
 
 ---
 
@@ -641,7 +641,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, mais ses valeurs ne se règlent qu'avec #721 — d'ici là, le panneau n'en montre que les métriques. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, et depuis #721 ses valeurs se règlent dans Dosage, semaine par semaine. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 | BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
@@ -931,3 +931,42 @@ liste des domaines vivent dans l'index.
 >   reprendre par blocs.
 > - **La grille et la liste des séances disent « blocs · exercices »** (`compositionSummary`),
 >   les exercices seuls pour une séance sans bloc : le résumé planifié porte `blockCount`.
+
+> **Tranché en [#721](https://github.com/Cimavia/cimavia/issues/721)** (doser une séance
+> planifiée, semaine par semaine) :
+> - **« Enregistrer », pas d'écriture au fil de la saisie** : une requête
+>   (`POST /scheduled-sessions/:id/values`) et une notification pour toutes les semaines
+>   changées. Chaque copie cite sa version (#604) ; une seule périmée, et rien ne s'écrit (409).
+>   La sortie se garde comme dans les constructeurs (#682).
+> - **Une semaine débriefée se lit, ne se dose pas** : sa colonne est fermée, et le serveur la
+>   refuse (`DEBRIEFED`), comme la composition.
+> - **Dosage ne change que des valeurs** : mêmes blocs, mêmes exercices, mêmes colonnes — ids
+>   compris —, sinon 400. La forme des réglages reste verrouillée (`assertLocked`, partagé avec
+>   la composition), et chaque cellule se valide contre les métriques que sa ligne a figées. Une
+>   colonne maison sans définition (EX-2) ne bloque pas la copie et ne reçoit rien de neuf : une
+>   ligne gardée garde sa valeur, une série ajoutée ne reprend qu'une valeur que la colonne avait
+>   déjà, et une ligne retirée emporte la sienne.
+> - **L'écart se calcule, il ne s'écrit pas** : la référence est le `baseline` de chaque copie, et
+>   aucun marqueur d'ajustement n'est stocké au niveau du bloc. « Revenir à la séance-type » rend
+>   les valeurs seules ; la composition ne bouge pas.
+> - **Hors périmètre** : réinitialiser toute la séance (#724) et la progression (#722).
+> - **« Dosage » s'ouvre de l'en-tête du cycle**, en Lecture comprise, et règle une séance-type à
+>   la fois : un sélecteur en tête de page (`?type=`, la première du cycle sans lui), aucune
+>   colonne mise en avant. Le bouton ne se montre pas sans séance par blocs : une séance sans bloc
+>   (BL-1) garde son éditeur à plat. Retour au cycle par « ← Retour au cycle », pas de légende.
+> - **Des tours trop courts pour le bloc ne partent pas** : le bandeau dit la semaine et le bloc,
+>   et « Enregistrer » reste fermé tant qu'il en reste.
+> - **La phrase du bloc suit les semaines** : celle de la séance-type tant que chaque semaine la
+>   fait, une par semaine, sur ses propres valeurs, dès que l'une en change. Les tours d'un
+>   exercice seul s'appellent « Séries », et leur repos « Repos entre séries », dans la ligne comme
+>   dans la saisie, comme la phrase. Le nom se lit sur la séance-type reçue : il ne change pas
+>   pendant la saisie.
+> - **Un exercice retiré partout n'a pas de ligne** ; un ajout ou un remplaçant se lit en fin de
+>   bloc, hachuré hors des semaines qui le portent.
+> - **Les copies portent le titre et les métriques figées de chaque ligne** (`exercises`) : le
+>   tableau se lit sans relire le détail de chaque semaine.
+> - **« Composer cette séance » rouvre le cycle par `?session=`**, retiré une fois lu. Dosage est
+>   une route sœur du builder (`plans.$planId_.dosage`), pas un enfant : le builder ne devient pas
+>   un layout.
+> - **La bulle de la maquette est fusionnée dans la saisie** : la fenêtre d'une cellule cite la
+>   valeur de la séance-type et offre d'y revenir.

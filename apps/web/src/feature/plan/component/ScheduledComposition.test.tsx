@@ -90,6 +90,7 @@ const copyOf = (
   updatedAt: id === "ss-1" ? V1 : V2,
   status: ScheduledSessionStatus.PLANNED,
   blocks,
+  exercises: [],
 });
 
 const row = (id: string, sourceExerciseId: string, title: string) => ({

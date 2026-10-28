@@ -909,7 +909,8 @@
       "stale": "Le cycle a changé entre-temps : il vient d'être relu. Refais ton geste si besoin.",
       "planStale": "Le cycle a changé depuis que tu l'as ouvert : il vient d'être relu. Vérifie-le avant de recommencer.",
       "compositionSaved": "Composition mise à jour",
-      "compositionReset": "Composition de la séance-type rendue"
+      "compositionReset": "Composition de la séance-type rendue",
+      "dosageSaved": "Dosage enregistré"
     },
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",
@@ -1045,6 +1046,58 @@
           "KEY_TAKEN": "Un autre changement occupe déjà cette place."
         }
       }
+    },
+    "dosage": {
+      "title": "Dosage",
+      "subtitle": "Les valeurs de {{name}}, semaine par semaine",
+      "back": "← Retour au cycle",
+      "sessionType": "Séance-type",
+      "empty": {
+        "title": "Rien à doser",
+        "description": "Aucune séance par blocs n'est posée dans ce cycle. Pose une séance-type depuis le cycle : ses valeurs se régleront ici, semaine par semaine."
+      },
+      "save": "Enregistrer",
+      "saved": "Enregistré",
+      "stale": "Une de ces semaines a changé depuis que tu l'as ouverte. Recharge pour repartir de sa dernière version — ta saisie sera perdue.",
+      "roundsIssue": "{{week}}, bloc {{block}} : {{reason}}",
+      "value": "Valeur",
+      "notPlaced": "Séance non posée",
+      "deloadDay": "{{day}} · décharge",
+      "adjusted": "{{count}} valeur ajustée",
+      "adjusted_other": "{{count}} valeurs ajustées",
+      "adjusted_zero": "Comme la séance-type",
+      "debriefed": "Débriefée : en lecture seule",
+      "columnActions": "Actions de {{week}}",
+      "compose": "Composer cette séance",
+      "roundsNote": "autant de lignes que de tours",
+      "setsNote": "autant de lignes que de séries",
+      "added": "ajouté",
+      "replacement": "remplaçant",
+      "replaces": "remplace {{code}}",
+      "editCell": "Régler la valeur",
+      "sessionTypeValue": "Séance-type : {{value}}",
+      "series": "Série {{number}}",
+      "sameEverywhere": "Même valeur partout",
+      "missing": "{{label}} : —",
+      "setting": {
+        "ROUNDS": "Tours",
+        "SETS": "Séries",
+        "REST_BETWEEN_SETS": "Repos entre séries",
+        "CAP": "Temps donné",
+        "EVERY": "Toutes les",
+        "WORK": "Effort",
+        "REST": "Repos",
+        "REST_BETWEEN_EXERCISES": "Repos entre exercices",
+        "REST_BETWEEN_ROUNDS": "Repos entre tours",
+        "LIMIT": "Limite de temps"
+      },
+      "off": {
+        "REPLACED": "remplacé",
+        "REMOVED": "retiré",
+        "NOT_THIS_WEEK": "pas cette semaine",
+        "NONE": "—"
+      },
+      "weekOnDay": "{{week}} · {{day}}"
     }
   },
   "nav": {

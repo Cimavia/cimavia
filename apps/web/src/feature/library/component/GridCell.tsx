@@ -38,6 +38,11 @@ type GridCellProps = {
   ghost?: boolean | undefined;
   /** Ce qu'affiche une cellule vide : « — » sur une série fantôme qui n'a rien à reprendre. */
   placeholder?: string | undefined;
+  /**
+   * Un champ hors de la grille — la fenêtre d'une cellule de Dosage (#721) : bordé en permanence,
+   * comme les autres champs, faute de lignes de grille qui le situent.
+   */
+  framed?: boolean | undefined;
 };
 
 /**
@@ -46,12 +51,17 @@ type GridCellProps = {
  * ainsi que `border-transparent` effaçait le liseré d'une saisie refusée (#566). D'où une seule
  * classe de chaque.
  */
-const cellClass = (ghost: boolean | undefined, refused = false) =>
+const cellClass = (
+  ghost: boolean | undefined,
+  refused = false,
+  framed: boolean | undefined = false,
+) =>
   cn(
-    "w-full rounded-cmv-sm border bg-transparent px-cmv-sm py-cmv-xs text-cmv-body outline-none focus:bg-cmv-surface",
-    refused
-      ? "border-cmv-error"
-      : "border-transparent hover:border-cmv-border focus:border-cmv-accent",
+    "w-full rounded-cmv-sm border px-cmv-sm py-cmv-xs text-cmv-body outline-none focus:bg-cmv-surface",
+    framed ? "bg-cmv-bg-0" : "bg-transparent",
+    refused && "border-cmv-error",
+    !refused && framed && "border-cmv-border focus:border-cmv-accent",
+    !refused && !framed && "border-transparent hover:border-cmv-border focus:border-cmv-accent",
     ghost ? "text-cmv-text-lo" : "text-cmv-text-hi",
   );
 
@@ -99,7 +109,14 @@ function NumberCell(props: Readonly<GridCellProps>) {
   );
 }
 
-function TextCell({ value, onChange, onCommitLine, ghost, placeholder }: Readonly<GridCellProps>) {
+function TextCell({
+  value,
+  onChange,
+  onCommitLine,
+  ghost,
+  placeholder,
+  framed,
+}: Readonly<GridCellProps>) {
   return (
     <input
       value={value == null ? "" : String(value)}
@@ -107,7 +124,7 @@ function TextCell({ value, onChange, onCommitLine, ghost, placeholder }: Readonl
       maxLength={METRIC_TEXT_VALUE_MAX_LENGTH}
       onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
       onKeyDown={(event) => onEnter(event, () => onCommitLine(value))}
-      className={cellClass(ghost)}
+      className={cellClass(ghost, false, framed)}
     />
   );
 }
@@ -154,6 +171,7 @@ function DraftCell({
   inputMode,
   ghost,
   placeholder,
+  framed,
 }: Readonly<DraftCellProps>) {
   const { t } = useTranslation();
   const hintId = useId();
@@ -197,7 +215,7 @@ function DraftCell({
             if (committed !== undefined) onCommitLine(committed);
           });
         }}
-        className={cellClass(ghost, invalid)}
+        className={cellClass(ghost, invalid, framed)}
       />
       {/* Un liseré seul ne dit ni ce qui est refusé ni ce qu'on attend — et un lecteur d'écran
           ne le voit pas. La phrase est courte : la colonne est étroite. */}
@@ -210,7 +228,14 @@ function DraftCell({
   );
 }
 
-function ScaleCell({ metric, customMetrics, value, onChange, ghost }: Readonly<GridCellProps>) {
+function ScaleCell({
+  metric,
+  customMetrics,
+  value,
+  onChange,
+  ghost,
+  framed,
+}: Readonly<GridCellProps>) {
   const { t } = useTranslation();
   // Rendue seulement pour une colonne à échelle : `scaleFor` en a toujours une à rendre ici.
   const scale = required(scaleFor(metric, customMetrics), "cellule d'échelle sans échelle");
@@ -219,7 +244,7 @@ function ScaleCell({ metric, customMetrics, value, onChange, ghost }: Readonly<G
     <select
       value={value == null ? "" : String(value)}
       onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
-      className={cellClass(ghost)}
+      className={cellClass(ghost, false, framed)}
     >
       {/* L'option vide n'est pas un défaut : c'est le moyen de RETIRER une valeur posée. */}
       <option value="">{t("library.builder.grid.emptyValue")}</option>

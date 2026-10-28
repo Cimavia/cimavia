@@ -16,7 +16,7 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
@@ -155,13 +155,37 @@ function useUnsavedInputs() {
   };
 }
 
+/**
+ * « Composer cette séance », depuis une colonne de Dosage (#721) : le cycle s'ouvre sur le panneau
+ * de cette séance. Le paramètre se retire une fois lu — un retour arrière ne rouvre rien. Une
+ * séance absente du cycle en cache attend sa relecture : elle a pu y être posée depuis ; relue et
+ * toujours absente, elle n'ouvre rien.
+ */
+function useRequestedSession(
+  plan: PlanDto | undefined,
+  isFetching: boolean,
+  open: (edit: SessionEdit) => void,
+): void {
+  const { session: requested } = useSearch({ from: "/plans/$planId" });
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (requested == null || plan == null) return;
+    const summary = plan.weeks
+      .flatMap((week) => week.sessions)
+      .find((session) => session.id === requested);
+    if (summary == null && isFetching) return;
+    if (summary != null) open({ date: summary.scheduledDate, sessionId: summary.id });
+    void navigate({ to: "/plans/$planId", params: { planId: plan.id }, search: {}, replace: true });
+  }, [requested, plan, isFetching, open, navigate]);
+}
+
 export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
   const navigate = useNavigate();
 
-  const { data: plan, isPending, error, refetch } = usePlan(planId);
+  const { data: plan, isPending, isFetching, error, refetch } = usePlan(planId);
   /**
    * Les autres cycles du coach, pour dire ce que l'athlète voit de CELUI-CI (#172). La liste est
    * déjà en cache dès qu'on arrive depuis `/plans` ; ailleurs elle coûte une requête, et c'est le
@@ -180,6 +204,7 @@ export function PlanBuilderScreen() {
   const [edit, setEdit] = useState<SessionEdit | null>(null);
   const { isHeaderUnsaved, reportHeader, isBillingUnsaved, reportBilling, reportPanel, guard } =
     useUnsavedInputs();
+  useRequestedSession(plan, isFetching, setEdit);
 
   if (isPending) {
     return (
@@ -233,18 +258,22 @@ export function PlanBuilderScreen() {
       actions={
         // En Lecture, le cycle se consulte et se quitte : rien d'autre ne s'y fait (#607).
         readOnly ? (
-          <CmvButton
-            onClick={() =>
-              navigate({
-                to: "/plans",
-                search: { q: undefined, state: undefined, athlete: undefined },
-              })
-            }
-          >
-            {t("common.close")}
-          </CmvButton>
+          <>
+            <DosageButton plan={plan} />
+            <CmvButton
+              onClick={() =>
+                navigate({
+                  to: "/plans",
+                  search: { q: undefined, state: undefined, athlete: undefined },
+                })
+              }
+            >
+              {t("common.close")}
+            </CmvButton>
+          </>
         ) : (
           <>
+            <DosageButton plan={plan} />
             {isMine ? (
               <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
             ) : null}
@@ -386,6 +415,29 @@ export function PlanBuilderScreen() {
       )}
       <CmvLeaveDialog {...guard.dialog} />
     </CmvAppShell>
+  );
+}
+
+/**
+ * Dosage (#721) : les valeurs de chaque séance-type du cycle, semaine par semaine. En Lecture
+ * aussi — il s'y lit. Rien à doser sans séance par blocs : le bouton ne se montre pas.
+ */
+function DosageButton({ plan }: Readonly<{ plan: PlanDto }>) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const hasBlocks = plan.weeks.some((week) =>
+    week.sessions.some(({ blockCount }) => blockCount > 0),
+  );
+  if (!hasBlocks) return null;
+  return (
+    <CmvButton
+      variant="secondary"
+      onClick={() =>
+        void navigate({ to: "/plans/$planId/dosage", params: { planId: plan.id }, search: {} })
+      }
+    >
+      {t("plan.dosage.title")}
+    </CmvButton>
   );
 }
 

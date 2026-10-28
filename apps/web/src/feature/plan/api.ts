@@ -11,6 +11,7 @@ import type {
   PublishPlanInput,
   ReorderPlanDayInput,
   ScheduledCompositionInput,
+  ScheduledDosageInput,
   ScheduledSessionCopyDto,
   ScheduledSessionDto,
   UpdatePlanInput,
@@ -156,6 +157,14 @@ export function resetScheduledComposition(
     `/scheduled-sessions/${sessionId}/composition/reset`,
     query,
   );
+}
+
+// « Enregistrer » de Dosage : les valeurs des semaines changées, en une écriture (#721).
+export function doseScheduledSession(
+  sessionId: string,
+  input: ScheduledDosageInput,
+): Promise<ScheduledSessionCopyDto[]> {
+  return api.post<ScheduledSessionCopyDto[]>(`/scheduled-sessions/${sessionId}/values`, input);
 }
 
 // Sans corps : la version de la séance ouverte voyage en paramètre de requête (#604).
