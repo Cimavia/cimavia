@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { mondayOfIsoWeek, PlanWeekType, required, shiftIsoDate, todayIsoDateIn } from "@cmv/shared";
+import {
+  mondayOfIsoWeek,
+  PlanWeekType,
+  required,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
+  shiftIsoDate,
+  todayIsoDateIn,
+} from "@cmv/shared";
 import type { APIRequest, APIRequestContext, APIResponse, BrowserContext } from "@playwright/test";
 import { API_URL } from "./env";
+import { t } from "./i18n";
 
 export const PASSWORD = "password123";
 
@@ -54,6 +63,30 @@ export async function json<T>(response: APIResponse, what: string): Promise<T> {
   }
   return (await response.json()) as T;
 }
+
+/**
+ * Un bloc Séries d'un seul exercice, tel que le constructeur l'envoie (#719) : une séance créée
+ * avec `exercises`, l'ancien modèle, s'ouvrirait comme une composition d'avant les blocs.
+ */
+export const seriesOf = (
+  exerciseId: string,
+  grid: { metrics: object[]; rows: object[] } = { metrics: [], rows: [] },
+) => {
+  const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+  return [
+    {
+      id: `blk_${exerciseId}`,
+      name: t("block.preset.series"),
+      label: null,
+      instructions: null,
+      settings,
+      copiedSettings: settings,
+      sourceStructureId: null,
+      sourcePreset: StructurePresetKey.SERIES,
+      exercises: [{ key: `key_${exerciseId}`, exerciseId, note: null, grid }],
+    },
+  ];
+};
 
 /**
  * Le jeu de données d'un parcours, posé par l'API comme l'app le ferait : inscription, invitation,
@@ -138,6 +171,18 @@ export class Seed {
       "acceptation de l'invitation",
     );
     return required(relation, "relation créée par l'acceptation").athleteId;
+  }
+
+  /** Une séance-type d'un exercice, dans la bibliothèque du Coach : de quoi planifier (#720). */
+  async sessionType(coach: Account, title: string): Promise<{ id: string; title: string }> {
+    const exercise = await json<{ id: string }>(
+      await coach.api.post("/exercises", { data: { title: `Exercice de ${title}` } }),
+      "exercice de la séance-type",
+    );
+    return json(
+      await coach.api.post("/sessions", { data: { title, blocks: seriesOf(exercise.id) } }),
+      "séance-type",
+    );
   }
 
   /** Un cycle d'une semaine et d'une séance, facturé puis diffusé à l'athlète. */
