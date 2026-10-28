@@ -3,8 +3,6 @@ import {
   STRUCTURE_PRESETS,
   type StructureDto,
   type StructurePresetKey,
-  type StructureSettings,
-  settingsPhrase,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
 import { useState } from "react";
@@ -19,11 +17,11 @@ import {
   TitleCell,
 } from "@/feature/library/component/LibraryTableCells";
 import { LibraryFilterBar } from "@/feature/library/component/LibraryToolbar";
+import { useStructureFlow } from "@/feature/library/hook/useStructureFlow";
 import { useDeleteStructure, useStructureLibrary } from "@/feature/library/hook/useStructures";
 import { type PresetRow, structureRows } from "@/feature/library/util/structure-rows.util";
 import { CMV_TABLE, CmvButton, CmvConfirmButton, CmvEmptyState } from "@/shared/component";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
-import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
 import { formatInstantDate } from "@/shared/util/date.util";
 
@@ -135,19 +133,12 @@ export function StructureList({ onCreate, onEdit, onDuplicate }: Readonly<Struct
   );
 }
 
-/** Le déroulé d'une structure seule, sans exercice : on y dit « tours » (`settingsPhrase`). */
-function useFlowText(): (settings: StructureSettings) => string {
-  const text = usePhraseText();
-  // Sans exercice, « un seul par bip » ne peut pas manquer de bips : la phrase existe toujours.
-  return (settings) => text(settingsPhrase(settings, null) ?? []);
-}
-
 function PresetTable({
   rows,
   onDuplicate,
 }: Readonly<{ rows: PresetRow[]; onDuplicate: (source: StructureSource) => void }>) {
   const { t } = useTranslation();
-  const flow = useFlowText();
+  const flow = useStructureFlow();
   return (
     <section className="flex flex-col gap-cmv-sm">
       <div className="flex flex-wrap items-baseline gap-cmv-md">
@@ -210,7 +201,7 @@ type MineTableProps = {
 
 function MineTable({ rows, onEdit, onDuplicate }: Readonly<MineTableProps>) {
   const { t } = useTranslation();
-  const flow = useFlowText();
+  const flow = useStructureFlow();
   const remove = useDeleteStructure();
   const { onError } = useMutationToast();
 

@@ -1000,6 +1000,9 @@ liste des domaines vivent dans l'index.
 > justifie. Mesuré en `writeBundle`, une fois les préchargements réécrits par Vite. **Pas quand
 > Sentry téléverse** : son plugin injecte quelques centaines d'octets par chunk, et l'image de
 > `main` échouerait sur un code que la PR a déjà fait passer. Le mobile n'a pas de budget : hors périmètre de l'issue.
+> Relevé en #719 : le constructeur par blocs porte le premier affichage de 562 407 à 594 205
+> octets (+5,7 %) et le total de 1 453 373 à 1 525 504, sans dépendance nouvelle. Les budgets
+> repartent de cette mesure, plus 10 % : 653 000 et 1 678 000 octets.
 
 > **Tranché en [#630](https://github.com/Cimavia/cimavia/issues/630)** (un port et une base e2e
 > par worktree) : deux worktrees qui lançaient leurs e2e ensemble écoutaient sur le même port et

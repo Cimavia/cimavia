@@ -11,37 +11,21 @@ import { oneAtATime } from "./structure-settings.util";
 // `lineText`, `flowOf` et `timerOf`. L'athlète lit toujours sa séance PLANIFIÉE, sans aucune trace
 // des ajustements : rien ici ne regarde l'origine d'un exercice.
 
-// ── La lettre du bloc et les codes de ses exercices ─────────────────────────────────────────
-
-const LETTERS = 26;
-/** Le point de code de « A ». */
-const FIRST_LETTER = 0x41;
-
-/** A, B… Z, puis AA, AB… : une séance peut compter plus de 26 blocs sans libellé. */
-export function letterAt(index: number): string {
-  let rest = index + 1;
-  let letter = "";
-  while (rest > 0) {
-    const position = (rest - 1) % LETTERS;
-    letter = String.fromCodePoint(FIRST_LETTER + position) + letter;
-    rest = Math.floor((rest - 1) / LETTERS);
-  }
-  return letter;
-}
+// ── Le numéro du bloc et les codes de ses exercices ─────────────────────────────────────────
 
 /**
- * La lettre de chaque bloc, ou `null` pour un bloc à libellé : il affiche son libellé, sans
- * lettre. Les blocs sans libellé se suivent — A, B, C — même si un bloc à libellé les sépare.
+ * Le numéro de chaque bloc, ou `null` pour un bloc à libellé : il affiche son libellé, sans
+ * numéro. Les blocs sans libellé se suivent — 1, 2, 3 — même si un bloc à libellé les sépare.
  */
-export function blockLetters(blocks: readonly { label: string | null }[]): (string | null)[] {
+export function blockNumbers(blocks: readonly { label: string | null }[]): (string | null)[] {
   let next = 0;
-  return blocks.map((block) => (block.label == null ? letterAt(next++) : null));
+  return blocks.map((block) => (block.label == null ? String(++next) : null));
 }
 
-/** A1, A2… pour un bloc à lettre ; aucun code (`null`) pour un bloc à libellé. */
-export function exerciseCodes(letter: string | null, exerciseCount: number): (string | null)[] {
+/** 1.1, 1.2… pour un bloc numéroté ; aucun code (`null`) pour un bloc à libellé. */
+export function exerciseCodes(number: string | null, exerciseCount: number): (string | null)[] {
   return Array.from({ length: exerciseCount }, (_unused, index) =>
-    letter == null ? null : `${letter}${index + 1}`,
+    number == null ? null : `${number}.${index + 1}`,
   );
 }
 

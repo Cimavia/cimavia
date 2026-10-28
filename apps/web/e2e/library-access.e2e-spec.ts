@@ -1,3 +1,4 @@
+import { STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { t } from "./support/i18n";
@@ -13,6 +14,30 @@ const citing = (customMetricId: string) => [
     rows: [{ id: "r1", values: { col_grade: "6b" } }],
   },
 ];
+
+/**
+ * Un bloc Séries d'un seul exercice, tel que le constructeur l'envoie (#719) : une séance créée
+ * avec `exercises`, l'ancien modèle, s'ouvrirait comme une composition d'avant les blocs.
+ */
+const seriesOf = (
+  exerciseId: string,
+  grid: { metrics: object[]; rows: object[] } = { metrics: [], rows: [] },
+) => {
+  const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+  return [
+    {
+      id: `blk_${exerciseId}`,
+      name: t("block.preset.series"),
+      label: null,
+      instructions: null,
+      settings,
+      copiedSettings: settings,
+      sourceStructureId: null,
+      sourcePreset: StructurePresetKey.SERIES,
+      exercises: [{ key: `key_${exerciseId}`, exerciseId, note: null, grid }],
+    },
+  ];
+};
 
 /**
  * L'entreprise F, ses Coachs C et M. C possède Voie — cotée sur SA métrique « Cotation » —, Dalle,
@@ -49,7 +74,13 @@ async function sharedLibrary(seed: Seed) {
   );
   const grimpe = await json<{ id: string }>(
     await c.api.post("/sessions", {
-      data: { title: "Grimpe", exercises: [{ exerciseId: voie.id }] },
+      data: {
+        title: "Grimpe",
+        blocks: seriesOf(voie.id, {
+          metrics: [{ id: "col_grade", source: "CUSTOM", customMetricId: grade.id, label: null }],
+          rows: [{ id: "r1", values: { col_grade: "6b" } }],
+        }),
+      },
     }),
     "Grimpe",
   );
@@ -183,15 +214,20 @@ test.describe("Bibliothèque partagée (#606)", () => {
     await m.getByRole("button", { name: t("library.builder.submitEdit"), exact: true }).click();
     await expect(m.getByText(t("library.builder.saved"))).toBeVisible();
 
-    // Grimpe en Lecture : la carte se déplie encore, sa grille sans commande d'édition.
+    // Grimpe en Lecture : le bloc se lit, sa grille cotée par C, sans commande d'édition.
     await m.goto(`/library/sessions/${world.grimpeId}`);
     await expect(m.getByText(t("library.session.readOnly", { owner: world.c.name }))).toBeVisible();
-    await expect(m.getByRole("button", { name: t("library.session.cardMenu") })).toBeHidden();
-    await expect(m.getByRole("button", { name: t("library.session.pickerTitle") })).toBeHidden();
-    const card = m.getByRole("button", { name: "Voie", exact: true });
-    await card.click();
-    await expect(card).toHaveAttribute("aria-expanded", "true");
-    await expect(m.getByRole("columnheader", { name: /Cotation/ })).toBeVisible();
+    await expect(
+      m.getByRole("button", { name: t("library.session.blocks.blockMenu", { block: "1" }) }),
+    ).toBeHidden();
+    await expect(
+      m.getByRole("button", { name: t("library.session.blocks.addExercise"), exact: true }),
+    ).toBeHidden();
+    const block = m.locator("article", { hasText: "Voie" });
+    await expect(block.getByRole("columnheader", { name: /Cotation/ })).toBeVisible();
+    await expect(
+      block.getByRole("textbox", { name: t("library.session.noteLabel") }),
+    ).toBeDisabled();
     await expect(m.getByRole("button", { name: t("library.builder.grid.removeRow") })).toBeHidden();
   });
 
@@ -214,7 +250,9 @@ test.describe("Bibliothèque partagée (#606)", () => {
     const m = await pageOf(seed, browser, world.m);
     await m.goto("/library/sessions/new");
     await m.getByRole("textbox", { name: t("library.session.titleLabel") }).fill("Séance de M");
-    await m.getByRole("button", { name: t("library.session.pickerTitle") }).click();
+    await m
+      .getByRole("button", { name: t("library.session.blocks.addExercise"), exact: true })
+      .click();
     // Le propriétaire a sa colonne : il se lit sur la ligne, pas dans le bouton du titre (#653).
     await expect(m.getByRole("row", { name: /^Voie/ })).toContainText(world.c.name);
 
@@ -231,14 +269,16 @@ test.describe("Bibliothèque partagée (#606)", () => {
     ).toBeHidden();
     await m.getByRole("searchbox").fill("");
 
-    // La Lecture suffit à composer, avec la cotation de C.
+    // La Lecture suffit à composer, avec la cotation que Voie suggère, chez C.
     await m.getByRole("button", { name: /^Voie/ }).click();
-    await expect(m.getByText("1 série, 6b")).toBeVisible();
+    await expect(m.getByRole("columnheader", { name: /Cotation/ })).toBeVisible();
+    await m.getByRole("button", { name: t("library.session.submitCreate"), exact: true }).click();
+    await expect(m).toHaveURL(/\/library\?tab=sessions$/);
 
-    // La Lecture suffit aussi à la variante (#609) : la séance s'enregistre, puis la variante,
-    // à M, s'ouvre — modifiable, la cotation de C adoptée dans le catalogue de M.
-    await m.getByRole("button", { name: t("library.session.cardMenu") }).click();
-    await m.getByRole("button", { name: t("library.session.duplicate") }).click();
+    // La Lecture suffit aussi à la variante (#609) : la variante, à M, s'ouvre — modifiable, la
+    // cotation de C adoptée dans le catalogue de M.
+    await m.goto(`/library/exercises/${world.voieId}`);
+    await m.getByRole("button", { name: t("library.builder.duplicate"), exact: true }).click();
     await expect(m.getByRole("textbox", { name: t("library.builder.titleLabel") })).toHaveValue(
       `Voie ${t("library.session.variantSuffix")}`,
     );
@@ -273,7 +313,7 @@ test.describe("Bibliothèque partagée (#606)", () => {
     );
     const session = await json<{ id: string }>(
       await world.m.api.post("/sessions", {
-        data: { title: "Séance de M", exercises: [{ exerciseId: bloc.id }] },
+        data: { title: "Séance de M", blocks: seriesOf(bloc.id) },
       }),
       "séance de M",
     );
@@ -291,8 +331,7 @@ test.describe("Bibliothèque partagée (#606)", () => {
     const badge = t("library.frozen.badgeFrom", { owner: world.c.name });
     const m = await pageOf(seed, browser, world.m);
     await m.goto(`/library/sessions/${session.id}`);
-    await expect(m.getByRole("button", { name: "Bloc", exact: true })).toBeVisible();
-    await expect(m.getByText(badge)).toBeVisible();
+    await expect(m.locator("article", { hasText: "Bloc" }).getByText(badge)).toBeVisible();
     await m.goto("/library");
     await expect(m.getByRole("row", { name: /Bloc/ }).getByText(badge)).toBeVisible();
   });
@@ -352,7 +391,9 @@ test.describe("Bibliothèque partagée (#606)", () => {
     ).toBeHidden();
 
     await page.goto("/library/sessions/new");
-    await page.getByRole("button", { name: t("library.session.pickerTitle") }).click();
+    await page
+      .getByRole("button", { name: t("library.session.blocks.addExercise"), exact: true })
+      .click();
     await expect(page.getByRole("button", { name: /^Pompes/ })).toBeVisible();
     await expect(
       page.getByRole("button", { name: t("library.picker.shared"), exact: true }),

@@ -19,7 +19,7 @@ import { METRIC_CATALOG, MetricKey, MetricUnit } from "../dto/exercise-metric.sc
 import { StructureOrder } from "../dto/structure-answer.schema";
 import {
   blockClock,
-  blockLetters,
+  blockNumbers,
   ClockKind,
   clockCounter,
   exerciseCodes,
@@ -29,7 +29,6 @@ import {
   type GridReading,
   gridLinePhrases,
   gridReading,
-  letterAt,
 } from "./block-reading.util";
 
 const perSide: GridMetric = {
@@ -74,12 +73,8 @@ function rowsOf(reading: GridReading) {
   return reading.rows.map((row) => `${say(row.label)} : ${line(row.cells)}`);
 }
 
-describe("la lettre du bloc et les codes", () => {
-  it("compte A… Z, puis AA, AB…", () => {
-    expect([0, 25, 26, 27, 51, 52].map(letterAt)).toEqual(["A", "Z", "AA", "AB", "AZ", "BA"]);
-  });
-
-  it("ne donne une lettre qu'aux blocs sans libellé, et les fait se suivre", () => {
+describe("le numéro du bloc et les codes", () => {
+  it("ne numérote que les blocs sans libellé, et les fait se suivre", () => {
     const blocks = [
       { label: "Échauffement" },
       { label: null },
@@ -87,11 +82,11 @@ describe("la lettre du bloc et les codes", () => {
       { label: "Finisher" },
       { label: null },
     ];
-    expect(blockLetters(blocks)).toEqual([null, "A", "B", null, "C"]);
+    expect(blockNumbers(blocks)).toEqual([null, "1", "2", null, "3"]);
   });
 
-  it("code les exercices d'un bloc à lettre, pas ceux d'un bloc à libellé", () => {
-    expect(exerciseCodes("B", 3)).toEqual(["B1", "B2", "B3"]);
+  it("code les exercices d'un bloc numéroté, pas ceux d'un bloc à libellé", () => {
+    expect(exerciseCodes("2", 3)).toEqual(["2.1", "2.2", "2.3"]);
     expect(exerciseCodes(null, 2)).toEqual([null, null]);
   });
 });
@@ -199,18 +194,18 @@ describe("gridLinePhrases", () => {
 
 describe("flowPhrase", () => {
   it("enchaîne au moins deux exercices tour après tour", () => {
-    expect(say(flowPhrase(presets.SERIES, ["A1", "A2", "A3"]))).toBe(
-      "A1, A2 et A3 à la suite, puis on recommence.",
+    expect(say(flowPhrase(presets.SERIES, ["1.1", "1.2", "1.3"]))).toBe(
+      "1.1, 1.2 et 1.3 à la suite, puis on recommence.",
     );
-    expect(say(flowPhrase(presets.SERIES, ["A1", "A2"]))).toBe(
-      "A1 et A2 à la suite, puis on recommence.",
+    expect(say(flowPhrase(presets.SERIES, ["1.1", "1.2"]))).toBe(
+      "1.1 et 1.2 à la suite, puis on recommence.",
     );
   });
 
   it("se tait avec un seul exercice, un seul par bip, ou un seul passage", () => {
-    expect(flowPhrase(presets.SERIES, ["A1"])).toBeNull();
-    expect(flowPhrase(oneByBeep(60, 10), ["A1", "A2"])).toBeNull();
-    expect(flowPhrase(presets.FREE, ["A1", "A2"])).toBeNull();
+    expect(flowPhrase(presets.SERIES, ["1.1"])).toBeNull();
+    expect(flowPhrase(oneByBeep(60, 10), ["1.1", "1.2"])).toBeNull();
+    expect(flowPhrase(presets.FREE, ["1.1", "1.2"])).toBeNull();
   });
 });
 

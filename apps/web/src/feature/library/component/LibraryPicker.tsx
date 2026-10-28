@@ -29,8 +29,11 @@ function scopeOf({ mine, shared }: Shown): LibraryScope {
 type LibraryPickerProps = {
   customMetrics: readonly CustomMetric[];
   onPick: (exercise: ExerciseDto) => void;
-  /** Le titre cherché, rogné. C'est à l'écran de quitter la séance sans la perdre (#303). */
-  onCreateMissing: (title: string) => void;
+  /**
+   * Le titre cherché, rogné. C'est à l'écran de quitter la séance sans la perdre (#303). Absent,
+   * la recherche sans résultat ne propose pas de créer.
+   */
+  onCreateMissing?: ((title: string) => void) | undefined;
   /** Ferme la création le temps d'un enregistrement : un double clic créerait deux séances. */
   isSaving: boolean;
 };
@@ -152,7 +155,7 @@ type PickerEmptyProps = {
   search: string;
   tags: readonly string[];
   sharedOnly: boolean;
-  onCreateMissing: (title: string) => void;
+  onCreateMissing: ((title: string) => void) | undefined;
   isSaving: boolean;
 };
 
@@ -172,9 +175,11 @@ function PickerEmpty({
       sharedOnly={sharedOnly}
       noMatch={t("library.noMatch.title", { search })}
       create={
-        <CmvButton onClick={() => onCreateMissing(search)} disabled={isSaving}>
-          {t("library.noMatch.create", { search })}
-        </CmvButton>
+        onCreateMissing == null ? undefined : (
+          <CmvButton onClick={() => onCreateMissing(search)} disabled={isSaving}>
+            {t("library.noMatch.create", { search })}
+          </CmvButton>
+        )
       }
       sharedEmpty={t("library.access.exercise.sharedEmpty")}
     >

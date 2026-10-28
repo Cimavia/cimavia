@@ -15,6 +15,8 @@ export { CmvErrorState } from "./CmvErrorState";
 export { CmvFormError } from "./CmvFormError";
 export { CmvLeaveDialog } from "./CmvLeaveDialog";
 export { CmvMediaPlayer } from "./CmvMediaPlayer";
+export type { CmvMenuItem } from "./CmvMenu";
+export { CmvMenu } from "./CmvMenu";
 export { CmvPager } from "./CmvPager";
 export { CmvPanel } from "./CmvPanel";
 export { CmvProgressBar } from "./CmvProgressBar";

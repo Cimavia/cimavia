@@ -82,6 +82,15 @@ export const updateSessionSchema = z
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
 /**
+ * Ce que le constructeur par blocs enregistre (#719) : titre, note et blocs, sans la composition par
+ * exercices. Une création comme une édition, la version citée en plus (`expectedUpdatedAt`).
+ */
+export type SessionBlocksInput = Pick<CreateSessionInput, "title"> & {
+  notes: string | null;
+  blocks: NonNullable<CreateSessionInput["blocks"]>;
+};
+
+/**
  * « Recharger depuis la bibliothèque » écrase une ligne de la composition : il cite la version de
  * la séance comme toute écriture (#604). Sans elle, recharger dans un onglet resté sur une
  * ancienne composition écraserait celle qu'un autre vient d'enregistrer.

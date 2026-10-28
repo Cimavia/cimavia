@@ -1,7 +1,10 @@
 import { required } from "@cmv/shared";
 import { type RefObject, useEffect, useState } from "react";
 
-type Position = { top: number; left: number };
+type Position = { top: number; left: number } | { top: number; right: number };
+
+/** Le bord du bouton auquel le panneau s'aligne : à gauche, ou à droite pour un bouton en bout de ligne. */
+type Align = "start" | "end";
 
 const GAP = 4;
 
@@ -14,10 +17,14 @@ const GAP = 4;
  *
  * Écoute en phase de CAPTURE : le défilement qui compte est souvent celui d'un conteneur interne,
  * et un `scroll` d'élément ne remonte pas jusqu'à `window` en phase de bouillonnement.
+ *
+ * Aligné à `end`, le panneau s'ouvre vers la gauche : un menu ⋯ en bout de carte déborderait sinon
+ * de l'écran.
  */
 export function useAnchoredPosition(
   anchor: RefObject<HTMLElement | null>,
   open: boolean,
+  align: Align = "start",
 ): Position | undefined {
   const [position, setPosition] = useState<Position>();
 
@@ -27,7 +34,12 @@ export function useAnchoredPosition(
     const update = () => {
       // L'ancre est le déclencheur, monté avant le panneau qu'il ouvre.
       const rect = required(anchor.current, "panneau ouvert sans ancre").getBoundingClientRect();
-      setPosition({ top: rect.bottom + GAP, left: rect.left });
+      setPosition(
+        align === "start"
+          ? { top: rect.bottom + GAP, left: rect.left }
+          : // `clientWidth` et non `innerWidth` : `right` se mesure sans la barre de défilement.
+            { top: rect.bottom + GAP, right: document.documentElement.clientWidth - rect.right },
+      );
     };
 
     update();
@@ -37,7 +49,7 @@ export function useAnchoredPosition(
       window.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
     };
-  }, [anchor, open]);
+  }, [anchor, open, align]);
 
   return open ? position : undefined;
 }

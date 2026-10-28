@@ -1,7 +1,7 @@
 import {
   type ChangeAccessInput,
-  type CreateSessionInput,
   LibraryScope,
+  type SessionBlocksInput,
   type SessionDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +11,6 @@ import {
   deleteSession,
   getSession,
   listSessions,
-  reloadSessionExercise,
   sessionKeys,
   updateSession,
 } from "@/feature/library/api";
@@ -32,7 +31,7 @@ export type SessionVersion = Pick<SessionDto, "id" | "updatedAt">;
 type SaveSessionArgs = {
   // null = création ; sinon édition de cette séance.
   session: SessionVersion | null;
-  input: CreateSessionInput;
+  input: SessionBlocksInput;
 };
 
 export function useSaveSession() {
@@ -40,14 +39,10 @@ export function useSaveSession() {
   const mutation = useMutation({
     mutationFn: ({ session, input }: SaveSessionArgs) =>
       session == null
-        ? createSession(input)
+        ? // Une seule composition à la fois : des blocs, et la liste par exercices vide.
+          createSession({ ...input, exercises: [] })
         : // Le PUT exige la représentation complète : title + notes + composition.
-          updateSession(session.id, {
-            title: input.title,
-            notes: input.notes ?? null,
-            exercises: input.exercises,
-            expectedUpdatedAt: session.updatedAt,
-          }),
+          updateSession(session.id, { ...input, expectedUpdatedAt: session.updatedAt }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 
@@ -80,24 +75,6 @@ export function useSession(id: string | undefined) {
     ...sessionDetailQuery(id ?? ""),
     // « new » n'a pas d'id : la requête ne part pas, plutôt qu'un GET /sessions/undefined.
     enabled: id != null,
-  });
-}
-
-type ReloadSessionExerciseArgs = { session: SessionVersion; sessionExerciseId: string };
-
-/**
- * Recharge un exercice composé depuis la bibliothèque, en citant la version de la séance (#604).
- * Le cache est invalidé en entier : la réponse porte la séance complète, mais la liste et les
- * compteurs en dépendent aussi.
- */
-export function useReloadSessionExercise() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ session, sessionExerciseId }: ReloadSessionExerciseArgs) =>
-      reloadSessionExercise(session.id, sessionExerciseId, {
-        expectedUpdatedAt: session.updatedAt,
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),
   });
 }
 

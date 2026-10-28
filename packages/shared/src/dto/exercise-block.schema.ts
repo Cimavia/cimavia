@@ -799,8 +799,20 @@ export function fillColumn(
   metricId: string,
   plan: ColumnFillPlan,
 ): ExerciseBlock["rows"] {
-  const next = plannedValues(columnValues(block, metricId), plan);
-  return block.rows.map((row, index) => ({
+  return fillRows(block.rows, metricId, plan);
+}
+
+/** Le même remplissage sur des lignes nues : celles de l'ancienne grille ou d'un exercice de bloc. */
+export function fillRows(
+  rows: ExerciseBlock["rows"],
+  metricId: string,
+  plan: ColumnFillPlan,
+): ExerciseBlock["rows"] {
+  const next = plannedValues(
+    rows.map((row) => row.values[metricId] ?? null),
+    plan,
+  );
+  return rows.map((row, index) => ({
     ...row,
     values: { ...row.values, [metricId]: next[index] ?? null },
   }));

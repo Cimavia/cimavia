@@ -277,6 +277,7 @@ export {
   exerciseTrackingSchema,
   fillableRows,
   fillColumn,
+  fillRows,
   fittingColumnCount,
   GridSlotKind,
   gridSlots,
@@ -669,6 +670,7 @@ export {
 export type {
   CreateSessionInput,
   ReloadSessionExerciseInput,
+  SessionBlocksInput,
   SessionDto,
   SessionExerciseDto,
   SessionExerciseInput,
@@ -850,7 +852,7 @@ export type {
 } from "./util/block-reading.util";
 export {
   blockClock,
-  blockLetters,
+  blockNumbers,
   ClockKind,
   clockCounter,
   exerciseCodes,
@@ -858,7 +860,6 @@ export {
   GridLayout,
   gridLinePhrases,
   gridReading,
-  letterAt,
 } from "./util/block-reading.util";
 export type { BlockChecks, BlockTally, CheckBox } from "./util/block-tracking.util";
 export {
@@ -1158,6 +1159,42 @@ export { shouldReportQueryError } from "./util/report-query-error.util";
 export { sameJson } from "./util/same-json.util";
 export { comparableText, searchMatcher } from "./util/search.util";
 export { sentryDataCollection } from "./util/sentry-data-collection.util";
+export type {
+  BlockGridSlot,
+  BlockSlotKind as BlockSlotKindType,
+  CompositionIssue,
+  CopiedStructure,
+} from "./util/session-composition.util";
+export {
+  BlockSlotKind,
+  blockExerciseFrom,
+  blockFrom,
+  blockGridSlots,
+  blockRowLimits,
+  blockStructureInput,
+  blocksFromDto,
+  compositionIssues,
+  creationPlaceOf,
+  detachedExercise,
+  duplicatedBlock,
+  duplicatedExercise,
+  exerciseKeyAt,
+  filledGridRows,
+  fittedBlock,
+  movedExercise,
+  movedItem,
+  presetSource,
+  replacedExercise,
+  revertedBlock,
+  rowsBeyond,
+  structureSource,
+  withAddedExercise,
+  withBlock,
+  withExerciseChange,
+  withGridMetrics,
+  withoutExercise,
+  withStructure,
+} from "./util/session-composition.util";
 export type { SessionTracking } from "./util/session-tracking.util";
 export {
   checkedUnitsOf,
