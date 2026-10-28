@@ -319,6 +319,8 @@ describe("Séances composées par blocs (#716)", () => {
       blocks: [blockOf([{ key: "a1", exerciseId: tractionsId, values: { col_reps: "lourd" } }])],
     });
     expect(res.status).toBe(400);
+    // Pointé sur l'exercice, par rangs : le constructeur en rougit la carte.
+    expect(res.body.errors[0].pointer).toBe("#/blocks/0/exercises/0/grid");
     expect((await coach.get(`/sessions/${templateId}`)).body.blocks[0].exercises).toHaveLength(2);
   });
 

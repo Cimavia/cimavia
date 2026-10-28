@@ -1,4 +1,5 @@
 import {
+  ABOUT_BLANK,
   AdjustmentLevel,
   type ChangeAccessInput,
   type CreateSessionInput,
@@ -13,10 +14,11 @@ import {
   type SessionBlock,
   type SessionDto,
   type SessionExerciseInput,
+  toJsonPointer,
   type UpdateSessionInput,
   type VersionQuery,
 } from "@cmv/shared";
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { ACCESS_INCLUDE, type AccessContext, libraryScopeWhere } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
@@ -25,6 +27,7 @@ import { gridCatalogOf, toCustomMetricDto } from "../../custom-metric/custom-met
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
+import { ProblemException } from "../../problem/problem.exception";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseGrid } from "../../util/block-json.util";
@@ -262,22 +265,22 @@ export class SessionService {
         session?.exercises.flatMap((row) => (row.grid === null ? [] : [parseGrid(row.grid)])) ?? [],
       ),
     );
-    for (const exercise of exercises) {
-      const catalog = gridCatalogOf(catalogOf, ownerOf(exercise.exerciseId), sessionOwnerId).map(
-        toCustomMetricDto,
-      );
-      const known = new Set(catalog.map((metric) => metric.id));
-      const metrics = exercise.grid.metrics.filter(
-        (metric) =>
-          metric.source !== MetricSource.CUSTOM ||
-          known.has(metric.customMetricId) ||
-          !alreadyCited.has(metric.customMetricId),
-      );
-      const [issue] = gridValueIssues({ ...exercise.grid, metrics }, catalog);
-      if (issue !== undefined) {
-        throw new BadRequestException(`Grille de l'exercice ${exercise.key} : ${issue.message}`);
-      }
-    }
+    blocks.forEach((block, blockIndex) => {
+      block.exercises.forEach((exercise, exerciseIndex) => {
+        const catalog = gridCatalogOf(catalogOf, ownerOf(exercise.exerciseId), sessionOwnerId).map(
+          toCustomMetricDto,
+        );
+        const known = new Set(catalog.map((metric) => metric.id));
+        const metrics = exercise.grid.metrics.filter(
+          (metric) =>
+            metric.source !== MetricSource.CUSTOM ||
+            known.has(metric.customMetricId) ||
+            !alreadyCited.has(metric.customMetricId),
+        );
+        const [issue] = gridValueIssues({ ...exercise.grid, metrics }, catalog);
+        if (issue !== undefined) throw gridRefusal(blockIndex, exerciseIndex, issue.message);
+      });
+    });
     return this.withReadableOrigins(blocks, session);
   }
 
@@ -470,4 +473,14 @@ export class SessionService {
       >[] as Prisma.SessionExerciseUncheckedCreateInput[],
     });
   }
+}
+
+/**
+ * Le refus d'une grille, pointé sur SON exercice (RFC 9457, `errors`) : le constructeur retrouve la
+ * carte fautive par son rang, que le Coach lit — la clé de l'exercice ne lui dirait rien.
+ */
+function gridRefusal(blockIndex: number, exerciseIndex: number, detail: string): ProblemException {
+  return new ProblemException(HttpStatus.BAD_REQUEST, ABOUT_BLANK, "Bad Request", undefined, [
+    { detail, pointer: toJsonPointer(["blocks", blockIndex, "exercises", exerciseIndex, "grid"]) },
+  ]);
 }
