@@ -1,3 +1,4 @@
+export { CmvAddTile } from "./CmvAddTile";
 export { CmvAppShell } from "./CmvAppShell";
 export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
