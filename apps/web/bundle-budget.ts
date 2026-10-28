@@ -2,8 +2,8 @@ import type { Plugin } from "vite";
 
 /**
  * Le budget du bundle web (#629), en octets BRUTS : le gzip dépend de la version de zlib qui le
- * calcule, la taille brute ne dépend que du code. Mesuré à 534 949 et 1 384 272 octets,
- * plus 10 % arrondi au millier inférieur.
+ * calcule, la taille brute ne dépend que du code. Mesuré à 594 205 et 1 525 504 octets (#719 : le
+ * constructeur de séance par blocs), plus 10 % arrondi au millier inférieur.
  *
  * - `initial` : le JS et le CSS du premier affichage — l'entrée, tout ce qu'elle importe
  *   statiquement et les feuilles de style de ces chunks, que le navigateur charge avant de rendre
@@ -20,7 +20,7 @@ import type { Plugin } from "vite";
  */
 export type Bundle = { initial: number; total: number };
 
-export const BUNDLE_BUDGET: Readonly<Bundle> = { initial: 588_000, total: 1_522_000 };
+export const BUNDLE_BUDGET: Readonly<Bundle> = { initial: 653_000, total: 1_678_000 };
 
 /** Ce que le plugin retient d'un chunk émis : son poids, ses imports statiques, ses feuilles. */
 export type EmittedChunk = {
