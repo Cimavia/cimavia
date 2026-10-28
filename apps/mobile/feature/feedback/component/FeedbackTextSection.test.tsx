@@ -163,7 +163,7 @@ describe("FeedbackTextSection — l'envoi", () => {
 
     pressButton(container, "feedback.save");
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(undefined));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(undefined, undefined));
     // Le débrief enregistré revient par le cache ; tant que l'écran ne l'a pas relu, le champ
     // diffère encore de `feedback` (null) : la confirmation se tait plutôt que de mentir.
     expect(queryByText("feedback.saved")).toBeNull();

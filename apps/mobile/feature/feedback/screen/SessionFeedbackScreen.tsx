@@ -1,16 +1,18 @@
 import type {
+  FeedbackBlockTracking,
   FeedbackTracking,
   MediaRecapLine,
   ScheduledSessionDto,
   SessionFeedbackDto,
 } from "@cmv/shared";
-import { myFeedbackKeys, trackingOfExercises } from "@cmv/shared";
+import { blockTrackingOf, feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { type ComponentProps, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import {
   FeedbackReplyComposer,
@@ -22,6 +24,7 @@ import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTr
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
+import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
@@ -170,17 +173,28 @@ function WritingSections({
     [session],
   );
   const local = useLocalTracking(sessionId, remote);
+  const remoteBlocks = useMemo(() => blockTrackingOf(session?.blocks ?? []), [session]);
+  const blocks = useLocalBlockTracking(sessionId, remoteBlocks);
+  const byBlock = session != null && session.blocks.length > 0;
 
   return (
     <>
-      {session == null ? null : (
+      {/* Une séance par blocs se rappelle bloc par bloc (#722), comme elle se lit. */}
+      {session != null && byBlock ? (
+        <FeedbackBlocksSection
+          session={session}
+          tracking={blocks.tracking}
+          onToggle={blocks.toggle}
+        />
+      ) : null}
+      {session != null && !byBlock ? (
         <FeedbackTrackingSection
           exercises={session.exercises}
           tracking={local.tracking}
           onToggleUnit={local.toggleUnit}
           onRounds={local.setRounds}
         />
-      )}
+      ) : null}
       {/* TOUJOURS à cette place, séance chargée ou non : la remonter ailleurs quand la séance
           arrive effacerait ce que l'athlète a tapé en l'attendant — réseau revenu compris. */}
       <FeedbackTextSection
@@ -189,12 +203,16 @@ function WritingSections({
         {...(session == null
           ? {}
           : {
-              // Seuls les exercices que la séance porte encore : une coche restée en local sur un
-              // exercice retiré par le coach ferait refuser tout le débrief (#311, #490).
-              tracking: trackingOfExercises(local.tracking, session.exercises),
-              trackingDirty: local.dirty,
-              onSaved: (sent: FeedbackTracking | undefined) =>
-                local.clearIfSent(sent, session.exercises),
+              // Par bloc OU par exercice, sans ce que le coach a retiré depuis (#311, #490, #722).
+              ...feedbackTrackingInput(session, local.tracking, blocks.tracking),
+              trackingDirty: byBlock ? blocks.dirty : local.dirty,
+              onSaved: (
+                sent: FeedbackTracking | undefined,
+                sentBlocks: FeedbackBlockTracking | undefined,
+              ) => {
+                local.clearIfSent(sent, session.exercises);
+                blocks.clearIfSent(sentBlocks, session.blocks);
+              },
             })}
       />
     </>

@@ -114,6 +114,7 @@ function detail(overrides: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto
     content: "Bien tenu sur les deux premières voies",
     media: [],
     trackedExercises: [],
+    trackedBlocks: [],
     messages: [],
     ...overrides,
   } as SessionFeedbackDto;

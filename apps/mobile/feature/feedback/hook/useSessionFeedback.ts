@@ -1,4 +1,4 @@
-import { type FeedbackTracking, feedbackSaveMutation, type SessionFeedbackDto } from "@cmv/shared";
+import { feedbackSaveMutation, type SessionFeedbackDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import { keepFeedbackUrls } from "@/shared/lib/signed-url";
@@ -19,7 +19,7 @@ export function useSessionFeedback(sessionId: string) {
  */
 export function useUpsertFeedback(
   sessionId: string,
-  onSaved?: (sent: FeedbackTracking | undefined) => void,
+  onSaved?: Parameters<typeof feedbackSaveMutation>[3],
 ) {
   return useMutation(
     feedbackSaveMutation(useQueryClient(), athleteFeedbackApi, sessionId, onSaved),
