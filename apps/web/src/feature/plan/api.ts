@@ -10,6 +10,8 @@ import type {
   PlanWeekInput,
   PublishPlanInput,
   ReorderPlanDayInput,
+  ScheduledCompositionInput,
+  ScheduledSessionCopyDto,
   ScheduledSessionDto,
   UpdatePlanInput,
   UpdatePlanWeekInput,
@@ -32,6 +34,8 @@ export const planKeys = {
 export const scheduledSessionKeys = {
   all: ["scheduled-sessions"] as const,
   detail: (sessionId: string) => ["scheduled-sessions", "detail", sessionId] as const,
+  // Sous la racine : toute écriture sur une séance du cycle peut changer une de ses copies.
+  copies: (sessionId: string) => ["scheduled-sessions", "copies", sessionId] as const,
 };
 
 // ── Cycles ───────────────────────────────────────────────────────────────────
@@ -118,7 +122,7 @@ export function createScheduledSession(
   return api.post<ScheduledSessionDto>(`/plan-weeks/${weekId}/sessions`, input);
 }
 
-// PUT : titre, consignes, date ET composition sont remplacés intégralement (replace-all).
+// PUT : titre, consignes, date, et la composition quand elle est envoyée (replace-all).
 export function updateScheduledSession(
   sessionId: string,
   input: UpdateScheduledSessionInput,
@@ -128,6 +132,30 @@ export function updateScheduledSession(
 
 export function getScheduledSession(sessionId: string): Promise<ScheduledSessionDto> {
   return api.get<ScheduledSessionDto>(`/scheduled-sessions/${sessionId}`);
+}
+
+/** Les copies de la séance-type dans le cycle, la séance comprise (#720). */
+export function getScheduledSessionCopies(sessionId: string): Promise<ScheduledSessionCopyDto[]> {
+  return api.get<ScheduledSessionCopyDto[]>(`/scheduled-sessions/${sessionId}/copies`);
+}
+
+// Un changement de composition, écrit tout de suite sur les semaines choisies : rend les copies.
+export function composeScheduledSession(
+  sessionId: string,
+  input: ScheduledCompositionInput,
+): Promise<ScheduledSessionCopyDto[]> {
+  return api.post<ScheduledSessionCopyDto[]>(`/scheduled-sessions/${sessionId}/composition`, input);
+}
+
+// « Tout réinitialiser » : la composition de la séance-type, pour cette semaine seule.
+export function resetScheduledComposition(
+  sessionId: string,
+  query: VersionQuery,
+): Promise<ScheduledSessionCopyDto[]> {
+  return api.post<ScheduledSessionCopyDto[]>(
+    `/scheduled-sessions/${sessionId}/composition/reset`,
+    query,
+  );
 }
 
 // Sans corps : la version de la séance ouverte voyage en paramètre de requête (#604).
