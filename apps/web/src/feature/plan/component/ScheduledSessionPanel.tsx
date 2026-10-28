@@ -1,4 +1,10 @@
-import type { ExerciseDto, PlanWeekDto, ScheduledSessionDto } from "@cmv/shared";
+import type {
+  ExerciseDto,
+  PlanWeekDto,
+  ScheduledCompositionInput,
+  ScheduledSessionCopyDto,
+  ScheduledSessionDto,
+} from "@cmv/shared";
 import {
   planCycleDays,
   planWeekNumber,
@@ -16,6 +22,7 @@ import { useSessions } from "@/feature/library/hook/useSessions";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import { CompositionEditor } from "@/feature/plan/component/CompositionEditor";
 import { ExercisePicker } from "@/feature/plan/component/ExercisePicker";
+import { ScheduledComposition } from "@/feature/plan/component/ScheduledComposition";
 import {
   ScheduledDosageLegend,
   scheduledDosageDetail,
@@ -43,35 +50,28 @@ import { isStaleWriteError } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 /**
- * Création : depuis un MODÈLE, l'API copie titre, consignes, exercices et documents — on ne lui
- * envoie donc pas de titre. Sans modèle, la séance part vide et le titre devient obligatoire.
- */
-function toCreateInput(sourceSessionId: string, title: string, scheduledDate: string) {
-  const fromTemplate = sourceSessionId !== "";
-  return {
-    sourceSessionId: fromTemplate ? sourceSessionId : null,
-    scheduledDate,
-    ...(fromTemplate ? {} : { title: title.trim() }),
-  };
-}
-
-/**
  * Édition : replace-all — ce qu'on envoie EST la nouvelle vérité de la séance (le détail de chaque
- * ligne est dans `toExerciseInput`).
+ * ligne est dans `toExerciseInput`). Une séance par blocs n'envoie pas ses exercices (#720) : sa
+ * composition s'écrit geste par geste, et « Enregistrer » ne porte que titre, consignes et jour.
  */
 function toSaveInput(
   title: string,
   notes: string,
   scheduledDate: string,
-  items: readonly EditorItem[],
+  items: readonly EditorItem[] | null,
 ) {
   return {
     title: title.trim(),
     // Champ vide → null (nullable, pas de fallback silencieux).
     notes: notes.trim() || null,
     scheduledDate,
-    exercises: items.map(toExerciseInput),
+    ...(items == null ? {} : { exercises: items.map(toExerciseInput) }),
   };
+}
+
+/** Une séance de l'ancien modèle n'a aucun bloc : elle garde l'éditeur à plat (#720). */
+function isComposedByBlocks(session: ScheduledSessionDto | null): session is ScheduledSessionDto {
+  return session != null && session.blocks.length > 0;
 }
 
 /**
@@ -115,23 +115,46 @@ function useCloseGuard(
  * commencé (#604), figée à l'ouverture : la séance en cache peut être relue entre-temps (retour
  * d'onglet), la saisie, elle, ne l'a pas vue. « Recharger » remonte le panneau, et la fige à
  * nouveau.
+ *
+ * Seuls les gestes de composition (#720) la font avancer : ils s'écrivent tout de suite, et le
+ * panneau qui les a faits sait ce qu'ils ont changé — sans quoi « Enregistrer » se ferait refuser
+ * sur sa propre composition.
  */
 function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
-  const { createSession, saveSession, removeSession, isBusy } = usePlanMutations(planId);
-  const [opened] = useState(
+  const { createSession, saveSession, removeSession, composeSession, resetComposition, isBusy } =
+    usePlanMutations(planId);
+  const [opened, setOpened] = useState(
     session == null ? null : { id: session.id, version: session.updatedAt },
   );
   // Enregistrer et supprimer ne sont offerts qu'en édition, donc sur une séance existante.
   const edited = () => required(opened, "écriture hors édition");
+  const writes = [saveSession, removeSession, composeSession, resetComposition];
+  // Chaque écriture oublie le refus des autres : le bandeau ne dit que celui du dernier geste.
+  const forgetOthers = (kept: (typeof writes)[number]) => {
+    for (const write of writes) if (write !== kept) write.reset();
+  };
+  /**
+   * Avance la version figée sur celle que le geste a écrite — seulement si le geste est parti de
+   * cette version-là. Écrit sur une version plus récente que la saisie (un autre Coach est passé
+   * entre-temps), il ne doit pas absorber cette écriture : « Enregistrer » se fera refuser, et
+   * c'est juste.
+   */
+  function advance(copies: readonly ScheduledSessionCopyDto[], cited: string | undefined) {
+    const { id } = edited();
+    const anchor = copies.find((copy) => copy.id === id);
+    if (anchor == null || cited === undefined) return;
+    setOpened((current) =>
+      current?.id === id && current.version === cited ? { id, version: anchor.updatedAt } : current,
+    );
+  }
 
   return {
     createSession,
     isBusy,
-    // Chaque écriture oublie le refus de l'autre : le bandeau ne dit que celui du dernier geste.
     // Rejette sur un échec, que le bandeau ou un toast dit déjà.
     save(input: ReturnType<typeof toSaveInput>) {
       const { id, version } = edited();
-      removeSession.reset();
+      forgetOthers(saveSession);
       return saveSession.mutateAsync({
         sessionId: id,
         input: { ...input, expectedUpdatedAt: version },
@@ -139,21 +162,48 @@ function useSessionWrites(planId: string, session: ScheduledSessionDto | null) {
     },
     remove(onSuccess: () => void) {
       const { id, version } = edited();
-      saveSession.reset();
+      forgetOthers(removeSession);
       removeSession.mutate({ sessionId: id, expectedUpdatedAt: version }, { onSuccess });
     },
-    staleMessage: staleMessageOf(saveSession.error, removeSession.error),
+    // Les gestes citent la version de chaque copie telle que la fenêtre l'a lue, pas celle figée.
+    // Ils ne rejettent pas : rien n'a été écrit, et le bandeau ou un toast dit déjà pourquoi.
+    async compose(input: ScheduledCompositionInput) {
+      forgetOthers(composeSession);
+      const copies = await composeSession
+        .mutateAsync({ sessionId: edited().id, input })
+        .catch(() => null);
+      const here = [...input.apply, ...input.revert].find((copy) => copy.id === edited().id);
+      if (copies != null) advance(copies, here?.expectedUpdatedAt);
+    },
+    async reset(expectedUpdatedAt: string) {
+      forgetOthers(resetComposition);
+      const copies = await resetComposition
+        .mutateAsync({ sessionId: edited().id, expectedUpdatedAt })
+        .catch(() => null);
+      if (copies != null) advance(copies, expectedUpdatedAt);
+    },
+    staleMessage: staleMessageOf(
+      saveSession.error,
+      removeSession.error,
+      composeSession.error ?? resetComposition.error,
+    ),
   };
 }
 
 /**
  * Ce que dit le bandeau quand la séance a changé depuis l'ouverture, ou `null` sans conflit. Un
  * enregistrement refusé garde une saisie ; une suppression refusée n'en a pas, elle invite à voir
- * ce qui a changé avant de retirer.
+ * ce qui a changé avant de retirer ; un geste de composition refusé n'a rien écrit, il invite à
+ * recomposer sur la dernière version.
  */
-function staleMessageOf(saveError: unknown, removeError: unknown): string | null {
+function staleMessageOf(
+  saveError: unknown,
+  removeError: unknown,
+  composeError: unknown,
+): string | null {
   if (isStaleWriteError(saveError)) return "library.session.stale";
   if (isStaleWriteError(removeError)) return "plan.session.staleDelete";
+  if (isStaleWriteError(composeError)) return "plan.composition.stale";
   return null;
 }
 
@@ -209,10 +259,12 @@ type ScheduledSessionPanelProps = {
 
 /**
  * Création puis édition d'une séance planifiée.
- * - Création : on choisit un MODÈLE de la bibliothèque (l'API en copie titre, consignes,
- *   exercices et documents) ou on part d'une séance vide.
- * - Édition : replace-all — la séance renvoyée EST la nouvelle vérité. La bibliothèque, elle,
- *   ne bouge jamais : cette séance est une copie (CDC §5.4).
+ * - Création : on choisit un MODÈLE de la bibliothèque, dont l'API copie titre, consignes,
+ *   exercices et documents. Le panneau ne crée plus de séance vide (#720).
+ * - Édition : titre, consignes et jour partent avec « Enregistrer ». Une séance par blocs se
+ *   compose geste par geste (`ScheduledComposition`) ; une séance de l'ancien modèle garde son
+ *   éditeur à plat, en replace-all. La bibliothèque, elle, ne bouge jamais : cette séance est une
+ *   copie (CDC §5.4).
  */
 export function ScheduledSessionPanel({
   planId,
@@ -229,7 +281,8 @@ export function ScheduledSessionPanel({
   isReloading,
 }: Readonly<ScheduledSessionPanelProps>) {
   const { t } = useTranslation();
-  const { createSession, save, remove, isBusy, staleMessage } = useSessionWrites(planId, session);
+  const writes = useSessionWrites(planId, session);
+  const { createSession, save, remove, isBusy, staleMessage } = writes;
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
   // Une valeur refusée reste dans sa cellule mais pas dans le brouillon : enregistrer enverrait
@@ -244,16 +297,18 @@ export function ScheduledSessionPanel({
   // Le jour de la séance relue, et non celui du clic : un autre Coach a pu la déplacer.
   const [scheduledDate, setScheduledDate] = useState(session?.scheduledDate ?? date);
   const composition = useSessionComposition(session);
+  const byBlocks = isComposedByBlocks(session);
+  const items = byBlocks ? null : composition.items;
 
   /**
    * « Modifié » = ce qui partirait diffère de ce qui était là à l'ouverture, mis en forme comme à
    * l'envoi (règle de #327) : une espace ajoutée au titre, une valeur remise à l'identique ne
    * retiennent rien. Une saisie refusée retient aussi (#566) : la quitter la perdrait.
    */
-  const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate, composition.items) };
+  const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate, items) };
   const [opened] = useState(form);
   const isDirty = !sameJson(form, opened) || refused.hasRefused;
-  const canSubmit = isEditing || sourceSessionId !== "" || title.trim() !== "";
+  const canSubmit = isEditing || sourceSessionId !== "";
 
   /**
    * Enregistre la séance, ou dit ce qui l'en empêche — le bouton fermé ne suffit pas : Entrée dans
@@ -272,17 +327,17 @@ export function ScheduledSessionPanel({
   const sendAndClose = useCheckedSave(
     () => {
       if (refused.hasRefused) return "library.builder.refusedBlocksSave";
-      if (!canSubmit) return "plan.session.titleRequired";
+      if (!canSubmit) return "plan.session.templateRequired";
       // À l'édition, l'API juge elle-même la date et répond 400 ; à la création, sans semaine, la
       // requête ne saurait même pas où partir.
       return isEditing || arrival != null ? null : "plan.session.dayOutsideCycle";
     },
     async () => {
       await (isEditing
-        ? save(toSaveInput(title, notes, scheduledDate, composition.items))
+        ? save(toSaveInput(title, notes, scheduledDate, items))
         : createSession.mutateAsync({
             weekId: required(arrival, "semaine du jour choisi").id,
-            input: toCreateInput(sourceSessionId, title, scheduledDate),
+            input: { sourceSessionId, scheduledDate },
           }));
       onClose();
       return true;
@@ -363,28 +418,32 @@ export function ScheduledSessionPanel({
               />
             )}
 
-            {/* Sans modèle, la séance part vide : il lui faut au moins un titre. */}
-            {isEditing || sourceSessionId === "" ? (
-              <SessionTitleField title={title} onChange={setTitle} readOnly={readOnly} />
+            {isEditing ? (
+              <>
+                <SessionTitleField title={title} onChange={setTitle} readOnly={readOnly} />
+                <EditedSessionFields
+                  session={session}
+                  weeks={weeks}
+                  athleteName={athleteName}
+                  isPublished={isPublished}
+                  notes={notes}
+                  onNotesChange={setNotes}
+                  composition={composition}
+                  library={exercises}
+                  readOnly={readOnly}
+                  isBusy={isBusy}
+                  onCompose={writes.compose}
+                  onReset={writes.reset}
+                />
+              </>
             ) : (
               <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>
             )}
-
-            {isEditing ? (
-              <EditedSessionFields
-                session={session}
-                athleteName={athleteName}
-                notes={notes}
-                onNotesChange={setNotes}
-                composition={composition}
-                library={exercises}
-                readOnly={readOnly}
-              />
-            ) : null}
           </section>
 
-          {/* En édition seulement : la bibliothèque dans laquelle piocher des exercices. */}
-          {isEditing && !readOnly ? (
+          {/* L'éditeur à plat seulement : la bibliothèque dans laquelle piocher des exercices. Une
+              séance par blocs l'ouvre dans le bloc où l'exercice arrive. */}
+          {isEditing && !readOnly && !byBlocks ? (
             <ExercisePicker exercises={exercises ?? []} onPick={composition.addExercise} />
           ) : null}
         </form>
@@ -401,10 +460,7 @@ type SessionTitleFieldProps = {
   readOnly: boolean;
 };
 
-/**
- * Le titre, et sa légende. Elle suit le champ dans son apparition : choisir un modèle retire le
- * titre, et laisserait sinon une légende qui n'explique plus aucun astérisque.
- */
+/** Le titre, et la légende de son astérisque. */
 function SessionTitleField({ title, onChange, readOnly }: Readonly<SessionTitleFieldProps>) {
   const { t } = useTranslation();
   return (
@@ -429,40 +485,28 @@ function SessionTitleField({ title, onChange, readOnly }: Readonly<SessionTitleF
 
 type EditedSessionFieldsProps = {
   session: ScheduledSessionDto;
+  weeks: readonly PlanWeekDto[];
   athleteName: string | null;
+  isPublished: boolean;
   notes: string;
   onNotesChange: (notes: string) => void;
   composition: ReturnType<typeof useSessionComposition>;
   /** Les exercices où le sélecteur pioche : ceux d'autres Coachs apportent leurs métriques. */
   library: readonly ExerciseDto[] | undefined;
   readOnly: boolean;
+  isBusy: boolean;
+  onCompose: (input: ScheduledCompositionInput) => Promise<void>;
+  onReset: (expectedUpdatedAt: string) => Promise<void>;
 };
 
 /**
- * Ce que seule l'édition montre : les consignes, et la composition dont chaque exercice se dose
- * pour l'athlète (#518).
+ * Ce que seule l'édition montre : les consignes, puis la composition — par blocs (#720), ou à
+ * plat pour une séance de l'ancien modèle, dont chaque exercice se dose pour l'athlète (#518).
  */
-function EditedSessionFields({
-  session,
-  athleteName,
-  notes,
-  onNotesChange,
-  composition,
-  library,
-  readOnly,
-}: Readonly<EditedSessionFieldsProps>) {
+function EditedSessionFields(props: Readonly<EditedSessionFieldsProps>) {
+  const { session, athleteName, notes, onNotesChange, library, readOnly } = props;
   const { t } = useTranslation();
-  const { data: customMetrics } = useCustomMetrics();
-  // Une ligne ajoutée n'a pas encore de définitions figées — le serveur les résoudra chez le
-  // propriétaire de sa source. D'ici là, elle se lit avec celles que son exercice apporte (#605) :
-  // le catalogue du Coach ignore celles d'un autre.
-  const libraryMetrics = useMemo(
-    () =>
-      mergeCatalogs(customMetrics, ...(library ?? []).map((exercise) => exercise.customMetrics)),
-    [customMetrics, library],
-  );
   const forWhom = athleteName ?? t("plan.session.dosage.theAthlete");
-
   return (
     <>
       <CmvTextArea
@@ -475,7 +519,45 @@ function EditedSessionFields({
         rows={3}
         disabled={readOnly}
       />
+      {isComposedByBlocks(session) ? (
+        <ScheduledComposition
+          session={session}
+          weeks={props.weeks}
+          athleteName={forWhom}
+          isPublished={props.isPublished}
+          readOnly={readOnly}
+          exercises={library ?? []}
+          isBusy={props.isBusy}
+          onCompose={props.onCompose}
+          onReset={props.onReset}
+        />
+      ) : (
+        <FlatComposition {...props} forWhom={forWhom} />
+      )}
+    </>
+  );
+}
 
+/** L'éditeur à plat d'une séance de l'ancien modèle, et la légende de son dosage. */
+function FlatComposition({
+  session,
+  forWhom,
+  composition,
+  library,
+  readOnly,
+}: Readonly<EditedSessionFieldsProps & { forWhom: string }>) {
+  const { data: customMetrics } = useCustomMetrics();
+  // Une ligne ajoutée n'a pas encore de définitions figées — le serveur les résoudra chez le
+  // propriétaire de sa source. D'ici là, elle se lit avec celles que son exercice apporte (#605) :
+  // le catalogue du Coach ignore celles d'un autre.
+  const libraryMetrics = useMemo(
+    () =>
+      mergeCatalogs(customMetrics, ...(library ?? []).map((exercise) => exercise.customMetrics)),
+    [customMetrics, library],
+  );
+
+  return (
+    <>
       <ScheduledDosageLegend
         adjustedCount={composition.adjustedCount}
         athleteName={forWhom}

@@ -33,7 +33,7 @@ export const PLAN_DETAIL_INCLUDE = {
     include: {
       sessions: {
         orderBy: [{ scheduledDate: "asc" }, { position: "asc" }],
-        include: { _count: { select: { exercises: true } } },
+        include: { _count: { select: { exercises: true, blocks: true } } },
       },
     },
   },
@@ -87,6 +87,7 @@ export function toScheduledSessionSummaryDto(
     position: session.position,
     status: session.status,
     exerciseCount: session._count.exercises,
+    blockCount: session._count.blocks,
     updatedAt: session.updatedAt.toISOString(),
   };
 }

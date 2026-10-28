@@ -14,6 +14,7 @@ import { LibraryToolbar } from "@/feature/library/component/LibraryToolbar";
 import { useLibraryFilters } from "@/feature/library/hook/useLibraryFilters";
 import { useChangeSessionAccess, useSessions } from "@/feature/library/hook/useSessions";
 import { CmvButton, CmvEmptyState } from "@/shared/component";
+import { compositionSummary } from "@/shared/util/composition.util";
 
 type SessionListProps = {
   onCreate: () => void;
@@ -87,8 +88,12 @@ export function SessionList({ onCreate, onEdit }: Readonly<SessionListProps>) {
               mutation={change}
               onOpen={onEdit}
               extra={{
-                label: t("library.table.exercises"),
-                cell: (session) => session.exercises.length,
+                label: t("library.table.composition"),
+                cell: (session) =>
+                  compositionSummary(
+                    { blockCount: session.blocks.length, exerciseCount: session.exercises.length },
+                    t,
+                  ),
               }}
             />
           );

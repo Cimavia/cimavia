@@ -2,6 +2,7 @@ import type {
   CreateScheduledSessionInput,
   PlanDto,
   PlanWeekInput,
+  ScheduledCompositionInput,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
@@ -10,14 +11,17 @@ import { myPlanKeys } from "@cmv/shared";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPlanWeek,
+  composeScheduledSession,
   copyPlanWeek,
   createScheduledSession,
   deletePlanWeek,
   deleteScheduledSession,
   getPlan,
   getScheduledSession,
+  getScheduledSessionCopies,
   planKeys,
   reorderPlanDay,
+  resetScheduledComposition,
   scheduledSessionKeys,
   updatePlan,
   updatePlanWeek,
@@ -41,7 +45,7 @@ type ReorderDayVariables = AtWeekVersion & { weekId: string; date: string; sessi
 type RemoveWeekVariables = AtWeekVersion & { weekId: string };
 
 // La séance ouverte, et la version sur laquelle la saisie a commencé (#604).
-type RemoveSessionVariables = { sessionId: string; expectedUpdatedAt: string };
+type OpenedSessionVariables = { sessionId: string; expectedUpdatedAt: string };
 
 export const planDetailQuery = (id: string) => ({
   queryKey: planKeys.detail(id),
@@ -61,6 +65,14 @@ export const scheduledSessionDetailQuery = (id: string) => ({
   queryKey: scheduledSessionKeys.detail(id),
   queryFn: () => getScheduledSession(id),
 });
+
+/** Les copies de la séance-type dans le cycle (#720) : la fenêtre « Pour quelles semaines ? » les coche. */
+export function useScheduledSessionCopies(sessionId: string) {
+  return useQuery({
+    queryKey: scheduledSessionKeys.copies(sessionId),
+    queryFn: () => getScheduledSessionCopies(sessionId),
+  });
+}
 
 export function usePlan(planId: string) {
   return useQuery<PlanDto>(planDetailQuery(planId));
@@ -214,9 +226,29 @@ export function usePlanMutations(planId: string) {
 
   const removeSession = useMutation({
     mutationKey,
-    mutationFn: ({ sessionId, expectedUpdatedAt }: RemoveSessionVariables) =>
+    mutationFn: ({ sessionId, expectedUpdatedAt }: OpenedSessionVariables) =>
       deleteScheduledSession(sessionId, { expectedUpdatedAt }),
     onSuccess: done("plan.toast.sessionDeleted"),
+    onError: onFormError,
+  });
+
+  /**
+   * La composition d'une séance par blocs (#720), écrite geste par geste. Rend les copies, d'où le
+   * panneau tire la nouvelle version de sa séance : « Enregistrer » la citera ensuite.
+   */
+  const composeSession = useMutation({
+    mutationKey,
+    mutationFn: ({ sessionId, input }: { sessionId: string; input: ScheduledCompositionInput }) =>
+      composeScheduledSession(sessionId, input),
+    onSuccess: done("plan.toast.compositionSaved"),
+    onError: onFormError,
+  });
+
+  const resetComposition = useMutation({
+    mutationKey,
+    mutationFn: ({ sessionId, expectedUpdatedAt }: OpenedSessionVariables) =>
+      resetScheduledComposition(sessionId, { expectedUpdatedAt }),
+    onSuccess: done("plan.toast.compositionReset"),
     onError: onFormError,
   });
 
@@ -232,6 +264,8 @@ export function usePlanMutations(planId: string) {
     createSession,
     saveSession,
     removeSession,
+    composeSession,
+    resetComposition,
     isBusy,
   };
 }

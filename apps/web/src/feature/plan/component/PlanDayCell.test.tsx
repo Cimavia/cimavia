@@ -24,6 +24,7 @@ const session = (id: string, title: string, position: number, date = MONDAY) =>
     position,
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 3,
+    blockCount: 0,
     updatedAt: "2026-08-10T00:00:00.000Z",
   }) satisfies ScheduledSessionSummaryDto;
 
@@ -76,6 +77,16 @@ function setup(days: Record<string, ScheduledSessionSummaryDto[]> = { [MONDAY]: 
 }
 
 describe("PlanDayCell", () => {
+  it("dit la composition de chaque séance : ses blocs, s'il en a, puis ses exercices", () => {
+    const view = setup({
+      [MONDAY]: [{ ...session("ss_1", "Force", 0), blockCount: 2 }, session("ss_2", "Volume", 1)],
+    });
+    expect(
+      view.getByText("common.composition.blocks · common.composition.exercises"),
+    ).toBeInTheDocument();
+    expect(view.getByText("common.composition.exercises")).toBeInTheDocument();
+  });
+
   // Le clic passe par le TITRE et non par la carte : la poignée est un bouton, et un bouton dans
   // un bouton n'est pas du HTML valide.
   it("ouvre la séance dont on clique le titre", async () => {

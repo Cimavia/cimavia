@@ -1,8 +1,7 @@
-import { STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
 import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { t } from "./support/i18n";
-import { type Account, json, mondayOfThisWeek, type Seed } from "./support/seed";
+import { type Account, json, mondayOfThisWeek, type Seed, seriesOf } from "./support/seed";
 
 /** Un bloc d'une série, dont la seule colonne est une métrique maison de son propriétaire. */
 const citing = (customMetricId: string) => [
@@ -14,30 +13,6 @@ const citing = (customMetricId: string) => [
     rows: [{ id: "r1", values: { col_grade: "6b" } }],
   },
 ];
-
-/**
- * Un bloc Séries d'un seul exercice, tel que le constructeur l'envoie (#719) : une séance créée
- * avec `exercises`, l'ancien modèle, s'ouvrirait comme une composition d'avant les blocs.
- */
-const seriesOf = (
-  exerciseId: string,
-  grid: { metrics: object[]; rows: object[] } = { metrics: [], rows: [] },
-) => {
-  const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
-  return [
-    {
-      id: `blk_${exerciseId}`,
-      name: t("block.preset.series"),
-      label: null,
-      instructions: null,
-      settings,
-      copiedSettings: settings,
-      sourceStructureId: null,
-      sourcePreset: StructurePresetKey.SERIES,
-      exercises: [{ key: `key_${exerciseId}`, exerciseId, note: null, grid }],
-    },
-  ];
-};
 
 /**
  * L'entreprise F, ses Coachs C et M. C possède Voie — cotée sur SA métrique « Cotation » —, Dalle,

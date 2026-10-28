@@ -76,6 +76,7 @@ export async function toScheduledSessionDto(
     position: session.position,
     status: session.status,
     exerciseCount: session.exercises.length,
+    blockCount: session.blocks.length,
     updatedAt: session.updatedAt.toISOString(),
     coachId: session.coachId,
     coachName: session.plan.coach.name,

@@ -1,12 +1,15 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/shared/util/cn.util";
 
-type CmvButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type CmvButtonVariant = "primary" | "secondary" | "change" | "ghost" | "danger";
 
 const VARIANT_CLASSES: Record<CmvButtonVariant, string> = {
   primary: "bg-cmv-accent text-cmv-text-hi hover:bg-cmv-accent-hi",
   secondary:
     "border border-cmv-border bg-cmv-surface-hi text-cmv-text-hi hover:border-cmv-border-hi",
+  // Un secondaire qui dit un changement : le texte prend l'orange des informations de changement.
+  change:
+    "border border-cmv-border bg-cmv-surface-hi text-cmv-accent-on hover:border-cmv-border-hi",
   ghost: "text-cmv-text-mid hover:bg-cmv-surface-hi hover:text-cmv-text-hi",
   danger: "text-cmv-error hover:bg-cmv-surface-hi",
 };

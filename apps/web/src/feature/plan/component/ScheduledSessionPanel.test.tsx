@@ -1,6 +1,7 @@
 import {
   AdjustmentLevel,
   BlockType,
+  CompositionOrigin,
   cellPath,
   type ExerciseBlocks,
   MetricKey,
@@ -12,6 +13,8 @@ import {
   type ScheduledSessionDto,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
   structurePath,
 } from "@cmv/shared";
 import { fireEvent, waitFor, within } from "@testing-library/react";
@@ -24,6 +27,9 @@ const {
   createMock,
   updateMock,
   deleteMock,
+  copiesMock,
+  composeMock,
+  resetMock,
   listSessionsMock,
   listExercisesMock,
   listCustomMetricsMock,
@@ -31,6 +37,9 @@ const {
   createMock: vi.fn(),
   updateMock: vi.fn(),
   deleteMock: vi.fn(),
+  copiesMock: vi.fn(),
+  composeMock: vi.fn(),
+  resetMock: vi.fn(),
   listSessionsMock: vi.fn(),
   listExercisesMock: vi.fn(),
   listCustomMetricsMock: vi.fn(),
@@ -41,6 +50,9 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   createScheduledSession: createMock,
   updateScheduledSession: updateMock,
   deleteScheduledSession: deleteMock,
+  getScheduledSessionCopies: copiesMock,
+  composeScheduledSession: composeMock,
+  resetScheduledComposition: resetMock,
 }));
 
 // La bibliothèque n'est pas le sujet ici : ses listes sont des ENTRÉES du panneau.
@@ -87,6 +99,8 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
     notes: "Échauffement long",
     scheduledDate: DATE,
     updatedAt: VERSION,
+    // L'ancien modèle, sans blocs : l'éditeur à plat (#720).
+    blocks: [],
     exercises: [
       {
         id: "sx-1",
@@ -135,37 +149,12 @@ beforeEach(() => {
 
 describe("ScheduledSessionPanel", () => {
   describe("à la création", () => {
-    it("exige un titre tant qu'aucun modèle n'est choisi", () => {
-      const { getByRole } = setup();
+    // Le panneau ne crée plus de séance vide (#720) : elle n'aurait aucun bloc à composer.
+    it("exige un modèle, sans offrir de titre", () => {
+      const { getByRole, queryByRole } = setup();
 
-      // Sans modèle, la séance part vide : elle n'aurait rien à montrer à l'athlète.
       expect(getByRole("button", { name: SUBMIT })).toBeDisabled();
-    });
-
-    it("borne le titre à ce que l'API accepte (#319)", () => {
-      const { getByRole } = setup();
-
-      expect(getByRole("textbox", { name: TITLE })).toHaveAttribute(
-        "maxLength",
-        String(SESSION_TITLE_MAX_LENGTH),
-      );
-    });
-
-    it("envoie le titre nettoyé et aucune séance source", async () => {
-      createMock.mockResolvedValue(session());
-      const { user, getByRole, onClose } = setup();
-
-      await user.type(getByRole("textbox", { name: TITLE }), "  Séance haute  ");
-      await user.click(getByRole("button", { name: SUBMIT }));
-
-      await waitFor(() =>
-        expect(createMock).toHaveBeenCalledWith("week-1", {
-          sourceSessionId: null,
-          scheduledDate: DATE,
-          title: "Séance haute",
-        }),
-      );
-      expect(onClose).toHaveBeenCalled();
+      expect(queryByRole("textbox", { name: TITLE })).not.toBeInTheDocument();
     });
 
     it("n'envoie aucun titre quand la séance vient d'un modèle", async () => {
@@ -185,6 +174,15 @@ describe("ScheduledSessionPanel", () => {
         }),
       );
     });
+
+    it("borne le titre, à l'édition, à ce que l'API accepte (#319)", () => {
+      const { getByRole } = setup({ session: session() });
+
+      expect(getByRole("textbox", { name: TITLE })).toHaveAttribute(
+        "maxLength",
+        String(SESSION_TITLE_MAX_LENGTH),
+      );
+    });
   });
 
   describe("le sélecteur « Jour » (#689)", () => {
@@ -201,10 +199,11 @@ describe("ScheduledSessionPanel", () => {
     // Le jour choisi désigne la semaine : créer depuis la S1 un jeudi de S2 part dans la S2.
     it("crée la séance dans la semaine du jour choisi", async () => {
       createMock.mockResolvedValue(session());
-      const { user, getByRole, getByLabelText } = setup();
+      const { user, getByRole, getByLabelText, findByRole } = setup();
 
       await user.selectOptions(getByLabelText("plan.session.day"), NEXT_WEEK_THURSDAY);
-      await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+      await findByRole("option", { name: "Modèle force" });
+      await user.selectOptions(getByLabelText(TEMPLATE), "tpl-1");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       await waitFor(() =>
@@ -217,12 +216,13 @@ describe("ScheduledSessionPanel", () => {
 
     // Un autre Coach a retiré la S2 depuis l'ouverture : la création ne saurait où partir.
     it("refuse de créer sur un jour sorti du cycle, et dit pourquoi", async () => {
-      const { user, getByRole, findByText, onClose } = setup({
+      const { user, getByRole, getByLabelText, findByRole, findByText, onClose } = setup({
         weeks: WEEKS.slice(0, 1),
         date: NEXT_WEEK_THURSDAY,
       });
 
-      await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+      await findByRole("option", { name: "Modèle force" });
+      await user.selectOptions(getByLabelText(TEMPLATE), "tpl-1");
       await user.click(getByRole("button", { name: SUBMIT }));
 
       expect(await findByText("plan.session.dayOutsideCycle")).toBeInTheDocument();
@@ -931,24 +931,25 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // Un jour choisi sans modèle ni titre : la saisie compte, mais la séance ne peut pas naître.
-  it("dit pourquoi une séance sans modèle ni titre ne s'enregistre pas", async () => {
+  // Un jour choisi sans modèle : la saisie compte, mais la séance ne peut pas naître.
+  it("dit pourquoi une séance sans modèle ne s'enregistre pas", async () => {
     const { user, getByLabelText, getByRole, findByText, onClose, onUnsavedChange } = setup();
 
     await user.selectOptions(getByLabelText("plan.session.day"), "2026-09-10");
     await user.click(getByRole("button", { name: CANCEL }));
     await user.click(getByRole("button", { name: "common.leave.save", hidden: true }));
 
-    expect(await findByText("plan.session.titleRequired")).toBeInTheDocument();
+    expect(await findByText("plan.session.templateRequired")).toBeInTheDocument();
     expect(createMock).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(onUnsavedChange).toHaveBeenLastCalledWith(expect.any(Function));
   });
 
   it("garde aussi une séance en cours de création", async () => {
-    const { user, getByRole, queryByText, onClose } = setup();
+    const { user, getByRole, getByLabelText, findByRole, queryByText, onClose } = setup();
 
-    await user.type(getByRole("textbox", { name: TITLE }), "Séance haute");
+    await findByRole("option", { name: "Modèle force" });
+    await user.selectOptions(getByLabelText(TEMPLATE), "tpl-1");
     await user.click(getByRole("button", { name: CANCEL }));
 
     expect(queryByText(LEAVE_TITLE)).toBeInTheDocument();
@@ -966,6 +967,179 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(queryByText(LEAVE_TITLE)).not.toBeInTheDocument();
+  });
+});
+
+describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
+  const LATER = "2026-09-02T10:00:00.000Z";
+  const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+  const grid = { metrics: [], rows: [] };
+  const blocks = [
+    {
+      id: "blk-1",
+      name: "Séries",
+      label: null,
+      instructions: null,
+      settings,
+      copiedSettings: settings,
+      sourceStructureId: null,
+      sourcePreset: StructurePresetKey.SERIES,
+      baseline: { settings, exercises: [{ key: "a", exerciseId: "ex-1", note: null, grid }] },
+      tracking: null,
+      exercises: [
+        { id: "sx-1", key: "a", note: null, grid, origin: { kind: CompositionOrigin.RECEIVED } },
+      ],
+    },
+  ];
+  const copy = (updatedAt: string) => ({
+    id: "ss-1",
+    planWeekId: "week-1",
+    scheduledDate: DATE,
+    updatedAt,
+    status: "PLANNED",
+    blocks,
+  });
+  const byBlocks = () => session({ blocks } as unknown as Partial<ScheduledSessionDto>);
+
+  beforeEach(() => {
+    copiesMock.mockResolvedValue([copy(VERSION)]);
+    listExercisesMock.mockResolvedValue([
+      { id: "ex-2", title: "Rameur", tags: [], suggestedMetrics: [], customMetrics: [] },
+    ]);
+  });
+
+  async function addRower(view: ReturnType<typeof setup>) {
+    await view.user.click(await view.findByRole("button", { name: /plan\.composition\.add/ }));
+    await view.user.click(await view.findByRole("button", { name: /Rameur/ }));
+    await view.user.click(
+      view.getByRole("button", { name: "plan.composition.dialog.validate", hidden: true }),
+    );
+  }
+
+  it("se compose par blocs, sans la bibliothèque à côté ni l'éditeur à plat", async () => {
+    const view = setup({ session: byBlocks() });
+
+    expect(await view.findByText("plan.composition.fromSessionType")).toBeInTheDocument();
+    expect(view.queryByText("plan.session.pickerTitle")).toBeNull();
+    expect(view.queryByText("plan.session.dosage.legendSession")).toBeNull();
+  });
+
+  it("enregistre titre, consignes et jour sans la composition, sous la version d'après un geste", async () => {
+    composeMock.mockResolvedValue([copy(LATER)]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await addRower(view);
+    await waitFor(() => expect(composeMock).toHaveBeenCalledOnce());
+    await view.user.type(view.getByLabelText(NOTES), " et les poignets");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith("ss-1", {
+        title: "Séance haute",
+        notes: "Échauffement long et les poignets",
+        scheduledDate: DATE,
+        expectedUpdatedAt: LATER,
+      }),
+    );
+  });
+
+  it("n'absorbe pas l'écriture d'un autre : un geste parti d'une version plus récente laisse la saisie où elle était", async () => {
+    const OTHER = "2026-09-01T12:00:00.000Z";
+    copiesMock.mockResolvedValue([copy(OTHER)]);
+    composeMock.mockResolvedValue([copy(LATER)]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await addRower(view);
+    await waitFor(() =>
+      expect(composeMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ apply: [{ id: "ss-1", expectedUpdatedAt: OTHER }] }),
+      ),
+    );
+    await view.user.type(view.getByLabelText(NOTES), " !");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: VERSION }),
+      ),
+    );
+  });
+
+  it("réinitialise la composition, puis enregistre sous la version qu'elle rend", async () => {
+    const without = [{ ...blocks[0], exercises: [] }];
+    copiesMock.mockResolvedValue([{ ...copy(VERSION), blocks: without }]);
+    resetMock.mockResolvedValue([copy(LATER)]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await view.user.click(await view.findByRole("button", { name: "plan.composition.resetAll" }));
+    await view.user.click(view.getByRole("button", { name: "plan.composition.resetConfirm" }));
+    await waitFor(() =>
+      expect(resetMock).toHaveBeenCalledWith("ss-1", { expectedUpdatedAt: VERSION }),
+    );
+    await view.user.type(view.getByLabelText(NOTES), " !");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: LATER }),
+      ),
+    );
+  });
+
+  it("garde sa version quand le geste ne touche qu'une autre semaine", async () => {
+    const other = { ...copy(LATER), id: "ss-2", planWeekId: "week-2" };
+    copiesMock.mockResolvedValue([copy(VERSION), other]);
+    composeMock.mockResolvedValue([copy(VERSION), { ...other, updatedAt: VERSION }]);
+    updateMock.mockResolvedValue(byBlocks());
+    const view = setup({ session: byBlocks() });
+
+    await view.user.click(await view.findByRole("button", { name: /plan\.composition\.add/ }));
+    await view.user.click(await view.findByRole("button", { name: /Rameur/ }));
+    const [, here, next] = view.getAllByRole("checkbox", { hidden: true });
+    await view.user.click(here as HTMLElement);
+    await view.user.click(next as HTMLElement);
+    await view.user.click(
+      view.getByRole("button", { name: "plan.composition.dialog.validate", hidden: true }),
+    );
+    await waitFor(() => expect(composeMock).toHaveBeenCalledOnce());
+    await view.user.type(view.getByLabelText(NOTES), " !");
+    await view.user.click(view.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() =>
+      expect(updateMock).toHaveBeenCalledWith(
+        "ss-1",
+        expect.objectContaining({ expectedUpdatedAt: VERSION }),
+      ),
+    );
+  });
+
+  it("dit par le bandeau qu'une réinitialisation a été refusée", async () => {
+    const without = [{ ...blocks[0], exercises: [] }];
+    copiesMock.mockResolvedValue([{ ...copy(VERSION), blocks: without }]);
+    resetMock.mockRejectedValue(new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE));
+    const view = setup({ session: byBlocks() });
+
+    await view.user.click(await view.findByRole("button", { name: "plan.composition.resetAll" }));
+    await view.user.click(view.getByRole("button", { name: "plan.composition.resetConfirm" }));
+
+    expect(await view.findByText("plan.composition.stale")).toBeInTheDocument();
+  });
+
+  it("dit par le bandeau qu'un geste a été refusé sur une version dépassée", async () => {
+    composeMock.mockRejectedValue(
+      new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE),
+    );
+    const view = setup({ session: byBlocks() });
+
+    await addRower(view);
+
+    expect(await view.findByText("plan.composition.stale")).toBeInTheDocument();
   });
 });
 

@@ -631,6 +631,9 @@ liste des domaines vivent dans l'index.
 > - **[#370](https://github.com/Cimavia/cimavia/issues/370) est livrée en préalable** :
 >   `useComposition`, `CompositionEditor` et `ExercisePicker` n'avaient plus que ce panneau pour
 >   client, et sont passés dans `feature/plan`, sans préfixe ni recherche.
+> - **Depuis [#720](https://github.com/Cimavia/cimavia/issues/720), ce panneau à plat ne sert plus
+>   qu'aux séances planifiées SANS bloc** (BL-1) : une séance par blocs se compose dans
+>   `ScheduledComposition`, et son dosage revient avec #721.
 
 ---
 
@@ -638,7 +641,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; la séance planifiée s'écrit encore par exercices jusqu'à #720 et #721. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, mais ses valeurs ne se règlent qu'avec #721 — d'ici là, le panneau n'en montre que les métriques. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 | BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
@@ -893,3 +896,38 @@ liste des domaines vivent dans l'index.
 >   carte passe au rouge, et le message dit « 1.2 Titre », pas un identifiant.
 > - **Une séance encore composée exercice par exercice (BL-1) ne s'enregistre pas ici** : le
 >   constructeur ne sait pas la reprendre, et l'enregistrer effacerait ses exercices.
+
+> **Tranché en [#720](https://github.com/Cimavia/cimavia/issues/720)** (composer une séance
+> planifiée pour les semaines choisies, web seul). Ce qui suit a été tranché en route.
+>
+> - **Aucun lien n'est stocké entre les semaines.** Les copies d'une séance planifiée sont celles
+>   du même Plan qui citent la même séance-type (la séance seule quand elle n'en cite aucune). Un
+>   ajout ou un remplaçant porte la MÊME clé dans chaque copie : c'est par elle que la fenêtre sait
+>   où il est déjà, et qu'on l'étend ou l'annule.
+> - **Chaque geste s'écrit tout de suite**, à « Valider », sur toutes les copies cochées, dans une
+>   seule transaction et sous la version de chacune (#604) — une notification par geste si le Plan
+>   est diffusé. Titre, consignes et jour restent avec « Enregistrer » : `PUT` sans `exercises`
+>   laisse la composition intacte. Le panneau adopte la version que le geste renvoie, sans quoi
+>   « Enregistrer » se ferait refuser sur sa propre composition — seulement quand le geste est
+>   parti de la version que la saisie cite : sinon il absorberait l'écriture d'un autre Coach.
+> - **Une semaine où le changement ne s'appliquerait pas est grisée, avec sa raison**
+>   (`CompositionRefusal`), et garde son état. Le serveur rejuge chaque copie avec la même fonction
+>   pure (`appliedEdit`, `revertedEdit`) : une copie qui refuse fait échouer tout le geste (400,
+>   rien d'écrit).
+> - **Rendre un exercice de la séance-type le recopie depuis la bibliothèque**, au rang de la
+>   référence, avec la grille de la référence. Sa source disparue, la semaine se grise
+>   (`NOT_IN_LIBRARY`).
+> - **Une semaine débriefée ne se compose plus** (`DEBRIEFED`), quel que soit le changement :
+>   récrire sa composition emporterait ce que l'athlète y a coché, comme sa suppression (#313).
+> - **L'ouverture de #605 ne vaut que pour ce que la séance-type cite déjà.** Un exercice privé
+>   qu'elle cite se REND (revenir à la séance-type, tout réinitialiser) ; le placer comme nouvel
+>   ajout ou remplaçant exige de le lire soi-même (`NOT_IN_LIBRARY`).
+> - **La bibliothèque du panneau ne compte que les exercices que le Coach lit.** Un exercice privé
+>   qu'une séance-type partagée cite (#605) grise donc à tort une semaine ; le serveur, lui,
+>   l'accepte. Limite connue.
+> - **Le panneau ne crée plus de séance sans séance-type** : elle n'aurait aucun bloc à composer.
+>   L'API garde la création sans modèle (des séances et des e2e en dépendent) jusqu'à #723.
+> - **Une séance planifiée sans bloc garde l'éditeur à plat** (#518) : le panneau ne sait pas la
+>   reprendre par blocs.
+> - **La grille et la liste des séances disent « blocs · exercices »** (`compositionSummary`),
+>   les exercices seuls pour une séance sans bloc : le résumé planifié porte `blockCount`.

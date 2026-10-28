@@ -162,6 +162,8 @@ const mount = async (
     },
     saveSession: { mutate: vi.fn(), error: sessionError },
     removeSession: { mutate: vi.fn(), error: null },
+    composeSession: { mutateAsync: vi.fn(), error: null },
+    resetComposition: { mutateAsync: vi.fn(), error: null },
     isBusy: false,
   } as unknown as ReturnType<typeof usePlanMutations>);
   vi.mocked(usePlanBilling).mockReturnValue({ data: billing } as unknown as ReturnType<
@@ -433,6 +435,7 @@ describe("PlanBuilderScreen — les semaines", () => {
     position: 0,
     status: ScheduledSessionStatus.PLANNED,
     exerciseCount: 0,
+    blockCount: 0,
     updatedAt: "2026-08-10T00:00:00.000Z",
     coachId: "coach_1",
     coachName: "Julie Renaud",
@@ -792,6 +795,7 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
         position: 0,
         status: ScheduledSessionStatus.PLANNED,
         exerciseCount: 0,
+        blockCount: 0,
         updatedAt: "2026-10-01T10:00:00.000Z",
       },
     ],

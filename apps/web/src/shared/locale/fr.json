@@ -45,6 +45,12 @@
       "save": "Enregistrer",
       "discard": "Ne pas enregistrer",
       "cancel": "Annuler"
+    },
+    "composition": {
+      "blocks": "{{count}} bloc",
+      "blocks_other": "{{count}} blocs",
+      "exercises": "{{count}} exercice",
+      "exercises_other": "{{count}} exercices"
     }
   },
   "auth": {
@@ -146,7 +152,7 @@
       "meters": "m",
       "kilometers": "km",
       "kilograms": "kg",
-      "kilogramsAdded": "+kg",
+      "kilogramsAdded": "kg de lest",
       "percent": "%",
       "percentBodyweight": "% du poids de corps",
       "percentHrMax": "% FCM",
@@ -221,10 +227,6 @@
       "savedBeforeExercise": "Séance enregistrée avant de créer l'exercice.",
       "addCreatedFailed": "L'exercice créé n'a pas pu être ajouté à la séance : ajoute-le depuis ta bibliothèque.",
       "blocks": {
-        "blockCount": "{{count}} bloc",
-        "blockCount_other": "{{count}} blocs",
-        "exerciseCount": "{{count}} exercice",
-        "exerciseCount_other": "{{count}} exercices",
         "unfoldAll": "Tout déplier",
         "foldAll": "Tout replier",
         "foldBlock": "Replier le bloc {{block}}",
@@ -566,7 +568,7 @@
       "tags": "Tags",
       "owner": "Propriétaire",
       "access": "Accès",
-      "exercises": "Exercices",
+      "composition": "Composition",
       "dosage": "Dosage",
       "updatedAt": "Modifié le",
       "select": "Sélectionner « {{title}} »",
@@ -806,9 +808,8 @@
       "readOnlyDescription": "Ce cycle t'est ouvert en lecture : la séance se consulte, elle ne se modifie pas.",
       "day": "Jour",
       "template": "Séance modèle",
-      "templateNone": "Séance vide (sans modèle)",
+      "templateNone": "Choisis une séance modèle",
       "templateHint": "Le titre, les consignes, les exercices et leurs documents seront copiés du modèle.",
-      "titleRequired": "Choisis une séance modèle ou donne un titre pour enregistrer la séance.",
       "dayOutsideCycle": "Ce jour ne fait plus partie du cycle : choisis-en un autre.",
       "titleLabel": "Titre de la séance",
       "titlePlaceholder": "Ex. Force max",
@@ -818,7 +819,6 @@
       "emptyComposition": "Aucun exercice",
       "emptyCompositionHint": "Pioche dans ta bibliothèque, à droite.",
       "pickerTitle": "Bibliothèque d'exercices",
-      "exerciseCount": "{{count}} exercice(s)",
       "moveUp": "Monter",
       "moveDown": "Descendre",
       "moveExercise": "Déplacer l'exercice",
@@ -840,7 +840,8 @@
         "legendScheduled": "modifié pour {{name}}, cette semaine",
         "weekOnly": "Les ajustements faits ici ne valent que pour cette semaine.",
         "theAthlete": "l'athlète"
-      }
+      },
+      "templateRequired": "Choisis une séance modèle pour l'ajouter au cycle."
     },
     "builder": {
       "back": "← Planifications",
@@ -906,7 +907,9 @@
       "headerSaved": "Cycle enregistré",
       "weekPastedPlain": "Semaine collée",
       "stale": "Le cycle a changé entre-temps : il vient d'être relu. Refais ton geste si besoin.",
-      "planStale": "Le cycle a changé depuis que tu l'as ouvert : il vient d'être relu. Vérifie-le avant de recommencer."
+      "planStale": "Le cycle a changé depuis que tu l'as ouvert : il vient d'être relu. Vérifie-le avant de recommencer.",
+      "compositionSaved": "Composition mise à jour",
+      "compositionReset": "Composition de la séance-type rendue"
     },
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",
@@ -983,6 +986,65 @@
     "concurrency": {
       "flag": "{{n}} cycles de front",
       "notice": "Ton athlète mène « {{titles}} » en parallèle du {{from}} au {{to}}."
+    },
+    "composition": {
+      "changes": "{{count}} changement pour {{name}}",
+      "changes_other": "{{count}} changements pour {{name}}",
+      "fromSessionType": "Composition de la séance-type",
+      "resetAll": "Tout réinitialiser",
+      "resetConfirm": "Réinitialiser",
+      "resetWarning": "Cette semaine reprend la composition de la séance-type. Les autres semaines ne changent pas.",
+      "viewSessionType": "Voir la séance-type",
+      "readOnlySettings": "Structures et ordre des exercices en lecture seule. Les réglages se changent dans la séance-type.",
+      "willSeeUpdate": "{{name}} verra sa séance mise à jour.",
+      "stale": "Cette séance a changé depuis que tu l'as ouverte. Rien n'a été écrit : recharge-la pour composer sur sa dernière version.",
+      "add": "Ajouter un exercice pour {{name}}",
+      "arrivesAt": "arrivera en {{code}}",
+      "replace": "Remplacer",
+      "remove": "Retirer",
+      "change": {
+        "ADD": "ajouté pour {{name}}",
+        "REPLACE": "remplacé pour {{name}}",
+        "REMOVE": "retiré pour {{name}}"
+      },
+      "inWeeks": "en {{weeks}}",
+      "allWeeks": "toutes les semaines",
+      "week": "S{{number}}",
+      "sessionType": "séance-type : {{title}}",
+      "metrics": "Métriques :",
+      "backToSessionType": "Revenir à la séance-type",
+      "noSource": "Exercice retiré de la bibliothèque",
+      "pick": {
+        "addTitle": "Ajouter en fin de bloc {{block}}",
+        "replaceTitle": "Remplacer {{exercise}}",
+        "cancel": "Annuler"
+      },
+      "dialog": {
+        "title": "Pour quelles semaines ?",
+        "all": "Toutes",
+        "here": "ce panneau",
+        "what": {
+          "ADD": "Ajouter {{exercise}} en fin de bloc {{block}}.",
+          "REPLACE": "Remplacer {{was}} par {{exercise}}.",
+          "REMOVE": "Retirer {{was}}."
+        },
+        "comesBack": "{{exercise}} revient en {{weeks}}",
+        "noLonger": "{{exercise}} n'est plus en {{weeks}}",
+        "validate": "Valider",
+        "cancelChange": "Annuler ce changement",
+        "cancel": "Annuler",
+        "refusal": {
+          "DEBRIEFED": "Séance déjà débriefée : sa composition ne change plus.",
+          "NO_BLOCK": "Ce bloc n'existe pas dans cette séance.",
+          "ABSENT": "Cet exercice n'est pas dans cette séance.",
+          "NOT_IN_LIBRARY": "L'exercice n'est plus dans ta bibliothèque.",
+          "LAST_EXERCISE": "Le bloc resterait vide.",
+          "BLOCK_FULL": "Le bloc a déjà le maximum d'exercices.",
+          "SESSION_FULL": "La séance a déjà le maximum d'exercices.",
+          "ROUNDS": "Les tours du bloc ne se répartiraient plus sur ses exercices.",
+          "KEY_TAKEN": "Un autre changement occupe déjà cette place."
+        }
+      }
     }
   },
   "nav": {

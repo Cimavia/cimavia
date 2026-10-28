@@ -13,7 +13,8 @@ test.describe("Créer et diffuser un cycle", () => {
     await seed.link(coach, athlete);
     await seed.authenticate(context, coach);
     const title = `Cycle de ${athlete.name}`;
-    const sessionTitle = `Séance de ${athlete.name}`;
+    // Une séance se planifie depuis une séance-type de la bibliothèque (#720) : elle en prend le titre.
+    const sessionTitle = (await seed.sessionType(coach, `Séance de ${athlete.name}`)).title;
 
     await page.goto("/plans");
     // Sans cycle, le bouton figure deux fois : dans le bandeau et dans l'état vide.
@@ -35,7 +36,7 @@ test.describe("Créer et diffuser un cycle", () => {
       .first()
       .click();
     const panel = page.getByRole("complementary", { name: t("plan.session.createTitle") });
-    await panel.getByLabel(t("plan.session.titleLabel")).fill(sessionTitle);
+    await panel.getByLabel(t("plan.session.template")).selectOption({ label: sessionTitle });
     await panel.getByRole("button", { name: t("plan.session.submit"), exact: true }).click();
     await expect(panel).toBeHidden();
     await expect(page.getByText(sessionTitle)).toBeVisible();

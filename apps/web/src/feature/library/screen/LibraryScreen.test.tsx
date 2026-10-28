@@ -51,6 +51,7 @@ const session = {
   title: "Force max",
   notes: null,
   exercises: [],
+  blocks: [],
   owner: { id: "coach-1", name: "Cédric" },
   myAccess: { level: MyAccessLevel.OWNER, via: null },
   grants: [],

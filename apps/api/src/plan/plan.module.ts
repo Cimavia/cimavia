@@ -8,11 +8,13 @@ import { ReminderModule } from "../reminder/reminder.module";
 import { AthletePlanController } from "./controller/athlete-plan.controller";
 import { PlanController } from "./controller/plan.controller";
 import { PlanWeekController } from "./controller/plan-week.controller";
+import { ScheduledCompositionController } from "./controller/scheduled-composition.controller";
 import { ScheduledSessionController } from "./controller/scheduled-session.controller";
 import { AthletePlanService } from "./service/athlete-plan.service";
 import { PlanService } from "./service/plan.service";
 import { PlanAccessService } from "./service/plan-access.service";
 import { PlanWeekCopyService } from "./service/plan-week-copy.service";
+import { ScheduledCompositionService } from "./service/scheduled-composition.service";
 import { ScheduledSessionService } from "./service/scheduled-session.service";
 
 // Planifications (P3) : cycles, semaines et séances planifiées (copies éditables des modèles).
@@ -36,6 +38,7 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
     PlanController,
     PlanWeekController,
     ScheduledSessionController,
+    ScheduledCompositionController,
     AthletePlanController,
   ],
   providers: [
@@ -43,6 +46,7 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
     PlanAccessService,
     PlanWeekCopyService,
     ScheduledSessionService,
+    ScheduledCompositionService,
     AthletePlanService,
   ],
   // AthletePlanService est exporté pour le débrief (P4) : il porte la garde « séance de
