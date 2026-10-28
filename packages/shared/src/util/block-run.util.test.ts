@@ -96,6 +96,15 @@ describe("blockRun", () => {
     ]);
   });
 
+  it("désigne l'exercice seul d'un bloc à chaque bip, sur la ligne de son tour", () => {
+    const steps = blockRun(settingsOf({ advance: beep(60), repeat: rounds(3) }), 1);
+    expect(steps.map((step) => [step.index, step.exerciseIndex, step.row])).toEqual([
+      [1, 0, 0],
+      [2, 0, 1],
+      [3, 0, 2],
+    ]);
+  });
+
   it("alterne effort et repos, sans repos après le dernier effort", () => {
     const steps = blockRun(settingsOf({ advance: cycle(20, 10), repeat: rounds(3) }), 1);
     expect(steps.map((step) => [step.kind, step.seconds, step.index])).toEqual([

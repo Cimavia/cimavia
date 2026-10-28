@@ -91,13 +91,14 @@ type Pass = Pick<RunStep, "index" | "exerciseIndex" | "row">;
 
 /**
  * Les bips ou les intervalles d'un bloc à tours. Avec « un seul par… », chacun revient à un
- * exercice, à tour de rôle, et le passage de cet exercice choisit sa ligne. Sinon tout s'enchaîne
- * dans chacun, sans exercice désigné.
+ * exercice, à tour de rôle, et le passage de cet exercice choisit sa ligne ; un exercice seul est
+ * désigné de même, à chaque passage. Sinon tout s'enchaîne dans chacun, sans exercice désigné.
  */
 function passes(settings: StructureSettings, exerciseCount: number): Pass[] {
   // Un bip ou un cycle n'existe qu'avec un nombre de tours : les autres réponses sont grisées.
   const total = settings.repeat.kind === StructureRepeat.ROUNDS ? settings.repeat.rounds : 1;
-  const single = oneAtATime(settings, exerciseCount);
+  // Un exercice seul est celui de chaque passage, qu'on les fasse « un par un » ou « tous ».
+  const single = exerciseCount === 1 || oneAtATime(settings, exerciseCount);
   return Array.from({ length: total }, (_unused, position) =>
     single
       ? {
