@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { expectedVersionSchema } from "./expected-version.schema";
-import { PLAN_MAX_WEEKS } from "./plan.schema";
+import { PLAN_MAX_WEEKS, scheduledSessionStatusSchema } from "./plan.schema";
 import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 import { scheduledSessionBlockDtoSchema } from "./session-block-dto.schema";
 
@@ -114,13 +114,15 @@ export type ScheduledCompositionInput = z.infer<typeof scheduledCompositionInput
 
 /**
  * Une copie de la séance-type dans le Plan, telle que la fenêtre et l'étiquette la lisent : sa
- * place, sa version, et ses blocs. Ni titre ni documents : la copie se nomme par sa semaine.
+ * place, sa version, son statut — une séance débriefée ne se compose plus — et ses blocs. Ni
+ * titre ni documents : la copie se nomme par sa semaine.
  */
 export const scheduledSessionCopyDtoSchema = z.object({
   id: z.string(),
   planWeekId: z.string(),
   scheduledDate: z.iso.date(),
   updatedAt: z.iso.datetime(),
+  status: scheduledSessionStatusSchema,
   blocks: z.array(scheduledSessionBlockDtoSchema),
 });
 export type ScheduledSessionCopyDto = z.infer<typeof scheduledSessionCopyDtoSchema>;

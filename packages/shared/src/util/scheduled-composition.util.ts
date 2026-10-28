@@ -1,4 +1,5 @@
 import type { BlockGrid } from "../dto/block-grid.schema";
+import { ScheduledSessionStatus } from "../dto/plan.schema";
 import {
   type CompositionEdit,
   CompositionEditKind,
@@ -47,6 +48,11 @@ export type PlannedCompositionBlock<E extends PlannedExercise = PlannedExercise>
 export type CompositionLibrary = (exerciseId: string) => SuggestingExercise | null;
 
 export const CompositionRefusal = {
+  /**
+   * La copie est débriefée : retirer ou remplacer un exercice emporterait ce que l'athlète y a
+   * coché, comme la suppression d'une séance débriefée (#313).
+   */
+  DEBRIEFED: "DEBRIEFED",
   /** La copie n'a pas ce bloc : elle a été posée avant une retouche de la séance-type. */
   NO_BLOCK: "NO_BLOCK",
   /** La copie n'a pas l'exercice de la séance-type que le changement vise. */
@@ -376,12 +382,15 @@ export type CopyChoice = {
 };
 
 export function copyChoices(
-  copies: readonly { id: string; blocks: readonly PlannedCompositionBlock[] }[],
+  copies: readonly ComposableCopy[],
   edit: CompositionEdit,
   library: CompositionLibrary,
 ): CopyChoice[] {
   return copies.map((copy) => {
     const inPlace = editInPlace(copy.blocks, edit);
+    if (isDebriefed(copy)) {
+      return { id: copy.id, inPlace, refusal: CompositionRefusal.DEBRIEFED };
+    }
     const outcome = inPlace
       ? revertedEdit(copy.blocks, edit, library)
       : appliedEdit(copy.blocks, edit, library);
@@ -391,6 +400,18 @@ export function copyChoices(
       refusal: outcome.kind === CompositionOutcomeKind.REFUSED ? outcome.refusal : null,
     };
   });
+}
+
+/** Une copie telle que la fenêtre la juge. */
+export type ComposableCopy = {
+  id: string;
+  status: ScheduledSessionStatus;
+  blocks: readonly PlannedCompositionBlock[];
+};
+
+/** Une copie débriefée ne se compose plus, dans un sens comme dans l'autre (`DEBRIEFED`). */
+export function isDebriefed(copy: Pick<ComposableCopy, "status">): boolean {
+  return copy.status === ScheduledSessionStatus.DONE;
 }
 
 /**

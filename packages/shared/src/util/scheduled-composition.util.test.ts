@@ -3,6 +3,7 @@ import { effort, gridOf, load, oneByBeep, reps, settingsOf } from "../../test/bl
 import type { BlockGrid } from "../dto/block-grid.schema";
 import { MetricSource } from "../dto/exercise-block.schema";
 import { MetricKey, MetricUnit } from "../dto/exercise-metric.schema";
+import { ScheduledSessionStatus } from "../dto/plan.schema";
 import {
   type CompositionEdit,
   CompositionEditKind,
@@ -309,6 +310,15 @@ describe("revertedEdit", () => {
     });
   });
 
+  it("refuse de rendre un exercice que la séance-type n'a pas", () => {
+    // Un remplaçant dont la place a quitté la référence : rien à rendre à sa place.
+    const blocks = [blockOf([planned("new", replacing("a")), planned("b")], reference(["b"]))];
+    expect(revertedEdit(blocks, REPLACE_A, library)).toEqual({
+      kind: CompositionOutcomeKind.REFUSED,
+      refusal: CompositionRefusal.ABSENT,
+    });
+  });
+
   it("refuse de retirer un ajout resté seul dans son bloc", () => {
     const blocks = [blockOf([planned("new", ADDED)])];
     expect(revertedEdit(blocks, ADD, library)).toEqual({
@@ -351,14 +361,21 @@ describe("resetComposition", () => {
 });
 
 describe("pour quelles semaines", () => {
+  const PLANNED = ScheduledSessionStatus.PLANNED;
   const copies = [
-    { id: "s1", updatedAt: "2026-10-01T00:00:00.000Z", blocks: [blockOf([planned("a")])] },
+    {
+      id: "s1",
+      status: PLANNED,
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      blocks: [blockOf([planned("a")])],
+    },
     {
       id: "s2",
+      status: PLANNED,
       updatedAt: "2026-10-02T00:00:00.000Z",
       blocks: [blockOf([planned("new", replacing("a"))])],
     },
-    { id: "s3", updatedAt: "2026-10-03T00:00:00.000Z", blocks: [] },
+    { id: "s3", status: PLANNED, updatedAt: "2026-10-03T00:00:00.000Z", blocks: [] },
   ];
 
   it("dit où le changement est en place, et pourquoi une copie ne le prend pas", () => {
@@ -367,6 +384,17 @@ describe("pour quelles semaines", () => {
       { id: "s2", inPlace: true, refusal: null },
       { id: "s3", inPlace: false, refusal: CompositionRefusal.NO_BLOCK },
     ]);
+  });
+
+  // Le statut passe avant tout : même une copie qui prendrait le changement se grise.
+  it("refuse une copie débriefée, qu'elle ait le changement ou non", () => {
+    const debriefed = copies.map((copy) => ({ ...copy, status: ScheduledSessionStatus.DONE }));
+    expect(copyChoices(debriefed, REPLACE_A, library).map((choice) => choice.refusal)).toEqual([
+      CompositionRefusal.DEBRIEFED,
+      CompositionRefusal.DEBRIEFED,
+      CompositionRefusal.DEBRIEFED,
+    ]);
+    expect(copyChoices(debriefed, REPLACE_A, library)[1]?.inPlace).toBe(true);
   });
 
   it("applique aux cochées sans le changement, défait aux décochées qui l'ont", () => {

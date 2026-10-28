@@ -1171,6 +1171,7 @@ export {
 export { shouldReportQueryError } from "./util/report-query-error.util";
 export { sameJson } from "./util/same-json.util";
 export type {
+  ComposableCopy,
   ComposedExercise,
   CompositionLibrary,
   CompositionOutcome,
@@ -1187,6 +1188,7 @@ export {
   copyChoices,
   editInPlace,
   editOfExercise,
+  isDebriefed,
   removedReferences,
   resetComposition,
   revertedEdit,
