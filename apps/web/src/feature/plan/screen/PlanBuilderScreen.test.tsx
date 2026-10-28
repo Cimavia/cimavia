@@ -9,6 +9,8 @@ import {
   ProblemType,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
@@ -16,7 +18,11 @@ import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { listMyOrganizations } from "@/feature/library/api";
-import { getScheduledSession, scheduledSessionKeys } from "@/feature/plan/api";
+import {
+  getScheduledSession,
+  getScheduledSessionCopies,
+  scheduledSessionKeys,
+} from "@/feature/plan/api";
 import { usePlan, usePlanMutations } from "@/feature/plan/hook/usePlan";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
@@ -32,15 +38,15 @@ const getPlan = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
   // La VRAIE clé du détail : une clé recopiée ici survivrait à un renommage de l'application.
   const { planKeys } = await import("@/feature/plan/api");
+  const real = await importOriginal<typeof import("@/feature/plan/hook/usePlan")>();
   return {
     usePlan: vi.fn(),
     usePlanMutations: vi.fn(),
     // « Recharger » relit le cycle par cette requête (#604) : sa lecture est la seule doublure.
     planDetailQuery: (id: string) => ({ queryKey: planKeys.detail(id), queryFn: getPlan }),
-    // La vraie : elle lit la séance par la doublure de `api.ts`.
-    scheduledSessionDetailQuery: (
-      await importOriginal<typeof import("@/feature/plan/hook/usePlan")>()
-    ).scheduledSessionDetailQuery,
+    // Les vraies : elles lisent la séance, et ses copies, par les doublures de `api.ts`.
+    scheduledSessionDetailQuery: real.scheduledSessionDetailQuery,
+    useScheduledSessionCopies: real.useScheduledSessionCopies,
   };
 });
 const saveBilling = vi.hoisted(() => vi.fn());
@@ -89,6 +95,8 @@ vi.mock("@/feature/reminder", () => ({ ScheduleReminderButton: () => null }));
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
   getScheduledSession: vi.fn(),
+  // La composition par blocs se lit sur les copies (#720) : la séance n'en a qu'une, elle-même.
+  getScheduledSessionCopies: vi.fn(),
 }));
 // Le panneau pioche dans la bibliothèque : ses deux listes sont des entrées, vides ici.
 vi.mock("@/feature/library/api", async (importOriginal) => ({
@@ -141,6 +149,8 @@ const mount = async (
   headerError: unknown = null,
   // Celui du dernier enregistrement de séance, que le panneau lit de même.
   sessionError: unknown = null,
+  // L'URL d'arrivée : Dosage rouvre le cycle sur une séance (#721).
+  search: Record<string, string> = {},
 ) => {
   vi.mocked(usePlans).mockReturnValue({
     data: coachPlans ?? undefined,
@@ -173,7 +183,8 @@ const mount = async (
   return renderInRoute(<PlanBuilderScreen />, {
     path: "/plans/$planId",
     params: { planId: "pln_1" },
-    links: ["/plans", "/invoices"],
+    links: ["/plans", "/invoices", "/plans/$planId/dosage/$sessionId"],
+    search,
   });
 };
 
@@ -538,6 +549,73 @@ describe("PlanBuilderScreen — les semaines", () => {
 
     expect(await findByText("Séance planifiée introuvable")).toBeTruthy();
     expect(queryByText("plan.session.editTitle")).toBeNull();
+  });
+
+  // « Composer cette séance », depuis Dosage : le cycle s'ouvre sur son panneau, une seule fois.
+  it("ouvre la séance que l'URL demande, puis retire la demande", async () => {
+    const { findByText, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
+      session: "ss_1",
+    });
+
+    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(router.state.location.pathname).toBe("/plans/pln_1");
+  });
+
+  it("n'ouvre rien pour une séance que le cycle n'a plus", async () => {
+    const { queryByText, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
+      session: "ss_retiree",
+    });
+
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(queryByText("plan.session.editTitle")).toBeNull();
+    expect(getScheduledSession).not.toHaveBeenCalled();
+  });
+
+  // Le cycle en cache peut précéder la copie que Dosage a rouverte : sa relecture la dira.
+  it("garde la demande tant que le cycle se relit", async () => {
+    const { findByText, router } = await mount(
+      {},
+      null,
+      [],
+      { isFetching: true } as never,
+      null,
+      null,
+      {
+        session: "ss_1",
+      },
+    );
+
+    expect(await findByText("plan.builder.addWeek")).toBeTruthy();
+    expect(router.state.location.search).toEqual({ session: "ss_1" });
+  });
+
+  it("« Dosage » mène aux valeurs de la séance ouverte", async () => {
+    const SERIES = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+    const block = {
+      id: "blk_1",
+      name: "Séries",
+      label: null,
+      instructions: null,
+      settings: SERIES,
+      copiedSettings: SERIES,
+      sourceStructureId: null,
+      sourcePreset: StructurePresetKey.SERIES,
+      baseline: { settings: SERIES, exercises: [] },
+      tracking: null,
+      exercises: [],
+    };
+    const byBlocks = { ...summary, blocks: [block], blockCount: 1 };
+    vi.mocked(getScheduledSession).mockResolvedValue(byBlocks);
+    vi.mocked(getScheduledSessionCopies).mockResolvedValue([
+      { ...byBlocks, exercises: [] } as never,
+    ]);
+    const { findByRole, getByRole, router, user } = await mount({ weeks: [week] });
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    await user.click(await findByRole("button", { name: "plan.composition.dosage" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/plans/pln_1/dosage/ss_1"));
   });
 
   it("ajoute une semaine d'entraînement en fin de cycle", async () => {

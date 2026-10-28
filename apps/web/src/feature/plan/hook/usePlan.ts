@@ -3,6 +3,7 @@ import type {
   PlanDto,
   PlanWeekInput,
   ScheduledCompositionInput,
+  ScheduledDosageInput,
   UpdatePlanInput,
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
@@ -16,6 +17,7 @@ import {
   createScheduledSession,
   deletePlanWeek,
   deleteScheduledSession,
+  doseScheduledSession,
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
@@ -254,6 +256,18 @@ export function usePlanMutations(planId: string) {
 
   const isBusy = useIsMutating({ mutationKey }) > 0;
 
+  /**
+   * « Enregistrer » de Dosage (#721) : les valeurs de toutes les semaines changées, en une
+   * requête. Rend les copies, sous leurs nouvelles versions.
+   */
+  const doseSession = useMutation({
+    mutationKey,
+    mutationFn: ({ sessionId, input }: { sessionId: string; input: ScheduledDosageInput }) =>
+      doseScheduledSession(sessionId, input),
+    onSuccess: done("plan.toast.dosageSaved"),
+    onError: onFormError,
+  });
+
   return {
     saveHeader,
     addWeek,
@@ -266,6 +280,7 @@ export function usePlanMutations(planId: string) {
     removeSession,
     composeSession,
     resetComposition,
+    doseSession,
     isBusy,
   };
 }

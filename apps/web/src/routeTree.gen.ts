@@ -37,6 +37,7 @@ import { Route as LibrarySessionsNewRouteImport } from './routes/library.session
 import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
 import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
 import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
+import { Route as PlansPlanIdDosageSessionIdRouteImport } from './routes/plans.$planId_.dosage.$sessionId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -182,6 +183,12 @@ const LibraryExercisesExerciseIdRoute =
     path: '/library/exercises/$exerciseId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const PlansPlanIdDosageSessionIdRoute =
+  PlansPlanIdDosageSessionIdRouteImport.update({
+    id: '/plans/$planId_/dosage/$sessionId',
+    path: '/plans/$planId/dosage/$sessionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
+  '/plans/$planId/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -241,6 +249,7 @@ export interface FileRoutesByTo {
   '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId': typeof SessionsSessionIdIndexRoute
+  '/plans/$planId/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -272,6 +281,7 @@ export interface FileRoutesById {
   '/library/structures/new': typeof LibraryStructuresNewRoute
   '/sessions/$sessionId/feedback': typeof SessionsSessionIdFeedbackRoute
   '/sessions/$sessionId/': typeof SessionsSessionIdIndexRoute
+  '/plans/$planId_/dosage/$sessionId': typeof PlansPlanIdDosageSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -304,6 +314,7 @@ export interface FileRouteTypes {
     | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
+    | '/plans/$planId/dosage/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId'
+    | '/plans/$planId/dosage/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -363,6 +375,7 @@ export interface FileRouteTypes {
     | '/library/structures/new'
     | '/sessions/$sessionId/feedback'
     | '/sessions/$sessionId/'
+    | '/plans/$planId_/dosage/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -392,6 +405,7 @@ export interface RootRouteChildren {
   LibrarySessionsNewRoute: typeof LibrarySessionsNewRoute
   LibraryStructuresStructureIdRoute: typeof LibraryStructuresStructureIdRoute
   LibraryStructuresNewRoute: typeof LibraryStructuresNewRoute
+  PlansPlanIdDosageSessionIdRoute: typeof PlansPlanIdDosageSessionIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -592,6 +606,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LibraryExercisesExerciseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans/$planId_/dosage/$sessionId': {
+      id: '/plans/$planId_/dosage/$sessionId'
+      path: '/plans/$planId/dosage/$sessionId'
+      fullPath: '/plans/$planId/dosage/$sessionId'
+      preLoaderRoute: typeof PlansPlanIdDosageSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -635,6 +656,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibrarySessionsNewRoute: LibrarySessionsNewRoute,
   LibraryStructuresStructureIdRoute: LibraryStructuresStructureIdRoute,
   LibraryStructuresNewRoute: LibraryStructuresNewRoute,
+  PlansPlanIdDosageSessionIdRoute: PlansPlanIdDosageSessionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

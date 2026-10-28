@@ -120,6 +120,7 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
   const onClose = vi.fn();
   const onUnsavedChange = vi.fn();
   const onReload = vi.fn();
+  const onOpenDosage = vi.fn();
   const view = renderWithProviders(
     <ScheduledSessionPanel
       planId="plan-1"
@@ -134,10 +135,11 @@ function setup(over: Partial<Parameters<typeof ScheduledSessionPanel>[0]> = {}) 
       onUnsavedChange={onUnsavedChange}
       onReload={onReload}
       isReloading={false}
+      onOpenDosage={onOpenDosage}
       {...over}
     />,
   );
-  return { ...view, onClose, onUnsavedChange, onReload };
+  return { ...view, onClose, onUnsavedChange, onReload, onOpenDosage };
 }
 
 beforeEach(() => {
@@ -535,6 +537,7 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
         onUnsavedChange={vi.fn()}
         onReload={vi.fn()}
         isReloading={false}
+        onOpenDosage={vi.fn()}
       />,
     );
 
