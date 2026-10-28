@@ -73,6 +73,7 @@ import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
 import { apiErrorMessage, isStaleWriteError } from "@/shared/lib/api";
 import { cn } from "@/shared/util/cn.util";
+import { compositionSummary } from "@/shared/util/composition.util";
 
 type SessionBuilderScreenProps = {
   /** Absent = création. Sinon la séance est chargée depuis l'URL. */
@@ -766,11 +767,13 @@ function sessionSubtitle(
   blocks: readonly SessionBlock[],
   t: TFunction,
 ): string {
-  const exercises = blocks.reduce((sum, block) => sum + block.exercises.length, 0);
-  const composition = [
-    t("library.session.blocks.blockCount", { count: blocks.length }),
-    t("library.session.blocks.exerciseCount", { count: exercises }),
-  ].join(" · ");
+  const composition = compositionSummary(
+    {
+      blockCount: blocks.length,
+      exerciseCount: blocks.reduce((sum, block) => sum + block.exercises.length, 0),
+    },
+    t,
+  );
   if (foreign == null) return composition;
   return t("library.session.ofOwner", {
     owner: foreign.owner.name,

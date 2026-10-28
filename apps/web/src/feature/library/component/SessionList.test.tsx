@@ -30,6 +30,7 @@ const session = (id: string, title: string, tags: string[][] = [], owner = "C") 
     title,
     notes: null,
     exercises: tags.map((exerciseTags, index) => ({ id: `${id}-${index}`, tags: exerciseTags })),
+    blocks: [],
     owner: { id: owner, name: owner },
     myAccess: {
       level: owner === "C" ? MyAccessLevel.OWNER : MyAccessLevel.READ,
@@ -134,14 +135,21 @@ describe("SessionList — états", () => {
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it("montre chaque séance en ligne, avec son nombre d'exercices, et ouvre celle qu'on choisit", async () => {
-    const force = session("s-1", "Force max", [["force"], [], ["grimpe"]]);
+  it("montre chaque séance en ligne, avec sa composition, et ouvre celle qu'on choisit", async () => {
+    const force = {
+      ...session("s-1", "Force max", [["force"], [], ["grimpe"]]),
+      blocks: [{ id: "b-1" }, { id: "b-2" }],
+    } as unknown as SessionDto;
     state({ data: [force, session("s-2", "Continuité")] });
     const view = setup();
 
     expect(titles(view)).toEqual(["Force max", "Continuité"]);
-    expect(view.getByText("library.table.exercises")).toBeInTheDocument();
-    expect(view.getByText("3")).toBeInTheDocument();
+    expect(view.getByText("library.table.composition")).toBeInTheDocument();
+    // Une séance par blocs dit ses blocs ; l'ancien modèle, ses seuls exercices.
+    expect(
+      view.getByText("common.composition.blocks · common.composition.exercises"),
+    ).toBeInTheDocument();
+    expect(view.getByText("common.composition.exercises")).toBeInTheDocument();
     await view.user.click(view.getByRole("button", { name: "Force max" }));
 
     expect(view.onEdit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "s-1" }));

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { useWeekDrag, WeekSlot } from "@/feature/plan/hook/useWeekDrag";
 import { CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
+import { compositionSummary } from "@/shared/util/composition.util";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 type PlanDayCellProps = {
@@ -91,7 +92,7 @@ export function PlanDayCell({
           >
             <span className="truncate text-cmv-caption text-cmv-text-hi">{session.title}</span>
             <span className="text-cmv-caption text-cmv-text-lo">
-              {t("plan.session.exerciseCount", { count: session.exerciseCount })}
+              {compositionSummary(session, t)}
             </span>
           </button>
         </div>
