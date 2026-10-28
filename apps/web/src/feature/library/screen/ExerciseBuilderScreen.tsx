@@ -70,6 +70,8 @@ type ExerciseBuilderScreenProps = {
   fromSessionId?: string | undefined;
   /** Le rang du bloc où l'exercice entrera (#719) ; absent, dans un bloc neuf. */
   fromBlock?: number | undefined;
+  /** Parti d'un bloc vide : la structure du bloc neuf qui le recevra, à ce rang (#719). */
+  fromStructure?: string | undefined;
 };
 
 /**
@@ -85,6 +87,7 @@ export function ExerciseBuilderScreen({
   initialTitle,
   fromSessionId,
   fromBlock,
+  fromStructure,
 }: Readonly<ExerciseBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -130,7 +133,13 @@ export function ExerciseBuilderScreen({
       to: "/library/sessions/$sessionId",
       params: { sessionId: fromSessionId },
       search:
-        saved == null ? {} : { add: saved.id, ...(fromBlock == null ? {} : { block: fromBlock }) },
+        saved == null
+          ? {}
+          : {
+              add: saved.id,
+              ...(fromBlock == null ? {} : { block: fromBlock }),
+              ...(fromStructure == null ? {} : { structure: fromStructure }),
+            },
       replace: true,
     });
   }

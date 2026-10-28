@@ -1,5 +1,5 @@
 import {
-  blockLetters,
+  blockNumbers,
   type CustomMetric,
   exerciseCodes,
   flowPhrase,
@@ -16,6 +16,7 @@ import {
   settingsPhrase,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { BlockMark } from "@/feature/library/component/BlockMark";
 import { CmvCard } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 
@@ -40,7 +41,7 @@ export function BlockSessionPreview({
   customMetrics,
 }: Readonly<BlockSessionPreviewProps>) {
   const { t } = useTranslation();
-  const letters = blockLetters(blocks);
+  const numbers = blockNumbers(blocks);
 
   return (
     <CmvCard>
@@ -55,7 +56,7 @@ export function BlockSessionPreview({
             <PreviewOfBlock
               key={block.id}
               block={block}
-              letter={letters[index] ?? null}
+              number={numbers[index] ?? null}
               titleOf={titleOf}
               customMetrics={customMetrics}
             />
@@ -68,15 +69,15 @@ export function BlockSessionPreview({
 
 type PreviewOfBlockProps = {
   block: SessionBlock;
-  letter: string | null;
+  number: string | null;
   titleOf: (key: string) => string | null;
   customMetrics: readonly CustomMetric[];
 };
 
-function PreviewOfBlock({ block, letter, titleOf, customMetrics }: Readonly<PreviewOfBlockProps>) {
+function PreviewOfBlock({ block, number, titleOf, customMetrics }: Readonly<PreviewOfBlockProps>) {
   const text = usePhraseText();
   const count = block.exercises.length;
-  const codes = exerciseCodes(letter, count);
+  const codes = exerciseCodes(number, count);
   const names = block.exercises.map((exercise) => titleOf(exercise.key) ?? "—");
   const labels = names.map((name, index) => codes[index] ?? name);
   const phrase = settingsPhrase(block.settings, count, names);
@@ -84,7 +85,9 @@ function PreviewOfBlock({ block, letter, titleOf, customMetrics }: Readonly<Prev
 
   return (
     <section className="flex flex-col gap-cmv-sm">
-      <h3 className="text-cmv-h3 text-cmv-text-hi">{letter ?? block.label}</h3>
+      <h3 className="text-cmv-h3 text-cmv-text-hi">
+        {number == null ? block.label : <BlockMark mark={number} kind="block" />}
+      </h3>
       {phrase == null ? null : <p className="text-cmv-body text-cmv-text-hi">{text(phrase)}</p>}
       {flow == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{text([flow])}</p>}
       {block.instructions == null ? null : (

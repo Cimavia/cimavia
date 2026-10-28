@@ -35,11 +35,11 @@ function blockOf(settings: StructureSettings, over: Partial<SessionBlock> = {}):
   };
 }
 
-function mount(block: SessionBlock, letter: string | null = "A") {
+function mount(block: SessionBlock, number: string | null = "1") {
   const onApply = vi.fn<(block: SessionBlock) => void>();
   const onClose = vi.fn();
   const view = renderWithProviders(
-    <BlockSettingsPanel block={block} letter={letter} onApply={onApply} onClose={onClose} />,
+    <BlockSettingsPanel block={block} number={number} onApply={onApply} onClose={onClose} />,
   );
   const applied = () => onApply.mock.lastCall?.[0] as SessionBlock;
   return { ...view, onApply, onClose, applied };
@@ -81,6 +81,24 @@ describe("BlockSettingsPanel", () => {
 
     expect(view.onApply).not.toHaveBeenCalled();
     expect(view.onClose).toHaveBeenCalledOnce();
+  });
+
+  // Le panneau a son registre : la séance derrière lui n'en saurait rien, et appliquerait l'ancien.
+  it("ferme « Appliquer » tant qu'un champ refuse sa saisie", async () => {
+    const view = mount(blockOf(SERIES));
+    const rounds = view.getByRole("textbox", { name: "library.structure.form.roundsLabel" });
+
+    await view.user.clear(rounds);
+    await view.user.type(rounds, "200{Enter}");
+
+    expect(view.getByRole("button", { name: APPLY })).toBeDisabled();
+    expect(view.getByRole("button", { name: APPLY })).toHaveAttribute(
+      "title",
+      "library.session.blocks.applyRefused",
+    );
+    await view.user.clear(rounds);
+    await view.user.type(rounds, "5{Enter}");
+    expect(view.getByRole("button", { name: APPLY })).toBeEnabled();
   });
 
   it("ne propose de revenir à la structure que pour un bloc ajusté", () => {

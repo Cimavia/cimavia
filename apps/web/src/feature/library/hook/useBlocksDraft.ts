@@ -6,24 +6,23 @@ import {
   type CustomMetric,
   compositionIssues,
   type ExerciseDto,
+  exerciseKeyAt,
   type FrozenFrom,
   fittedBlock,
   presetSource,
   replacedExercise,
   type SessionBlock,
   type SessionBlockExercise,
+  type SessionBlocksInput,
   type SessionDto,
   StructurePresetKey,
   sameJson,
   withAddedExercise,
 } from "@cmv/shared";
 import { useState } from "react";
-import {
-  type SessionBlocksInput,
-  type SessionVersion,
-  useSaveSession,
-} from "@/feature/library/hook/useSessions";
-import { isStaleWriteError } from "@/shared/lib/api";
+import { type SessionVersion, useSaveSession } from "@/feature/library/hook/useSessions";
+import { ApiError, isStaleWriteError } from "@/shared/lib/api";
+import { newId } from "@/shared/util/new-id.util";
 
 /**
  * Ce que la carte d'un exercice affiche et que la grille ne porte pas : son titre, ses tags, et les
@@ -65,10 +64,16 @@ const infoOfExercise = (exercise: ExerciseDto): ExerciseInfo => ({
   frozenFrom: exercise.frozenFrom,
 });
 
-const newId = () => crypto.randomUUID();
-
-/** L'exercice créé depuis la séance (#303), et le rang du bloc où l'ajouter — `null` : un bloc neuf. */
-export type AddedExercise = { exercise: ExerciseDto; blockIndex: number | null };
+/**
+ * L'exercice créé depuis la séance (#303), et le rang du bloc où l'ajouter — `null` : un bloc neuf.
+ * `source` : il revient d'un bloc vide, que l'enregistrement a laissé de côté (`creationPlaceOf`) ;
+ * un bloc neuf de cette structure le reçoit, au rang `blockIndex`.
+ */
+export type AddedExercise = {
+  exercise: ExerciseDto;
+  blockIndex: number | null;
+  source: CopiedStructure | null;
+};
 
 /** Ce qui part : le titre et la note rognés, chaque grille taillée à ses tours (`fittedBlock`). */
 function inputOf(
@@ -131,6 +136,10 @@ export function useBlocksDraft(
   );
   const input = inputOf(title, notes, blocks);
   const issues = compositionIssues(blocks);
+  // Sans les blocs vides : ce qu'enregistre la création d'un exercice manquant (#303).
+  // Encore composée par exercices (BL-1) : des blocs l'effaceraient. Aucun constructeur n'en crée
+  // plus, mais l'API en accepte encore : on la lit sans l'écraser.
+  const legacy = session != null && session.blocks.length === 0 && session.exercises.length > 0;
 
   /** Un exercice de la bibliothèque, au bout du bloc `blockId` — ou dans un bloc Séries neuf. */
   function addExercise(blockId: string | null, exercise: ExerciseDto) {
@@ -144,11 +153,11 @@ export function useBlocksDraft(
     );
   }
 
-  /** Un autre exercice à la place de `key`, sous une clé neuve (`replacedExercise`). */
+  /** Un autre exercice à la place de `key`, sous une clé neuve et ses colonnes (`replacedExercise`). */
   function replaceExercise(key: string, exercise: ExerciseDto) {
     const next = newId();
     setInfo((current) => ({ ...current, [next]: infoOfExercise(exercise) }));
-    setBlocks((current) => replacedExercise(current, key, exercise.id, next));
+    setBlocks((current) => replacedExercise(current, key, exercise, next, newId));
   }
 
   /** Un bloc neuf, vide, au bout de la séance. */
@@ -156,11 +165,21 @@ export function useBlocksDraft(
     setBlocks((current) => [...current, blockFrom(source, newId())]);
   }
 
-  async function submit() {
-    const result = await save({ session: edited, input });
-    setEdited(result);
-    setSaved(input);
-    return result;
+  // L'exercice qu'un refus de l'API désigne, retrouvé dans les blocs ENVOYÉS : leurs rangs sont
+  // ceux du pointeur, et la clé suit l'exercice même si le Coach range ensuite la séance.
+  const [refusedKey, setRefusedKey] = useState<string | null>(null);
+
+  async function send(sent: SessionBlocksInput) {
+    setRefusedKey(null);
+    try {
+      const result = await save({ session: edited, input: sent });
+      setEdited(result);
+      setSaved(sent);
+      return result;
+    } catch (failure) {
+      setRefusedKey(refusedKeyOf(failure, sent.blocks));
+      throw failure;
+    }
   }
 
   return {
@@ -185,17 +204,45 @@ export function useBlocksDraft(
     replaceExercise,
     addBlock,
     issues,
+    /** La séance est encore composée par exercices : l'enregistrer par blocs l'effacerait. */
+    legacy,
     /** Un bloc vide ou qui manque de bips retient l'enregistrement, comme l'API le refuserait. */
-    refusal: issues.length === 0 ? null : "library.session.blocks.issuesBlockSave",
-    submit,
+    refusal: refusalOf(legacy, issues.length),
+    submit: () => send(input),
+    /**
+     * Enregistre SANS ce bloc s'il est vide, que l'API refuserait : la création d'un exercice
+     * manquant quitte la séance, et le bloc vide d'où elle part revient par sa structure
+     * (`creationPlaceOf`). Tout autre bloc vide retient l'enregistrement, comme d'habitude.
+     */
+    withoutEmptyBlock: (blockId: string | null) => {
+      const kept = blocks.filter((block) => block.id !== blockId || block.exercises.length > 0);
+      return {
+        refusal: refusalOf(legacy, compositionIssues(kept).length),
+        submit: () => send(inputOf(title, notes, kept)),
+      };
+    },
     /** L'écran montre autre chose que l'enregistré : le quitter perdrait la saisie (#327). */
     isDirty: !sameJson(input, saved),
     isSaving,
     error,
+    /** L'exercice que le dernier refus de l'API désigne, ou `null`. */
+    refusedKey,
     edited,
     /** L'enregistrement a été refusé : la séance a changé depuis le début de la saisie (#604). */
     isStale: isStaleWriteError(error),
   };
+}
+
+/** Ce qui retient l'enregistrement, en clé i18n, ou `null`. */
+function refusalOf(legacy: boolean, issueCount: number): string | null {
+  if (legacy) return "library.session.blocks.legacyBlocksSave";
+  return issueCount === 0 ? null : "library.session.blocks.issuesBlockSave";
+}
+
+/** La clé de l'exercice que le premier refus de champ désigne, ou `null`. */
+function refusedKeyOf(failure: unknown, sent: readonly SessionBlock[]): string | null {
+  const pointer = failure instanceof ApiError ? failure.fieldErrors?.[0]?.pointer : undefined;
+  return pointer == null ? null : exerciseKeyAt(sent, pointer);
 }
 
 /** Un bloc Séries neuf, autour d'un exercice ajouté sans bloc. */
@@ -214,6 +261,11 @@ function withExercise(
   seriesName: string,
 ): SessionBlock[] {
   const line = blockExerciseFrom(added.exercise, key, newId);
+  if (added.source != null) {
+    const fresh = { ...blockFrom(added.source, newId()), exercises: [line] };
+    const at = added.blockIndex ?? blocks.length;
+    return [...blocks.slice(0, at), fresh, ...blocks.slice(at)];
+  }
   const target = added.blockIndex == null ? undefined : blocks[added.blockIndex];
   if (target != null) return withAddedExercise(blocks, target.id, line);
   return [...blocks, seriesBlock(seriesName, line)];

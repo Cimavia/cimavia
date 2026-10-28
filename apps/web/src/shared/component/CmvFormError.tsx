@@ -8,7 +8,7 @@ type CmvFormErrorProps = {
    * Le message que l'écran a déjà résolu pour CETTE erreur, quand il en sait plus que l'API — le
    * fichier d'un exercice qui n'a pas pu être joint (#649). Le silence sur un 401 tient toujours.
    */
-  message?: string;
+  message?: string | undefined;
 };
 
 /**

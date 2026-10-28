@@ -13,6 +13,9 @@ export const Route = createFileRoute("/library/exercises/new")({
    *
    * `block` : le rang du bloc où l'exercice entrera au retour (#719) — un rang et non un id, que
    * l'enregistrement de la séance régénère. Absent, l'exercice arrive dans un bloc neuf.
+   *
+   * `structure` : parti d'un bloc vide, que l'enregistrement de la séance a laissé de côté, la
+   * structure du bloc neuf qui recevra l'exercice au rang `block` — clé prête ou id du Coach.
    */
   // Des clés ABSENTES plutôt qu'un `title: undefined` : sans ça TanStack les rend OBLIGATOIRES à
   // la navigation, et chaque appel devrait passer des paramètres qu'il n'a pas.
@@ -22,6 +25,9 @@ export const Route = createFileRoute("/library/exercises/new")({
       ? { session: search.session }
       : {}),
     ...blockOf(search.block),
+    ...(typeof search.structure === "string" && search.structure !== ""
+      ? { structure: search.structure }
+      : {}),
   }),
   component: RouteComponent,
 });
@@ -31,10 +37,15 @@ function blockOf(block: unknown): { block?: number } {
 }
 
 function RouteComponent() {
-  const { title, session, block } = Route.useSearch();
+  const { title, session, block, structure } = Route.useSearch();
   return (
     <CmvRoleGate capability="coach">
-      <ExerciseBuilderScreen initialTitle={title} fromSessionId={session} fromBlock={block} />
+      <ExerciseBuilderScreen
+        initialTitle={title}
+        fromSessionId={session}
+        fromBlock={block}
+        fromStructure={structure}
+      />
     </CmvRoleGate>
   );
 }

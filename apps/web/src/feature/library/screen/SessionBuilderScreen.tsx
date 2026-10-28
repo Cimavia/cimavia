@@ -1,11 +1,20 @@
-import type { CustomMetric, ExerciseDto, SessionBlock, SessionDto } from "@cmv/shared";
+import type {
+  CustomMetric,
+  ExerciseDto,
+  SessionBlock,
+  SessionDto,
+  StructureDto,
+} from "@cmv/shared";
 import {
-  blockLetters,
+  blockNumbers,
   type CopiedStructure,
   canWrite,
+  creationPlaceOf,
+  exerciseCodes,
   foreignOf,
   movedExercise,
   movedItem,
+  presetSource,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   STRUCTURE_PRESET_NAME_KEY,
@@ -24,11 +33,16 @@ import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SaveAsStructurePanel } from "@/feature/library/component/SaveAsStructurePanel";
 import { blockNameOf, SessionBlockCard } from "@/feature/library/component/SessionBlockCard";
 import { StructurePicker } from "@/feature/library/component/StructurePicker";
-import { type BlocksDraft, useBlocksDraft } from "@/feature/library/hook/useBlocksDraft";
+import {
+  type AddedExercise,
+  type BlocksDraft,
+  useBlocksDraft,
+} from "@/feature/library/hook/useBlocksDraft";
 import { useBuilderSave } from "@/feature/library/hook/useBuilderSave";
 import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useExerciseDrag } from "@/feature/library/hook/useExerciseDrag";
 import { useExercise } from "@/feature/library/hook/useExercises";
+import { useFolds } from "@/feature/library/hook/useFolds";
 import {
   sessionDetailQuery,
   useDeleteSession,
@@ -38,8 +52,10 @@ import { useStructureLibrary } from "@/feature/library/hook/useStructures";
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { LibraryTab } from "@/feature/library/util/library-tab.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
+import { isPresetKey } from "@/feature/library/util/structure-start.util";
 import {
   CMV_EDIT,
+  CmvAddTile,
   CmvAppShell,
   CmvButton,
   CmvDragHandle,
@@ -49,7 +65,6 @@ import {
   CmvLeaveDialog,
   CmvPanel,
   CmvReadOnlyBanner,
-  CmvSegmented,
   CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
@@ -59,7 +74,7 @@ import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReorderDrag } from "@/shared/hook/useReorderDrag";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
-import { isStaleWriteError } from "@/shared/lib/api";
+import { apiErrorMessage, isStaleWriteError } from "@/shared/lib/api";
 import { cn } from "@/shared/util/cn.util";
 
 type SessionBuilderScreenProps = {
@@ -69,6 +84,8 @@ type SessionBuilderScreenProps = {
   addExerciseId?: string | undefined;
   /** Le rang du bloc où l'ajouter (#719) ; absent, dans un bloc Séries neuf. */
   addToBlock?: number | undefined;
+  /** Parti d'un bloc vide : la structure du bloc neuf qui le reçoit, au rang `addToBlock`. */
+  addFromStructure?: string | undefined;
 };
 
 /**
@@ -83,6 +100,7 @@ export function SessionBuilderScreen({
   sessionId,
   addExerciseId,
   addToBlock,
+  addFromStructure,
 }: Readonly<SessionBuilderScreenProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -93,7 +111,11 @@ export function SessionBuilderScreen({
   );
   const { data: session, isPending, isError, refetch } = useSession(loadedId);
   const added = useExercise(addExerciseId);
-  const addSettled = added.data != null || added.isError;
+  const library = useStructureLibrary();
+  const isPreset = addFromStructure != null && isPresetKey(addFromStructure);
+  const addSettled =
+    (added.data != null || added.isError) &&
+    (addFromStructure == null || isPreset || library.data != null || library.isError);
 
   // Une fois l'exercice lu — ou introuvable —, il quitte l'URL : en `replace`, pour qu'un F5 ou un
   // retour arrière ne l'ajoute pas une seconde fois.
@@ -139,13 +161,38 @@ export function SessionBuilderScreen({
     <SessionBuilder
       key={`${session?.id ?? "new"}:${generation}`}
       session={session ?? null}
-      added={added.data == null ? null : { exercise: added.data, blockIndex: addToBlock ?? null }}
+      added={
+        added.data == null
+          ? null
+          : {
+              exercise: added.data,
+              blockIndex: addToBlock ?? null,
+              source: sourceOf(addFromStructure, library.data?.structures ?? [], t),
+            }
+      }
       // Retour à l'onglet Séances, d'où le coach est parti (#717).
       onLeave={() => navigate({ to: "/library", search: { tab: LibraryTab.SESSIONS } })}
       onReload={reload}
       isReloading={isReloading}
     />
   );
+}
+
+/**
+ * La structure du bloc neuf d'où l'exercice est parti créé (#303) : une structure prête, ou celle du
+ * Coach — Séries si elle a disparu entre-temps. `null` : l'exercice ne vient pas d'un bloc vide.
+ */
+function sourceOf(
+  key: string | undefined,
+  structures: readonly StructureDto[],
+  t: TFunction,
+): CopiedStructure | null {
+  if (key == null) return null;
+  if (isPresetKey(key)) return presetSource(key, t(STRUCTURE_PRESET_NAME_KEY[key]));
+  const structure = structures.find((candidate) => candidate.id === key);
+  if (structure != null) return structureSource(structure);
+  const series = StructurePresetKey.SERIES;
+  return presetSource(series, t(STRUCTURE_PRESET_NAME_KEY[series]));
 }
 
 /**
@@ -165,12 +212,14 @@ type Picking =
   | { kind: "structure"; blockId: string }
   | { kind: "saveAs"; blockId: string };
 
-const Display = { DETAILED: "DETAILED", COMPACT: "COMPACT" } as const;
-type Display = (typeof Display)[keyof typeof Display];
+/** Le bloc qui recevra l'exercice choisi, ou `null` : un bloc Séries neuf, ou un remplacement. */
+function receivingBlockOf(picking: Picking | null): string | null {
+  return picking?.kind === "exercise" ? picking.blockId : null;
+}
 
 type SessionBuilderProps = {
   session: SessionDto | null;
-  added: { exercise: ExerciseDto; blockIndex: number | null } | null;
+  added: AddedExercise | null;
   onLeave: () => void;
   /** Remplace la saisie par la dernière version de cette séance, après un conflit (#604). */
   onReload: (id: string) => void;
@@ -195,10 +244,26 @@ function SessionBuilder({
   // Une durée ou un nombre refusé reste à l'écran, mais pas dans le brouillon : enregistrer
   // enverrait l'ancienne valeur, et partir perdrait la saisie sans un mot (#566).
   const refused = useRefusedFields();
-  const { blockedBy, titleMissing, touchTitle, save } = useBuilderSave(draft, refused.hasRefused, {
+  const saveKeys = {
     titleRequired: "library.session.titleRequired",
     saveFailed: "library.session.saveFailed",
-  });
+  };
+  const { blockedBy, titleMissing, touchTitle, save } = useBuilderSave(
+    draft,
+    refused.hasRefused,
+    saveKeys,
+  );
+  const [picking, setPicking] = useState<Picking | null>(null);
+  // La création d'un exercice manquant enregistre SANS le bloc vide d'où elle part : elle serait
+  // sinon retenue par le bloc même qu'elle vient remplir.
+  const creation = useBuilderSave(
+    {
+      trimmedTitle: draft.trimmedTitle,
+      ...draft.withoutEmptyBlock(receivingBlockOf(picking)),
+    },
+    refused.hasRefused,
+    saveKeys,
+  );
   // Annuler, la barre latérale, un retour arrière ou un F5 : tous demandent avant de perdre la
   // composition (#327), et proposent de l'enregistrer (#682). Seules les sorties qui SUIVENT un
   // enregistrement passent sans demander.
@@ -212,8 +277,6 @@ function SessionBuilder({
   // prendrait pour un conflit l'écriture du coach lui-même.
   const isWriting = draft.isSaving || removeSession.isPending;
   const edited = draft.edited;
-  const [picking, setPicking] = useState<Picking | null>(null);
-  const [display, setDisplay] = useState<Display>(Display.DETAILED);
 
   // La séance d'un autre Coach (#606) : en Écriture elle se modifie, sans suppression ; en
   // Lecture elle se consulte. Une séance qui naît est au Coach qui la crée.
@@ -248,15 +311,22 @@ function SessionBuilder({
 
   /**
    * L'exercice manquant se crée hors de la séance (#303), qui s'enregistre d'abord. Le bloc où il
-   * entrera voyage par son RANG : l'enregistrement régénère les identifiants des blocs.
+   * entrera voyage par son RANG : l'enregistrement régénère les identifiants des blocs. Un bloc
+   * vide, que cet enregistrement laisse de côté, voyage par sa structure (`creationPlaceOf`).
    */
   async function onCreateMissing(title: string, blockRank: number | null) {
-    const saved = await save("library.session.savedBeforeExercise");
+    const place = blockRank == null ? null : creationPlaceOf(draft.blocks, blockRank);
+    const saved = await creation.save("library.session.savedBeforeExercise");
     if (saved == null) return;
     guard.release();
     navigate({
       to: "/library/exercises/new",
-      search: { title, session: saved.id, ...(blockRank == null ? {} : { block: blockRank }) },
+      search: {
+        title,
+        session: saved.id,
+        ...(place == null ? {} : { block: place.rank }),
+        ...(place?.source == null ? {} : { structure: place.source }),
+      },
     });
   }
 
@@ -320,7 +390,7 @@ function SessionBuilder({
                   required
                   requiredMark={!readOnly}
                 />
-                {titleMissing ? (
+                {titleMissing || creation.titleMissing ? (
                   <p className="text-cmv-caption text-cmv-error">
                     {t("library.session.titleRequired")}
                   </p>
@@ -349,13 +419,13 @@ function SessionBuilder({
               pickable={foreign == null ? (customMetrics ?? null) : null}
               catalogOwner={foreign?.owner.name ?? null}
               readOnly={readOnly}
-              compact={display === Display.COMPACT}
-              display={display}
-              onDisplay={setDisplay}
               onPick={setPicking}
             />
 
-            <CmvFormError error={draft.isStale ? null : draft.error} />
+            <CmvFormError
+              error={draft.isStale ? null : draft.error}
+              message={refusedMessageOf(draft, t)}
+            />
           </div>
 
           {/* `sticky` : l'aperçu suit le défilement de la composition, bien plus longue que lui. */}
@@ -391,28 +461,32 @@ type CompositionProps = {
   pickable: readonly CustomMetric[] | null;
   catalogOwner: string | null;
   readOnly: boolean;
-  compact: boolean;
-  display: Display;
-  onDisplay: (display: Display) => void;
   onPick: (picking: Picking) => void;
 };
 
-/** Les blocs de la séance, rangés au glisser, et les deux façons d'en ajouter. */
+/**
+ * Les blocs de la séance, rangés au glisser, repliés un à un ou tous d'un geste, et les deux façons
+ * d'en ajouter.
+ */
 function Composition({
   draft,
   customMetrics,
   pickable,
   catalogOwner,
   readOnly,
-  compact,
-  display,
-  onDisplay,
   onPick,
 }: Readonly<CompositionProps>) {
   const { t } = useTranslation();
   const { blocks, change } = draft;
-  const letters = blockLetters(blocks);
-  const names = blocks.map((block, index) => blockNameOf(block, letters[index] ?? null));
+  const numbers = blockNumbers(blocks);
+  const names = blocks.map((block, index) => blockNameOf(block, numbers[index] ?? null));
+  const folds = useFolds();
+  // Un exercice seul suit le repli de son bloc : son propre repli ne se voit pas.
+  const anyFolded = blocks.some(
+    (block) =>
+      folds.isFolded(block.id) ||
+      (block.exercises.length > 1 && block.exercises.some((line) => folds.isFolded(line.key))),
+  );
   const blockDrag = useReorderDrag((from, to) => change((current) => movedItem(current, from, to)));
   const exerciseDrag = useExerciseDrag((key, blockId, index) =>
     change((current) => movedExercise(current, key, blockId, index)),
@@ -425,18 +499,22 @@ function Composition({
           {t("library.session.composition")}
         </span>
         {blocks.length === 0 ? null : (
-          <CmvSegmented
-            options={[
-              { value: Display.DETAILED, label: t("library.session.blocks.detailed") },
-              { value: Display.COMPACT, label: t("library.session.blocks.compact") },
-            ]}
-            value={display}
-            onChange={onDisplay}
-          />
+          <div className="flex gap-cmv-xs">
+            <CmvButton variant="ghost" disabled={!anyFolded} onClick={folds.unfoldAll}>
+              {t("library.session.blocks.unfoldAll")}
+            </CmvButton>
+            <CmvButton
+              variant="ghost"
+              disabled={blocks.every((block) => folds.isFolded(block.id))}
+              onClick={() => folds.foldAll(blocks.map((block) => block.id))}
+            >
+              {t("library.session.blocks.foldAll")}
+            </CmvButton>
+          </div>
         )}
       </div>
 
-      {blocks.length === 0 ? <EmptyComposition readOnly={readOnly} /> : null}
+      {blocks.length === 0 ? <EmptyComposition readOnly={readOnly} legacy={draft.legacy} /> : null}
 
       {blocks.map((block, index) => (
         <div
@@ -448,13 +526,14 @@ function Composition({
             block={block}
             names={names}
             index={index}
-            letter={letters[index] ?? null}
+            number={numbers[index] ?? null}
             draft={draft}
             issue={draft.issues.find((issue) => issue.blockId === block.id)?.phrase ?? null}
+            refusedKey={draft.refusedKey}
             customMetrics={customMetrics}
             pickable={pickable}
             catalogOwner={catalogOwner}
-            compact={compact}
+            folds={folds}
             readOnly={readOnly}
             dragHandle={
               // Sans poignée, rien ne se glisse : les blocs n'ont rien à recevoir.
@@ -478,17 +557,19 @@ function Composition({
         </div>
       ))}
 
-      {readOnly ? null : (
-        <div className="flex flex-wrap gap-cmv-sm">
-          <CmvButton
-            variant="secondary"
+      {/* Une séance d'avant les blocs ne se compose pas ici : un bloc ajouté cacherait pourquoi
+        elle ne s'enregistre pas. */}
+      {readOnly || draft.legacy ? null : (
+        <div className="flex flex-col gap-cmv-sm sm:flex-row">
+          <CmvAddTile
+            label={t("library.session.blocks.addExercise")}
+            hint={t("library.session.blocks.createsSeriesBlock")}
             onClick={() => onPick({ kind: "exercise", blockId: null })}
-          >
-            {t("library.session.blocks.addExercise")}
-          </CmvButton>
-          <CmvButton variant="ghost" onClick={() => onPick({ kind: "addBlock" })}>
-            {t("library.session.blocks.addBlock")}
-          </CmvButton>
+          />
+          <CmvAddTile
+            label={t("library.session.blocks.addBlock")}
+            onClick={() => onPick({ kind: "addBlock" })}
+          />
         </div>
       )}
     </div>
@@ -579,14 +660,14 @@ function Pickers({
 }: Readonly<PickersProps>) {
   const { t } = useTranslation();
   const { blocks, change } = draft;
-  const letters = blockLetters(blocks);
+  const numbers = blockNumbers(blocks);
   const rankOf = (blockId: string | null) => {
     const rank = blocks.findIndex((block) => block.id === blockId);
     return rank < 0 ? null : rank;
   };
   const nameAt = (rank: number | null) => {
     const block = rank == null ? undefined : blocks[rank];
-    return block == null || rank == null ? null : blockNameOf(block, letters[rank] ?? null);
+    return block == null || rank == null ? null : blockNameOf(block, numbers[rank] ?? null);
   };
   const structures = useStructureLibrary().data?.structures;
   const setBlock = (blockId: string, update: (block: SessionBlock) => SessionBlock) =>
@@ -648,13 +729,38 @@ function Pickers({
               draft.trimmedTitle === "" ? t("library.session.createTitle") : draft.trimmedTitle,
           })}
           onCreated={(created) =>
-            setBlock(saveAsBlock.id, (b) => withStructure(b, structureSource(created)))
+            // La consigne du bloc a prérempli celle de la structure : le bloc prend ce que le
+            // Coach a gardé ou retouché dans le panneau.
+            setBlock(saveAsBlock.id, (b) =>
+              withStructure(b, structureSource(created), b.instructions),
+            )
           }
           onClose={onClose}
         />
       )}
     </>
   );
+}
+
+/**
+ * « 1.2 Squat arrière : … » : le refus de l'API rapporté à l'exercice qu'il désigne, par son code et
+ * son titre — la clé que l'API connaît ne dirait rien au Coach. `undefined` : le message tel quel.
+ */
+function refusedMessageOf(draft: BlocksDraft, t: TFunction): string | undefined {
+  const detail = apiErrorMessage(draft.error);
+  const key = draft.refusedKey;
+  if (detail == null || key == null) return undefined;
+  const numbers = blockNumbers(draft.blocks);
+  const rank = draft.blocks.findIndex((block) => block.exercises.some((line) => line.key === key));
+  const block = draft.blocks[rank];
+  if (block == null) return undefined;
+  const codes = exerciseCodes(numbers[rank] ?? null, block.exercises.length);
+  const code = codes[block.exercises.findIndex((line) => line.key === key)] ?? null;
+  const title = draft.info[key]?.title ?? "—";
+  return t("library.session.blocks.refusedExercise", {
+    exercise: code == null ? title : `${code} ${title}`,
+    detail,
+  });
 }
 
 /** « 3 blocs · 7 exercices », précédé — pour la séance d'un autre — de son propriétaire et du droit qu'on en a. */
@@ -676,9 +782,20 @@ function sessionSubtitle(
   });
 }
 
-/** « Compose ta séance » n'a pas de sens pour qui ne peut que la lire : à lui, on dit qu'elle est vide. */
-function EmptyComposition({ readOnly }: Readonly<{ readOnly: boolean }>) {
+/**
+ * « Compose ta séance » n'a pas de sens pour qui ne peut que la lire : à lui, on dit qu'elle est vide.
+ * Une séance encore composée par exercices (BL-1) n'est pas vide : on dit pourquoi elle ne s'ouvre pas.
+ */
+function EmptyComposition({ readOnly, legacy }: Readonly<{ readOnly: boolean; legacy: boolean }>) {
   const { t } = useTranslation();
+  if (legacy) {
+    return (
+      <CmvEmptyState
+        title={t("library.session.blocks.legacyTitle")}
+        description={t("library.session.blocks.legacyDescription")}
+      />
+    );
+  }
   return readOnly ? (
     <CmvEmptyState title={t("library.session.readOnlyEmpty")} />
   ) : (

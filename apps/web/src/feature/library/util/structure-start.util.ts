@@ -69,6 +69,7 @@ export function structureStart(
   };
 }
 
-function isPresetKey(value: string): value is StructurePresetKey {
+/** Une structure prête, désignée par sa clé — pas une structure du Coach, désignée par son id. */
+export function isPresetKey(value: string): value is StructurePresetKey {
   return Object.hasOwn(StructurePresetKey, value);
 }

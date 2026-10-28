@@ -12,11 +12,12 @@ import { useTranslation } from "react-i18next";
 import { StructureSettingsForm } from "@/feature/library/component/StructureSettingsForm";
 import { CmvButton, CmvPanel, CmvSegmented, CmvTextArea, CmvTextField } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
+import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 
 type BlockSettingsPanelProps = {
   block: SessionBlock;
-  /** « A », ou `null` pour un bloc à libellé : le titre du panneau le nomme. */
-  letter: string | null;
+  /** « 1 », ou `null` pour un bloc à libellé : le titre du panneau le nomme. */
+  number: string | null;
   onApply: (block: SessionBlock) => void;
   onClose: () => void;
 };
@@ -31,7 +32,7 @@ type BlockSettingsPanelProps = {
  */
 export function BlockSettingsPanel({
   block,
-  letter,
+  number,
   onApply,
   onClose,
 }: Readonly<BlockSettingsPanelProps>) {
@@ -40,6 +41,9 @@ export function BlockSettingsPanel({
   const [label, setLabel] = useState(block.label ?? "");
   const [instructions, setInstructions] = useState(block.instructions ?? "");
   const [settings, setSettings] = useState(block.settings);
+  // Une durée refusée dans le panneau retient « Appliquer », pas l'enregistrement de la séance :
+  // appliquer poserait l'ANCIENNE valeur, que le champ ne montre plus.
+  const refused = useRefusedFields();
   const count = block.exercises.length;
 
   const customized = isCustomized(settings, block.copiedSettings);
@@ -61,9 +65,9 @@ export function BlockSettingsPanel({
     <CmvPanel
       open
       title={
-        letter == null
+        number == null
           ? t("library.session.blocks.settingsOfLabel", { label: block.label })
-          : t("library.session.blocks.settingsOf", { letter })
+          : t("library.session.blocks.settingsOf", { number })
       }
       description={t("library.session.blocks.settingsHint")}
       onClose={onClose}
@@ -80,52 +84,60 @@ export function BlockSettingsPanel({
             <CmvButton variant="secondary" onClick={onClose}>
               {t("common.cancel")}
             </CmvButton>
-            <CmvButton onClick={apply}>{t("library.session.blocks.apply")}</CmvButton>
+            <CmvButton
+              onClick={apply}
+              disabled={refused.hasRefused}
+              title={refused.hasRefused ? t("library.session.blocks.applyRefused") : undefined}
+            >
+              {t("library.session.blocks.apply")}
+            </CmvButton>
           </div>
         </div>
       }
     >
-      <div className="flex flex-col gap-cmv-xl">
-        <p className="text-cmv-caption text-cmv-text-mid">
-          {customized
-            ? t("library.session.blocks.customizedFrom", { name: block.name })
-            : block.name}
-        </p>
-        <CmvTextField
-          label={t("library.session.blocks.label")}
-          name="block-label"
-          maxLength={SESSION_BLOCK_LABEL_MAX_LENGTH}
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-          placeholder={t("library.session.blocks.labelPlaceholder")}
-        />
-        <StructureSettingsForm settings={settings} onChange={setSettings} />
-        {exerciseOrderShown(settings, count) ? (
-          <CmvSegmented
-            label={t("library.session.blocks.order")}
-            options={[
-              { value: StructureOrder.ALL, label: t("library.session.blocks.orderAll") },
-              { value: StructureOrder.ONE, label: t("library.session.blocks.orderOne") },
-            ]}
-            value={settings.order}
-            onChange={(order) => setSettings({ ...settings, order })}
-          />
-        ) : null}
-        {error == null ? null : (
-          <p role="alert" className="text-cmv-caption text-cmv-error-on">
-            {text([error])}
+      <RefusedFieldsContext value={refused.report}>
+        <div className="flex flex-col gap-cmv-xl">
+          <p className="text-cmv-caption text-cmv-text-mid">
+            {customized
+              ? t("library.session.blocks.customizedFrom", { name: block.name })
+              : block.name}
           </p>
-        )}
-        <CmvTextArea
-          label={t("library.session.blocks.instructions")}
-          name="block-instructions"
-          rows={3}
-          maxLength={STRUCTURE_INSTRUCTIONS_MAX_LENGTH}
-          value={instructions}
-          onChange={(event) => setInstructions(event.target.value)}
-          placeholder={t("library.session.blocks.instructionsPlaceholder")}
-        />
-      </div>
+          <CmvTextField
+            label={t("library.session.blocks.label")}
+            name="block-label"
+            maxLength={SESSION_BLOCK_LABEL_MAX_LENGTH}
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder={t("library.session.blocks.labelPlaceholder")}
+          />
+          <StructureSettingsForm settings={settings} onChange={setSettings} />
+          {exerciseOrderShown(settings, count) ? (
+            <CmvSegmented
+              label={t("library.session.blocks.order")}
+              options={[
+                { value: StructureOrder.ALL, label: t("library.session.blocks.orderAll") },
+                { value: StructureOrder.ONE, label: t("library.session.blocks.orderOne") },
+              ]}
+              value={settings.order}
+              onChange={(order) => setSettings({ ...settings, order })}
+            />
+          ) : null}
+          {error == null ? null : (
+            <p role="alert" className="text-cmv-caption text-cmv-error-on">
+              {text([error])}
+            </p>
+          )}
+          <CmvTextArea
+            label={t("library.session.blocks.instructions")}
+            name="block-instructions"
+            rows={3}
+            maxLength={STRUCTURE_INSTRUCTIONS_MAX_LENGTH}
+            value={instructions}
+            onChange={(event) => setInstructions(event.target.value)}
+            placeholder={t("library.session.blocks.instructionsPlaceholder")}
+          />
+        </div>
+      </RefusedFieldsContext>
     </CmvPanel>
   );
 }

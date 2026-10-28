@@ -71,16 +71,16 @@ describe("BlockSessionPreview", () => {
     expect(view.getByText("library.session.previewEmpty")).toBeInTheDocument();
   });
 
-  it("lit chaque bloc sous sa lettre, chaque exercice sous son code", () => {
+  it("lit chaque bloc sous son numéro, chaque exercice sous son code", () => {
     const view = mount([
       blockOf("b-1", [exercise("a", gridOf(8)), exercise("b", gridOf(30))]),
       blockOf("b-2", [exercise("a", gridOf())], { label: "Retour au calme" }),
     ]);
 
-    expect(view.getByRole("heading", { name: "A" })).toBeInTheDocument();
-    expect(view.getByText("A1")).toBeInTheDocument();
-    expect(view.getByText("A2")).toBeInTheDocument();
-    // Un bloc à libellé ne prend pas de lettre, et ses exercices pas de code.
+    expect(view.getByRole("heading", { name: "1" })).toBeInTheDocument();
+    expect(view.getByText("1.1")).toBeInTheDocument();
+    expect(view.getByText("1.2")).toBeInTheDocument();
+    // Un bloc à libellé ne prend pas de numéro, et ses exercices pas de code.
     expect(view.getByRole("heading", { name: "Retour au calme" })).toBeInTheDocument();
     expect(view.getAllByText("Tractions")).toHaveLength(2);
   });

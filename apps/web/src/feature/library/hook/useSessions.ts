@@ -1,7 +1,7 @@
 import {
   type ChangeAccessInput,
   LibraryScope,
-  type SessionBlock,
+  type SessionBlocksInput,
   type SessionDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,9 +27,6 @@ export function useSessions(scope: LibraryScope = LibraryScope.ALL) {
  * en 409 un enregistrement dont la séance a changé depuis.
  */
 export type SessionVersion = Pick<SessionDto, "id" | "updatedAt">;
-
-/** Ce que le constructeur enregistre : la séance composée par blocs (#719). */
-export type SessionBlocksInput = { title: string; notes: string | null; blocks: SessionBlock[] };
 
 type SaveSessionArgs = {
   // null = création ; sinon édition de cette séance.
