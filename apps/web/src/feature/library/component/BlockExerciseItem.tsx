@@ -139,6 +139,13 @@ function ExerciseHeader({
   return (
     <header className="flex flex-wrap items-center gap-cmv-sm">
       {dragHandle}
+      {code == null ? null : <BlockMark mark={code} kind="exercise" />}
+      <span className="flex-1 text-cmv-body text-cmv-text-hi">{title}</span>
+      <CmvTagList tags={info?.tags ?? []} />
+      <FrozenBadge frozenFrom={info?.frozenFrom ?? null} />
+      {readOnly ? null : (
+        <CmvMenu label={t("library.session.blocks.exerciseMenu", { title })} groups={menu} />
+      )}
       <FoldButton
         folded={folded}
         label={t(
@@ -147,13 +154,6 @@ function ExerciseHeader({
         )}
         onToggle={onToggleFold}
       />
-      {code == null ? null : <BlockMark mark={code} kind="exercise" />}
-      <span className="flex-1 text-cmv-body text-cmv-text-hi">{title}</span>
-      <CmvTagList tags={info?.tags ?? []} />
-      <FrozenBadge frozenFrom={info?.frozenFrom ?? null} />
-      {readOnly ? null : (
-        <CmvMenu label={t("library.session.blocks.exerciseMenu", { title })} groups={menu} />
-      )}
     </header>
   );
 }

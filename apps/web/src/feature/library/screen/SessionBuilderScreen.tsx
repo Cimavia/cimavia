@@ -55,7 +55,6 @@ import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import { isPresetKey } from "@/feature/library/util/structure-start.util";
 import {
   CMV_EDIT,
-  CmvAddTile,
   CmvAppShell,
   CmvButton,
   CmvDragHandle,
@@ -560,16 +559,16 @@ function Composition({
       {/* Une séance d'avant les blocs ne se compose pas ici : un bloc ajouté cacherait pourquoi
         elle ne s'enregistre pas. */}
       {readOnly || draft.legacy ? null : (
-        <div className="flex flex-col gap-cmv-sm sm:flex-row">
-          <CmvAddTile
-            label={t("library.session.blocks.addExercise")}
-            hint={t("library.session.blocks.createsSeriesBlock")}
+        <div className="flex flex-wrap items-center gap-cmv-sm">
+          <CmvButton
+            variant="secondary"
             onClick={() => onPick({ kind: "exercise", blockId: null })}
-          />
-          <CmvAddTile
-            label={t("library.session.blocks.addBlock")}
-            onClick={() => onPick({ kind: "addBlock" })}
-          />
+          >
+            {t("library.session.blocks.addExercise")}
+          </CmvButton>
+          <CmvButton variant="secondary" onClick={() => onPick({ kind: "addBlock" })}>
+            {t("library.session.blocks.addBlock")}
+          </CmvButton>
         </div>
       )}
     </div>

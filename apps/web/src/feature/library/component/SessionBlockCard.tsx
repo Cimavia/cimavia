@@ -27,13 +27,7 @@ import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import type { BlocksDraft } from "@/feature/library/hook/useBlocksDraft";
 import type { ExerciseDrag } from "@/feature/library/hook/useExerciseDrag";
 import type { Folds } from "@/feature/library/hook/useFolds";
-import {
-  CmvAddTile,
-  CmvButton,
-  CmvDragHandle,
-  CmvMenu,
-  type CmvMenuItem,
-} from "@/shared/component";
+import { CmvButton, CmvDragHandle, CmvMenu, type CmvMenuItem } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
 import { newId } from "@/shared/util/new-id.util";
@@ -165,16 +159,6 @@ function BlockHeader(props: BlockHeaderProps) {
   return (
     <header className="flex flex-wrap items-center gap-cmv-sm">
       {props.dragHandle}
-      <FoldButton
-        folded={folded}
-        label={t(
-          folded ? "library.session.blocks.unfoldBlock" : "library.session.blocks.foldBlock",
-          {
-            block: name,
-          },
-        )}
-        onToggle={() => folds.toggle(block.id)}
-      />
       {number == null ? (
         <span className="text-cmv-title text-cmv-text-hi">{block.label}</span>
       ) : (
@@ -197,6 +181,16 @@ function BlockHeader(props: BlockHeaderProps) {
           groups={props.menu}
         />
       )}
+      <FoldButton
+        folded={folded}
+        label={t(
+          folded ? "library.session.blocks.unfoldBlock" : "library.session.blocks.foldBlock",
+          {
+            block: name,
+          },
+        )}
+        onToggle={() => folds.toggle(block.id)}
+      />
     </header>
   );
 }
@@ -208,7 +202,7 @@ type OpenBlockProps = Readonly<SessionBlockCardProps> & {
   menus: ReturnType<typeof useBlockMenus>;
 };
 
-/** Le bloc déplié : ce qu'il dit de lui-même, ses exercices, et la tuile qui en ajoute un. */
+/** Le bloc déplié : ce qu'il dit de lui-même, ses exercices, et le bouton qui en ajoute un. */
 function OpenBlock(props: OpenBlockProps) {
   const { block, number, name, codes, titles, menus, readOnly, exerciseDrag, folds } = props;
   const { t } = useTranslation();
@@ -445,13 +439,22 @@ type AddToBlockProps = {
 function AddToBlock({ name, code, dropProps, isDropTarget, onAdd }: Readonly<AddToBlockProps>) {
   const { t } = useTranslation();
   return (
-    <CmvAddTile
-      label={t("library.session.blocks.addTo", { block: name })}
-      hint={code == null ? undefined : t("library.session.blocks.arriving", { code })}
-      dropProps={dropProps}
-      isDropTarget={isDropTarget}
-      onClick={onAdd}
-    />
+    <div
+      {...dropProps}
+      className={cn(
+        "flex flex-wrap items-center gap-cmv-sm rounded-cmv-sm",
+        isDropTarget && "bg-cmv-accent-soft",
+      )}
+    >
+      <CmvButton variant="secondary" onClick={onAdd}>
+        {t("library.session.blocks.addTo", { block: name })}
+      </CmvButton>
+      {code == null ? null : (
+        <span className="text-cmv-caption text-cmv-text-lo">
+          {t("library.session.blocks.arriving", { code })}
+        </span>
+      )}
+    </div>
   );
 }
 

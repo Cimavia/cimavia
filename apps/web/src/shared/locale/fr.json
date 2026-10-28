@@ -232,7 +232,6 @@
         "foldExercise": "Replier {{exercise}}",
         "unfoldExercise": "Déplier {{exercise}}",
         "addExercise": "Ajouter un exercice",
-        "createsSeriesBlock": "crée un bloc Séries",
         "addBlock": "Ajouter un bloc",
         "addTo": "Ajouter un exercice au bloc {{block}}",
         "arriving": "arrivera en {{code}}",
