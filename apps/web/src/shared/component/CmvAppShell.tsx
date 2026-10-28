@@ -13,6 +13,7 @@ import { confirmLeave } from "@/shared/hook/useLeaveGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
+import { cn } from "@/shared/util/cn.util";
 
 /**
  * Le basculeur d'espace — un seul univers actif à la fois (#129).
@@ -94,10 +95,21 @@ type CmvAppShellProps = {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  /**
+   * La page tient dans l'écran et son contenu en prend toute la hauteur : un tableau y défile dans
+   * son cadre, au lieu de s'arrêter à mi-page.
+   */
+  fill?: boolean | undefined;
   children: ReactNode;
 };
 
-export function CmvAppShell({ title, subtitle, actions, children }: Readonly<CmvAppShellProps>) {
+export function CmvAppShell({
+  title,
+  subtitle,
+  actions,
+  fill = false,
+  children,
+}: Readonly<CmvAppShellProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
@@ -196,7 +208,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
 
       {/* `min-w-0` : sans lui un enfant large — un tableau à défilement — pousse la
           largeur du conteneur flex au lieu de défiler dans son cadre. */}
-      <main className="min-w-0 flex-1 p-cmv-xl">
+      <main className={cn("min-w-0 flex-1 p-cmv-xl", fill && "flex h-screen flex-col")}>
         {/*
           Bandeau FIXE : sur un écran qui défile — un constructeur d'exercice ou de séance en fait
           plusieurs hauteurs —, « Enregistrer » imposait de remonter tout en haut. Posé ici et non
@@ -217,7 +229,7 @@ export function CmvAppShell({ title, subtitle, actions, children }: Readonly<Cmv
           <NotificationBell />
         </header>
 
-        {children}
+        {fill ? <div className="flex min-h-0 flex-1 flex-col">{children}</div> : children}
       </main>
     </div>
   );

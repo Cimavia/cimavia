@@ -242,6 +242,12 @@ describe("settingsPhrase", () => {
     );
   });
 
+  it("dit « tours » à un exercice seul que le bloc fait ailleurs à plusieurs", () => {
+    expect(say(settingsPhrase(presets.SERIES, 1, [], false))).toBe(
+      "4 tours à son rythme, 2' de repos entre tours",
+    );
+  });
+
   it("accorde au singulier : « 1 série »", () => {
     expect(say(settingsPhrase(settingsOf({ repeat: rounds(1) }), 1))).toBe("1 série à son rythme");
   });

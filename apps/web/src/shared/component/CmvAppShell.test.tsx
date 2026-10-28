@@ -39,9 +39,9 @@ function Unsaved() {
   return <CmvLeaveDialog {...guard.dialog} />;
 }
 
-const open = ({ unsaved = false } = {}) =>
+const open = ({ unsaved = false, fill = false } = {}) =>
   renderInRoute(
-    <CmvAppShell title="Tableau de bord">
+    <CmvAppShell title="Tableau de bord" fill={fill}>
       <p>contenu</p>
       {unsaved ? <Unsaved /> : null}
     </CmvAppShell>,
@@ -197,5 +197,17 @@ describe("CmvAppShell — un compte Entreprise (#600)", () => {
 
     expect(getByText("Altitude Club")).toBeInTheDocument();
     expect(queryByRole("link", { name: "Altitude Club" })).toBeNull();
+  });
+});
+
+describe("CmvAppShell — la page qui tient dans l'écran", () => {
+  it("donne à son contenu toute la hauteur de l'écran, et rien de plus par défaut", async () => {
+    const filled = await open({ fill: true });
+    expect(filled.getByRole("main")).toHaveClass("h-screen");
+    expect(filled.getByText("contenu").parentElement).toHaveClass("flex-1");
+    filled.unmount();
+
+    const plain = await open();
+    expect(plain.getByRole("main")).not.toHaveClass("h-screen");
   });
 });
