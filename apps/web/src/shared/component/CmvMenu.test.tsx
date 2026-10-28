@@ -59,6 +59,18 @@ describe("CmvMenu", () => {
     expect(getByRole("button", { name: "Actions du bloc A" })).toHaveFocus();
   });
 
+  it("depuis le fond du menu, ↑ va au dernier geste et ↓ au premier", async () => {
+    const { user, getByRole } = setup();
+    await user.click(getByRole("button", { name: "Actions du bloc A" }));
+
+    await user.click(getByRole("menu"));
+    await user.keyboard("{ArrowUp}");
+    expect(getByRole("menuitem", { name: "Supprimer" })).toHaveFocus();
+    await user.click(getByRole("menu"));
+    await user.keyboard("{ArrowDown}");
+    expect(getByRole("menuitem", { name: /Dupliquer/ })).toHaveFocus();
+  });
+
   it("un clic ailleurs le referme, un second clic sur le bouton aussi", async () => {
     const { user, getByRole, queryByRole, getByText } = setup();
     const trigger = getByRole("button", { name: "Actions du bloc A" });

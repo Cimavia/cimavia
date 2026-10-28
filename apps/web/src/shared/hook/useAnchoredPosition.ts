@@ -37,7 +37,8 @@ export function useAnchoredPosition(
       setPosition(
         align === "start"
           ? { top: rect.bottom + GAP, left: rect.left }
-          : { top: rect.bottom + GAP, right: window.innerWidth - rect.right },
+          : // `clientWidth` et non `innerWidth` : `right` se mesure sans la barre de défilement.
+            { top: rect.bottom + GAP, right: document.documentElement.clientWidth - rect.right },
       );
     };
 

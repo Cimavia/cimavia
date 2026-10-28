@@ -67,7 +67,9 @@ export function CmvMenu({ label, groups, disabled = false }: Readonly<CmvMenuPro
     ];
     const current = items.indexOf(document.activeElement as HTMLButtonElement);
     const step = event.key === "ArrowDown" ? 1 : -1;
-    items[(current + step + items.length) % items.length]?.focus();
+    // Hors des gestes (un clic sur le fond du menu) : ↓ va au premier, ↑ au dernier.
+    const from = current < 0 && step < 0 ? 0 : current;
+    items[(from + step + items.length) % items.length]?.focus();
   }
 
   return (
