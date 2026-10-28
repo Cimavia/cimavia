@@ -365,6 +365,37 @@ describe("DosageTable", () => {
     ).toBeTruthy();
   });
 
+  it("dit tours dans tout le bloc dès qu'une semaine le fait à plusieurs, même là où il est seul", () => {
+    const single = {
+      baseline: {
+        settings: SETTINGS,
+        exercises: [{ key: "a", exerciseId: "ex-a", note: null, grid: gridOf(8) }],
+      },
+    };
+    const alone = {
+      ...W1,
+      blocks: [blockOf([planned("w1-a", "a", gridOf(8, 8))], single)],
+      exercises: [row("w1-a", "Tractions")],
+    } as unknown as ScheduledSessionCopyDto;
+    const more = { ...SETTINGS, repeat: { ...SETTINGS.repeat, rounds: 5 } };
+    const both = {
+      ...W2,
+      blocks: [
+        blockOf([planned("w2-a", "a", gridOf(10)), planned("w2-n", "n", gridOf(12))], {
+          ...single,
+          settings: more,
+        }),
+      ],
+    } as unknown as ScheduledSessionCopyDto;
+    const view = render([alone, both]);
+
+    expect(view.getByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" })).toBeTruthy();
+    expect(view.queryByRole("rowheader", { name: "plan.dosage.setting.SETS" })).toBeNull();
+    // La semaine restée seule dit « tours » aussi : sa phrase porte la clé des tours, pas des séries.
+    expect(view.getAllByText(/restBetweenRounds/)).toHaveLength(2);
+    expect(view.queryByText(/restBetweenSets/)).toBeNull();
+  });
+
   it("règle un repos en durée, et le bouton Fermer referme", async () => {
     const view = render();
     const [rest] = within(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS")).getAllByRole(

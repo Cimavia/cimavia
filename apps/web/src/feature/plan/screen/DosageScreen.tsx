@@ -297,6 +297,7 @@ function DosageEditor({
 
   return (
     <CmvAppShell
+      fill
       title={current.title}
       subtitle={t("plan.dosage.subtitle", { name: athleteName })}
       actions={
@@ -324,7 +325,7 @@ function DosageEditor({
         </>
       }
     >
-      <div className="flex flex-col gap-cmv-md">
+      <div className="flex min-h-0 flex-1 flex-col gap-cmv-md">
         <BackToPlan planId={plan.id} />
         {/* Toujours là, même seule : la page dit ce qu'elle règle, et où en changer. */}
         <div className="max-w-sm">

@@ -277,8 +277,8 @@ export function everyPhrase(seconds: number): Phrase {
 }
 
 /** « 4 séries » avec un exercice, « 4 tours » à partir de deux — ou sans exercice (structure seule). */
-function roundsPhrase(count: number, exerciseCount: number | null): Phrase {
-  return exerciseCount === 1
+function roundsPhrase(count: number, sets: boolean): Phrase {
+  return sets
     ? { key: "block.count.sets", params: { count } }
     : { key: "block.count.rounds", params: { count } };
 }
@@ -288,7 +288,9 @@ function roundsPhrase(count: number, exerciseCount: number | null): Phrase {
  * rythme, 2' de repos entre séries ».
  *
  * `exerciseCount` vaut `null` pour une structure seule, dans la bibliothèque : on y dit « tours ».
- * `names` sont les noms des exercices, que « un seul par bip » cite en alternance.
+ * `names` sont les noms des exercices, que « un seul par bip » cite en alternance. `sets` dit
+ * « séries » plutôt que « tours » : d'office avec un exercice, mais un bloc que d'autres semaines
+ * font à plusieurs garde « tours » dans chacune.
  *
  * `null` quand « un seul par bip » a moins de bips que d'exercices : aucune phrase ne serait vraie
  * (`roundsError` dit pourquoi).
@@ -297,6 +299,7 @@ export function settingsPhrase(
   settings: StructureSettings,
   exerciseCount: number | null,
   names: readonly string[] = [],
+  sets: boolean = exerciseCount === 1,
 ): Phrase[] | null {
   const { advance, repeat } = settings;
   // Seul `oneAtATime` décide ; le reste, déjà vrai par lui sur des réglages valides, est redit pour
@@ -313,13 +316,20 @@ export function settingsPhrase(
     return oneByOnePhrase(advance, repeat, exerciseCount, names);
   }
 
-  const parts = [leadPhrase(settings, exerciseCount), ...detailPhrases(settings, exerciseCount)];
+  const parts = [
+    leadPhrase(settings, exerciseCount, sets),
+    ...detailPhrases(settings, exerciseCount, sets),
+  ];
   return parts.flatMap((part, index) =>
     index === 0 ? [part] : [{ key: "block.phrase.separator", params: {} }, part],
   );
 }
 
-function leadPhrase(settings: StructureSettings, exerciseCount: number | null): Phrase {
+function leadPhrase(
+  settings: StructureSettings,
+  exerciseCount: number | null,
+  sets: boolean,
+): Phrase {
   const { advance, repeat } = settings;
   const pace: Phrase =
     settings.limitSeconds == null
@@ -338,7 +348,7 @@ function leadPhrase(settings: StructureSettings, exerciseCount: number | null): 
     };
   }
 
-  const rounds = roundsPhrase(repeat.rounds, exerciseCount);
+  const rounds = roundsPhrase(repeat.rounds, sets);
   if (advance.kind === StructureAdvance.BEEP) {
     return {
       key: "block.phrase.roundsBeep",
@@ -362,7 +372,11 @@ function leadPhrase(settings: StructureSettings, exerciseCount: number | null): 
  * Les repos et la limite, chacun s'il est posé et pas grisé. Le repos entre exercices se tait avec
  * un seul exercice : il n'y a rien entre quoi se reposer.
  */
-function detailPhrases(settings: StructureSettings, exerciseCount: number | null): Phrase[] {
+function detailPhrases(
+  settings: StructureSettings,
+  exerciseCount: number | null,
+  sets: boolean,
+): Phrase[] {
   const disabled = disabledOptions(settings);
   const details: Phrase[] = [];
   const betweenExercises = settings.restBetweenExercisesSeconds;
@@ -376,7 +390,7 @@ function detailPhrases(settings: StructureSettings, exerciseCount: number | null
   if (betweenRounds != null && disabled.REST_BETWEEN_ROUNDS == null) {
     const rest = formatTrainingDuration(betweenRounds);
     details.push(
-      exerciseCount === 1
+      sets
         ? { key: "block.phrase.restBetweenSets", params: { rest } }
         : { key: "block.phrase.restBetweenRounds", params: { rest } },
     );
