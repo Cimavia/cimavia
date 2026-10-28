@@ -277,10 +277,11 @@ describe("les exercices d'un bloc", () => {
   });
 
   it("dupliquer un exercice pose sa copie juste après lui, sous une clé neuve", () => {
-    const blocks = [blockOf("b1", "k1", "k2")];
+    const blocks = [blockOf("b0", "k0"), blockOf("b1", "k1", "k2")];
     const duplicated = duplicatedExercise(blocks, "k1", "k9");
-    expect(keysOf(duplicated)).toEqual(["b1:k1,k9,k2"]);
-    expect(duplicated[0]?.exercises[1]?.grid).toEqual(blocks[0]?.exercises[0]?.grid);
+    expect(keysOf(duplicated)).toEqual(["b0:k0", "b1:k1,k9,k2"]);
+    expect(duplicated[0]).toBe(blocks[0]);
+    expect(duplicated[1]?.exercises[1]?.grid).toEqual(blocks[1]?.exercises[0]?.grid);
   });
 
   it("remplacer un exercice garde sa place, ses lignes et sa note, sous une clé neuve", () => {
