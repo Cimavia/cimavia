@@ -26,7 +26,7 @@ export function catalogByFamily(): Map<MetricFamily, MetricKey[]> {
 }
 
 /**
- * L'indice sous le nom d'une métrique — « kg · +kg de lest · % du poids de corps ».
+ * L'indice sous le nom d'une métrique — « kg · kg de lest · % du poids de corps ».
  *
  * DÉRIVÉ des unités admises plutôt que rédigé à la main : une table d'indices en doublerait une
  * qui existe déjà, et les deux finiraient par diverger. Une métrique sans unité n'a donc pas

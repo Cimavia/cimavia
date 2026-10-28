@@ -152,7 +152,7 @@
       "meters": "m",
       "kilometers": "km",
       "kilograms": "kg",
-      "kilogramsAdded": "+kg",
+      "kilogramsAdded": "kg de lest",
       "percent": "%",
       "percentBodyweight": "% du poids de corps",
       "percentHrMax": "% FCM",
@@ -1033,6 +1033,7 @@
         "cancelChange": "Annuler ce changement",
         "cancel": "Annuler",
         "refusal": {
+          "DEBRIEFED": "Séance déjà débriefée : sa composition ne change plus.",
           "NO_BLOCK": "Ce bloc n'existe pas dans cette séance.",
           "ABSENT": "Cet exercice n'est pas dans cette séance.",
           "NOT_IN_LIBRARY": "L'exercice n'est plus dans ta bibliothèque.",
