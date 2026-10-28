@@ -1,21 +1,39 @@
 import {
   type BlockCheck,
   type BlockSessionTracking,
+  blockTrackingOf,
   isBlockTrackingSent,
-  sameJson,
+  type ScheduledSessionDto,
+  sameBlockTracking,
   toggleBlockCheck,
 } from "@cmv/shared";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useStoredTracking } from "@/feature/plan/hook/useStoredTracking";
+
+const NO_BLOCKS: ScheduledSessionDto["blocks"] = [];
 
 /**
  * Le suivi par bloc (#722), gardé en local jusqu'au débrief — le jumeau de `useLocalTracking`, sous
  * sa propre clé : les deux modèles cohabitent tant qu'une séance sans bloc se lit par exercice.
+ *
+ * Prend les blocs de la séance (absents tant qu'elle charge) : le distant s'en lit, et le local ne
+ * se dit modifié que sur ce qui partirait avec le débrief (`sameBlockTracking`).
  */
-export function useLocalBlockTracking(sessionId: string, remote: BlockSessionTracking) {
-  const { tracking, cached, persist, clearIf } = useStoredTracking(
+export function useLocalBlockTracking(
+  sessionId: string,
+  blocks: ScheduledSessionDto["blocks"] | undefined,
+) {
+  const scope = blocks ?? NO_BLOCKS;
+  const remote = useMemo(() => blockTrackingOf(scope), [scope]);
+  const same = useCallback(
+    (local: BlockSessionTracking, distant: BlockSessionTracking) =>
+      sameBlockTracking(local, distant, scope),
+    [scope],
+  );
+  const { tracking, dirty, persist, clearIf } = useStoredTracking(
     `cimavia-block-tracking:${sessionId}`,
     remote,
+    same,
   );
 
   const toggle = useCallback(
@@ -24,14 +42,11 @@ export function useLocalBlockTracking(sessionId: string, remote: BlockSessionTra
   );
 
   const clearIfSent = useCallback(
-    (sent: BlockSessionTracking | undefined, blocks: Parameters<typeof isBlockTrackingSent>[2]) => {
-      if (sent != null) clearIf((current) => isBlockTrackingSent(current, sent, blocks));
+    (sent: BlockSessionTracking | undefined) => {
+      if (sent != null) clearIf((current) => isBlockTrackingSent(current, sent, scope));
     },
-    [clearIf],
+    [clearIf, scope],
   );
-
-  /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
-  const dirty = cached != null && !sameJson(cached, remote);
 
   return { tracking, dirty, toggle, clearIfSent };
 }

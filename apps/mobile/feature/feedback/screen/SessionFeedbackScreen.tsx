@@ -5,7 +5,7 @@ import type {
   ScheduledSessionDto,
   SessionFeedbackDto,
 } from "@cmv/shared";
-import { blockTrackingOf, feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
+import { feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { type ComponentProps, useMemo, useState } from "react";
@@ -173,8 +173,7 @@ function WritingSections({
     [session],
   );
   const local = useLocalTracking(sessionId, remote);
-  const remoteBlocks = useMemo(() => blockTrackingOf(session?.blocks ?? []), [session]);
-  const blocks = useLocalBlockTracking(sessionId, remoteBlocks);
+  const blocks = useLocalBlockTracking(sessionId, session?.blocks);
   const byBlock = session != null && session.blocks.length > 0;
 
   return (
@@ -211,7 +210,7 @@ function WritingSections({
                 sentBlocks: FeedbackBlockTracking | undefined,
               ) => {
                 local.clearIfSent(sent, session.exercises);
-                blocks.clearIfSent(sentBlocks, session.blocks);
+                blocks.clearIfSent(sentBlocks);
               },
             })}
       />

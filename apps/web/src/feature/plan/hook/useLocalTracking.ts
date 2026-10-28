@@ -17,9 +17,10 @@ export type { SessionTracking };
  * mobile.
  */
 export function useLocalTracking(sessionId: string, remote: SessionTracking) {
-  const { tracking, cached, persist, clearIf } = useStoredTracking(
+  const { tracking, dirty, persist, clearIf } = useStoredTracking(
     `cimavia-tracking:${sessionId}`,
     remote,
+    sameTracking,
   );
 
   const toggleUnit = useCallback(
@@ -41,9 +42,6 @@ export function useLocalTracking(sessionId: string, remote: SessionTracking) {
     },
     [clearIf],
   );
-
-  /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
-  const dirty = cached != null && !sameTracking(cached, remote);
 
   return { tracking, toggleUnit, setRounds, clearIfSent, dirty };
 }

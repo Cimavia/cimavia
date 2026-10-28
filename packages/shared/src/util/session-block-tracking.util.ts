@@ -37,7 +37,11 @@ export function blockTrackingOf(
   return Object.fromEntries(blocks.map((block) => [block.id, block.tracking]));
 }
 
-/** Coche ou décoche une case. La première coche fait NAÎTRE le suivi du bloc. */
+/**
+ * Coche ou décoche une case. La première coche fait NAÎTRE le suivi du bloc, la dernière décochée
+ * le rend NON SUIVI : rien de coché se décompte pareil, et le local retombe sur le `null` distant
+ * au lieu de se croire modifié.
+ */
 export function toggleBlockCheck(
   tracking: BlockSessionTracking,
   blockId: string,
@@ -47,7 +51,7 @@ export function toggleBlockCheck(
   const id = blockCheckId(check);
   const without = checked.filter((item) => blockCheckId(item) !== id);
   const next = without.length === checked.length ? [...checked, check] : without;
-  return { ...tracking, [blockId]: { checked: next } };
+  return { ...tracking, [blockId]: next.length === 0 ? null : { checked: next } };
 }
 
 /**
@@ -94,6 +98,21 @@ export function isBlockTrackingSent(
   blocks: readonly TrackedBlockScope[],
 ): boolean {
   return sameJson(blockTrackingOfSession(current, blocks), sent);
+}
+
+/**
+ * Le suivi local dit-il la même chose que le distant ? Jugé sur ce qui PARTIRAIT (le même filtre
+ * que l'envoi) : un bloc ajouté ou retiré par le Coach, ou une case qu'il n'a plus, ne fait pas
+ * passer le local pour modifié. Un bloc absent du local n'est pas cité : il garde le distant.
+ */
+export function sameBlockTracking(
+  local: BlockSessionTracking,
+  remote: BlockSessionTracking,
+  blocks: readonly TrackedBlockScope[],
+): boolean {
+  const sent = blockTrackingOfSession(local, blocks);
+  const kept = blockTrackingOfSession(remote, blocks);
+  return Object.entries(sent).every(([id, state]) => sameJson(state, kept[id] ?? null));
 }
 
 /**

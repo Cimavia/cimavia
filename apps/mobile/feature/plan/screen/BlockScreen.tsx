@@ -1,6 +1,5 @@
 import {
   type BlockCheck,
-  blockTrackingOf,
   flowPhrase,
   type ReadBlock,
   readScheduledBlocks,
@@ -39,8 +38,7 @@ export function BlockScreen() {
           null),
     [session, blockId],
   );
-  const remote = useMemo(() => blockTrackingOf(session?.blocks ?? []), [session]);
-  const local = useLocalBlockTracking(id, remote);
+  const local = useLocalBlockTracking(id, session?.blocks);
   const timer = useBlockTimer(read);
 
   const step = timer.current;

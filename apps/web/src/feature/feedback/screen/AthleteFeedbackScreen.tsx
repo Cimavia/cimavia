@@ -11,7 +11,6 @@ import type {
   SessionFeedbackDto,
 } from "@cmv/shared";
 import {
-  blockTrackingOf,
   draftAfterLoad,
   FEEDBACK_CONTENT_MAX_LENGTH,
   feedbackTrackingInput,
@@ -227,8 +226,7 @@ function useFeedbackTracking(sessionId: string, session: ScheduledSessionDto | n
     [session],
   );
   const local = useLocalTracking(sessionId, remote);
-  const remoteBlocks = useMemo(() => blockTrackingOf(session?.blocks ?? []), [session]);
-  const blocks = useLocalBlockTracking(sessionId, remoteBlocks);
+  const blocks = useLocalBlockTracking(sessionId, session?.blocks);
   const byBlock = session != null && session.blocks.length > 0;
 
   let section: ReactNode = null;
@@ -264,7 +262,7 @@ function useFeedbackTracking(sessionId: string, session: ScheduledSessionDto | n
       sentBlocks: FeedbackBlockTracking | undefined,
     ) => {
       local.clearIfSent(sent, session?.exercises ?? []);
-      blocks.clearIfSent(sentBlocks, session?.blocks ?? []);
+      blocks.clearIfSent(sentBlocks);
     },
   };
 }

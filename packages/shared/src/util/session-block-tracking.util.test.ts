@@ -7,6 +7,7 @@ import {
   blockTrackingOfSession,
   feedbackTrackingInput,
   isBlockTrackingSent,
+  sameBlockTracking,
   sessionBlockTally,
   toggleBlockCheck,
   trackedBlockTally,
@@ -32,11 +33,23 @@ describe("blockTrackingOf", () => {
 });
 
 describe("toggleBlockCheck", () => {
-  it("fait naître le suivi du bloc, puis décoche la même case", () => {
+  it("fait naître le suivi du bloc, puis le rend NON SUIVI à la dernière case décochée", () => {
     const checked = toggleBlockCheck({ blk_1: null }, "blk_1", { row: 1, key: "a1" });
     expect(checked).toEqual({ blk_1: { checked: [{ row: 1, key: "a1" }] } });
-    expect(toggleBlockCheck(checked, "blk_1", { row: 1, key: "a1" })).toEqual({
-      blk_1: { checked: [] },
+    expect(toggleBlockCheck(checked, "blk_1", { row: 1, key: "a1" })).toEqual({ blk_1: null });
+  });
+
+  it("décoche une case parmi d'autres sans toucher aux restantes", () => {
+    const two = {
+      blk_1: {
+        checked: [
+          { row: 0, key: "a1" },
+          { row: 1, key: "a1" },
+        ],
+      },
+    };
+    expect(toggleBlockCheck(two, "blk_1", { row: 0, key: "a1" })).toEqual({
+      blk_1: { checked: [{ row: 1, key: "a1" }] },
     });
   });
 
@@ -79,6 +92,20 @@ describe("isBlockTrackingSent", () => {
     expect(
       isBlockTrackingSent(toggleBlockCheck(local, "blk_1", { row: 1, key: "a1" }), sent, [series]),
     ).toBe(false);
+  });
+});
+
+describe("sameBlockTracking", () => {
+  const ticked = { blk_1: { checked: [{ row: 0, key: "a1" }] } };
+
+  it("ne voit pas de modification dans un bloc ajouté ou retiré par le Coach", () => {
+    // Le local date d'avant l'ajout de blk_2, et cite encore blk_old que la séance n'a plus.
+    const local = { ...ticked, blk_old: { checked: [] } };
+    expect(sameBlockTracking(local, { ...ticked, blk_2: null }, [series, amrap])).toBe(true);
+  });
+
+  it("voit une coche que le distant n'a pas", () => {
+    expect(sameBlockTracking(ticked, { blk_1: null }, [series])).toBe(false);
   });
 });
 

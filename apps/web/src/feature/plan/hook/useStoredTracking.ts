@@ -1,3 +1,4 @@
+import { sameJson } from "@cmv/shared";
 import { useCallback, useRef, useState } from "react";
 
 /** `null` = rien en local. On suit alors le serveur, qui reste le porteur du suivi. */
@@ -21,7 +22,12 @@ function read<T>(key: string): T | null {
  * réseau de la salle, mais un second chemin d'écriture ferait diverger les deux surfaces sur
  * QUAND une coche devient définitive.
  */
-export function useStoredTracking<T>(key: string, remote: T) {
+export function useStoredTracking<T>(
+  key: string,
+  remote: T,
+  /** Le local dit-il la même chose que le distant ? Il n'est pas « modifié » sinon. */
+  same: (local: T, remote: T) => boolean = sameJson,
+) {
   const [cached, setCached] = useState<T | null>(() => read<T>(key));
   /**
    * Le local tel qu'il est MAINTENANT, pour `clearIf` : la réponse de l'envoi peut arriver avant
@@ -66,5 +72,11 @@ export function useStoredTracking<T>(key: string, remote: T) {
     [key],
   );
 
-  return { tracking: cached ?? remote, cached, persist, clearIf };
+  return {
+    tracking: cached ?? remote,
+    /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
+    dirty: cached != null && !same(cached, remote),
+    persist,
+    clearIf,
+  };
 }

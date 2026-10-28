@@ -6,7 +6,13 @@ import type { LocalStore } from "@/feature/plan/lib/local-tracking-store";
  * Un suivi gardé EN LOCAL jusqu'au débrief, dans l'un des magasins de séance — le socle commun au
  * suivi par exercice (`useLocalTracking`) et au suivi par bloc (`useLocalBlockTracking`, #722).
  */
-export function useStoredTracking<T>(store: LocalStore<T>, sessionId: string, remote: T) {
+export function useStoredTracking<T>(
+  store: LocalStore<T>,
+  sessionId: string,
+  remote: T,
+  /** Le local dit-il la même chose que le distant ? Il n'est pas « modifié » sinon. */
+  same: (local: T, remote: T) => boolean = sameJson,
+) {
   const subscribe = useCallback(
     (listener: () => void) => store.subscribe(sessionId, listener),
     [store, sessionId],
@@ -63,7 +69,7 @@ export function useStoredTracking<T>(store: LocalStore<T>, sessionId: string, re
   return {
     tracking: cached ?? remote,
     /** Faux tant qu'il n'y a rien en local : `tracking` EST alors le distant. */
-    dirty: cached != null && !sameJson(cached, remote),
+    dirty: cached != null && !same(cached, remote),
     update,
     clearIf,
   };
