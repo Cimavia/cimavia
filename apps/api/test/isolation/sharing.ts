@@ -1,4 +1,4 @@
-import { ProblemType, Role } from "@cmv/shared";
+import { ProblemType, Role, STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../src/tenancy/tenancy.extension";
@@ -392,6 +392,61 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     });
     expect(adHoc.status).toBe(400);
     expect(adHoc.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
+  });
+
+  /**
+   * La composition par semaines (#720) rend un exercice privé que la séance ouverte cite, mais ne
+   * le place pas comme exercice nouveau : comme l'éditeur à plat, elle ne le lit qu'à travers elle.
+   */
+  it("la composition rend l'exercice privé que la séance cite, sans le placer comme nouveau", async () => {
+    const series = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+    const blocks = await c.post("/sessions").send({
+      title: "Grimpe par blocs",
+      blocks: [
+        {
+          id: "blk_grimpe",
+          name: "Séries",
+          label: null,
+          instructions: null,
+          settings: series,
+          copiedSettings: series,
+          sourceStructureId: null,
+          sourcePreset: StructurePresetKey.SERIES,
+          exercises: [
+            { key: "k_voie", exerciseId: voieId },
+            { key: "k_dalle", exerciseId: dalleId },
+          ].map((exercise) => ({ ...exercise, note: null, grid: { metrics: [], rows: [] } })),
+        },
+      ],
+    });
+    expect(blocks.status).toBe(201);
+    await grantF("READ", { sessionId: blocks.body.id });
+    const planned = await m
+      .post(`/plan-weeks/${mWeekId}/sessions`)
+      .send({ sourceSessionId: blocks.body.id, scheduledDate: mondayOfCurrentWeek() });
+    expect(planned.status).toBe(201);
+    const path = `/scheduled-sessions/${planned.body.id}`;
+    const compose = async (edit: Record<string, unknown>, revert = false) => {
+      const [copy] = (await m.get(`${path}/copies`)).body;
+      const version = [{ id: copy.id, expectedUpdatedAt: copy.updatedAt }];
+      return m
+        .post(`${path}/composition`)
+        .send({ edit, apply: revert ? [] : version, revert: revert ? version : [] });
+    };
+
+    const placed = await compose({ kind: "ADD", blockIndex: 0, key: "k_new", exerciseId: dalleId });
+    expect(placed.status).toBe(400);
+    expect(placed.body.detail).toContain("NOT_IN_LIBRARY");
+
+    const removeDalle = { kind: "REMOVE", blockIndex: 0, key: "k_dalle" };
+    expect((await compose(removeDalle)).status).toBe(200);
+    const restored = await compose(removeDalle, true);
+    expect(restored.status).toBe(200);
+    expect(
+      restored.body[0].blocks[0].exercises.map((exercise: { key: string }) => exercise.key),
+    ).toEqual(["k_voie", "k_dalle"]);
+    // La séance-type citerait Dalle une fois de plus chez C : les tests suivants comptent les siennes.
+    expect((await deleteAtLatest(c, `/sessions/${blocks.body.id}`)).status).toBe(204);
   });
 
   it("M réenregistre sa planification sans repasser ses lignes copiées par la bibliothèque", async () => {

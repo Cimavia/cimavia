@@ -6,7 +6,7 @@ import {
   StructurePresetKey,
 } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
-import { type Agent, inviteFor, signUp } from "../support/actors";
+import { type Agent, billAndPublish, inviteFor, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import { ANY_VERSION, atWeekVersion, putAtLatest } from "../support/version";
 
@@ -27,6 +27,7 @@ const versionOf = (copy: Copy) => ({ id: copy.id, expectedUpdatedAt: copy.update
 describe("Composition d'une séance planifiée pour les semaines choisies (#720)", () => {
   let coach: Agent;
   let otherCoach: Agent;
+  let athlete: Agent;
   let tractionsId: string;
   let gainageId: string;
   let dipsId: string;
@@ -64,7 +65,7 @@ describe("Composition d'une séance planifiée pour les semaines choisies (#720)
   beforeAll(async () => {
     coach = await signUp("compo-coach@cmv.test", Role.COACH);
     otherCoach = await signUp("compo-other@cmv.test", Role.COACH);
-    const athlete = await signUp("compo-athlete@cmv.test", Role.ATHLETE);
+    athlete = await signUp("compo-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
     const athleteId = (await athlete.post(`/invitations/${invitation.body.id}/accept`)).body[0]
       .athleteId;
@@ -321,5 +322,45 @@ describe("Composition d'une séance planifiée pour les semaines choisies (#720)
     );
     expect(res.status).toBe(400);
     expect(keysOf((await copies())[0] as Copy)).toEqual(["a1", "a2"]);
+  });
+
+  // En dernier : diffuser le Plan et débriefer la S2 changent l'état que les tests d'avant lisent.
+  it("refuse une semaine débriefée, et n'écrit aucune semaine", async () => {
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    const [, w2] = await copies();
+    const debriefed = await athlete
+      .put(`/me/scheduled-sessions/${(w2 as Copy).id}/feedback`)
+      .send({ content: "Fait." });
+    expect(debriefed.status).toBe(200);
+
+    const [w1, done] = await copies();
+    expect(done).toMatchObject({ status: "DONE" });
+    const res = await compose({ kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a2" }, [
+      w1 as Copy,
+      done as Copy,
+    ]);
+    expect(res.status).toBe(400);
+    expect(res.body.detail).toContain("DEBRIEFED");
+    expect((await copies()).map(keysOf).slice(0, 2)).toEqual([
+      keysOf(w1 as Copy),
+      keysOf(done as Copy),
+    ]);
+  });
+
+  it("diffusé, compose la semaine encore à faire ; un geste qui ne change rien n'écrit rien", async () => {
+    const [w1] = await copies();
+    const noop = await compose(
+      { kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a2" },
+      [],
+      [w1 as Copy],
+    );
+    expect(noop.status).toBe(200);
+    expect((await copies())[0]?.updatedAt).toBe(w1?.updatedAt);
+
+    const res = await compose({ kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a2" }, [
+      w1 as Copy,
+    ]);
+    expect(res.status).toBe(200);
+    expect(keysOf((await copies())[0] as Copy)).toEqual(["a1"]);
   });
 });

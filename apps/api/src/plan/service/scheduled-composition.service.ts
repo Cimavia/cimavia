@@ -4,26 +4,21 @@ import {
   type CompositionLibrary,
   type CompositionOutcome,
   CompositionOutcomeKind,
-  type CustomMetric,
-  customMetricIdsIn,
+  CompositionRefusal,
+  isDebriefed,
   type PlannedCompositionBlock,
   PlanStatus,
-  plannedLockIssues,
+  required,
   resetComposition,
   revertedEdit,
   type ScheduledCompositionInput,
   type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
-  takenKeys,
   type VersionQuery,
 } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import {
-  type CatalogOf,
-  citedCustomMetrics,
-  gridCatalogOf,
-} from "../../custom-metric/custom-metric.mapper";
+import { type CatalogOf, gridCatalogOf } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
 import type { LibraryExercise } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
@@ -43,6 +38,7 @@ import {
 import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import { touchWeeks } from "../plan-week.version";
+import { assertComposable, definitionsOf } from "../scheduled-composition.rules";
 import { type ComposedRow, rewriteScheduledComposition } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 import { ScheduledSessionService } from "./scheduled-session.service";
@@ -57,28 +53,29 @@ const COPY_INCLUDE = {
 
 type CopyRow = Prisma.ScheduledSessionGetPayload<{ include: typeof COPY_INCLUDE }>;
 
+/** Une copie lue, ses blocs convertis UNE fois : chaque étape du geste les relit. */
+type Copy = { row: CopyRow; blocks: ScheduledSessionBlockDto[] };
+
 /** La séance d'où le panneau compose : elle désigne le Plan et la séance-type des copies. */
 type Anchor = { id: string; planId: string; sourceSessionId: string | null };
 
 /** Une copie à récrire, et la version sous laquelle le Coach l'a lue. */
 type CopyWrite = {
-  copy: CopyRow;
+  copy: Copy;
   expected: Date;
   blocks: PlannedCompositionBlock<ComposedRow>[];
 };
 
-function toCopyDto(copy: CopyRow): ScheduledSessionCopyDto {
+function toCopyDto({ row, blocks }: Copy): ScheduledSessionCopyDto {
   return {
-    id: copy.id,
-    planWeekId: copy.planWeekId,
-    scheduledDate: toIsoDate(copy.scheduledDate),
-    updatedAt: copy.updatedAt.toISOString(),
-    blocks: copy.blocks.map(toScheduledSessionBlockDto),
+    id: row.id,
+    planWeekId: row.planWeekId,
+    scheduledDate: toIsoDate(row.scheduledDate),
+    updatedAt: row.updatedAt.toISOString(),
+    status: row.status,
+    blocks,
   };
 }
-
-const blocksOf = (copy: CopyRow): ScheduledSessionBlockDto[] =>
-  copy.blocks.map(toScheduledSessionBlockDto);
 
 /**
  * La composition d'une séance planifiée pour les semaines choisies (#720). Le panneau ne règle
@@ -121,10 +118,10 @@ export class ScheduledCompositionService {
       anchor,
       targets.map((target) => target.id),
     );
-    const library = await this.libraryFor(anchor, copies, [input.edit]);
+    const library = await this.libraryFor(anchor, copies, input.edit);
 
     const writes = targets.flatMap((target): CopyWrite[] => {
-      const copy = copies.find((each) => each.id === target.id);
+      const copy = copies.find((each) => each.row.id === target.id);
       if (copy === undefined) {
         throw new BadRequestException(
           `La séance ${target.id} n'est pas une copie de cette séance-type`,
@@ -132,10 +129,10 @@ export class ScheduledCompositionService {
       }
       const expected = new Date(target.expectedUpdatedAt);
       // Avant de juger le changement contre une composition que la saisie n'a pas vue.
-      assertReadAtVersion(copy.updatedAt, expected);
+      assertReadAtVersion(copy.row.updatedAt, expected);
       const outcome = target.revert
-        ? revertedEdit(blocksOf(copy), input.edit, library.place)
-        : appliedEdit(blocksOf(copy), input.edit, library.place);
+        ? revertedEdit(copy.blocks, input.edit, library.place)
+        : appliedEdit(copy.blocks, input.edit, library.place);
       return written(copy, expected, outcome);
     });
 
@@ -151,13 +148,13 @@ export class ScheduledCompositionService {
     // La séance vient d'être lue, dans le même scope.
     if (copy === undefined) throw new BadRequestException(SESSION_NOT_FOUND);
     const expected = new Date(query.expectedUpdatedAt);
-    assertReadAtVersion(copy.updatedAt, expected);
-    const library = await this.libraryFor(anchor, [copy], []);
+    assertReadAtVersion(copy.row.updatedAt, expected);
+    const library = await this.libraryFor(anchor, [copy], null);
 
     await this.write(
       anchor,
       plan,
-      written(copy, expected, resetComposition(blocksOf(copy), library.place)),
+      written(copy, expected, resetComposition(copy.blocks, library.place)),
       library,
     );
     return (await this.readCopies(anchor)).map(toCopyDto);
@@ -167,45 +164,46 @@ export class ScheduledCompositionService {
    * Les copies, scopées par la couche d'isolation : une séance d'un autre Plan ou d'une autre
    * séance-type n'y figure pas, et `compose` la refuse.
    */
-  private readCopies(anchor: Anchor, ids?: readonly string[]): Promise<CopyRow[]> {
+  private async readCopies(anchor: Anchor, ids?: readonly string[]): Promise<Copy[]> {
     const copiesOf: Prisma.ScheduledSessionWhereInput =
       anchor.sourceSessionId === null
         ? { id: anchor.id }
         : { planId: anchor.planId, sourceSessionId: anchor.sourceSessionId };
-    return this.db.scheduledSession.findMany({
+    const rows = await this.db.scheduledSession.findMany({
       where: ids === undefined ? copiesOf : { AND: [copiesOf, { id: { in: [...ids] } }] },
       include: COPY_INCLUDE,
       orderBy: [{ scheduledDate: "asc" }, { position: "asc" }],
     });
+    return rows.map((row) => ({ row, blocks: row.blocks.map(toScheduledSessionBlockDto) }));
   }
 
   /**
    * Les exercices que le changement peut placer : le nouveau, et ceux que la séance-type a donnés,
    * à rendre. Lus sans refus (`loadAccessible`) : un exercice parti de la bibliothèque ne se rend
-   * plus, et le geste le dit (`NOT_IN_LIBRARY`) au lieu d'un refus global. La séance-type les cite :
-   * un exercice privé de son propriétaire reste utilisable par elle (#605).
+   * plus, et le geste le dit (`NOT_IN_LIBRARY`) au lieu d'un refus global.
+   *
+   * Seuls ceux à RENDRE passent par la citation de la séance-type, qui ouvre un exercice privé de
+   * son propriétaire (#605). Le nouveau se lit comme dans l'éditeur à plat, sans elle : sans quoi
+   * un exercice privé qu'elle cite se placerait n'importe où, sur son seul identifiant.
    */
-  private async libraryFor(
-    anchor: Anchor,
-    copies: readonly CopyRow[],
-    edits: readonly CompositionEdit[],
-  ) {
-    const ids = [
-      ...edits.flatMap((edit) =>
-        "exerciseId" in edit && edit.exerciseId !== null ? [edit.exerciseId] : [],
-      ),
-      ...copies.flatMap((copy) =>
-        copy.blocks.flatMap((block) =>
-          toScheduledSessionBlockDto(block).baseline.exercises.flatMap((exercise) =>
-            exercise.exerciseId === null ? [] : [exercise.exerciseId],
-          ),
+  private async libraryFor(anchor: Anchor, copies: readonly Copy[], edit: CompositionEdit | null) {
+    const placed = edit !== null && "exerciseId" in edit ? edit.exerciseId : null;
+    const restored = copies.flatMap((copy) =>
+      copy.blocks.flatMap((block) =>
+        block.baseline.exercises.flatMap((exercise) =>
+          exercise.exerciseId === null ? [] : [exercise.exerciseId],
         ),
       ),
-    ];
-    const loaded = await this.library.loadAccessible(ids, anchor.sourceSessionId);
+    );
+    const [fresh, cited] = await Promise.all([
+      this.library.loadAccessible(placed === null ? [] : [placed], null),
+      this.library.loadAccessible(restored, anchor.sourceSessionId),
+    ]);
+    // Le nouvel exercice ne se lit que sans la citation, même si la séance-type le cite aussi.
+    const loaded = new Map([...[...cited].filter(([id]) => id !== placed), ...fresh]);
     const catalogOf = await this.metrics.catalogOf([
       ...[...loaded.values()].map((exercise) => exercise.coachId),
-      ...copies.map((copy) => copy.coachId),
+      ...copies.map((copy) => copy.row.coachId),
     ]);
     const place: CompositionLibrary = (exerciseId) => {
       const exercise = loaded.get(exerciseId);
@@ -227,13 +225,14 @@ export class ScheduledCompositionService {
   ): Promise<void> {
     if (writes.length === 0) return;
     const sessionTypeKeys = await this.sessionTypeKeys(anchor);
-    for (const { copy, blocks } of writes) assertComposable(copy, blocks, sessionTypeKeys);
+    for (const { copy, blocks } of writes) assertComposable(copy.blocks, blocks, sessionTypeKeys);
 
     await this.db.$transaction(async (tx) => {
       // Les semaines d'abord (`touchWeeks`) : la grille montre le compte des exercices, et l'ordre
       // des verrous reste celui des autres gestes sur une séance.
-      await touchWeeks(tx, { id: { in: writes.map(({ copy }) => copy.planWeekId) } });
-      for (const { copy, expected, blocks } of writes) {
+      await touchWeeks(tx, { id: { in: writes.map(({ copy }) => copy.row.planWeekId) } });
+      for (const { copy: written, expected, blocks } of writes) {
+        const copy = written.row;
         // La version d'abord : elle verrouille la ligne, et rien de ce qui suit ne s'écrit sur une
         // séance qu'un autre Coach a changée depuis la lecture.
         await writeAtVersion(tx.scheduledSession, copy.id, expected, {}, SESSION_NOT_FOUND);
@@ -285,7 +284,7 @@ export class ScheduledCompositionService {
       await this.notifications.notifyPlanUpdated({
         athleteId: athleteRecipientOrThrow(plan),
         planId: plan.id,
-        sessionTitle: required(writes[0]).copy.title,
+        sessionTitle: required(writes[0], "[plan] composition sans copie").copy.row.title,
       });
     }
   }
@@ -304,69 +303,30 @@ export class ScheduledCompositionService {
   }
 }
 
-function required<T>(value: T | undefined): T {
-  if (value === undefined) throw new Error("[plan] écriture de composition sans copie");
-  return value;
-}
-
-/** Ce qu'une copie écrit : rien quand le changement y est déjà, 400 quand elle le refuse. */
+/**
+ * Ce qu'une copie écrit : rien quand le changement y est déjà, 400 quand elle le refuse — ou
+ * qu'elle est débriefée, quel que soit le changement (`DEBRIEFED`).
+ */
 function written(
-  copy: CopyRow,
+  copy: Copy,
   expected: Date,
   outcome: CompositionOutcome<ScheduledSessionBlockDto["exercises"][number]>,
 ): CopyWrite[] {
-  switch (outcome.kind) {
-    case CompositionOutcomeKind.UNCHANGED:
-      return [];
-    case CompositionOutcomeKind.REFUSED:
-      throw new BadRequestException(
-        `La séance du ${toIsoDate(copy.scheduledDate)} refuse ce changement (${outcome.refusal})`,
-      );
-    case CompositionOutcomeKind.CHANGED:
-      return [{ copy, expected, blocks: outcome.blocks }];
+  const refusal = refusalOf(copy, outcome);
+  if (refusal !== null) {
+    throw new BadRequestException(
+      `La séance du ${toIsoDate(copy.row.scheduledDate)} refuse ce changement (${refusal})`,
+    );
   }
+  return outcome.kind === CompositionOutcomeKind.CHANGED
+    ? [{ copy, expected, blocks: outcome.blocks }]
+    : [];
 }
 
-/** Le verrou du niveau planifié, contre la référence stockée, et les clés de la séance-type. */
-function assertComposable(
-  copy: CopyRow,
-  blocks: readonly PlannedCompositionBlock<ComposedRow>[],
-  sessionTypeKeys: readonly string[],
-): void {
-  const stored = blocksOf(copy);
-  const reference = stored.map((block) => ({
-    name: block.name,
-    settings: block.baseline.settings,
-    exercises: block.baseline.exercises,
-  }));
-  const planned = blocks.map((block, index) => ({
-    name: stored[index]?.name ?? "",
-    settings: block.settings,
-    exercises: block.exercises,
-  }));
-  if (plannedLockIssues(reference, planned).length > 0) {
-    throw new BadRequestException("Structure verrouillée au niveau séance planifiée");
-  }
-  const referenceKeys = stored.flatMap((block) => block.baseline.exercises.map(({ key }) => key));
-  if (takenKeys(blocks, [...referenceKeys, ...sessionTypeKeys]).length > 0) {
-    throw new BadRequestException("Un exercice nouveau prend une clé de la séance-type");
-  }
-}
-
-/**
- * Les définitions des métriques maison que cite la grille : celles que la séance a déjà figées
- * d'abord — un remplaçant garde une colonne de l'exercice qu'il remplace —, puis le catalogue du
- * propriétaire de l'exercice et de la séance. Une citation orpheline est ignorée (EX-2).
- */
-function definitionsOf(
-  row: ComposedRow,
-  frozen: readonly CustomMetric[],
-  catalog: Parameters<typeof citedCustomMetrics>[1],
-): CustomMetric[] {
-  const wanted = new Set(customMetricIdsIn([row.grid]));
-  const found = new Map<string, CustomMetric>();
-  for (const metric of [...frozen, ...citedCustomMetrics([row.grid], catalog)]) {
-    if (wanted.has(metric.id) && !found.has(metric.id)) found.set(metric.id, metric);
-  }
-  return [...found.values()];
+function refusalOf(
+  copy: Copy,
+  outcome: CompositionOutcome<ScheduledSessionBlockDto["exercises"][number]>,
+): CompositionRefusal | null {
+  if (isDebriefed(copy.row)) return CompositionRefusal.DEBRIEFED;
+  return outcome.kind === CompositionOutcomeKind.REFUSED ? outcome.refusal : null;
 }
