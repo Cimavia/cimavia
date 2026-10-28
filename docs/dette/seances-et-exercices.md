@@ -908,7 +908,8 @@ liste des domaines vivent dans l'index.
 >   seule transaction et sous la version de chacune (#604) — une notification par geste si le Plan
 >   est diffusé. Titre, consignes et jour restent avec « Enregistrer » : `PUT` sans `exercises`
 >   laisse la composition intacte. Le panneau adopte la version que le geste renvoie, sans quoi
->   « Enregistrer » se ferait refuser sur sa propre composition.
+>   « Enregistrer » se ferait refuser sur sa propre composition — seulement quand le geste est
+>   parti de la version que la saisie cite : sinon il absorberait l'écriture d'un autre Coach.
 > - **Une semaine où le changement ne s'appliquerait pas est grisée, avec sa raison**
 >   (`CompositionRefusal`), et garde son état. Le serveur rejuge chaque copie avec la même fonction
 >   pure (`appliedEdit`, `revertedEdit`) : une copie qui refuse fait échouer tout le geste (400,
@@ -916,6 +917,11 @@ liste des domaines vivent dans l'index.
 > - **Rendre un exercice de la séance-type le recopie depuis la bibliothèque**, au rang de la
 >   référence, avec la grille de la référence. Sa source disparue, la semaine se grise
 >   (`NOT_IN_LIBRARY`).
+> - **Une semaine débriefée ne se compose plus** (`DEBRIEFED`), quel que soit le changement :
+>   récrire sa composition emporterait ce que l'athlète y a coché, comme sa suppression (#313).
+> - **L'ouverture de #605 ne vaut que pour ce que la séance-type cite déjà.** Un exercice privé
+>   qu'elle cite se REND (revenir à la séance-type, tout réinitialiser) ; le placer comme nouvel
+>   ajout ou remplaçant exige de le lire soi-même (`NOT_IN_LIBRARY`).
 > - **La bibliothèque du panneau ne compte que les exercices que le Coach lit.** Un exercice privé
 >   qu'une séance-type partagée cite (#605) grise donc à tort une semaine ; le serveur, lui,
 >   l'accepte. Limite connue.
