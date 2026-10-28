@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addPlanWeek,
   changePlanAccess,
+  composeScheduledSession,
   copyPlanWeek,
   createPlan,
   createScheduledSession,
@@ -10,11 +11,13 @@ import {
   deleteScheduledSession,
   getPlan,
   getScheduledSession,
+  getScheduledSessionCopies,
   listPlanOrganizations,
   listPlans,
   planKeys,
   publishPlan,
   reorderPlanDay,
+  resetScheduledComposition,
   scheduledSessionKeys,
   updatePlan,
   updatePlanWeek,
@@ -148,6 +151,24 @@ describe.each([
     () => deleteScheduledSession("s-1", { expectedUpdatedAt: "2026-10-12T08:00:00.000Z" }),
     "delete",
     ["/scheduled-sessions/s-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
+  [
+    "getScheduledSessionCopies",
+    () => getScheduledSessionCopies("s-1"),
+    "get",
+    ["/scheduled-sessions/s-1/copies"],
+  ],
+  [
+    "composeScheduledSession",
+    () => composeScheduledSession("s-1", { apply: [], revert: [] } as never),
+    "post",
+    ["/scheduled-sessions/s-1/composition", { apply: [], revert: [] }],
+  ],
+  [
+    "resetScheduledComposition",
+    () => resetScheduledComposition("s-1", { expectedUpdatedAt: VERSION }),
+    "post",
+    ["/scheduled-sessions/s-1/composition/reset", { expectedUpdatedAt: VERSION }],
   ],
 ] as const)("%s", (_, call, verb, args) => {
   it(`part en ${verb.toUpperCase()} sur la bonne ressource`, async () => {
