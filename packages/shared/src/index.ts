@@ -680,6 +680,8 @@ export {
   scheduledCompositionInputSchema,
   scheduledSessionCopyDtoSchema,
 } from "./dto/scheduled-composition.schema";
+export type { DosageSessionInput, ScheduledDosageInput } from "./dto/scheduled-dosage.schema";
+export { scheduledDosageInputSchema } from "./dto/scheduled-dosage.schema";
 export type {
   CreateSessionInput,
   ReloadSessionExerciseInput,
@@ -1139,9 +1141,34 @@ export type {
 } from "./util/planned-blocks.util";
 export {
   CompositionChangeKind,
+  gridValueAt,
   plannedChanges,
   ValueChangeKind,
 } from "./util/planned-blocks.util";
+export type {
+  DosageBlock,
+  DosageCell,
+  DosageColumn,
+  DosageCopy,
+  DosageExerciseLine,
+  DosageGroup,
+} from "./util/planned-dosage.util";
+export {
+  DOSAGE_SETTINGS,
+  DosageCellKind,
+  DosageColumnKind,
+  DosageOff,
+  dosageAdjustedCount,
+  dosageColumns,
+  dosageGroups,
+  dosageInput,
+  dosageMetricCell,
+  dosageSettingCell,
+  revertedDosage,
+  shownSeries,
+  withDosageCell,
+  withDosageSetting,
+} from "./util/planned-dosage.util";
 export type { PlannedLockIssue } from "./util/planned-lock.util";
 export { PlannedLock, plannedLockIssues, takenKeys } from "./util/planned-lock.util";
 export type { PlaybackErrorReport } from "./util/playback-error.util";

@@ -166,8 +166,11 @@ function settingChanges(
     .map((field) => ({ kind: ValueChangeKind.SETTING, blockIndex, field, was: was[field] }));
 }
 
-/** La valeur d'une cellule au tour `rowIndex` : la dernière ligne vaut pour les tours suivants. */
-function cellAt(grid: BlockGrid, rowIndex: number, metricId: string): MetricValue {
+/**
+ * La valeur d'une cellule au tour `rowIndex` : la dernière ligne vaut pour les tours suivants.
+ * Dosage (#721) lit ainsi chaque série d'une cellule, comme le compte les compare.
+ */
+export function gridValueAt(grid: BlockGrid, rowIndex: number, metricId: string): MetricValue {
   const row = grid.rows[rowIndex] ?? grid.rows.at(-1);
   return row?.values[metricId] ?? null;
 }
@@ -187,8 +190,8 @@ function cellChanges(
 ): ValueChange[] {
   return Array.from({ length: tours }, (_unused, rowIndex) =>
     planned.grid.metrics.flatMap((metric): ValueChange[] => {
-      const was = cellAt(reference.grid, rowIndex, metric.id);
-      if (cellAt(planned.grid, rowIndex, metric.id) === was) return [];
+      const was = gridValueAt(reference.grid, rowIndex, metric.id);
+      if (gridValueAt(planned.grid, rowIndex, metric.id) === was) return [];
       return [
         {
           kind: ValueChangeKind.CELL,
