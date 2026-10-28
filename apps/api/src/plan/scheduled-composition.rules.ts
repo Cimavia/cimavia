@@ -16,6 +16,24 @@ export function assertComposable(
   blocks: readonly PlannedCompositionBlock<ComposedRow>[],
   sessionTypeKeys: readonly string[],
 ): void {
+  assertLocked(stored, blocks);
+  const referenceKeys = stored.flatMap((block) => block.baseline.exercises.map(({ key }) => key));
+  if (takenKeys(blocks, [...referenceKeys, ...sessionTypeKeys]).length > 0) {
+    throw new BadRequestException("Un exercice nouveau prend une clé de la séance-type");
+  }
+}
+
+/**
+ * Le verrou du niveau planifié (#716), contre la référence STOCKÉE de chaque bloc : la composition
+ * (#720) et les valeurs (#721) le revérifient avant d'écrire.
+ */
+export function assertLocked(
+  stored: readonly ScheduledSessionBlockDto[],
+  blocks: readonly Pick<
+    Parameters<typeof plannedLockIssues>[1][number],
+    "settings" | "exercises"
+  >[],
+): void {
   const reference = stored.map((block) => ({
     name: block.name,
     settings: block.baseline.settings,
@@ -28,10 +46,6 @@ export function assertComposable(
   }));
   if (plannedLockIssues(reference, planned).length > 0) {
     throw new BadRequestException("Structure verrouillée au niveau séance planifiée");
-  }
-  const referenceKeys = stored.flatMap((block) => block.baseline.exercises.map(({ key }) => key));
-  if (takenKeys(blocks, [...referenceKeys, ...sessionTypeKeys]).length > 0) {
-    throw new BadRequestException("Un exercice nouveau prend une clé de la séance-type");
   }
 }
 

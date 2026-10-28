@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { PLAN_MAX_WEEKS, scheduledSessionStatusSchema } from "./plan.schema";
 import { SESSION_MAX_BLOCKS } from "./session-block.schema";
@@ -113,9 +114,13 @@ export const scheduledCompositionInputSchema = z
 export type ScheduledCompositionInput = z.infer<typeof scheduledCompositionInputSchema>;
 
 /**
- * Une copie de la séance-type dans le Plan, telle que la fenêtre et l'étiquette la lisent : sa
- * place, sa version, son statut — une séance débriefée ne se compose plus — et ses blocs. Ni
- * titre ni documents : la copie se nomme par sa semaine.
+ * Une copie de la séance-type dans le Plan, telle que la fenêtre, l'étiquette et Dosage (#721) la
+ * lisent : sa place, sa version, son statut — une séance débriefée ne se compose ni ne se dose
+ * plus — et ses blocs. La copie se nomme par sa semaine, sans titre ni documents.
+ *
+ * `exercises` donne à Dosage ce qu'un exercice de bloc ne répète pas : le titre de sa ligne, et
+ * les métriques maison figées qui disent ce que valent ses colonnes. Chaque `id` est celui d'un
+ * exercice de `blocks`.
  */
 export const scheduledSessionCopyDtoSchema = z.object({
   id: z.string(),
@@ -124,5 +129,8 @@ export const scheduledSessionCopyDtoSchema = z.object({
   updatedAt: z.iso.datetime(),
   status: scheduledSessionStatusSchema,
   blocks: z.array(scheduledSessionBlockDtoSchema),
+  exercises: z.array(
+    z.object({ id: z.string(), title: z.string(), customMetrics: z.array(customMetricSchema) }),
+  ),
 });
 export type ScheduledSessionCopyDto = z.infer<typeof scheduledSessionCopyDtoSchema>;
