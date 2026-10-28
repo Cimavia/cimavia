@@ -164,6 +164,22 @@ export class ExerciseService {
     citedBy: string | null = null,
     db: TenantPrisma | TenantTx = this.db,
   ): Promise<Map<string, LibraryExercise>> {
+    const byId = await this.loadAccessible(ids, citedBy, db);
+    if (byId.size !== new Set(ids).size) {
+      throw new BadRequestException(UNKNOWN_EXERCISES);
+    }
+    return byId;
+  }
+
+  /**
+   * Les mêmes exercices, sans refuser ceux qui ne sont pas accessibles : ils manquent à la réponse.
+   * Pour qui doit dire POURQUOI un exercice ne se place pas (#720), plutôt que refuser d'un bloc.
+   */
+  async loadAccessible(
+    ids: readonly string[],
+    citedBy: string | null = null,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<Map<string, LibraryExercise>> {
     const wanted = [...new Set(ids)];
     if (wanted.length === 0) return new Map();
 
@@ -182,9 +198,6 @@ export class ExerciseService {
       for (const row of cited) {
         if (row.exercise.coachId === row.coachId) byId.set(row.exerciseId, row.exercise);
       }
-    }
-    if (byId.size !== wanted.length) {
-      throw new BadRequestException(UNKNOWN_EXERCISES);
     }
     return byId;
   }

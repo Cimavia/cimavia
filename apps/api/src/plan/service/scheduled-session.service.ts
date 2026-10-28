@@ -212,18 +212,8 @@ export class ScheduledSessionService {
     ]);
 
     const dateChanged = toIsoDate(session.scheduledDate) !== input.scheduledDate;
-    const received = planExerciseRows(session.exercises, input.exercises);
-    assertKeptShapesLocked(session.exercises, received);
-    // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
-    // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`) ni rien
-    // ouvrir (droit retiré depuis la copie).
-    const library = await this.loadSources(
-      received.added.map((row) => row.item),
-      null,
-    );
-    const rows = await this.withCustomMetrics(session, received, library);
-    const documents = documentsOf(library);
-    assertRowImagesOwned(session.exercises, rows, documents);
+    const composition =
+      input.exercises === undefined ? null : await this.recomposed(session, input.exercises);
 
     const updated = await this.db.$transaction(async (tx) => {
       // Les semaines d'abord, puis la séance : l'ordre des verrous de `touchWeeks`. Départ et
@@ -250,9 +240,15 @@ export class ScheduledSessionService {
         SESSION_NOT_FOUND,
       );
 
-      await rewriteScheduledSessionExercises(tx, id, session.athleteId, rows, (exercise) =>
-        libraryDocumentsOf(exercise, documents),
-      );
+      if (composition !== null) {
+        await rewriteScheduledSessionExercises(
+          tx,
+          id,
+          session.athleteId,
+          composition.rows,
+          (exercise) => libraryDocumentsOf(exercise, composition.documents),
+        );
+      }
 
       // Changer de jour, c'est aussi QUITTER un jour : sans ce recollage, l'ancien garde le trou.
       if (dateChanged) await compactDay(tx, session.planWeekId, session.scheduledDate);
@@ -444,6 +440,29 @@ export class ScheduledSessionService {
         sessionTitle: session.title,
       });
     }
+  }
+
+  /**
+   * La composition que `update` récrit, jugée et complétée AVANT la transaction : verrou des
+   * lignes reprises, sources des lignes ajoutées, métriques recopiées, images citées.
+   */
+  private async recomposed(
+    session: ScheduledSessionWithExercises,
+    exercises: readonly ScheduledSessionExerciseInput[],
+  ): Promise<{ rows: ExerciseRows<ScheduledSessionExerciseInput>; documents: DocumentsBySource }> {
+    const received = planExerciseRows(session.exercises, exercises);
+    assertKeptShapesLocked(session.exercises, received);
+    // La bibliothèque ne sert qu'aux exercices AJOUTÉS : une ligne reprise garde ses documents, et
+    // son `sourceExerciseId` peut ne plus rien désigner (exercice supprimé, `SetNull`) ni rien
+    // ouvrir (droit retiré depuis la copie).
+    const library = await this.loadSources(
+      received.added.map((row) => row.item),
+      null,
+    );
+    const rows = await this.withCustomMetrics(session, received, library);
+    const documents = documentsOf(library);
+    assertRowImagesOwned(session.exercises, rows, documents);
+    return { rows, documents };
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

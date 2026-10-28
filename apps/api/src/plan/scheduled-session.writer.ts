@@ -276,6 +276,93 @@ export async function rewriteScheduledSessionExercises(
   }
 }
 
+/** Un exercice de bloc tel que la composition le veut (#720) ; `exerciseId` pour celui qu'elle place. */
+export type ComposedRow = {
+  key: string;
+  origin: ScheduledSessionBlockDto["exercises"][number]["origin"];
+  note: string | null;
+  grid: BlockGrid;
+  exerciseId?: string;
+};
+
+/**
+ * Récrit la composition par blocs d'une séance planifiée (#720), sans toucher ses blocs : leur
+ * suivi reste, comme la `baseline` reçue. Une ligne dont la clé reste est GARDÉE et ne fait que
+ * changer de rang — son suivi, ses documents et ses valeurs avec. Une clé qui part emporte sa
+ * ligne ; une clé neuve naît du contenu que `draftOf` lui donne.
+ *
+ * Les rangs passent par le garage, comme `rewriteScheduledSessionExercises` : `parking` dépasse
+ * tout rang occupé, dans la séance comme dans un bloc.
+ */
+export async function rewriteScheduledComposition(
+  tx: TenantTx,
+  session: { id: string; athleteId: string | null; parking: number },
+  blockIds: readonly string[],
+  stored: readonly { id: string; key: string }[],
+  blocks: readonly { exercises: readonly ComposedRow[] }[],
+  draftOf: (
+    row: ComposedRow & { exerciseId: string },
+  ) => Omit<ScheduledSessionExerciseDraft, "placement">,
+): Promise<void> {
+  const final = blocks.flatMap((block, blockIndex) =>
+    block.exercises.map((row, blockPosition) => ({ row, blockIndex, blockPosition })),
+  );
+  const idOf = new Map(stored.map((line) => [line.key, line.id]));
+  const finalKeys = new Set(final.map(({ row }) => row.key));
+  const kept = final.flatMap((place, position) => {
+    const id = idOf.get(place.row.key);
+    return id === undefined ? [] : [{ ...place, id, position }];
+  });
+
+  for (const [index, { id }] of kept.entries()) {
+    const parked = session.parking + index;
+    await tx.scheduledSessionExercise.update({
+      where: { id },
+      data: { position: parked, blockPosition: parked },
+    });
+  }
+  const removedIds = stored.filter((line) => !finalKeys.has(line.key)).map((line) => line.id);
+  if (removedIds.length > 0) {
+    // Ses copies de documents partent en cascade ; les objets restent à la bibliothèque.
+    await tx.scheduledSessionExercise.deleteMany({
+      where: { scheduledSessionId: session.id, id: { in: removedIds } },
+    });
+  }
+  for (const place of kept) {
+    await tx.scheduledSessionExercise.update({
+      where: { id: place.id },
+      data: {
+        position: place.position,
+        blockId: required(blockIds[place.blockIndex], `[plan] bloc ${place.blockIndex} absent`),
+        blockPosition: place.blockPosition,
+      },
+    });
+  }
+
+  for (const [position, { row, blockIndex, blockPosition }] of final.entries()) {
+    if (idOf.has(row.key)) continue;
+    const exerciseId = required(row.exerciseId, `[plan] l'exercice ${row.key} sans source`);
+    await insertScheduledSessionExercise(
+      tx,
+      session.id,
+      session.athleteId,
+      {
+        ...draftOf({ ...row, exerciseId }),
+        placement: {
+          block: blockIndex,
+          blockPosition,
+          key: row.key,
+          grid: row.grid,
+          origin: row.origin.kind,
+          replacesKey: "replacesKey" in row.origin ? row.origin.replacesKey : null,
+        },
+      },
+      position,
+      blockIds,
+    );
+  }
+}
+
 /**
  * Ce qu'une ligne tient du panneau du coach — commun à la création et à la mise à jour, qui ne
  * doivent pas pouvoir diverger sur ce qu'elles écrivent.
