@@ -956,6 +956,11 @@ liste des domaines vivent dans l'index.
 >   (BL-1) garde son éditeur à plat. Retour au cycle par « ← Retour au cycle », pas de légende.
 > - **Des tours trop courts pour le bloc ne partent pas** : le bandeau dit la semaine et le bloc,
 >   et « Enregistrer » reste fermé tant qu'il en reste.
+> - **La phrase du bloc suit les semaines** : celle de la séance-type tant que chaque semaine la
+>   fait, une par semaine, sur ses propres valeurs, dès que l'une en change. Les tours d'un
+>   exercice seul s'appellent « Séries », et leur repos « Repos entre séries », dans la ligne comme
+>   dans la saisie, comme la phrase. Le nom se lit sur la séance-type reçue : il ne change pas
+>   pendant la saisie.
 > - **Un exercice retiré partout n'a pas de ligne** ; un ajout ou un remplaçant se lit en fin de
 >   bloc, hachuré hors des semaines qui le portent.
 > - **Les copies portent le titre et les métriques figées de chaque ligne** (`exercises`) : le
