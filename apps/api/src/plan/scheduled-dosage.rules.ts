@@ -63,8 +63,8 @@ export function dosedBlocks(
 
 /**
  * Chaque cellule contre le type de sa colonne. Une colonne maison dont la définition est perdue
- * (dette EX-2) ne se lit plus : elle garde ses valeurs stockées — la refuser bloquerait toute la
- * copie, et la doser écrirait sans contrôle.
+ * (dette EX-2) ne se lit plus : elle garde ses valeurs — la refuser bloquerait toute la copie, et
+ * la doser écrirait sans contrôle (`keepsLostValues`).
  */
 function assertGridValues(
   grid: BlockGrid,
@@ -75,7 +75,7 @@ function assertGridValues(
   const lost = grid.metrics.filter(
     (metric) => metric.source === MetricSource.CUSTOM && !known.has(metric.customMetricId),
   );
-  if (lost.some((metric) => !sameJson(columnOf(grid, metric.id), columnOf(before, metric.id)))) {
+  if (lost.some((metric) => !keepsLostValues(grid, before, metric.id))) {
     throw new BadRequestException("Une métrique maison sans définition ne se dose pas");
   }
   const metrics = grid.metrics.filter((metric) => !lost.includes(metric));
@@ -83,14 +83,19 @@ function assertGridValues(
   if (issue !== undefined) throw new BadRequestException(issue.message);
 }
 
-/** Les valeurs d'une colonne, ligne par ligne : une cellule vide n'en est pas une. */
-function columnOf(grid: BlockGrid, metricId: string): Record<string, unknown> {
-  return Object.fromEntries(
-    grid.rows.flatMap((row) => {
-      const value = row.values[metricId];
-      return value == null ? [] : [[row.id, value]];
-    }),
-  );
+/**
+ * Aucune valeur neuve dans la colonne : une ligne gardée garde la sienne, une ligne ajoutée ne
+ * reprend qu'une valeur que la colonne avait déjà — c'est ce que fait une série recopiée. Une ligne
+ * retirée emporte la sienne : baisser les tours reste permis.
+ */
+function keepsLostValues(grid: BlockGrid, before: BlockGrid, metricId: string): boolean {
+  const stored = new Map(before.rows.map((row) => [row.id, row.values[metricId] ?? null]));
+  const held = [...stored.values()];
+  return grid.rows.every((row) => {
+    const value = row.values[metricId] ?? null;
+    if (stored.has(row.id)) return sameJson(value, stored.get(row.id));
+    return value === null || held.some((each) => sameJson(each, value));
+  });
 }
 
 function sameComposition(

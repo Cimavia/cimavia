@@ -140,4 +140,41 @@ describe("dosedBlocks", () => {
       "Une métrique maison sans définition ne se dose pas",
     );
   });
+
+  it("laisse une série recopiée reprendre une valeur orpheline, et une ligne retirée emporter la sienne", () => {
+    const withCustom = structuredClone(stored);
+    const both = [load, cotation];
+    const before = {
+      metrics: both,
+      rows: [{ id: "r1", values: { col_load: 60, col_cot: 7 } }],
+    } as BlockGrid;
+    for (const block of withCustom) {
+      block.baseline.exercises[0] = { ...block.baseline.exercises[0], grid: before } as never;
+      block.exercises[0] = { ...block.exercises[0], grid: before } as never;
+    }
+    const copied = (...loads: number[]) =>
+      ({
+        metrics: both,
+        rows: loads.map((kg, index) => ({
+          id: index === 0 ? "r1" : `new-${index}`,
+          values: { col_load: kg, col_cot: 7 },
+        })),
+      }) as BlockGrid;
+
+    // 60 / 60 / 70 : les deux séries neuves recopient la cotation de la première.
+    expect(() => dosedBlocks(withCustom, sent(copied(60, 60, 70)), noFrozen)).not.toThrow();
+    // Une valeur que la colonne n'avait pas, même sur une ligne neuve : refusée.
+    const invented = copied(60, 60);
+    (invented.rows[1] as { values: Record<string, unknown> }).values.col_cot = 9;
+    expect(() => dosedBlocks(withCustom, sent(invented), noFrozen)).toThrow(BadRequestException);
+    // Une ligne gardée qui perd sa valeur : c'est la changer.
+    const emptied = { metrics: both, rows: [{ id: "r1", values: { col_load: 65 } }] } as BlockGrid;
+    expect(() => dosedBlocks(withCustom, sent(emptied), noFrozen)).toThrow(BadRequestException);
+    // Une ligne retirée emporte la sienne : rien de neuf n'est écrit.
+    const shorter = {
+      metrics: both,
+      rows: [{ id: "new-1", values: { col_load: 60 } }],
+    } as BlockGrid;
+    expect(() => dosedBlocks(withCustom, sent(shorter), noFrozen)).not.toThrow();
+  });
 });
