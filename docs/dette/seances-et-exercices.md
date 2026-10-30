@@ -979,6 +979,12 @@ liste des domaines vivent dans l'index.
 >   « Mon suivi », à l'avance, pendant ou après. Rien de ce qu'il mesure n'est enregistré à
 >   l'arrêt. Il garde la vibration et les notifications du chrono d'exercice (`timelineAlerts`,
 >   partagé) ; un exercice sans durée attend « J'ai fini ».
+> - **Les temps du chrono viennent de la structure ET de la grille**, dans la lignée de « le repos
+>   par ligne passe par une COLONNE » : un bloc chronométré par sa structure (bip, effort/repos,
+>   autant que possible, limite) garde son chrono ; un bloc fait à son rythme lit la grille ligne
+>   par ligne — « Repos entre séries » après son exercice, « Repos entre tours » en fin de tour,
+>   avant le repos de la structure, et une durée d'effort fait de l'exercice un compte à rebours
+>   (`blockRun`). Sans aucune durée nulle part, pas de chrono.
 > - **Pas de chrono sur le web** (arbitrage de Kylian, écart à la frame 8) : le web lit et coche
 >   seulement. « Mon suivi » s'y ouvre dans le rail, pour le bloc choisi par son bouton ou par le
 >   sommaire.
