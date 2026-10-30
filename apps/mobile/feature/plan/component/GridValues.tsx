@@ -9,6 +9,7 @@ import {
   metricLabel,
   metricUnitLabel,
   phraseId,
+  unitRepeatsHeader,
 } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
@@ -64,7 +65,7 @@ export function GridValues({
                 key={cell.metric.id}
                 className="flex-1 font-cmv-mono text-cmv-text-hi text-sm"
               >
-                {cellText(describe(cell), cell.value == null)}
+                {cellText(describe(cell), cell)}
               </CmvText>
             ))}
           </View>
@@ -102,8 +103,14 @@ export function useDescribeCell(
   });
 }
 
-/** Une cellule du tableau : sa valeur et son unité, « — » quand elle est vide. */
-function cellText(described: { value: string; unit: string | null }, empty: boolean): string {
-  if (empty) return "—";
-  return described.unit == null ? described.value : `${described.value} ${described.unit}`;
+/**
+ * Une cellule du tableau : sa valeur et son unité, « — » quand elle est vide. L'unité se tait
+ * quand l'en-tête la dit déjà (`unitRepeatsHeader`) : « Répétitions » puis « 8 », pas « 8
+ * répétitions ».
+ */
+function cellText(described: GridCellText, cell: GridCell): string {
+  if (cell.value == null) return "—";
+  return described.unit == null || unitRepeatsHeader(cell.metric)
+    ? described.value
+    : `${described.value} ${described.unit}`;
 }

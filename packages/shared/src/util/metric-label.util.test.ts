@@ -19,6 +19,7 @@ import {
   metricLabel,
   metricUnitLabel,
   unitDetail,
+  unitRepeatsHeader,
 } from "./metric-label.util";
 
 /**
@@ -90,6 +91,15 @@ describe("metricLabel", () => {
         fakeT,
       ),
     ).toBe(METRIC_LABEL_KEY[MetricKey.REPETITIONS]);
+  });
+});
+
+describe("unitRepeatsHeader", () => {
+  it("tait un compte sous son en-tête, garde une unité qui dit comment lire le nombre", () => {
+    expect(unitRepeatsHeader(catalogMetric({ unit: MetricUnit.REPS }))).toBe(true);
+    expect(unitRepeatsHeader(catalogMetric({ unit: MetricUnit.ROUNDS }))).toBe(true);
+    expect(unitRepeatsHeader(catalogMetric({ unit: MetricUnit.REPS_PER_SIDE }))).toBe(false);
+    expect(unitRepeatsHeader(catalogMetric({ unit: MetricUnit.KILOGRAMS }))).toBe(false);
   });
 });
 
