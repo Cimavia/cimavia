@@ -62,7 +62,17 @@ export function BlockCard({
             variant={tally.state === BlockTallyState.DONE ? "success" : "accent"}
           />
         )}
-        {onOpen == null ? null : <CmvText className="text-cmv-text-mid">›</CmvText>}
+        {/* Un vrai bouton, pas une flèche : c'est par lui que s'ouvrent le suivi et le chrono. */}
+        {onOpen == null ? null : (
+          <Pressable
+            onPress={onOpen}
+            accessibilityRole="button"
+            accessibilityLabel={t("plan.blocks.open", { block: blockHeading(read) })}
+            className="rounded-lg border border-cmv-border px-3 py-2"
+          >
+            <CmvText className="text-cmv-text-mid text-sm">{t("plan.blocks.openShort")}</CmvText>
+          </Pressable>
+        )}
       </View>
       {phrase == null ? null : (
         <CmvText className="text-cmv-text-hi text-sm">{text(phrase)}</CmvText>
@@ -75,17 +85,7 @@ export function BlockCard({
 
   return (
     <View className="gap-3 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-      {onOpen == null ? (
-        header
-      ) : (
-        <Pressable
-          onPress={onOpen}
-          accessibilityRole="button"
-          accessibilityLabel={t("plan.blocks.open", { block: blockHeading(read) })}
-        >
-          {header}
-        </Pressable>
-      )}
+      {header}
 
       {block.instructions == null ? null : (
         <CmvText className="text-cmv-text-mid text-sm">{block.instructions}</CmvText>
@@ -125,7 +125,8 @@ export function BlockMark({
     return <CmvText className="font-cmv-display text-cmv-text-hi">{label}</CmvText>;
   }
   return (
-    <View className="min-w-7 items-center rounded-md border border-cmv-border-hi px-1.5">
+    // Un carré, pas une pastille : la marque garde sa forme d'un bloc à l'autre.
+    <View className="h-7 w-7 items-center justify-center rounded-md border border-cmv-border-hi">
       <CmvText className="font-cmv-mono text-cmv-text-hi text-sm">{number}</CmvText>
     </View>
   );

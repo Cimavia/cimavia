@@ -52,14 +52,15 @@ describe("BlockCard", () => {
     expect(screen.queryByText("block.tally.done")).toBeNull();
   });
 
-  it("s'ouvre d'un tap sur son en-tête quand l'écran le permet", () => {
+  it("s'ouvre par son bouton « Ouvrir » quand l'écran le permet", () => {
     const onOpen = vi.fn();
     renderRn(
       <BlockCard read={readOf()} planId="p-1" sessionId="s-1" tally={null} onOpen={onOpen} />,
     );
 
-    press(screen.getByLabelText("plan.blocks.open"));
+    press(screen.getByText("plan.blocks.openShort"));
     expect(onOpen).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("plan.blocks.open")).toBeTruthy();
   });
 
   it("lit la consigne du bloc et la note de chaque exercice", () => {
@@ -140,6 +141,8 @@ describe("GridValues, dans la carte", () => {
     );
     expect(screen.getAllByText("block.grid.set")).toHaveLength(2);
     expect(screen.getByText("—")).toBeTruthy();
+    // L'en-tête dit « Répétitions » : la cellule n'écrit que le nombre.
+    expect(screen.getByText("8")).toBeTruthy();
   });
 
   it("passe en cartes quand les colonnes ne tiennent plus sur l'écran", () => {

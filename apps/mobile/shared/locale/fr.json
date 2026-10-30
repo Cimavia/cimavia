@@ -258,6 +258,7 @@
       "count": "{{count}} bloc",
       "count_other": "{{count}} blocs",
       "open": "Ouvrir le bloc {{block}}",
+      "openShort": "Ouvrir",
       "back": "Retour à la séance",
       "missing": "Ce bloc n'est plus dans la séance : ton coach l'a sans doute modifiée.",
       "oneRound": "Un tour",
