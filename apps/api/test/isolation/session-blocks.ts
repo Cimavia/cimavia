@@ -460,6 +460,15 @@ describe("Séances composées par blocs (#716)", () => {
       ).toBe(400);
     });
 
+    it("refuse un suivi par exercice sur un exercice de bloc : il se coche avec son bloc", async () => {
+      const read = await athlete.get(`/me/scheduled-sessions/${scheduledId}`);
+      const exerciseId = read.body.blocks[0].exercises[0].id as string;
+      const res = await athlete
+        .put(`/me/scheduled-sessions/${scheduledId}/feedback`)
+        .send({ content: null, tracking: { [exerciseId]: null } });
+      expect(res.status).toBe(400);
+    });
+
     it("écrit les cases cochées, et `null` remet le bloc à NON SUIVI", async () => {
       const [series, free] = blockIds as [string, string];
       const sent = await feedback({
@@ -486,6 +495,31 @@ describe("Séances composées par blocs (#716)", () => {
       expect(reset.body.blocks[0].tracking).toBeNull();
       // Un bloc que l'envoi ne cite pas garde son suivi.
       expect(reset.body.blocks[1].tracking).toEqual({ checked: [] });
+    });
+
+    it("le débrief rend le suivi bloc par bloc, et plus par exercice", async () => {
+      const [series] = blockIds as [string, string];
+      expect((await feedback({ [series]: { checked: [{ row: 1, key: "a1" }] } })).status).toBe(200);
+
+      for (const read of [
+        await athlete.get(`/me/scheduled-sessions/${scheduledId}/feedback`),
+        await coach.get(`/scheduled-sessions/${scheduledId}/feedback`),
+      ]) {
+        expect(read.status).toBe(200);
+        // Un exercice de bloc se compte avec son bloc : la liste par exercice ne le redit pas.
+        expect(read.body.trackedExercises).toEqual([]);
+        expect(
+          read.body.trackedBlocks.map((block: { blockId: string; exerciseKeys: string[] }) => [
+            block.blockId,
+            block.exerciseKeys,
+          ]),
+        ).toEqual([
+          [series, ["a1"]],
+          [blockIds[1], [expect.any(String)]],
+        ]);
+        expect(read.body.trackedBlocks[0].tracking).toEqual({ checked: [{ row: 1, key: "a1" }] });
+        expect(read.body.trackedBlocks[0].settings.repeat).toEqual({ kind: "ROUNDS", rounds: 4 });
+      }
     });
 
     it("le Coach lit le suivi, un autre athlète ne l'écrit pas", async () => {

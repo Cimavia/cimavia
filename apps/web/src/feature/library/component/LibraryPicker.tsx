@@ -78,7 +78,9 @@ export function LibraryPicker({
   const visible = (exercises ?? []).filter((exercise) => matches(exercise.title));
 
   return (
-    <div className="flex w-full flex-col gap-cmv-sm">
+    // Toute la hauteur du panneau : la liste défile en dessous des filtres, jamais dans une
+    // fenêtre plus courte que l'écran.
+    <div className="flex h-full min-h-0 w-full flex-col gap-cmv-sm">
       {/* La même ligne que les onglets de la bibliothèque (#653) ; seule la provenance diffère. */}
       <LibraryFilterBar
         name="pickerSearch"
@@ -105,8 +107,8 @@ export function LibraryPicker({
       {visible.length === 0 ? null : (
         // Le cadre arrondit, le conteneur défile : `CMV_TABLE.frame` coupe ce qui déborde, et `cn`
         // ne résout pas les conflits de classes — un `overflow-auto` posé à côté ne l'emporterait pas.
-        <div className={CMV_TABLE.frame}>
-          <div className="max-h-[28rem] overflow-auto">
+        <div className={cn(CMV_TABLE.frame, "flex min-h-0 flex-col")}>
+          <div className="min-h-0 overflow-auto">
             <table className={CMV_TABLE.table}>
               {/* L'en-tête reste visible pendant le défilement : chaque cellule porte son fond
                   et son filet (`CMV_TABLE.stickyHeadCell`). */}

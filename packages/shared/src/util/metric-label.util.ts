@@ -71,6 +71,18 @@ export function metricUnitLabel(
 }
 
 /**
+ * L'unité d'une colonne ne fait-elle que redire son en-tête ? « Répétitions » au-dessus de « 8
+ * répétitions » n'apprend rien, quand « kg » ou « par côté » disent comment lire le nombre. Un
+ * tableau n'écrit alors que le nombre ; une phrase, elle, garde l'unité.
+ */
+export function unitRepeatsHeader(metric: SuggestedMetric): boolean {
+  return (
+    metric.source === MetricSource.CATALOG &&
+    (metric.unit === MetricUnit.REPS || metric.unit === MetricUnit.ROUNDS)
+  );
+}
+
+/**
  * `—` et jamais `0` : une valeur absente est une absence, pas un zéro (règle dure n°5).
  *
  * Un nombre s'écrit dans la langue du lecteur — « 12,5 kg » et non « 12.5 kg » (#298) : c'est ce

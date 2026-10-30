@@ -355,6 +355,7 @@ export type {
   MediaType as MediaTypeType,
   RequestFeedbackUploadUrlInput,
   SessionFeedbackDto,
+  TrackedBlockDto,
   TrackedExerciseDto,
   UpsertSessionFeedbackInput,
 } from "./dto/feedback.schema";
@@ -381,6 +382,7 @@ export {
   mediaTypeSchema,
   requestFeedbackUploadUrlSchema,
   sessionFeedbackDtoSchema,
+  trackedBlockDtoSchema,
   trackedExerciseDtoSchema,
   upsertSessionFeedbackSchema,
 } from "./dto/feedback.schema";
@@ -871,20 +873,25 @@ export {
   ClockKind,
   clockCounter,
   exerciseCodes,
+  exerciseLabels,
   flowPhrase,
   GridLayout,
   gridLinePhrases,
   gridReading,
 } from "./util/block-reading.util";
+export type { RunStep } from "./util/block-run.util";
+export { blockRun, gridCellsAt, RunStepKind } from "./util/block-run.util";
 export type { BlockChecks, BlockTally, CheckBox } from "./util/block-tracking.util";
 export {
   BlockTallyState,
   blockCheckCount,
+  blockCheckIds,
   blockChecks,
   blockTally,
   CheckBoxKind,
   CheckUnit,
   checkOf,
+  checksOfBlock,
   tickedRows,
   trackingFitsBlock,
   trackingNote,
@@ -1059,6 +1066,7 @@ export {
   metricLabel,
   metricUnitLabel,
   unitDetail,
+  unitRepeatsHeader,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type {
@@ -1086,7 +1094,7 @@ export {
 export type { Page } from "./util/pagination.util";
 export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
 export type { Phrase, PhraseParam, PhraseTools } from "./util/phrase.util";
-export { translatePhrase, translatePhrases } from "./util/phrase.util";
+export { phraseId, translatePhrase, translatePhrases } from "./util/phrase.util";
 export type {
   PlanAudience,
   PlanAudienceSource,
@@ -1223,8 +1231,22 @@ export {
   resetComposition,
   revertedEdit,
 } from "./util/scheduled-composition.util";
+export type { ReadBlock, ReadExercise } from "./util/scheduled-reading.util";
+export { blockHeading, readScheduledBlocks } from "./util/scheduled-reading.util";
 export { comparableText, searchMatcher } from "./util/search.util";
 export { sentryDataCollection } from "./util/sentry-data-collection.util";
+export type { BlockSessionTracking } from "./util/session-block-tracking.util";
+export {
+  blockTrackingOf,
+  blockTrackingOfSession,
+  feedbackTrackingInput,
+  isBlockTrackingSent,
+  sameBlockTracking,
+  sessionBlockTally,
+  toggleBlockCheck,
+  trackedBlockTally,
+  withSentBlockTracking,
+} from "./util/session-block-tracking.util";
 export type {
   BlockGridSlot,
   BlockSlotKind as BlockSlotKindType,

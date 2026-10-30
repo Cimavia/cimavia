@@ -5,6 +5,42 @@ import { cancelTimerEnd, scheduleTimerEnd } from "@/feature/plan/lib/timer-alert
 export type TimerAlert = { at: number; title: string; body: string };
 
 /**
+ * iOS ne garde que 64 notifications programmées par app, et un EMOM de 30 min en poserait 60 d'un
+ * coup. Ce minuteur est le SEUL à en programmer — les rappels du coach arrivent par push, qui n'en
+ * consomme aucune (#253) : le plafond protège de la limite de l'OS, pas d'un voisin.
+ */
+const MAX_SCHEDULED = 12;
+
+/**
+ * Les notifications de TOUT le déroulé restant, posées d'avance : une par échéance, à partir de
+ * celle de l'étape courante. Chacune annonce ce qui COMMENCE (`body` de l'étape suivante, ou de
+ * `undefined` pour la fin) — c'est ce que l'athlète doit faire en sortant le téléphone de sa poche.
+ *
+ * On s'arrête à la première étape qui ATTEND : après elle, plus aucune échéance n'est connue. Le
+ * lot est reposé à chaque étape franchie app ouverte ; téléphone rangé, l'athlète n'est prévenu que
+ * des douze prochaines.
+ */
+export function timelineAlerts<S extends { seconds: number }>(
+  timeline: { deadline: number | null; segments: readonly S[]; index: number },
+  title: string,
+  waits: (step: S) => boolean,
+  body: (next: S | undefined) => string,
+): TimerAlert[] {
+  const { deadline, segments, index } = timeline;
+  if (deadline == null) return [];
+
+  const alerts: TimerAlert[] = [];
+  let at = deadline;
+  for (let cursor = index; cursor < segments.length && alerts.length < MAX_SCHEDULED; cursor++) {
+    const next = segments[cursor + 1];
+    alerts.push({ at, title, body: body(next) });
+    if (next == null || waits(next)) break;
+    at += next.seconds * 1000;
+  }
+  return alerts;
+}
+
+/**
  * L'OS n'a pas besoin de nous : les notifications sont posées TOUTES à l'avance.
  *
  * Une seule ne suffit pas. Téléphone rangé, le JS est gelé : après la première, le déroulé

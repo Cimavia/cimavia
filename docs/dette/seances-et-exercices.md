@@ -641,7 +641,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi : celui par bloc se lit chez le Coach avec #722. Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, et depuis #721 ses valeurs se règlent dans Dosage, semaine par semaine. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
+| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi. Depuis #722, une séance par blocs se lit, se coche et se débriefe bloc par bloc, sur mobile et sur web ; une séance planifiée sans bloc garde sa lecture par exercice, et le débrief n'en compte que les lignes sans bloc (`trackedExercises`). Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, et depuis #721 ses valeurs se règlent dans Dosage, semaine par semaine. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 | BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
@@ -844,7 +844,7 @@ liste des domaines vivent dans l'index.
 > - **Partent avec l'ancien constructeur** : « Dupliquer en variante », « Recharger » et « Tout
 >   réinitialiser », avec `useSessionDraft`, `CompositionCard` et `SessionPreview`. La route de
 >   rechargement de l'API reste jusqu'à #723. `SessionBlockGrid` et `BlockBandeau` restent, pour
->   `DosageEditor` (séance planifiée, #722).
+>   `DosageEditor` (séance planifiée, #721).
 > - **Un exercice ajouté arrive sans ligne** : toutes ses lignes sont des fantômes de la dernière,
 >   jusqu'à `gridRowLimit`. Une ligne AU-DELÀ des tours — après un changement de structure ou de
 >   tours — reste dans le brouillon, signalée et modifiable, et n'est coupée qu'à l'enregistrement.
@@ -971,3 +971,38 @@ liste des domaines vivent dans l'index.
 >   un layout.
 > - **La bulle de la maquette est fusionnée dans la saisie** : la fenêtre d'une cellule cite la
 >   valeur de la séance-type et offre d'y revenir.
+
+> **Tranché en [#722](https://github.com/Cimavia/cimavia/issues/722)** (lire et suivre sa séance
+> par blocs, mobile et web) :
+> - **Une seule PR** pour les deux surfaces et l'API (arbitrage de Kylian).
+> - **Le chrono ne coche rien** (arbitrage de Kylian) : il aide, l'Athlete coche lui-même dans
+>   « Mon suivi », à l'avance, pendant ou après. Rien de ce qu'il mesure n'est enregistré à
+>   l'arrêt. Il garde la vibration et les notifications du chrono d'exercice (`timelineAlerts`,
+>   partagé) ; un exercice sans durée attend « J'ai fini ».
+> - **Les temps du chrono viennent de la structure ET de la grille**, dans la lignée de « le repos
+>   par ligne passe par une COLONNE » : un bloc chronométré par sa structure (bip, effort/repos,
+>   autant que possible, limite) garde son chrono ; un bloc fait à son rythme lit la grille ligne
+>   par ligne — « Repos entre séries » après son exercice, « Repos entre tours » en fin de tour,
+>   avant le repos de la structure, et une durée d'effort fait de l'exercice un compte à rebours
+>   (`blockRun`). Sans aucune durée nulle part, pas de chrono.
+> - **Pas de chrono sur le web** (arbitrage de Kylian, écart à la frame 8) : le web lit et coche
+>   seulement. « Mon suivi » s'y ouvre dans le rail, pour le bloc choisi par son bouton ou par le
+>   sommaire.
+> - **Le bloc se repère par son chiffre encadré, ses exercices par un code `1.1`** plutôt que par
+>   des lettres ; un bloc à libellé se lit par son libellé, sans code (`blockNumbers`,
+>   `exerciseCodes`).
+> - **Une séance planifiée sans bloc garde l'ancienne lecture** (BL-1) jusqu'à #723 : la
+>   séance se lit par blocs dès qu'elle en porte un.
+> - **Le débrief compte une ligne une seule fois** : `trackedExercises` ne lit plus que les lignes
+>   sans bloc, et le suivi par bloc part dans `trackedBlocks` — la matière des cases et du
+>   décompte, que chaque app rend dans sa langue. L'API **refuse** (400) un suivi par exercice qui
+>   cite un exercice de bloc : écrit, il ne se relirait jamais — la perte silencieuse de #311.
+> - **Le suivi par bloc se garde en local sous sa propre clé** (`cimavia-block-tracking:`), à côté
+>   de l'ancien : les deux modèles cohabitent sans se mêler. Il part avec le débrief, filtré des
+>   blocs retirés (`blockTrackingOfSession`), et le local ne s'efface que s'il n'a pas bougé
+>   pendant l'envoi (#499). Les deux modèles partagent un socle de stockage par surface
+>   (`useStoredTracking`). Décocher la dernière case rend le bloc NON SUIVI (`null`), et le local ne
+>   se dit modifié que sur ce qui partirait (`sameBlockTracking`) : un bloc ajouté par le Coach ne
+>   rouvre pas « Enregistrer ».
+> - **Les rangées « Série 1 », « Tour 2 » ont leur phrase pour clé React** (`phraseId`), jamais
+>   leur texte traduit, qui peut se répéter.

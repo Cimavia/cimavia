@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import * as Notifications from "expo-notifications";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type TimerAlert, useTimerNotification } from "./useTimerNotification";
+import { type TimerAlert, timelineAlerts, useTimerNotification } from "./useTimerNotification";
 
 /**
  * La VRAIE chaîne jusqu'à l'OS : seul `expo-notifications` est un double. Ce qui s'affirme est ce
@@ -126,5 +126,41 @@ describe("useTimerNotification", () => {
 
     expect(schedule).toHaveBeenCalledTimes(1);
     expect(cancel).not.toHaveBeenCalled();
+  });
+});
+
+describe("timelineAlerts", () => {
+  type Step = { seconds: number; waits?: boolean };
+  const waits = (step: Step) => step.waits === true;
+  const body = (next: Step | undefined) => (next == null ? "fin" : `ensuite ${next.seconds}`);
+
+  it("n'annonce rien tant qu'aucune échéance ne court", () => {
+    expect(
+      timelineAlerts({ deadline: null, segments: [{ seconds: 30 }], index: 0 }, "t", waits, body),
+    ).toEqual([]);
+  });
+
+  it("pose une alerte par échéance restante, la dernière annonçant la fin", () => {
+    const segments = [{ seconds: 30 }, { seconds: 10 }, { seconds: 20 }];
+
+    expect(timelineAlerts({ deadline: 1_000, segments, index: 0 }, "t", waits, body)).toEqual([
+      { at: 1_000, title: "t", body: "ensuite 10" },
+      { at: 11_000, title: "t", body: "ensuite 20" },
+      { at: 31_000, title: "t", body: "fin" },
+    ]);
+  });
+
+  it("s'arrête à l'étape qui attend un geste : après elle, plus aucune échéance n'est connue", () => {
+    const segments = [{ seconds: 30 }, { seconds: 0, waits: true }, { seconds: 20 }];
+
+    expect(timelineAlerts({ deadline: 1_000, segments, index: 0 }, "t", waits, body)).toEqual([
+      { at: 1_000, title: "t", body: "ensuite 0" },
+    ]);
+  });
+
+  it("n'en pose que douze, téléphone rangé", () => {
+    const segments = Array.from({ length: 30 }, () => ({ seconds: 10 }));
+
+    expect(timelineAlerts({ deadline: 0, segments, index: 0 }, "t", waits, body)).toHaveLength(12);
   });
 });

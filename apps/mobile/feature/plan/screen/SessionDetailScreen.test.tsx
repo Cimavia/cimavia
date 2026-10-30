@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import type { RunnerContext } from "@/feature/plan/hook/useSegmentRunner";
 import { SessionDetailScreen } from "@/feature/plan/screen/SessionDetailScreen";
+import { blockSession } from "@/test/block-session";
 import { press, pressButton, renderRn } from "@/test/render";
 import { storedItems } from "@/test/setup";
 
@@ -232,6 +233,20 @@ describe("SessionDetailScreen", () => {
     const { findByText } = renderRn(<SessionDetailScreen />);
 
     expect(await findByText("feedback.openDone")).toBeTruthy();
+  });
+
+  /** #722 : une séance composée par blocs se lit bloc par bloc, plus exercice par exercice. */
+  it("lit une séance par blocs bloc par bloc, et mène à l'écran d'un bloc", async () => {
+    const { blocks, exercises } = blockSession();
+    loaded({ blocks, exercises });
+    const { findByText, getAllByLabelText, getAllByText } = renderRn(<SessionDetailScreen />);
+
+    expect(await findByText("plan.blocks.count")).toBeTruthy();
+    // La puce fait défiler l'écran : elle ne quitte pas la séance.
+    press(getAllByText("Finisher")[0] as HTMLElement);
+    expect(router.push).not.toHaveBeenCalled();
+    press(getAllByLabelText("plan.blocks.open")[0] as HTMLElement);
+    expect(router.push).toHaveBeenCalledWith(`/session/${SESSION_ID}/block/blk-1`);
   });
 
   // On constate le vide sans désigner de coupable, et sans rien retirer.

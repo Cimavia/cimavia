@@ -1,9 +1,12 @@
-import type { ScheduledSessionDto } from "@cmv/shared";
+import { readScheduledBlocks, type ScheduledSessionDto } from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AthleteBlockSession } from "@/feature/plan/component/AthleteBlockSession";
 import { AthleteExerciseCard } from "@/feature/plan/component/AthleteExerciseCard";
 import { AthleteSessionRail } from "@/feature/plan/component/AthleteSessionRail";
+import { BlockRailSection } from "@/feature/plan/component/BlockRailSection";
+import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvAppShell, CmvBadge, CmvCard, CmvErrorState } from "@/shared/component";
@@ -87,6 +90,25 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
   );
   const local = useLocalTracking(session.id, remote);
 
+  // Une séance par blocs se lit bloc par bloc (#722) ; une séance sans bloc garde sa lecture par
+  // exercice jusqu'à #723.
+  const blocks = useMemo(() => readScheduledBlocks(session), [session]);
+  const localBlocks = useLocalBlockTracking(session.id, session.blocks);
+  const [selected, setSelected] = useState<string | null>(null);
+  const byBlock = blocks.length > 0;
+  const trackingPanel = useRef<HTMLElement>(null);
+
+  /**
+   * « Mon suivi » d'un bloc s'ouvre dans le rail : sous `xl`, le rail passe SOUS les blocs, et le
+   * bouton semblait ne rien faire. On amène le panneau à l'écran — sans bouger quand il y est déjà —
+   * et le focus avec lui, pour le clavier et le lecteur d'écran.
+   */
+  const trackBlock = (blockId: string) => {
+    setSelected(blockId);
+    trackingPanel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    trackingPanel.current?.focus({ preventScroll: true });
+  };
+
   return (
     // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
     // à quatre colonnes ne se lit pas dans une colonne étroite.
@@ -113,46 +135,35 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
 
       <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="flex min-w-0 flex-col gap-cmv-md">
-          {/* L'en-tête ne compte RIEN : la progression vit dans le rail et nulle part
-                  ailleurs, sinon deux compteurs finissent par se contredire. */}
-          <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-            {t("plan.athlete.composition", { count: session.exercises.length })}
-          </h2>
-
-          {/* Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos
-                  actif » se compose exactement comme ça (#276). On le constate sans désigner de
-                  coupable — le débrief, dans le rail, reste ouvert. */}
-          {session.exercises.length === 0 ? (
-            <CmvCard>
-              <div className="flex flex-col gap-cmv-xs">
-                <h3 className="text-cmv-subtitle text-cmv-text-hi">
-                  {t("plan.athlete.emptyTitle")}
-                </h3>
-                <p className="text-cmv-body text-cmv-text-mid">
-                  {t("plan.athlete.emptyDescription")}
-                </p>
-              </div>
-            </CmvCard>
-          ) : null}
-
-          {session.exercises.map((exercise, index) => (
-            <div key={exercise.id} id={`exercise-${exercise.id}`}>
-              <AthleteExerciseCard
-                exercise={exercise}
-                position={index + 1}
-                tracking={local.tracking[exercise.id] ?? null}
-                onToggleUnit={(blockId, unitIndex) =>
-                  local.toggleUnit(exercise.id, blockId, unitIndex)
-                }
-                onRounds={(blockId, rounds) => local.setRounds(exercise.id, blockId, rounds)}
-              />
-            </div>
-          ))}
+          {byBlock ? (
+            <AthleteBlockSession
+              blocks={blocks}
+              tracking={localBlocks.tracking}
+              selected={selected}
+              onSelect={trackBlock}
+            />
+          ) : (
+            <SessionExercises session={session} local={local} />
+          )}
         </section>
 
         <AthleteSessionRail
           session={session}
           tracking={local.tracking}
+          {...(byBlock
+            ? {
+                blocks: (
+                  <BlockRailSection
+                    blocks={blocks}
+                    tracking={localBlocks.tracking}
+                    selected={selected}
+                    onSelect={setSelected}
+                    onToggle={localBlocks.toggle}
+                    trackingRef={trackingPanel}
+                  />
+                ),
+              }
+            : {})}
           // La semaine du planning passe au débrief, qui la rendra au retour (#251).
           onOpenFeedback={() =>
             navigate({
@@ -164,5 +175,46 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
         />
       </div>
     </div>
+  );
+}
+
+/** La séance lue exercice par exercice : celle qui n'a pas de bloc (#723 la fera passer aux blocs). */
+function SessionExercises({
+  session,
+  local,
+}: Readonly<{ session: ScheduledSessionDto; local: ReturnType<typeof useLocalTracking> }>) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {/* L'en-tête ne compte RIEN : la progression vit dans le rail et nulle part
+              ailleurs, sinon deux compteurs finissent par se contredire. */}
+      <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
+        {t("plan.athlete.composition", { count: session.exercises.length })}
+      </h2>
+
+      {/* Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos
+              actif » se compose exactement comme ça (#276). On le constate sans désigner de
+              coupable — le débrief, dans le rail, reste ouvert. */}
+      {session.exercises.length === 0 ? (
+        <CmvCard>
+          <div className="flex flex-col gap-cmv-xs">
+            <h3 className="text-cmv-subtitle text-cmv-text-hi">{t("plan.athlete.emptyTitle")}</h3>
+            <p className="text-cmv-body text-cmv-text-mid">{t("plan.athlete.emptyDescription")}</p>
+          </div>
+        </CmvCard>
+      ) : null}
+
+      {session.exercises.map((exercise, index) => (
+        <div key={exercise.id} id={`exercise-${exercise.id}`}>
+          <AthleteExerciseCard
+            exercise={exercise}
+            position={index + 1}
+            tracking={local.tracking[exercise.id] ?? null}
+            onToggleUnit={(blockId, unitIndex) => local.toggleUnit(exercise.id, blockId, unitIndex)}
+            onRounds={(blockId, rounds) => local.setRounds(exercise.id, blockId, rounds)}
+          />
+        </div>
+      ))}
+    </>
   );
 }

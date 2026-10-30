@@ -1,10 +1,10 @@
-import type { SessionTracking } from "@cmv/shared";
+import type { BlockSessionTracking, SessionTracking } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const key = (sessionId: string) => `cimavia-tracking:${sessionId}`;
-
 /**
- * Le suivi local d'UNE séance, tel que tous ses lecteurs le voient.
+ * Le suivi local d'UNE séance, tel que tous ses lecteurs le voient. Deux magasins sur le même
+ * montage : l'ancien suivi par exercice, et celui par bloc (#722), chacun sous sa clé — une séance
+ * ne porte que l'un des deux, et l'ancien part avec son modèle (#723).
  *
  * POURQUOI un magasin au niveau du module (#346). L'écran de séance reste monté sous le débrief,
  * sur la même pile, et chacun tenait sa copie : le débrief corrigeait 3/4 en 4/4 et vidait le
@@ -12,81 +12,93 @@ const key = (sessionId: string) => `cimavia-tracking:${sessionId}`;
  * serveur, la coche suivante y réécrivait « 3/4 + x ». Une seule entrée par séance, lue par les
  * deux, ne peut plus diverger. Même montage que le presse-papier de semaine côté web (#4).
  */
-type Entry = {
+type Entry<T> = {
   /** `null` = rien en local : les lecteurs SUIVENT le distant. */
-  value: SessionTracking | null;
+  value: T | null;
   /** Une écriture est passée : ce que le disque renverra ensuite est plus ancien qu'elle. */
   written: boolean;
   listeners: Set<() => void>;
 };
 
-/**
- * Une entrée n'existe que tant qu'un écran la lit : le dernier parti, elle est oubliée, et le
- * prochain montage relit le disque. La mémoire ne survit donc jamais aux écrans qu'elle sert.
- */
-const entries = new Map<string, Entry>();
+/** Un magasin par préfixe de clé : chacun tient ses séances, sous `<préfixe>:<séance>`. */
+function localStore<T>(prefix: string) {
+  const key = (sessionId: string) => `${prefix}:${sessionId}`;
 
-function notify(entry: Entry): void {
-  for (const listener of entry.listeners) listener();
-}
+  /**
+   * Une entrée n'existe que tant qu'un écran la lit : le dernier parti, elle est oubliée, et le
+   * prochain montage relit le disque. La mémoire ne survit donc jamais aux écrans qu'elle sert.
+   */
+  const entries = new Map<string, Entry<T>>();
 
-/**
- * Le disque n'est lu qu'au PREMIER lecteur : le second — le débrief ouvert par-dessus la séance —
- * trouve la valeur déjà en mémoire, à jour de chaque coche.
- */
-function load(sessionId: string, entry: Entry): void {
-  AsyncStorage.getItem(key(sessionId))
-    .then((raw) => {
-      // Déjà réécrite : une coche posée avant cette réponse a écrasé le disque, qui ne porte plus
-      // la vérité. Une entrée oubliée entre-temps n'a plus de lecteur : l'écrire ne touche rien.
-      if (entry.written || raw == null) return;
-      entry.value = JSON.parse(raw) as SessionTracking;
-      notify(entry);
-    })
-    // Un cache illisible n'est pas une raison de bloquer la séance : on reste sur le distant.
-    .catch(() => undefined);
-}
-
-export function subscribeLocalTracking(sessionId: string, listener: () => void): () => void {
-  let entry = entries.get(sessionId);
-  if (entry == null) {
-    entry = { value: null, written: false, listeners: new Set() };
-    entries.set(sessionId, entry);
-    load(sessionId, entry);
+  function notify(entry: Entry<T>): void {
+    for (const listener of entry.listeners) listener();
   }
-  const subscribed = entry;
-  subscribed.listeners.add(listener);
-  return () => {
-    subscribed.listeners.delete(listener);
-    if (subscribed.listeners.size === 0 && entries.get(sessionId) === subscribed) {
-      entries.delete(sessionId);
+
+  /**
+   * Le disque n'est lu qu'au PREMIER lecteur : le second — le débrief ouvert par-dessus la séance —
+   * trouve la valeur déjà en mémoire, à jour de chaque coche.
+   */
+  function load(sessionId: string, entry: Entry<T>): void {
+    AsyncStorage.getItem(key(sessionId))
+      .then((raw) => {
+        // Déjà réécrite : une coche posée avant cette réponse a écrasé le disque, qui ne porte plus
+        // la vérité. Une entrée oubliée entre-temps n'a plus de lecteur : l'écrire ne touche rien.
+        if (entry.written || raw == null) return;
+        entry.value = JSON.parse(raw) as T;
+        notify(entry);
+      })
+      // Un cache illisible n'est pas une raison de bloquer la séance : on reste sur le distant.
+      .catch(() => undefined);
+  }
+
+  function subscribe(sessionId: string, listener: () => void): () => void {
+    let entry = entries.get(sessionId);
+    if (entry == null) {
+      entry = { value: null, written: false, listeners: new Set() };
+      entries.set(sessionId, entry);
+      load(sessionId, entry);
     }
-  };
-}
-
-/**
- * La valeur COURANTE, à jour dès l'écriture — sans attendre de rendu.
- *
- * Le rattrapage du déroulé coche plusieurs unités dans le même tic (#306) : chaque coche doit
- * partir de la précédente, et c'est ici qu'elle la trouve. Stable en identité entre deux
- * écritures, comme l'exige `useSyncExternalStore`.
- */
-export function readLocalTracking(sessionId: string): SessionTracking | null {
-  return entries.get(sessionId)?.value ?? null;
-}
-
-/**
- * Mémoire, lecteurs et disque changent ENSEMBLE : `null` efface le local.
- *
- * Écriture disque non attendue : cocher doit répondre à l'instant, pas au retour du disque.
- */
-export function writeLocalTracking(sessionId: string, next: SessionTracking | null): void {
-  const entry = entries.get(sessionId);
-  if (entry != null) {
-    entry.value = next;
-    entry.written = true;
-    notify(entry);
+    const subscribed = entry;
+    subscribed.listeners.add(listener);
+    return () => {
+      subscribed.listeners.delete(listener);
+      if (subscribed.listeners.size === 0 && entries.get(sessionId) === subscribed) {
+        entries.delete(sessionId);
+      }
+    };
   }
-  if (next == null) void AsyncStorage.removeItem(key(sessionId));
-  else void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
+
+  /**
+   * La valeur COURANTE, à jour dès l'écriture — sans attendre de rendu.
+   *
+   * Le rattrapage du déroulé coche plusieurs unités dans le même tic (#306) : chaque coche doit
+   * partir de la précédente, et c'est ici qu'elle la trouve. Stable en identité entre deux
+   * écritures, comme l'exige `useSyncExternalStore`.
+   */
+  function read(sessionId: string): T | null {
+    return entries.get(sessionId)?.value ?? null;
+  }
+
+  /**
+   * Mémoire, lecteurs et disque changent ENSEMBLE : `null` efface le local.
+   *
+   * Écriture disque non attendue : cocher doit répondre à l'instant, pas au retour du disque.
+   */
+  function write(sessionId: string, next: T | null): void {
+    const entry = entries.get(sessionId);
+    if (entry != null) {
+      entry.value = next;
+      entry.written = true;
+      notify(entry);
+    }
+    if (next == null) void AsyncStorage.removeItem(key(sessionId));
+    else void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
+  }
+
+  return { subscribe, read, write };
 }
+
+export type LocalStore<T> = ReturnType<typeof localStore<T>>;
+
+export const exerciseTrackingStore = localStore<SessionTracking>("cimavia-tracking");
+export const blockTrackingStore = localStore<BlockSessionTracking>("cimavia-block-tracking");

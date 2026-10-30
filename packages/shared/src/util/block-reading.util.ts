@@ -29,6 +29,15 @@ export function exerciseCodes(number: string | null, exerciseCount: number): (st
   );
 }
 
+/**
+ * Ce qui désigne chaque exercice dans la ligne d'un tour : son code, son titre dans un bloc à
+ * libellé. Commun à la séance planifiée (`readScheduledBlocks`) et à l'aperçu du constructeur.
+ */
+export function exerciseLabels(number: string | null, names: readonly string[]): string[] {
+  const codes = exerciseCodes(number, names.length);
+  return names.map((name, index) => codes[index] ?? name);
+}
+
 // ── La grille ───────────────────────────────────────────────────────────────────────────────
 
 export const GridLayout = {
@@ -54,7 +63,11 @@ export type GridReading =
       rows: { label: Phrase; cells: GridCell[] }[];
     };
 
-function cellsOf(grid: BlockGrid, values: Readonly<Record<string, MetricValue>>): GridCell[] {
+/** Une ligne de valeurs en cellules, une par colonne, vide (`null`) là où rien n'est saisi. */
+export function gridCells(
+  grid: BlockGrid,
+  values: Readonly<Record<string, MetricValue>>,
+): GridCell[] {
   return grid.metrics.map((metric) => ({ metric, value: values[metric.id] ?? null }));
 }
 
@@ -78,7 +91,7 @@ export function gridReading(
   settings: StructureSettings,
   exerciseCount: number,
 ): GridReading {
-  const rows = grid.rows.map((row) => cellsOf(grid, row.values));
+  const rows = grid.rows.map((row) => gridCells(grid, row.values));
   if (!rows.some((cells) => cells.some((cell) => cell.value != null))) {
     return { layout: GridLayout.NONE };
   }
@@ -280,7 +293,7 @@ export function blockClock(settings: StructureSettings, exerciseCount: number): 
  * « Tour 3 / 10 » (à partir de deux), « Bip 4 / 10 · Burpees » (un seul par bip), « Intervalle
  * 5 / 8 · … ». `index` compte à partir de 1.
  *
- * `null` sans nombre de tours — autant que possible, chrono qui monte — ou sans chrono.
+ * `null` sans nombre de tours — autant que possible, chrono qui monte, bloc fait une fois.
  */
 export function clockCounter(
   settings: StructureSettings,
@@ -290,9 +303,9 @@ export function clockCounter(
 ): Phrase | null {
   const clock = blockClock(settings, exerciseCount);
   const { repeat } = settings;
-  if (clock == null || clock.kind === ClockKind.UP || repeat.kind !== StructureRepeat.ROUNDS) {
-    return null;
-  }
+  // Sans chrono de structure, des séries à son rythme se comptent quand même : la grille peut
+  // porter le repos ou l'effort que le chrono joue (`blockRun`).
+  if (clock?.kind === ClockKind.UP || repeat.kind !== StructureRepeat.ROUNDS) return null;
 
   const total = repeat.rounds;
   if (!oneAtATime(settings, exerciseCount)) {

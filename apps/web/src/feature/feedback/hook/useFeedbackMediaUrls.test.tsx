@@ -40,6 +40,7 @@ const debrief = (signedAt: string): SessionFeedbackDto => ({
     },
   ],
   trackedExercises: [],
+  trackedBlocks: [],
   messages: [
     {
       id: "m-reply",

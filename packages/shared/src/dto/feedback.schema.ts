@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
-import { sessionBlockTrackingInputSchema } from "./block-tracking.schema";
+import {
+  sessionBlockTrackingInputSchema,
+  sessionBlockTrackingSchema,
+} from "./block-tracking.schema";
 import {
   exerciseTrackingInputSchema,
   TrackingState,
@@ -17,6 +20,7 @@ import {
 import { messageDtoSchema } from "./message.schema";
 import { SESSION_MAX_EXERCISES } from "./session.schema";
 import { SESSION_MAX_BLOCKS } from "./session-block.schema";
+import { structureSettingsSchema } from "./structure.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -232,6 +236,23 @@ export const trackedExerciseDtoSchema = z.object({
 });
 export type TrackedExerciseDto = z.infer<typeof trackedExerciseDtoSchema>;
 
+/**
+ * Le suivi d'UN bloc, tel qu'il se lit dans un débrief (#722) : de quoi refaire ses cases et son
+ * décompte (`blockChecks`, `blockTally`) sans charger la séance. Le décompte est une phrase, que
+ * chaque app écrit dans sa langue : le serveur en envoie la matière, pas le texte.
+ */
+export const trackedBlockDtoSchema = z.object({
+  blockId: z.string(),
+  label: z.string().nullable(),
+  name: z.string(),
+  settings: structureSettingsSchema,
+  /** Les clés des exercices du bloc, dans l'ordre : une case désigne son exercice par elle. */
+  exerciseKeys: z.array(z.string()),
+  /** `null` = NON SUIVI, ce qui n'est pas « rien coché ». */
+  tracking: sessionBlockTrackingSchema.nullable(),
+});
+export type TrackedBlockDto = z.infer<typeof trackedBlockDtoSchema>;
+
 export const sessionFeedbackDtoSchema = z.object({
   id: z.string(),
   scheduledSessionId: z.string(),
@@ -248,6 +269,8 @@ export const sessionFeedbackDtoSchema = z.object({
    * ferait dépendre l'affichage d'un second appel, sur deux surfaces, pour la même réponse.
    */
   trackedExercises: z.array(trackedExerciseDtoSchema),
+  /** Le suivi d'une séance composée par blocs, bloc par bloc ; `[]` pour l'ancien modèle. */
+  trackedBlocks: z.array(trackedBlockDtoSchema),
   /**
    * Les messages rattachés à ce débrief, du plus ancien au plus récent — la conversation qu'il a
    * ouverte, lue là où elle a commencé.

@@ -54,6 +54,7 @@ const debrief = (signedAt: number): SessionFeedbackDto => ({
     },
   ],
   trackedExercises: [],
+  trackedBlocks: [],
   messages: [
     {
       id: replyId(),

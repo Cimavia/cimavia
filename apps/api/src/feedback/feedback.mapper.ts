@@ -2,11 +2,18 @@ import type {
   FeedbackMediaDto,
   MessageDto,
   SessionFeedbackDto,
+  TrackedBlockDto,
   TrackedExerciseDto,
 } from "@cmv/shared";
-import { trackingSummary } from "@cmv/shared";
-import type { FeedbackMedia, Prisma, ScheduledSessionExercise } from "@prisma/client";
+import { required, trackingSummary } from "@cmv/shared";
+import type {
+  FeedbackMedia,
+  Prisma,
+  ScheduledSessionBlock,
+  ScheduledSessionExercise,
+} from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
+import { parseBlockTracking, parseSettings } from "../util/block-json.util";
 import { parseBlocks, parseTracking } from "../util/exercise-json.util";
 
 // Le débrief avec ses médias, du plus ancien au plus récent (ordre d'ajout par l'athlète).
@@ -61,6 +68,53 @@ export function toTrackedExercises(
 }
 
 /**
+ * Les clés des exercices d'un bloc, dans l'ordre du bloc : une coche désigne sa case par elles. La
+ * même lecture sert à valider le suivi reçu et à le rendre, sinon une case acceptée se lirait
+ * contre une autre.
+ */
+export const BLOCK_EXERCISE_KEYS = {
+  select: { key: true },
+  orderBy: { blockPosition: "asc" },
+} as const satisfies Prisma.ScheduledSessionExerciseFindManyArgs;
+
+export function blockExerciseKeys(
+  rows: readonly Pick<ScheduledSessionExercise, "key">[],
+): string[] {
+  return rows.map((row) => required(row.key, "[feedback] ligne de bloc sans clé"));
+}
+
+/**
+ * Le suivi par bloc (#722), bloc par bloc : la matière de ses cases et de son décompte, que chaque
+ * app rend dans sa langue (`blockChecks`, `blockTally`). Même raison que `toTrackedExercises` : le
+ * coach lit un débrief sans charger la séance de son athlète.
+ */
+export function toTrackedBlocks(
+  blocks: readonly (Pick<
+    ScheduledSessionBlock,
+    "id" | "label" | "name" | "settings" | "tracking"
+  > & {
+    exercises: readonly Pick<ScheduledSessionExercise, "key">[];
+  })[],
+): TrackedBlockDto[] {
+  return blocks.map((block) => ({
+    blockId: block.id,
+    label: block.label,
+    name: block.name,
+    settings: parseSettings(block.settings),
+    exerciseKeys: blockExerciseKeys(block.exercises),
+    tracking: parseBlockTracking(block.tracking),
+  }));
+}
+
+/** Le suivi qui accompagne un débrief : par exercice (ancien modèle), et par bloc (#722). */
+export type FeedbackTracked = {
+  trackedExercises: TrackedExerciseDto[];
+  trackedBlocks: TrackedBlockDto[];
+};
+
+const NOTHING_TRACKED: FeedbackTracked = { trackedExercises: [], trackedBlocks: [] };
+
+/**
  * Le débrief tel qu'il se lit — par son auteur comme par son coach, c'est le même DTO.
  *
  * `messages` sont les réponses rattachées : les MÊMES enregistrements que la messagerie sert, lus
@@ -70,7 +124,7 @@ export function toTrackedExercises(
 export async function toSessionFeedbackDto(
   feedback: SessionFeedbackWithMedia,
   storage: StorageService,
-  trackedExercises: TrackedExerciseDto[] = [],
+  tracked: FeedbackTracked = NOTHING_TRACKED,
   messages: MessageDto[] = [],
 ): Promise<SessionFeedbackDto> {
   const media = await Promise.all(feedback.media.map((item) => toFeedbackMediaDto(item, storage)));
@@ -80,7 +134,8 @@ export async function toSessionFeedbackDto(
     athleteId: feedback.athleteId,
     content: feedback.content,
     media,
-    trackedExercises,
+    trackedExercises: tracked.trackedExercises,
+    trackedBlocks: tracked.trackedBlocks,
     messages,
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString(),

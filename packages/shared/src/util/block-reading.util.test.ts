@@ -23,6 +23,7 @@ import {
   ClockKind,
   clockCounter,
   exerciseCodes,
+  exerciseLabels,
   flowPhrase,
   type GridCell,
   GridLayout,
@@ -88,6 +89,11 @@ describe("le numéro du bloc et les codes", () => {
   it("code les exercices d'un bloc numéroté, pas ceux d'un bloc à libellé", () => {
     expect(exerciseCodes("2", 3)).toEqual(["2.1", "2.2", "2.3"]);
     expect(exerciseCodes(null, 2)).toEqual([null, null]);
+  });
+
+  it("désigne un exercice par son code, par son titre dans un bloc à libellé", () => {
+    expect(exerciseLabels("2", ["Squat", "Rameur"])).toEqual(["2.1", "2.2"]);
+    expect(exerciseLabels(null, ["Squat", "Rameur"])).toEqual(["Squat", "Rameur"]);
   });
 });
 
@@ -272,5 +278,10 @@ describe("clockCounter", () => {
     expect(clockCounter(presets.AMRAP, 2, 1)).toBeNull();
     expect(clockCounter(presets.FOR_TIME, 2, 1)).toBeNull();
     expect(clockCounter(presets.FREE, 2, 1)).toBeNull();
+    // Des séries à son rythme se comptent même sans chrono de structure : la grille peut en donner un.
+    expect(clockCounter(settingsOf({ repeat: rounds(3) }), 1, 2)).toEqual({
+      key: "block.counter.set",
+      params: { index: 2, total: 3 },
+    });
   });
 });

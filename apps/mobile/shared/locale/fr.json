@@ -29,7 +29,8 @@
     },
     "save": "Enregistrer",
     "saving": "Enregistrement…",
-    "close": "Fermer"
+    "close": "Fermer",
+    "and": "et"
   },
   "auth": {
     "login": {
@@ -252,6 +253,34 @@
     "cycle": {
       "week": "S{{number}}/{{total}} · {{type}}",
       "coach": "par {{name}}"
+    },
+    "blocks": {
+      "count": "{{count}} bloc",
+      "count_other": "{{count}} blocs",
+      "open": "Ouvrir le bloc {{block}}",
+      "openShort": "Ouvrir",
+      "back": "Retour à la séance",
+      "missing": "Ce bloc n'est plus dans la séance : ton coach l'a sans doute modifiée.",
+      "oneRound": "Un tour",
+      "tracking": "Mon suivi",
+      "blockDone": "Bloc fait",
+      "runTimer": "Lancer le chrono"
+    },
+    "clock": {
+      "title": {
+        "DO": "À toi de jouer",
+        "REST": "Repos",
+        "BEEP": "Avant le prochain bip",
+        "EFFORT": "Effort",
+        "CAP": "Temps restant",
+        "UP": "Temps écoulé"
+      },
+      "outOf": "sur {{duration}}",
+      "limit": "limite {{duration}}",
+      "next": "Ensuite",
+      "done": "J'ai fini",
+      "ownPace": "Tu vas à ton rythme. Rien n'est enregistré à l'arrêt.",
+      "lastBody": "Bloc terminé."
     }
   },
   "media": {

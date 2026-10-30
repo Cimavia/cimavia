@@ -739,6 +739,15 @@
       "cycle": {
         "week": "S{{number}}/{{total}} · {{type}}",
         "coach": "par {{name}}"
+      },
+      "blocks": {
+        "title": "Blocs",
+        "count": "{{count}} bloc",
+        "count_other": "{{count}} blocs",
+        "tracking": "Mon suivi",
+        "choose": "Choisis un bloc pour cocher ce que tu as fait.",
+        "blockDone": "Bloc fait",
+        "sent": "Ce que tu as coché part avec ton débrief."
       }
     },
     "new": "Nouvelle planification",

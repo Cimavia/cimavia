@@ -7,6 +7,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
+import { TrackedBlockList } from "@/feature/feedback/component/TrackedBlockList";
 import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { useConversationWith } from "@/feature/message/hook/useMessages";
@@ -90,6 +91,7 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
         {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
             dans l'ordre où l'athlète l'a envoyé. */}
         <TrackedExerciseList exercises={detail?.trackedExercises ?? []} />
+        <TrackedBlockList blocks={detail?.trackedBlocks ?? []} />
 
         <section className="flex flex-col gap-cmv-sm">
           <h4 className={SECTION_TITLE}>

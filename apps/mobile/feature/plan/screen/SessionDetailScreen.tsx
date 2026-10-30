@@ -11,16 +11,22 @@ import {
 } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import type { TFunction } from "i18next";
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
 import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
 import { RestBanner } from "@/feature/plan/component/RestBanner";
+import { SessionBlocks } from "@/feature/plan/component/SessionBlocks";
 import { TimerOverlay } from "@/feature/plan/component/TimerOverlay";
+import { useBlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
 import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { type RunnerContext, useSegmentRunner } from "@/feature/plan/hook/useSegmentRunner";
-import { type TimerAlert, useTimerNotification } from "@/feature/plan/hook/useTimerNotification";
+import {
+  type TimerAlert,
+  timelineAlerts,
+  useTimerNotification,
+} from "@/feature/plan/hook/useTimerNotification";
 import { useTrackingHint } from "@/feature/plan/hook/useTrackingHint";
 import { vibrateTimerDone } from "@/feature/plan/lib/timer-alert";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
@@ -64,6 +70,11 @@ export function SessionDetailScreen() {
   const { hint, dismissHint } = useTrackingHint();
 
   const [expanded, setExpanded] = useState(false);
+  const scroll = useRef<ScrollView>(null);
+  // Une séance par blocs se lit bloc par bloc (#722) ; une séance sans bloc garde sa lecture par
+  // exercice jusqu'à #723.
+  const byBlock = isBlockSession(session);
+  const spy = useBlockScrollSpy(scroll, session?.blocks.length ?? 0);
 
   /**
    * Le déroulé coche au fil des segments, sans que l'athlète ait à y penser : c'est la moitié du
@@ -96,7 +107,12 @@ export function SessionDetailScreen() {
         aucun moyen de savoir que ce qu'il lit date — ni de demander mieux.
       */}
       <ScrollView
+        ref={scroll}
         contentContainerClassName="gap-6 p-4"
+        scrollEventThrottle={64}
+        // Seule la liste des blocs lit la position, pour sa puce en cours.
+        onScroll={byBlock ? spy.onScroll : undefined}
+        onScrollBeginDrag={spy.release}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
       >
         {isPending ? <ActivityIndicator /> : null}
@@ -104,51 +120,23 @@ export function SessionDetailScreen() {
         {isError && session == null ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
         {session == null ? null : (
-          <>
-            <View className="gap-1">
-              <CmvText className="text-cmv-text-lo text-xs">
-                {formatFullDay(session.scheduledDate)}
-              </CmvText>
-              <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                {session.title}
-              </CmvText>
-              <CmvText className="text-cmv-accent text-xs">
-                {t(`plan.sessionStatus.${session.status}`)}
-              </CmvText>
-            </View>
-
-            {session.notes == null ? null : (
-              <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-                <CmvText className="text-cmv-text-mid text-xs">{t("plan.session.notes")}</CmvText>
-                <CmvText className="text-cmv-text-hi">{session.notes}</CmvText>
-              </View>
+          <SessionContent session={session}>
+            {byBlock ? (
+              <SessionBlocks session={session} spy={spy} />
+            ) : (
+              <SessionExercises
+                session={session}
+                local={local}
+                hint={hint}
+                dismissHint={dismissHint}
+                onRun={(segments, context) => {
+                  dismissHint();
+                  setExpanded(segments.length > 1);
+                  runner.start(segments, context);
+                }}
+              />
             )}
-
-            {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-                déroulé, pas enterrée sous la liste des exercices.
-                INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
-                lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
-            <CmvButton
-              label={
-                session.status === ScheduledSessionStatus.DONE
-                  ? t("feedback.openDone")
-                  : t("feedback.open")
-              }
-              onPress={() => router.push(`/session/${session.id}/feedback`)}
-            />
-
-            <SessionExercises
-              session={session}
-              local={local}
-              hint={hint}
-              dismissHint={dismissHint}
-              onRun={(segments, context) => {
-                dismissHint();
-                setExpanded(segments.length > 1);
-                runner.start(segments, context);
-              }}
-            />
-          </>
+          </SessionContent>
         )}
       </ScrollView>
 
@@ -172,6 +160,52 @@ export function SessionDetailScreen() {
         onReduce={() => setExpanded(false)}
       />
     </CmvScreen>
+  );
+}
+
+/**
+ * L'en-tête de la séance chargée — date, titre, statut, consignes — puis le bouton de débrief, au
+ * dessus de son déroulé (`children`). Extrait de l'écran pour le seuil de complexité.
+ */
+function SessionContent({
+  session,
+  children,
+}: Readonly<{ session: ScheduledSessionDto; children: ReactNode }>) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <View className="gap-1">
+        <CmvText className="text-cmv-text-lo text-xs">
+          {formatFullDay(session.scheduledDate)}
+        </CmvText>
+        <CmvText className="font-cmv-display text-cmv-text-hi text-xl">{session.title}</CmvText>
+        <CmvText className="text-cmv-accent text-xs">
+          {t(`plan.sessionStatus.${session.status}`)}
+        </CmvText>
+      </View>
+
+      {session.notes == null ? null : (
+        <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+          <CmvText className="text-cmv-text-mid text-xs">{t("plan.session.notes")}</CmvText>
+          <CmvText className="text-cmv-text-hi">{session.notes}</CmvText>
+        </View>
+      )}
+
+      {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
+          déroulé, pas enterrée sous la liste des exercices.
+          INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
+          lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
+      <CmvButton
+        label={
+          session.status === ScheduledSessionStatus.DONE
+            ? t("feedback.openDone")
+            : t("feedback.open")
+        }
+        onPress={() => router.push(`/session/${session.id}/feedback`)}
+      />
+
+      {children}
+    </>
   );
 }
 
@@ -333,18 +367,7 @@ function SessionExercises({
   );
 }
 
-/**
- * Les notifications de TOUT le déroulé restant, posées d'avance.
- *
- * Chacune annonce ce qui COMMENCE, pas ce qui finit : « Récupération 45 s » est ce que l'athlète
- * doit faire en sortant le téléphone de sa poche. La dernière annonce la fin de l'exercice.
- *
- * Plafonnées : iOS ne garde que 64 notifications programmées par app, et un EMOM de 30 min en
- * poserait 60 d'un coup. Ce minuteur est aujourd'hui le SEUL à en programmer — les rappels du coach
- * arrivent par push, qui n'en consomme aucune (#253) : le plafond protège donc de la limite de
- * l'OS, pas d'un voisin. Le lot est reposé à chaque segment franchi app ouverte ; téléphone rangé,
- * l'athlète n'est prévenu que des douze prochaines échéances.
- */
+/** Les notifications du déroulé restant (`timelineAlerts`), titrées par l'exercice. */
 function useTimerAlerts(
   runner: ReturnType<typeof useSegmentRunner>,
   t: TFunction,
@@ -352,25 +375,16 @@ function useTimerAlerts(
   const { deadline, context, segments, index } = runner;
 
   return useMemo(() => {
-    if (deadline == null || context == null) return [];
-
-    const alerts: TimerAlert[] = [];
-    let at = deadline;
-
-    for (let cursor = index; cursor < segments.length && alerts.length < MAX_SCHEDULED; cursor++) {
-      const next = segments[cursor + 1];
-      alerts.push({ at, title: context.title, body: alertBody(next, t) });
-      // On s'arrête au premier segment MANUEL : après lui, plus aucune échéance n'est connue —
-      // c'est l'athlète qui décide quand le déroulé repart.
-      if (next == null || next.kind === SegmentKind.MANUAL) break;
-      at += next.seconds * 1000;
-    }
-
-    return alerts;
+    if (context == null) return [];
+    return timelineAlerts({ deadline, segments, index }, context.title, isManualSegment, (next) =>
+      alertBody(next, t),
+    );
   }, [deadline, context, segments, index, t]);
 }
 
-const MAX_SCHEDULED = 12;
+function isManualSegment(segment: BlockSegment): boolean {
+  return segment.kind === SegmentKind.MANUAL;
+}
 
 /** Ce que la notification annonce : ce qui COMMENCE, ou la fin. */
 function alertBody(next: BlockSegment | undefined, t: TFunction): string {
@@ -389,4 +403,8 @@ function hasOwnAction(segment: BlockSegment): boolean {
     segment.kind === SegmentKind.INTERVAL ||
     segment.kind === SegmentKind.COUNTDOWN
   );
+}
+
+function isBlockSession(session: ScheduledSessionDto | undefined): boolean {
+  return session != null && session.blocks.length > 0;
 }

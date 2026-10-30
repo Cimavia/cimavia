@@ -4,6 +4,7 @@ import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { MediaRejectedError } from "@/shared/util/media.util";
+import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteFeedbackScreen } from "./AthleteFeedbackScreen";
 
@@ -147,6 +148,7 @@ const session = (): ScheduledSessionDto =>
         blocks: [{ id: "b-1", label: null, structure: { type: "FREE" }, metrics: [], rows: [] }],
       },
     ],
+    blocks: [],
   }) as unknown as ScheduledSessionDto;
 
 const feedback = (over: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto =>
@@ -385,6 +387,59 @@ describe("AthleteFeedbackScreen", () => {
       // Le bouton se rouvre : l'envoi est terminé, et le décompte reste à envoyer.
       await waitFor(() => expect(getByRole("button", { name: SUBMIT })).toBeEnabled());
       expect(window.localStorage.getItem(KEY)).not.toBeNull();
+    });
+  });
+
+  /** #722 : une séance par blocs se rappelle et part bloc par bloc, sous sa propre clé locale. */
+  describe("le suivi d'une séance par blocs", () => {
+    const KEY = `cimavia-block-tracking:${SESSION_ID}`;
+    const checked = { "blk-1": { checked: [{ key: "a1", row: 0 }] } };
+
+    beforeEach(() => {
+      getSessionMock.mockResolvedValue(blockSession({ id: SESSION_ID, coachId: COACH_ID }));
+    });
+
+    it("rappelle les blocs, et envoie leur suivi sans un bloc que le coach a retiré", async () => {
+      window.localStorage.setItem(
+        KEY,
+        JSON.stringify({ ...checked, "blk-retire": { checked: [{ key: "z1", row: 0 }] } }),
+      );
+      const { user, findByRole, getByText } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      expect(getByText("Finisher")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(upsertMock).toHaveBeenCalledWith(
+          SESSION_ID,
+          expect.objectContaining({ blockTracking: checked }),
+        ),
+      );
+    });
+
+    it("rouvre les cases d'un bloc, et part avec la coche qu'on y pose", async () => {
+      const { user, findAllByLabelText, getAllByRole, getByRole } = await setup();
+
+      const [pencil] = await findAllByLabelText("feedback.tracking.edit");
+      await user.click(pencil as HTMLElement);
+      await user.click(getAllByRole("button", { pressed: false })[0] as HTMLElement);
+      await user.click(getByRole("button", { name: SUBMIT }));
+
+      await waitFor(() =>
+        expect(upsertMock).toHaveBeenCalledWith(
+          SESSION_ID,
+          expect.objectContaining({ blockTracking: expect.objectContaining(checked) }),
+        ),
+      );
+    });
+
+    it("efface le local une fois parti tel quel", async () => {
+      window.localStorage.setItem(KEY, JSON.stringify(checked));
+      const { user, findByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
     });
   });
 

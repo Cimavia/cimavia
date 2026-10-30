@@ -24,8 +24,11 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseSettings, toJsonInput } from "../../util/block-json.util";
 import {
+  BLOCK_EXERCISE_KEYS,
+  blockExerciseKeys,
   FEEDBACK_DETAIL_INCLUDE,
   toSessionFeedbackDto,
+  toTrackedBlocks,
   toTrackedExercises,
 } from "../feedback.mapper";
 import { FeedbackAudienceService } from "./feedback-audience.service";
@@ -107,6 +110,9 @@ export class FeedbackService {
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
    * créerait un, séance passée en DONE, pour une requête refusée. L'appelant a déjà passé la garde
    * de séance.
+   *
+   * Un exercice de bloc compte pour inconnu (#722) : il se suit avec son bloc, et le débrief ne
+   * rendrait jamais un suivi écrit sur lui — ce serait la même perte silencieuse.
    */
   private async assertTrackedExercisesKnown(
     scheduledSessionId: string,
@@ -116,7 +122,7 @@ export class FeedbackService {
     if (cited.length === 0) return;
 
     const known = await this.db.scheduledSessionExercise.findMany({
-      where: { scheduledSessionId, id: { in: cited } },
+      where: { scheduledSessionId, blockId: null, id: { in: cited } },
       select: { id: true },
     });
     if (known.length === cited.length) return;
@@ -143,11 +149,7 @@ export class FeedbackService {
 
     const known = await this.db.scheduledSessionBlock.findMany({
       where: { scheduledSessionId, id: { in: cited } },
-      select: {
-        id: true,
-        settings: true,
-        exercises: { select: { key: true }, orderBy: { blockPosition: "asc" } },
-      },
+      select: { id: true, settings: true, exercises: BLOCK_EXERCISE_KEYS },
     });
     const byId = new Map(known.map((block) => [block.id, block]));
     const unknown = cited.filter((id) => !byId.has(id));
@@ -159,10 +161,8 @@ export class FeedbackService {
     const misfit = known.filter((block) => {
       const state = tracking[block.id];
       if (state == null) return false;
-      const keys = block.exercises.map((row) =>
-        required(row.key, `[feedback] ligne de bloc sans clé`),
-      );
-      return !trackingFitsBlock(blockChecks(parseSettings(block.settings), keys), state);
+      const checks = blockChecks(parseSettings(block.settings), blockExerciseKeys(block.exercises));
+      return !trackingFitsBlock(checks, state);
     });
     if (misfit.length > 0) {
       throw new BadRequestException(
@@ -297,17 +297,33 @@ export class FeedbackService {
     if (feedback == null) return null;
 
     // Le décompte ACCOMPAGNE le débrief : il part dans la même réponse, sinon le coach devrait
-    // charger la séance de son athlète juste pour savoir ce qui a été coché.
-    const exercises = await this.db.scheduledSessionExercise.findMany({
-      where: { scheduledSessionId },
-      orderBy: { position: "asc" },
-      select: { id: true, title: true, blocks: true, tracking: true },
-    });
+    // charger la séance de son athlète juste pour savoir ce qui a été coché. Un exercice de bloc
+    // se compte avec son bloc (#722) : le compter aussi seul dirait deux fois le même suivi.
+    const [exercises, blocks, messages] = await Promise.all([
+      this.db.scheduledSessionExercise.findMany({
+        where: { scheduledSessionId, blockId: null },
+        orderBy: { position: "asc" },
+        select: { id: true, title: true, blocks: true, tracking: true },
+      }),
+      this.db.scheduledSessionBlock.findMany({
+        where: { scheduledSessionId },
+        orderBy: { position: "asc" },
+        select: {
+          id: true,
+          label: true,
+          name: true,
+          settings: true,
+          tracking: true,
+          exercises: BLOCK_EXERCISE_KEYS,
+        },
+      }),
+      this.attachedMessages(feedback.id),
+    ]);
     return toSessionFeedbackDto(
       feedback,
       this.storage,
-      toTrackedExercises(exercises),
-      await this.attachedMessages(feedback.id),
+      { trackedExercises: toTrackedExercises(exercises), trackedBlocks: toTrackedBlocks(blocks) },
+      messages,
     );
   }
 
