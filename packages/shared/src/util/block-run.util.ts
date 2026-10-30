@@ -1,4 +1,6 @@
 import type { BlockGrid } from "../dto/block-grid.schema";
+import { MetricSource } from "../dto/exercise-block.schema";
+import { MetricKey } from "../dto/exercise-metric.schema";
 import type { StructureSettings } from "../dto/structure.schema";
 import { StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
@@ -45,16 +47,25 @@ export type RunStep = {
 
 /**
  * Les étapes du chrono d'un bloc, dans l'ordre où il les joue. Vide quand le bloc n'a rien à
- * chronométrer (`blockClock` à `null`) : pas de barre « Lancer le chrono ».
+ * chronométrer — ni chrono de structure, ni durée dans la grille : pas de barre « Lancer le chrono ».
  *
- *  - repos : chaque exercice attend « J'ai fini », puis le repos entre exercices ou entre tours ;
+ *  - à son rythme : chaque exercice attend « J'ai fini », puis le repos entre exercices ou entre
+ *    tours. La grille y a le dernier mot, ligne par ligne, comme pour l'ancien chrono (*Tranché —
+ *    le repos par ligne passe par une COLONNE*) : sa colonne de repos l'emporte sur celui de la
+ *    structure, et sa durée d'effort fait d'un exercice un compte à rebours ;
  *  - bip : un compte à rebours par bip, sur un exercice avec « un seul par bip » ;
  *  - cycle : effort puis repos, sans repos après le dernier effort ;
  *  - autant que possible : un seul compte à rebours ; limite : un seul chrono qui monte.
  */
-export function blockRun(settings: StructureSettings, exerciseCount: number): RunStep[] {
+export function blockRun(
+  settings: StructureSettings,
+  exerciseCount: number,
+  /** La grille de chaque exercice, dans l'ordre : ses durées comptent à son rythme. */
+  grids: readonly BlockGrid[],
+): RunStep[] {
   const clock = blockClock(settings, exerciseCount);
-  if (clock == null) return [];
+  if (clock == null || clock.kind === ClockKind.REST)
+    return paceRun(settings, exerciseCount, grids);
   switch (clock.kind) {
     case ClockKind.CAP:
       return [whole(RunStepKind.CAP, clock.capSeconds)];
@@ -73,13 +84,6 @@ export function blockRun(settings: StructureSettings, exerciseCount: number): Ru
         if (next == null) return [effort];
         return [effort, { kind: RunStepKind.REST, seconds: clock.restSeconds, ...next }];
       });
-    case ClockKind.REST:
-      return restRun(
-        settings.repeat.kind === StructureRepeat.ROUNDS ? settings.repeat.rounds : 1,
-        exerciseCount,
-        clock.restBetweenExercisesSeconds,
-        clock.restBetweenRoundsSeconds,
-      );
   }
 }
 
@@ -110,32 +114,86 @@ function passes(settings: StructureSettings, exerciseCount: number): Pass[] {
   );
 }
 
-function restRun(
-  rounds: number,
+/**
+ * Un bloc fait à son rythme : chaque exercice attend « J'ai fini » — ou se joue en compte à
+ * rebours quand la grille lui donne une durée d'effort —, puis le repos qui suit. Le repos d'une
+ * ligne vient de la grille d'abord : « Repos entre séries » suit son exercice, « Repos entre
+ * tours » clôt le tour ; la structure ne le donne qu'à défaut. Rien après la dernière étape.
+ */
+function paceRun(
+  settings: StructureSettings,
   exerciseCount: number,
-  betweenExercises: number | null,
-  betweenRounds: number | null,
+  grids: readonly BlockGrid[],
 ): RunStep[] {
-  const steps: RunStep[] = [];
-  for (let round = 1; round <= rounds; round++) {
-    for (let exercise = 0; exercise < exerciseCount; exercise++) {
-      steps.push({
-        kind: RunStepKind.DO,
-        seconds: 0,
-        index: round,
-        exerciseIndex: exercise,
-        row: round - 1,
-      });
-      const lastOfRound = exercise === exerciseCount - 1;
-      if (!lastOfRound && betweenExercises != null) {
-        steps.push(rest(betweenExercises, round, exercise + 1));
-      }
-      if (lastOfRound && round < rounds && betweenRounds != null) {
-        steps.push(rest(betweenRounds, round + 1, 0));
-      }
-    }
+  const rounds = settings.repeat.kind === StructureRepeat.ROUNDS ? settings.repeat.rounds : null;
+  const pace: Pace = {
+    grids,
+    exerciseCount,
+    betweenExercises: exerciseCount > 1 ? settings.restBetweenExercisesSeconds : null,
+    betweenRounds: rounds == null ? null : settings.restBetweenRoundsSeconds,
+  };
+  const total = (rounds ?? 1) * exerciseCount;
+  const steps = Array.from({ length: total }, (_unused, position) => {
+    const round = Math.floor(position / exerciseCount) + 1;
+    const exercise = position % exerciseCount;
+    const done = doStep(pace, round, exercise);
+    // Rien après la dernière étape.
+    const after = position === total - 1 ? null : restAfter(pace, round, exercise);
+    return after == null ? [done] : [done, after];
+  }).flat();
+  // Ni repos ni effort nulle part : il n'y a rien à chronométrer, seulement des « J'ai fini ».
+  return steps.some((step) => step.seconds > 0) ? steps : [];
+}
+
+type Pace = {
+  grids: readonly BlockGrid[];
+  exerciseCount: number;
+  /** Les repos de la structure, à défaut de ceux de la grille. */
+  betweenExercises: number | null;
+  betweenRounds: number | null;
+};
+
+/** L'exercice à faire : « J'ai fini », ou un compte à rebours si sa ligne a une durée d'effort. */
+function doStep(pace: Pace, round: number, exercise: number): RunStep {
+  const row = round - 1;
+  const effort = gridSeconds(pace.grids[exercise], row, MetricKey.EFFORT_DURATION);
+  return effort == null
+    ? { kind: RunStepKind.DO, seconds: 0, index: round, exerciseIndex: exercise, row }
+    : { kind: RunStepKind.EFFORT, seconds: effort, index: round, exerciseIndex: exercise, row };
+}
+
+/** Le repos qui suit un exercice, ou `null` quand ni la grille ni la structure n'en donnent. */
+function restAfter(pace: Pace, round: number, exercise: number): RunStep | null {
+  const row = round - 1;
+  const afterSet = gridSeconds(pace.grids[exercise], row, MetricKey.REST_BETWEEN_SETS);
+  if (exercise < pace.exerciseCount - 1) {
+    const seconds = afterSet ?? pace.betweenExercises;
+    return seconds == null ? null : rest(seconds, round, exercise + 1);
   }
-  return steps;
+  const seconds = roundRest(pace.grids, row) ?? afterSet ?? pace.betweenRounds;
+  return seconds == null ? null : rest(seconds, round + 1, 0);
+}
+
+/** Le repos entre tours que porte la grille d'un des exercices, à cette ligne. */
+function roundRest(grids: readonly BlockGrid[], row: number): number | null {
+  for (const grid of grids) {
+    const seconds = gridSeconds(grid, row, MetricKey.REST_BETWEEN_ROUNDS);
+    if (seconds != null) return seconds;
+  }
+  return null;
+}
+
+/**
+ * La durée qu'une colonne du catalogue donne à une ligne — la dernière valant pour les tours
+ * suivants (#715). `null` sans cette colonne, ou sans valeur à cette ligne.
+ */
+function gridSeconds(grid: BlockGrid | undefined, row: number, key: MetricKey): number | null {
+  const column = grid?.metrics.find(
+    (metric) => metric.source === MetricSource.CATALOG && metric.key === key,
+  );
+  if (grid == null || column == null) return null;
+  const value = grid.rows[Math.min(row, grid.rows.length - 1)]?.values[column.id];
+  return typeof value === "number" ? value : null;
 }
 
 function rest(seconds: number, round: number, exerciseIndex: number): RunStep {

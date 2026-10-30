@@ -60,6 +60,20 @@ export const effort: GridMetric = {
   key: MetricKey.EFFORT_DURATION,
   unit: MetricUnit.NONE,
 };
+export const setRest: GridMetric = {
+  id: "col_set_rest",
+  label: null,
+  source: MetricSource.CATALOG,
+  key: MetricKey.REST_BETWEEN_SETS,
+  unit: MetricUnit.NONE,
+};
+export const roundRest: GridMetric = {
+  id: "col_round_rest",
+  label: null,
+  source: MetricSource.CATALOG,
+  key: MetricKey.REST_BETWEEN_ROUNDS,
+  unit: MetricUnit.NONE,
+};
 export const custom: GridMetric = {
   id: "col_custom",
   label: null,

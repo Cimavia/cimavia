@@ -27,7 +27,14 @@ export function useBlockTimer(read: ReadBlock | null) {
     if (step.kind !== RunStepKind.DO) vibrateTimerDone();
   });
   const steps = useMemo(
-    () => (read == null ? [] : blockRun(read.block.settings, read.exercises.length)),
+    () =>
+      read == null
+        ? []
+        : blockRun(
+            read.block.settings,
+            read.exercises.length,
+            read.exercises.map((exercise) => exercise.row.grid),
+          ),
     [read],
   );
 

@@ -1,4 +1,4 @@
-import type { ScheduledSessionDto } from "@cmv/shared";
+import { MetricKey, MetricUnit, type ScheduledSessionDto, STRUCTURE_PRESETS } from "@cmv/shared";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { act, screen } from "@testing-library/react";
 import * as Notifications from "expo-notifications";
@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { BlockScreen } from "@/feature/plan/screen/BlockScreen";
-import { blockSession } from "@/test/block-session";
+import { block, blockSession, REPS } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 import { storedItems } from "@/test/setup";
 
@@ -153,6 +153,30 @@ describe("BlockScreen — le chrono", () => {
     press(screen.getByText("plan.timer.resume"));
     press(screen.getByText("plan.timer.add"));
 
+    expect(screen.getByText("plan.clock.title.REST")).toBeTruthy();
+  });
+
+  it("se lance sur le repos que porte la grille, même sans repos dans la structure", () => {
+    const rest = {
+      ...REPS,
+      id: "col_rest",
+      key: MetricKey.REST_BETWEEN_ROUNDS,
+      unit: MetricUnit.NONE,
+    };
+    const grid = {
+      metrics: [REPS, rest],
+      rows: [{ id: "row_0", values: { [REPS.id]: 8, [rest.id]: 30 } }],
+    };
+    const settings = { ...STRUCTURE_PRESETS.SERIES, restBetweenRoundsSeconds: null };
+    query({
+      data: blockSession({
+        blocks: [block({ id: "blk-1", settings, exercises: [["sx-1", "a1", grid]] })],
+      }),
+    });
+    launch();
+
+    // Des tractions : « J'ai fini », puis les 30 s de la colonne.
+    press(screen.getByText("plan.clock.done"));
     expect(screen.getByText("plan.clock.title.REST")).toBeTruthy();
   });
 

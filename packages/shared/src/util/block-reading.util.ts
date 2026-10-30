@@ -293,7 +293,7 @@ export function blockClock(settings: StructureSettings, exerciseCount: number): 
  * « Tour 3 / 10 » (à partir de deux), « Bip 4 / 10 · Burpees » (un seul par bip), « Intervalle
  * 5 / 8 · … ». `index` compte à partir de 1.
  *
- * `null` sans nombre de tours — autant que possible, chrono qui monte — ou sans chrono.
+ * `null` sans nombre de tours — autant que possible, chrono qui monte, bloc fait une fois.
  */
 export function clockCounter(
   settings: StructureSettings,
@@ -303,9 +303,9 @@ export function clockCounter(
 ): Phrase | null {
   const clock = blockClock(settings, exerciseCount);
   const { repeat } = settings;
-  if (clock == null || clock.kind === ClockKind.UP || repeat.kind !== StructureRepeat.ROUNDS) {
-    return null;
-  }
+  // Sans chrono de structure, des séries à son rythme se comptent quand même : la grille peut
+  // porter le repos ou l'effort que le chrono joue (`blockRun`).
+  if (clock?.kind === ClockKind.UP || repeat.kind !== StructureRepeat.ROUNDS) return null;
 
   const total = repeat.rounds;
   if (!oneAtATime(settings, exerciseCount)) {

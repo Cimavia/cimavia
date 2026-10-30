@@ -1066,6 +1066,7 @@ export {
   metricLabel,
   metricUnitLabel,
   unitDetail,
+  unitRepeatsHeader,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
 export type {
