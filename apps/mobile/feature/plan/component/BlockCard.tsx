@@ -53,14 +53,16 @@ export function BlockCard({
   const header = (
     <View className="gap-1">
       <View className="flex-row items-center gap-2">
-        <BlockMark number={number} label={block.label} />
-        <CmvBadge label={block.name} />
+        <BlockTitle number={number} label={block.label} name={block.name} />
         <View className="flex-1" />
+        {/* Dans sa boîte, comme dans `BlockTitle` : sinon elle se cale en haut de la ligne. */}
         {tally == null ? null : (
-          <CmvBadge
-            label={text([tally.label])}
-            variant={tally.state === BlockTallyState.DONE ? "success" : "accent"}
-          />
+          <View>
+            <CmvBadge
+              label={text([tally.label])}
+              variant={tally.state === BlockTallyState.DONE ? "success" : "accent"}
+            />
+          </View>
         )}
         {/* Un vrai bouton, pas une flèche : c'est par lui que s'ouvrent le suivi et le chrono. */}
         {onOpen == null ? null : (
@@ -108,6 +110,25 @@ export function BlockCard({
             <ExerciseExtras exercise={content} planId={planId} sessionId={sessionId} />
           </View>
         ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Le numéro d'un bloc et sa structure, centrés sur une même ligne. La pastille se cale en haut
+ * (`self-start`, pour ne pas s'étirer dans une colonne) : sa boîte la rend au centre de la ligne.
+ */
+export function BlockTitle({
+  number,
+  label,
+  name,
+}: Readonly<{ number: string | null; label: string | null; name: string }>) {
+  return (
+    <View className="flex-row items-center gap-2">
+      <BlockMark number={number} label={label} />
+      <View>
+        <CmvBadge label={name} />
       </View>
     </View>
   );

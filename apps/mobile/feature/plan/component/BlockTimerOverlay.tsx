@@ -9,9 +9,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlockMark } from "@/feature/plan/component/BlockCard";
+import { BlockTitle } from "@/feature/plan/component/BlockCard";
 import { StepExercises } from "@/feature/plan/component/StepExercises";
-import { CmvBadge, CmvText } from "@/shared/component";
+import { CmvText } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 
 // i18n-values plan.clock.title: RunStepKind
@@ -71,10 +71,7 @@ export function BlockTimerOverlay({
       style={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }}
     >
       <View className="gap-1">
-        <View className="flex-row items-center gap-2">
-          <BlockMark number={number} label={block.label} />
-          <CmvBadge label={block.name} />
-        </View>
+        <BlockTitle number={number} label={block.label} name={block.name} />
         {phrase == null ? null : (
           <CmvText className="text-cmv-text-mid text-sm">{text(phrase)}</CmvText>
         )}
