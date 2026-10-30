@@ -2,7 +2,7 @@
   "expo": {
     "name": "cimavia",
     "slug": "cimavia",
-    "version": "1.15.1",
+    "version": "1.16.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "runtimeVersion": {
