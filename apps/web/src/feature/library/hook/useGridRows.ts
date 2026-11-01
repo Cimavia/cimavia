@@ -22,7 +22,7 @@ export function useGridRows(
   limit: number,
   onRowsChange: (rows: GridRow[]) => void,
 ) {
-  // Les identifiants RÉSERVÉS des fantômes, par rang, comme l'ancienne grille (`useBlockRows`) :
+  // Les identifiants RÉSERVÉS des fantômes, par rang, comme le faisait la grille d'exercice :
   // une ligne qui se matérialise garde la clé React de son fantôme, et le focus ne saute pas.
   const reserved = useRef(new Map<number, string>());
   function reservedId(index: number): string {

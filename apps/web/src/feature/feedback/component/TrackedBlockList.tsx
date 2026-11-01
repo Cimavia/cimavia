@@ -5,7 +5,7 @@ import { BlockMark } from "@/feature/library/component/BlockMark";
 
 /**
  * Le décompte d'une séance par blocs tel que le COACH le lit (#722) : un bloc par ligne, en
- * lecture, sans jugement — le pendant de `TrackedExerciseList`.
+ * lecture, sans jugement.
  */
 export function TrackedBlockList({ blocks }: Readonly<{ blocks: readonly TrackedBlockDto[] }>) {
   const { t } = useTranslation();

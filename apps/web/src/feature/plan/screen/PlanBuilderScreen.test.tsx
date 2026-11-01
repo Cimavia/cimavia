@@ -35,6 +35,8 @@ vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
   return {
     usePlan: vi.fn(),
     usePlanMutations: vi.fn(),
+    // La composition du panneau a SES tests : ici, elle charge sans fin.
+    useScheduledSessionCopies: () => ({ data: undefined, isError: false }),
     // « Recharger » relit le cycle par cette requête (#604) : sa lecture est la seule doublure.
     planDetailQuery: (id: string) => ({ queryKey: planKeys.detail(id), queryFn: getPlan }),
     // La vraie : elle lit la séance par la doublure de `api.ts`.

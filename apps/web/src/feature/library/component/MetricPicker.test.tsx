@@ -1,6 +1,6 @@
 import {
-  BLOCK_MAX_METRICS,
   type CustomMetric,
+  GRID_MAX_METRICS,
   MetricKey,
   MetricSource,
   MetricUnit,
@@ -120,7 +120,7 @@ describe("MetricPicker", () => {
     });
 
     it("ferme les métriques non retenues une fois le plafond atteint", () => {
-      const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS);
+      const keys = Object.values(MetricKey).slice(0, GRID_MAX_METRICS);
       const { getByRole } = setup(keys.map((key, index) => catalogMetric(`m-${index}`, key)));
 
       // Retenue : elle reste cliquable, sinon on ne pourrait plus rien retirer une fois au
@@ -357,7 +357,7 @@ describe("MetricPicker — les métriques maison du coach", () => {
   });
 
   it("ferme au plafond les métriques maison non retenues, pas celles retenues", () => {
-    const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS - 1);
+    const keys = Object.values(MetricKey).slice(0, GRID_MAX_METRICS - 1);
     const columns = [
       ...keys.map((key, index) => catalogMetric(`m-${index}`, key)),
       customColumn("c-1", "cm-1"),
@@ -371,7 +371,7 @@ describe("MetricPicker — les métriques maison du coach", () => {
   // La création pose la métrique d'office — sauf au plafond, où la poser rendrait la liste invalide.
   it("crée la métrique sans la poser quand le bloc est au plafond", async () => {
     createMock.mockResolvedValue(customMetric("cm-neuve", "Fatigue"));
-    const keys = Object.values(MetricKey).slice(0, BLOCK_MAX_METRICS);
+    const keys = Object.values(MetricKey).slice(0, GRID_MAX_METRICS);
     const { user, getByRole, onBlock } = mount(
       keys.map((key, index) => catalogMetric(`m-${index}`, key)),
     );

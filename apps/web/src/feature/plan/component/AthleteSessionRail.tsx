@@ -1,9 +1,4 @@
-import {
-  type ExerciseTracking,
-  type ScheduledSessionDto,
-  ScheduledSessionStatus,
-  trackingSummary,
-} from "@cmv/shared";
+import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,80 +7,34 @@ import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 
 type AthleteSessionRailProps = {
   session: ScheduledSessionDto;
-  tracking: Record<string, ExerciseTracking | null>;
   /**
-   * Le sommaire d'une séance par blocs (#722) : il remplace celui des exercices et leur compteur,
-   * et rappelle que le suivi part avec le débrief.
+   * Le sommaire des blocs et « Mon suivi » (#722), ou `null` pour une séance sans bloc : il n'y a
+   * alors rien à sommer ni à cocher.
    */
-  blocks?: ReactNode;
+  blocks: ReactNode;
   onOpenFeedback: () => void;
 };
 
 /**
  * Le rail de droite : sommaire, note du coach, et le débrief collé en bas.
  *
- * Le rail se réduit à ce qui EXISTE : sans exercice, ni sommaire ni progression — un rail qui
+ * Le rail se réduit à ce qui EXISTE : sans bloc, ni sommaire ni suivi — un rail qui
  * garderait ses intitulés vides ferait croire à un chargement qui n'arrive jamais. Le débrief,
  * lui, reste (#276) : il ne dépend pas de la composition, et c'est le seul geste qui reste.
  */
 export function AthleteSessionRail({
   session,
-  tracking,
   blocks,
   onOpenFeedback,
 }: Readonly<AthleteSessionRailProps>) {
   const { t } = useTranslation();
   // Une séance qu'il s'est programmée lui-même : il n'y a personne à qui écrire.
   const isSelf = useIsSelfAthlete()(session.coachId);
-  const hasExercises = blocks == null && session.exercises.length > 0;
-
-  /**
-   * LE compteur de la page, et le seul. L'en-tête ne compte rien — deux compteurs finissent par
-   * se contredire, et celui du rail est celui qu'on voit en défilant.
-   *
-   * Il n'apparaît qu'à partir d'une case cochée : « 0 sur 12 » avant d'avoir commencé serait une
-   * relance, exactement ce que l'état « non suivi » interdit.
-   */
-  const totals = session.exercises.reduce(
-    (sum, exercise) => {
-      const summary = trackingSummary(exercise.blocks, tracking[exercise.id] ?? null);
-      return { done: sum.done + summary.done, total: sum.total + summary.total };
-    },
-    { done: 0, total: 0 },
-  );
 
   return (
     // `sticky` : le sommaire suit le défilement, c'est toute sa raison d'être.
     <aside className="flex min-w-0 flex-col gap-cmv-md xl:sticky xl:top-32 xl:self-start">
-      {hasExercises ? (
-        <CmvCard>
-          <nav className="flex flex-col gap-cmv-xs">
-            <span className="text-cmv-caption text-cmv-text-mid">{t("plan.athlete.summary")}</span>
-            {session.exercises.map((exercise, index) => (
-              <a
-                key={exercise.id}
-                href={`#exercise-${exercise.id}`}
-                className="truncate text-cmv-body text-cmv-text-mid hover:text-cmv-text-hi"
-              >
-                {index + 1}. {exercise.title}
-              </a>
-            ))}
-          </nav>
-        </CmvCard>
-      ) : null}
-
       {blocks}
-
-      {totals.done === 0 || blocks != null ? null : (
-        <CmvCard>
-          <div className="flex flex-col gap-cmv-xs">
-            <span className="text-cmv-caption text-cmv-text-mid">{t("plan.athlete.progress")}</span>
-            <span className="text-cmv-subtitle text-cmv-text-hi">
-              {t("plan.athlete.progressCount", { done: totals.done, total: totals.total })}
-            </span>
-          </div>
-        </CmvCard>
-      )}
 
       {session.notes == null ? null : (
         <CmvCard>

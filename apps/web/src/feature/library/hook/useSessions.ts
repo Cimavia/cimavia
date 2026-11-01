@@ -39,8 +39,7 @@ export function useSaveSession() {
   const mutation = useMutation({
     mutationFn: ({ session, input }: SaveSessionArgs) =>
       session == null
-        ? // Une seule composition à la fois : des blocs, et la liste par exercices vide.
-          createSession({ ...input, exercises: [] })
+        ? createSession(input)
         : // Le PUT exige la représentation complète : title + notes + composition.
           updateSession(session.id, { ...input, expectedUpdatedAt: session.updatedAt }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKeys.all }),

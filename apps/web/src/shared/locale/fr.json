@@ -158,17 +158,6 @@
       "percentHrMax": "% FCM",
       "bpm": "bpm",
       "degrees": "°"
-    },
-    "dosage": {
-      "series": "{{count}} série",
-      "series_other": "{{count}} séries",
-      "emom": "Toutes les {{interval}} pendant {{total}}",
-      "emomEveryMinute": "Chaque minute pendant {{total}}",
-      "amrap": "En {{total}}, un maximum de tours",
-      "amrapWithTarget": "En {{total}}, un maximum de tours. Objectif : {{count}} tours.",
-      "circuit": "Bloc ×{{count}}",
-      "restBetweenSets": "{{rest}} de repos entre les séries",
-      "restBetweenRounds": "{{rest}} de repos entre les tours"
     }
   },
   "library": {
@@ -217,9 +206,6 @@
       "readOnlyEmpty": "Cette séance ne compte encore aucun exercice.",
       "titleRequired": "Le titre est requis pour enregistrer la séance.",
       "pickerSearch": "Chercher dans ta bibliothèque…",
-      "defaultValue": "défaut {{value}}",
-      "revert": "Revenir au défaut",
-      "resetAll": "Tout réinitialiser",
       "previewEmpty": "L'aperçu se remplit ici.",
       "saved": "Séance enregistrée.",
       "saveFailed": "L'enregistrement a échoué.",
@@ -290,10 +276,6 @@
         "previewTitle": "Aperçu athlète — la séance entière"
       }
     },
-    "dosage": {
-      "inherited": "séance",
-      "sessionValue": "séance {{value}}"
-    },
     "filterAllTags": "Tous",
     "filterTags": "Filtrer par tags",
     "frozen": {
@@ -355,36 +337,13 @@
         "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo.",
         "width": "Largeur de l'image"
       },
-      "bandeau": {
-        "setCount": "Séries",
-        "restBetweenSetsSeconds": "Repos entre séries",
-        "intervalSeconds": "Intervalle",
-        "totalDurationSeconds": "Durée totale",
-        "topCount": "= {{count}} top",
-        "topCount_other": "= {{count}} tops",
-        "targetRounds": "Objectif de tours",
-        "roundCount": "Répéter le bloc",
-        "restBetweenRoundsSeconds": "Repos entre tours",
-        "restBetweenSetsPlaceholder": "Ex. 2'30",
-        "intervalPlaceholder": "Ex. 1'",
-        "emomDurationPlaceholder": "Ex. 10'",
-        "amrapDurationPlaceholder": "Ex. 8'",
-        "restBetweenRoundsPlaceholder": "Ex. 3'"
-      },
       "grid": {
-        "rowIndex": "Ligne",
-        "setIndex": "Série",
-        "ghostOf": "reprend la série {{index}}",
-        "unplayed": "non jouée",
         "rowActions": "Actions",
         "moveRow": "Déplacer la ligne",
         "removeRow": "Retirer la ligne",
-        "addRow": "Ajouter une ligne",
         "emptyValue": "—",
         "durationInvalid": "Durée non comprise. Ex. 1'30",
-        "numberInvalid": "Nombre non compris. Ex. 12,5",
-        "keyboardHint": "Tabulation → cellule suivante · Entrée → valide et crée la ligne suivante.",
-        "keyboardHintSeries": "Tabulation → cellule suivante · Entrée → valide la cellule. Le nombre de lignes suit le nombre de séries."
+        "numberInvalid": "Nombre non compris. Ex. 12,5"
       },
       "column": {
         "unit": "Unité de la colonne",
@@ -394,9 +353,6 @@
         "fillScaleStep": "Progression sur l'échelle",
         "fillMirror": "Miroir",
         "stepLabel": "Pas",
-        "collapse": "Replier en valeur commune",
-        "expand": "Afficher en colonne",
-        "cannotCollapse": "La valeur change d'une ligne à l'autre.",
         "needsRow": "Saisis une première ligne pour pouvoir remplir la colonne."
       },
       "metrics": {
@@ -448,9 +404,6 @@
         "addStep": "Ajouter",
         "removeStep": "Retirer le palier",
         "moveStep": "Déplacer le palier"
-      },
-      "preview": {
-        "noRow": "Les valeurs apparaîtront ici dès la première ligne."
       },
       "titleRequired": "Le titre est requis pour enregistrer l'exercice.",
       "deleteExercise": "Supprimer l'exercice",
@@ -569,7 +522,7 @@
       "owner": "Propriétaire",
       "access": "Accès",
       "composition": "Composition",
-      "dosage": "Dosage",
+      "metrics": "Métriques",
       "updatedAt": "Modifié le",
       "select": "Sélectionner « {{title}} »",
       "selectAll": "Tout sélectionner",
@@ -692,7 +645,6 @@
     "athlete": {
       "sessionFallbackTitle": "Séance",
       "notes": "Consignes du coach",
-      "composition": "Déroulé · {{count}} exercice(s)",
       "document": "Document",
       "exerciseCount": "{{count}} exercice(s)",
       "sessionStatus": {
@@ -728,14 +680,11 @@
         "cycleCount_other": "{{count}} cycles en cours"
       },
       "backToPlanning": "← Mon planning",
-      "summary": "Sommaire",
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "contactCoach": "Écrire à {{name}}",
       "emptyTitle": "Pas de déroulé détaillé",
       "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
-      "progress": "Ma progression",
-      "progressCount": "{{done}} sur {{total}}",
       "cycle": {
         "week": "S{{number}}/{{total}} · {{type}}",
         "coach": "par {{name}}"
@@ -824,30 +773,13 @@
       "titlePlaceholder": "Ex. Force max",
       "notesLabel": "Consignes du coach",
       "notesPlaceholder": "Ex. Bien s'échauffer les épaules avant les essais.",
-      "composition": "Déroulé de la séance",
-      "emptyComposition": "Aucun exercice",
-      "emptyCompositionHint": "Pioche dans ta bibliothèque, à droite.",
       "pickerTitle": "Bibliothèque d'exercices",
-      "moveUp": "Monter",
-      "moveDown": "Descendre",
-      "moveExercise": "Déplacer l'exercice",
-      "remove": "Retirer",
       "delete": "Supprimer la séance",
       "deleteDisabledDebriefed": "Séance débriefée par l'athlète : il n'est plus possible de la supprimer. Elle reste modifiable.",
       "deleteHintPublished": "L'athlète sera prévenu du retrait.",
       "submit": "Enregistrer",
       "submitting": "Enregistrement…",
-      "noteLabel": "Note",
-      "notePlaceholder": "Ex. Épaule sensible, reste prudent…",
       "dosage": {
-        "adjustedFor": "{{count}} ajusté pour {{name}}",
-        "adjustedFor_other": "{{count}} ajustés pour {{name}}",
-        "valuesFor": "{{count}} valeur pour {{name}}",
-        "valuesFor_other": "{{count}} valeurs pour {{name}}",
-        "viewTemplate": "Voir la séance-type",
-        "legendSession": "modifié dans la séance",
-        "legendScheduled": "modifié pour {{name}}, cette semaine",
-        "weekOnly": "Les ajustements faits ici ne valent que pour cette semaine.",
         "theAthlete": "l'athlète"
       },
       "templateRequired": "Choisis une séance modèle pour l'ajouter au cycle."
@@ -924,22 +856,6 @@
     "clipboard": {
       "banner": "Semaine {{number}} de « {{plan}} » copiée — choisis où la coller.",
       "clear": "Annuler la copie"
-    },
-    "tracking": {
-      "rounds": "tour",
-      "rounds_other": "tours",
-      "unit": {
-        "SET": "Série {{index}}",
-        "TOP": "Top {{index}}",
-        "ROUND": "Tour {{index}}",
-        "STEP": "Étape {{index}}"
-      },
-      "count": {
-        "SET": "{{done}} sur {{total}} séries",
-        "TOP": "{{done}} sur {{total}} tops",
-        "ROUND": "{{done}} sur {{total}} tours",
-        "STEP": "{{done}} sur {{total}} étapes"
-      }
     },
     "searchLabel": "Chercher un athlète",
     "searchPlaceholder": "Nom ou prénom",

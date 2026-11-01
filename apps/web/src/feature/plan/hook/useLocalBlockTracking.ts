@@ -13,8 +13,8 @@ import { useStoredTracking } from "@/feature/plan/hook/useStoredTracking";
 const NO_BLOCKS: ScheduledSessionDto["blocks"] = [];
 
 /**
- * Le suivi par bloc (#722), gardé en local jusqu'au débrief — le jumeau de `useLocalTracking`, sous
- * sa propre clé : les deux modèles cohabitent tant qu'une séance sans bloc se lit par exercice.
+ * Le suivi par bloc (#722), gardé en local jusqu'au débrief, sous sa propre clé : celle de l'ancien
+ * suivi par exercice, partie avec lui (#723), ne se relit plus.
  *
  * Prend les blocs de la séance (absents tant qu'elle charge) : le distant s'en lit, et le local ne
  * se dit modifié que sur ce qui partirait avec le débrief (`sameBlockTracking`).

@@ -1,7 +1,6 @@
 import type {
   BlockSessionTracking,
   FeedbackBlockTracking,
-  FeedbackTracking,
   MediaBatchStep,
   MediaRecapLine,
   MediaRecapReason,
@@ -23,12 +22,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
-import { type ChangeEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
 import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
-import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { useMyFeedback, useUpsertMyFeedback } from "@/feature/feedback/hook/useMyFeedback";
 import {
@@ -37,7 +35,6 @@ import {
 } from "@/feature/feedback/hook/useMyFeedbackMedia";
 import { useConversationWithCoach } from "@/feature/message/hook/useMessages";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
-import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import {
   CmvAppShell,
@@ -104,7 +101,7 @@ export function AthleteFeedbackScreen() {
 /**
  * Le décompte, le texte et les médias — et UN seul envoi.
  *
- * Le décompte vit en local depuis la séance (`useLocalTracking`) ; le débrief est le moment où il
+ * Le décompte vit en local depuis la séance (`useLocalBlockTracking`) ; le débrief est le moment où il
  * franchit le réseau, avec le texte. Un seul bouton pour les deux : deux boutons feraient croire
  * qu'on peut envoyer l'un sans l'autre, alors que le décompte ACCOMPAGNE le ressenti.
  *
@@ -210,74 +207,38 @@ function FeedbackBody({
 }
 
 /**
- * Le décompte du débrief, par exercice et par bloc (#722) : ce qu'il rappelle, ce qu'il envoie, et
- * ce qu'il efface une fois parti.
+ * Le décompte du débrief, bloc par bloc (#722) : ce qu'il rappelle, ce qu'il envoie, et ce qu'il
+ * efface une fois parti.
  *
- * Une séance par blocs se rappelle bloc par bloc, comme elle se lit ; les deux suivis partent
- * ensemble, chacun filtré sur ce que la séance porte encore — une coche restée en local sur un
- * exercice ou un bloc retiré par le coach ferait refuser tout le débrief (#311).
+ * Le suivi part filtré sur ce que la séance porte encore : une coche restée en local sur un bloc
+ * retiré par le coach ferait refuser tout le débrief (#311).
  */
 function useFeedbackTracking(sessionId: string, session: ScheduledSessionDto | null) {
-  const remote = useMemo(
-    () =>
-      Object.fromEntries(
-        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
-      ),
-    [session],
-  );
-  const local = useLocalTracking(sessionId, remote);
   const blocks = useLocalBlockTracking(sessionId, session?.blocks);
-  const byBlock = session != null && session.blocks.length > 0;
-
-  let section: ReactNode = null;
-  if (session != null) {
-    section = byBlock ? (
-      <FeedbackBlocksSection
-        session={session}
-        tracking={blocks.tracking}
-        onToggle={blocks.toggle}
-      />
-    ) : (
-      <FeedbackTrackingSection
-        exercises={session.exercises}
-        tracking={local.tracking}
-        onToggleUnit={local.toggleUnit}
-        onRounds={local.setRounds}
-      />
-    );
-  }
 
   return {
-    section,
-    dirty: byBlock ? blocks.dirty : local.dirty,
-    hasAny: byBlock ? hasAnyBlockTracking(blocks.tracking) : hasAnyTracking(local.tracking),
+    section:
+      session == null || session.blocks.length === 0 ? null : (
+        <FeedbackBlocksSection
+          session={session}
+          tracking={blocks.tracking}
+          onToggle={blocks.toggle}
+        />
+      ),
+    dirty: blocks.dirty,
+    hasAny: hasAnyBlockTracking(blocks.tracking),
     /** Sans séance, aucun décompte ne part : mieux vaut ne rien dire qu'écraser le suivi. */
-    payload: () =>
-      session == null ? {} : feedbackTrackingInput(session, local.tracking, blocks.tracking),
+    payload: () => (session == null ? {} : feedbackTrackingInput(session, blocks.tracking)),
     // Le local est effacé une fois le décompte accepté par le serveur : il a fait son travail, et
     // le garder ferait diverger les deux copies au prochain chargement. Sauf s'il a bougé pendant
     // l'envoi (#499) : ce qui a changé entre-temps reste à envoyer.
-    onSaved: (
-      sent: FeedbackTracking | undefined,
-      sentBlocks: FeedbackBlockTracking | undefined,
-    ) => {
-      local.clearIfSent(sent, session?.exercises ?? []);
-      blocks.clearIfSent(sentBlocks);
-    },
+    onSaved: (sentBlocks: FeedbackBlockTracking | undefined) => blocks.clearIfSent(sentBlocks),
   };
 }
 
+/** Au moins une case cochée quelque part — ce qui distingue « rien envoyé » de « rien coché ». */
 function hasAnyBlockTracking(tracking: BlockSessionTracking): boolean {
   return Object.values(tracking).some((block) => block != null && block.checked.length > 0);
-}
-
-/** Au moins une unité cochée quelque part — ce qui distingue « rien envoyé » de « rien coché ». */
-function hasAnyTracking(tracking: FeedbackTracking): boolean {
-  return Object.values(tracking).some((exercise) =>
-    Object.values(exercise ?? {}).some((state) =>
-      "rounds" in state ? state.rounds > 0 : state.checked.length > 0,
-    ),
-  );
 }
 
 /**

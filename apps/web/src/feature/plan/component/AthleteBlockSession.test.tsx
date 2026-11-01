@@ -5,7 +5,7 @@ import { AthleteBlockSession } from "@/feature/plan/component/AthleteBlockSessio
 import { blockSession } from "../../../../test/block-session";
 import { renderWithProviders } from "../../../../test/render";
 
-// La consigne et les documents ont leur test (`AthleteExerciseCard`) : ici, on vérifie qu'ils sont
+// La consigne et les documents ont leur test (`AthleteExerciseExtras`) : ici, on vérifie qu'ils sont
 // posés, sous chaque exercice.
 vi.mock("@/feature/plan/component/AthleteExerciseExtras", () => ({
   AthleteExerciseExtras: ({ exercise }: Readonly<{ exercise: { id: string } }>) => (

@@ -372,7 +372,6 @@ describe("SessionBuilderScreen — création", () => {
     expect(api.createSession.mock.lastCall?.[0]).toEqual({
       title: "Force du lundi",
       notes: null,
-      exercises: [],
       blocks: [
         expect.objectContaining({
           name: "block.preset.series",

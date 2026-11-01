@@ -1,13 +1,7 @@
 import {
-  type BlockMetric,
   ColumnFillMode,
   type ColumnFillPlan,
   type CustomMetric,
-  canCollapseMetric,
-  columnValues,
-  type ExerciseBlock,
-  fillableRows,
-  fillColumn,
   type GridMetric,
   MetricSource,
   type MetricUnit,
@@ -28,103 +22,6 @@ import { cn } from "@/shared/util/cn.util";
 
 // i18n-values exercise.unit: MetricUnit
 
-type ColumnMenuProps = {
-  block: ExerciseBlock;
-  metric: BlockMetric;
-  customMetrics: readonly CustomMetric[];
-  /** Id de la colonne dont le menu est ouvert — un seul à la fois, d'où l'état chez le parent. */
-  openMetricId: string | null;
-  onOpenChange: (metricId: string | null) => void;
-  onChange: (block: ExerciseBlock) => void;
-};
-
-/**
- * Le menu d'une colonne : son unité, les remplissages en masse, et le repli en valeur commune.
- *
- * Le repli est un état d'AFFICHAGE, pas une nature de donnée : les valeurs restent dans les
- * lignes, et redéployer la colonne les retrouve intactes. C'est ce qui le rend réversible sans
- * rien perdre.
- */
-export function ColumnMenu({
-  block,
-  metric,
-  customMetrics,
-  openMetricId,
-  onOpenChange,
-  onChange,
-}: Readonly<ColumnMenuProps>) {
-  const { t } = useTranslation();
-  const collapsible = canCollapseMetric(block, metric.id);
-  // Rien à replier quand il n'y a aucune ligne : la « valeur commune » n'aurait pas de référent,
-  // et la saisir n'écrirait nulle part.
-  const canFold = collapsible && block.rows.length > 0;
-  const setOpen = (next: boolean) => onOpenChange(next ? metric.id : null);
-
-  function apply(next: ExerciseBlock) {
-    onChange(next);
-    setOpen(false);
-  }
-
-  function setMetric(change: Partial<BlockMetric>) {
-    apply({
-      ...block,
-      metrics: block.metrics.map((current) =>
-        current.id === metric.id ? ({ ...current, ...change } as BlockMetric) : current,
-      ),
-    });
-  }
-
-  return (
-    <ColumnPopover
-      metric={metric}
-      customMetrics={customMetrics}
-      open={openMetricId === metric.id}
-      onOpenChange={setOpen}
-      firstValue={columnValues(block, metric.id)[0] ?? null}
-      hasRows={block.rows.length > 0}
-      onUnit={(unit) => setMetric({ unit })}
-      // En Séries, le remplissage couvre les N séries — fantômes compris : la grille les affiche,
-      // et « 8 · 10 · 12 · 14 » qui s'arrêterait à la deuxième ligne mentirait sur ce qu'elle montre.
-      onFill={(plan) =>
-        apply({
-          ...block,
-          rows: fillColumn(
-            { ...block, rows: fillableRows(block, () => crypto.randomUUID()) },
-            metric.id,
-            plan,
-          ),
-        })
-      }
-    >
-      {/* Sans ligne, il n'y a rien à replier ET rien à contredire : afficher « la valeur
-          change d'une ligne à l'autre » serait faux, puisqu'il n'y a pas de ligne. Le
-          message de remplissage dit déjà ce qui manque. */}
-      {block.rows.length === 0 ? null : (
-        <div className="flex flex-col gap-cmv-xs border-cmv-border border-t pt-cmv-sm">
-          {metric.collapsed ? (
-            <CmvButton variant="ghost" onClick={() => setMetric({ collapsed: false })}>
-              {t("library.builder.column.expand")}
-            </CmvButton>
-          ) : (
-            <CmvButton
-              variant="ghost"
-              disabled={!canFold}
-              onClick={() => setMetric({ collapsed: true })}
-            >
-              {t("library.builder.column.collapse")}
-            </CmvButton>
-          )}
-          {metric.collapsed || canFold ? null : (
-            <span className="text-cmv-caption text-cmv-text-lo">
-              {t("library.builder.column.cannotCollapse")}
-            </span>
-          )}
-        </div>
-      )}
-    </ColumnPopover>
-  );
-}
-
 type ColumnPopoverProps = {
   metric: GridMetric;
   customMetrics: readonly CustomMetric[];
@@ -135,14 +32,13 @@ type ColumnPopoverProps = {
   hasRows: boolean;
   onUnit: (unit: MetricUnit) => void;
   onFill: (plan: ColumnFillPlan) => void;
-  /** Ce que la grille ajoute au menu : le repli de l'ancienne, le retrait de la colonne. */
+  /** Ce que la grille ajoute au menu : le retrait de la colonne. */
   children?: ReactNode;
 };
 
 /**
- * Le menu d'une colonne, commun aux deux grilles : son libellé en bouton, puis l'unité et les
- * remplissages en masse. Chaque grille dit comment s'écrit un remplissage — l'ancienne sur ses
- * séries, celle d'un exercice de bloc sur ses tours.
+ * Le menu d'une colonne : son libellé en bouton, puis l'unité et les remplissages en masse. La
+ * grille dit comment s'écrit un remplissage, sur les tours de l'exercice.
  */
 export function ColumnPopover({
   metric,

@@ -14,8 +14,8 @@ function read<T>(key: string): T | null {
 }
 
 /**
- * Un suivi gardé en local jusqu'à l'envoi du débrief, sous la clé `key` — le stockage commun au
- * suivi par exercice (`useLocalTracking`) et au suivi par bloc (`useLocalBlockTracking`, #722).
+ * Un suivi gardé en local jusqu'à l'envoi du débrief, sous la clé `key` — le stockage du suivi
+ * par bloc (`useLocalBlockTracking`, #722).
  *
  * Même modèle que sur mobile, et pour la même raison de fond : cocher ne doit dépendre d'aucune
  * requête, et le décompte reste corrigeable jusqu'au dernier moment. Le web n'a pas le problème de

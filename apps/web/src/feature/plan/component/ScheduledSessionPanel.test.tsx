@@ -1,23 +1,14 @@
 import {
-  AdjustmentLevel,
-  BlockType,
   CompositionOrigin,
-  cellPath,
-  type ExerciseBlocks,
-  MetricKey,
-  MetricSource,
-  MetricUnit,
   type PlanWeekDto,
   ProblemType,
-  required,
   type ScheduledSessionDto,
   SESSION_NOTES_MAX_LENGTH,
   SESSION_TITLE_MAX_LENGTH,
   STRUCTURE_PRESETS,
   StructurePresetKey,
-  structurePath,
 } from "@cmv/shared";
-import { fireEvent, waitFor, within } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { renderWithProviders } from "../../../../test/render";
@@ -81,16 +72,35 @@ const NEXT_WEEK_THURSDAY = "2026-09-17";
 // La version de la séance à l'ouverture : celle qu'enregistrer et supprimer citent (#604).
 const VERSION = "2026-09-01T10:00:00.000Z";
 
-/** Le snapshot que le panneau ne touche jamais, mais dont il est le seul à pouvoir le renvoyer. */
-const snapshot = {
-  instructions: { type: "doc", content: [] },
-  blocks: [{ id: "b-1", label: null, structure: { type: "FREE" }, metrics: [], rows: [] }],
-  customMetrics: [{ id: "cm-1", label: "Ressenti" }],
-  adjustments: [{ path: "b-1/structure/setCount", level: "SCHEDULED" }],
-};
+const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
+const grid = { metrics: [], rows: [] };
+const blocks = [
+  {
+    id: "blk-1",
+    name: "Séries",
+    label: null,
+    instructions: null,
+    settings,
+    copiedSettings: settings,
+    sourceStructureId: null,
+    sourcePreset: StructurePresetKey.SERIES,
+    baseline: { settings, exercises: [{ key: "a", exerciseId: "ex-1", note: null, grid }] },
+    tracking: null,
+    exercises: [
+      { id: "sx-1", key: "a", note: null, grid, origin: { kind: CompositionOrigin.RECEIVED } },
+    ],
+  },
+];
 
-/** La référence du dosage : le serveur la garde, le panneau la lit sans jamais la renvoyer. */
-const reference = { baseline: snapshot.blocks, baselineAdjustments: [] };
+/** La séance planifiée dans la fenêtre de composition, à telle version. */
+const copy = (updatedAt: string) => ({
+  id: "ss-1",
+  planWeekId: "week-1",
+  scheduledDate: DATE,
+  updatedAt,
+  status: "PLANNED",
+  blocks,
+});
 
 const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =>
   ({
@@ -99,20 +109,8 @@ const session = (over: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto =
     notes: "Échauffement long",
     scheduledDate: DATE,
     updatedAt: VERSION,
-    // L'ancien modèle, sans blocs : l'éditeur à plat (#720).
-    blocks: [],
-    exercises: [
-      {
-        id: "sx-1",
-        sourceExerciseId: "ex-1",
-        title: "Traction",
-        description: null,
-        tags: ["dos"],
-        note: null,
-        ...snapshot,
-        ...reference,
-      },
-    ],
+    blocks,
+    exercises: [{ id: "sx-1", sourceExerciseId: "ex-1", title: "Traction", tags: ["dos"] }],
     ...over,
   }) as unknown as ScheduledSessionDto;
 
@@ -145,6 +143,7 @@ beforeEach(() => {
   listSessionsMock.mockResolvedValue([{ id: "tpl-1", title: "Modèle force" }]);
   listExercisesMock.mockResolvedValue([]);
   listCustomMetricsMock.mockResolvedValue([]);
+  copiesMock.mockResolvedValue([copy(VERSION)]);
 });
 
 describe("ScheduledSessionPanel", () => {
@@ -247,45 +246,6 @@ describe("ScheduledSessionPanel", () => {
   });
 
   describe("à l'édition", () => {
-    it("renvoie le snapshot INTÉGRAL de chaque exercice", async () => {
-      updateMock.mockResolvedValue(session());
-      const { user, getByRole } = setup({ session: session() });
-
-      await user.click(getByRole("button", { name: SUBMIT }));
-
-      // L'enregistrement est un replace-all : ce qui n'est pas émis est EFFACÉ. Omettre les
-      // blocs d'une séance diffusée ne la laisserait pas telle quelle, elle ne dirait plus à
-      // l'athlète ce qu'il doit faire. La référence, elle, ne part pas : le serveur la refuse.
-      await waitFor(() => expect(updateMock).toHaveBeenCalled());
-      const [, input] = updateMock.mock.calls[0] as [string, { exercises: unknown[] }];
-      expect(input.exercises[0]).toEqual({
-        id: "sx-1",
-        sourceExerciseId: "ex-1",
-        title: "Traction",
-        description: null,
-        tags: ["dos"],
-        note: null,
-        ...snapshot,
-      });
-    });
-
-    it("omet les métriques maison que seul le serveur peut résoudre", async () => {
-      updateMock.mockResolvedValue(session());
-      const withoutCustom = session();
-      // Une ligne ajoutée dans le panneau n'a pas de définitions maison : c'est le serveur qui
-      // les résout depuis les métriques du coach, comme il le fait à la diffusion.
-      (withoutCustom.exercises[0] as { customMetrics: unknown }).customMetrics = null;
-      const { user, getByRole } = setup({ session: withoutCustom });
-
-      await user.click(getByRole("button", { name: SUBMIT }));
-
-      await waitFor(() => expect(updateMock).toHaveBeenCalled());
-      const [, input] = updateMock.mock.calls[0] as [string, { exercises: object[] }];
-      // La CLÉ est absente, et non présente à `null` : `null` demanderait au serveur d'effacer
-      // les définitions, là où l'absence lui demande de les calculer.
-      expect(input.exercises[0]).not.toHaveProperty("customMetrics");
-    });
-
     it("borne la consigne à ce que l'API accepte (#319)", () => {
       const { getByLabelText } = setup({ session: session() });
 
@@ -319,44 +279,6 @@ describe("ScheduledSessionPanel", () => {
         ),
       );
       expect(createMock).not.toHaveBeenCalled();
-    });
-
-    /**
-     * L'exercice piocché est une COPIE : pas d'id — c'est le serveur qui en créera un —, sa
-     * bibliothèque en trace, et aucune métrique maison, qu'il résoudra lui-même — pas même celles
-     * que l'exercice apporte pour s'afficher.
-     */
-    it("ajoute un exercice de la bibliothèque comme une copie neuve", async () => {
-      updateMock.mockResolvedValue(session());
-      listExercisesMock.mockResolvedValue([
-        {
-          id: "lib-9",
-          title: "Gainage",
-          description: "Planche",
-          tags: ["core"],
-          instructions: null,
-          blocks: [],
-          customMetrics: [{ id: "cm-9", label: "Prises" }],
-        },
-      ]);
-      const { user, getByRole, findByRole } = setup({ session: session() });
-
-      await user.click(await findByRole("button", { name: /Gainage/ }));
-      await user.click(getByRole("button", { name: SUBMIT }));
-
-      await waitFor(() => expect(updateMock).toHaveBeenCalled());
-      const [, input] = updateMock.mock.calls[0] as [string, { exercises: object[] }];
-      expect(input.exercises).toHaveLength(2);
-      expect(input.exercises[1]).toEqual({
-        sourceExerciseId: "lib-9",
-        title: "Gainage",
-        description: "Planche",
-        tags: ["core"],
-        note: null,
-        instructions: null,
-        blocks: [],
-        adjustments: [],
-      });
     });
 
     it("déplace la séance sur le jour choisi", async () => {
@@ -549,303 +471,7 @@ describe("ScheduledSessionPanel — conflit d'édition (#604)", () => {
   });
 });
 
-/**
- * #518, le scénario de l'issue : Tractions lestées passées à +12 dans la séance-type (● rond),
- * diffusées à Léa. Le coach met +14 pour elle (■ carré), puis revient : +12 ET le rond.
- */
-describe("ScheduledSessionPanel — dosage ajusté pour l'athlète (#518)", () => {
-  const REVERT = "library.session.revert";
-  const RESET_ALL = "library.session.resetAll";
-  const INHERITED = "library.dosage.inherited";
-  const ADJUSTED_FOR = "plan.session.dosage.adjustedFor";
-  const VALUES_FOR = "plan.session.dosage.valuesFor";
-  const LOAD = cellPath("blk", "r1", "load");
-
-  const tractions: ExerciseBlocks = [
-    {
-      id: "blk",
-      label: null,
-      structure: { type: BlockType.FREE },
-      metrics: [
-        {
-          id: "load",
-          source: MetricSource.CATALOG,
-          key: MetricKey.REPETITIONS,
-          unit: MetricUnit.REPS,
-          label: null,
-          collapsed: false,
-        },
-      ],
-      rows: [{ id: "r1", values: { load: 12 } }],
-    },
-  ];
-  const received = [{ path: LOAD, level: AdjustmentLevel.SESSION }];
-
-  const forLea = (over: Partial<ScheduledSessionDto> = {}) =>
-    session({
-      sourceSessionId: "tpl-1",
-      exercises: [
-        {
-          id: "sx-1",
-          sourceExerciseId: "ex-1",
-          title: "Tractions lestées",
-          description: null,
-          tags: [],
-          note: null,
-          instructions: null,
-          customMetrics: [],
-          blocks: tractions,
-          baseline: tractions,
-          adjustments: received,
-          baselineAdjustments: received,
-        },
-      ] as unknown as ScheduledSessionDto["exercises"],
-      ...over,
-    });
-
-  /** Ouvre la grille des Tractions et y tape une valeur. */
-  async function open(over: Partial<ScheduledSessionDto> = {}) {
-    const view = setup({ session: forLea(over) });
-    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
-    const cell = () => within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
-    async function type(value: string) {
-      await view.user.clear(cell());
-      await view.user.type(cell(), value);
-      await view.user.tab();
-    }
-    return { ...view, cell, type };
-  }
-
-  it("replie la grille, et montre la valeur reçue de la séance sans offrir d'y revenir", async () => {
-    const view = setup({ session: forLea() });
-    expect(view.queryByRole("table")).not.toBeInTheDocument();
-
-    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
-
-    expect(view.getByText(INHERITED)).toBeInTheDocument();
-    expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
-    // Rien d'ajusté pour Léa : ni décompte, ni réinitialisation à offrir.
-    expect(view.queryByText(ADJUSTED_FOR)).not.toBeInTheDocument();
-    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
-    expect(view.getByRole("button", { name: RESET_ALL })).toBeDisabled();
-  });
-
-  it("ajuste une valeur pour l'athlète, puis « Revenir » rend celle de la séance et son rond", async () => {
-    const view = await open();
-
-    await view.type("14");
-    expect(view.getByText(ADJUSTED_FOR)).toBeInTheDocument();
-    expect(view.getByText(VALUES_FOR)).toBeInTheDocument();
-    expect(view.queryByText(INHERITED)).not.toBeInTheDocument();
-
-    await view.user.click(view.getByRole("button", { name: REVERT }));
-
-    expect(view.cell()).toHaveValue("12");
-    expect(view.getByText(INHERITED)).toBeInTheDocument();
-    expect(view.queryByText(ADJUSTED_FOR)).not.toBeInTheDocument();
-  });
-
-  it("« Tout réinitialiser » rend ce que la séance a diffusé, marqueurs reçus compris", async () => {
-    const view = await open();
-    await view.type("14");
-
-    await view.user.click(view.getByRole("button", { name: RESET_ALL }));
-
-    expect(view.cell()).toHaveValue("12");
-    expect(view.getByText(INHERITED)).toBeInTheDocument();
-  });
-
-  it("enregistre la valeur ajustée et son carré, sans renvoyer la référence", async () => {
-    updateMock.mockResolvedValue(forLea());
-    const view = await open();
-    await view.type("14");
-
-    await view.user.click(view.getByRole("button", { name: SUBMIT }));
-
-    await waitFor(() => expect(updateMock).toHaveBeenCalled());
-    const [, input] = updateMock.mock.calls[0] as [string, { exercises: object[] }];
-    const [line] = input.exercises;
-    expect(line).toMatchObject({
-      id: "sx-1",
-      blocks: [{ rows: [{ id: "r1", values: { load: 14 } }] }],
-      adjustments: [{ path: LOAD, level: AdjustmentLevel.SCHEDULED }],
-    });
-    expect(line).not.toHaveProperty("baseline");
-    expect(line).not.toHaveProperty("baselineAdjustments");
-  });
-
-  it("ferme l'enregistrement tant qu'une valeur est refusée", async () => {
-    const view = await open();
-
-    await view.type("14kgg");
-
-    const submit = view.getByRole("button", { name: SUBMIT });
-    expect(submit).toBeDisabled();
-    expect(submit).toHaveAttribute("title", "library.builder.refusedBlocksSave");
-  });
-
-  // Le bouton fermé ne suffit pas : Entrée dans un champ du formulaire le soumet sans lui.
-  it("n'envoie rien quand le formulaire est soumis avec une valeur refusée", async () => {
-    const view = await open();
-    await view.type("14kgg");
-
-    fireEvent.submit(required(document.querySelector("form"), "formulaire du panneau"));
-
-    // L'envoi est asynchrone : affirmer tout de suite qu'il n'est pas parti ne prouverait rien.
-    await expect(
-      waitFor(() => expect(updateMock).toHaveBeenCalled(), { timeout: 300 }),
-    ).rejects.toThrow();
-  });
-
-  it("ajoute une ligne sans poser de marqueur, et l'enregistre", async () => {
-    updateMock.mockResolvedValue(forLea());
-    const view = await open();
-
-    await view.user.click(view.getByRole("button", { name: "library.builder.grid.addRow" }));
-
-    // Une ligne ajoutée n'est dans aucune référence : elle ne s'écarte d'aucun défaut.
-    expect(within(view.getByRole("table")).getAllByRole("textbox")).toHaveLength(2);
-    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
-    await view.user.click(view.getByRole("button", { name: SUBMIT }));
-
-    await waitFor(() => expect(updateMock).toHaveBeenCalled());
-    const [, input] = updateMock.mock.calls[0] as [
-      string,
-      { exercises: { blocks: ExerciseBlocks; adjustments: unknown }[] },
-    ];
-    expect(input.exercises[0]?.blocks[0]?.rows).toHaveLength(2);
-    expect(input.exercises[0]?.adjustments).toEqual(received);
-  });
-
-  it("ajuste le nombre de séries pour l'athlète, puis revient à celui de la séance", async () => {
-    const SET_COUNT = "library.builder.bandeau.setCount";
-    const series = [
-      {
-        ...(tractions[0] as ExerciseBlocks[number]),
-        structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
-      },
-    ];
-    // La séance-type a passé les séries de 3 à 4 : le rond est sur le bandeau, pas sur une cellule.
-    const fromTemplate = [
-      { path: structurePath("blk", "setCount"), level: AdjustmentLevel.SESSION },
-    ];
-    const exercise = forLea().exercises[0] as ScheduledSessionDto["exercises"][number];
-    const view = setup({
-      session: forLea({
-        exercises: [
-          {
-            ...exercise,
-            blocks: series,
-            baseline: series,
-            adjustments: fromTemplate,
-            baselineAdjustments: fromTemplate,
-          },
-        ],
-      }),
-    });
-    await view.user.click(view.getByRole("button", { name: "Tractions lestées" }));
-    const setCount = () => view.getByRole("spinbutton", { name: SET_COUNT });
-
-    fireEvent.change(setCount(), { target: { value: "5" } });
-
-    expect(setCount()).toHaveValue(5);
-    expect(view.getByText(VALUES_FOR)).toBeInTheDocument();
-    expect(view.queryByText(INHERITED)).not.toBeInTheDocument();
-
-    await view.user.click(view.getByRole("button", { name: REVERT }));
-
-    expect(setCount()).toHaveValue(4);
-    expect(view.getByText(INHERITED)).toBeInTheDocument();
-    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
-  });
-
-  it("ouvre la séance-type dans un autre onglet", () => {
-    const { getByRole } = setup({ session: forLea() });
-
-    const link = getByRole("link", { name: "plan.session.dosage.viewTemplate" });
-    expect(link).toHaveAttribute("href", "/library/sessions/tpl-1");
-    expect(link).toHaveAttribute("target", "_blank");
-  });
-
-  // La trace vers la séance-type est `SetNull` : une séance ad hoc, ou dont le modèle a été
-  // supprimé, n'a rien à ouvrir.
-  it("ne propose pas la séance-type quand il n'y en a plus", () => {
-    const { queryByRole, getByText } = setup({
-      session: forLea({ sourceSessionId: null }),
-      athleteName: null,
-    });
-
-    expect(queryByRole("link", { name: "plan.session.dosage.viewTemplate" })).toBeNull();
-    // Sans destinataire, la légende parle encore — de « l'athlète ».
-    expect(getByText("plan.session.dosage.legendScheduled")).toBeInTheDocument();
-  });
-
-  // Un exercice ajouté ici n'a pas de référence : rien à quoi revenir, donc aucun marqueur.
-  it("n'ajuste rien sur un exercice ajouté dans le panneau", async () => {
-    listExercisesMock.mockResolvedValue([
-      {
-        id: "lib-9",
-        title: "Gainage",
-        description: null,
-        tags: [],
-        instructions: null,
-        blocks: tractions,
-      },
-    ]);
-    const view = setup({ session: forLea({ exercises: [] }) });
-    await view.user.click(await view.findByRole("button", { name: /Gainage/ }));
-    await view.user.click(view.getByRole("button", { name: "Gainage", expanded: false }));
-
-    const cell = within(view.getByRole("table")).getAllByRole("textbox")[0] as HTMLElement;
-    await view.user.clear(cell);
-    await view.user.type(cell, "20");
-    await view.user.tab();
-
-    expect(view.queryByText(VALUES_FOR)).not.toBeInTheDocument();
-    expect(view.queryByRole("button", { name: REVERT })).not.toBeInTheDocument();
-  });
-
-  // L'exercice d'un autre Coach cite SON catalogue (#605), que celui du lecteur ignore.
-  it("nomme les colonnes d'un exercice ajouté par les métriques de son propriétaire", async () => {
-    listCustomMetricsMock.mockResolvedValue([]);
-    listExercisesMock.mockResolvedValue([
-      {
-        id: "lib-m",
-        title: "Pan Güllich",
-        description: null,
-        tags: [],
-        instructions: null,
-        blocks: [
-          {
-            id: "blk-m",
-            label: null,
-            structure: { type: BlockType.FREE },
-            metrics: [
-              {
-                id: "c-m",
-                source: MetricSource.CUSTOM,
-                customMetricId: "cm-m",
-                label: null,
-                collapsed: false,
-              },
-            ],
-            rows: [{ id: "r-m", values: { "c-m": 12 } }],
-          },
-        ],
-        customMetrics: [
-          { id: "cm-m", label: "Prises", unit: null, valueType: "NUMBER", scale: null },
-        ],
-      },
-    ]);
-    const view = setup({ session: forLea({ exercises: [] }) });
-    await view.user.click(await view.findByRole("button", { name: /Pan Güllich/ }));
-    await view.user.click(view.getByRole("button", { name: "Pan Güllich", expanded: false }));
-
-    expect(within(view.getByRole("table")).getByText(/Prises/)).toBeInTheDocument();
-  });
-});
-
-/** #518, **G-1** : le panneau porte une grille de dosage par exercice, la refermer demande. */
+/** #518, **G-1** : refermer une saisie non enregistrée demande. */
 describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
   const CANCEL = "common.cancel";
   const LEAVE_TITLE = "common.leave.title";
@@ -970,39 +596,11 @@ describe("ScheduledSessionPanel — fermer une saisie non enregistrée", () => {
   });
 });
 
-describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
+describe("ScheduledSessionPanel — la composition par blocs (#720)", () => {
   const LATER = "2026-09-02T10:00:00.000Z";
-  const settings = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
-  const grid = { metrics: [], rows: [] };
-  const blocks = [
-    {
-      id: "blk-1",
-      name: "Séries",
-      label: null,
-      instructions: null,
-      settings,
-      copiedSettings: settings,
-      sourceStructureId: null,
-      sourcePreset: StructurePresetKey.SERIES,
-      baseline: { settings, exercises: [{ key: "a", exerciseId: "ex-1", note: null, grid }] },
-      tracking: null,
-      exercises: [
-        { id: "sx-1", key: "a", note: null, grid, origin: { kind: CompositionOrigin.RECEIVED } },
-      ],
-    },
-  ];
-  const copy = (updatedAt: string) => ({
-    id: "ss-1",
-    planWeekId: "week-1",
-    scheduledDate: DATE,
-    updatedAt,
-    status: "PLANNED",
-    blocks,
-  });
-  const byBlocks = () => session({ blocks } as unknown as Partial<ScheduledSessionDto>);
+  const byBlocks = () => session();
 
   beforeEach(() => {
-    copiesMock.mockResolvedValue([copy(VERSION)]);
     listExercisesMock.mockResolvedValue([
       { id: "ex-2", title: "Rameur", tags: [], suggestedMetrics: [], customMetrics: [] },
     ]);
@@ -1016,12 +614,11 @@ describe("ScheduledSessionPanel — une séance par blocs (#720)", () => {
     );
   }
 
-  it("se compose par blocs, sans la bibliothèque à côté ni l'éditeur à plat", async () => {
+  it("se compose par blocs, la bibliothèque ouverte dans le bloc et pas à côté", async () => {
     const view = setup({ session: byBlocks() });
 
     expect(await view.findByText("plan.composition.fromSessionType")).toBeInTheDocument();
     expect(view.queryByText("plan.session.pickerTitle")).toBeNull();
-    expect(view.queryByText("plan.session.dosage.legendSession")).toBeNull();
   });
 
   it("enregistre titre, consignes et jour sans la composition, sous la version d'après un geste", async () => {

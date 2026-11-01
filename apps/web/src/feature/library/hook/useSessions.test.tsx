@@ -103,8 +103,7 @@ describe("useSaveSession", () => {
     const { result } = renderHook(() => useSaveSession(), { wrapper });
     await act(() => result.current.save({ session: null, input }));
 
-    // Une seule composition : des blocs, la liste par exercices vide.
-    expect(apiMock.createSession).toHaveBeenCalledExactlyOnceWith({ ...input, exercises: [] });
+    expect(apiMock.createSession).toHaveBeenCalledExactlyOnceWith(input);
     expect(apiMock.updateSession).not.toHaveBeenCalled();
     expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.all });
   });

@@ -14,26 +14,13 @@ import {
   SESSION_TITLE_MAX_LENGTH,
   sameJson,
 } from "@cmv/shared";
-import { type SyntheticEvent, useMemo, useState } from "react";
+import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useCustomMetrics } from "@/feature/library/hook/useCustomMetrics";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
-import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
-import { CompositionEditor } from "@/feature/plan/component/CompositionEditor";
-import { ExercisePicker } from "@/feature/plan/component/ExercisePicker";
 import { ScheduledComposition } from "@/feature/plan/component/ScheduledComposition";
-import {
-  ScheduledDosageLegend,
-  scheduledDosageDetail,
-} from "@/feature/plan/component/ScheduledDosage";
 import { SessionPanelFooter } from "@/feature/plan/component/SessionPanelFooter";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
-import {
-  type EditorItem,
-  toExerciseInput,
-  useSessionComposition,
-} from "@/feature/plan/hook/useSessionComposition";
 import {
   CmvLeaveDialog,
   CmvPanel,
@@ -44,39 +31,26 @@ import {
 } from "@/shared/component";
 import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import type { LeaveDialogProps, SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
-import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
 import { isStaleWriteError } from "@/shared/lib/api";
 import { formatDayLabel } from "@/shared/util/date.util";
 
 /**
- * Édition : replace-all — ce qu'on envoie EST la nouvelle vérité de la séance (le détail de chaque
- * ligne est dans `toExerciseInput`). Une séance par blocs n'envoie pas ses exercices (#720) : sa
- * composition s'écrit geste par geste, et « Enregistrer » ne porte que titre, consignes et jour.
+ * Ce que porte « Enregistrer » : titre, consignes et jour. La composition ne s'y envoie pas (#720),
+ * elle s'écrit geste par geste.
  */
-function toSaveInput(
-  title: string,
-  notes: string,
-  scheduledDate: string,
-  items: readonly EditorItem[] | null,
-) {
+function toSaveInput(title: string, notes: string, scheduledDate: string) {
   return {
     title: title.trim(),
     // Champ vide → null (nullable, pas de fallback silencieux).
     notes: notes.trim() || null,
     scheduledDate,
-    ...(items == null ? {} : { exercises: items.map(toExerciseInput) }),
   };
-}
-
-/** Une séance de l'ancien modèle n'a aucun bloc : elle garde l'éditeur à plat (#720). */
-function isComposedByBlocks(session: ScheduledSessionDto | null): session is ScheduledSessionDto {
-  return session != null && session.blocks.length > 0;
 }
 
 /**
  * Fermer le panneau — Annuler, la croix, Échap, le fond — demande avant de perdre une saisie
- * (#518, **G-1**) : il porte désormais une grille de dosage par exercice. Seules les fermetures
+ * (#518, **G-1**). Seules les fermetures
  * qui SUIVENT un enregistrement ou une suppression réussis passent : elles appellent `onClose`
  * sans passer par ici.
  *
@@ -261,10 +235,9 @@ type ScheduledSessionPanelProps = {
  * Création puis édition d'une séance planifiée.
  * - Création : on choisit un MODÈLE de la bibliothèque, dont l'API copie titre, consignes,
  *   exercices et documents. Le panneau ne crée plus de séance vide (#720).
- * - Édition : titre, consignes et jour partent avec « Enregistrer ». Une séance par blocs se
- *   compose geste par geste (`ScheduledComposition`) ; une séance de l'ancien modèle garde son
- *   éditeur à plat, en replace-all. La bibliothèque, elle, ne bouge jamais : cette séance est une
- *   copie (CDC §5.4).
+ * - Édition : titre, consignes et jour partent avec « Enregistrer ». La séance se compose geste
+ *   par geste (`ScheduledComposition`), et ses valeurs se règlent dans Dosage (#721). La
+ *   bibliothèque, elle, ne bouge jamais : cette séance est une copie (CDC §5.4).
  */
 export function ScheduledSessionPanel({
   planId,
@@ -285,9 +258,6 @@ export function ScheduledSessionPanel({
   const { createSession, save, remove, isBusy, staleMessage } = writes;
   const { data: templates } = useSessions();
   const { data: exercises } = useExercises({});
-  // Une valeur refusée reste dans sa cellule mais pas dans le brouillon : enregistrer enverrait
-  // l'ancienne (#566).
-  const refused = useRefusedFields();
 
   const isEditing = session != null;
 
@@ -296,18 +266,14 @@ export function ScheduledSessionPanel({
   const [notes, setNotes] = useState(session?.notes ?? "");
   // Le jour de la séance relue, et non celui du clic : un autre Coach a pu la déplacer.
   const [scheduledDate, setScheduledDate] = useState(session?.scheduledDate ?? date);
-  const composition = useSessionComposition(session);
-  const byBlocks = isComposedByBlocks(session);
-  const items = byBlocks ? null : composition.items;
 
   /**
    * « Modifié » = ce qui partirait diffère de ce qui était là à l'ouverture, mis en forme comme à
-   * l'envoi (règle de #327) : une espace ajoutée au titre, une valeur remise à l'identique ne
-   * retiennent rien. Une saisie refusée retient aussi (#566) : la quitter la perdrait.
+   * l'envoi (règle de #327) : une espace ajoutée au titre ne retient rien.
    */
-  const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate, items) };
+  const form = { sourceSessionId, ...toSaveInput(title, notes, scheduledDate) };
   const [opened] = useState(form);
-  const isDirty = !sameJson(form, opened) || refused.hasRefused;
+  const isDirty = !sameJson(form, opened);
   const canSubmit = isEditing || sourceSessionId !== "";
 
   /**
@@ -326,7 +292,6 @@ export function ScheduledSessionPanel({
 
   const sendAndClose = useCheckedSave(
     () => {
-      if (refused.hasRefused) return "library.builder.refusedBlocksSave";
       if (!canSubmit) return "plan.session.templateRequired";
       // À l'édition, l'API juge elle-même la date et répond 400 ; à la création, sans semaine, la
       // requête ne saurait même pas où partir.
@@ -334,7 +299,7 @@ export function ScheduledSessionPanel({
     },
     async () => {
       await (isEditing
-        ? save(toSaveInput(title, notes, scheduledDate, items))
+        ? save(toSaveInput(title, notes, scheduledDate))
         : createSession.mutateAsync({
             weekId: required(arrival, "semaine du jour choisi").id,
             input: { sourceSessionId, scheduledDate },
@@ -380,7 +345,6 @@ export function ScheduledSessionPanel({
           isPublished={isPublished}
           isBusy={isBusy}
           canSubmit={canSubmit}
-          hasRefused={refused.hasRefused}
           onDelete={() => remove(onClose)}
           onClose={close.requestClose}
           onSubmit={onSubmit}
@@ -392,62 +356,53 @@ export function ScheduledSessionPanel({
           <CmvStaleBanner message={t(staleMessage)} onReload={onReload} isReloading={isReloading} />
         </div>
       )}
-      <RefusedFieldsContext value={refused.report}>
-        <form onSubmit={onSubmit} className="flex flex-col gap-cmv-xl lg:flex-row">
-          <section className="flex flex-1 flex-col gap-cmv-lg">
+      <form onSubmit={onSubmit}>
+        <section className="flex flex-col gap-cmv-lg">
+          <CmvSelect
+            label={t("plan.session.day")}
+            name="scheduledDate"
+            value={scheduledDate}
+            onChange={(event) => setScheduledDate(event.target.value)}
+            groups={dayGroups}
+            disabled={readOnly}
+          />
+
+          {isEditing ? null : (
             <CmvSelect
-              label={t("plan.session.day")}
-              name="scheduledDate"
-              value={scheduledDate}
-              onChange={(event) => setScheduledDate(event.target.value)}
-              groups={dayGroups}
-              disabled={readOnly}
+              label={t("plan.session.template")}
+              name="sourceSessionId"
+              value={sourceSessionId}
+              onChange={(event) => setSourceSessionId(event.target.value)}
+              placeholder={t("plan.session.templateNone")}
+              options={(templates ?? []).map((template) => ({
+                value: template.id,
+                label: template.title,
+              }))}
             />
+          )}
 
-            {isEditing ? null : (
-              <CmvSelect
-                label={t("plan.session.template")}
-                name="sourceSessionId"
-                value={sourceSessionId}
-                onChange={(event) => setSourceSessionId(event.target.value)}
-                placeholder={t("plan.session.templateNone")}
-                options={(templates ?? []).map((template) => ({
-                  value: template.id,
-                  label: template.title,
-                }))}
+          {isEditing ? (
+            <>
+              <SessionTitleField title={title} onChange={setTitle} readOnly={readOnly} />
+              <EditedSessionFields
+                session={session}
+                weeks={weeks}
+                athleteName={athleteName}
+                isPublished={isPublished}
+                notes={notes}
+                onNotesChange={setNotes}
+                library={exercises}
+                readOnly={readOnly}
+                isBusy={isBusy}
+                onCompose={writes.compose}
+                onReset={writes.reset}
               />
-            )}
-
-            {isEditing ? (
-              <>
-                <SessionTitleField title={title} onChange={setTitle} readOnly={readOnly} />
-                <EditedSessionFields
-                  session={session}
-                  weeks={weeks}
-                  athleteName={athleteName}
-                  isPublished={isPublished}
-                  notes={notes}
-                  onNotesChange={setNotes}
-                  composition={composition}
-                  library={exercises}
-                  readOnly={readOnly}
-                  isBusy={isBusy}
-                  onCompose={writes.compose}
-                  onReset={writes.reset}
-                />
-              </>
-            ) : (
-              <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>
-            )}
-          </section>
-
-          {/* L'éditeur à plat seulement : la bibliothèque dans laquelle piocher des exercices. Une
-              séance par blocs l'ouvre dans le bloc où l'exercice arrive. */}
-          {isEditing && !readOnly && !byBlocks ? (
-            <ExercisePicker exercises={exercises ?? []} onPick={composition.addExercise} />
-          ) : null}
-        </form>
-      </RefusedFieldsContext>
+            </>
+          ) : (
+            <p className="text-cmv-caption text-cmv-text-lo">{t("plan.session.templateHint")}</p>
+          )}
+        </section>
+      </form>
       <CmvLeaveDialog {...close.dialog} />
     </CmvPanel>
   );
@@ -490,7 +445,6 @@ type EditedSessionFieldsProps = {
   isPublished: boolean;
   notes: string;
   onNotesChange: (notes: string) => void;
-  composition: ReturnType<typeof useSessionComposition>;
   /** Les exercices où le sélecteur pioche : ceux d'autres Coachs apportent leurs métriques. */
   library: readonly ExerciseDto[] | undefined;
   readOnly: boolean;
@@ -499,14 +453,10 @@ type EditedSessionFieldsProps = {
   onReset: (expectedUpdatedAt: string) => Promise<void>;
 };
 
-/**
- * Ce que seule l'édition montre : les consignes, puis la composition — par blocs (#720), ou à
- * plat pour une séance de l'ancien modèle, dont chaque exercice se dose pour l'athlète (#518).
- */
+/** Ce que seule l'édition montre : les consignes, puis la composition par blocs (#720). */
 function EditedSessionFields(props: Readonly<EditedSessionFieldsProps>) {
   const { session, athleteName, notes, onNotesChange, library, readOnly } = props;
   const { t } = useTranslation();
-  const forWhom = athleteName ?? t("plan.session.dosage.theAthlete");
   return (
     <>
       <CmvTextArea
@@ -519,59 +469,16 @@ function EditedSessionFields(props: Readonly<EditedSessionFieldsProps>) {
         rows={3}
         disabled={readOnly}
       />
-      {isComposedByBlocks(session) ? (
-        <ScheduledComposition
-          session={session}
-          weeks={props.weeks}
-          athleteName={forWhom}
-          isPublished={props.isPublished}
-          readOnly={readOnly}
-          exercises={library ?? []}
-          isBusy={props.isBusy}
-          onCompose={props.onCompose}
-          onReset={props.onReset}
-        />
-      ) : (
-        <FlatComposition {...props} forWhom={forWhom} />
-      )}
-    </>
-  );
-}
-
-/** L'éditeur à plat d'une séance de l'ancien modèle, et la légende de son dosage. */
-function FlatComposition({
-  session,
-  forWhom,
-  composition,
-  library,
-  readOnly,
-}: Readonly<EditedSessionFieldsProps & { forWhom: string }>) {
-  const { data: customMetrics } = useCustomMetrics();
-  // Une ligne ajoutée n'a pas encore de définitions figées — le serveur les résoudra chez le
-  // propriétaire de sa source. D'ici là, elle se lit avec celles que son exercice apporte (#605) :
-  // le catalogue du Coach ignore celles d'un autre.
-  const libraryMetrics = useMemo(
-    () =>
-      mergeCatalogs(customMetrics, ...(library ?? []).map((exercise) => exercise.customMetrics)),
-    [customMetrics, library],
-  );
-
-  return (
-    <>
-      <ScheduledDosageLegend
-        adjustedCount={composition.adjustedCount}
-        athleteName={forWhom}
-        sourceSessionId={session.sourceSessionId}
-      />
-
-      <CompositionEditor
-        items={composition.items}
-        onMove={composition.moveItem}
-        onMoveTo={composition.moveTo}
-        onRemove={composition.removeItem}
-        onNoteChange={composition.setNote}
-        detail={scheduledDosageDetail(forWhom, libraryMetrics, composition.dosage)}
+      <ScheduledComposition
+        session={session}
+        weeks={props.weeks}
+        athleteName={athleteName ?? t("plan.session.dosage.theAthlete")}
+        isPublished={props.isPublished}
         readOnly={readOnly}
+        exercises={library ?? []}
+        isBusy={props.isBusy}
+        onCompose={props.onCompose}
+        onReset={props.onReset}
       />
     </>
   );

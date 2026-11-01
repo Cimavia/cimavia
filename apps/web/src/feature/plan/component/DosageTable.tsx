@@ -1,5 +1,4 @@
 import {
-  AdjustmentLevel,
   blockNumbers,
   CompositionOrigin,
   type CustomMetric,
@@ -182,7 +181,7 @@ function ColumnHead({ column, copy, width, readOnly, onRevertCopy, onCompose }: 
               count > 0 ? "text-cmv-info-on" : "text-cmv-text-lo",
             )}
           >
-            {count > 0 ? <AdjustmentMarker level={AdjustmentLevel.SCHEDULED} /> : null}
+            {count > 0 ? <AdjustmentMarker /> : null}
             {t("plan.dosage.adjusted", { count })}
           </span>
           {column.locked ? (
@@ -548,7 +547,7 @@ function ValueButton(props: Readonly<ValueButtonProps>) {
           !locked && "hover:border-cmv-accent",
         )}
       >
-        {cell.adjusted ? <AdjustmentMarker level={AdjustmentLevel.SCHEDULED} /> : null}
+        {cell.adjusted ? <AdjustmentMarker /> : null}
         <span className="min-w-0 break-words">{show(cell.values)}</span>
       </button>
       {isOpen ? (

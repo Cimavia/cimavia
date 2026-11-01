@@ -116,7 +116,7 @@ beforeEach(() => {
     typeof useMarkFeedbackRead
   >);
   vi.mocked(useSessionFeedback).mockReturnValue({
-    data: { media: [], trackedExercises: [], messages: [] } as unknown as SessionFeedbackDto,
+    data: { media: [], trackedBlocks: [], messages: [] } as unknown as SessionFeedbackDto,
     isPending: false,
   } as unknown as ReturnType<typeof useSessionFeedback>);
 });
@@ -200,7 +200,6 @@ describe("FeedbacksScreen", () => {
           { id: "md-2", type: "AUDIO", url: "https://x/2", fileName: "note.m4a" },
           { id: "md-3", type: "VIDEO", url: "https://x/3", fileName: "essai.mp4" },
         ],
-        trackedExercises: [],
         trackedBlocks: [],
         messages: [],
       } as unknown as SessionFeedbackDto,
@@ -221,7 +220,6 @@ describe("FeedbacksScreen", () => {
           { id: "md-2", type: "AUDIO", url: "https://x/2", fileName: "note.m4a" },
           { id: "md-3", type: "VIDEO", url: "https://x/3", fileName: "essai.mp4" },
         ],
-        trackedExercises: [],
         trackedBlocks: [],
         messages: [],
       } as unknown as SessionFeedbackDto,
@@ -244,7 +242,6 @@ describe("FeedbacksScreen", () => {
           { id: "md-2", type: "VIDEO", url: "https://x/2", fileName: "essai.mp4" },
           { id: "md-3", type: "AUDIO", url: "https://x/3", fileName: "suite.m4a" },
         ],
-        trackedExercises: [],
         trackedBlocks: [],
         messages: [
           {

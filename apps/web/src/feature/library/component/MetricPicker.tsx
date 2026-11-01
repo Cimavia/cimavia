@@ -1,7 +1,7 @@
 import {
-  BLOCK_MAX_METRICS,
   type CustomMetric,
   defaultUnitOf,
+  GRID_MAX_METRICS,
   METRIC_LABEL_KEY,
   type MetricKey,
   MetricSource,
@@ -87,7 +87,7 @@ export function MetricPicker<M extends PickedMetric>({
   const removeMetric = useDeleteCustomMetric();
 
   const chosen = new Set(metrics.map(suggestedMetricIdentity));
-  const isFull = metrics.length >= BLOCK_MAX_METRICS;
+  const isFull = metrics.length >= GRID_MAX_METRICS;
 
   /** Bascule : recliquer une métrique déjà retenue la retire, comme une case à cocher. */
   function toggle(metric: SuggestedMetric) {

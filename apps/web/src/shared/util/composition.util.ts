@@ -2,8 +2,8 @@ import type { TFunction } from "i18next";
 
 /**
  * « 3 blocs · 7 exercices » : ce que la carte d'une séance dit de sa composition, dans le
- * constructeur, la bibliothèque et la grille du Plan. Une séance de l'ancien modèle n'a aucun
- * bloc : elle ne dit que ses exercices, plutôt qu'un « 0 bloc » qui la ferait croire vide.
+ * constructeur, la bibliothèque et la grille du Plan. Une séance vide ne dit que « 0 exercice »,
+ * plutôt que « 0 bloc · 0 exercice » qui répète la même absence.
  */
 export function compositionSummary(
   counts: { blockCount: number; exerciseCount: number },
