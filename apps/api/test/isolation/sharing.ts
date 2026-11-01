@@ -1,4 +1,4 @@
-import { ProblemType, Role, STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
+import { ProblemType, Role, StructurePresetKey } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import type { TenantPrisma } from "../../src/tenancy/tenancy.extension";
@@ -12,6 +12,7 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app } from "../support/app";
+import { blocksOf, SERIES, seriesBlock } from "../support/blocks";
 import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { required } from "../support/required";
 import { asCoach } from "../support/tenant";
@@ -71,7 +72,7 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
     exerciseId = exercise.body.id;
     const session = await c
       .post("/sessions")
-      .send({ title: "Bloc tirage", exercises: [{ exerciseId }] });
+      .send({ title: "Bloc tirage", blocks: blocksOf(exerciseId) });
     expect(session.status).toBe(201);
     sessionId = session.body.id;
   });
@@ -204,8 +205,28 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
   it("garde le filtre de l'appelant sur la relation qu'un enfant suit pour son scope", async () => {
     await grantF("READ");
     const other = await prisma.session.create({ data: { coachId: cId, title: "Autre" } });
+    const block = await prisma.sessionBlock.create({
+      data: {
+        coachId: cId,
+        sessionId: other.id,
+        position: 0,
+        name: "Séries",
+        settings: SERIES,
+        copiedSettings: SERIES,
+        sourcePreset: StructurePresetKey.SERIES,
+      },
+    });
     await prisma.sessionExercise.create({
-      data: { coachId: cId, sessionId: other.id, exerciseId, position: 0 },
+      data: {
+        coachId: cId,
+        sessionId: other.id,
+        exerciseId,
+        position: 0,
+        blockId: block.id,
+        blockPosition: 0,
+        key: "a1",
+        grid: { metrics: [], rows: [] },
+      },
     });
 
     // C lit les deux séances : sans son filtre, il recevrait aussi la ligne d'« Autre ».
@@ -241,16 +262,14 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
   });
 });
 
-/** Un bloc d'une colonne, qui cite la métrique maison `customMetricId`. */
-const citing = (customMetricId: string) => [
-  {
-    id: "blk_grade",
-    label: null,
-    structure: { type: "SERIES", setCount: 1, restBetweenSetsSeconds: null },
-    metrics: [{ id: "col_grade", source: "CUSTOM", customMetricId, label: null, collapsed: false }],
-    rows: [{ id: "r1", values: {} }],
-  },
-];
+/** La métrique maison `customMetricId`, suggérée par un exercice. */
+const citing = (customMetricId: string) => [{ source: "CUSTOM", customMetricId }];
+
+/** Une grille d'une colonne, qui cite la métrique maison `customMetricId`. */
+const gradeGrid = (customMetricId: string) => ({
+  metrics: [{ id: "col_grade", source: "CUSTOM", customMetricId, label: null }],
+  rows: [{ id: "r1", values: {} }],
+});
 
 /**
  * Par l'API : ce que M compose avec ce que C lui ouvre (#353, #605). La garde des exercices cités
@@ -278,6 +297,9 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
   let athlete: Agent;
   let company: Agent;
 
+  /** La composition de « Grimpe » : Voie, qui cite la cotation de C, puis Dalle. */
+  const grimpeBlocks = () => blocksOf({ exerciseId: voieId, grid: gradeGrid(gradeId) }, dalleId);
+
   async function grantF(
     level: "READ" | "WRITE",
     target: { exerciseId?: string; sessionId?: string },
@@ -304,7 +326,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
 
     const voie = await c
       .post("/exercises")
-      .send({ title: "Voie", tags: ["voie"], blocks: citing(gradeId) });
+      .send({ title: "Voie", tags: ["voie"], suggestedMetrics: citing(gradeId) });
     const dalle = await c.post("/exercises").send({ title: "Dalle", tags: ["équilibre"] });
     expect([voie.status, dalle.status]).toEqual([201, 201]);
     [voieId, dalleId] = [voie.body.id, dalle.body.id];
@@ -312,7 +334,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
 
     const grimpe = await c.post("/sessions").send({
       title: "Grimpe",
-      exercises: [{ exerciseId: voieId }, { exerciseId: dalleId }],
+      blocks: grimpeBlocks(),
     });
     expect(grimpe.status).toBe(201);
     grimpeId = grimpe.body.id;
@@ -332,9 +354,10 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
   });
 
   it("la séance de M cite l'exercice que C ouvre à F, avec les métriques de C", async () => {
-    const created = await m
-      .post("/sessions")
-      .send({ title: "Séance de M", exercises: [{ exerciseId: voieId }] });
+    const created = await m.post("/sessions").send({
+      title: "Séance de M",
+      blocks: blocksOf({ exerciseId: voieId, grid: gradeGrid(gradeId) }),
+    });
 
     expect(created.status).toBe(201);
     expect(created.body.exercises[0]).toMatchObject({
@@ -347,13 +370,13 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
   it("la séance de M ne cite ni l'exercice privé de C, ni celui que C ouvre à un Coach hors de F", async () => {
     const privateOne = await m
       .post("/sessions")
-      .send({ title: "Intrusion", exercises: [{ exerciseId: dalleId }] });
+      .send({ title: "Intrusion", blocks: blocksOf(dalleId) });
     expect(privateOne.status).toBe(400);
     expect(privateOne.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
 
     const outsider = await b
       .post("/sessions")
-      .send({ title: "Intrusion", exercises: [{ exerciseId: voieId }] });
+      .send({ title: "Intrusion", blocks: blocksOf(voieId) });
     expect(outsider.status).toBe(400);
   });
 
@@ -384,39 +407,18 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     ]);
   });
 
-  it("hors d'une séance qui le cite, l'exercice privé reste refusé à la planification", async () => {
-    const adHoc = await m.post(`/plan-weeks/${mWeekId}/sessions`).send({
-      title: "Ad hoc",
-      scheduledDate: mondayOfCurrentWeek(),
-      exercises: [{ title: "Dalle", sourceExerciseId: dalleId }],
-    });
-    expect(adHoc.status).toBe(400);
-    expect(adHoc.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
-  });
-
   /**
    * La composition par semaines (#720) rend un exercice privé que la séance ouverte cite, mais ne
    * le place pas comme exercice nouveau : comme l'éditeur à plat, elle ne le lit qu'à travers elle.
    */
   it("la composition rend l'exercice privé que la séance cite, sans le placer comme nouveau", async () => {
-    const series = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
     const blocks = await c.post("/sessions").send({
       title: "Grimpe par blocs",
       blocks: [
-        {
-          id: "blk_grimpe",
-          name: "Séries",
-          label: null,
-          instructions: null,
-          settings: series,
-          copiedSettings: series,
-          sourceStructureId: null,
-          sourcePreset: StructurePresetKey.SERIES,
-          exercises: [
-            { key: "k_voie", exerciseId: voieId },
-            { key: "k_dalle", exerciseId: dalleId },
-          ].map((exercise) => ({ ...exercise, note: null, grid: { metrics: [], rows: [] } })),
-        },
+        seriesBlock([
+          { key: "k_voie", exerciseId: voieId },
+          { key: "k_dalle", exerciseId: dalleId },
+        ]),
       ],
     });
     expect(blocks.status).toBe(201);
@@ -449,32 +451,6 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect((await deleteAtLatest(c, `/sessions/${blocks.body.id}`)).status).toBe(204);
   });
 
-  it("M réenregistre sa planification sans repasser ses lignes copiées par la bibliothèque", async () => {
-    const path = `/scheduled-sessions/${plannedId}`;
-    const planned = await m.get(path);
-    // Lignes reprises, envoyées SANS leurs métriques : Dalle n'est lisible qu'à travers Grimpe, et
-    // une ligne déjà copiée ne doit rien à la bibliothèque.
-    const exercises = planned.body.exercises.map(
-      (row: { id: string; sourceExerciseId: string; title: string; blocks: unknown }) => ({
-        id: row.id,
-        sourceExerciseId: row.sourceExerciseId,
-        title: row.title,
-        blocks: row.blocks,
-      }),
-    );
-    const saved = await putAtLatest(m, path, {
-      title: planned.body.title,
-      scheduledDate: planned.body.scheduledDate,
-      exercises,
-    });
-
-    expect(saved.status).toBe(200);
-    expect(saved.body.exercises).toMatchObject([
-      { title: "Voie", customMetrics: [{ id: gradeId }] },
-      { title: "Dalle", customMetrics: [] },
-    ]);
-  });
-
   it("le sélecteur de métriques de l'exercice de C propose le catalogue de C, à M comme à C", async () => {
     const own = await m
       .post("/custom-metrics")
@@ -496,7 +472,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
 
     const foreign = await m.patch(`/exercises/${voieId}`).send({
       expectedUpdatedAt: await versionOf(m, `/exercises/${voieId}`),
-      blocks: citing(mine.id),
+      suggestedMetrics: citing(mine.id),
     });
     expect(foreign.status).toBe(400);
     expect(foreign.body.detail).toMatch(/catalogue du propriétaire/);
@@ -504,7 +480,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     const owners = await m.patch(`/exercises/${voieId}`).send({
       expectedUpdatedAt: await versionOf(m, `/exercises/${voieId}`),
       title: "Voie déversante",
-      blocks: citing(gradeId),
+      suggestedMetrics: citing(gradeId),
     });
     expect(owners.status).toBe(200);
     expect(owners.body).toMatchObject({ coachId: cId, customMetrics: [{ id: gradeId }] });
@@ -593,7 +569,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
    */
   it("C ne supprime pas, sur une version périmée, ce que M vient d'écrire", async () => {
     const pont = await c.post("/exercises").send({ title: "Pont" });
-    const retour = await c.post("/sessions").send({ title: "Retour au calme", exercises: [] });
+    const retour = await c.post("/sessions").send({ title: "Retour au calme" });
     await grantF("WRITE", { exerciseId: pont.body.id });
     await grantF("WRITE", { sessionId: retour.body.id });
     const exercisePath = `/exercises/${pont.body.id}`;
@@ -604,7 +580,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     ]);
 
     expect((await patchAtLatest(m, exercisePath, { title: "Pont fessier" })).status).toBe(200);
-    const put = await putAtLatest(m, sessionPath, { title: "Retour", notes: null, exercises: [] });
+    const put = await putAtLatest(m, sessionPath, { title: "Retour", notes: null, blocks: [] });
     expect(put.status).toBe(200);
 
     const cases: [string, string][] = [
@@ -652,18 +628,15 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         expectedUpdatedAt: session.body.updatedAt,
         title: "Prise",
         notes: null,
-        exercises: [],
+        blocks: [],
       }),
-      agent
-        .post(`/sessions/${grimpeId}/exercises/${session.body.exercises[0].id}/reload`)
-        .send({ expectedUpdatedAt: session.body.updatedAt }),
       agent.delete(`/sessions/${grimpeId}`).query({ expectedUpdatedAt: session.body.updatedAt }),
     ];
 
     const asReader = await Promise.all(writes(m, exerciseVersion));
-    expect(asReader.map((res) => res.status)).toEqual([403, 403, 403, 403, 403, 403, 403]);
+    expect(asReader.map((res) => res.status)).toEqual([403, 403, 403, 403, 403, 403]);
     const asOutsider = await Promise.all(writes(b, exerciseVersion));
-    expect(asOutsider.map((res) => res.status)).toEqual([404, 404, 404, 404, 404, 404, 404]);
+    expect(asOutsider.map((res) => res.status)).toEqual([404, 404, 404, 404, 404, 404]);
     // Dupliquer en variante se fait sur lecture (#609) : B, qui ne lit rien, n'apprend rien.
     expect((await b.post(`/exercises/${voieId}/duplicate`).send({ title: "Volée" })).status).toBe(
       404,
@@ -676,7 +649,7 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect((await c.get(`/sessions/${grimpeId}`)).body.updatedAt).toBe(session.body.updatedAt);
   });
 
-  it("même en Écriture, M ne supprime pas, mais modifie et recharge", async () => {
+  it("même en Écriture, M ne supprime pas, mais modifie", async () => {
     await grantF("WRITE", { exerciseId: voieId });
     await grantF("WRITE", { sessionId: grimpeId });
 
@@ -685,11 +658,13 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect((await deleteAtLatest(m, `/sessions/${grimpeId}`)).status).toBe(403);
 
     const session = await m.get(`/sessions/${grimpeId}`);
-    const reloaded = await m
-      .post(`/sessions/${grimpeId}/exercises/${session.body.exercises[1].id}/reload`)
-      .send({ expectedUpdatedAt: session.body.updatedAt });
-    expect(reloaded.status).toBe(201);
-    expect(reloaded.body.myAccess.level).toBe("WRITE");
+    const saved = await putAtLatest(m, `/sessions/${grimpeId}`, {
+      title: session.body.title,
+      notes: session.body.notes,
+      blocks: grimpeBlocks(),
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.myAccess.level).toBe("WRITE");
 
     // Le document qu'il envoie se range sous le préfixe de C, propriétaire de l'exercice.
     const ticket = await m
@@ -916,18 +891,17 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         ids: [toitId],
         changes: [{ organizationId: gId, level: "READ" }],
       });
-      const mixte = await c.post("/sessions").send({
-        title: "Mixte",
-        exercises: [{ exerciseId: toitId }, { exerciseId: voieId }],
-      });
+      const mixte = await c
+        .post("/sessions")
+        .send({ title: "Mixte", blocks: blocksOf(toitId, voieId) });
       expect(mixte.status).toBe(201);
       await changeAccess(c, "sessions", {
         ids: [mixte.body.id],
         changes: [{ organizationId, level: "WRITE" }],
       });
 
-      // M lit la séance et ce qu'elle compose, mais n'en tire pas Toit : ni copie, ni rechargement,
-      // ni nouvelle ligne. Ses lignes reprises, elles, s'enregistrent.
+      // M lit la séance et ce qu'elle compose, mais n'en tire pas Toit : ni copie, ni nouvelle
+      // ligne. Ses lignes reprises, elles, s'enregistrent.
       const session = await m.get(`/sessions/${mixte.body.id}`);
       expect(session.status).toBe(200);
       expect((await m.get(`/exercises/${toitId}`)).status).toBe(404);
@@ -936,37 +910,15 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
         .send({ sourceSessionId: mixte.body.id, scheduledDate: mondayOfCurrentWeek() });
       expect(planned.status).toBe(400);
       expect(planned.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
-      // Sans Toit dans la composition qu'il envoie, M planifie : la copie qu'il remplace n'est
-      // pas validée pour rien.
-      const composed = await m.post(`/plan-weeks/${mWeekId}/sessions`).send({
-        sourceSessionId: mixte.body.id,
-        scheduledDate: mondayOfCurrentWeek(),
-        exercises: [{ title: "Voie", sourceExerciseId: voieId }],
-      });
-      expect(composed.status).toBe(201);
-      expect(composed.body).toMatchObject({
-        title: "Mixte",
-        exercises: [{ title: "Voie", sourceExerciseId: voieId, customMetrics: [] }],
-      });
-      const [toitRow, voieRow] = session.body.exercises;
-      const reload = await m
-        .post(`/sessions/${mixte.body.id}/exercises/${toitRow.id}/reload`)
-        .send({ expectedUpdatedAt: session.body.updatedAt });
-      expect(reload.status).toBe(400);
-      expect(reload.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
-      const kept = [
-        { id: toitRow.id, exerciseId: toitId },
-        { id: voieRow.id, exerciseId: voieId },
-      ];
       const added = await putAtLatest(m, `/sessions/${mixte.body.id}`, {
         title: "Mixte",
-        exercises: [...kept, { exerciseId: toitId }],
+        blocks: blocksOf(toitId, voieId, toitId),
       });
       expect(added.status).toBe(400);
       expect(added.body.detail).toBe("Un ou plusieurs exercices sont inconnus");
       const saved = await putAtLatest(m, `/sessions/${mixte.body.id}`, {
         title: "Mixte",
-        exercises: kept,
+        blocks: blocksOf(toitId, voieId),
       });
       expect(saved.status).toBe(200);
 

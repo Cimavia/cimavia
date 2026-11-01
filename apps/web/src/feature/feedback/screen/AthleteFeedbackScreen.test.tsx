@@ -1,10 +1,10 @@
 import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType, myFeedbackKeys } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { MediaRejectedError } from "@/shared/util/media.util";
-import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteFeedbackScreen } from "./AthleteFeedbackScreen";
 
@@ -135,21 +135,11 @@ const CONTENT = "feedback.contentLabel";
 const SUBMIT = "feedback.submit.action";
 const COACH_ID = "coach_m";
 
+const TRACKING_KEY = `cimavia-block-tracking:${SESSION_ID}`;
+const CHECKED = { "blk-1": { checked: [{ key: "a1", row: 0 }] } };
+
 const session = (): ScheduledSessionDto =>
-  ({
-    id: SESSION_ID,
-    title: "Séance haute",
-    coachId: COACH_ID,
-    exercises: [
-      {
-        id: "sx-1",
-        title: "Traction",
-        tracking: null,
-        blocks: [{ id: "b-1", label: null, structure: { type: "FREE" }, metrics: [], rows: [] }],
-      },
-    ],
-    blocks: [],
-  }) as unknown as ScheduledSessionDto;
+  blockSession({ id: SESSION_ID, title: "Séance haute", coachId: COACH_ID });
 
 const feedback = (over: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto =>
   ({
@@ -172,7 +162,7 @@ function setup(search: Record<string, string> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   firefoxLike();
-  // `useLocalTracking` lit le stockage du navigateur : un test laisserait sinon ses coches au
+  // `useLocalBlockTracking` lit le stockage du navigateur : un test laisserait sinon ses coches au
   // suivant, qui décrirait une séance déjà remplie sans l'avoir demandé.
   window.localStorage.clear();
   selfId.current = "ath_1";
@@ -278,13 +268,13 @@ describe("AthleteFeedbackScreen", () => {
 
       await user.click(await findByRole("button", { name: SUBMIT }));
 
-      // `content: null` et non `""` (règle dure n°5). Et le décompte porte `"sx-1": null` : une
-      // entrée à `null` dit NON SUIVI, ce qui n'est pas « zéro coché » — l'athlète n'a rien dit,
-      // et un objet vide lui ferait dire qu'il a ouvert le suivi sans rien cocher.
+      // `content: null` et non `""` (règle dure n°5). Et chaque bloc part à `null` : NON SUIVI, ce
+      // qui n'est pas « zéro coché » — l'athlète n'a rien dit, et un objet vide lui ferait dire
+      // qu'il a ouvert le suivi sans rien cocher.
       await waitFor(() =>
         expect(upsertMock).toHaveBeenCalledWith(SESSION_ID, {
           content: null,
-          tracking: { "sx-1": null },
+          blockTracking: { "blk-1": null, "blk-2": null, "blk-3": null },
         }),
       );
     });
@@ -300,7 +290,7 @@ describe("AthleteFeedbackScreen", () => {
       await waitFor(() =>
         expect(upsertMock).toHaveBeenCalledWith(SESSION_ID, {
           content: "Dur",
-          tracking: expect.any(Object),
+          blockTracking: expect.any(Object),
         }),
       );
     });
@@ -327,28 +317,6 @@ describe("AthleteFeedbackScreen", () => {
       expect(await findByText(text)).toBeInTheDocument();
     });
 
-    it("n'envoie pas la coche d'un exercice que le coach a retiré depuis", async () => {
-      // La coche est restée en local, la séance ne porte plus l'exercice : l'envoyer ferait
-      // refuser tout le débrief par le serveur (#311), à chaque nouvelle tentative.
-      window.localStorage.setItem(
-        `cimavia-tracking:${SESSION_ID}`,
-        JSON.stringify({
-          "sx-1": { "b-1": { checked: [0] } },
-          "sx-retire": { "b-1": { checked: [0] } },
-        }),
-      );
-      const { user, findByRole } = await setup();
-
-      await user.click(await findByRole("button", { name: SUBMIT }));
-
-      await waitFor(() =>
-        expect(upsertMock).toHaveBeenCalledWith(SESSION_ID, {
-          content: null,
-          tracking: { "sx-1": { "b-1": { checked: [0] } } },
-        }),
-      );
-    });
-
     it("n'envoie AUCUN décompte quand la séance n'a pas pu être lue", async () => {
       getSessionMock.mockRejectedValue(new Error("réseau"));
       const { user, findByRole } = await setup();
@@ -359,60 +327,27 @@ describe("AthleteFeedbackScreen", () => {
       // fait perdre le rappel des coches, pas le droit d'écrire.
       await waitFor(() => expect(upsertMock).toHaveBeenCalled());
       const [, input] = upsertMock.mock.calls[0] as [string, object];
-      expect(input).not.toHaveProperty("tracking");
+      expect(input).not.toHaveProperty("blockTracking");
     });
   });
 
-  describe("le suivi local, une fois le débrief enregistré", () => {
-    const KEY = `cimavia-tracking:${SESSION_ID}`;
-
-    it("est effacé quand il est parti tel quel", async () => {
-      window.localStorage.setItem(KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0] } } }));
-      const { user, findByRole } = await setup();
-
-      await user.click(await findByRole("button", { name: SUBMIT }));
-
-      await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
-    });
-
-    // Aucun décompte n'est parti : effacer le local perdrait des coches que le serveur n'a pas.
-    it("reste en place quand la séance n'a pas pu être lue", async () => {
-      getSessionMock.mockRejectedValue(new Error("réseau"));
-      window.localStorage.setItem(KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0] } } }));
-      const { user, findByRole, getByRole } = await setup();
-
-      await user.click(await findByRole("button", { name: SUBMIT }));
-
-      await waitFor(() => expect(upsertMock).toHaveBeenCalled());
-      // Le bouton se rouvre : l'envoi est terminé, et le décompte reste à envoyer.
-      await waitFor(() => expect(getByRole("button", { name: SUBMIT })).toBeEnabled());
-      expect(window.localStorage.getItem(KEY)).not.toBeNull();
-    });
-  });
-
-  /** #722 : une séance par blocs se rappelle et part bloc par bloc, sous sa propre clé locale. */
-  describe("le suivi d'une séance par blocs", () => {
-    const KEY = `cimavia-block-tracking:${SESSION_ID}`;
-    const checked = { "blk-1": { checked: [{ key: "a1", row: 0 }] } };
-
-    beforeEach(() => {
-      getSessionMock.mockResolvedValue(blockSession({ id: SESSION_ID, coachId: COACH_ID }));
-    });
-
+  /** Le suivi se rappelle et part bloc par bloc (#722), sous sa clé locale. */
+  describe("le suivi local", () => {
     it("rappelle les blocs, et envoie leur suivi sans un bloc que le coach a retiré", async () => {
       window.localStorage.setItem(
-        KEY,
-        JSON.stringify({ ...checked, "blk-retire": { checked: [{ key: "z1", row: 0 }] } }),
+        TRACKING_KEY,
+        JSON.stringify({ ...CHECKED, "blk-retire": { checked: [{ key: "z1", row: 0 }] } }),
       );
       const { user, findByRole, getByText } = await setup();
 
       await user.click(await findByRole("button", { name: SUBMIT }));
 
+      // La coche orpheline ferait refuser tout le débrief par le serveur (#311), à chaque essai.
       expect(getByText("Finisher")).toBeInTheDocument();
       await waitFor(() =>
         expect(upsertMock).toHaveBeenCalledWith(
           SESSION_ID,
-          expect.objectContaining({ blockTracking: checked }),
+          expect.objectContaining({ blockTracking: CHECKED }),
         ),
       );
     });
@@ -428,18 +363,32 @@ describe("AthleteFeedbackScreen", () => {
       await waitFor(() =>
         expect(upsertMock).toHaveBeenCalledWith(
           SESSION_ID,
-          expect.objectContaining({ blockTracking: expect.objectContaining(checked) }),
+          expect.objectContaining({ blockTracking: expect.objectContaining(CHECKED) }),
         ),
       );
     });
 
-    it("efface le local une fois parti tel quel", async () => {
-      window.localStorage.setItem(KEY, JSON.stringify(checked));
+    it("est effacé une fois parti tel quel", async () => {
+      window.localStorage.setItem(TRACKING_KEY, JSON.stringify(CHECKED));
       const { user, findByRole } = await setup();
 
       await user.click(await findByRole("button", { name: SUBMIT }));
 
-      await waitFor(() => expect(window.localStorage.getItem(KEY)).toBeNull());
+      await waitFor(() => expect(window.localStorage.getItem(TRACKING_KEY)).toBeNull());
+    });
+
+    // Aucun décompte n'est parti : effacer le local perdrait des coches que le serveur n'a pas.
+    it("reste en place quand la séance n'a pas pu être lue", async () => {
+      getSessionMock.mockRejectedValue(new Error("réseau"));
+      window.localStorage.setItem(TRACKING_KEY, JSON.stringify(CHECKED));
+      const { user, findByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      await waitFor(() => expect(upsertMock).toHaveBeenCalled());
+      // L'envoi est terminé (le libellé revient) : le décompte, lui, attend la séance pour partir.
+      expect(await findByRole("button", { name: SUBMIT })).toBeInTheDocument();
+      expect(window.localStorage.getItem(TRACKING_KEY)).not.toBeNull();
     });
   });
 
@@ -851,31 +800,15 @@ describe("AthleteFeedbackScreen", () => {
   it("dit qu'il y a quelque chose à envoyer quand seul le décompte est rempli", async () => {
     // Le décompte vit en LOCAL pendant la séance et ne franchit le réseau qu'au débrief : un
     // débrief sans texte ni média n'est pas vide pour autant.
-    window.localStorage.setItem(
-      `cimavia-tracking:${SESSION_ID}`,
-      JSON.stringify({ "sx-1": { "b-1": { checked: [0] } } }),
-    );
+    window.localStorage.setItem(TRACKING_KEY, JSON.stringify(CHECKED));
     const { findByText } = await setup();
 
     expect(await findByText("feedback.submit.filled")).toBeInTheDocument();
   });
 
-  // Un bloc en tours se compte en tours, pas en lignes cochées : deux tours, c'est du contenu.
-  it("dit qu'il y a quelque chose à envoyer quand seuls des tours sont comptés", async () => {
-    window.localStorage.setItem(
-      `cimavia-tracking:${SESSION_ID}`,
-      JSON.stringify({ "sx-1": { "b-1": { rounds: 2 } } }),
-    );
-    const { findByText } = await setup();
-
-    expect(await findByText("feedback.submit.filled")).toBeInTheDocument();
-  });
-
-  it("tient zéro tour pour rien", async () => {
-    window.localStorage.setItem(
-      `cimavia-tracking:${SESSION_ID}`,
-      JSON.stringify({ "sx-1": { "b-1": { rounds: 0 } } }),
-    );
+  // Un bloc ouvert puis laissé sans coche ne compte pas : rien à envoyer pour autant.
+  it("tient un bloc sans coche pour rien", async () => {
+    window.localStorage.setItem(TRACKING_KEY, JSON.stringify({ "blk-1": { checked: [] } }));
     const { findByText } = await setup();
 
     expect(await findByText("feedback.submit.empty")).toBeInTheDocument();

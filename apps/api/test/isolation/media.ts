@@ -12,7 +12,7 @@ import {
 } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, openWith, required, signUp } from "../support/actors";
-import { mondayOfCurrentWeek } from "../support/fixtures";
+import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest } from "../support/version";
 
 describe("Médias de débrief (P4)", () => {
@@ -83,7 +83,7 @@ describe("Médias de débrief (P4)", () => {
     });
     const session = await coachA
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance filmée", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance filmée", scheduledDate: monday }));
     sessionId = session.body.id;
     await billAndPublish(coachA, plan.body.id);
   });
@@ -215,7 +215,7 @@ describe("Médias de débrief (P4)", () => {
     });
     const session = await coachA
       .post(`/plan-weeks/${other.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance témoin", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance témoin", scheduledDate: monday }));
     await billAndPublish(coachA, other.body.id);
 
     const signed = await athleteA1
@@ -393,7 +393,7 @@ describe("Médias de débrief (P4)", () => {
       });
       const session = await coachA
         .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-        .send({ title: "Séance vidéo longue", scheduledDate: monday });
+        .send(await fromTemplate(coachA, { title: "Séance vidéo longue", scheduledDate: monday }));
       await billAndPublish(coachA, plan.body.id);
 
       bigSessionId = session.body.id;
@@ -589,8 +589,8 @@ describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
       weeks: [{ type: "TRAINING" }],
     });
     const sessionsUrl = `/plan-weeks/${plan.body.weeks[0].id}/sessions`;
-    const session = (title: string) =>
-      coachA.post(sessionsUrl).send({ title, scheduledDate: monday });
+    const session = async (title: string) =>
+      coachA.post(sessionsUrl).send(await fromTemplate(coachA, { title, scheduledDate: monday }));
     mediaSessionId = (await session("Séance filmée")).body.id;
     targetSessionId = (await session("Séance cible")).body.id;
     await billAndPublish(coachA, plan.body.id);

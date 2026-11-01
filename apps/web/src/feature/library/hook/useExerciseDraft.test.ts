@@ -225,8 +225,7 @@ describe("useExerciseDraft — les métriques suggérées (#718)", () => {
     expect(result.current.isDirty).toBe(false);
   });
 
-  // Sans `blocks` : envoyés, ils réécriraient ceux d'un exercice repris, que l'API garde (#723).
-  it("les envoie, et plus les blocs", async () => {
+  it("les envoie", async () => {
     const { result } = draftOf(exercise({ tags: [], suggestedMetrics: [] }));
 
     act(() => result.current.setSuggestedMetrics([reps]));
@@ -235,7 +234,6 @@ describe("useExerciseDraft — les métriques suggérées (#718)", () => {
 
     const [, sent] = api.updateExercise.mock.calls[0] as [string, Record<string, unknown>];
     expect(sent.suggestedMetrics).toEqual([reps]);
-    expect(sent).not.toHaveProperty("blocks");
   });
 });
 

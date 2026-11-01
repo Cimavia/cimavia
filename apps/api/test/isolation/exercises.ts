@@ -1,6 +1,7 @@
 import { EXERCISE_TAG_FILTER_MAX, EXERCISE_TAG_MAX_LENGTH, ProblemType, Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, required, signUp } from "../support/actors";
+import { blocksOf } from "../support/blocks";
 import {
   type DocumentFile,
   jpeg,
@@ -183,7 +184,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
 
     const session = await coachA.post("/sessions").send({
       title: "Circuit court",
-      exercises: [{ exerciseId: fresh.body.id, note: "3×30 s" }],
+      blocks: blocksOf({ exerciseId: fresh.body.id, note: "3×30 s" }),
     });
     expect(session.status).toBe(201);
 
@@ -194,7 +195,7 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     await coachA.put(`/sessions/${session.body.id}`).send({
       expectedUpdatedAt: session.body.updatedAt,
       title: "Circuit court",
-      exercises: [],
+      blocks: [],
     });
     expect((await coachA.get(`/exercises/${fresh.body.id}`)).body.usedInSessionCount).toBe(0);
 
@@ -207,65 +208,25 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(res.status).toBe(404);
   });
 
-  it("consigne structurée et blocs font l'aller-retour sans perte", async () => {
+  it("la consigne structurée fait l'aller-retour sans perte", async () => {
     const instructions = [
       { type: "HEADING", content: [{ text: "Mise en place" }] },
       { type: "PARAGRAPH", content: [{ text: "Coudes ", marks: ["BOLD"] }, { text: "serrés." }] },
     ];
-    const blocks = [
-      {
-        id: "blk_1",
-        label: "Travail",
-        structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
-        metrics: [
-          {
-            id: "col_reps",
-            source: "CATALOG",
-            key: "REPETITIONS",
-            unit: "REPS",
-            label: null,
-            collapsed: false,
-          },
-        ],
-        rows: [{ id: "r1", values: { col_reps: 6 } }],
-      },
-    ];
 
     const created = await coachA
       .post("/exercises")
-      .send({ title: "Tractions lestées", instructions, blocks });
+      .send({ title: "Tractions lestées", instructions });
     expect(created.status).toBe(201);
 
     // Relecture : le JSON ne doit ni se réordonner ni perdre ses marques d'inline.
     const read = await coachA.get(`/exercises/${created.body.id}`);
     expect(read.body.instructions).toEqual(instructions);
-    expect(read.body.blocks).toEqual(blocks);
   });
 
-  it("refuse un bloc dont la structure ne tient pas", async () => {
-    // EMOM dont la durée totale ne couvre pas un intervalle : refusé par exerciseBlockSchema,
-    // donc 400 — jamais écrit en base, où plus rien ne le rattraperait.
-    const res = await coachA.post("/exercises").send({
-      title: "EMOM impossible",
-      blocks: [
-        {
-          id: "blk_1",
-          label: null,
-          structure: { type: "EMOM", intervalSeconds: 60, totalDurationSeconds: 30 },
-          metrics: [
-            {
-              id: "c1",
-              source: "CATALOG",
-              key: "REPETITIONS",
-              unit: "REPS",
-              label: null,
-              collapsed: false,
-            },
-          ],
-          rows: [],
-        },
-      ],
-    });
+  // Le dosage vit dans la grille du bloc de séance (#723) : l'exercice n'en porte plus.
+  it("refuse un exercice qui porte encore des blocs (400)", async () => {
+    const res = await coachA.post("/exercises").send({ title: "Ancien modèle", blocks: [] });
     expect(res.status).toBe(400);
   });
 
@@ -523,7 +484,6 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
       title: "Tractions",
       description: "Lestées",
       tags: ["force"],
-      blocks: [],
     });
     expect(source.status).toBe(201);
     sourceId = source.body.id;
@@ -559,32 +519,6 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
     expect((await documentsOf(sourceId)).map((d) => d.id)).toEqual(
       expect.arrayContaining([imageId, attachmentId]),
     );
-  });
-
-  it("grave le dosage reçu plutôt que celui de la source", async () => {
-    const blocks = [
-      {
-        id: "blk_1",
-        label: "Travail",
-        structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
-        metrics: [
-          {
-            id: "col_reps",
-            source: "CATALOG",
-            key: "REPETITIONS",
-            unit: "REPS",
-            label: null,
-            collapsed: false,
-          },
-        ],
-        rows: [{ id: "r1", values: { col_reps: 6 } }],
-      },
-    ];
-    const variant = await coachA
-      .post(`/exercises/${sourceId}/duplicate`)
-      .send({ title: "Tractions ×6", blocks });
-    expect(variant.status).toBe(201);
-    expect(variant.body.blocks).toEqual(blocks);
   });
 
   it("supprimer la source garde l'image que la variante affiche", async () => {
@@ -845,44 +779,6 @@ describe("Métriques suggérées d'un exercice (#718)", () => {
     expect(saved.status).toBe(200);
     expect(saved.body.suggestedMetrics).toEqual([reps, orphan]);
     expect(saved.body.customMetrics).toEqual([]);
-    await deleteAtLatest(coachA, `/exercises/${id}`);
-  });
-
-  // L'exception EX-2 garde ce que chaque collection citait, rien de plus : une citation que seuls
-  // les blocs portaient ne gagne pas les métriques suggérées sans contrôle.
-  it("refuse de suggérer une métrique hors catalogue que seuls les blocs citaient (400)", async () => {
-    const gone = await coachA
-      .post("/custom-metrics")
-      .send({ label: "Passagère", unit: null, valueType: "NUMBER", scale: null });
-    const created = await coachA.post("/exercises").send({
-      title: "Bloc orphelin",
-      blocks: [
-        {
-          id: "blk",
-          label: null,
-          structure: { type: "FREE" },
-          metrics: [
-            {
-              id: "col",
-              source: "CUSTOM",
-              customMetricId: gone.body.id,
-              label: null,
-              collapsed: false,
-            },
-          ],
-          rows: [],
-        },
-      ],
-    });
-    expect(created.status).toBe(201);
-    const id: string = created.body.id;
-    expect((await coachA.delete(`/custom-metrics/${gone.body.id}`)).status).toBe(204);
-
-    const moved = await patchAtLatest(id, {
-      suggestedMetrics: [{ source: "CUSTOM", customMetricId: gone.body.id }],
-    });
-    expect(moved.status).toBe(400);
-    expect(moved.body.detail).toMatch(/catalogue du propriétaire/);
     await deleteAtLatest(coachA, `/exercises/${id}`);
   });
 });

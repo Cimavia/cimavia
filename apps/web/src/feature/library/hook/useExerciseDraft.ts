@@ -52,8 +52,7 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
   const [title, setTitle] = useState(exercise?.title ?? initialTitle ?? "");
   const [tags, setTags] = useState<string[]>(exercise?.tags ?? []);
   const [instructions, setInstructions] = useState<RichDocument>(exercise?.instructions ?? []);
-  // Plus de blocs (#718) : l'exercice ne se dose plus, la séance le fait. L'API garde ceux d'un
-  // exercice repris tant que l'ancien modèle vit (#723) — le brouillon ne les envoie pas.
+  // L'exercice ne se dose plus (#718), la séance le fait : il ne propose que des métriques.
   const [suggestedMetrics, setSuggestedMetrics] = useState<SuggestedMetric[]>(
     exercise?.suggestedMetrics ?? [],
   );

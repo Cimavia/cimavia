@@ -19,7 +19,7 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app, baseURL } from "../support/app";
-import { attachInvoiceDocument, mondayOfCurrentWeek } from "../support/fixtures";
+import { attachInvoiceDocument, fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
 
 describe("Isolation multi-tenant (P1)", () => {
@@ -878,7 +878,7 @@ describe("Isolation multi-capacité (#18)", () => {
     const weekId = required(plan.body.weeks[0]?.id, "semaine du cycle adressé");
     const session = await hisCoach
       .post(`/plan-weeks/${weekId}/sessions`)
-      .send({ title: "Séance adressée", scheduledDate: monday });
+      .send(await fromTemplate(hisCoach, { title: "Séance adressée", scheduledDate: monday }));
     const billing = await hisCoach
       .put(`/plans/${plan.body.id}/billing`)
       .send({ amountCents: 4000, dueDate: monday });

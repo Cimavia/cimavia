@@ -34,10 +34,7 @@ export function parseBlockTracking(value: Prisma.JsonValue): SessionBlockTrackin
   return value === null ? null : sessionBlockTrackingSchema.parse(value);
 }
 
-/**
- * Le passage vers `InputJsonValue`, pour les mêmes raisons que `toBlocksInput` : sans retour
- * explicite, le littéral garde le type Zod et Prisma le refuse.
- */
+/** Le passage vers `InputJsonValue` : sans retour explicite, le littéral garde le type Zod et Prisma le refuse. */
 export function toJsonInput(
   value: StructureSettings | BlockGrid | BlockReference | SessionBlockTracking,
 ): Prisma.InputJsonValue {

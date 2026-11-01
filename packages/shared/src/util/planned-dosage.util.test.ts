@@ -132,7 +132,7 @@ describe("dosageSessionTypes", () => {
     ]);
   });
 
-  it("laisse les séances sans bloc à leur panneau, et range une séance sans modèle à part", () => {
+  it("ignore les séances sans bloc, et range une séance sans modèle à part", () => {
     const types = dosageSessionTypes([
       weekOf(1, [
         summary("old", { blockCount: 0 }),

@@ -120,6 +120,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
+      // Les fixtures de test partagées (#723). AVANT `@cmv/shared` : un alias objet remplace un
+      // PRÉFIXE, et le premier qui correspond l'emporte.
+      "@cmv/shared/test": path.resolve(import.meta.dirname, "../../packages/shared/test"),
       "@cmv/shared": path.resolve(import.meta.dirname, "../../packages/shared/src/index.ts"),
       "@cmv/tokens": path.resolve(import.meta.dirname, "../../packages/tokens/src/index.ts"),
     },

@@ -1,7 +1,7 @@
 import {
-  type BlockMetric,
   FRENCH_CLIMBING_SCALE,
   formatDecimal,
+  type GridMetric,
   METRIC_TEXT_VALUE_MAX_LENGTH,
   MetricKey,
   MetricSource,
@@ -13,13 +13,12 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { GridCell } from "./GridCell";
 
-const column = (key: MetricKey, unit: MetricUnit): BlockMetric => ({
+const column = (key: MetricKey, unit: MetricUnit): GridMetric => ({
   id: "col",
   source: MetricSource.CATALOG,
   key,
   unit,
   label: null,
-  collapsed: false,
 });
 
 const load = column(MetricKey.LOAD, MetricUnit.KILOGRAMS);
@@ -37,7 +36,7 @@ function Controlled({
   onChange,
   onCommitLine,
 }: Readonly<{
-  metric: BlockMetric;
+  metric: GridMetric;
   initial: MetricValue;
   onChange: (value: MetricValue) => void;
   onCommitLine: (value: MetricValue) => void;
@@ -57,7 +56,7 @@ function Controlled({
   );
 }
 
-function setup(metric: BlockMetric, initial: MetricValue = null) {
+function setup(metric: GridMetric, initial: MetricValue = null) {
   const onChange = vi.fn();
   const onCommitLine = vi.fn();
   const view = renderWithProviders(
@@ -72,7 +71,7 @@ function setup(metric: BlockMetric, initial: MetricValue = null) {
 }
 
 /** Les cellules à saisie libre : un champ texte. */
-function setupInput(metric: BlockMetric, initial: MetricValue = null) {
+function setupInput(metric: GridMetric, initial: MetricValue = null) {
   const view = setup(metric, initial);
   return { ...view, input: view.getByRole("textbox") };
 }

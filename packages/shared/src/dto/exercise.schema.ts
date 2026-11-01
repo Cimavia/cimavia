@@ -6,7 +6,6 @@ import {
   coachGrantDtoSchema,
   myAccessSchema,
 } from "./access.schema";
-import { exerciseBlocksSchema } from "./exercise-block.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
@@ -99,9 +98,6 @@ export const createExerciseSchema = z
     // Consigne structurée, remplaçante de `description`. Les deux cohabitent le temps que le
     // constructeur web bascule (#163) — voir dette EX-1.
     instructions: richDocumentSchema.nullable().optional(),
-    // Absent = aucun bloc, ce qui est un exercice LÉGITIME : un coach peut n'écrire qu'une
-    // consigne. Pas de bloc par défaut, qui obligerait ensuite à le supprimer.
-    blocks: exerciseBlocksSchema.optional(),
     // Absent = aucune : l'exercice se pose alors dans un bloc avec une grille vide (#718).
     suggestedMetrics: suggestedMetricsSchema.optional(),
     tags: exerciseTagsSchema.optional(),
@@ -113,10 +109,9 @@ export const updateExerciseSchema = z
   .object({
     title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH).optional(),
     description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
-    // `undefined` ne touche à rien, `null` efface la consigne, `[]` vide les blocs — trois
-    // intentions distinctes que le service doit pouvoir séparer.
+    // `undefined` ne touche à rien, `null` efface la consigne — deux intentions distinctes que le
+    // service doit pouvoir séparer.
     instructions: richDocumentSchema.nullable().optional(),
-    blocks: exerciseBlocksSchema.optional(),
     suggestedMetrics: suggestedMetricsSchema.optional(),
     tags: exerciseTagsSchema.optional(),
     expectedUpdatedAt: expectedVersionSchema,
@@ -125,12 +120,11 @@ export const updateExerciseSchema = z
 export type UpdateExerciseInput = z.infer<typeof updateExerciseSchema>;
 
 /**
- * « Dupliquer en variante » (#315) : le serveur recopie l'exercice source, consigne comprise, et
- * rattache à la variante les images que cette consigne cite. Le client ne choisit que le titre et,
- * depuis une séance, le dosage à graver — celui de la SÉANCE, que le coach duplique justement
- * pour changer ce que le niveau séance verrouille.
+ * « Dupliquer en variante » (#315) : le serveur recopie l'exercice source, consigne et métriques
+ * suggérées comprises, et rattache à la variante les images que cette consigne cite. Le client ne
+ * choisit que le titre.
  */
-export const duplicateExerciseSchema = createExerciseSchema.pick({ title: true, blocks: true });
+export const duplicateExerciseSchema = createExerciseSchema.pick({ title: true });
 export type DuplicateExerciseInput = z.infer<typeof duplicateExerciseSchema>;
 
 // Types de documents acceptés (PDF / image — CDC §5.2). Source UNIQUE : la validation
@@ -248,13 +242,11 @@ export const exerciseDtoSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   instructions: richDocumentSchema.nullable(),
-  blocks: exerciseBlocksSchema,
   /** Les colonnes que l'exercice préremplit dans un bloc, dans l'ordre et sans valeur (#718). */
   suggestedMetrics: suggestedMetricsSchema,
   /**
-   * Les définitions des métriques maison que `blocks` et `suggestedMetrics` citent, prises chez le
-   * PROPRIÉTAIRE de l'exercice (#605) : celui d'un autre Coach cite son catalogue, que le lecteur
-   * n'a pas.
+   * Les définitions des métriques maison que `suggestedMetrics` cite, prises chez le PROPRIÉTAIRE
+   * de l'exercice (#605) : celui d'un autre Coach cite son catalogue, que le lecteur n'a pas.
    */
   customMetrics: z.array(customMetricSchema),
   tags: z.array(z.string()),

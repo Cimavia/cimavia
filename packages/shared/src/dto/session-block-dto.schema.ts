@@ -7,8 +7,7 @@ import { structurePresetKeySchema, structureSettingsSchema } from "./structure.s
 // Les blocs tels que l'API les rend (#716) : ceux de la séance-type et ceux d'une séance planifiée.
 //
 // Un exercice de bloc ne répète pas le contenu de l'exercice — titre, consigne, documents, tags :
-// son `id` est celui de la ligne que la séance rend déjà dans `exercises`, qui le porte. Les deux
-// listes cohabitent jusqu'au retrait de l'ancien modèle (#723).
+// son `id` est celui de la ligne que la séance rend déjà dans `exercises`, qui le porte.
 
 const blockDtoFields = {
   id: z.string(),

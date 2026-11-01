@@ -1,6 +1,6 @@
 import type { BlockGrid, GridMetric } from "../dto/block-grid.schema";
-import { fittingColumnCount, MetricSource } from "../dto/exercise-block.schema";
 import { MetricKey, MetricUnit, type MetricValue } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import type { StructureSettings } from "../dto/structure.schema";
 import { StructureAdvance, StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";
@@ -77,12 +77,25 @@ function sameCells(a: readonly GridCell[], b: readonly GridCell[]): boolean {
 }
 
 /**
+ * Les colonnes qu'un écran étroit aligne. Les chiffres viennent de la planche mobile : un écran de
+ * 402 px moins ses marges laisse 362 px utiles, une colonne de valeur en chasse fixe demande 90 px,
+ * et l'index en prend 28. Trois colonnes tiennent, quatre non — et le remède ne peut pas être un
+ * défilement horizontal, qui est inutilisable une main sur la barre.
+ */
+const ATHLETE_USABLE_WIDTH_PX = 362;
+const ATHLETE_VALUE_COLUMN_PX = 90;
+const ATHLETE_INDEX_COLUMN_PX = 28;
+const FITTING_COLUMNS = Math.floor(
+  (ATHLETE_USABLE_WIDTH_PX - ATHLETE_INDEX_COLUMN_PX) / ATHLETE_VALUE_COLUMN_PX,
+);
+
+/**
  * Comment se lisent les valeurs d'un exercice :
  *  - aucune colonne, ou aucune cellule remplie : pas de grille ;
  *  - une ligne, ou des lignes toutes identiques : une phrase, « À chaque tour : 6 répétitions à
  *    60 kg » (`each` est `null` pour un bloc fait une seule fois) ;
- *  - sinon un tableau tant que les colonnes tiennent sur un écran étroit (`fittingColumnCount`,
- *    le seuil inchangé), des cartes au-delà.
+ *  - sinon un tableau tant que les colonnes tiennent sur un écran étroit (`FITTING_COLUMNS`),
+ *    des cartes au-delà.
  *
  * Dès qu'une cellule est remplie la grille s'affiche, et une cellule vide y vaut « — ».
  */
@@ -102,7 +115,7 @@ export function gridReading(
     return { layout: GridLayout.LINE, each: eachPhrase(settings, exerciseCount), cells: first };
   }
 
-  const layout = grid.metrics.length <= fittingColumnCount() ? GridLayout.TABLE : GridLayout.CARDS;
+  const layout = grid.metrics.length <= FITTING_COLUMNS ? GridLayout.TABLE : GridLayout.CARDS;
   return {
     layout,
     rows: rows.map((cells, index) => ({

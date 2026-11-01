@@ -1,7 +1,7 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
-import { BlockType, ScheduledSessionStatus } from "@cmv/shared";
+import { ScheduledSessionStatus } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
 
@@ -27,64 +27,26 @@ const CONTACT = "plan.athlete.contactCoach";
 const OPEN_FEEDBACK = "feedback.open";
 const BACK = "plan.athlete.backToPlanning";
 
-/** Une séance d'un exercice — le cas ordinaire, dont le rail tire son sommaire. */
+/** Une séance par blocs — le cas ordinaire. */
 const session = (): ScheduledSessionDto =>
-  ({
+  blockSession({
     id: SESSION_ID,
     title: "Séance haute",
-    notes: null,
-    scheduledDate: "2026-10-14",
-    status: ScheduledSessionStatus.PLANNED,
     coachId: COACH_ID,
     coachName: "Marc Keller",
-    exercises: [
-      {
-        id: "sx-1",
-        title: "Traction",
-        instructions: null,
-        tags: [],
-        documents: [],
-        tracking: null,
-        blocks: [{ id: "b-1", label: null, structure: { type: "FREE" }, metrics: [], rows: [] }],
-      },
-    ],
-    blocks: [],
-  }) as unknown as ScheduledSessionDto;
+  });
 
 /**
  * Une séance SANS exercice : « footing, repos actif » se compose exactement comme ça, et rien dans
  * le schéma partagé ne l'interdit. Le jeu de données manquait — d'où #276, qui n'aurait pas pu
  * arriver si ce cas avait été monté une fois.
  */
-const emptySession = (): ScheduledSessionDto =>
-  ({ ...session(), title: "Footing, repos actif", exercises: [] }) as ScheduledSessionDto;
-
-/** Une séance qui se SUIT : trois séries à cocher, et un AMRAP dont on compte les tours. */
-const trackedSession = (): ScheduledSessionDto =>
-  ({
-    ...session(),
-    exercises: [
-      {
-        ...session().exercises[0],
-        blocks: [
-          {
-            id: "b-series",
-            label: null,
-            structure: { type: BlockType.SERIES, setCount: 3, restBetweenSetsSeconds: null },
-            metrics: [],
-            rows: [],
-          },
-          {
-            id: "b-amrap",
-            label: null,
-            structure: { type: BlockType.AMRAP, totalDurationSeconds: 600, targetRounds: null },
-            metrics: [],
-            rows: [],
-          },
-        ],
-      },
-    ],
-  }) as ScheduledSessionDto;
+const emptySession = (): ScheduledSessionDto => ({
+  ...session(),
+  title: "Footing, repos actif",
+  exercises: [],
+  blocks: [],
+});
 
 /**
  * L'écran est monté sous l'id EXACT que réclame son `getRouteApi` — la feuille `.index`, avec sa
@@ -106,7 +68,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // `useLocalTracking` lit le stockage du navigateur : un test laisserait ses coches au suivant.
+  // `useLocalBlockTracking` lit le stockage du navigateur : un test laisserait ses coches au suivant.
   window.localStorage.clear();
 });
 
@@ -152,14 +114,6 @@ describe("AthleteSessionScreen", () => {
     expect(router.state.location.href).toBe(`/sessions/${SESSION_ID}/feedback`);
   });
 
-  // Le témoin du cas suivant : sans lui, « ferme le sommaire » passerait sur un rail qui ne le
-  // monte jamais.
-  it("monte le sommaire du rail sur une séance composée", async () => {
-    const { findByText } = await setup();
-
-    expect(await findByText("plan.athlete.summary")).toBeInTheDocument();
-  });
-
   /**
    * #276 : le rail RETIRAIT le bouton sur une séance sans exercice, au motif que l'anomalie était
    * celle du coach. Or le débrief est le seul geste qui reste à l'athlète — c'est par lui qu'il
@@ -184,14 +138,6 @@ describe("AthleteSessionScreen", () => {
       expect(router.state.location.href).toBe(`/sessions/${SESSION_ID}/feedback?from=${MONDAY}`);
     });
 
-    // Seul le SOMMAIRE dépend de la composition : sans exercice, il n'y a rien à sommer.
-    it("ferme le sommaire du rail, qui n'aurait rien à sommer", async () => {
-      const { findByRole, queryByText } = await setup();
-      await findByRole("button", { name: OPEN_FEEDBACK });
-
-      expect(queryByText("plan.athlete.summary")).not.toBeInTheDocument();
-    });
-
     // On constate le vide sans désigner de coupable — l'écran ne dit plus « ton coach a oublié ».
     it("constate l'absence de déroulé", async () => {
       const { findByText } = await setup();
@@ -207,7 +153,7 @@ describe("AthleteSessionScreen", () => {
     await user.click(await findByRole("button", { name: "common.retry" }));
 
     // Le rejeu relit la séance : elle s'affiche, l'erreur s'efface.
-    expect(await findByText("Traction")).toBeInTheDocument();
+    expect(await findByText("plan.athlete.blocks.count")).toBeInTheDocument();
     expect(getSessionMock).toHaveBeenCalledTimes(2);
   });
 
@@ -229,7 +175,7 @@ describe("AthleteSessionScreen", () => {
     selfId.current = COACH_ID;
     const { findByText, queryByRole } = await setup();
 
-    expect(await findByText("Traction")).toBeInTheDocument();
+    expect(await findByText("plan.athlete.blocks.count")).toBeInTheDocument();
     expect(queryByRole("link", { name: CONTACT })).toBeNull();
   });
 
@@ -246,39 +192,6 @@ describe("AthleteSessionScreen", () => {
     expect(getByText("Écoute tes doigts")).toBeInTheDocument();
   });
 
-  describe("le suivi d'exécution", () => {
-    const stored = () =>
-      JSON.parse(window.localStorage.getItem(`cimavia-tracking:${SESSION_ID}`) ?? "null");
-
-    beforeEach(() => {
-      getSessionMock.mockResolvedValue(trackedSession());
-    });
-
-    // L'en-tête ne compte rien : la progression vit dans le rail, et y apparaît à la 1re coche.
-    it("fait apparaître la progression du rail à la première case cochée", async () => {
-      const { findAllByRole, queryByText, getByText, user } = await setup();
-      const boxes = await findAllByRole("button", { pressed: false });
-      expect(queryByText("plan.athlete.progress")).toBeNull();
-
-      await user.click(boxes[0] as HTMLElement);
-
-      expect(getByText("plan.athlete.progress")).toBeInTheDocument();
-      expect(stored()).toEqual({
-        "sx-1": { "b-series": { checked: [0] } },
-      });
-    });
-
-    it("compte les tours de l'AMRAP, gardés en local jusqu'au débrief", async () => {
-      const { findByRole, user } = await setup();
-
-      await user.click(await findByRole("button", { name: "+" }));
-
-      expect(stored()).toEqual({
-        "sx-1": { "b-amrap": { rounds: 1 } },
-      });
-    });
-  });
-
   /** #722 : une séance composée par blocs se lit bloc par bloc, et se coche dans le rail. */
   describe("une séance par blocs", () => {
     const stored = () =>
@@ -288,13 +201,12 @@ describe("AthleteSessionScreen", () => {
       getSessionMock.mockResolvedValue(blockSession({ id: SESSION_ID, coachId: COACH_ID }));
     });
 
-    it("lit les blocs à la place des exercices, sans sommaire ni progression d'exercice", async () => {
-      const { findByText, queryByText, getByText } = await setup();
+    it("lit la séance bloc par bloc", async () => {
+      const { findByText, getByText } = await setup();
 
       expect(await findByText("plan.athlete.blocks.count")).toBeInTheDocument();
       expect(getByText("plan.athlete.blocks.title")).toBeInTheDocument();
       expect(getByText("plan.athlete.blocks.sent")).toBeInTheDocument();
-      expect(queryByText("plan.athlete.summary")).not.toBeInTheDocument();
     });
 
     it("ouvre « Mon suivi » du bloc choisi dans le rail, et garde la coche en local", async () => {
@@ -316,7 +228,6 @@ describe("AthleteSessionScreen", () => {
       await user.click(box as HTMLElement);
 
       expect(stored()).toMatchObject({ "blk-1": { checked: [{ key: "a1", row: 0 }] } });
-      expect(window.localStorage.getItem(`cimavia-tracking:${SESSION_ID}`)).toBeNull();
     });
   });
 });

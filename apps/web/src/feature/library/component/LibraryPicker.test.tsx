@@ -1,9 +1,11 @@
 import {
-  BlockType,
   type CoachOrganizationDto,
   type ExerciseDto,
   LibraryScope,
+  METRIC_LABEL_KEY,
+  MetricKey,
   MetricSource,
+  MetricUnit,
   MetricValueType,
   MyAccessLevel,
 } from "@cmv/shared";
@@ -39,26 +41,21 @@ const exercise = (id: string, title: string, overrides: Partial<ExerciseDto> = {
     id,
     title,
     tags: [],
-    blocks: [],
+    suggestedMetrics: [],
     customMetrics: [],
     owner: { id: "coach-c", name: "C" },
     myAccess: { level: MyAccessLevel.OWNER, via: null },
     ...overrides,
   }) as unknown as ExerciseDto;
 
-const series = [
-  {
-    id: "blk-1",
-    label: null,
-    structure: { type: BlockType.SERIES, setCount: 4, restBetweenSetsSeconds: null },
-    metrics: [],
-    rows: [],
-  },
-] as unknown as ExerciseDto["blocks"];
+const pullUps = [
+  { source: MetricSource.CATALOG, key: MetricKey.REPETITIONS, unit: MetricUnit.REPS },
+  { source: MetricSource.CATALOG, key: MetricKey.LOAD, unit: MetricUnit.KILOGRAMS },
+] as unknown as ExerciseDto["suggestedMetrics"];
 
 const library = [
   exercise("ex-1", "Échauffement", { tags: ["mobilité"] }),
-  exercise("ex-2", "Tractions", { blocks: series }),
+  exercise("ex-2", "Tractions", { suggestedMetrics: pullUps }),
   exercise("ex-3", "Gainage"),
 ];
 
@@ -120,18 +117,22 @@ describe("LibraryPicker", () => {
     expect(queryByText("library.noMatch.title")).not.toBeInTheDocument();
   });
 
-  // La même phrase que la composition : le coach reconnaît ce qu'il ajoute avant de l'ajouter.
-  it("montre chaque exercice en ligne — titre, tags, dosage —, et « — » pour ce qui manque", async () => {
+  // Les colonnes que l'exercice préremplira : le coach sait ce qu'il ajoute avant de l'ajouter.
+  it("montre chaque exercice en ligne — titre, tags, métriques —, et « — » pour ce qui manque", async () => {
     served(library);
     const { headers, cells } = await setup();
 
     expect(headers()).toEqual([
       "library.table.title",
       "library.table.tags",
-      "library.table.dosage",
+      "library.table.metrics",
     ]);
     expect(cells("Échauffement")).toEqual(["Échauffement", "mobilité", "—"]);
-    expect(cells("Tractions")).toEqual(["Tractions", "—", "exercise.dosage.series"]);
+    expect(cells("Tractions")).toEqual([
+      "Tractions",
+      "—",
+      `${METRIC_LABEL_KEY[MetricKey.REPETITIONS]} · ${METRIC_LABEL_KEY[MetricKey.LOAD]}`,
+    ]);
   });
 
   // Le coach tape sans accent ni majuscule : « echauf » doit trouver « Échauffement ».
@@ -237,7 +238,7 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
       "library.table.title",
       "library.table.tags",
       "library.table.owner",
-      "library.table.dosage",
+      "library.table.metrics",
     ]);
     expect(cells("Échauffement")).toEqual(["Échauffement", "—", "library.access.me", "—"]);
     expect(cells("Gainage")).toEqual(["Gainage", "—", "library.access.grant", "—"]);
@@ -309,28 +310,14 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
     expect(getByText("library.noFilterMatch")).toBeInTheDocument();
   });
 
-  // Le résumé dit la valeur ET son unité, que seule la définition du propriétaire connaît.
-  it("résume l'exercice d'un autre avec les métriques de son propriétaire", async () => {
+  // Une métrique maison se nomme par la définition de son propriétaire.
+  it("nomme les métriques d'un autre avec celles de son propriétaire", async () => {
     organizations([F]);
     served([
       exercise("ex-m", "Gainage", {
-        blocks: [
-          {
-            id: "b-m",
-            label: null,
-            structure: { type: BlockType.FREE },
-            metrics: [
-              {
-                id: "c-m",
-                source: MetricSource.CUSTOM,
-                customMetricId: "cm-m",
-                label: null,
-                collapsed: true,
-              },
-            ],
-            rows: [{ id: "r-m", values: { "c-m": 12 } }],
-          },
-        ] as unknown as ExerciseDto["blocks"],
+        suggestedMetrics: [
+          { source: MetricSource.CUSTOM, customMetricId: "cm-m" },
+        ] as unknown as ExerciseDto["suggestedMetrics"],
         customMetrics: [
           {
             id: "cm-m",
@@ -344,6 +331,6 @@ describe("LibraryPicker — partage (#606, frame 8)", () => {
     ]);
     const { cells } = await setup();
 
-    expect(cells("Gainage").at(-1)).toContain("12 prises");
+    expect(cells("Gainage").at(-1)).toBe("Prises");
   });
 });

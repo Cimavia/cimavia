@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { issuesOf } from "../../test/block-fixtures";
-import { GRID_MAX_METRICS } from "./block-grid.schema";
-import { MetricSource } from "./exercise-block.schema";
 import { MetricKey, MetricUnit } from "./exercise-metric.schema";
+import { GRID_MAX_METRICS, MetricSource } from "./metric-reference.schema";
 import { suggestedMetricIdentity, suggestedMetricsSchema } from "./suggested-metric.schema";
 
 const suggestedReps = {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { effort, gridOf, load, oneByBeep, reps, settingsOf } from "../../test/block-fixtures";
 import type { BlockGrid } from "../dto/block-grid.schema";
-import { MetricSource } from "../dto/exercise-block.schema";
 import { MetricKey, MetricUnit } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import { ScheduledSessionStatus } from "../dto/plan.schema";
 import {
   type CompositionEdit,

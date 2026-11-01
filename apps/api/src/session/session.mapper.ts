@@ -8,7 +8,6 @@ import {
 } from "../custom-metric/custom-metric.mapper";
 import { FROZEN_FROM_INCLUDE, toFrozenFrom } from "../exercise/exercise.mapper";
 import { parseGrid } from "../util/block-json.util";
-import { parseAdjustments, parseBlocks } from "../util/exercise-json.util";
 import { SESSION_BLOCKS_INCLUDE, toSessionBlockDto } from "./session-block.mapper";
 
 /**
@@ -33,8 +32,8 @@ export type SessionWithExercises = Prisma.SessionGetPayload<{
 }>;
 
 /**
- * Les propriétaires des exercices composés : leurs catalogues, que les blocs citent. Et celui de la
- * séance, que citent aussi les grilles de ses blocs (#716).
+ * Les propriétaires des exercices composés et celui de la séance : les grilles de ses blocs citent
+ * leurs catalogues (#716).
  */
 export function exerciseOwnersOf(sessions: readonly SessionWithExercises[]): string[] {
   return sessions.flatMap((session) => [
@@ -54,31 +53,21 @@ export function toSessionDto(
     ...toAccessView(session, context),
     title: session.title,
     notes: session.notes,
-    exercises: session.exercises.map((composed) => {
-      const blocks = parseBlocks(composed.blocks);
-      return {
-        id: composed.id,
-        exerciseId: composed.exerciseId,
-        position: composed.position,
-        note: composed.note,
-        blocks,
-        baseline: parseBlocks(composed.baseline),
-        adjustments: parseAdjustments(composed.adjustments),
-        title: composed.exercise.title,
-        // Le verrou de forme garde les colonnes de l'exercice : celles de la ligne citent donc le
-        // catalogue de SON propriétaire. Une ligne de bloc cite aussi celui de la séance (#716).
-        customMetrics:
-          composed.grid === null
-            ? citedCustomMetrics(blocks, catalogOf(composed.exercise.coachId))
-            : citedCustomMetrics(
-                [parseGrid(composed.grid)],
-                gridCatalogOf(catalogOf, composed.exercise.coachId, session.coachId),
-              ),
-        // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
-        tags: composed.exercise.tags.map((tag) => tag.name).sort(),
-        frozenFrom: toFrozenFrom(composed.exercise),
-      };
-    }),
+    exercises: session.exercises.map((composed) => ({
+      id: composed.id,
+      exerciseId: composed.exerciseId,
+      position: composed.position,
+      note: composed.note,
+      title: composed.exercise.title,
+      // La grille cite le catalogue du propriétaire de l'exercice, ou celui de la séance (#716).
+      customMetrics: citedCustomMetrics(
+        [parseGrid(composed.grid)],
+        gridCatalogOf(catalogOf, composed.exercise.coachId, session.coachId),
+      ),
+      // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
+      tags: composed.exercise.tags.map((tag) => tag.name).sort(),
+      frozenFrom: toFrozenFrom(composed.exercise),
+    })),
     blocks: session.blocks.map(toSessionBlockDto),
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),

@@ -14,7 +14,7 @@ import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
  * Appelée aux DEUX bouts, et les deux comptent : à la déconnexion, et à la connexion — le seul
  * passage obligé, puisqu'une session perdue ramène au login sans qu'aucune déconnexion soit passée.
  *
- * Ce qui n'y est PAS, volontairement : le suivi local des séances (`useLocalTracking`). Sa clé est
+ * Ce qui n'y est PAS, volontairement : le suivi local des séances (`useLocalBlockTracking`). Sa clé est
  * l'identifiant d'une séance, que le compte suivant ne peut pas ouvrir — rien n'y fuit.
  */
 export function resetAccountData(queryClient: QueryClient): void {

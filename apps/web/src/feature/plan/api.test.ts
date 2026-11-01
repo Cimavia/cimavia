@@ -136,9 +136,9 @@ describe.each([
   ],
   [
     "createScheduledSession",
-    () => createScheduledSession("w-1", { title: "Force" } as never),
+    () => createScheduledSession("w-1", { sourceSessionId: "s-0", scheduledDate: "2026-10-05" }),
     "post",
-    ["/plan-weeks/w-1/sessions", { title: "Force" }],
+    ["/plan-weeks/w-1/sessions", { sourceSessionId: "s-0", scheduledDate: "2026-10-05" }],
   ],
   [
     "updateScheduledSession",

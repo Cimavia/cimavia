@@ -3,17 +3,6 @@ import { expect, test } from "./support/fixtures";
 import { t } from "./support/i18n";
 import { type Account, json, mondayOfThisWeek, type Seed, seriesOf } from "./support/seed";
 
-/** Un bloc d'une série, dont la seule colonne est une métrique maison de son propriétaire. */
-const citing = (customMetricId: string) => [
-  {
-    id: "blk_grade",
-    label: null,
-    structure: { type: "SERIES", setCount: 1, restBetweenSetsSeconds: null },
-    metrics: [{ id: "col_grade", source: "CUSTOM", customMetricId, label: null, collapsed: false }],
-    rows: [{ id: "r1", values: { col_grade: "6b" } }],
-  },
-];
-
 /**
  * L'entreprise F, ses Coachs C et M. C possède Voie — cotée sur SA métrique « Cotation » —, Dalle,
  * et la séance Grimpe qui compose Voie. Rien n'est encore partagé.
@@ -36,8 +25,6 @@ async function sharedLibrary(seed: Seed) {
       data: {
         title: "Voie",
         tags: ["grimpe"],
-        // Les blocs pour la séance Grimpe, qui la dose encore dans l'ancien modèle (#723).
-        blocks: citing(grade.id),
         suggestedMetrics: [{ source: "CUSTOM", customMetricId: grade.id }],
       },
     }),

@@ -1,8 +1,8 @@
 import { STRUCTURE_PRESETS } from "@cmv/shared";
+import { repsGrid } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BlockReading, type BlockReadingExercise } from "@/feature/library/component/BlockReading";
-import { repsGrid } from "../../../../test/block-session";
 import { renderWithProviders } from "../../../../test/render";
 
 const exercise = (over: Partial<BlockReadingExercise> = {}): BlockReadingExercise => ({

@@ -198,9 +198,11 @@ export class Seed {
       "création du cycle",
     );
     const week = required(plan.weeks[0], "semaine du cycle");
+    // Une séance planifiée naît d'une séance-type (#723), dont elle reprend le titre.
+    const template = await this.sessionType(coach, sessionTitle);
     const session = await json<{ id: string }>(
       await coach.api.post(`/plan-weeks/${week.id}/sessions`, {
-        data: { title: sessionTitle, scheduledDate: monday },
+        data: { sourceSessionId: template.id, scheduledDate: monday },
       }),
       "création de la séance",
     );

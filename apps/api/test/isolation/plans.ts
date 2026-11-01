@@ -1,7 +1,8 @@
 import { ProblemType, Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
-import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
-import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import { type Agent, billAndPublish, inviteFor, link, signUp } from "../support/actors";
+import { blocksOf, repsGrid } from "../support/blocks";
+import { fromTemplate, mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
 import {
   ANY_VERSION,
@@ -20,7 +21,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   let a1Id: string;
   let b1Id: string;
   let exerciseAId: string;
-  let exerciseBId: string;
   let templateId: string;
   let planId: string;
   let week1Id: string;
@@ -35,24 +35,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
   const mondayOfWeek2Iso = mondayOfWeek2.toISOString().slice(0, 10);
 
   const LIBRARY_INSTRUCTIONS = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
-  const LIBRARY_BLOCKS = [
-    {
-      id: "blk_1",
-      label: "Travail",
-      structure: { type: "SERIES", setCount: 5, restBetweenSetsSeconds: 180 },
-      metrics: [
-        {
-          id: "col_reps",
-          source: "CATALOG",
-          key: "REPETITIONS",
-          unit: "REPS",
-          label: null,
-          collapsed: false,
-        },
-      ],
-      rows: [{ id: "r1", values: { col_reps: 5 } }],
-    },
-  ];
 
   beforeAll(async () => {
     coachA = await signUp("plan-coach-a@cmv.test", Role.COACH);
@@ -68,7 +50,6 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       title: "Tractions lestées",
       description: "Prise large",
       instructions: LIBRARY_INSTRUCTIONS,
-      blocks: LIBRARY_BLOCKS,
     });
     exerciseAId = exercise.body.id;
     await coachA
@@ -78,12 +59,9 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Bloc force max",
       notes: "Repos 3 min.",
-      exercises: [{ exerciseId: exerciseAId, note: "5×5" }],
+      blocks: blocksOf({ exerciseId: exerciseAId, note: "5×5" }),
     });
     templateId = template.body.id;
-
-    const exerciseB = await coachB.post("/exercises").send({ title: "Chez B", tags: ["grimpe"] });
-    exerciseBId = exerciseB.body.id;
   });
 
   it("crée un cycle avec ses semaines (type training/deload, nombre libre)", async () => {
@@ -140,34 +118,29 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     // Consigne et structure suivent aussi : sans elles l'athlète garderait le titre et perdrait
     // ce qu'il doit faire.
     expect(res.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
-    expect(res.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
+    expect(res.body.blocks[0].exercises[0]).toMatchObject({ key: "a1", grid: repsGrid("a1") });
   });
 
   /**
-   * Trois intentions sur `notes`, trois résultats : absent = reprendre celles du modèle, un texte =
-   * les remplacer, `null` = n'en poser aucune. Confondre `null` et « absent » ferait réapparaître
-   * les consignes du modèle que le coach venait d'effacer pour cette séance-là.
+   * La séance planifiée naît COPIE de son modèle, titre et notes compris (#723) : elle s'ajuste
+   * ensuite. Une création qui voudrait les surcharger, ou composer ses exercices, est refusée.
    */
-  it("reprend les notes du modèle, sauf si la séance en fournit ou les efface", async () => {
-    const pose = (notes?: string | null) =>
-      coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
-        sourceSessionId: templateId,
-        scheduledDate: mondayOfWeek2Iso,
-        ...(notes === undefined ? {} : { notes }),
-      });
+  it("reprend titre et notes du modèle, et refuse de les surcharger à la création", async () => {
+    const inherited = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(inherited.status).toBe(201);
+    expect(inherited.body).toMatchObject({ title: "Bloc force max", notes: "Repos 3 min." });
+    await deleteAtLatest(coachA, `/scheduled-sessions/${inherited.body.id}`);
 
-    const inherited = await pose();
-    const replaced = await pose("Repos 4 min aujourd'hui.");
-    const cleared = await pose(null);
-    // Semaine 2 : nettoyée aussitôt, la semaine 1 est le décor d'autres assertions.
-    for (const res of [inherited, replaced, cleared]) {
-      await deleteAtLatest(coachA, `/scheduled-sessions/${res.body.id}`);
+    for (const extra of [{ notes: null }, { title: "Autre" }, { exercises: [] }]) {
+      const refused = await coachA
+        .post(`/plan-weeks/${week2Id}/sessions`)
+        .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso, ...extra });
+      expect(refused.status).toBe(400);
     }
-
-    expect([inherited.status, replaced.status, cleared.status]).toEqual([201, 201, 201]);
-    expect(inherited.body.notes).toBe("Repos 3 min.");
-    expect(replaced.body.notes).toBe("Repos 4 min aujourd'hui.");
-    expect(cleared.body.notes).toBeNull();
+    const week2 = (await coachA.get(`/plans/${planId}`)).body.weeks[1];
+    expect(week2.sessions).toEqual([]);
   });
 
   // Le modèle est lu par le client TENANT : celui d'un autre coach n'existe pas pour A — refusé
@@ -190,42 +163,20 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     const patched = await coachA.patch(`/exercises/${exerciseAId}`).send({
       expectedUpdatedAt: await versionOf(coachA, `/exercises/${exerciseAId}`),
       instructions: [{ type: "PARAGRAPH", content: [{ text: "Réécrit après diffusion." }] }],
-      blocks: [],
     });
     expect(patched.status).toBe(200);
-    expect(patched.body.blocks).toEqual([]);
 
     const read = await coachA.get(`/scheduled-sessions/${scheduledId}`);
     expect(read.body.exercises[0].instructions).toEqual(LIBRARY_INSTRUCTIONS);
-    expect(read.body.exercises[0].blocks).toEqual(LIBRARY_BLOCKS);
   });
 
-  it("diffuse le dosage de la SÉANCE, pas celui de la bibliothèque", async () => {
-    // La régression que ce test verrouille : lire les blocs de l'exercice au moment de la
-    // diffusion ferait disparaître, sans le moindre avertissement, tout ce que le coach a ajusté
-    // au niveau séance.
-    const template = await coachA.get(`/sessions/${templateId}`);
-    const composed = template.body.exercises[0];
-    const tuned = composed.blocks.map((block: { rows: { id: string; values: unknown }[] }) => ({
-      ...block,
-      rows: block.rows.map((row) => (row.id === "r1" ? { ...row, values: { col_reps: 3 } } : row)),
-    }));
-
-    // La note est renvoyée telle quelle : ce test ajuste le DOSAGE, et les suivants comptent sur
+  it("diffuse la grille de la SÉANCE", async () => {
+    // La note est renvoyée telle quelle : ce test ajuste la GRILLE, et les suivants comptent sur
     // le modèle intact — une suite e2e partage ses fixtures.
-    const saved = await coachA.put(`/sessions/${templateId}`).send({
-      expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
+    const saved = await putAtLatest(coachA, `/sessions/${templateId}`, {
       title: "Bloc force max",
       notes: "Repos 3 min.",
-      exercises: [
-        {
-          id: composed.id,
-          exerciseId: exerciseAId,
-          note: composed.note,
-          blocks: tuned,
-          adjustments: [{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }],
-        },
-      ],
+      blocks: blocksOf({ exerciseId: exerciseAId, note: "5×5", grid: repsGrid("a1", 3) }),
     });
     expect(saved.status).toBe(200);
 
@@ -235,13 +186,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       .post(`/plan-weeks/${week2Id}/sessions`)
       .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
     expect(diffused.status).toBe(201);
-
-    const copy = diffused.body.exercises[0];
-    expect(copy.blocks[0].rows[0].values.col_reps).toBe(3);
-    // Le marqueur du niveau séance voyage avec la copie : l'athlète doit voir CE qui a été ajusté
-    // pour lui, et le coach distinguer les deux niveaux sur la même grille.
-    expect(copy.adjustments).toEqual([{ path: "blk_1/rows/r1/col_reps", level: "SESSION" }]);
-    expect(copy.baseline).toEqual(copy.blocks);
+    expect(diffused.body.blocks[0].exercises[0].grid).toEqual(repsGrid("a1", 3));
 
     // Nettoyage par courtoisie : aucune assertion sur son statut, la semaine 2 n'est comptée
     // nulle part et un échec ici ne dirait rien d'utile.
@@ -261,31 +206,18 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     });
     expect(metric.status).toBe(201);
 
-    const blocks = [
-      {
-        id: "blk_home",
-        label: null,
-        structure: { type: "SERIES", setCount: 2, restBetweenSetsSeconds: 60 },
-        metrics: [
-          {
-            id: "col_grade",
-            source: "CUSTOM",
-            customMetricId: metric.body.id,
-            label: null,
-            collapsed: false,
-          },
-        ],
-        rows: [{ id: "r1", values: { col_grade: "6b" } }],
-      },
-    ];
     const exercise = await coachA
       .post("/exercises")
-      .send({ title: "Voie en 6b", tags: ["grimpe"], blocks });
+      .send({ title: "Voie en 6b", tags: ["grimpe"] });
     expect(exercise.status).toBe(201);
 
+    const grid = {
+      metrics: [{ id: "col_grade", source: "CUSTOM", customMetricId: metric.body.id, label: null }],
+      rows: [{ id: "r1", values: { col_grade: "6b" } }],
+    };
     const template = await coachA.post("/sessions").send({
       title: "Séance métrique maison",
-      exercises: [{ exerciseId: exercise.body.id }],
+      blocks: blocksOf({ exerciseId: exercise.body.id, grid }),
     });
     expect(template.status).toBe(201);
 
@@ -341,190 +273,27 @@ describe("Planifications : diffusion & isolation (P3)", () => {
     await coachA.delete(`/exercises/${exerciseAId}/documents/${imageId}`);
   });
 
-  it("les images de consigne survivent à l'enregistrement du coach, même sans bibliothèque (#296)", async () => {
-    // Le panneau du coach renvoie la consigne de l'INSTANCE : ses images citent les documents de
-    // la copie, pas ceux de la bibliothèque. Recréer ces documents à chaque enregistrement laissait
-    // la consigne pointer dans le vide chez l'athlète — et l'échec était silencieux.
-    const exercise = await coachA.post("/exercises").send({ title: "Planche" });
-    const documentId = await uploadInstructionImage(coachA, exercise.body.id);
-
-    // Piocché dans la bibliothèque : la consigne arrive avec l'id du document de BIBLIOTHÈQUE.
-    const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
-      title: "Gainage",
-      scheduledDate: mondayOfWeek2Iso,
-      exercises: [
-        {
-          sourceExerciseId: exercise.body.id,
-          title: "Planche",
-          instructions: [{ type: "IMAGE", mediaId: documentId }],
-        },
-      ],
-    });
-    expect(created.status).toBe(201);
-    const initial = created.body.exercises[0];
-    const initialDocumentIds = initial.documents.map((d: { id: string }) => d.id);
-
-    // Ce que le panneau renvoie : la ligne telle qu'il l'a lue, avec une note en plus.
-    const resave = async () => {
-      const read = await coachA.get(`/scheduled-sessions/${created.body.id}`);
-      const line = required(read.body.exercises[0], "exercice de la séance");
-      const saved = await putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
-        title: "Gainage",
-        notes: null,
-        scheduledDate: mondayOfWeek2Iso,
-        exercises: [
-          {
-            id: line.id,
-            sourceExerciseId: line.sourceExerciseId,
-            title: line.title,
-            description: line.description,
-            tags: line.tags,
-            note: "Tenir 30 s",
-            instructions: line.instructions,
-            blocks: line.blocks,
-            customMetrics: line.customMetrics,
-            adjustments: line.adjustments,
-          },
-        ],
-      });
-      expect(saved.status).toBe(200);
-      return required(saved.body.exercises[0], "exercice enregistré");
-    };
-
-    const assertIntact = (line: {
-      id: string;
-      instructions: { type: string; mediaId?: string }[];
-      documents: { id: string; url: string }[];
-    }) => {
-      // La ligne et ses documents gardent leur identité : rien n'a été recréé.
-      expect(line.id).toBe(initial.id);
-      const documentIds = line.documents.map((d) => d.id);
-      expect(documentIds).toEqual(initialDocumentIds);
-      for (const block of line.instructions.filter((b) => b.type === "IMAGE")) {
-        expect(documentIds).toContain(block.mediaId);
-      }
-    };
-
-    assertIntact(await resave());
-
-    // L'exercice quitte la bibliothèque : `sourceExerciseId` passe à null, et l'objet reste —
-    // la copie le référence encore. Repasser par la bibliothèque perdait alors TOUS les documents.
-    expect((await deleteAtLatest(coachA, `/exercises/${exercise.body.id}`)).status).toBe(204);
-    const orphaned = await resave();
-    expect(orphaned.sourceExerciseId).toBeNull();
-    assertIntact(orphaned);
-
-    // Et l'objet n'a pas bougé : l'athlète le lit toujours.
-    const copy = required(orphaned.documents[0], "document de la copie");
-    expect((await fetch(copy.url)).status).toBe(200);
-
-    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
-  });
-
-  /**
-   * Les tags d'une ligne REPRISE (même `id`) suivent la règle replace-all du reste de la ligne :
-   * la liste envoyée remplace, une ligne envoyée sans liste n'en a plus. Fusionner laisserait sur
-   * la séance de l'athlète un tag que le coach a retiré du panneau.
-   */
-  it("refuse une consigne qui cite une image que la ligne ne porte pas (400, #315)", async () => {
-    const source = await coachA.post("/exercises").send({ title: "Planche" });
-    const other = await coachA.post("/exercises").send({ title: "Gainage latéral" });
-    const sourceImage = await uploadInstructionImage(coachA, source.body.id);
-    const otherImage = await uploadInstructionImage(coachA, other.body.id);
-
-    const line = (sourceExerciseId: string | null, mediaId: string) => ({
-      sourceExerciseId,
-      title: "Planche",
-      instructions: [{ type: "IMAGE", mediaId }],
-    });
-    const post = (exercise: ReturnType<typeof line>) =>
-      coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
-        title: "Gainage",
-        scheduledDate: mondayOfWeek2Iso,
-        exercises: [exercise],
-      });
-
-    // Une ligne qui naît cite les images de SA source : ni celles d'un autre exercice, ni aucune
-    // quand elle n'a pas de source.
-    expect((await post(line(source.body.id, otherImage))).status).toBe(400);
-    expect((await post(line(null, sourceImage))).status).toBe(400);
-
-    // Une ligne reprise cite SES copies : l'identifiant de bibliothèque ne désigne plus rien chez
-    // elle depuis sa création.
-    const created = await post(line(source.body.id, sourceImage));
-    expect(created.status).toBe(201);
-    const kept = required(created.body.exercises[0], "ligne créée");
-    const resave = (mediaId: string) =>
-      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
-        title: "Gainage",
-        notes: null,
-        scheduledDate: mondayOfWeek2Iso,
-        exercises: [{ ...line(kept.sourceExerciseId, mediaId), id: kept.id }],
-      });
-    expect((await resave(sourceImage)).status).toBe(400);
-    expect((await resave(kept.instructions[0].mediaId)).status).toBe(200);
-
-    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
-    await deleteAtLatest(coachA, `/exercises/${source.body.id}`);
-    await deleteAtLatest(coachA, `/exercises/${other.body.id}`);
-  });
-
-  it("remplace les tags d'un exercice repris, et les retire quand la ligne n'en porte plus", async () => {
-    const created = await coachA.post(`/plan-weeks/${week2Id}/sessions`).send({
-      title: "Tags",
-      scheduledDate: mondayOfWeek2Iso,
-      exercises: [{ title: "Planche", tags: ["gainage"] }],
-    });
-    const lineId: string = created.body.exercises[0].id;
-    const save = (line: Record<string, unknown>) =>
-      putAtLatest(coachA, `/scheduled-sessions/${created.body.id}`, {
-        title: "Tags",
-        scheduledDate: mondayOfWeek2Iso,
-        exercises: [{ id: lineId, title: "Planche", ...line }],
-      });
-
-    const retagged = await save({ tags: ["Abdos"] });
-    const untagged = await save({});
-    await deleteAtLatest(coachA, `/scheduled-sessions/${created.body.id}`);
-
-    expect(retagged.status).toBe(200);
-    expect(retagged.body.exercises[0]).toMatchObject({ id: lineId, tags: ["abdos"] });
-    expect(untagged.status).toBe(200);
-    expect(untagged.body.exercises[0]).toMatchObject({ id: lineId, tags: [] });
-  });
-
-  it("refuse une séance hors de la plage de sa semaine, ou référençant l'exercice d'un autre coach", async () => {
+  it("refuse une séance hors de la plage de sa semaine", async () => {
     const outOfWeek = await coachA
       .post(`/plan-weeks/${week1Id}/sessions`)
       .send({ sourceSessionId: templateId, scheduledDate: "2027-01-04" });
     expect(outOfWeek.status).toBe(400);
-
-    const foreignExercise = await coachA.post(`/plan-weeks/${week1Id}/sessions`).send({
-      title: "Intrusion",
-      scheduledDate: monday,
-      exercises: [{ sourceExerciseId: exerciseBId, title: "Volé" }],
-    });
-    expect(foreignExercise.status).toBe(400);
   });
 
   it("éditer l'instance ne touche PAS le modèle de la bibliothèque", async () => {
     const edited = await putAtLatest(coachA, `/scheduled-sessions/${scheduledId}`, {
       title: "Bloc force max (ajusté)",
-      notes: null,
+      notes: "Épaule sensible",
       scheduledDate: monday,
-      exercises: [
-        {
-          sourceExerciseId: exerciseAId,
-          title: "Tractions lestées",
-          note: "4×6 — épaule sensible",
-        },
-      ],
     });
     expect(edited.status).toBe(200);
-    expect(edited.body.exercises[0].note).toBe("4×6 — épaule sensible");
+    expect(edited.body).toMatchObject({
+      title: "Bloc force max (ajusté)",
+      notes: "Épaule sensible",
+    });
 
     const template = await coachA.get(`/sessions/${templateId}`);
-    expect(template.body.title).toBe("Bloc force max");
+    expect(template.body).toMatchObject({ title: "Bloc force max", notes: "Repos 3 min." });
     expect(template.body.exercises[0].note).toBe("5×5");
   });
 
@@ -645,7 +414,7 @@ describe("Planifications : diffusion & isolation (P3)", () => {
       expectedUpdatedAt: await versionOf(coachA, `/sessions/${templateId}`),
       title: "Bloc force max",
       notes: null,
-      exercises: [],
+      blocks: [],
     });
 
     expect((await deleteAtLatest(coachA, `/exercises/${exerciseAId}`)).status).toBe(204);
@@ -680,7 +449,7 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
     });
     const session = await coach
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance", scheduledDate: monday });
+      .send(await fromTemplate(coach, { title: "Séance", scheduledDate: monday }));
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
     const summaryOf = async () => {
@@ -697,7 +466,6 @@ describe("Retouche d'une séance diffusée : le résumé la signale (#307)", () 
       title: "Séance (ajustée)",
       notes: null,
       scheduledDate: monday,
-      exercises: [],
     });
     expect(adjusted.status).toBe(200);
 
@@ -754,7 +522,7 @@ describe("Les cycles diffusés s'accumulent chez l'athlète (#172)", () => {
     expect(plan.status).toBe(201);
     const session = await coach
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: `Séance — ${title}`, scheduledDate: startDate });
+      .send(await fromTemplate(coach, { title: `Séance — ${title}`, scheduledDate: startDate }));
     expect(session.status).toBe(201);
     return { planId: plan.body.id as string, sessionId: session.body.id as string };
   }
@@ -879,7 +647,7 @@ describe("Cycle — version lue (#604)", () => {
     expect(plan.status).toBe(201);
     const session = await coach
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance", scheduledDate: monday });
+      .send(await fromTemplate(coach, { title: "Séance", scheduledDate: monday }));
     expect(session.status).toBe(201);
     return plan.body.id;
   }

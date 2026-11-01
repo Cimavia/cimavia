@@ -37,6 +37,10 @@ export default defineConfig({
       { find: /^react-native$/, replacement: "react-native-web" },
       { find: /^@\//, replacement: `${path.resolve(import.meta.dirname, ".")}/` },
       {
+        find: /^@cmv\/shared\/test\//,
+        replacement: `${path.resolve(import.meta.dirname, "../../packages/shared/test")}/`,
+      },
+      {
         find: /^@cmv\/shared$/,
         replacement: path.resolve(import.meta.dirname, "../../packages/shared/src/index.ts"),
       },

@@ -1,7 +1,7 @@
 import { readScheduledBlocks } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { blockSession } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 import { BlockTrackingList } from "./BlockTrackingList";
 
@@ -51,7 +51,7 @@ describe("BlockTrackingList", () => {
       />,
     );
     // Sur le « ✓ » que l'athlète VOIT : `accessibilityState` ne descend pas en `aria-checked` sous
-    // react-native-web (même choix que `TrackingList`).
+    // react-native-web.
     const [first, second] = screen.getAllByRole("checkbox");
     expect(first?.textContent).toContain("✓");
     expect(second?.textContent).not.toContain("✓");

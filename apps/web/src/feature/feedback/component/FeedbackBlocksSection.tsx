@@ -9,7 +9,6 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockTallyText } from "@/feature/feedback/component/BlockTallyText";
-import { PencilIcon } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { BlockMark } from "@/feature/library/component/BlockMark";
 import { BlockTrackingList } from "@/feature/plan/component/BlockTrackingList";
 import { CmvCard } from "@/shared/component";
@@ -77,5 +76,24 @@ export function FeedbackBlocksSection({
 
       <p className="text-cmv-caption text-cmv-text-lo">{t("feedback.tracking.hint")}</p>
     </section>
+  );
+}
+
+/** Le crayon du bouton « corriger ». Inline : une icône de plus ne vaut pas une dépendance. */
+function PencilIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 20h4l10-10a2.8 2.8 0 10-4-4L4 16v4z" />
+    </svg>
   );
 }

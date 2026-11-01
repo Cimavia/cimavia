@@ -1,9 +1,4 @@
-import {
-  type ChangeAccessInput,
-  type ExerciseBlocks,
-  type ExerciseDto,
-  LibraryScope,
-} from "@cmv/shared";
+import { type ChangeAccessInput, type ExerciseDto, LibraryScope } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   changeExerciseAccess,
@@ -84,24 +79,13 @@ export function useDuplicateExercise() {
     mutationFn: ({
       source,
       suffix,
-      blocks,
     }: {
       /** Lue par l'appelant, qui en vérifie le droit : son titre suffixé nomme la variante. */
       source: Pick<ExerciseDto, "id" | "title">;
       suffix: string;
-      /**
-       * Le dosage à graver dans la variante. Depuis une séance, c'est celui de la SÉANCE et non
-       * celui de la bibliothèque : le coach duplique justement parce que ses ajustements
-       * demandent de changer ce que le niveau séance verrouille. Repartir du défaut lui ferait
-       * tout ressaisir.
-       */
-      blocks?: ExerciseBlocks;
     }) =>
       // Le suffixe est traduit : le serveur ne le connaît pas.
-      duplicateExercise(source.id, {
-        title: `${source.title} ${suffix}`,
-        ...(blocks == null ? {} : { blocks }),
-      }),
+      duplicateExercise(source.id, { title: `${source.title} ${suffix}` }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exerciseKeys.all }),
   });
 }

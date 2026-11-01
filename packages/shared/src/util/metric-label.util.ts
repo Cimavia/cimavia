@@ -1,11 +1,5 @@
 import type { GridMetric } from "../dto/block-grid.schema";
 import {
-  type ExerciseBlock,
-  MetricSource,
-  metricValueTypeOf,
-  unitValues,
-} from "../dto/exercise-block.schema";
-import {
   type CustomMetric,
   METRIC_LABEL_KEY,
   METRIC_UNIT_LABEL_KEY,
@@ -13,6 +7,7 @@ import {
   type MetricValue,
   MetricValueType,
 } from "../dto/exercise-metric.schema";
+import { MetricSource, metricValueTypeOf } from "../dto/metric-reference.schema";
 import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 import { formatDecimal } from "./decimal.util";
 import { formatTrainingDuration } from "./training-duration.util";
@@ -27,9 +22,6 @@ import { formatTrainingDuration } from "./training-duration.util";
  * `translate` est INJECTÉ et typé structurellement : `@cmv/shared` ne connaît pas i18next, et
  * chaque app a son instance. Même dispositif que `notificationSubject` et `formatRelativeOrDateTime`.
  * La `locale` vient en dernier, comme pour tous les formateurs du paquet.
- *
- * Une colonne s'y passe en `GridMetric`, celle de la grille par blocs : la colonne de l'ancienne
- * grille, qui n'a que `collapsed` en plus, s'y range aussi.
  */
 
 /** L'absence, écrite. Un seul caractère, mais c'est le contrat de tout ce module. */
@@ -123,23 +115,4 @@ export function metricCellText(
   const shown = formatMetricValue(value, metric, customMetrics, locale);
   const unit = value == null ? null : metricUnitLabel(metric, customMetrics, translate);
   return unit == null ? shown : `${shown} ${unit}`;
-}
-
-/**
- * Le dosage qu'une case de suivi rappelle — « 6a · 4 min », valeurs de SA ligne séparées d'un
- * point médian. Sans lui, l'athlète devrait remonter à la grille pour savoir ce qu'il coche.
- *
- * Chaîne vide quand la ligne n'a aucune valeur : il n'y a rien à rappeler, et la case s'affiche
- * sans détail plutôt qu'avec un tiret qui ferait croire à une colonne vide.
- */
-export function unitDetail(
-  block: ExerciseBlock,
-  index: number,
-  customMetrics: readonly CustomMetric[],
-  translate: (key: string) => string,
-  locale: string,
-): string {
-  return unitValues(block, index)
-    .map(({ metric, value }) => metricCellText(value, metric, customMetrics, translate, locale))
-    .join(" · ");
 }

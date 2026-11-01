@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { CmvButton, CmvRichDocument } from "@/shared/component";
 
 /**
- * La consigne d'un exercice et ses pièces jointes, sur la séance de l'athlète — commun à la carte
- * d'exercice et aux exercices d'un bloc (#722).
+ * La consigne d'un exercice et ses pièces jointes, sur la séance de l'athlète, sous chaque
+ * exercice de bloc (#722).
  *
  * La consigne est **dépliée par défaut** : le web est l'écran de lecture, l'athlète replie s'il
  * veut la vue d'ensemble. C'est l'inverse du mobile, où la place manque.

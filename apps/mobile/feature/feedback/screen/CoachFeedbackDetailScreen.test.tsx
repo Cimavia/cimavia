@@ -4,7 +4,7 @@ import type {
   SessionFeedbackDto,
   VoiceNoteCue,
 } from "@cmv/shared";
-import { coachFeedbackKeys } from "@cmv/shared";
+import { coachFeedbackKeys, STRUCTURE_PRESETS } from "@cmv/shared";
 import { act, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -113,7 +113,6 @@ function detail(overrides: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto
     scheduledSessionId: "s-1",
     content: "Bien tenu sur les deux premières voies",
     media: [],
-    trackedExercises: [],
     trackedBlocks: [],
     messages: [],
     ...overrides,
@@ -414,38 +413,26 @@ describe("CoachFeedbackDetailScreen — son propre débrief", () => {
 });
 
 describe("CoachFeedbackDetailScreen — le décompte", () => {
-  const tracked = (
-    exerciseId: string,
-    state: "DONE" | "PARTIAL" | "UNTRACKED",
-    unit: "SET" | null = "SET",
-  ) => ({ exerciseId, title: `Exercice ${exerciseId}`, state, done: 2, total: 4, unit });
-
-  it("rend chaque exercice suivi, et dit « pas de décompte » sur celui qui ne l'est pas", () => {
+  // Le décompte ACCOMPAGNE le ressenti : un bloc par ligne, juste après le texte.
+  it("rend le décompte de chaque bloc suivi", () => {
     mockDetail({
       data: detail({
-        trackedExercises: [
-          tracked("fini", "DONE"),
-          tracked("entamé", "PARTIAL"),
-          tracked("muet", "UNTRACKED"),
+        trackedBlocks: [
+          {
+            blockId: "blk-1",
+            label: null,
+            name: "Séries",
+            settings: STRUCTURE_PRESETS.SERIES,
+            exerciseKeys: ["a1"],
+            tracking: null,
+          },
         ],
-      } as never),
+      }),
     });
-    const { getAllByText, getByText } = renderRn(<CoachFeedbackDetailScreen />);
+    const { getByText } = renderRn(<CoachFeedbackDetailScreen />);
 
     expect(getByText("feedback.detail.tracking")).toBeTruthy();
-    expect(getAllByText("plan.tracking.count.SET")).toHaveLength(2);
     expect(getByText("feedback.tracking.untracked")).toBeTruthy();
-  });
-
-  /** Rien de cochable : il n'y a rien à nommer, pas même « pas de décompte ». */
-  it("tait l'exercice sans unité, et la section avec lui s'il est seul", () => {
-    mockDetail({
-      data: detail({ trackedExercises: [tracked("libre", "UNTRACKED", null)] } as never),
-    });
-    const { queryByText } = renderRn(<CoachFeedbackDetailScreen />);
-
-    expect(queryByText("Exercice libre")).toBeNull();
-    expect(queryByText("feedback.detail.tracking")).toBeNull();
   });
 });
 

@@ -210,6 +210,16 @@ describe("ScheduledComposition", () => {
     );
   });
 
+  // Le nombre de blocs est verrouillé : une séance vide dit où se compose ce qui lui manque.
+  it("dit où composer une séance planifiée depuis une séance-type sans bloc", async () => {
+    const view = mount([copyOf("ss-1", "pw-1", [])]);
+
+    expect(await view.findByText("plan.composition.noBlock")).toBeInTheDocument();
+    expect(
+      view.getByRole("link", { name: "plan.composition.viewSessionType" }),
+    ).toBeInTheDocument();
+  });
+
   it("ajoute un exercice en fin de bloc, sur les semaines cochées", async () => {
     const view = mount(twoWeeks());
 

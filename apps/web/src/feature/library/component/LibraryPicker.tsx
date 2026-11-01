@@ -1,4 +1,10 @@
-import { type CustomMetric, type ExerciseDto, LibraryScope, searchMatcher } from "@cmv/shared";
+import {
+  type CustomMetric,
+  type ExerciseDto,
+  LibraryScope,
+  metricLabel,
+  searchMatcher,
+} from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LibraryEmptyState } from "@/feature/library/component/LibraryEmptyState";
@@ -13,10 +19,24 @@ import { LibraryFilterBar } from "@/feature/library/component/LibraryToolbar";
 import { useExercises, useExerciseTags } from "@/feature/library/hook/useExercises";
 import { sharesLibrary, useMyOrganizations } from "@/feature/library/hook/useMyOrganizations";
 import { ownerRightText } from "@/feature/library/util/access-text.util";
-import { dosageSummary } from "@/feature/library/util/dosage-summary.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import { CMV_TABLE, CmvButton, CmvEmptyState, CmvToggleChip } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
+
+/**
+ * « Répétitions · Charge » : les colonnes que l'exercice préremplira dans son bloc, ou `null` s'il
+ * n'en suggère aucune.
+ */
+function metricsSummary(
+  exercise: ExerciseDto,
+  customMetrics: readonly CustomMetric[],
+  t: (key: string) => string,
+): string | null {
+  if (exercise.suggestedMetrics.length === 0) return null;
+  return exercise.suggestedMetrics
+    .map((metric) => metricLabel(metric, customMetrics, t))
+    .join(" · ");
+}
 
 /** Ce que le sélecteur propose : les exercices du Coach, ceux qu'on lui partage — ou les deux. */
 type Shown = { mine: boolean; shared: boolean };
@@ -57,7 +77,7 @@ export function LibraryPicker({
   onCreateMissing,
   isSaving,
 }: Readonly<LibraryPickerProps>) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [chosenTags, setChosenTags] = useState<readonly string[]>([]);
   const [shown, setShown] = useState<Shown>({ mine: true, shared: true });
@@ -117,17 +137,16 @@ export function LibraryPicker({
                   <HeadCell sticky label={t("library.table.title")} />
                   <HeadCell sticky label={t("library.table.tags")} />
                   {sharing === false ? null : <HeadCell sticky label={t("library.table.owner")} />}
-                  <HeadCell sticky label={t("library.table.dosage")} />
+                  <HeadCell sticky label={t("library.table.metrics")} />
                 </tr>
               </thead>
               <tbody>
                 {visible.map((exercise) => {
-                  // Les colonnes d'un exercice partagé citent le catalogue de son propriétaire (#605).
-                  const summary = dosageSummary(
-                    exercise.blocks,
+                  // Les métriques d'un exercice partagé citent le catalogue de son propriétaire (#605).
+                  const metrics = metricsSummary(
+                    exercise,
                     mergeCatalogs(customMetrics, exercise.customMetrics),
                     t,
-                    i18n.language,
                   );
                   return (
                     <tr key={exercise.id} className={LIBRARY_ROW}>
@@ -139,7 +158,7 @@ export function LibraryPicker({
                         </td>
                       )}
                       <td className={cn(CMV_TABLE.cell, "text-cmv-caption text-cmv-text-mid")}>
-                        {summary ?? <NoValue />}
+                        {metrics ?? <NoValue />}
                       </td>
                     </tr>
                   );

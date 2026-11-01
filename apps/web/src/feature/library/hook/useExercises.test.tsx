@@ -35,7 +35,6 @@ const source = {
   title: "Tractions",
   description: "Prise pronation",
   instructions: [{ type: "paragraph", content: [] }],
-  blocks: [{ id: "b-source" }],
   tags: ["force"],
 } as unknown as ExerciseDto;
 
@@ -200,26 +199,11 @@ describe("useDuplicateExercise", () => {
     const created = await result.current.mutateAsync({ source, suffix: "(variante)" });
 
     expect(created.id).toBe("ex-2");
-    // Ni consigne ni dosage : le serveur les reprend de la source, images de consigne comprises.
+    // Ni consigne ni métriques : le serveur les reprend de la source, images de consigne comprises.
     expect(apiMock.duplicateExercise).toHaveBeenCalledExactlyOnceWith("ex-1", {
       title: "Tractions (variante)",
     });
     expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: exerciseKeys.all });
-  });
-
-  // Depuis une séance, la variante grave les ajustements du coach, pas le défaut de la source.
-  it("grave le dosage fourni plutôt que celui de la source", async () => {
-    apiMock.duplicateExercise.mockResolvedValue({ ...source, id: "ex-2" });
-    const { wrapper } = renderWithQueryClient();
-    const adjusted = [{ id: "b-seance" }] as unknown as ExerciseDto["blocks"];
-
-    const { result } = renderHook(() => useDuplicateExercise(), { wrapper });
-    await result.current.mutateAsync({ source, suffix: "(v)", blocks: adjusted });
-
-    expect(apiMock.duplicateExercise).toHaveBeenCalledWith("ex-1", {
-      title: "Tractions (v)",
-      blocks: adjusted,
-    });
   });
 });
 

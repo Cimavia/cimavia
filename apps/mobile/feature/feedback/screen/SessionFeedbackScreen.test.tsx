@@ -1,17 +1,16 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { myFeedbackKeys } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
-import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { SessionFeedbackScreen } from "@/feature/feedback/screen/SessionFeedbackScreen";
 import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
-import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
+import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { blockSession } from "@/test/block-session";
 import { pressButton, renderRn } from "@/test/render";
 import { storedItems } from "../../../test/setup";
 
@@ -20,7 +19,7 @@ import { storedItems } from "../../../test/setup";
  * qui s'éprouve ici est ce que l'écran leur DONNE — le décompte qui accompagne le texte, le
  * nettoyage du suivi local une fois le débrief parti, et ce qu'il passe à la barre de réponse.
  *
- * Le suivi local, lui, est le VRAI (`useLocalTracking`, sur l'AsyncStorage du harnais) : c'est son
+ * Le suivi local, lui, est le VRAI (`useLocalBlockTracking`, sur l'AsyncStorage du harnais) : c'est son
  * câblage à l'enregistrement que ce fichier doit pouvoir casser (#378).
  */
 vi.mock("expo-router", () => ({ useLocalSearchParams: () => ({ id: "s-1" }) }));
@@ -32,9 +31,6 @@ vi.mock("@/feature/feedback/component/FeedbackMediaSection", () => ({
 }));
 vi.mock("@/feature/feedback/component/FeedbackBlocksSection", () => ({
   FeedbackBlocksSection: vi.fn(() => null),
-}));
-vi.mock("@/feature/feedback/component/FeedbackTrackingSection", () => ({
-  FeedbackTrackingSection: vi.fn(() => null),
 }));
 // L'écriture reste la VRAIE : le seul test qui monte la vraie section de texte en a besoin.
 vi.mock("@/feature/feedback/hook/useSessionFeedback", async (importOriginal) => ({
@@ -59,7 +55,6 @@ function detail(overrides: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto
     scheduledSessionId: "s-1",
     content: "Bien tenu",
     media: [],
-    trackedExercises: [],
     trackedBlocks: [],
     messages: [],
     ...overrides,
@@ -76,21 +71,13 @@ const COACH_REPLY = {
   createdAt: "2026-10-16T19:42:00.000Z",
 } as MessageDto;
 
-const TRACKING_KEY = "cimavia-tracking:s-1";
+const BLOCK_KEY = "cimavia-block-tracking:s-1";
 
-// Une séance à un exercice, déjà suivi côté serveur : une série cochée sur deux.
-const SESSION = {
-  id: "s-1",
-  exercises: [
-    {
-      id: "sx-1",
-      title: "Traction",
-      blocks: [{ id: "b-1" }],
-      tracking: { "b-1": { checked: [0] } },
-    },
-  ],
-  blocks: [],
-} as unknown as ScheduledSessionDto;
+// Trois blocs, aucun suivi côté serveur.
+const SESSION = blockSession();
+
+/** Une case du premier bloc : son exercice `a1`, au rang voulu. */
+const check = (row: number) => ({ key: "a1", row });
 
 function mockSession(data: ScheduledSessionDto | null): void {
   vi.mocked(useScheduledSession).mockReturnValue({ data } as unknown as ReturnType<
@@ -240,12 +227,18 @@ describe("SessionFeedbackScreen", () => {
   });
 });
 
+/**
+ * Le décompte se rappelle et part bloc par bloc (#722) : il accompagne le texte, dans le même
+ * enregistrement.
+ */
 describe("SessionFeedbackScreen — le décompte accompagne le texte", () => {
+  const checked = { "blk-1": { checked: [check(0)] } };
+
   it("sans séance chargée, le texte part SEUL : aucun décompte, plutôt qu'un objet vide", () => {
     renderRn(<SessionFeedbackScreen />);
 
-    expect(FeedbackTrackingSection).not.toHaveBeenCalled();
-    expect(textSectionProps()).not.toHaveProperty("tracking");
+    expect(FeedbackBlocksSection).not.toHaveBeenCalled();
+    expect(textSectionProps()).not.toHaveProperty("blockTracking");
   });
 
   /**
@@ -266,90 +259,15 @@ describe("SessionFeedbackScreen — le décompte accompagne le texte", () => {
     mockSession(SESSION);
     rerender(<SessionFeedbackScreen />);
 
-    expect(FeedbackTrackingSection).toHaveBeenCalled();
+    expect(FeedbackBlocksSection).toHaveBeenCalled();
     expect(container.querySelector("textarea")?.value).toBe("Doigts cuits");
   });
 
-  it("avec la séance, le décompte est rendu et part avec le texte", () => {
+  it("rappelle les blocs, et envoie leur suivi avec le texte", () => {
     mockSession(SESSION);
-    renderRn(<SessionFeedbackScreen />);
-
-    expect(vi.mocked(FeedbackTrackingSection).mock.lastCall?.[0]).toMatchObject({
-      exercises: SESSION.exercises,
-      tracking: { "sx-1": { "b-1": { checked: [0] } } },
-    });
-    // Rien en local : le suivi envoyé EST celui du serveur, et rien n'est à renvoyer.
-    expect(textSectionProps()).toMatchObject({
-      tracking: { "sx-1": { "b-1": { checked: [0] } } },
-      trackingDirty: false,
-    });
-  });
-
-  /**
-   * Une coche prise pendant la séance sur un exercice que le coach a retiré depuis : le serveur
-   * refuserait TOUT le débrief (#311). Elle reste sur l'appareil, mais ne part pas.
-   */
-  it("n'envoie pas la coche d'un exercice que le coach a retiré depuis (#490)", async () => {
-    storedItems.set(
-      TRACKING_KEY,
-      JSON.stringify({
-        "sx-1": { "b-1": { checked: [0, 1] } },
-        "sx-retire": { "b-1": { checked: [0] } },
-      }),
-    );
-    mockSession(SESSION);
-    renderRn(<SessionFeedbackScreen />);
-
-    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
-    expect(textSectionProps().tracking).toEqual({ "sx-1": { "b-1": { checked: [0, 1] } } });
-  });
-
-  it("une fois le débrief enregistré, le suivi local est effacé du disque", async () => {
-    storedItems.set(TRACKING_KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0, 1] } } }));
-    mockSession(SESSION);
-    renderRn(<SessionFeedbackScreen />);
-    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
-
-    act(() => textSectionProps().onSaved?.(textSectionProps().tracking, undefined));
-
-    // Le local a fait son travail : le garder ferait diverger les deux copies au prochain
-    // chargement. L'écran redevient le miroir du serveur.
-    expect(storedItems.has(TRACKING_KEY)).toBe(false);
-    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(false));
-  });
-  // Les cases restent actives pendant l'envoi : ce qui est coché entre-temps n'est pas parti (#499).
-  it("une coche posée pendant l'envoi reste en local, à envoyer", async () => {
-    storedItems.set(TRACKING_KEY, JSON.stringify({ "sx-1": { "b-1": { checked: [0, 1] } } }));
-    mockSession(SESSION);
-    renderRn(<SessionFeedbackScreen />);
-    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
-    const sent = textSectionProps().tracking;
-
-    const props = vi.mocked(FeedbackTrackingSection).mock.lastCall?.[0];
-    act(() => props?.onToggleUnit("sx-1", "b-1", 2));
-    act(() => textSectionProps().onSaved?.(sent, undefined));
-
-    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
-      "sx-1": { "b-1": { checked: [0, 1, 2] } },
-    });
-    expect(textSectionProps().trackingDirty).toBe(true);
-  });
-});
-
-/**
- * Une séance composée par blocs (#722) : son décompte se rappelle et part bloc par bloc, sous une
- * clé de stockage à part — l'ancien suivi par exercice n'y est pas mêlé.
- */
-describe("SessionFeedbackScreen — le décompte d'une séance par blocs", () => {
-  const BLOCK_KEY = "cimavia-block-tracking:s-1";
-  const checked = { "blk-1": { checked: [{ key: "a1", row: 0 }] } };
-
-  it("rappelle les blocs, pas les exercices, et envoie leur suivi avec le texte", () => {
-    mockSession(blockSession());
     renderRn(<SessionFeedbackScreen />);
 
     expect(FeedbackBlocksSection).toHaveBeenCalled();
-    expect(FeedbackTrackingSection).not.toHaveBeenCalled();
     // Rien en local : le suivi envoyé EST celui du serveur, aucun bloc suivi.
     expect(textSectionProps()).toMatchObject({
       blockTracking: { "blk-1": null, "blk-2": null, "blk-3": null },
@@ -357,12 +275,16 @@ describe("SessionFeedbackScreen — le décompte d'une séance par blocs", () =>
     });
   });
 
+  /**
+   * Une coche prise pendant la séance sur un bloc que le coach a retiré depuis : le serveur
+   * refuserait TOUT le débrief (#311). Elle reste sur l'appareil, mais ne part pas (#490).
+   */
   it("n'envoie pas le suivi d'un bloc que le coach a retiré depuis", async () => {
     storedItems.set(
       BLOCK_KEY,
       JSON.stringify({ ...checked, "blk-retire": { checked: [{ key: "z1", row: 0 }] } }),
     );
-    mockSession(blockSession());
+    mockSession(SESSION);
     renderRn(<SessionFeedbackScreen />);
 
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
@@ -370,26 +292,46 @@ describe("SessionFeedbackScreen — le décompte d'une séance par blocs", () =>
   });
 
   it("une coche posée dans le débrief part au prochain envoi", async () => {
-    mockSession(blockSession());
+    mockSession(SESSION);
     renderRn(<SessionFeedbackScreen />);
 
     const props = vi.mocked(FeedbackBlocksSection).mock.lastCall?.[0];
-    act(() => props?.onToggle("blk-1", { key: "a1", row: 0 }));
+    act(() => props?.onToggle("blk-1", check(0)));
 
     await waitFor(() => expect(textSectionProps().blockTracking).toMatchObject(checked));
     expect(textSectionProps().trackingDirty).toBe(true);
   });
 
-  it("une fois le débrief enregistré, le suivi des blocs est effacé du disque", async () => {
+  it("une fois le débrief enregistré, le suivi local est effacé du disque", async () => {
     storedItems.set(BLOCK_KEY, JSON.stringify(checked));
-    mockSession(blockSession());
+    mockSession(SESSION);
     renderRn(<SessionFeedbackScreen />);
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
 
-    act(() => textSectionProps().onSaved?.(undefined, textSectionProps().blockTracking));
+    act(() => textSectionProps().onSaved?.(textSectionProps().blockTracking));
 
+    // Le local a fait son travail : le garder ferait diverger les deux copies au prochain
+    // chargement. L'écran redevient le miroir du serveur.
     expect(storedItems.has(BLOCK_KEY)).toBe(false);
     await waitFor(() => expect(textSectionProps().trackingDirty).toBe(false));
+  });
+
+  // Les cases restent actives pendant l'envoi : ce qui est coché entre-temps n'est pas parti (#499).
+  it("une coche posée pendant l'envoi reste en local, à envoyer", async () => {
+    storedItems.set(BLOCK_KEY, JSON.stringify(checked));
+    mockSession(SESSION);
+    renderRn(<SessionFeedbackScreen />);
+    await waitFor(() => expect(textSectionProps().trackingDirty).toBe(true));
+    const sent = textSectionProps().blockTracking;
+
+    const props = vi.mocked(FeedbackBlocksSection).mock.lastCall?.[0];
+    act(() => props?.onToggle("blk-1", check(1)));
+    act(() => textSectionProps().onSaved?.(sent));
+
+    expect(JSON.parse(storedItems.get(BLOCK_KEY) ?? "null")["blk-1"]).toEqual({
+      checked: [check(0), check(1)],
+    });
+    expect(textSectionProps().trackingDirty).toBe(true);
   });
 });
 
@@ -398,14 +340,12 @@ describe("SessionFeedbackScreen — le décompte d'une séance par blocs", () =>
  * sa lecture du suivi : le même hook, sur la même séance, avec le même distant.
  */
 describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
-  const REMOTE = { "sx-1": { "b-1": { checked: [0] } } };
-
   async function sessionUnderneath() {
-    const { result } = renderHook(() => useLocalTracking("s-1", REMOTE));
-    // 3/4 cochés sur la séance, avant d'ouvrir le débrief.
+    const { result } = renderHook(() => useLocalBlockTracking("s-1", SESSION.blocks));
+    // Deux séries cochées sur la séance, avant d'ouvrir le débrief.
     act(() => {
-      result.current.toggleUnit("sx-1", "b-1", 1);
-      result.current.toggleUnit("sx-1", "b-1", 2);
+      result.current.toggle("blk-1", check(0));
+      result.current.toggle("blk-1", check(1));
     });
     mockSession(SESSION);
     renderRn(<SessionFeedbackScreen />);
@@ -413,10 +353,10 @@ describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
     return result;
   }
 
-  // Le débrief corrige à 4/4 : sa section de décompte coche la dernière série.
+  // Le débrief corrige : sa section de décompte coche la série suivante.
   function correctInFeedback() {
-    const props = vi.mocked(FeedbackTrackingSection).mock.lastCall?.[0];
-    act(() => props?.onToggleUnit("sx-1", "b-1", 3));
+    const props = vi.mocked(FeedbackBlocksSection).mock.lastCall?.[0];
+    act(() => props?.onToggle("blk-1", check(2)));
   }
 
   it("de retour sur la séance, la correction du débrief s'y voit", async () => {
@@ -424,18 +364,17 @@ describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
 
     correctInFeedback();
 
-    expect(session.current.tracking).toEqual({ "sx-1": { "b-1": { checked: [0, 1, 2, 3] } } });
+    expect(session.current.tracking["blk-1"]).toEqual({ checked: [check(0), check(1), check(2)] });
   });
 
   it("une coche sur la séance part de la correction, pas de l'ancien décompte", async () => {
     const session = await sessionUnderneath();
     correctInFeedback();
 
-    act(() => session.current.toggleUnit("sx-2", "b-1", 0));
+    act(() => session.current.toggle("blk-1", check(3)));
 
-    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
-      "sx-1": { "b-1": { checked: [0, 1, 2, 3] } },
-      "sx-2": { "b-1": { checked: [0] } },
+    expect(JSON.parse(storedItems.get(BLOCK_KEY) ?? "null")["blk-1"]).toEqual({
+      checked: [check(0), check(1), check(2), check(3)],
     });
   });
 
@@ -443,13 +382,13 @@ describe("SessionFeedbackScreen — l'écran de séance resté dessous", () => {
     const session = await sessionUnderneath();
     correctInFeedback();
 
-    act(() => textSectionProps().onSaved?.(textSectionProps().tracking, undefined));
-    expect(session.current.tracking).toBe(REMOTE);
+    act(() => textSectionProps().onSaved?.(textSectionProps().blockTracking));
+    expect(session.current.dirty).toBe(false);
 
-    // La coche suivante part du serveur : l'ancien 3/4 local ne ressuscite pas.
-    act(() => session.current.toggleUnit("sx-1", "b-1", 1));
-    expect(JSON.parse(storedItems.get(TRACKING_KEY) ?? "null")).toEqual({
-      "sx-1": { "b-1": { checked: [0, 1] } },
+    // La coche suivante part du serveur : l'ancien décompte local ne ressuscite pas.
+    act(() => session.current.toggle("blk-1", check(1)));
+    expect(JSON.parse(storedItems.get(BLOCK_KEY) ?? "null")["blk-1"]).toEqual({
+      checked: [check(1)],
     });
   });
 });

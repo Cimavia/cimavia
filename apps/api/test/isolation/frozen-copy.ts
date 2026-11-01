@@ -10,6 +10,7 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app } from "../support/app";
+import { blocksOf } from "../support/blocks";
 import { putExerciseFile, uploadInstructionImage } from "../support/fixtures";
 import { deleteAtLatest, versionOf } from "../support/version";
 
@@ -27,36 +28,25 @@ const C_NAME = "frozen-c@cmv.test";
 
 const GRADE = { label: "Cotation", unit: null, valueType: "SCALE", scale: ["6a", "6b"] };
 const EFFORT = { label: "Effort", unit: "pts", valueType: "NUMBER", scale: null };
-/** Suggérée par l'exercice, et citée par aucun bloc : elle doit suivre la copie quand même (#718). */
+/** Suggérée par l'exercice, et citée par aucune grille : elle doit suivre la copie quand même (#718). */
 const PACE = { label: "Allure", unit: "min/km", valueType: "NUMBER", scale: null };
 const REPS = { source: "CATALOG", key: "REPETITIONS", unit: "REPS" };
 
-/** Les métriques que l'exercice de C suggère : la sienne seule, l'une de ses blocs, le catalogue. */
+/** Les métriques que l'exercice de C suggère : la sienne seule, l'une des grilles, le catalogue. */
 const suggestedCiting = (paceId: string, gradeId: string) => [
   { source: "CUSTOM", customMetricId: paceId },
   { source: "CUSTOM", customMetricId: gradeId },
   REPS,
 ];
 
-/** Un bloc qui cite deux métriques maison, et la valeur que la séance de M y pose. */
-const blocksCiting = (gradeId: string, effortId: string, grade: string | null = null) => [
-  {
-    id: "blk",
-    label: null,
-    structure: { type: "SERIES", setCount: 1, restBetweenSetsSeconds: null },
-    metrics: [
-      { id: "col_grade", source: "CUSTOM", customMetricId: gradeId, label: null, collapsed: false },
-      {
-        id: "col_effort",
-        source: "CUSTOM",
-        customMetricId: effortId,
-        label: null,
-        collapsed: false,
-      },
-    ],
-    rows: [{ id: "r1", values: { col_grade: grade, col_effort: null } }],
-  },
-];
+/** Une grille qui cite deux métriques maison, et la valeur que la séance y pose. */
+const gridCiting = (gradeId: string, effortId: string, grade: string | null = null) => ({
+  metrics: [
+    { id: "col_grade", source: "CUSTOM", customMetricId: gradeId, label: null },
+    { id: "col_effort", source: "CUSTOM", customMetricId: effortId, label: null },
+  ],
+  rows: [{ id: "r1", values: { col_grade: grade, col_effort: null } }],
+});
 
 describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
   let prisma: PrismaService;
@@ -77,12 +67,11 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     await prisma.accessGrant.create({ data: { ownerId: cId, exerciseId, ...beneficiary, level } });
   }
 
-  /** Un exercice de C ouvert à F en Lecture, qui cite ses deux métriques. */
+  /** Un exercice de C ouvert à F en Lecture, qui suggère ses métriques. */
   async function sharedExercise(title: string): Promise<string> {
     const created = await c.post("/exercises").send({
       title,
       tags: ["tirage"],
-      blocks: blocksCiting(gradeId, effortId),
       suggestedMetrics: suggestedCiting(paceId, gradeId),
     });
     expect(created.status).toBe(201);
@@ -90,17 +79,11 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     return created.body.id;
   }
 
-  /** Une séance de `coach` qui cite l'exercice, avec une valeur posée à son niveau. */
+  /** Une séance de `coach` qui cite l'exercice, avec une valeur posée dans sa grille. */
   async function sessionCiting(coach: Agent, exerciseId: string, title: string) {
     const created = await coach.post("/sessions").send({
       title,
-      exercises: [
-        {
-          exerciseId,
-          blocks: blocksCiting(gradeId, effortId, "6b"),
-          adjustments: [{ path: "blk/rows/r1/col_grade", level: "SESSION" }],
-        },
-      ],
+      blocks: blocksOf({ exerciseId, grid: gridCiting(gradeId, effortId, "6b") }),
     });
     expect(created.status).toBe(201);
     return created.body as { id: string; updatedAt: string };
@@ -166,11 +149,12 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     // La séance avance d'une version : un builder resté ouvert reçoit « Recharger ».
     expect(read.body.updatedAt).not.toBe(session.updatedAt);
     const [line] = read.body.exercises;
+    const [placed] = read.body.blocks[0].exercises;
     expect(line.exerciseId).not.toBe(tractionId);
+    expect(placed.exerciseId).toBe(line.exerciseId);
     expect(line.title).toBe("Traction");
     expect(line.frozenFrom).toMatchObject({ coach: { id: cId, name: C_NAME } });
-    expect(line.blocks[0].rows[0].values).toEqual({ col_grade: "6b", col_effort: null });
-    expect(line.adjustments).toEqual([{ path: "blk/rows/r1/col_grade", level: "SESSION" }]);
+    expect(placed.grid.rows[0].values).toEqual({ col_grade: "6b", col_effort: null });
 
     const copy = await m.get(`/exercises/${line.exerciseId}`);
     expect(copy.body).toMatchObject({
@@ -208,14 +192,9 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     ]);
     const cited = [idOfLabel(`Cotation (${C_NAME})`), idOfLabel("Effort")];
     expect(
-      line.blocks[0].metrics.map((metric: { customMetricId: string }) => metric.customMetricId),
+      placed.grid.metrics.map((metric: { customMetricId: string }) => metric.customMetricId),
     ).toEqual(cited);
     expect(line.customMetrics.map((metric: { id: string }) => metric.id)).toEqual(cited);
-    expect(
-      copy.body.blocks[0].metrics.map(
-        (metric: { customMetricId: string }) => metric.customMetricId,
-      ),
-    ).toEqual(cited);
     expect(copy.body.suggestedMetrics).toEqual(
       suggestedCiting(
         required(idOfLabel("Allure"), "Allure de M"),
@@ -297,18 +276,17 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
 
     const variant = await m
       .post(`/exercises/${voieId}/duplicate`)
-      .send({ title: "Voie (variante)", blocks: blocksCiting(gradeId, effortId, "6a") });
+      .send({ title: "Voie (variante)" });
     expect(variant.status).toBe(201);
     expect(variant.body).toMatchObject({
       owner: { id: mId },
       frozenFrom: null,
       title: "Voie (variante)",
     });
-    expect(variant.body.blocks[0].rows[0].values.col_grade).toBe("6a");
+    // Seules les métriques suggérées passent : la variante ne reprend aucune grille.
     expect(variant.body.customMetrics.map((metric: { label: string }) => metric.label)).toEqual([
       "Allure",
       `Cotation (${C_NAME})`,
-      "Effort",
     ]);
     // Les métriques suggérées viennent de la source, et citent le catalogue de M.
     const ofM = new Map<string, string>(
@@ -332,14 +310,12 @@ describe("Copie figée : une séance garde l'exercice qu'elle perd", () => {
     expect(copy).toMatchObject({ coachId: mId, storagePath: source.storagePath });
   });
 
-  it("une variante ne cite que les métriques du propriétaire de la source (400)", async () => {
+  it("une variante n'emporte pas de dosage : elle ne reçoit qu'un titre (400)", async () => {
     const blocId = await sharedExercise("Bloc");
-    const own = await m.get("/custom-metrics");
-    const mGrade = own.body.find((metric: { label: string }) => metric.label === "Cotation");
 
     const refused = await m
       .post(`/exercises/${blocId}/duplicate`)
-      .send({ title: "Bloc (variante)", blocks: blocksCiting(mGrade.id, effortId) });
+      .send({ title: "Bloc (variante)", blocks: [] });
     expect(refused.status).toBe(400);
   });
 });

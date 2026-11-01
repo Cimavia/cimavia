@@ -57,7 +57,6 @@ function feedback(media: FeedbackMediaDto[], messages: MessageDto[]): SessionFee
     athleteId: "a1",
     content: null,
     media,
-    trackedExercises: [],
     trackedBlocks: [],
     messages,
     createdAt: "2026-09-25T12:00:00.000Z",

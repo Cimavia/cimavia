@@ -11,6 +11,7 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app } from "../support/app";
+import { REPS, SERIES, seriesBlock } from "../support/blocks";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import {
   ANY_VERSION,
@@ -20,10 +21,7 @@ import {
   putAtLatest,
 } from "../support/version";
 
-const SERIES = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 const FREE = STRUCTURE_PRESETS[StructurePresetKey.FREE];
-
-const reps = { id: "col_reps", source: "CATALOG", key: "REPETITIONS", unit: "REPS", label: null };
 
 const structureInput = (name: string) => ({
   name,
@@ -37,26 +35,20 @@ type BlockOrigin = { sourceStructureId?: string | null; sourcePreset?: string | 
 
 const FROM_SERIES: BlockOrigin = { sourcePreset: StructurePresetKey.SERIES };
 
-/** Un bloc de séance tel que l'éditeur l'envoie : réglages copiés, origine, exercices. */
+/** Un bloc « Séries » d'origine choisie ; `values` remplace la ligne de répétitions par défaut. */
 function blockOf(
   exercises: { key: string; exerciseId: string; values?: Record<string, unknown> }[],
   origin: BlockOrigin = FROM_SERIES,
 ) {
+  const placed = exercises.map(({ key, exerciseId, values }) => ({
+    key,
+    exerciseId,
+    ...(values == null ? {} : { grid: { metrics: [REPS], rows: [{ id: `r_${key}`, values }] } }),
+  }));
   return {
-    id: `blk_${exercises[0]?.key}`,
-    name: "Séries",
-    label: null,
-    instructions: null,
-    settings: SERIES,
-    copiedSettings: SERIES,
+    ...seriesBlock(placed),
     sourceStructureId: origin.sourceStructureId ?? null,
     sourcePreset: origin.sourcePreset ?? null,
-    exercises: exercises.map(({ key, exerciseId, values }) => ({
-      key,
-      exerciseId,
-      note: null,
-      grid: { metrics: [reps], rows: [{ id: `r_${key}`, values: values ?? { col_reps: 6 } }] },
-    })),
   };
 }
 
@@ -300,15 +292,15 @@ describe("Séances composées par blocs (#716)", () => {
     expect(block.exercises.map((exercise: { key: string }) => exercise.key)).toEqual(["a1", "a2"]);
     expect(block.exercises[0]).toMatchObject({
       exerciseId: tractionsId,
-      grid: { metrics: [reps], rows: [{ id: "r_a1", values: { col_reps: 6 } }] },
+      grid: { metrics: [REPS], rows: [{ id: "r_a1", values: { col_reps: 6 } }] },
     });
   });
 
-  it("refuse une composition par exercices ET par blocs", async () => {
+  // Depuis #723, une séance ne se compose plus que par blocs.
+  it("refuse une composition par exercices", async () => {
     const res = await coach.post("/sessions").send({
-      title: "Les deux",
+      title: "À plat",
       exercises: [{ exerciseId: tractionsId }],
-      blocks: [blockOf([{ key: "a1", exerciseId: tractionsId }])],
     });
     expect(res.status).toBe(400);
   });
@@ -333,15 +325,7 @@ describe("Séances composées par blocs (#716)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("efface les blocs quand la séance repasse par exercices, et inversement", async () => {
-    const flat = await putAtLatest(coach, `/sessions/${templateId}`, {
-      title: "Force",
-      exercises: [{ exerciseId: tractionsId }],
-    });
-    expect(flat.status).toBe(200);
-    expect(flat.body.blocks).toEqual([]);
-    expect(flat.body.exercises).toHaveLength(1);
-
+  it("réécrit les blocs, et les lignes de la séance avec eux", async () => {
     const nested = await putAtLatest(coach, `/sessions/${templateId}`, {
       title: "Force",
       blocks: [
@@ -460,7 +444,7 @@ describe("Séances composées par blocs (#716)", () => {
       ).toBe(400);
     });
 
-    it("refuse un suivi par exercice sur un exercice de bloc : il se coche avec son bloc", async () => {
+    it("refuse l'ancien suivi par exercice : un exercice se coche avec son bloc", async () => {
       const read = await athlete.get(`/me/scheduled-sessions/${scheduledId}`);
       const exerciseId = read.body.blocks[0].exercises[0].id as string;
       const res = await athlete
@@ -506,8 +490,8 @@ describe("Séances composées par blocs (#716)", () => {
         await coach.get(`/scheduled-sessions/${scheduledId}/feedback`),
       ]) {
         expect(read.status).toBe(200);
-        // Un exercice de bloc se compte avec son bloc : la liste par exercice ne le redit pas.
-        expect(read.body.trackedExercises).toEqual([]);
+        // Un exercice se compte avec son bloc : il n'y a plus de liste par exercice.
+        expect(read.body).not.toHaveProperty("trackedExercises");
         expect(
           read.body.trackedBlocks.map((block: { blockId: string; exerciseKeys: string[] }) => [
             block.blockId,
@@ -561,21 +545,6 @@ describe("Séances composées par blocs (#716)", () => {
         .put(`/me/scheduled-sessions/${draftSessionId}/feedback`)
         .send({ content: null, blockTracking: { [blockId]: { checked: [] } } });
       expect(sent.status).toBe(200);
-    });
-
-    it("enregistré par le panneau par exercices, il perd ses blocs et garde ses lignes", async () => {
-      const [kept] = (await coach.get(`/scheduled-sessions/${draftSessionId}`)).body.exercises;
-      const saved = await putAtLatest(coach, `/scheduled-sessions/${draftSessionId}`, {
-        title: "Force",
-        notes: null,
-        scheduledDate: monday,
-        exercises: [{ id: kept.id, sourceExerciseId: kept.sourceExerciseId, title: kept.title }],
-      });
-      expect(saved.status).toBe(200);
-      expect(saved.body.blocks).toEqual([]);
-      expect(saved.body.exercises.map((exercise: { id: string }) => exercise.id)).toEqual([
-        kept.id,
-      ]);
     });
   });
 });

@@ -15,8 +15,8 @@ import {
   MAX_DOCUMENT_SIZE_BYTES,
   updateExerciseSchema,
 } from "./exercise.schema";
-import { MetricSource } from "./exercise-block.schema";
 import { MetricKey, MetricUnit } from "./exercise-metric.schema";
+import { MetricSource } from "./metric-reference.schema";
 
 describe("exerciseTagsSchema", () => {
   it("normalise en minuscules et coupe les espaces", () => {
@@ -130,14 +130,16 @@ describe("updateExerciseSchema", () => {
   });
 });
 
-describe("consigne structurée et blocs", () => {
+describe("consigne structurée", () => {
   const base = { title: "Tractions lestées" };
   const paragraph = [{ type: "PARAGRAPH", content: [{ text: "Coudes serrés." }] }];
 
-  it("accepte un exercice sans consigne ni bloc", () => {
-    const parsed = createExerciseSchema.parse(base);
-    expect(parsed.instructions).toBeUndefined();
-    expect(parsed.blocks).toBeUndefined();
+  it("accepte un exercice sans consigne", () => {
+    expect(createExerciseSchema.parse(base).instructions).toBeUndefined();
+  });
+
+  it("refuse l'ancien dosage par blocs (#723)", () => {
+    expect(createExerciseSchema.safeParse({ ...base, blocks: [] }).success).toBe(false);
   });
 
   it("accepte une consigne structurée", () => {

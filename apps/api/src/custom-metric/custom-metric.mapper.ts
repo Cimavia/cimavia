@@ -28,7 +28,7 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
 }
 
 /**
- * Les définitions que ces blocs, ces grilles ou ces métriques suggérées citent, prises dans le
+ * Les définitions que ces grilles ou ces métriques suggérées citent, prises dans le
  * catalogue de leur propriétaire (piège n°9). Une citation orpheline est ignorée : la métrique a
  * été supprimée depuis (dette EX-2).
  *
@@ -38,10 +38,10 @@ export function toCustomMetricDto(metric: CustomMetricRow): CustomMetric {
  * métrique maison.
  */
 export function citedCustomMetrics(
-  blocks: MetricCitations,
+  citations: MetricCitations,
   catalog: CustomMetricCatalog,
 ): CustomMetric[] {
-  const wanted = new Set(customMetricIdsIn(blocks));
+  const wanted = new Set(customMetricIdsIn(citations));
   return catalog.filter((metric) => wanted.has(metric.id)).map(toCustomMetricDto);
 }
 

@@ -38,14 +38,14 @@ beforeEach(() => {
 
 describe("useUpsertFeedback", () => {
   /**
-   * Le filtre de l'écran lit la séance EN CACHE : si le coach vient d'en retirer un exercice, il
+   * Le filtre de l'écran lit la séance EN CACHE : si le coach vient d'en retirer un bloc, il
    * ne le sait pas, et le serveur refuse. Relire la séance est ce qui débloque l'envoi suivant.
    */
   it("un refus (400) relit la séance, et laisse le suivi local en place", async () => {
-    upsertMock.mockRejectedValue(new ApiError(400, "exercice absent", null));
+    upsertMock.mockRejectedValue(new ApiError(400, "bloc absent", null));
     const { result, invalidate, onSaved } = setup();
 
-    act(() => result.current.mutate({ content: null, tracking: { "sx-retire": null } }));
+    act(() => result.current.mutate({ content: null, blockTracking: { "b-retire": null } }));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myPlanKeys.session("s-1") });
@@ -75,13 +75,14 @@ describe("useUpsertFeedback", () => {
   });
 });
 
-// Trois exercices : un suivi, un non suivi, un que l'envoi ne cite pas.
+const check = (row: number) => ({ row, key: "a1" });
+
+// Deux blocs suivis : l'un que l'envoi cite, l'autre qu'il ne cite pas.
 const SESSION = {
   id: "s-1",
-  exercises: [
-    { id: "sx-1", tracking: { "b-1": { checked: [0, 1, 2] } } },
-    { id: "sx-2", tracking: { "b-1": { checked: [0] } } },
-    { id: "sx-3", tracking: { "b-1": { rounds: 4 } } },
+  blocks: [
+    { id: "b-1", exercises: [{ key: "a1" }], tracking: { checked: [check(0), check(1)] } },
+    { id: "b-2", exercises: [{ key: "a1" }], tracking: { checked: [check(0)] } },
   ],
 } as unknown as ScheduledSessionDto;
 
@@ -94,26 +95,27 @@ describe("useUpsertFeedback — la séance en cache suit l'envoi", () => {
     upsertMock.mockResolvedValue({ id: "f-1" });
     const { result, onSaved, queryClient } = setup();
     queryClient.setQueryData(myPlanKeys.session("s-1"), SESSION);
-    const sent = { "sx-1": { "b-1": { checked: [0, 1, 2, 3] } } };
+    const sent = { "b-1": { checked: [check(0), check(1), check(2)] } };
     let seenAtClear: unknown;
     onSaved.mockImplementation(() => {
-      seenAtClear = queryClient.getQueryData<ScheduledSessionDto>(myPlanKeys.session("s-1"))
-        ?.exercises[0]?.tracking;
+      seenAtClear = queryClient
+        .getQueryData<ScheduledSessionDto>(myPlanKeys.session("s-1"))
+        ?.blocks.map((block) => block.tracking);
     });
 
-    act(() => result.current.mutate({ content: null, tracking: sent }));
+    act(() => result.current.mutate({ content: null, blockTracking: sent }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(seenAtClear).toEqual(sent["sx-1"]);
+    expect(seenAtClear).toEqual([sent["b-1"], { checked: [check(0)] }]);
     // Ce qui est parti accompagne l'appel : l'écran n'efface que si le local n'a pas bougé (#499).
-    expect(onSaved).toHaveBeenCalledWith(sent, undefined);
+    expect(onSaved).toHaveBeenCalledWith(sent);
   });
 
   it("sans séance en cache, n'en invente pas une", async () => {
     upsertMock.mockResolvedValue({ id: "f-1" });
     const { result, queryClient } = setup();
 
-    act(() => result.current.mutate({ content: null, tracking: { "sx-1": null } }));
+    act(() => result.current.mutate({ content: null, blockTracking: { "b-1": null } }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(queryClient.getQueryData(myPlanKeys.session("s-1"))).toBeUndefined();

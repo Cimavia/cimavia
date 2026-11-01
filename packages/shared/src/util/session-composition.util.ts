@@ -1,11 +1,6 @@
 import type { BlockGrid, GridMetric, GridRow } from "../dto/block-grid.schema";
 import { metricsFromSuggested } from "../dto/block-grid.schema";
-import {
-  type ColumnFillPlan,
-  fillRows,
-  MetricSource,
-  withMaterializedSeries,
-} from "../dto/exercise-block.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import {
   BLOCK_MAX_EXERCISES,
   SESSION_MAX_BLOCKS,
@@ -22,6 +17,7 @@ import {
 } from "../dto/structure.schema";
 import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 import type { TypesValuesOf } from "../type/generics.type";
+import { type ColumnFillPlan, fillRows, withMaterializedSeries } from "./grid-fill.util";
 import type { Phrase } from "./phrase.util";
 import { gridRowLimit, roundsError } from "./structure-settings.util";
 

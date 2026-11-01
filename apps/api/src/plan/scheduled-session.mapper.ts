@@ -7,13 +7,7 @@ import {
   toScheduledSessionBlockDto,
 } from "../session/session-block.mapper";
 import { toIsoDate } from "../util/date.util";
-import {
-  parseAdjustments,
-  parseBlocks,
-  parseCustomMetrics,
-  parseInstructions,
-  parseTracking,
-} from "../util/exercise-json.util";
+import { parseCustomMetrics, parseInstructions } from "../util/exercise-json.util";
 
 // La séance planifiée avec sa composition (copies) et les documents copiés de la bibliothèque.
 // Le coach, par le cycle : la séance n'a que la colonne `coachId`, pas la relation (#599). Ses
@@ -45,14 +39,9 @@ async function toExerciseDto(
     title: exercise.title,
     description: exercise.description,
     instructions: parseInstructions(exercise.instructions),
-    blocks: parseBlocks(exercise.blocks),
     tags: exercise.tags.map((tag) => tag.name).sort(),
     note: exercise.note,
-    baseline: parseBlocks(exercise.baseline),
-    adjustments: parseAdjustments(exercise.adjustments),
-    baselineAdjustments: parseAdjustments(exercise.baselineAdjustments),
     customMetrics: parseCustomMetrics(exercise.customMetrics),
-    tracking: parseTracking(exercise.tracking),
     position: exercise.position,
     documents,
   };

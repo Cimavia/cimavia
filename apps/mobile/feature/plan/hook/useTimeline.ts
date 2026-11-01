@@ -5,8 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Timed = { readonly seconds: number };
 
 /**
- * Un déroulé, étape après étape — le moteur commun à l'ancien déroulé d'un exercice
- * (`useSegmentRunner`) et au chrono d'un bloc (#722).
+ * Un déroulé, étape après étape — le moteur du chrono d'un bloc (#722).
  *
  * Le temps se lit sur une échéance ABSOLUE, jamais en décrémentant. Ici c'est vital : l'app est
  * gelée en arrière-plan, et l'athlète qui rouvre au bout de trois étapes doit retrouver la bonne,

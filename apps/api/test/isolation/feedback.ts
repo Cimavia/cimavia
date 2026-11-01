@@ -1,7 +1,8 @@
-import { Role, SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "@cmv/shared";
+import { Role, SESSION_MAX_BLOCKS } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, link, signUp } from "../support/actors";
-import { mondayOfCurrentWeek } from "../support/fixtures";
+import { blocksOf } from "../support/blocks";
+import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
 import { putAtLatest } from "../support/version";
 
 describe("Débrief de séance (P4)", () => {
@@ -36,7 +37,7 @@ describe("Débrief de séance (P4)", () => {
 
     const session = await coachA
       .post(`/plan-weeks/${weekId}/sessions`)
-      .send({ title: "Séance à débriefer", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance à débriefer", scheduledDate: monday }));
     draftSessionId = session.body.id;
   });
 
@@ -128,9 +129,14 @@ describe("Suivi d'exécution (#168)", () => {
   let athlete: Agent;
   let other: Agent;
   let sessionId: string;
-  let exerciseCopyId: string;
+  let blockId: string;
 
   const monday = mondayOfCurrentWeek();
+
+  const read = async () =>
+    (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.blocks[0].tracking;
+  const send = (body: object) =>
+    athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send(body);
 
   beforeAll(async () => {
     coach = await signUp("suivi-coach@cmv.test", Role.COACH);
@@ -141,30 +147,10 @@ describe("Suivi d'exécution (#168)", () => {
     const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     const athleteId = accepted.body[0].athleteId;
 
-    const exercise = await coach.post("/exercises").send({
-      title: "Tractions",
-      blocks: [
-        {
-          id: "blk_1",
-          label: null,
-          structure: { type: "SERIES", setCount: 4, restBetweenSetsSeconds: 150 },
-          metrics: [
-            {
-              id: "col_reps",
-              source: "CATALOG",
-              key: "REPETITIONS",
-              unit: "REPS",
-              label: null,
-              collapsed: false,
-            },
-          ],
-          rows: [{ id: "r1", values: { col_reps: 6 } }],
-        },
-      ],
-    });
+    const exercise = await coach.post("/exercises").send({ title: "Tractions" });
     const template = await coach
       .post("/sessions")
-      .send({ title: "Force", exercises: [{ exerciseId: exercise.body.id }] });
+      .send({ title: "Force", blocks: blocksOf(exercise.body.id) });
 
     const plan = await coach.post("/plans").send({
       athleteId,
@@ -176,285 +162,45 @@ describe("Suivi d'exécution (#168)", () => {
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
       .send({ sourceSessionId: template.body.id, scheduledDate: monday });
     sessionId = scheduled.body.id;
-    exerciseCopyId = scheduled.body.exercises[0].id;
+    blockId = scheduled.body.blocks[0].id;
 
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
   });
 
   it("naît NON SUIVI — ce qui n'est pas « zéro coché »", async () => {
-    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
-    expect(read.status).toBe(200);
-    // `null` et non `{}` : l'athlète n'a rien dit, et l'affichage doit rester silencieux.
-    expect(read.body.exercises[0].tracking).toBeNull();
+    // `null` et non `{ checked: [] }` : l'athlète n'a rien dit, et l'affichage doit rester silencieux.
+    await expect(read()).resolves.toBeNull();
   });
 
-  it("remonte avec le débrief, et distingue « rien coché » de « non suivi »", async () => {
-    const sent = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      content: null,
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 2] } } },
-    });
-    expect(sent.status).toBe(200);
-
-    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
-    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 2] } });
-
-    // Ouvert sans rien cocher : suivi, mais vide — un état distinct de l'absence.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: {} },
-    });
-    expect(
-      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
-    ).toEqual({});
-
-    // Coché PUIS décoché : le bloc existe avec une liste vide. Ce n'est pas « non suivi » —
-    // l'athlète a ouvert son suivi et l'a laissé à zéro, ce qui est une réponse.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [] } } },
-    });
-    expect(
-      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
-    ).toEqual({ blk_1: { checked: [] } });
-
-    // Et on peut y revenir : `null` remet en NON SUIVI, c'est une intention.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: null },
-    });
-    expect(
-      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
-    ).toBeNull();
-  });
-
-  // Un suivi vide ne cite aucun exercice : il ne touche à rien de ce qui est déjà coché.
+  // Un suivi vide ne cite aucun bloc : il ne touche à rien de ce qui est déjà coché.
   it("un suivi vide laisse intact ce qui est déjà coché", async () => {
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [1] } } },
-    });
+    await send({ blockTracking: { [blockId]: { checked: [{ row: 1, key: "a1" }] } } });
 
-    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      content: "Rien à cocher de plus",
-      tracking: {},
-    });
+    const res = await send({ content: "Rien à cocher de plus", blockTracking: {} });
 
     expect(res.status).toBe(200);
-    expect(
-      (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0].tracking,
-    ).toEqual({ blk_1: { checked: [1] } });
+    await expect(read()).resolves.toEqual({ checked: [{ row: 1, key: "a1" }] });
   });
 
   it("un débrief SANS texte, sans média et sans coche part quand même", async () => {
     // « J'ai fait la séance, rien à dire » est une réponse valable ; forcer du texte n'en produit
     // que de creux.
-    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({});
+    const res = await send({});
     expect(res.status).toBe(200);
   });
 
-  it("le COACH lit le décompte avec le débrief, résumé et sans jugement", async () => {
-    // Le chaînon qui manquait : le suivi était écrit, exposé dans le DTO de la séance, et aucun
-    // écran coach ne le montrait. Il accompagne désormais le débrief lui-même — le coach n'a pas
-    // à charger la séance de son athlète pour savoir ce qui a été coché.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      content: "Épaule sensible sur la dernière.",
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1, 2] } } },
-    });
+  it("l'édition de la séance par le COACH ne touche pas au suivi de l'athlète", async () => {
+    await send({ blockTracking: { [blockId]: { checked: [{ row: 0, key: "a1" }] } } });
 
-    const read = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
-    expect(read.status).toBe(200);
-    expect(read.body.trackedExercises).toEqual([
-      {
-        exerciseId: exerciseCopyId,
-        title: "Tractions",
-        state: "PARTIAL",
-        done: 3,
-        total: 4,
-        unit: "SET",
-      },
-    ]);
-
-    // Remis à NON SUIVI : l'état reste distinct de « zéro coché », y compris chez le coach.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: null },
-    });
-    const untracked = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
-    expect(untracked.body.trackedExercises[0]).toMatchObject({
-      state: "UNTRACKED",
-      done: 0,
-      total: 4,
-    });
-  });
-
-  it("une réécriture de la séance par le COACH ne détruit ni le dosage ni le suivi", async () => {
-    // La régression que ce test verrouille, et qui a détruit des données réelles : l'édition
-    // d'une séance planifiée est un replace-all. Tout ce que le client n'émet pas est effacé —
-    // les blocs l'étaient à chaque enregistrement, et le suivi de l'athlète ne pouvait même PAS
-    // être renvoyé, faute de rattacher une ligne à sa précédente.
-    await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [0, 1] } } },
-    });
-
-    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
-    const exercise = before.body.exercises[0];
-    expect(exercise.blocks).toHaveLength(1);
-
-    // Ce que le panneau du coach renvoie : il réordonne et annote, il ne touche pas au dosage.
     const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
       title: "Force — ajustée",
-      notes: null,
+      notes: "Lent en descente",
       scheduledDate: monday,
-      exercises: [
-        {
-          id: exercise.id,
-          sourceExerciseId: exercise.sourceExerciseId,
-          title: exercise.title,
-          description: exercise.description,
-          tags: exercise.tags,
-          note: "Note ajoutée",
-          instructions: exercise.instructions,
-          blocks: exercise.blocks,
-          customMetrics: exercise.customMetrics,
-          adjustments: exercise.adjustments,
-        },
-      ],
     });
     expect(saved.status).toBe(200);
-
-    const after = saved.body.exercises[0];
-    expect(after.blocks).toEqual(exercise.blocks);
-    expect(after.baseline).toEqual(exercise.baseline);
-    expect(after.note).toBe("Note ajoutée");
     // Le SUIVI appartient à l'athlète : il n'a pas transité par le coach, et il est toujours là.
-    expect(after.tracking).toEqual({ blk_1: { checked: [0, 1] } });
-
-    // Vu de l'athlète aussi — c'est la seule vue qui compte pour lui.
-    const read = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
-    expect(read.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
-    expect(read.body.exercises[0].blocks).toHaveLength(1);
-  });
-
-  it("un exercice AJOUTÉ par le coach naît sans suivi, et n'hérite pas de celui d'un autre", async () => {
-    const before = await coach.get(`/scheduled-sessions/${sessionId}`);
-    const exercise = before.body.exercises[0];
-
-    const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
-      title: "Force — ajustée",
-      notes: null,
-      scheduledDate: monday,
-      exercises: [
-        {
-          id: exercise.id,
-          sourceExerciseId: exercise.sourceExerciseId,
-          title: exercise.title,
-          tags: exercise.tags,
-          instructions: exercise.instructions,
-          blocks: exercise.blocks,
-          customMetrics: exercise.customMetrics,
-          adjustments: exercise.adjustments,
-        },
-        // Sans `id` : ligne nouvelle. Un `id` inventé ne doit rien reprendre non plus.
-        { title: "Gainage", tags: [], blocks: [] },
-      ],
-    });
-    expect(saved.status).toBe(200);
-    expect(saved.body.exercises).toHaveLength(2);
-    expect(saved.body.exercises[1].tracking).toBeNull();
-    // L'exercice d'origine, lui, garde le sien.
-    expect(saved.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0, 1] } });
-  });
-
-  it("une coche LOCALE survit à l'enregistrement du coach, et le débrief la remonte (#311)", async () => {
-    // L'athlète coche en salle, hors réseau : son suivi vit sur son téléphone, indexé par
-    // l'identifiant de la ligne, et ne monte qu'au débrief. Si l'enregistrement du coach renouvelle
-    // cet identifiant entre-temps, le débrief écrit sur une ligne qui n'existe plus.
-    const seen = await athlete.get(`/me/scheduled-sessions/${sessionId}`);
-    const [tractions, gainage] = seen.body.exercises;
-    const line = (exercise: typeof tractions, note: string | null) => ({
-      id: exercise.id,
-      sourceExerciseId: exercise.sourceExerciseId,
-      title: exercise.title,
-      tags: exercise.tags,
-      note,
-      instructions: exercise.instructions,
-      blocks: exercise.blocks,
-      customMetrics: exercise.customMetrics,
-      adjustments: exercise.adjustments,
-    });
-
-    // Le coach réordonne et annote : les lignes changent de rang, pas d'identité.
-    const saved = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
-      title: "Force — ajustée",
-      notes: null,
-      scheduledDate: monday,
-      exercises: [line(gainage, "En fin de séance"), line(tractions, "Lent en descente")],
-    });
-    expect(saved.status).toBe(200);
-    expect(saved.body.exercises.map((e: { id: string }) => e.id)).toEqual([
-      gainage.id,
-      tractions.id,
-    ]);
-
-    // Le débrief part avec les identifiants que l'athlète avait AVANT l'enregistrement.
-    const sent = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [tractions.id]: { blk_1: { checked: [0, 1, 2, 3] } } },
-    });
-    expect(sent.status).toBe(200);
-
-    const read = await coach.get(`/scheduled-sessions/${sessionId}/feedback`);
-    expect(read.body.trackedExercises).toContainEqual(
-      expect.objectContaining({ exerciseId: tractions.id, state: "DONE", done: 4, total: 4 }),
-    );
-
-    // Retirer une ligne l'emporte avec son suivi ; la ligne restante reprend le premier rang.
-    const trimmed = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
-      title: "Force — ajustée",
-      notes: null,
-      scheduledDate: monday,
-      exercises: [line(tractions, "Lent en descente")],
-    });
-    expect(trimmed.status).toBe(200);
-    expect(trimmed.body.exercises).toHaveLength(1);
-    expect(trimmed.body.exercises[0]).toMatchObject({
-      id: tractions.id,
-      position: 0,
-      tracking: { blk_1: { checked: [0, 1, 2, 3] } },
-    });
-  });
-
-  it("refuse le même exercice cité deux fois dans la séance (400)", async () => {
-    const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
-    const exercise = before.exercises[0];
-    const res = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
-      title: before.title,
-      notes: null,
-      scheduledDate: monday,
-      exercises: [
-        { id: exercise.id, title: exercise.title },
-        { id: exercise.id, title: exercise.title },
-      ],
-    });
-    expect(res.status).toBe(400);
-    // Rien n'a été écrit : la séance est celle d'avant.
-    expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
-      before.exercises,
-    );
-  });
-
-  it("refuse une séance planifiée au-delà du plafond d'exercices (400), sans rien écrire", async () => {
-    const before = (await coach.get(`/scheduled-sessions/${sessionId}`)).body;
-
-    const res = await putAtLatest(coach, `/scheduled-sessions/${sessionId}`, {
-      title: before.title,
-      scheduledDate: before.scheduledDate,
-      exercises: Array.from({ length: SESSION_MAX_EXERCISES + 1 }, (_, index) => ({
-        title: `Exercice ${index}`,
-      })),
-    });
-    expect(res.status).toBe(400);
-    expect(res.body.errors).toContainEqual({
-      pointer: "#/exercises",
-      detail: SESSION_TOO_MANY_EXERCISES_MESSAGE,
-    });
-    expect((await coach.get(`/scheduled-sessions/${sessionId}`)).body.exercises).toEqual(
-      before.exercises,
-    );
+    expect(saved.body.blocks[0].tracking).toEqual({ checked: [{ row: 0, key: "a1" }] });
+    await expect(read()).resolves.toEqual({ checked: [{ row: 0, key: "a1" }] });
   });
 
   /**
@@ -463,58 +209,50 @@ describe("Suivi d'exécution (#168)", () => {
    */
   it.each([
     [
-      "plus d'exercices que la séance n'en peut porter",
+      "plus de blocs que la séance n'en peut porter",
       () =>
         Object.fromEntries(
-          Array.from({ length: SESSION_MAX_EXERCISES + 1 }, (_, index) => [`sse_${index}`, null]),
+          Array.from({ length: SESSION_MAX_BLOCKS + 1 }, (_, index) => [`blk_${index}`, null]),
         ),
     ],
     [
       "une case cochée deux fois",
-      () => ({ [exerciseCopyId]: { blk_1: { checked: [0, 0, 0, 0, 0, 1] } } }),
+      () => ({
+        [blockId]: {
+          checked: [
+            { row: 0, key: "a1" },
+            { row: 0, key: "a1" },
+          ],
+        },
+      }),
     ],
-  ])("refuse un suivi qui cite %s (400), sans rien écrire", async (_, tracking) => {
-    const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
+    [
+      "un bloc inconnu de la séance, à côté d'un bloc connu",
+      // Répondre 200 en ignorant la coche, c'était laisser le client vider son suivi local pour
+      // des coches qui n'avaient atterri nulle part (#311). Le refus les garde sur l'appareil.
+      () => ({
+        [blockId]: { checked: [{ row: 2, key: "a1" }] },
+        blk_inconnu: { checked: [{ row: 0, key: "a1" }] },
+      }),
+    ],
+  ])("refuse un suivi qui cite %s (400), sans rien écrire", async (_, blockTracking) => {
+    const before = await read();
     const feedbackBefore = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
 
-    const res = await athlete
-      .put(`/me/scheduled-sessions/${sessionId}/feedback`)
-      .send({ content: "Ne doit pas s'écrire", tracking: tracking() });
+    const res = await send({ content: "Ne doit pas s'écrire", blockTracking: blockTracking() });
     expect(res.status).toBe(400);
 
-    const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
-    expect(after.tracking).toEqual(before.tracking);
+    // Ni le texte, ni la coche du bloc CONNU : un refus n'enregistre pas à moitié.
+    await expect(read()).resolves.toEqual(before);
     const feedbackAfter = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
     expect(feedbackAfter?.content ?? null).toBe(feedbackBefore?.content ?? null);
   });
 
   it("un athlète ne suit PAS la séance d'un autre", async () => {
     const res = await other.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
+      blockTracking: { [blockId]: { checked: [{ row: 0, key: "a1" }] } },
     });
     expect(res.status).toBe(404);
-  });
-
-  it("un exercice inconnu de la séance fait refuser le débrief (400), sans RIEN en écrire", async () => {
-    // Répondre 200 en ignorant la coche, c'était laisser le client vider son suivi local pour des
-    // coches qui n'avaient atterri nulle part (#311). Le refus les garde sur l'appareil.
-    const before = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
-    const feedbackBefore = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
-
-    const res = await athlete.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
-      content: "Ne doit pas s'écrire",
-      tracking: {
-        [exerciseCopyId]: { blk_1: { checked: [0] } },
-        cmv_inconnu: { blk_1: { checked: [0, 1, 2, 3] } },
-      },
-    });
-    expect(res.status).toBe(400);
-
-    // Ni le texte, ni la coche de l'exercice CONNU : un refus n'enregistre pas à moitié.
-    const after = (await athlete.get(`/me/scheduled-sessions/${sessionId}`)).body.exercises[0];
-    expect(after.tracking).toEqual(before.tracking);
-    const feedbackAfter = (await athlete.get(`/me/scheduled-sessions/${sessionId}/feedback`)).body;
-    expect(feedbackAfter.content).toBe(feedbackBefore.content);
   });
 });
 
@@ -543,7 +281,7 @@ describe("Lecture coach des débriefs (P4)", () => {
     });
     const session = await coachA
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance relue", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance relue", scheduledDate: monday }));
     sessionId = session.body.id;
     await billAndPublish(coachA, plan.body.id);
 

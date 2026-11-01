@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import { billAndPublish } from "../support/actors";
 import { app } from "../support/app";
+import { fromTemplate } from "../support/fixtures";
 import { attemptPlanWrites } from "../support/intrusion";
 import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
 import { asCoach } from "../support/tenant";
@@ -189,14 +190,16 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
     expect(renamed.status).toBe(200);
     expect(renamed.body.myAccess).toMatchObject({ level: MyAccessLevel.WRITE });
 
-    const added = await world.m
-      .post(`/plan-weeks/${world.planTi.secondWeekId}/sessions`)
-      .send({ title: "Séance de M", scheduledDate: renamed.body.weeks[1].startDate });
+    const added = await world.m.post(`/plan-weeks/${world.planTi.secondWeekId}/sessions`).send(
+      await fromTemplate(world.m, {
+        title: "Séance de M",
+        scheduledDate: renamed.body.weeks[1].startDate,
+      }),
+    );
     expect(added.status).toBe(201);
     const edited = await putAtLatest(world.m, `/scheduled-sessions/${added.body.id}`, {
       title: "Séance de M, ajustée",
       scheduledDate: renamed.body.weeks[1].startDate,
-      exercises: [],
     });
     expect(edited.status).toBe(200);
     const week = await world.m
@@ -208,46 +211,6 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
 
     const row = await prisma.scheduledSession.findUniqueOrThrow({ where: { id: added.body.id } });
     expect(row.coachId).toBe(world.ids.c);
-  });
-
-  it("une ligne que M compose sans exercice source cite le catalogue de M, pas celui de C", async () => {
-    await grantPlan(world, world.planTi.id, "WRITE");
-    const grade = await world.m
-      .post("/custom-metrics")
-      .send({ label: "Cotation de M", unit: null, valueType: "SCALE", scale: ["6a", "6b"] });
-    expect(grade.status).toBe(201);
-
-    const composed = await putAtLatest(world.m, `/scheduled-sessions/${world.planTi.sessionId}`, {
-      title: "Séance de TI",
-      scheduledDate: world.monday,
-      exercises: [
-        {
-          title: "Voie de M",
-          blocks: [
-            {
-              id: "blk_grade",
-              label: null,
-              structure: { type: "SERIES", setCount: 1, restBetweenSetsSeconds: null },
-              metrics: [
-                {
-                  id: "col_grade",
-                  source: "CUSTOM",
-                  customMetricId: grade.body.id,
-                  label: null,
-                  collapsed: false,
-                },
-              ],
-              rows: [{ id: "r1", values: {} }],
-            },
-          ],
-        },
-      ],
-    });
-    expect(composed.status).toBe(200);
-    // Sans la définition, l'athlète ne lirait qu'un identifiant de colonne.
-    expect(composed.body.exercises[0].customMetrics).toEqual([
-      expect.objectContaining({ id: grade.body.id, label: "Cotation de M" }),
-    ]);
   });
 
   it("même en Écriture, M ne supprime pas le cycle et ne le confie pas à un autre athlète", async () => {

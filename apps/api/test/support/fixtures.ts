@@ -84,3 +84,16 @@ export async function uploadInstructionImage(coach: Agent, exerciseId: string) {
   expect(attached.status).toBe(201);
   return attached.body.id as string;
 }
+
+/**
+ * Ce qu'une séance planifiée attend pour naître : la séance-type dont elle est la copie (#723).
+ * Créée vide au nom de `coach`, sous le titre voulu — la séance planifiée le reprend.
+ */
+export async function fromTemplate(
+  coach: Agent,
+  { title, scheduledDate }: { title: string; scheduledDate: string },
+): Promise<{ sourceSessionId: string; scheduledDate: string }> {
+  const template = await coach.post("/sessions").send({ title });
+  expect(template.status).toBe(201);
+  return { sourceSessionId: template.body.id, scheduledDate };
+}

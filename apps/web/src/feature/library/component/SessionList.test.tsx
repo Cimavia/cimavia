@@ -145,7 +145,7 @@ describe("SessionList — états", () => {
 
     expect(titles(view)).toEqual(["Force max", "Continuité"]);
     expect(view.getByText("library.table.composition")).toBeInTheDocument();
-    // Une séance par blocs dit ses blocs ; l'ancien modèle, ses seuls exercices.
+    // Une séance dit ses blocs et ses exercices ; une séance vide, ses seuls exercices.
     expect(
       view.getByText("common.composition.blocks · common.composition.exercises"),
     ).toBeInTheDocument();

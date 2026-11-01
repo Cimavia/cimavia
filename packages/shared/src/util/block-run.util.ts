@@ -1,6 +1,6 @@
 import type { BlockGrid } from "../dto/block-grid.schema";
-import { MetricSource } from "../dto/exercise-block.schema";
 import { MetricKey } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import type { StructureSettings } from "../dto/structure.schema";
 import { StructureRepeat } from "../dto/structure-answer.schema";
 import type { TypesValuesOf } from "../type/generics.type";

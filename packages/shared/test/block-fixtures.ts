@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { BlockGrid, GridMetric } from "../src/dto/block-grid.schema";
-import { MetricSource } from "../src/dto/exercise-block.schema";
 import { MetricKey, MetricUnit, type MetricValue } from "../src/dto/exercise-metric.schema";
+import { MetricSource } from "../src/dto/metric-reference.schema";
 import { STRUCTURE_PRESETS, type StructureSettings } from "../src/dto/structure.schema";
 import {
   StructureAdvance,

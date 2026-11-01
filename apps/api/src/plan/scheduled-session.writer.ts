@@ -1,26 +1,19 @@
 import {
-  type Adjustments,
   type BlockGrid,
   type CompositionOrigin,
-  type ExerciseBlocks,
+  type CustomMetric,
   imageMediaIds,
+  type RichDocument,
   remapImageMediaIds,
   required,
   type ScheduledSessionBlockDto,
-  type ScheduledSessionExerciseInput,
 } from "@cmv/shared";
-import { Prisma, type ScheduledSessionExerciseDocument } from "@prisma/client";
+import type { Prisma, ScheduledSessionExerciseDocument } from "@prisma/client";
 import { blockContentOf } from "../session/session-block.mapper";
 import { toBlockContentData } from "../session/session-block.writer";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { toJsonInput } from "../util/block-json.util";
-import {
-  toAdjustmentsInput,
-  toBlocksInput,
-  toCustomMetricsInput,
-  toInstructionsInput,
-} from "../util/exercise-json.util";
-import type { ExerciseRows } from "./scheduled-session.rows";
+import { toCustomMetricsInput, toInstructionsInput } from "../util/exercise-json.util";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
@@ -36,8 +29,8 @@ import type { ExerciseRows } from "./scheduled-session.rows";
  *    (`SetNull`) si le coach a supprimé l'exercice de sa bibliothèque entre-temps. Repasser par
  *    la bibliothèque perdrait alors des documents que l'instance porte pourtant encore.
  *
- * Une ligne REPRISE à l'édition, elle, garde les siens sans les recopier (#296) : c'est ce qui
- * garde valides les images que sa consigne cite (cf. `rewriteScheduledSessionExercises`).
+ * Une ligne GARDÉE par la composition, elle, garde les siens sans les recopier (#296) : c'est ce
+ * qui garde valides les images que sa consigne cite (cf. `rewriteScheduledComposition`).
  */
 
 /**
@@ -57,21 +50,26 @@ export type ScheduledSessionDocumentDraft = Pick<
   "id" | "type" | "usage" | "storagePath" | "url" | "fileName" | "mimeType"
 >;
 
-// Un exercice à créer, avec les documents que l'appelant lui a rattachés.
+/**
+ * Ce qu'une ligne copie de son exercice : un instantané, que l'affichage d'une planif diffusée lit
+ * sans jamais remonter à la bibliothèque.
+ */
+export type ScheduledExerciseSnapshot = {
+  sourceExerciseId: string | null;
+  title: string;
+  description: string | null;
+  instructions: RichDocument | null;
+  /** Les métriques maison que cite sa grille, définitions comprises (décision P3). */
+  customMetrics: readonly CustomMetric[];
+  tags: readonly string[];
+  note: string | null;
+};
+
+// Un exercice à créer, avec les documents que l'appelant lui a rattachés et sa place de bloc.
 export type ScheduledSessionExerciseDraft = {
-  exercise: ScheduledSessionExerciseInput;
-  /** Absente = la référence est le dosage diffusé lui-même (cas d'un exercice ajouté ad hoc). */
-  baseline?: ExerciseBlocks;
-  /**
-   * Les marqueurs REÇUS, référence de « Revenir au défaut » (#518) : ceux de la séance-type à la
-   * diffusion, ceux de l'instance source à la copie de semaine, `[]` pour un exercice ajouté — sa
-   * référence est son propre dosage, il n'a rien reçu. Obligatoire : chaque appelant le décide,
-   * aucun défaut ne le décide à sa place.
-   */
-  baselineAdjustments: Adjustments;
+  exercise: ScheduledExerciseSnapshot;
   documents: readonly ScheduledSessionDocumentDraft[];
-  /** Absente pour une ligne de l'ancien modèle, sans bloc (#716). */
-  placement?: BlockPlacementDraft;
+  placement: BlockPlacementDraft;
 };
 
 /**
@@ -108,7 +106,7 @@ export async function insertScheduledSessionExercises(
   scheduledSessionId: string,
   athleteId: string | null,
   drafts: readonly ScheduledSessionExerciseDraft[],
-  blocks: readonly ScheduledBlockDraft[] = [],
+  blocks: readonly ScheduledBlockDraft[],
 ): Promise<void> {
   const blockIds = await insertScheduledBlocks(tx, scheduledSessionId, athleteId, blocks);
   for (const [position, draft] of drafts.entries()) {
@@ -181,9 +179,8 @@ export function copiedBlocksOf(blocks: readonly ScheduledSessionBlockDto[]): {
   };
 }
 
-/** Les colonnes de bloc d'une ligne — toutes nulles sans placement, ce que le CHECK exige. */
-function placementColumns(placement: BlockPlacementDraft | undefined, blockIds: readonly string[]) {
-  if (placement === undefined) return {};
+/** Les colonnes de bloc d'une ligne ; `replacesKey` pour un remplaçant seulement (CHECK). */
+function placementColumns(placement: BlockPlacementDraft, blockIds: readonly string[]) {
   return {
     blockId: required(blockIds[placement.block], `[plan] bloc ${placement.block} non écrit`),
     blockPosition: placement.blockPosition,
@@ -192,88 +189,6 @@ function placementColumns(placement: BlockPlacementDraft | undefined, blockIds: 
     origin: placement.origin,
     replacesKey: placement.replacesKey,
   };
-}
-
-/**
- * Réécrit la composition d'une séance EXISTANTE en gardant l'identité de ses lignes (#296, #311).
- *
- * Une ligne reprise est mise à jour en place, jamais détruite puis recréée : ce qui lui est
- * rattaché et que le client n'émet pas reste où il est. C'est le cas du SUIVI d'exécution, qui
- * appartient à l'athlète et qu'il coche en local contre l'identifiant de la ligne, et des
- * DOCUMENTS, dont la consigne cite les images par leur identifiant. Les recréer cassait les deux
- * sans un signal — et recopier depuis la bibliothèque perdait tout quand l'exercice d'origine en
- * avait été supprimé, laissant ses objets orphelins dans le bucket.
- *
- * `@@unique([scheduledSessionId, position])` mord PENDANT l'écriture : deux lignes qui échangent
- * leurs rangs se heurtent à la première mise à jour. D'où le garage, comme `writeDay` le fait pour
- * les séances d'une journée : les lignes reprises montent d'abord au-dessus de tout rang final,
- * puis chacune redescend au sien.
- */
-export async function rewriteScheduledSessionExercises(
-  tx: TenantTx,
-  scheduledSessionId: string,
-  athleteId: string | null,
-  rows: ExerciseRows<ScheduledSessionExerciseInput>,
-  documentsOf: (
-    exercise: ScheduledSessionExerciseInput,
-  ) => readonly ScheduledSessionDocumentDraft[],
-): Promise<void> {
-  // Le panneau par exercices ne connaît pas les blocs (#716) : il les efface, comme la séance-type
-  // enregistrée par exercices (BL-1). Les lignes quittent leur bloc AVANT qu'il parte, sans quoi la
-  // cascade les emporterait — et leur suivi, leurs documents avec.
-  await tx.scheduledSessionExercise.updateMany({
-    where: { scheduledSessionId, blockId: { not: null } },
-    data: {
-      blockId: null,
-      blockPosition: null,
-      key: null,
-      grid: Prisma.DbNull,
-      origin: null,
-      replacesKey: null,
-    },
-  });
-  await tx.scheduledSessionBlock.deleteMany({ where: { scheduledSessionId } });
-
-  if (rows.removedIds.length > 0) {
-    // Les copies de documents partent en cascade ; les objets en storage appartiennent à la
-    // bibliothèque et ne sont jamais touchés d'ici.
-    await tx.scheduledSessionExercise.deleteMany({
-      where: { scheduledSessionId, id: { in: rows.removedIds } },
-    });
-  }
-
-  for (const [index, row] of rows.kept.entries()) {
-    await tx.scheduledSessionExercise.update({
-      where: { id: row.id },
-      data: { position: rows.parking + index },
-    });
-  }
-
-  for (const row of rows.kept) {
-    await tx.scheduledSessionExercise.update({
-      where: { id: row.id },
-      // Ni `baseline`, ni `baselineAdjustments`, ni `tracking`, ni `sourceExerciseId` : la
-      // référence est ce que la séance a diffusé, le suivi appartient à l'athlète, et l'origine est
-      // une trace — rien de tout ça ne se réécrit depuis le panneau du coach.
-      data: { ...snapshotOf(row.item), position: row.position },
-    });
-    // Remplacés et non fusionnés : la liste reçue EST la liste des tags de la ligne.
-    await tx.scheduledSessionExerciseTag.deleteMany({
-      where: { scheduledSessionExerciseId: row.id },
-    });
-    await insertTags(tx, row.id, athleteId, row.item.tags ?? []);
-  }
-
-  for (const row of rows.added) {
-    await insertScheduledSessionExercise(
-      tx,
-      scheduledSessionId,
-      athleteId,
-      // Un exercice AJOUTÉ n'a rien reçu : sa référence est son propre dosage, sans marqueur.
-      { exercise: row.item, baselineAdjustments: [], documents: documentsOf(row.item) },
-      row.position,
-    );
-  }
 }
 
 /** Un exercice de bloc tel que la composition le veut (#720) ; `exerciseId` pour celui qu'elle place. */
@@ -291,8 +206,10 @@ export type ComposedRow = {
  * changer de rang — son suivi, ses documents et ses valeurs avec. Une clé qui part emporte sa
  * ligne ; une clé neuve naît du contenu que `draftOf` lui donne.
  *
- * Les rangs passent par le garage, comme `rewriteScheduledSessionExercises` : `parking` dépasse
- * tout rang occupé, dans la séance comme dans un bloc.
+ * `@@unique([scheduledSessionId, position])` mord PENDANT l'écriture : deux lignes qui échangent
+ * leurs rangs se heurtent à la première mise à jour. D'où le garage, comme `writeDay` le fait pour
+ * les séances d'une journée : `parking` dépasse tout rang occupé, dans la séance comme dans un
+ * bloc ; les lignes gardées y montent d'abord, puis chacune redescend au sien.
  */
 export async function rewriteScheduledComposition(
   tx: TenantTx,
@@ -363,44 +280,27 @@ export async function rewriteScheduledComposition(
   }
 }
 
-/**
- * Ce qu'une ligne tient du panneau du coach — commun à la création et à la mise à jour, qui ne
- * doivent pas pouvoir diverger sur ce qu'elles écrivent.
- */
-function snapshotOf(exercise: ScheduledSessionExerciseInput) {
-  return {
-    title: exercise.title,
-    description: exercise.description ?? null,
-    // Le snapshot porte la consigne et la structure, sinon une planif diffusée se dégrade :
-    // l'athlète garderait le titre et perdrait ce qu'il doit faire.
-    instructions: toInstructionsInput(exercise.instructions ?? null),
-    blocks: toBlocksInput(exercise.blocks ?? []),
-    adjustments: toAdjustmentsInput(exercise.adjustments ?? []),
-    customMetrics: toCustomMetricsInput(exercise.customMetrics ?? []),
-    note: exercise.note ?? null,
-  };
-}
-
 async function insertScheduledSessionExercise(
   tx: TenantTx,
   scheduledSessionId: string,
   athleteId: string | null,
   draft: ScheduledSessionExerciseDraft,
   position: number,
-  blockIds: readonly string[] = [],
+  blockIds: readonly string[],
 ): Promise<void> {
-  // `tracking` n'est pas écrit : une ligne qui naît est NON SUIVIE, et c'est le défaut de la
-  // colonne. Le suivi d'une ligne existante ne passe jamais par ici (cf. `rewrite…`).
+  const { exercise } = draft;
   const created = await tx.scheduledSessionExercise.create({
     data: {
-      ...snapshotOf(draft.exercise),
       athleteId,
       scheduledSessionId,
-      sourceExerciseId: draft.exercise.sourceExerciseId ?? null,
-      // La référence du niveau 3 est ce que la SÉANCE a diffusé, pas le contenu actuel de la
-      // bibliothèque : « Tout réinitialiser » chez l'athlète doit revenir à ce qu'il a reçu.
-      baseline: toBlocksInput(draft.baseline ?? draft.exercise.blocks ?? []),
-      baselineAdjustments: toAdjustmentsInput(draft.baselineAdjustments),
+      sourceExerciseId: exercise.sourceExerciseId,
+      title: exercise.title,
+      description: exercise.description,
+      // Le snapshot porte la consigne, sinon une planif diffusée se dégrade : l'athlète garderait
+      // le titre et perdrait ce qu'il doit faire.
+      instructions: toInstructionsInput(exercise.instructions),
+      customMetrics: toCustomMetricsInput(exercise.customMetrics),
+      note: exercise.note,
       position,
       ...placementColumns(draft.placement, blockIds),
     } satisfies Omit<
@@ -409,7 +309,7 @@ async function insertScheduledSessionExercise(
     > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
   });
 
-  await insertTags(tx, created.id, athleteId, draft.exercise.tags ?? []);
+  await insertTags(tx, created.id, athleteId, exercise.tags);
   await copyDocumentsAndRemapImages(tx, created.id, athleteId, draft);
 }
 
@@ -479,7 +379,7 @@ async function copyDocumentsAndRemapImages(
    * en ont un neuf : sans ce remappage, les images de consigne ne désignent plus rien chez
    * l'athlète, et l'échec est SILENCIEUX — un média introuvable ne s'affiche pas, c'est tout.
    */
-  const instructions = draft.exercise.instructions ?? null;
+  const { instructions } = draft.exercise;
   if (instructions == null || imageMediaIds(instructions).length === 0) return;
 
   await tx.scheduledSessionExercise.update({

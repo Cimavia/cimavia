@@ -14,11 +14,10 @@ import {
   checksOfBlock,
 } from "./block-tracking.util";
 import { sameJson } from "./same-json.util";
-import { type SessionTracking, trackingOfExercises } from "./session-tracking.util";
 
-// Le suivi local d'une séance composée par blocs (#722), commun aux deux surfaces : le jumeau de
-// `session-tracking.util` pour l'ancien modèle. Seul le STOCKAGE distingue le web du mobile ; ce
-// qu'une coche fait au suivi vit ici, pour que les deux décomptent pareil.
+// Le suivi local d'une séance composée par blocs (#722), commun aux deux surfaces. Seul le
+// STOCKAGE distingue le web du mobile ; ce qu'une coche fait au suivi vit ici, pour que les deux
+// décomptent pareil.
 
 /** Le suivi de TOUTE une séance, indexé par identifiant de bloc planifié. */
 export type BlockSessionTracking = Record<string, SessionBlockTracking | null>;
@@ -116,8 +115,8 @@ export function sameBlockTracking(
 }
 
 /**
- * La séance en cache, avec le suivi qui vient de partir — le jumeau de `withSentTracking`. Un bloc
- * absent de l'envoi garde son suivi, `null` l'efface.
+ * La séance en cache, avec le suivi qui vient de partir. Un bloc absent de l'envoi garde son suivi,
+ * `null` l'efface.
  */
 export function withSentBlockTracking(
   session: ScheduledSessionDto,
@@ -151,17 +150,12 @@ export function trackedBlockTally(block: TrackedBlockDto): BlockTally | null {
 }
 
 /**
- * Le suivi qui part avec le débrief : bloc par bloc pour une séance composée par blocs, exercice
- * par exercice sinon — jamais les deux, une ligne ne se compte qu'une fois (#722). Chacun filtré
- * de ce que le coach a retiré depuis : une coche orpheline ferait refuser tout le débrief (#311).
+ * Le suivi qui part avec le débrief, bloc par bloc — filtré de ce que le coach a retiré depuis :
+ * une coche orpheline ferait refuser tout le débrief (#311).
  */
 export function feedbackTrackingInput(
-  session: Pick<ScheduledSessionDto, "exercises" | "blocks">,
-  exerciseTracking: SessionTracking,
+  session: Pick<ScheduledSessionDto, "blocks">,
   blockTracking: BlockSessionTracking,
-): { tracking: SessionTracking } | { blockTracking: BlockSessionTracking } {
-  if (session.blocks.length > 0) {
-    return { blockTracking: blockTrackingOfSession(blockTracking, session.blocks) };
-  }
-  return { tracking: trackingOfExercises(exerciseTracking, session.exercises) };
+): { blockTracking: BlockSessionTracking } {
+  return { blockTracking: blockTrackingOfSession(blockTracking, session.blocks) };
 }

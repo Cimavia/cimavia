@@ -3,7 +3,7 @@ import { expect } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import { type Agent, idOf, joinOrganization, link, signUp, signUpWith } from "./actors";
 import { app } from "./app";
-import { mondayOfCurrentWeek } from "./fixtures";
+import { fromTemplate, mondayOfCurrentWeek } from "./fixtures";
 import { required } from "./required";
 
 const COMPANY = { isCoach: false, isAthlete: false, isCompany: true };
@@ -65,7 +65,7 @@ export async function sharedPlanWorld(prefix: string): Promise<SharedPlanWorld> 
   const [weekId, secondWeekId] = forTi.weeks.map((week) => week.id);
   const session = await c
     .post(`/plan-weeks/${weekId}/sessions`)
-    .send({ title: "Séance de TI", scheduledDate: monday });
+    .send(await fromTemplate(c, { title: "Séance de TI", scheduledDate: monday }));
   expect(session.status).toBe(201);
 
   const [organization, cId, mId, nId, bId] = await Promise.all([

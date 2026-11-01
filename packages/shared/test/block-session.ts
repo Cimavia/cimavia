@@ -10,10 +10,11 @@ import {
   type SessionBlockTracking,
   STRUCTURE_PRESETS,
   type StructureSettings,
-} from "@cmv/shared";
+} from "../src/index";
 
-// Une séance composée par blocs (#722), pour les tests de lecture et de suivi : chaque test ne dit
-// que ce qui le distingue.
+// Une séance composée par blocs (#722), pour les tests de lecture et de suivi du web et du mobile
+// (`@cmv/shared/test/block-session`) : chaque test ne dit que ce qui le distingue. Une seule copie,
+// que les deux surfaces lisent la même séance.
 
 export const REPS: GridMetric = {
   id: "col_reps",
@@ -41,17 +42,12 @@ export function content(id: string, title: string): ScheduledSessionExerciseDto 
     title,
     description: null,
     instructions: null,
-    tracking: null,
     tags: [],
     note: null,
-    blocks: [],
     customMetrics: [],
-    baseline: [],
-    adjustments: [],
-    baselineAdjustments: [],
     position: 0,
     documents: [],
-  } as unknown as ScheduledSessionExerciseDto;
+  };
 }
 
 type BlockInput = {

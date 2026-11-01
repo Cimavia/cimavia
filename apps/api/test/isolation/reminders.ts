@@ -5,7 +5,7 @@ import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import { startOfProductDay, toDbDate } from "../../src/util/date.util";
 import { type Agent, billAndPublish, inviteFor, required, signUp } from "../support/actors";
 import { app, baseURL } from "../support/app";
-import { inFuture, inPast, mondayOfCurrentWeek } from "../support/fixtures";
+import { fromTemplate, inFuture, inPast, mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest, publishAtLatest } from "../support/version";
 
 describe("Rappels du coach (#44)", () => {
@@ -328,7 +328,7 @@ describe("Rappels dus dans le centre de notifications (#51)", () => {
     planId = plan.body.id;
     const session = await coachC
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance du centre", scheduledDate: monday });
+      .send(await fromTemplate(coachC, { title: "Séance du centre", scheduledDate: monday }));
     sessionId = session.body.id;
     await billAndPublish(coachC, planId);
 

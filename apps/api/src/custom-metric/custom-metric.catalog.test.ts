@@ -1,4 +1,4 @@
-import { type ExerciseBlocks, MetricSource } from "@cmv/shared";
+import { type MetricCitations, MetricSource } from "@cmv/shared";
 import { BadRequestException } from "@nestjs/common";
 import type { CustomMetric as CustomMetricRow } from "@prisma/client";
 import { describe, expect, it } from "vitest";
@@ -18,19 +18,9 @@ const row = (id: string, coachId = "c"): CustomMetricRow => ({
   updatedAt: new Date(0),
 });
 
-const citing = (...ids: string[]): ExerciseBlocks => [
+const citing = (...ids: string[]): MetricCitations => [
   {
-    id: "blk",
-    label: null,
-    structure: { type: "SERIES", setCount: 1, restBetweenSetsSeconds: null },
-    metrics: ids.map((customMetricId, i) => ({
-      id: `col_${i}`,
-      source: MetricSource.CUSTOM,
-      customMetricId,
-      label: null,
-      collapsed: false,
-    })),
-    rows: [],
+    metrics: ids.map((customMetricId) => ({ source: MetricSource.CUSTOM, customMetricId })),
   },
 ];
 

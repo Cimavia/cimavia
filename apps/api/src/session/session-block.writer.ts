@@ -24,8 +24,8 @@ export function toBlockContentData(block: BlockContent) {
  * primaire d'une ligne, et heurter celle d'une autre séance. Les exercices gardent leur `key`, qui
  * est la seule identité que la séance planifiée recopie.
  *
- * `position` reste unique dans la séance, comme pour l'ancien modèle : c'est le rang de l'exercice
- * dans toute la séance, bloc après bloc.
+ * `position` reste unique dans la séance : c'est le rang de l'exercice dans toute la séance, bloc
+ * après bloc.
  */
 export async function insertSessionBlocks(
   tx: TenantTx,

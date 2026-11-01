@@ -12,7 +12,8 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app, baseURL, sentMails } from "../support/app";
-import { mondayOfCurrentWeek } from "../support/fixtures";
+import { blocksOf } from "../support/blocks";
+import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest, publishAtLatest, putAtLatest } from "../support/version";
 
 describe("Tokens de notification push (P4)", () => {
@@ -172,7 +173,7 @@ describe("Tokens de notification push (P4)", () => {
     });
     const session = await c
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance", scheduledDate: monday });
+      .send(await fromTemplate(c, { title: "Séance", scheduledDate: monday }));
     expect((await billAndPublish(c, plan.body.id)).status).toBe(200);
 
     const feedback = await a
@@ -185,7 +186,6 @@ describe("Tokens de notification push (P4)", () => {
       title: "Séance (ajustée)",
       notes: null,
       scheduledDate: monday,
-      exercises: [],
     });
     expect(adjusted.status).toBe(200);
   });
@@ -250,7 +250,7 @@ describe("Centre de notifications (#48)", () => {
     planWeekId = plan.body.weeks[0].id;
     const session = await coachA
       .post(`/plan-weeks/${planWeekId}/sessions`)
-      .send({ title: "Séance test", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance test", scheduledDate: monday }));
     sessionId = session.body.id;
 
     // ⚠️ AUCUN token push n'est enregistré dans ce bloc : tout ce qui suit vérifie donc la trace
@@ -296,7 +296,6 @@ describe("Centre de notifications (#48)", () => {
       title: "Séance ajustée",
       notes: null,
       scheduledDate: monday,
-      exercises: [],
     });
     expect(adjusted.status).toBe(200);
 
@@ -314,7 +313,7 @@ describe("Centre de notifications (#48)", () => {
   it("ajouter puis retirer une séance d'un cycle diffusé notifie l'athlète", async () => {
     const added = await coachA
       .post(`/plan-weeks/${planWeekId}/sessions`)
-      .send({ title: "Séance du jeudi", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance du jeudi", scheduledDate: monday }));
     expect(added.status).toBe(201);
 
     expect(await find(athleteA1, "PLAN_SESSION_ADDED")).toMatchObject({
@@ -349,7 +348,7 @@ describe("Centre de notifications (#48)", () => {
     const before = (await inbox(athleteA1)).length;
     const session = await coachA
       .post(`/plan-weeks/${draft.body.weeks[0].id}/sessions`)
-      .send({ title: "Séance brouillon", scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title: "Séance brouillon", scheduledDate: monday }));
     expect(session.status).toBe(201);
     expect((await deleteAtLatest(coachA, `/scheduled-sessions/${session.body.id}`)).status).toBe(
       204,
@@ -538,7 +537,7 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     const exercise = await dual.post("/exercises").send({ title: "Gainage" });
     const template = await dual
       .post("/sessions")
-      .send({ title: "Séance suivie", exercises: [{ exerciseId: exercise.body.id }] });
+      .send({ title: "Séance suivie", blocks: blocksOf(exercise.body.id) });
     const plan = await dual.post("/plans").send({
       athleteId,
       title: "Cycle donné",

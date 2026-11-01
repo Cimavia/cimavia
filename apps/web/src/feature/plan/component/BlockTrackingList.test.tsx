@@ -1,8 +1,8 @@
 import { readScheduledBlocks } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BlockTrackingList } from "@/feature/plan/component/BlockTrackingList";
-import { blockSession } from "../../../../test/block-session";
 import { renderWithProviders } from "../../../../test/render";
 
 function readOf(index: number) {

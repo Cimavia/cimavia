@@ -62,7 +62,7 @@ export async function attemptPlanWrites(
       () =>
         intruder
           .post(`/plan-weeks/${weekId}/sessions`)
-          .send({ title: "Intrusion", scheduledDate: monday }),
+          .send({ sourceSessionId: "ses_absente", scheduledDate: monday }),
     ],
     [
       "PUT /plan-weeks/:id/days/:date/order",
@@ -77,7 +77,6 @@ export async function attemptPlanWrites(
         intruder.put(`/scheduled-sessions/${sessionId}`).send({
           title: "Détournée",
           scheduledDate: monday,
-          exercises: [],
           expectedUpdatedAt: ANY_VERSION,
         }),
     ],

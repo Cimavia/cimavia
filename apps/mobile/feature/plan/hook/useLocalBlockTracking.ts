@@ -14,9 +14,8 @@ import { blockTrackingStore } from "@/feature/plan/lib/local-tracking-store";
 const NO_BLOCKS: ScheduledSessionDto["blocks"] = [];
 
 /**
- * Le suivi par bloc (#722), gardé EN LOCAL jusqu'au débrief — le jumeau de `useLocalTracking`, sur
- * le même magasin et pour les mêmes raisons : cocher ne dépend jamais du réseau, tous les écrans
- * d'une séance lisent la même valeur, et le local l'emporte dès qu'il existe.
+ * Le suivi par bloc (#722), gardé EN LOCAL jusqu'au débrief : cocher ne dépend jamais du réseau,
+ * tous les écrans d'une séance lisent la même valeur, et le local l'emporte dès qu'il existe.
  *
  * Prend les blocs de la séance (absents tant qu'elle charge) : le distant s'en lit, et le local ne
  * se dit modifié que sur ce qui partirait avec le débrief (`sameBlockTracking`).

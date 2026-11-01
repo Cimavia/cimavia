@@ -1,4 +1,4 @@
-import type { FeedbackBlockTracking, FeedbackTracking, SessionFeedbackDto } from "@cmv/shared";
+import type { FeedbackBlockTracking, SessionFeedbackDto } from "@cmv/shared";
 import { draftAfterLoad } from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -11,23 +11,17 @@ type FeedbackTextSectionProps = {
   sessionId: string;
   /** `null` tant qu'aucun débrief n'existe : le champ part alors vide. */
   feedback: SessionFeedbackDto | null;
-  /** Absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
-  tracking?: FeedbackTracking;
-  /** Le suivi par bloc (#722), absent pour une séance sans bloc. */
+  /** Le suivi par bloc (#722) — absent quand la séance n'a pas pu être chargée : on n'envoie alors AUCUN décompte. */
   blockTracking?: FeedbackBlockTracking;
   trackingDirty?: boolean;
-  /** Reçoit le suivi PARTI, par exercice puis par bloc — `undefined` si l'envoi n'en portait pas. */
-  onSaved?: (
-    sent: FeedbackTracking | undefined,
-    sentBlocks: FeedbackBlockTracking | undefined,
-  ) => void;
+  /** Reçoit le suivi PARTI — `undefined` si l'envoi n'en portait pas. */
+  onSaved?: (sent: FeedbackBlockTracking | undefined) => void;
 };
 
 // Le texte libre du débrief : saisie, enregistrement, et ce que l'enregistrement a donné.
 export function FeedbackTextSection({
   sessionId,
   feedback,
-  tracking,
   blockTracking,
   trackingDirty = false,
   onSaved,
@@ -64,7 +58,6 @@ export function FeedbackTextSection({
         onSubmit={() =>
           upsert.mutate({
             content: content.length === 0 ? null : content,
-            ...(tracking == null ? {} : { tracking }),
             ...(blockTracking == null ? {} : { blockTracking }),
           })
         }

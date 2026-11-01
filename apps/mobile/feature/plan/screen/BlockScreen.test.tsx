@@ -1,4 +1,5 @@
 import { MetricKey, MetricUnit, type ScheduledSessionDto, STRUCTURE_PRESETS } from "@cmv/shared";
+import { block, blockSession, REPS } from "@cmv/shared/test/block-session";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { act, screen } from "@testing-library/react";
 import * as Notifications from "expo-notifications";
@@ -6,12 +7,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { BlockScreen } from "@/feature/plan/screen/BlockScreen";
-import { block, blockSession, REPS } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 import { storedItems } from "@/test/setup";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));
-// La consigne et les documents ont leur test (`ExerciseCard`) : hors sujet pour l'écran.
+// La consigne et les documents ont leur test (`ExerciseExtras`) : hors sujet pour l'écran.
 vi.mock("@/feature/plan/component/ExerciseExtras", () => ({ ExerciseExtras: () => null }));
 
 function query(state: Partial<UseQueryResult<ScheduledSessionDto>>) {

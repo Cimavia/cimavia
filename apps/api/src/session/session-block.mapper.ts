@@ -39,7 +39,7 @@ type BlockRow = Pick<
 
 type BlockExerciseRow = {
   id: string;
-  key: string | null;
+  key: string;
   note: string | null;
   grid: Prisma.JsonValue;
 };
@@ -82,17 +82,9 @@ export function blockContentOf(block: BlockContent): BlockContent {
   };
 }
 
-/**
- * Un exercice de bloc. Clé et grille sont nulles ensemble avec le bloc (CHECK de la migration) :
- * une ligne rangée dans un bloc les porte toujours.
- */
+/** Un exercice de bloc. */
 export function toBlockExerciseFields(row: BlockExerciseRow) {
-  return {
-    id: row.id,
-    key: required(row.key, `[bloc] l'exercice ${row.id} rangé dans un bloc n'a pas de clé`),
-    note: row.note,
-    grid: parseGrid(required(row.grid, `[bloc] l'exercice ${row.id} n'a pas de grille`)),
-  };
+  return { id: row.id, key: row.key, note: row.note, grid: parseGrid(row.grid) };
 }
 
 export function toSessionBlockDto(block: SessionBlockWithExercises): SessionBlockDto {
@@ -134,16 +126,13 @@ export const SCHEDULED_SESSION_BLOCKS_INCLUDE =
   BLOCKS_INCLUDE satisfies Prisma.ScheduledSession$blocksArgs;
 
 type ScheduledBlockExerciseRow = BlockExerciseRow & {
-  origin: CompositionOrigin | null;
+  origin: CompositionOrigin;
   replacesKey: string | null;
 };
 
 /** L'origine portée par la donnée : la clé remplacée n'existe que pour un remplaçant (CHECK). */
 function toOrigin(row: ScheduledBlockExerciseRow) {
-  const origin = required(
-    row.origin,
-    `[bloc] l'exercice ${row.id} rangé dans un bloc sans origine`,
-  );
+  const { origin } = row;
   return origin === CompositionOrigin.REPLACEMENT
     ? {
         kind: origin,

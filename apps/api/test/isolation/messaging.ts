@@ -9,7 +9,7 @@ import {
   required,
   signUp,
 } from "../support/actors";
-import { mondayOfCurrentWeek } from "../support/fixtures";
+import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
 
 describe("Messagerie : fil texte & isolation (P5)", () => {
   let coachA: Agent;
@@ -443,7 +443,7 @@ describe("Messagerie : rattachement séance / débrief (P5)", () => {
     });
     const session = await coachA
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title, scheduledDate: monday });
+      .send(await fromTemplate(coachA, { title, scheduledDate: monday }));
     if (publish) {
       await billAndPublish(coachA, plan.body.id);
     }
@@ -572,7 +572,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
       .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
     const session = await coach
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title, scheduledDate: monday });
+      .send(await fromTemplate(coach, { title, scheduledDate: monday }));
     await billAndPublish(coach, plan.body.id);
     const feedback = await athlete
       .put(`/me/scheduled-sessions/${session.body.id}/feedback`)

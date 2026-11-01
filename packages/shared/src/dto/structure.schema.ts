@@ -7,10 +7,6 @@ import { StructureAdvance, StructureOrder, StructureRepeat } from "./structure-a
 
 // La structure d'un bloc de séance (#714, #715) : Séries, EMOM, AMRAP… et celles du Coach.
 //
-// Coexiste avec `BlockStructure` (`exercise-block.schema`), la structure portée par l'EXERCICE,
-// jusqu'à #723. D'où les noms en `Structure*` : `BlockType`, `BlockStructure` et `BlockTimer`
-// sont pris.
-//
 // Les réglages répondent à trois questions — quand passe-t-on à la suite, combien de fois, quels
 // repos et quelle limite — plus l'ordre des exercices. La source de leurs règles est
 // `docs/maquettes/composants/structure_model.js`.

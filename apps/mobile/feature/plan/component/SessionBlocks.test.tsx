@@ -1,13 +1,13 @@
+import { blockSession } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { router } from "expo-router";
 import { describe, expect, it, vi } from "vitest";
 import { SessionBlocks } from "@/feature/plan/component/SessionBlocks";
 import type { BlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
-import { blockSession } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 import { storedItems } from "@/test/setup";
 
-// La consigne et les documents ont leur test (`ExerciseCard`) : hors sujet pour la liste.
+// La consigne et les documents ont leur test (`ExerciseExtras`) : hors sujet pour la liste.
 vi.mock("@/feature/plan/component/ExerciseExtras", () => ({ ExerciseExtras: () => null }));
 
 // Le défilement a son test (`useBlockScrollSpy`) : la liste ne fait que le lire et le piloter.
