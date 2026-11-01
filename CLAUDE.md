@@ -31,28 +31,28 @@ packages/
   tsconfig/   # @cmv/tsconfig — configs TS de base
 ```
 
-Outils : **Turborepo + pnpm** (`pnpm@10.34.7`). Lint/format **Biome** (`2.5.1`, pas ESLint/Prettier). Tests **Vitest** (`4.1.11`). Hooks **Husky + commitlint** — Conventional Commits, **sujet en minuscule**. CI : GitHub Actions + **SonarCloud** (les 3 couches analysées, web et mobile inclus). Observabilité : **Pino → Axiom** + **Sentry** sur les 3 couches.
+Outils : **Turborepo + pnpm** (`pnpm@10.34.9`). Lint/format **Biome** (`2.5.15`, pas ESLint/Prettier). Tests **Vitest** (`5.0.5`). Hooks **Husky + commitlint** — Conventional Commits, **sujet en minuscule**. CI : GitHub Actions + **SonarCloud** (les 3 couches analysées, web et mobile inclus). Observabilité : **Pino → Axiom** + **Sentry** sur les 3 couches.
 
 ## Stack & versions (épinglées P0)
 
 | Couche | Choix | Version épinglée |
 |---|---|---|
-| Runtime / Package manager | Node.js / pnpm | `22.22.3+` ou `24.15+` / `10.34.7` |
-| Monorepo | Turborepo | `2.10.0` |
+| Runtime / Package manager | Node.js / pnpm | `22.22.3+` ou `24.15+` / `10.34.9` |
+| Monorepo | Turborepo | `2.11.9` |
 | TypeScript | strict partout | `6.0.3` (^6.0) |
-| Lint/format | Biome | `2.5.1` |
-| Tests | Vitest | `4.1.11` |
-| Hooks | Husky / lint-staged / commitlint | `9.1.7` / `17.0.8` / `21.1.0` |
-| API | NestJS | `12.1.3` |
-| ORM / DB | Prisma + adapter-pg / PostgreSQL | `7.8.0` / PG **18** |
-| Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `^1.5` *(P1)* |
-| Validation + env | Zod | `4.4.3` |
+| Lint/format | Biome | `2.5.15` |
+| Tests | Vitest | `5.0.5` |
+| Hooks | Husky / lint-staged / commitlint | `9.1.7` / `17.6.0` / `21.2.4` |
+| API | NestJS | `12.2.0` |
+| ORM / DB | Prisma + adapter-pg / PostgreSQL | `7.10.1` / PG **18** |
+| Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `1.7.12` *(P1)* |
+| Validation + env | Zod | `4.6.7` |
 | Observabilité API | nestjs-pino / @sentry/nestjs + @sentry/profiling-node | `5.3.1` / `11.8.0` |
 | Observabilité web | @sentry/react / @sentry/vite-plugin | `11.8.0` / `11.8.0` |
 | Observabilité mobile | @sentry/react-native | `7.11.0` *(version épinglée par Expo SDK 56)* |
-| Mobile | Expo SDK / React Native / NativeWind | `56.0.22` / `0.85.3` / `4.2.6` |
-| Web | React / Vite / TanStack Router / TanStack Query / Tailwind | `19.2.7` / `8.1.0` / `1.170.16` / `5.101.1` / `3.4.19` |
-| Storage médias | Scaleway Object Storage via `@aws-sdk/client-s3` + `s3-request-presigner` | `3.1079.0` *(P2)* |
+| Mobile | Expo SDK / React Native / NativeWind | `56.0.22` / `0.85.3` / `4.2.7` |
+| Web | React / Vite / TanStack Router / TanStack Query / Tailwind | `19.2.7` / `8.3.4` / `1.170.45` / `5.104.5` / `3.4.19` |
+| Storage médias | Scaleway Object Storage via `@aws-sdk/client-s3` + `s3-request-presigner` | `3.1154.0` *(P2)* |
 | Push | `expo-server-sdk` + `expo-notifications` | — *(P3)* |
 | i18n | i18next + expo-localization | — *(P1)* |
 

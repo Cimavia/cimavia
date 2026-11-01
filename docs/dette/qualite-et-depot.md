@@ -431,6 +431,43 @@ liste des domaines vivent dans l'index.
 > publiés le 2026-10-15 et montés à la main en #669. Le blocage se lève seul le 2026-10-22 ; la
 > règle est désormais dans `CONTRIBUTING.md` (« Mises à jour des dépendances »).
 
+> **Tranché en [#734](https://github.com/Cimavia/cimavia/issues/734)** (pnpm 10.34.9, et les PR
+> Dependabot en souffrance reprises d'un bloc, ferme aussi
+> [#479](https://github.com/Cimavia/cimavia/issues/479)) : le groupe `npm` (#740) échouait, vitest 5
+> (#742) et le runner Stryker 10 (#741) arrivaient seuls. Ce que le code ne dit pas seul :
+>
+> - **Repris à la main, aux versions qu'avait choisies Dependabot**, pas aux dernières : son
+>   `cooldown` les avait déjà filtrées. Seul Stryker passe en 10.1.1 (publiée le 2026-10-23), pour
+>   que `core` et runner, qui s'exigent à la version exacte, avancent ensemble.
+> - **Deux groupes de plus**, `vitest` et `stryker`, majeures comprises, sur le modèle de Sentry
+>   (#669) et Nest (#671) : `@vitest/coverage-v8` exige le `vitest` de sa version, le runner le
+>   `core` de la sienne. Seul, vitest 5 cassait chaque suite ; seul, le runner 10 passait la CI
+>   avec un `core` qu'il refuse.
+> - **Stryker 10 lève la réserve de #626** (plus bas) : sa Babel 8 n'atteint plus le mobile, qui
+>   déclare désormais son `@babel/core` 7. Sans cette ligne, `auto-install-peers` donnait au
+>   `react-native` du mobile la plus haute Babel du workspace — la 8. Les majeures de `@babel/*`
+>   sont ignorées par Dependabot : elles suivent la chaîne Expo.
+> - **Better Auth 1.7, une mineure qui casse** : `getCookie()` d'Expo devient asynchrone (SecureStore
+>   lu sans bloquer), d'où des en-têtes asynchrones dans le client de `@cmv/shared`. Ses autres
+>   ruptures ne nous touchent pas : `baseURL` est statique, et les colonnes `issuer` /
+>   `grantedScopes` ne concernent que les plugins SSO et OAuth, que l'API n'installe pas.
+> - **TanStack Router 1.170.45 navigue dans un `startTransition`.** Une recherche relue dans l'URL
+>   perdait des frappes (« bel » tapé vite devenait « l ») : les trois barres liées à `?q=` tiennent
+>   leur texte (`useUrlSearchText`), et l'URL le suit. Une URL rendue ne l'écrase que si elle a
+>   rattrapé `latestLocation`, que le routeur avance dès la navigation : sinon c'est un écho en
+>   retard. Et toute navigation qui recopie le reste de l'URL part de `prev`, jamais du dernier
+>   rendu — un segment cliqué juste après une frappe ramenait la recherche d'avant.
+> - **Revue des overrides** : dix-neuf ne visaient plus rien et partent, quatre restent (bornes
+>   relevées pour `undici`, `qs`, `fast-uri`), `node-forge` entre — son correctif 1.4.1 est publié.
+>   Ce qui exige une majeure (`zod` 3, `glob` 13, `minimatch` de l'outillage) rejoint les rejets.
+> - **Les Dockerfiles lisent pnpm et turbo** dans `package.json` (#479), par un étage `versions`
+>   qui n'en garde que ces deux valeurs : la release, qui change `version` à chaque fois,
+>   n'invalide plus l'installation. Une version non exacte fait échouer le build.
+>
+> Découvert en chemin : `expo install --check` réclame huit patchs Expo (`expo` 56.0.24…). Ils ne
+> viennent pas d'ici — Expo avance par `expo install --fix`, hors Dependabot — et `expo-updates` en
+> fait partie : la montée change l'empreinte du runtime, donc un nouveau build EAS.
+
 > **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
 > ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
 > en mode `pedantic`, hors deux exceptions posées à la ligne. Ce que le code ne dit pas seul :
@@ -819,7 +856,8 @@ liste des domaines vivent dans l'index.
 > par le client de base.
 >
 > L'outillage : **Stryker 9.6.1**, pas la 10, qui tire Babel 8 et bascule la résolution des pairs de
-> la chaîne Expo jusqu'au mobile. Sous pnpm, le runner Vitest se déclare **par chemin**
+> la chaîne Expo jusqu'au mobile *(levé en #734 : le mobile déclare son `@babel/core` 7, et Stryker
+> passe en 10)*. Sous pnpm, le runner Vitest se déclare **par chemin**
 > (`plugins`) : Stryker ne le trouve pas à côté de son propre paquet. Ce runner impose
 > `pool: "threads"`, où `env.TZ` ne change plus le fuseau, qui appartient au process : shared le
 > pose dans sa config Stryker (Paris, #382), et son test des Antilles saute hors du thread
