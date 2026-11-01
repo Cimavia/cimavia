@@ -6,6 +6,7 @@ import { routeTree } from "./routeTree.gen";
 import { CmvCrashScreen } from "./shared/component/CmvCrashScreen";
 import { ToastProvider } from "./shared/component/CmvToast";
 import { recheckSession } from "./shared/lib/auth";
+import { purgeLegacyTracking } from "./shared/lib/legacy-tracking";
 import { createQueryClient } from "./shared/lib/query-client";
 
 /**
@@ -37,6 +38,7 @@ declare module "@tanstack/react-router" {
 }
 
 export function mountApp(root: Root): void {
+  purgeLegacyTracking();
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
