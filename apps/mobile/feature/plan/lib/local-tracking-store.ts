@@ -1,10 +1,10 @@
-import type { BlockSessionTracking, SessionTracking } from "@cmv/shared";
+import type { BlockSessionTracking } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
- * Le suivi local d'UNE séance, tel que tous ses lecteurs le voient. Deux magasins sur le même
- * montage : l'ancien suivi par exercice, et celui par bloc (#722), chacun sous sa clé — une séance
- * ne porte que l'un des deux, et l'ancien part avec son modèle (#723).
+ * Le suivi local d'UNE séance, bloc par bloc (#722), tel que tous ses lecteurs le voient. L'ancien
+ * magasin par exercice est parti avec son modèle (#723) : ses entrées restées sur un appareil ne
+ * sont plus lues.
  *
  * POURQUOI un magasin au niveau du module (#346). L'écran de séance reste monté sous le débrief,
  * sur la même pile, et chacun tenait sa copie : le débrief corrigeait 3/4 en 4/4 et vidait le
@@ -100,5 +100,4 @@ function localStore<T>(prefix: string) {
 
 export type LocalStore<T> = ReturnType<typeof localStore<T>>;
 
-export const exerciseTrackingStore = localStore<SessionTracking>("cimavia-tracking");
 export const blockTrackingStore = localStore<BlockSessionTracking>("cimavia-block-tracking");

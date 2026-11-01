@@ -23,8 +23,8 @@ type ExerciseExtrasProps = {
  * La consigne d'un exercice et ses pièces jointes, sous son dosage. La consigne est REPLIÉE par
  * défaut sur mobile — la place n'y est pas, et l'athlète au mur veut d'abord son dosage.
  *
- * Partagée par la carte d'un exercice (ancien modèle) et celle d'un bloc (#722) : le contenu d'un
- * exercice se lit pareil, quelle que soit la structure qui le porte.
+ * Posée sous chaque exercice d'un bloc (#722) : le contenu d'un exercice se lit pareil, quelle que
+ * soit la structure qui le porte.
  */
 export function ExerciseExtras({ exercise, planId, sessionId }: Readonly<ExerciseExtrasProps>) {
   const { t } = useTranslation();

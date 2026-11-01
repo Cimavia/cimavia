@@ -1,34 +1,11 @@
-import {
-  type BlockSegment,
-  type BlockTrackingState,
-  checkedUnitsOf,
-  countedRoundsOf,
-  formatTrainingDuration,
-  required,
-  type ScheduledSessionDto,
-  ScheduledSessionStatus,
-  SegmentKind,
-} from "@cmv/shared";
+import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
-import type { TFunction } from "i18next";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native";
-import { ExerciseCard } from "@/feature/plan/component/ExerciseCard";
-import { RestBanner } from "@/feature/plan/component/RestBanner";
 import { SessionBlocks } from "@/feature/plan/component/SessionBlocks";
-import { TimerOverlay } from "@/feature/plan/component/TimerOverlay";
 import { useBlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
-import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { type RunnerContext, useSegmentRunner } from "@/feature/plan/hook/useSegmentRunner";
-import {
-  type TimerAlert,
-  timelineAlerts,
-  useTimerNotification,
-} from "@/feature/plan/hook/useTimerNotification";
-import { useTrackingHint } from "@/feature/plan/hook/useTrackingHint";
-import { vibrateTimerDone } from "@/feature/plan/lib/timer-alert";
 import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
@@ -38,13 +15,13 @@ import { formatFullDay } from "@/shared/util/date.util";
 // i18n-values plan.sessionStatus: ScheduledSessionStatus
 
 /**
- * Détail d'une séance (p3-4) : consignes du coach, déroulé, documents.
+ * Détail d'une séance (p3-4) : consignes du coach, puis ses blocs (#722). Le chrono et le suivi
+ * se lancent depuis l'écran d'un bloc.
  * Déroulé ET documents sont lisibles hors réseau depuis #95 : la passe montée sur le planning les
  * descend sur l'appareil au dernier passage en ligne. Ce qu'elle n'a pas eu le temps de descendre
  * retombe sur une URL re-signée (#307), et le dit quand le réseau manque.
  */
 export function SessionDetailScreen() {
-  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
     data: session,
@@ -59,43 +36,8 @@ export function SessionDetailScreen() {
   const savedAt =
     session == null || dataUpdatedAt === 0 ? null : new Date(dataUpdatedAt).toISOString();
 
-  const remote = useMemo(
-    () =>
-      Object.fromEntries(
-        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
-      ),
-    [session],
-  );
-  const local = useLocalTracking(id, remote);
-  const { hint, dismissHint } = useTrackingHint();
-
-  const [expanded, setExpanded] = useState(false);
   const scroll = useRef<ScrollView>(null);
-  // Une séance par blocs se lit bloc par bloc (#722) ; une séance sans bloc garde sa lecture par
-  // exercice jusqu'à #723.
-  const byBlock = isBlockSession(session);
   const spy = useBlockScrollSpy(scroll, session?.blocks.length ?? 0);
-
-  /**
-   * Le déroulé coche au fil des segments, sans que l'athlète ait à y penser : c'est la moitié du
-   * « ça s'enchaîne » — l'autre étant l'enchaînement lui-même.
-   */
-  const runner = useSegmentRunner((blockId, unitIndex) => {
-    vibrateTimerDone();
-    // Le déroulé ne coche qu'une fois lancé, donc sur un exercice connu.
-    local.checkUnit(required(runnerExerciseId.current, "coche hors déroulé"), blockId, unitIndex);
-  });
-  const runnerExerciseId = useRef<string | null>(null);
-  runnerExerciseId.current = runner.context?.exerciseId ?? null;
-
-  const alerts = useTimerAlerts(runner, t);
-  const timerNotification = useTimerNotification(alerts);
-
-  // Le suivi du bloc en cours de déroulé : la frise des tops et le compteur de tours s'y lisent.
-  const runnerTracking =
-    runner.context == null
-      ? undefined
-      : local.tracking[runner.context.exerciseId]?.[runner.context.block.id];
 
   return (
     <CmvScreen>
@@ -110,8 +52,8 @@ export function SessionDetailScreen() {
         ref={scroll}
         contentContainerClassName="gap-6 p-4"
         scrollEventThrottle={64}
-        // Seule la liste des blocs lit la position, pour sa puce en cours.
-        onScroll={byBlock ? spy.onScroll : undefined}
+        // La liste des blocs lit la position, pour sa puce en cours.
+        onScroll={spy.onScroll}
         onScrollBeginDrag={spy.release}
         refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
       >
@@ -121,44 +63,14 @@ export function SessionDetailScreen() {
 
         {session == null ? null : (
           <SessionContent session={session}>
-            {byBlock ? (
-              <SessionBlocks session={session} spy={spy} />
+            {session.blocks.length === 0 ? (
+              <EmptySession />
             ) : (
-              <SessionExercises
-                session={session}
-                local={local}
-                hint={hint}
-                dismissHint={dismissHint}
-                onRun={(segments, context) => {
-                  dismissHint();
-                  setExpanded(segments.length > 1);
-                  runner.start(segments, context);
-                }}
-              />
+              <SessionBlocks session={session} spy={spy} />
             )}
           </SessionContent>
         )}
       </ScrollView>
-
-      {/* Deux tailles pour le même chrono : le BANDEAU pendant qu'on relit la consigne suivante,
-          l'AGRANDI pendant l'effort, lisible téléphone posé (maquettes 3a et 3b). */}
-      <RunnerChrono
-        runner={runner}
-        armed={timerNotification.armed}
-        expanded={expanded}
-        tracking={runnerTracking}
-        // Le chrono n'est monté que déroulé lancé : son contexte est toujours là.
-        onUnitDone={(unitIndex) => {
-          const { exerciseId, block } = required(runner.context, "chrono hors déroulé");
-          local.checkUnit(exerciseId, block.id, unitIndex);
-        }}
-        onRoundDone={(rounds) => {
-          const { exerciseId, block } = required(runner.context, "chrono hors déroulé");
-          local.setRounds(exerciseId, block.id, rounds);
-        }}
-        onExpand={() => setExpanded(true)}
-        onReduce={() => setExpanded(false)}
-      />
     </CmvScreen>
   );
 }
@@ -210,201 +122,16 @@ function SessionContent({
 }
 
 /**
- * Le chrono, dans l'une de ses deux tailles.
- *
- * Extrait de l'écran : mêlé au chargement, au rafraîchissement et au débrief, il faisait franchir
- * à `SessionDetailScreen` le seuil de complexité de la porte qualité.
+ * Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos actif » se
+ * compose exactement comme ça (#276). On le constate sans désigner de coupable, et sans rien
+ * retirer — le bouton de débrief, plus haut, reste ouvert.
  */
-function RunnerChrono({
-  runner,
-  armed,
-  expanded,
-  tracking,
-  onUnitDone,
-  onRoundDone,
-  onExpand,
-  onReduce,
-}: Readonly<{
-  runner: ReturnType<typeof useSegmentRunner>;
-  armed: boolean;
-  expanded: boolean;
-  /** Le suivi du bloc déroulé : la frise des tops et le compteur de tours le lisent. */
-  tracking: BlockTrackingState | undefined;
-  onUnitDone: (unitIndex: number) => void;
-  onRoundDone: (rounds: number) => void;
-  onExpand: () => void;
-  onReduce: () => void;
-}>) {
-  const { t } = useTranslation();
-  const { current, context } = runner;
-  if (!runner.active || current == null || context == null) return null;
-
-  const checked = checkedUnitsOf(tracking);
-  const rounds = countedRoundsOf(tracking);
-
-  const overlayProps = {
-    title: context.title,
-    block: context.block,
-    customMetrics: context.customMetrics,
-    current,
-    remaining: runner.remaining,
-    total: runner.total,
-    totalRemaining: runner.totalRemaining,
-    // « 1 sur 1 » n'apprend rien : un AMRAP n'a qu'une échéance, il n'y a pas de progression à
-    // annoncer. On ne dit la position que là où elle avance.
-    position:
-      runner.segments.length > 1
-        ? t("plan.timer.position", { current: runner.index + 1, total: runner.segments.length })
-        : null,
-    isPaused: runner.isPaused,
-    armed,
-    checked,
-    rounds,
-    onConfirm: runner.confirm,
-    // `blockSegments` numérote toujours les tops d'un EMOM.
-    onUnitDone: () => onUnitDone(required(current.unitIndex, "top sans numéro")),
-    onRoundDone: () => onRoundDone(rounds + 1),
-    onPause: runner.pause,
-    onResume: runner.resume,
-    onSkip: runner.skip,
-    onAdd: () => runner.add(30),
-    onStop: runner.stop,
-    onReduce,
-  };
-
-  /**
-   * Le déroulé qui ATTEND, un EMOM ou un AMRAP ne tiennent pas dans un bandeau : ils n'ont pas
-   * qu'un temps à montrer, et leur geste — « J'ai terminé », « Top fait », « Tour fait » — doit
-   * être atteignable. On les agrandit d'office plutôt que d'inventer un bandeau muet.
-   */
-  if (expanded || runner.awaiting || hasOwnAction(current)) {
-    return <TimerOverlay {...overlayProps} />;
-  }
-
-  const segmentName = t(`plan.timer.segment.${current.kind}`);
-
-  return (
-    <RestBanner
-      remaining={runner.remaining}
-      total={runner.total}
-      label={`${segmentName} · ${context.title}`}
-      isPaused={runner.isPaused}
-      armed={armed}
-      onPause={runner.pause}
-      onResume={runner.resume}
-      onSkip={runner.stop}
-      onAdd={() => runner.add(30)}
-      onExpand={onExpand}
-    />
-  );
-}
-
-/**
- * Le déroulé et son suivi. Extrait de l'écran : mêlés, le chargement, le chronomètre, l'amorçage
- * et la liste dépassaient le seuil de complexité de la porte qualité.
- */
-function SessionExercises({
-  session,
-  local,
-  hint,
-  dismissHint,
-  onRun,
-}: Readonly<{
-  session: ScheduledSessionDto;
-  local: ReturnType<typeof useLocalTracking>;
-  hint: boolean;
-  dismissHint: () => void;
-  onRun: (segments: readonly BlockSegment[], context: RunnerContext) => void;
-}>) {
+function EmptySession() {
   const { t } = useTranslation();
   return (
-    <View className="gap-3">
-      <CmvText className="text-cmv-text-mid text-xs">
-        {t("plan.session.composition", { count: session.exercises.length })}
-      </CmvText>
-
-      {/* Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos
-          actif » se compose exactement comme ça (#276). On le constate sans désigner de coupable,
-          et sans rien retirer — le bouton de débrief, plus haut, reste ouvert. */}
-      {session.exercises.length === 0 ? (
-        <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
-          <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
-          <CmvText className="text-cmv-text-mid text-sm">
-            {t("plan.session.emptyDescription")}
-          </CmvText>
-        </View>
-      ) : null}
-
-      {/* L'amorçage : « Coche au fur et à mesure », PREMIÈRE séance seulement, et il disparaît au
-          premier tap — définitivement. Pas de visite guidée, pas de modale. */}
-      {hint && session.exercises.length > 0 ? (
-        <View className="rounded-lg border border-cmv-accent-line bg-cmv-accent-soft px-3 py-2">
-          <CmvText className="text-cmv-accent-on text-xs">{t("plan.tracking.hint")}</CmvText>
-        </View>
-      ) : null}
-
-      {session.exercises.map((exercise, index) => (
-        <ExerciseCard
-          key={exercise.id}
-          exercise={exercise}
-          planId={session.planId}
-          sessionId={session.id}
-          index={index}
-          customMetrics={exercise.customMetrics}
-          tracking={local.tracking[exercise.id] ?? null}
-          onToggleUnit={(blockId, unitIndex) => {
-            dismissHint();
-            local.toggleUnit(exercise.id, blockId, unitIndex);
-          }}
-          onRounds={(blockId, rounds) => {
-            dismissHint();
-            local.setRounds(exercise.id, blockId, rounds);
-          }}
-          onRun={onRun}
-        />
-      ))}
+    <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
+      <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
+      <CmvText className="text-cmv-text-mid text-sm">{t("plan.session.emptyDescription")}</CmvText>
     </View>
   );
-}
-
-/** Les notifications du déroulé restant (`timelineAlerts`), titrées par l'exercice. */
-function useTimerAlerts(
-  runner: ReturnType<typeof useSegmentRunner>,
-  t: TFunction,
-): readonly TimerAlert[] {
-  const { deadline, context, segments, index } = runner;
-
-  return useMemo(() => {
-    if (context == null) return [];
-    return timelineAlerts({ deadline, segments, index }, context.title, isManualSegment, (next) =>
-      alertBody(next, t),
-    );
-  }, [deadline, context, segments, index, t]);
-}
-
-function isManualSegment(segment: BlockSegment): boolean {
-  return segment.kind === SegmentKind.MANUAL;
-}
-
-/** Ce que la notification annonce : ce qui COMMENCE, ou la fin. */
-function alertBody(next: BlockSegment | undefined, t: TFunction): string {
-  if (next == null) return t("plan.timer.lastBody");
-  if (next.kind === SegmentKind.MANUAL) return t("plan.timer.awaiting");
-  return t("plan.timer.nextBody", {
-    segment: t(`plan.timer.segment.${next.kind}`),
-    duration: formatTrainingDuration(next.seconds),
-  });
-}
-
-/** Un segment dont l'athlète pilote lui-même l'issue : il lui faut le grand écran et son bouton. */
-function hasOwnAction(segment: BlockSegment): boolean {
-  return (
-    segment.kind === SegmentKind.MANUAL ||
-    segment.kind === SegmentKind.INTERVAL ||
-    segment.kind === SegmentKind.COUNTDOWN
-  );
-}
-
-function isBlockSession(session: ScheduledSessionDto | undefined): boolean {
-  return session != null && session.blocks.length > 0;
 }

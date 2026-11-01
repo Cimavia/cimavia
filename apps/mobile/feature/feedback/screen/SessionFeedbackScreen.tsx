@@ -1,14 +1,8 @@
-import type {
-  FeedbackBlockTracking,
-  FeedbackTracking,
-  MediaRecapLine,
-  ScheduledSessionDto,
-  SessionFeedbackDto,
-} from "@cmv/shared";
+import type { MediaRecapLine, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { type ComponentProps, useMemo, useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -20,12 +14,10 @@ import {
   FeedbackReplySelf,
 } from "@/feature/feedback/component/FeedbackReplySection";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
-import { FeedbackTrackingSection } from "@/feature/feedback/component/FeedbackTrackingSection";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
 import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
-import { useLocalTracking } from "@/feature/plan/hook/useLocalTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
@@ -165,33 +157,16 @@ function WritingSections({
   session: ScheduledSessionDto | null;
   feedback: SessionFeedbackDto | null;
 }>) {
-  const remote = useMemo(
-    () =>
-      Object.fromEntries(
-        (session?.exercises ?? []).map((exercise) => [exercise.id, exercise.tracking]),
-      ),
-    [session],
-  );
-  const local = useLocalTracking(sessionId, remote);
   const blocks = useLocalBlockTracking(sessionId, session?.blocks);
-  const byBlock = session != null && session.blocks.length > 0;
 
   return (
     <>
-      {/* Une séance par blocs se rappelle bloc par bloc (#722), comme elle se lit. */}
-      {session != null && byBlock ? (
+      {/* Le débrief se rappelle bloc par bloc (#722), comme la séance se lit. */}
+      {session != null && session.blocks.length > 0 ? (
         <FeedbackBlocksSection
           session={session}
           tracking={blocks.tracking}
           onToggle={blocks.toggle}
-        />
-      ) : null}
-      {session != null && !byBlock ? (
-        <FeedbackTrackingSection
-          exercises={session.exercises}
-          tracking={local.tracking}
-          onToggleUnit={local.toggleUnit}
-          onRounds={local.setRounds}
         />
       ) : null}
       {/* TOUJOURS à cette place, séance chargée ou non : la remonter ailleurs quand la séance
@@ -202,16 +177,10 @@ function WritingSections({
         {...(session == null
           ? {}
           : {
-              // Par bloc OU par exercice, sans ce que le coach a retiré depuis (#311, #490, #722).
-              ...feedbackTrackingInput(session, local.tracking, blocks.tracking),
-              trackingDirty: byBlock ? blocks.dirty : local.dirty,
-              onSaved: (
-                sent: FeedbackTracking | undefined,
-                sentBlocks: FeedbackBlockTracking | undefined,
-              ) => {
-                local.clearIfSent(sent, session.exercises);
-                blocks.clearIfSent(sentBlocks);
-              },
+              // Sans ce que le coach a retiré depuis (#311, #490, #722).
+              ...feedbackTrackingInput(session, blocks.tracking),
+              trackingDirty: blocks.dirty,
+              onSaved: blocks.clearIfSent,
             })}
       />
     </>

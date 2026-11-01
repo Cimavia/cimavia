@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { block, blockSession, REPS, repsGrid } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 
-// La consigne et les documents ont leur test (`ExerciseCard`) : ici, on vérifie qu'ils sont posés.
+// La consigne et les documents ont leur test (`ExerciseExtras`) : ici, on vérifie qu'ils sont posés.
 vi.mock("@/feature/plan/component/ExerciseExtras", () => ({
   ExerciseExtras: ({ exercise }: Readonly<{ exercise: { id: string } }>) => (
     <span>{`extras ${exercise.id}`}</span>

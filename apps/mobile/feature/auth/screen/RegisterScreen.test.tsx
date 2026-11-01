@@ -53,7 +53,7 @@ describe("RegisterScreen (mobile) — le type de compte (#600)", () => {
   it("ne montre que le choix du type tant qu'aucun n'est choisi", () => {
     const { container, queryByText } = renderRn(<RegisterScreen />);
 
-    // Sur la marque VISIBLE de la carte, comme `TrackingList` : `accessibilityState` ne se
+    // Sur la marque VISIBLE de la carte, comme `BlockTrackingList` : `accessibilityState` ne se
     // traduit pas toujours en `aria-checked` sous react-native-web.
     expect(container.querySelectorAll('[data-icon="ellipse-outline"]')).toHaveLength(2);
     expect(container.querySelector('[data-icon="checkmark-circle"]')).toBeNull();

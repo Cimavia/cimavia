@@ -19,7 +19,6 @@ import {
   FeedbackReplySelf,
 } from "@/feature/feedback/component/FeedbackReplySection";
 import { TrackedBlockList } from "@/feature/feedback/component/TrackedBlockList";
-import { TrackedExerciseList } from "@/feature/feedback/component/TrackedExerciseList";
 import {
   useCoachFeedbackDetail,
   useCoachFeedbacks,
@@ -155,7 +154,6 @@ function FeedbackBody({
 
         {/* Le décompte ACCOMPAGNE le ressenti : il se lit juste après le texte, avant les médias,
             dans l'ordre où l'athlète l'a envoyé. */}
-        <TrackedExerciseList exercises={feedback?.trackedExercises ?? []} />
         <TrackedBlockList blocks={feedback?.trackedBlocks ?? []} />
 
         <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />

@@ -51,7 +51,7 @@ describe("BlockTrackingList", () => {
       />,
     );
     // Sur le « ✓ » que l'athlète VOIT : `accessibilityState` ne descend pas en `aria-checked` sous
-    // react-native-web (même choix que `TrackingList`).
+    // react-native-web.
     const [first, second] = screen.getAllByRole("checkbox");
     expect(first?.textContent).toContain("✓");
     expect(second?.textContent).not.toContain("✓");

@@ -3,8 +3,8 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { LocalStore } from "@/feature/plan/lib/local-tracking-store";
 
 /**
- * Un suivi gardé EN LOCAL jusqu'au débrief, dans l'un des magasins de séance — le socle commun au
- * suivi par exercice (`useLocalTracking`) et au suivi par bloc (`useLocalBlockTracking`, #722).
+ * Un suivi gardé EN LOCAL jusqu'au débrief, dans un magasin de séance — le socle du suivi par bloc
+ * (`useLocalBlockTracking`, #722).
  */
 export function useStoredTracking<T>(
   store: LocalStore<T>,

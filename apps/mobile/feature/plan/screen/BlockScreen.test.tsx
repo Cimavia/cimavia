@@ -11,7 +11,7 @@ import { press, renderRn } from "@/test/render";
 import { storedItems } from "@/test/setup";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));
-// La consigne et les documents ont leur test (`ExerciseCard`) : hors sujet pour l'écran.
+// La consigne et les documents ont leur test (`ExerciseExtras`) : hors sujet pour l'écran.
 vi.mock("@/feature/plan/component/ExerciseExtras", () => ({ ExerciseExtras: () => null }));
 
 function query(state: Partial<UseQueryResult<ScheduledSessionDto>>) {

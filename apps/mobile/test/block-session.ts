@@ -41,17 +41,12 @@ export function content(id: string, title: string): ScheduledSessionExerciseDto 
     title,
     description: null,
     instructions: null,
-    tracking: null,
     tags: [],
     note: null,
-    blocks: [],
     customMetrics: [],
-    baseline: [],
-    adjustments: [],
-    baselineAdjustments: [],
     position: 0,
     documents: [],
-  } as unknown as ScheduledSessionExerciseDto;
+  };
 }
 
 type BlockInput = {

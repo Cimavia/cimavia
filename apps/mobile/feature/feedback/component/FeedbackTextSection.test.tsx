@@ -113,16 +113,16 @@ describe("FeedbackTextSection — l'envoi", () => {
   });
 
   it("joint le décompte quand la séance l'a fourni", async () => {
-    const tracking = { "ex-1": { "b-1": { checked: [0] } } };
+    const blockTracking = { "b-1": { checked: [{ row: 0, key: "a1" }] } };
     const { container } = renderRn(
-      <FeedbackTextSection sessionId="s-1" feedback={null} tracking={tracking} />,
+      <FeedbackTextSection sessionId="s-1" feedback={null} blockTracking={blockTracking} />,
     );
     fireEvent.change(field(container), { target: { value: "Bien tenu" } });
 
     pressButton(container, "feedback.save");
 
     await waitFor(() =>
-      expect(upsert).toHaveBeenCalledWith("s-1", { content: "Bien tenu", tracking }),
+      expect(upsert).toHaveBeenCalledWith("s-1", { content: "Bien tenu", blockTracking }),
     );
   });
 
@@ -163,7 +163,7 @@ describe("FeedbackTextSection — l'envoi", () => {
 
     pressButton(container, "feedback.save");
 
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(undefined, undefined));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(undefined));
     // Le débrief enregistré revient par le cache ; tant que l'écran ne l'a pas relu, le champ
     // diffère encore de `feedback` (null) : la confirmation se tait plutôt que de mentir.
     expect(queryByText("feedback.saved")).toBeNull();
