@@ -30,8 +30,6 @@ type DosageProgressionRowProps = {
   /** Ce qui suit le pas : l'unité de la colonne, ou « paliers » sur une échelle. */
   unit: string | null;
   show: (values: readonly MetricValue[]) => string;
-  /** Les classes d'une cellule hachurée, celles du tableau. */
-  hatched: string;
   onApply: (changes: { index: number; values: MetricValue[] }[]) => void;
   onClose: () => void;
 };
@@ -43,7 +41,7 @@ type DosageProgressionRowProps = {
  */
 export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>) {
   const { t } = useTranslation();
-  const { slots, start, measure, names, unit, show, hatched, onApply, onClose } = props;
+  const { slots, start, measure, names, unit, show, onApply, onClose } = props;
   const stepId = useId();
   const directionId = useId();
   const stepRef = useRef<HTMLInputElement>(null);
@@ -59,8 +57,9 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
 
   return (
     <>
-      {/* L'aperçu juste sous la ligne, chaque semaine sous sa valeur. */}
-      <tr>
+      {/* L'aperçu juste sous la ligne, chaque semaine sous sa valeur. La première colonne nomme
+          les lignes : rien n'y tombe. Une seule teinte pour toute la fenêtre, colonnes comprises. */}
+      <tr className={BAND}>
         <td />
         {slots.map((slot, index) => (
           <PreviewCell
@@ -68,16 +67,17 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
             slot={slot}
             cell={progression?.cells[index] ?? null}
             show={show}
-            hatched={hatched}
           />
         ))}
       </tr>
       <tr
+        className={BAND}
         onKeyDown={(event) => {
           if (event.key === "Escape") onClose();
         }}
       >
-        <td colSpan={slots.length + 1} className="px-cmv-md pb-cmv-sm">
+        <td />
+        <td colSpan={slots.length} className="px-cmv-sm pb-cmv-sm">
           {/* Une seule ligne : le pas et d'où il part, puis les gestes, poussés à droite. */}
           <div className="flex flex-wrap items-center gap-x-cmv-md gap-y-cmv-sm">
             <fieldset aria-labelledby={directionId} className="flex items-center gap-cmv-sm">
@@ -180,23 +180,25 @@ const steppedOf = (progression: DosageProgression) =>
     cell.kind === ProgressionCellKind.STEPPED ? [{ index, values: cell.values }] : [],
   );
 
-type PreviewCellProps = Pick<DosageProgressionRowProps, "show" | "hatched"> & {
+type PreviewCellProps = Pick<DosageProgressionRowProps, "show"> & {
   slot: ProgressionSlot;
   /** Ce que deviendrait la semaine ; `null` tant que le pas ne sert pas — la valeur d'aujourd'hui. */
   cell: DosageProgression["cells"][number] | null;
 };
 
+const BAND = "bg-cmv-accent-soft";
+
 /** Le retrait du texte dans un bouton de valeur, bordure comprise : l'aperçu tombe sous la valeur. */
 const INSET = "block border-x border-transparent px-cmv-sm";
 
 /** Ce qu'une semaine deviendrait, sous sa colonne. */
-function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) {
+function PreviewCell({ slot, cell, show }: Readonly<PreviewCellProps>) {
   const { t } = useTranslation();
   const tdClass = "px-cmv-sm pt-cmv-xs pb-cmv-sm align-top font-cmv-mono text-cmv-caption";
   // Une semaine sautée par la progression est celle qui n'a pas de valeur.
   if (slot.cell.kind !== DosageCellKind.VALUE) {
     return (
-      <td className={cn(tdClass, hatched)}>
+      <td className={tdClass}>
         <span className={cn(INSET, "font-cmv-sans text-cmv-text-lo italic")}>
           {t("plan.dosage.progression.skipped")}
         </span>
@@ -206,7 +208,7 @@ function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) 
   const values = cell !== null && "values" in cell ? cell.values : slot.cell.values;
   const note = cell === null ? null : NOTE[cell.kind];
   return (
-    <td className={cn(tdClass, slot.column.deload && "bg-cmv-bg-0")}>
+    <td className={tdClass}>
       <span
         className={cn(
           INSET,

@@ -46,7 +46,7 @@ import { DosageProgressionRow } from "@/feature/plan/component/DosageProgression
 import { CmvMenu } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
-import { formatDayLabel } from "@/shared/util/date.util";
+import { formatDayLabel, formatLongDay } from "@/shared/util/date.util";
 
 /** Le plancher d'une semaine : partagées à parts égales au-delà, elle s'élargit si une valeur l'exige. */
 const COLUMN_MIN = "min-w-28";
@@ -131,7 +131,7 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
           <tr className="border-cmv-border border-b bg-cmv-surface">
             <th
               scope="col"
-              className="w-56 min-w-44 px-cmv-md py-cmv-sm text-left text-cmv-caption text-cmv-text-lo uppercase"
+              className="w-64 min-w-64 px-cmv-md py-cmv-sm text-left text-cmv-caption text-cmv-text-lo uppercase"
             >
               {t("plan.dosage.value")}
             </th>
@@ -199,11 +199,18 @@ function ColumnHead({
     >
       <div className={cn("flex items-start gap-cmv-xs", COLUMN_MIN)}>
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-cmv-body text-cmv-text-hi">{name}</span>
-          <span className="text-cmv-caption text-cmv-text-lo">
-            {column.deload
-              ? t("plan.dosage.deloadDay", { day: formatDayLabel(column.date) })
-              : formatDayLabel(column.date)}
+          {/* « S1 - lundi 26 octobre » : le jour en entier suffit à distinguer deux séances de
+            la même semaine, sans le répéter après son numéro. */}
+          <span className="flex flex-wrap items-baseline gap-x-cmv-xs">
+            <span className="text-cmv-body text-cmv-text-hi">
+              {t("plan.composition.week", { number: column.weekNumber })}
+            </span>
+            <span className="text-cmv-caption text-cmv-text-lo">
+              -{" "}
+              {column.deload
+                ? t("plan.dosage.deloadDay", { day: formatLongDay(column.date) })
+                : formatLongDay(column.date)}
+            </span>
           </span>
           <span
             className={cn(
@@ -215,7 +222,9 @@ function ColumnHead({
             {t("plan.dosage.adjusted", { count })}
           </span>
           {column.locked ? (
-            <span className="text-cmv-caption text-cmv-text-lo">{t("plan.dosage.debriefed")}</span>
+            <span className="text-cmv-caption text-cmv-accent-on">
+              {t("plan.dosage.debriefed")}
+            </span>
           ) : null}
         </div>
         <CmvMenu
@@ -580,7 +589,6 @@ function ValueRow(props: Readonly<ValueRowProps>) {
           names={props.names}
           unit={stepUnit(measure, target, props.customMetrics, t)}
           show={show}
-          hatched={HATCHED}
           onApply={write}
           onClose={closeProgression}
         />
