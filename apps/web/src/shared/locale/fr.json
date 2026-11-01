@@ -1023,7 +1023,31 @@
         "NOT_THIS_WEEK": "pas cette semaine",
         "NONE": "—"
       },
-      "weekOnDay": "{{week}} · {{day}}"
+      "weekOnDay": "{{week}} · {{day}}",
+      "rowActions": "Actions de {{name}}",
+      "reset": "Réinitialiser",
+      "progression": {
+        "open": "Progression…",
+        "direction": "Chaque semaine",
+        "add": "Ajouter",
+        "remove": "Retirer",
+        "step": "Pas",
+        "grades": "paliers",
+        "placeholder": {
+          "decimal": "2,5",
+          "duration": "15 s",
+          "count": "1"
+        },
+        "invalidStep": "Indique un pas plus grand que 0, entier pour des tours ou des paliers.",
+        "from": "à partir de {{week}} · {{value}}",
+        "overwrites": "Remplace {{count}} valeur ajustée ({{weeks}})",
+        "overwrites_other": "Remplace {{count}} valeurs ajustées ({{weeks}})",
+        "apply": "Appliquer",
+        "start": "départ",
+        "skipped": "sautée",
+        "unchanged": "inchangée",
+        "debriefed": "débriefée"
+      }
     }
   },
   "nav": {

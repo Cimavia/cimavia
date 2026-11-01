@@ -23,6 +23,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { doseScheduledSession, getPlan, getScheduledSessionCopies } from "@/feature/plan/api";
 import { DosageScreen } from "@/feature/plan/screen/DosageScreen";
 import { ApiError } from "@/shared/lib/api";
+import { cellsOf } from "../../../../test/dosage";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
@@ -175,7 +176,7 @@ const mount = (search: Record<string, string> = {}) =>
 /** Passe Tractions de S1 à 12 répétitions, dans le brouillon. */
 async function editFirstCell(view: Awaited<ReturnType<typeof mount>>) {
   const row = (await view.findByRole("rowheader", { name: /Tractions/ })).closest("tr");
-  const [cell] = within(row as HTMLElement).getAllByRole("button");
+  const [cell] = cellsOf(row as HTMLElement);
   await view.user.click(cell as HTMLElement);
   const [field] = within(view.getByRole("dialog")).getAllByRole("textbox");
   await view.user.clear(field as HTMLElement);
@@ -356,7 +357,7 @@ describe("DosageScreen", () => {
     const row = (
       await view.findByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" })
     ).closest("tr") as HTMLElement;
-    await view.user.click(within(row).getAllByRole("button")[0] as HTMLElement);
+    await view.user.click(cellsOf(row)[0] as HTMLElement);
     const field = view.getByRole("textbox", { name: "plan.dosage.setting.ROUNDS" });
     await view.user.clear(field);
     await view.user.type(field, "1");
@@ -371,7 +372,7 @@ describe("DosageScreen", () => {
     const row = (await view.findByRole("rowheader", { name: "plan.dosage.setting.SETS" })).closest(
       "tr",
     ) as HTMLElement;
-    await view.user.click(within(row).getAllByRole("button")[0] as HTMLElement);
+    await view.user.click(cellsOf(row)[0] as HTMLElement);
     const field = view.getByRole("textbox", { name: "plan.dosage.setting.SETS" });
     await view.user.clear(field);
     await view.user.type(field, "5");
