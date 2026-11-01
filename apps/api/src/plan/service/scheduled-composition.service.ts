@@ -271,8 +271,8 @@ export class ScheduledCompositionService {
     const sessionTypeKeys = await this.sessionTypeKeys(anchor);
     for (const { copy, blocks } of writes) assertComposable(copy.blocks, blocks, sessionTypeKeys);
 
-    await this.commit(plan, writes, async (tx, { copy: written, blocks }) => {
-      const copy = written.row;
+    await this.commit(plan, writes, async (tx, { copy: target, blocks }) => {
+      const copy = target.row;
       const stored = copy.exercises.map((row) => ({ id: row.id, key: row.key }));
       const frozen = copy.exercises.flatMap((row) => parseCustomMetrics(row.customMetrics));
       await rewriteScheduledComposition(
@@ -308,7 +308,7 @@ export class ScheduledCompositionService {
         },
       );
       // Un bloc retiré reprend ses réglages reçus, et les garde en revenant (#744).
-      await writeSettings(tx, written, blocks);
+      await writeSettings(tx, target, blocks);
     });
   }
 
