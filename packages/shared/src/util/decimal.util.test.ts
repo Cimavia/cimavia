@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decimalPlaces, formatDecimal, parseDecimal } from "./decimal.util";
+import { decimalPlaces, formatDecimal, parseDecimal, roundedLike } from "./decimal.util";
 
 describe("parseDecimal", () => {
   it.each([
@@ -75,5 +75,20 @@ describe("decimalPlaces", () => {
 
   it("ne compte pas une écriture exponentielle", () => {
     expect(decimalPlaces(1e-7)).toBeNull();
+  });
+});
+
+describe("roundedLike", () => {
+  it("ramène le calcul aux décimales de ses opérandes", () => {
+    expect(roundedLike(0 + 3 * 0.1, 0, 0.1)).toBe(0.3);
+    expect(roundedLike(60 + 2.25, 60, 2.25)).toBe(62.25);
+  });
+
+  it("garde un entier entier", () => {
+    expect(roundedLike(62, 60, 2)).toBe(62);
+  });
+
+  it("laisse le calcul tel quel si un opérande s'écrit en exponentielle", () => {
+    expect(roundedLike(1e-7 + 0.1, 1e-7, 0.1)).toBe(1e-7 + 0.1);
   });
 });
