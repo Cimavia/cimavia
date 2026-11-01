@@ -97,14 +97,20 @@ export type DosageColumn =
       /** Débriefée : ses valeurs se lisent, mais ne se changent plus. */
       locked: boolean;
     }
-  | { kind: typeof DosageColumnKind.ABSENT; weekNumber: number; deload: boolean };
+  | {
+      kind: typeof DosageColumnKind.ABSENT;
+      weekNumber: number;
+      deload: boolean;
+      /** Le lundi de la semaine : la séance n'y a pas de jour. */
+      date: string;
+    };
 
 /**
  * Une colonne par copie, semaine après semaine, dans l'ordre du calendrier — celui où les copies
  * arrivent. Une semaine sans la séance garde sa colonne : on voit où le cycle saute.
  */
 export function dosageColumns(
-  weeks: readonly Pick<PlanWeekDto, "id" | "weekNumber" | "type">[],
+  weeks: readonly Pick<PlanWeekDto, "id" | "weekNumber" | "type" | "startDate">[],
   copies: readonly DosageCopy[],
 ): DosageColumn[] {
   return [...weeks]
@@ -113,7 +119,8 @@ export function dosageColumns(
       const deload = week.type === PlanWeekType.DELOAD;
       const placed = copies.filter((copy) => copy.planWeekId === week.id);
       if (placed.length === 0) {
-        return [{ kind: DosageColumnKind.ABSENT, weekNumber: week.weekNumber, deload }];
+        const { weekNumber, startDate: date } = week;
+        return [{ kind: DosageColumnKind.ABSENT, weekNumber, deload, date }];
       }
       return placed.map((copy) => ({
         kind: DosageColumnKind.COPY,

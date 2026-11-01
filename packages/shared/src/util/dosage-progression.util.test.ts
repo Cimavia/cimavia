@@ -88,7 +88,7 @@ const valued = (
 });
 
 const absent = (): ProgressionSlot => ({
-  column: { kind: DosageColumnKind.ABSENT, weekNumber: 1, deload: false },
+  column: { kind: DosageColumnKind.ABSENT, weekNumber: 1, deload: false, date: "2026-11-02" },
   cell: { kind: DosageCellKind.ABSENT },
 });
 

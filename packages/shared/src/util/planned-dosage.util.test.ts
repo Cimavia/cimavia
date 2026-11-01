@@ -98,6 +98,8 @@ const week = (n: number, type: PlanWeekType = PlanWeekType.TRAINING) => ({
   id: `w${n}`,
   weekNumber: n,
   type,
+  // Les lundis de novembre 2026, semaine après semaine.
+  startDate: `2026-11-${String(2 + (n - 1) * 7).padStart(2, "0")}`,
 });
 
 describe("dosageSessionTypes", () => {
@@ -163,7 +165,7 @@ describe("dosageColumns", () => {
         showDay: false,
         locked: false,
       },
-      { kind: DosageColumnKind.ABSENT, weekNumber: 2, deload: true },
+      { kind: DosageColumnKind.ABSENT, weekNumber: 2, deload: true, date: "2026-11-09" },
       expect.objectContaining({ copyId: "s3", weekNumber: 3 }),
     ]);
   });
