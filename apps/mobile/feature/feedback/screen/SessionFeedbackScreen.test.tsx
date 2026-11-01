@@ -1,5 +1,6 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { myFeedbackKeys } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
@@ -10,7 +11,6 @@ import { SessionFeedbackScreen } from "@/feature/feedback/screen/SessionFeedback
 import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { blockSession } from "@/test/block-session";
 import { pressButton, renderRn } from "@/test/render";
 import { storedItems } from "../../../test/setup";
 

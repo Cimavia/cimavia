@@ -1,11 +1,11 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { SessionDetailScreen } from "@/feature/plan/screen/SessionDetailScreen";
-import { blockSession } from "@/test/block-session";
 import { press, pressButton, renderRn } from "@/test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useScheduledSession: vi.fn() }));

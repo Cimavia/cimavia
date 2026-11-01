@@ -1,10 +1,10 @@
 import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
 import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType, myFeedbackKeys } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { MediaRejectedError } from "@/shared/util/media.util";
-import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteFeedbackScreen } from "./AthleteFeedbackScreen";
 

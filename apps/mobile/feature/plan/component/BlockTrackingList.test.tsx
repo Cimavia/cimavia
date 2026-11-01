@@ -1,7 +1,7 @@
 import { readScheduledBlocks } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { blockSession } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 import { BlockTrackingList } from "./BlockTrackingList";
 

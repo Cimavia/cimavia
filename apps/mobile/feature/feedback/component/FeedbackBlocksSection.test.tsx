@@ -1,7 +1,7 @@
+import { blockSession } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
-import { blockSession } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 
 const allSets = [0, 1, 2, 3].map((row) => ({ key: "a1", row }));

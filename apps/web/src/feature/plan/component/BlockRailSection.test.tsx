@@ -1,8 +1,8 @@
 import { readScheduledBlocks } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BlockRailSection } from "@/feature/plan/component/BlockRailSection";
-import { blockSession } from "../../../../test/block-session";
 import { renderWithProviders } from "../../../../test/render";
 
 const blocks = readScheduledBlocks(blockSession());

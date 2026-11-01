@@ -1,7 +1,7 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
+import { blockSession } from "@cmv/shared/test/block-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { blockSession } from "../../../../test/block-session";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
 

@@ -11,6 +11,7 @@
     "paths": {
       "@/*": ["./*"],
       "@cmv/shared": ["../../packages/shared/src/index.ts"],
+      "@cmv/shared/test/*": ["../../packages/shared/test/*"],
       "@cmv/tokens": ["../../packages/tokens/src/index.ts"]
     }
   },

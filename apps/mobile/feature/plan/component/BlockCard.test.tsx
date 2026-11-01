@@ -1,7 +1,7 @@
 import { BlockTallyState, readScheduledBlocks } from "@cmv/shared";
+import { block, blockSession, REPS, repsGrid } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { block, blockSession, REPS, repsGrid } from "@/test/block-session";
 import { press, renderRn } from "@/test/render";
 
 // La consigne et les documents ont leur test (`ExerciseExtras`) : ici, on vérifie qu'ils sont posés.
