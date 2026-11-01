@@ -16,6 +16,7 @@ import {
 } from "@cmv/shared";
 import { fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { formatLongDay } from "@/shared/util/date.util";
 import { cellsOf } from "../../../../test/dosage";
 import { renderWithProviders } from "../../../../test/render";
 import { DosageTable } from "./DosageTable";
@@ -147,14 +148,15 @@ describe("DosageTable", () => {
     expect(within(head as HTMLElement).getAllByRole("columnheader")).toHaveLength(4);
     expect(view.getByText("plan.dosage.notPlaced")).toBeTruthy();
     // La décharge le dit en tête de sa colonne.
-    expect(view.getByText("plan.dosage.deloadDay")).toBeTruthy();
+    expect(view.getByText("- plan.dosage.deloadDay")).toBeTruthy();
   });
 
-  it("nomme par leur jour deux séances posées la même semaine", () => {
+  it("distingue par leur jour deux séances posées la même semaine", () => {
     const thursday = { ...W1, id: "ss-1b", scheduledDate: "2026-09-10" };
     const view = render([W1, thursday, W2]);
 
-    expect(view.getAllByText("plan.dosage.weekOnDay")).toHaveLength(2);
+    expect(view.getByText(`- ${formatLongDay(W1.scheduledDate)}`)).toBeTruthy();
+    expect(view.getByText(`- ${formatLongDay(thursday.scheduledDate)}`)).toBeTruthy();
   });
 
   it("numérote les blocs et nomme ceux qui ont un libellé", () => {
