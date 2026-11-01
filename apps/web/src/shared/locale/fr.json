@@ -921,6 +921,7 @@
       "resetConfirm": "Réinitialiser",
       "resetWarning": "Cette semaine reprend la composition de la séance-type. Les autres semaines ne changent pas.",
       "viewSessionType": "Voir la séance-type",
+      "noBlock": "La séance-type n'a aucun bloc : il n'y a rien à composer ici. Pour y ajouter des exercices, compose la séance-type dans la bibliothèque, puis planifie-la de nouveau.",
       "readOnlySettings": "Structures et ordre des exercices en lecture seule. Les réglages se changent dans la séance-type.",
       "willSeeUpdate": "{{name}} verra sa séance mise à jour.",
       "stale": "Cette séance a changé depuis que tu l'as ouverte. Rien n'a été écrit : recharge-la pour composer sur sa dernière version.",

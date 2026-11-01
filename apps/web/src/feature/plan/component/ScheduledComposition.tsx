@@ -181,6 +181,11 @@ function Composition(props: Readonly<CompositionProps>) {
   return (
     <div className="flex flex-col gap-cmv-lg">
       <CompositionHeader {...props} />
+      {anchor.blocks.length === 0 ? (
+        // Le nombre de blocs est verrouillé ici : une séance-type vide se compose dans la
+        // bibliothèque, puis se planifie de nouveau (Tranché en #723).
+        <p className="text-cmv-body text-cmv-text-mid">{t("plan.composition.noBlock")}</p>
+      ) : null}
       {anchor.blocks.map((block, index) => (
         <CompositionBlock
           key={block.id}
