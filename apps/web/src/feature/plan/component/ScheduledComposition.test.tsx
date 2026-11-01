@@ -14,7 +14,7 @@ import {
   STRUCTURE_PRESETS,
   StructurePresetKey,
 } from "@cmv/shared";
-import { act, waitFor } from "@testing-library/react";
+import { act, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { ScheduledComposition } from "./ScheduledComposition";
@@ -513,10 +513,34 @@ describe("ScheduledComposition", () => {
       });
     });
 
+    it("confirme « Revenir » sur le dernier ajout d'un bloc, qui le retirerait", async () => {
+      const onlyAdded = blockOf([{ ...received("n"), origin: { kind: CompositionOrigin.ADDED } }]);
+      const view = mount([copyOf("ss-1", "pw-1", [onlyAdded, second()]), copyOf("ss-2", "pw-2")]);
+
+      // Tractions et Gainage, retirés, ont leur propre « Revenir » : celui de Rameur seul confirme.
+      const card = within((await view.findByText("Rameur")).closest("article") as HTMLElement);
+      await view.user.click(
+        card.getByRole("button", { name: "plan.composition.backToSessionType" }),
+      );
+      expect(card.getByText("plan.composition.dialog.removesBlock")).toBeInTheDocument();
+      expect(view.onCompose).not.toHaveBeenCalled();
+
+      await view.user.click(
+        card.getByRole("button", { name: "plan.composition.backToSessionType" }),
+      );
+      expect(view.onCompose).toHaveBeenCalledWith({
+        edit: { kind: CompositionEditKind.ADD, blockIndex: 0, key: "n", exerciseId: "ex-rower" },
+        apply: [],
+        revert: [{ id: "ss-1", expectedUpdatedAt: V1 }],
+      });
+    });
+
     it("se lit seulement, en Lecture", async () => {
       const view = mount([copyOf("ss-1", "pw-1", [blockOf([]), second()])], { readOnly: true });
 
       expect(await view.findByText("1.1 Tractions · 1.2 Gainage")).toBeInTheDocument();
+      // Numéroté, le bloc retiré se barre par son carré.
+      expect(view.getByText("1")).toHaveClass("line-through");
       expect(view.queryByRole("button", { name: "plan.composition.removeBlock" })).toBeNull();
       expect(view.queryByRole("button", { name: "plan.composition.backToSessionType" })).toBeNull();
     });

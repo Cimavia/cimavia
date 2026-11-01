@@ -1113,7 +1113,11 @@ liste des domaines vivent dans l'index.
 >   possible, et ne se dose pas. Dosage ferme ses cases (`BLOCK_REMOVED`), le serveur refuse d'en
 >   changer les réglages, et sa phrase comme le choix « séries » ou « tours » l'ignorent. « Revenir
 >   à la séance-type » rend tous les exercices reçus, recopiés depuis la bibliothèque comme pour
->   un exercice (#720).
+>   un exercice (#720). Celui que la bibliothèque n'a plus reste retiré, barré à sa place : le bloc
+>   ne reste pas bloqué pour lui, puisque rien ne s'y change tant qu'il est retiré. « Tout
+>   réinitialiser » reste entier, et refuse la copie (`NOT_IN_LIBRARY`) comme pour un exercice.
+> - **Défaire le dernier ajout d'un bloc qui n'a plus que lui le retire** : « Revenir à la
+>   séance-type » sur la carte ne passe pas par la fenêtre, il se confirme donc en le disant.
 > - **Un bloc retiré compte pour un changement**, pas pour autant d'exercices retirés.
 > - **L'athlète ne le voit pas** : l'API le filtre de la séance lue, de `blockCount` dans la
 >   grille et du débrief. Un suivi qui le cite est refusé (400), comme un bloc absent. Le mobile

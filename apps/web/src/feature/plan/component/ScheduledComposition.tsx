@@ -5,6 +5,7 @@ import {
   type CompositionLibrary,
   CompositionOrigin,
   compositionChangeCount,
+  copyChoices,
   type ExerciseDto,
   editOfExercise,
   exerciseCodes,
@@ -22,6 +23,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockMark } from "@/feature/library/component/BlockMark";
 import {
+  BackToSessionType,
   type CardChange,
   ComposedExerciseCard,
 } from "@/feature/plan/component/ComposedExerciseCard";
@@ -121,11 +123,17 @@ function Composition(props: Readonly<CompositionProps>) {
   /** L'étiquette d'une carte : le changement, les semaines où il est, et ses deux gestes. */
   function changeOf(edit: CompositionEdit, words: ChangeWords): CardChange {
     const where = weeksInPlace(copies, edit, weeks);
+    // Revenir sans passer par la fenêtre : c'est donc ici qu'il dit le bloc qu'il viderait.
+    const [choice] = copyChoices([anchor], edit, library);
     return {
       label: changeLabel(edit.kind, athleteName, where, copies.length, t),
       sessionType: words.was,
       onReopen: () => setChoosing({ edit, reopened: true, words }),
       onRevert: () => void compose(edit, { apply: [], revert: [here] }),
+      revertWarning:
+        choice?.inPlace === true && choice.removesBlock
+          ? t("plan.composition.dialog.removesBlock", { block: words.block, name: athleteName })
+          : null,
     };
   }
 
@@ -335,7 +343,7 @@ function CompositionBlock(props: Readonly<CompositionBlockProps>) {
             {block.label}
           </span>
         ) : (
-          <BlockMark mark={number} kind="block" />
+          <BlockMark mark={number} kind="block" removed={change != null} />
         )}
         {phrase == null ? null : (
           <span className="text-cmv-caption text-cmv-text-mid">{text(phrase)}</span>
@@ -361,7 +369,7 @@ function CompositionBlock(props: Readonly<CompositionBlockProps>) {
       {change == null ? (
         <BlockExercises {...props} blockName={blockName} />
       ) : (
-        <RemovedBlock {...props} onRevert={change.onRevert} />
+        <RemovedBlock {...props} change={change} />
       )}
     </section>
   );
@@ -375,9 +383,8 @@ function RemovedBlock({
   block,
   number,
   gestures,
-  onRevert,
-}: Readonly<CompositionBlockProps & { onRevert: () => void }>) {
-  const { t } = useTranslation();
+  change,
+}: Readonly<CompositionBlockProps & { change: CardChange }>) {
   const codes = exerciseCodes(number, block.baseline.exercises.length);
   const names = block.baseline.exercises.map((reference, index) =>
     named(codes[index], gestures.titleOfExercise(reference.exerciseId)),
@@ -387,9 +394,7 @@ function RemovedBlock({
       <p className="text-cmv-caption text-cmv-text-lo line-through">{names.join(" · ")}</p>
       {gestures.readOnly ? null : (
         <div>
-          <CmvButton variant="secondary" onClick={onRevert} disabled={gestures.isBusy}>
-            {t("plan.composition.backToSessionType")}
-          </CmvButton>
+          <BackToSessionType change={change} isBusy={gestures.isBusy} />
         </div>
       )}
     </div>

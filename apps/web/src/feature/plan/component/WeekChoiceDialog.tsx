@@ -78,6 +78,10 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
   // Ce qui compte, ce sont les semaines ouvertes : une grisée garde son état, quoi que dise sa case.
   const cancelling = reopened && open.every((choice) => !checked.has(choice.id));
   const foot = dialogFoot(copies, choices, checked, weeks, words, t);
+  const emptied = t("plan.composition.dialog.removesBlock", {
+    block: words.block,
+    name: words.athlete,
+  });
 
   function toggle(id: string, on: boolean) {
     setChecked((current) => {
@@ -122,10 +126,7 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
             choice={choices[index]}
             week={weekNumberOf(copy, weeks)}
             here={copy.id === here}
-            emptied={t("plan.composition.dialog.removesBlock", {
-              block: words.block,
-              name: words.athlete,
-            })}
+            emptied={emptied}
             checked={checked.has(copy.id)}
             onToggle={(on) => toggle(copy.id, on)}
           />
