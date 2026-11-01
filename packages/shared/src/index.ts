@@ -847,6 +847,25 @@ export {
 } from "./util/date-format.util";
 export { decimalPlaces, formatDecimal, parseDecimal } from "./util/decimal.util";
 export type {
+  DosageProgression,
+  ProgressionCell,
+  ProgressionMeasure,
+  ProgressionSlot,
+  ProgressionStep,
+} from "./util/dosage-progression.util";
+export {
+  dosageProgression,
+  dosageRowReset,
+  isUsableStep,
+  metricProgressionMeasure,
+  ProgressionCellKind,
+  ProgressionDirection,
+  ProgressionMeasureKind,
+  progressionStart,
+  settingProgressionMeasure,
+  steppedValue,
+} from "./util/dosage-progression.util";
+export type {
   FeedbackMediaSlots,
   FeedbackReadState,
   FeedbackReplyState,
