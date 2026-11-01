@@ -134,23 +134,42 @@ describe("Retrait d'un bloc d'une séance planifiée, pour les semaines choisies
     ).toEqual([1, 1, 2]);
   });
 
-  it("refuse de doser le bloc retiré", async () => {
-    const [w1] = await copies();
-    const copy = w1 as Copy;
-    const res = await coach.post(`/scheduled-sessions/${anchorId}/values`).send({
+  /** « Enregistrer » de Dosage sur une copie, ses blocs tels qu'elle les porte, retirés compris. */
+  function dose(copy: Copy, settingsOf: (block: Copy["blocks"][number], index: number) => unknown) {
+    return coach.post(`/scheduled-sessions/${anchorId}/values`).send({
       sessions: [
         {
           ...versionOf(copy),
           blocks: copy.blocks.map((block, index) => ({
             id: block.id,
-            settings: index === 1 ? { ...SERIES, restBetweenRoundsSeconds: 30 } : block.settings,
+            settings: settingsOf(block, index),
             exercises: block.exercises.map(({ key, grid }) => ({ key, grid })),
           })),
         },
       ],
     });
+  }
+
+  it("refuse de doser le bloc retiré", async () => {
+    const [w1] = await copies();
+    const copy = w1 as Copy;
+    const res = await dose(copy, (block, index) =>
+      index === 1 ? { ...SERIES, restBetweenRoundsSeconds: 30 } : block.settings,
+    );
     expect(res.status).toBe(400);
+    expect(res.body.detail).toContain("Un bloc retiré ne se dose pas");
     expect((await copies())[0]?.updatedAt).toBe(copy.updatedAt);
+  });
+
+  it("dose le bloc gardé d'une semaine qui en a retiré un", async () => {
+    const [w1] = await copies();
+    const res = await dose(w1 as Copy, (block, index) =>
+      index === 0 ? { ...SERIES, restBetweenRoundsSeconds: 45 } : block.settings,
+    );
+    expect(res.status).toBe(200);
+    expect((await copies())[0]?.blocks[0]?.settings).toMatchObject({
+      restBetweenRoundsSeconds: 45,
+    });
   });
 
   it("refuse de retirer le dernier bloc, et n'écrit aucune semaine", async () => {

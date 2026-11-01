@@ -35,14 +35,13 @@ describe("scheduledDosageInputSchema", () => {
     ]);
   });
 
-  it("refuse un bloc sans exercice : la composition ne s'y change pas", () => {
-    const empty = {
+  // Le serveur le compare au bloc stocké (`dosedBlocks`) : vide, il n'est valable que retiré.
+  it("accepte un bloc sans exercice, retiré pour l'athlète (#744)", () => {
+    const removed = {
       ...session("s1"),
-      blocks: [{ id: "b", settings: settingsOf(), exercises: [] }],
+      blocks: [...session("s1").blocks, { id: "b", settings: settingsOf(), exercises: [] }],
     };
-    expect(issuesOf(scheduledDosageInputSchema, { sessions: [empty] })).toEqual([
-      "sessions.0.blocks.0.exercises: Too small: expected array to have >=1 items [too_small]",
-    ]);
+    expect(issuesOf(scheduledDosageInputSchema, { sessions: [removed] })).toEqual([]);
   });
 
   it("refuse ce que Dosage ne règle pas, comme l'origine d'un exercice", () => {
