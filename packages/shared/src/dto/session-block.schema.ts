@@ -142,21 +142,27 @@ function refineBlock(block: BlockLike, context: z.RefinementCtx): void {
   });
 }
 
-/** Le bloc d'une séance modèle, ou d'une séance planifiée : seul le schéma d'exercice change. */
-function blockSchemaOf<E extends z.ZodType<SessionBlockExercise>>(exercise: E) {
+/**
+ * Le bloc d'une séance modèle, ou d'une séance planifiée : le schéma d'exercice change, et le bloc
+ * planifié peut être vide — il est alors retiré pour l'athlète (#744).
+ */
+function blockSchemaOf<E extends z.ZodType<SessionBlockExercise>>(
+  exercise: E,
+  minExercises: number,
+) {
   return z
     .object({
       ...sessionBlockFields,
-      exercises: z.array(exercise).min(1).max(BLOCK_MAX_EXERCISES),
+      exercises: z.array(exercise).min(minExercises).max(BLOCK_MAX_EXERCISES),
     })
     .strict()
     .superRefine(refineBlock);
 }
 
-export const sessionBlockSchema = blockSchemaOf(sessionBlockExerciseSchema);
+export const sessionBlockSchema = blockSchemaOf(sessionBlockExerciseSchema, 1);
 export type SessionBlock = z.infer<typeof sessionBlockSchema>;
 
-export const scheduledSessionBlockSchema = blockSchemaOf(scheduledBlockExerciseSchema);
+export const scheduledSessionBlockSchema = blockSchemaOf(scheduledBlockExerciseSchema, 0);
 export type ScheduledSessionBlock = z.infer<typeof scheduledSessionBlockSchema>;
 
 // ── Les blocs d'une séance ──────────────────────────────────────────────────────────────────

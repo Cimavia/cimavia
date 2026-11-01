@@ -125,6 +125,14 @@ export function receivedBlockOf(block: SessionBlockWithExercises) {
 export const SCHEDULED_SESSION_BLOCKS_INCLUDE =
   BLOCKS_INCLUDE satisfies Prisma.ScheduledSession$blocksArgs;
 
+/**
+ * Les blocs planifiés que l'athlète a à faire : un bloc retiré (#744), vide, n'en est pas. C'est
+ * `isRemovedBlock`, dit à la requête — toute lecture pour l'athlète, ou de ce qu'il a fait, le pose.
+ */
+export const KEPT_BLOCK_WHERE = {
+  exercises: { some: {} },
+} satisfies Prisma.ScheduledSessionBlockWhereInput;
+
 type ScheduledBlockExerciseRow = BlockExerciseRow & {
   origin: CompositionOrigin;
   replacesKey: string | null;

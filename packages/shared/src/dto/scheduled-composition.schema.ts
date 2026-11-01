@@ -7,15 +7,17 @@ import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 import { scheduledSessionBlockDtoSchema } from "./session-block-dto.schema";
 
 // La composition d'une séance planifiée, pour les semaines choisies (#720). Le panneau ne règle
-// plus que la composition — ajouter, remplacer, retirer un exercice —, et chaque changement
-// s'applique aux COPIES de la même séance-type dans le Plan que le Coach coche. Aucun lien n'est
-// stocké entre les semaines : un ajout ou un remplaçant porte la même clé dans chacune, et c'est
-// par elle qu'on le retrouve (`editInPlace`).
+// plus que la composition — ajouter, remplacer, retirer un exercice, retirer un bloc (#744) —, et
+// chaque changement s'applique aux COPIES de la même séance-type dans le Plan que le Coach coche.
+// Aucun lien n'est stocké entre les semaines : un ajout ou un remplaçant porte la même clé dans
+// chacune, et c'est par elle qu'on le retrouve (`editInPlace`).
 
 export const CompositionEditKind = {
   ADD: "ADD",
   REPLACE: "REPLACE",
   REMOVE: "REMOVE",
+  /** Le bloc entier part (#744) : il reste à sa place, vide (`isRemovedBlock`). */
+  REMOVE_BLOCK: "REMOVE_BLOCK",
 } as const;
 export type CompositionEditKind = TypesValuesOf<typeof CompositionEditKind>;
 
@@ -33,7 +35,8 @@ const blockIndexSchema = z
  * - `ADD` : `exerciseId` en fin de bloc, sous la clé `key` ;
  * - `REPLACE` : `exerciseId` sous la clé `key`, à la place de l'exercice `replacesKey` de la
  *   séance-type ;
- * - `REMOVE` : l'exercice `key` de la séance-type part.
+ * - `REMOVE` : l'exercice `key` de la séance-type part ;
+ * - `REMOVE_BLOCK` : tous les exercices du bloc partent, et le bloc reste, vide.
  *
  * La clé d'un ajout ou d'un remplaçant est tirée par le client : neuve pour un nouveau changement,
  * celle qu'il porte déjà quand on l'étend à d'autres semaines. `exerciseId` est `null` quand la
@@ -69,6 +72,9 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
       key: z.string().min(1),
     })
     .strict(),
+  z
+    .object({ kind: z.literal(CompositionEditKind.REMOVE_BLOCK), blockIndex: blockIndexSchema })
+    .strict(),
 ]);
 export type CompositionEdit = z.infer<typeof compositionEditSchema>;
 
@@ -99,9 +105,7 @@ export const scheduledCompositionInputSchema = z
   })
   .refine(
     (input) =>
-      input.apply.length === 0 ||
-      input.edit.kind === CompositionEditKind.REMOVE ||
-      input.edit.exerciseId !== null,
+      input.apply.length === 0 || !("exerciseId" in input.edit) || input.edit.exerciseId !== null,
     { path: ["edit", "exerciseId"], message: "Un exercice sans source ne s'applique nulle part." },
   )
   .refine(

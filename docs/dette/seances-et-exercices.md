@@ -1096,3 +1096,36 @@ liste des domaines vivent dans l'index.
 >   envoie, comme toute saisie de Dosage (#721). Le pas n'est enregistré nulle part.
 > - **« Réinitialiser » rend à chaque semaine les valeurs de SA séance-type reçue** (`baseline`),
 >   décharge comprise. Une semaine débriefée ne bouge pas, un ajout ou un remplaçant non plus.
+
+> **Tranché en [#744](https://github.com/Cimavia/cimavia/issues/744)** (retirer un bloc d'une
+> séance planifiée pour les semaines choisies) :
+> - **Un bloc vide est un bloc retiré** (arbitrage de Kylian, écart à l'issue, qui prévoyait un
+>   état stocké) : aucune colonne, aucune migration (`isRemovedBlock`). Un bloc de séance-type a
+>   toujours un exercice au moins, la reprise de #716 n'en a créé aucun vide, et aucune cascade ne
+>   vide un bloc planifié. Seul un retrait le vide donc. Le bloc garde sa place : les blocs se
+>   répondent par leur rang, et le verrou planifié (`plannedLockIssues`) en fige toujours le nombre.
+> - **Retirer le dernier exercice retire le bloc**, semaine par semaine : le refus `LAST_EXERCISE`
+>   de #720 disparaît, et la fenêtre dit quelle semaine perdrait son bloc (`removesBlock`). Deux
+>   refus le remplacent : `LAST_BLOCK`, car la séance garderait au moins un bloc (arbitrage de
+>   Kylian), et `BLOCK_REMOVED`, car un exercice ne se change pas dans un bloc retiré. Il faut
+>   d'abord rendre le bloc.
+> - **Un bloc retiré reprend aussitôt les réglages reçus** (`baseline`) : il n'a qu'un état
+>   possible, et ne se dose pas. Dosage ferme ses cases (`BLOCK_REMOVED`), le serveur refuse d'en
+>   changer les réglages, et sa phrase comme le choix « séries » ou « tours » l'ignorent. « Revenir
+>   à la séance-type » rend tous les exercices reçus, recopiés depuis la bibliothèque comme pour
+>   un exercice (#720). Celui que la bibliothèque n'a plus reste retiré, barré à sa place : le bloc
+>   ne reste pas bloqué pour lui, puisque rien ne s'y change tant qu'il est retiré. « Tout
+>   réinitialiser » reste entier, et refuse la copie (`NOT_IN_LIBRARY`) comme pour un exercice.
+> - **Défaire le dernier ajout d'un bloc qui n'a plus que lui le retire** : « Revenir à la
+>   séance-type » sur la carte ne passe pas par la fenêtre, il se confirme donc en le disant.
+> - **Un bloc retiré compte pour un changement**, pas pour autant d'exercices retirés.
+> - **L'athlète ne le voit pas** : l'API le filtre de la séance lue, de `blockCount` dans la
+>   grille et du débrief. Un suivi qui le cite est refusé (400), comme un bloc absent. Le mobile
+>   ne change donc pas, y compris ses anciennes versions installées. Les copies du panneau
+>   (`/copies`) le gardent à son rang, car le panneau et Dosage le montrent. Les blocs suivants se
+>   renumérotent dans ce que lit l'athlète (le bloc 3 devient le 2), donc aussi dans son débrief tel
+>   que le Coach le relit ; le panneau et Dosage gardent le rang. Limite connue : des coches restées
+>   en local sur un bloc retiré depuis font refuser le débrief tant que la séance n'est pas relue,
+>   comme pour un exercice retiré (#722).
+> - **Copier une semaine copie aussi le bloc retiré**, sans code de plus : la copie reprend les
+>   blocs tels qu'ils sont.

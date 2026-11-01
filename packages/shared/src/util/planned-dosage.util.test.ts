@@ -327,6 +327,14 @@ describe("dosageSettingCell", () => {
     expect(dosageSettingCell(copy, 3, SettingValue.ROUNDS)).toEqual(none);
   });
 
+  it("n'a rien à régler dans un bloc retiré cette semaine", () => {
+    const removed = copyOf("s1", [blockOf([], [reference("a")])]);
+    expect(dosageSettingCell(removed, 0, SettingValue.ROUNDS)).toEqual({
+      kind: DosageCellKind.OFF,
+      reason: DosageOff.BLOCK_REMOVED,
+    });
+  });
+
   it("hachure la semaine où la séance n'est pas posée", () => {
     expect(dosageSettingCell(null, 0, SettingValue.ROUNDS)).toEqual({
       kind: DosageCellKind.ABSENT,
@@ -399,6 +407,14 @@ describe("dosageMetricCell", () => {
     expect(offFor("a")).toEqual({ kind: DosageCellKind.OFF, reason: DosageOff.REPLACED });
     expect(offFor("b")).toEqual({ kind: DosageCellKind.OFF, reason: DosageOff.REMOVED });
     expect(offFor("x")).toEqual({ kind: DosageCellKind.OFF, reason: DosageOff.NOT_THIS_WEEK });
+  });
+
+  it("dit d'un exercice de la séance-type que tout son bloc est retiré cette semaine", () => {
+    const removed = copyOf("s1", [blockOf([], [reference("a")])]);
+    expect(dosageMetricCell(removed, 0, "a", load.id)).toEqual({
+      kind: DosageCellKind.OFF,
+      reason: DosageOff.BLOCK_REMOVED,
+    });
   });
 
   it("n'a rien à régler pour une colonne que l'exercice n'a pas, ou un bloc absent", () => {

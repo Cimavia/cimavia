@@ -47,6 +47,7 @@ const choice = (id: string, inPlace: boolean, refusal: CopyChoice["refusal"] = n
   id,
   inPlace,
   refusal,
+  removesBlock: false,
 });
 
 describe("compositionLibrary", () => {
@@ -126,6 +127,18 @@ describe("dialogFoot", () => {
     );
   });
 
+  it("dit le bloc rendu aux semaines décochées d'un retrait de bloc", () => {
+    const removed = {
+      ...replaced,
+      kind: CompositionEditKind.REMOVE_BLOCK,
+      exercise: null,
+      was: null,
+    };
+    expect(dialogFoot(copies, choices, new Set(["s1"]), weeks, removed, t)).toBe(
+      "plan.composition.change.REMOVE_BLOCK(Léa) plan.composition.inWeeks(plan.composition.week(1)) · plan.composition.dialog.blockComesBack(2|plan.composition.week(3))",
+    );
+  });
+
   it("garde l'état d'une semaine qui refuse, quoi que dise sa case", () => {
     const refusing = [choice("s1", true, CompositionRefusal.NOT_IN_LIBRARY)];
     expect(dialogFoot([copy(1)], refusing, new Set(), weeks, replaced, t)).toBe(
@@ -146,6 +159,9 @@ describe("changeSentence", () => {
     );
     expect(changeSentence({ ...words, kind: CompositionEditKind.REMOVE }, t)).toBe(
       "plan.composition.dialog.what.REMOVE(Corde)",
+    );
+    expect(changeSentence({ ...words, kind: CompositionEditKind.REMOVE_BLOCK }, t)).toBe(
+      "plan.composition.dialog.what.REMOVE_BLOCK(2)",
     );
   });
 });

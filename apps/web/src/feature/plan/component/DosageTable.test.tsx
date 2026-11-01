@@ -73,13 +73,16 @@ const blockOf = (exercises: Planned[], over: Partial<ScheduledSessionBlockDto> =
     ...over,
   }) as ScheduledSessionBlockDto;
 
-/** Un retour au calme à libellé, sans exercice : seules ses valeurs se dosent. */
-const cooldown = (id: string) =>
-  blockOf([], {
+/** Un retour au calme à libellé, avec Étirements (`c`) ; vide, il est retiré pour l'athlète (#744). */
+const cooldown = (id: string, exercises: Planned[]) =>
+  blockOf(exercises, {
     id,
     name: "Retour au calme",
     label: "RC",
-    baseline: { settings: SETTINGS, exercises: [] },
+    baseline: {
+      settings: SETTINGS,
+      exercises: [{ key: "c", exerciseId: "ex-c", note: null, grid: gridOf(5) }],
+    },
   });
 
 const row = (id: string, title: string) => ({
@@ -90,7 +93,10 @@ const row = (id: string, title: string) => ({
   customMetrics: [],
 });
 
-/** S1 telle que reçue ; S2 en décharge, Tractions à 10, Gainage retiré, Rameur ajouté. */
+/**
+ * S1 telle que reçue ; S2 en décharge, Tractions à 10, Gainage retiré, Rameur ajouté, et le retour
+ * au calme retiré.
+ */
 const W1: ScheduledSessionCopyDto = {
   id: "ss-1",
   planWeekId: "pw-1",
@@ -99,9 +105,9 @@ const W1: ScheduledSessionCopyDto = {
   status: ScheduledSessionStatus.PLANNED,
   blocks: [
     blockOf([planned("w1-a", "a", gridOf(8, 8)), planned("w1-b", "b", gridOf(8))]),
-    cooldown("blk-2"),
+    cooldown("blk-2", [planned("w1-c", "c", gridOf(5))]),
   ],
-  exercises: [row("w1-a", "Tractions"), row("w1-b", "Gainage")],
+  exercises: [row("w1-a", "Tractions"), row("w1-b", "Gainage"), row("w1-c", "Étirements")],
 } as unknown as ScheduledSessionCopyDto;
 const W2: ScheduledSessionCopyDto = {
   ...W1,
@@ -113,7 +119,7 @@ const W2: ScheduledSessionCopyDto = {
       planned("w2-a", "a", gridOf(10)),
       planned("w2-n", "n", gridOf(12), { kind: CompositionOrigin.ADDED }),
     ]),
-    cooldown("blk-2b"),
+    cooldown("blk-2b", []),
   ],
   exercises: [row("w2-a", "Tractions"), row("w2-n", "Rameur")],
 } as unknown as ScheduledSessionCopyDto;
@@ -177,6 +183,21 @@ describe("DosageTable", () => {
     const rower = rowOf(view, /Rameur/);
     expect(within(rower).getByText("plan.dosage.added")).toBeTruthy();
     expect(within(rower).getByText("plan.dosage.off.NOT_THIS_WEEK")).toBeTruthy();
+  });
+
+  it("ne dose ni ne phrase le bloc retiré d'une semaine (#744)", () => {
+    const view = render();
+
+    // Le retour au calme, retiré en S2 : ses valeurs comme ses exercices y sont fermés.
+    expect(
+      within(rowOf(view, /Étirements/)).getByText("plan.dosage.off.BLOCK_REMOVED"),
+    ).toBeTruthy();
+    // Un exercice seul partout où il est : ses tours sont des séries.
+    const rounds = rowOf(view, "plan.dosage.setting.SETS");
+    expect(within(rounds).getByText("plan.dosage.off.BLOCK_REMOVED")).toBeTruthy();
+    // Sa phrase reste celle de la séance-type : une semaine retirée ne la fait pas bouger.
+    const [header] = view.getAllByRole("columnheader", { name: /Retour au calme/ });
+    expect(header).toHaveAttribute("colSpan", "4");
   });
 
   it("code les exercices reçus par n'importe quelle semaine, pas seulement la première", () => {
@@ -463,9 +484,9 @@ describe("DosageTable", () => {
       scheduledDate: "2026-09-21",
       blocks: [
         blockOf([planned("w3-a", "a", gridOf(9)), planned("w3-b", "b", gridOf(8))]),
-        cooldown("blk-2c"),
+        cooldown("blk-2c", [planned("w3-c", "c", gridOf(5))]),
       ],
-      exercises: [row("w3-a", "Tractions"), row("w3-b", "Gainage")],
+      exercises: [row("w3-a", "Tractions"), row("w3-b", "Gainage"), row("w3-c", "Étirements")],
     } as unknown as ScheduledSessionCopyDto;
 
     async function openMenu(view: ReturnType<typeof render>, name: string | RegExp) {
@@ -483,10 +504,10 @@ describe("DosageTable", () => {
     it("garde son nom à la ligne : le menu n'en fait pas partie", () => {
       const view = render();
 
-      // Un par bloc.
-      expect(view.getAllByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" })).toHaveLength(
-        2,
-      );
+      // Un par bloc : des tours, ou des séries pour le retour au calme et son exercice seul.
+      expect(
+        view.getAllByRole("rowheader", { name: /^plan\.dosage\.setting\.(ROUNDS|SETS)$/ }),
+      ).toHaveLength(2);
     });
 
     it("réinitialise la ligne aux valeurs que chaque semaine a reçues", async () => {

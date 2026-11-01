@@ -10,6 +10,7 @@ import type {
 import { planWeekRange, required } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { ACCESS_INCLUDE } from "../access/access.mapper";
+import { KEPT_BLOCK_WHERE } from "../session/session-block.mapper";
 import { toIsoDate } from "../util/date.util";
 
 // Le plan en liste : pas de contenu, juste de quoi le situer (nb de semaines, nb de séances).
@@ -26,14 +27,17 @@ export type PlanWithCounts = Prisma.PlanGetPayload<{
 }>;
 
 // Le plan en détail : semaines ordonnées, séances ordonnées par jour puis par position dans la
-// journée, nombre d'exercices par séance. Forme rendue par l'API après chaque écriture.
+// journée, nombre d'exercices et de blocs par séance — un bloc retiré, vide, ne compte pas (#744).
+// Forme rendue par l'API après chaque écriture.
 export const PLAN_DETAIL_INCLUDE = {
   weeks: {
     orderBy: { weekNumber: "asc" },
     include: {
       sessions: {
         orderBy: [{ scheduledDate: "asc" }, { position: "asc" }],
-        include: { _count: { select: { exercises: true, blocks: true } } },
+        include: {
+          _count: { select: { exercises: true, blocks: { where: KEPT_BLOCK_WHERE } } },
+        },
       },
     },
   },

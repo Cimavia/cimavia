@@ -9,6 +9,7 @@ function setup(over: Partial<Parameters<typeof ComposedExerciseCard>[0]> = {}) {
     sessionType: null,
     onReopen: vi.fn(),
     onRevert: vi.fn(),
+    revertWarning: null,
   };
   const view = renderWithProviders(
     <ComposedExerciseCard

@@ -9,7 +9,7 @@ import type { TypesValuesOf } from "../type/generics.type";
 import { withMaterializedSeries } from "./grid-fill.util";
 import { required } from "./invariant.util";
 import type { Phrase } from "./phrase.util";
-import { gridValueAt, plannedChanges } from "./planned-blocks.util";
+import { gridValueAt, isRemovedBlock, plannedChanges } from "./planned-blocks.util";
 import { sameJson } from "./same-json.util";
 import { isDebriefed } from "./scheduled-composition.util";
 import { withSettingValue } from "./structure-draft.util";
@@ -274,6 +274,8 @@ export const DosageOff = {
   NOT_THIS_WEEK: "NOT_THIS_WEEK",
   /** La copie n'a pas cette valeur, ou ce bloc : posée avant une retouche de la séance-type. */
   NONE: "NONE",
+  /** Le bloc est retiré cette semaine (#744) : plus rien à y régler, il se rend dans le panneau. */
+  BLOCK_REMOVED: "BLOCK_REMOVED",
 } as const;
 export type DosageOff = TypesValuesOf<typeof DosageOff>;
 
@@ -308,6 +310,7 @@ export function dosageSettingCell(
 ): DosageCell {
   if (copy === null) return ABSENT_CELL;
   const block = copy.blocks[blockIndex];
+  if (block !== undefined && isRemovedBlock(block)) return off(DosageOff.BLOCK_REMOVED);
   const value = block === undefined ? null : settingValues(block.settings)[field];
   if (block === undefined || value === null) return off(DosageOff.NONE);
   // Une valeur que la séance-type ne portait pas : rien où revenir, comme pour un exercice ajouté.
@@ -359,6 +362,7 @@ export function dosageMetricCell(
   if (copy === null) return ABSENT_CELL;
   const block = copy.blocks[blockIndex];
   if (block === undefined) return off(DosageOff.NONE);
+  if (isRemovedBlock(block)) return off(DosageOff.BLOCK_REMOVED);
   const exerciseIndex = block.exercises.findIndex((exercise) => exercise.key === key);
   const exercise = block.exercises[exerciseIndex];
   if (exercise === undefined) return off(absence(block, key));

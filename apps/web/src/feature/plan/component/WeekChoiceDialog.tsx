@@ -78,6 +78,10 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
   // Ce qui compte, ce sont les semaines ouvertes : une grisée garde son état, quoi que dise sa case.
   const cancelling = reopened && open.every((choice) => !checked.has(choice.id));
   const foot = dialogFoot(copies, choices, checked, weeks, words, t);
+  const emptied = t("plan.composition.dialog.removesBlock", {
+    block: words.block,
+    name: words.athlete,
+  });
 
   function toggle(id: string, on: boolean) {
     setChecked((current) => {
@@ -122,6 +126,7 @@ export function WeekChoiceDialog(props: Readonly<WeekChoiceDialogProps>) {
             choice={choices[index]}
             week={weekNumberOf(copy, weeks)}
             here={copy.id === here}
+            emptied={emptied}
             checked={checked.has(copy.id)}
             onToggle={(on) => toggle(copy.id, on)}
           />
@@ -154,12 +159,18 @@ type WeekChoiceProps = {
   choice: CopyChoice | undefined;
   week: number | null;
   here: boolean;
+  /** « Le bloc 2 sera retiré pour Léa » : ce que dit la semaine que la case viderait (#744). */
+  emptied: string;
   checked: boolean;
   onToggle: (on: boolean) => void;
 };
 
-/** Une semaine : cochée, décochée, ou grisée avec la raison — et alors figée dans son état. */
-function WeekChoice({ copy, choice, week, here, checked, onToggle }: Readonly<WeekChoiceProps>) {
+/**
+ * Une semaine : cochée, décochée, ou grisée avec la raison — et alors figée dans son état. Cochée
+ * ou décochée de sorte que le bloc n'y garde aucun exercice, elle dit qu'il sera retiré.
+ */
+function WeekChoice(props: Readonly<WeekChoiceProps>) {
+  const { copy, choice, week, here, emptied, checked, onToggle } = props;
   const { t } = useTranslation();
   const refusal = choice?.refusal ?? null;
   const closed = refusal !== null;
@@ -202,6 +213,9 @@ function WeekChoice({ copy, choice, week, here, checked, onToggle }: Readonly<We
           <span className="col-span-2 text-cmv-caption text-cmv-text-mid">
             {t(`plan.composition.dialog.refusal.${refusal}`)}
           </span>
+        ) : null}
+        {!closed && choice?.removesBlock === true && on !== choice.inPlace ? (
+          <span className="col-span-2 text-cmv-caption text-cmv-warning-on">{emptied}</span>
         ) : null}
       </label>
     </li>

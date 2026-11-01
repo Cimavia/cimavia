@@ -1,7 +1,7 @@
 import { type BlockGrid, type CustomMetric, metricLabel } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { BlockMark } from "@/feature/library/component/BlockMark";
-import { CmvButton, CmvTagList } from "@/shared/component";
+import { CmvButton, CmvConfirmButton, CmvTagList } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 
 /** Le changement qu'une carte porte, tel que son étiquette le dit. */
@@ -13,7 +13,37 @@ export type CardChange = {
   onReopen: () => void;
   /** « Revenir à la séance-type », sur la semaine du panneau seule. */
   onRevert: () => void;
+  /**
+   * « Le bloc 2 sera retiré pour Léa » : revenir viderait le bloc (#744) — défaire le dernier ajout
+   * d'un bloc qui n'a plus que lui. Le geste se confirme alors ; `null` sinon.
+   */
+  revertWarning: string | null;
 };
+
+/** « Revenir à la séance-type » d'un changement : en deux temps quand il retire le bloc. */
+export function BackToSessionType({
+  change,
+  isBusy,
+}: Readonly<{ change: CardChange; isBusy: boolean }>) {
+  const { t } = useTranslation();
+  if (change.revertWarning == null) {
+    return (
+      <CmvButton variant="secondary" onClick={change.onRevert} disabled={isBusy}>
+        {t("plan.composition.backToSessionType")}
+      </CmvButton>
+    );
+  }
+  return (
+    <CmvConfirmButton
+      label={t("plan.composition.backToSessionType")}
+      confirmLabel={t("plan.composition.backToSessionType")}
+      cancelLabel={t("common.cancel")}
+      confirmHint={change.revertWarning}
+      onConfirm={change.onRevert}
+      disabled={isBusy}
+    />
+  );
+}
 
 type ComposedExerciseCardProps = {
   /** « 1.2 », ou `null` dans un bloc à libellé. */
@@ -121,11 +151,7 @@ function ExerciseGestures({
       )}
       {readOnly ? null : (
         <div className="flex flex-wrap gap-cmv-sm">
-          {change == null ? null : (
-            <CmvButton variant="secondary" onClick={change.onRevert} disabled={isBusy}>
-              {t("plan.composition.backToSessionType")}
-            </CmvButton>
-          )}
+          {change == null ? null : <BackToSessionType change={change} isBusy={isBusy} />}
           {onReplace == null ? null : (
             <CmvButton variant="secondary" onClick={onReplace} disabled={isBusy}>
               {t("plan.composition.replace")}

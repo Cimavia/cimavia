@@ -1045,6 +1045,7 @@ export type {
 export {
   CompositionChangeKind,
   gridValueAt,
+  isRemovedBlock,
   plannedChanges,
   ValueChangeKind,
 } from "./util/planned-blocks.util";

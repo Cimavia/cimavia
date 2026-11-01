@@ -16,6 +16,8 @@ import type { BlockReference } from "../dto/session-block-dto.schema";
 import { SESSION_MAX_EXERCISES } from "../dto/session-limits.schema";
 import type { StructureSettings } from "../dto/structure.schema";
 import type { TypesValuesOf } from "../type/generics.type";
+import { required } from "./invariant.util";
+import { isRemovedBlock } from "./planned-blocks.util";
 import {
   blockExerciseFrom,
   replacementGrid,
@@ -25,7 +27,8 @@ import { gridRowLimit, roundsError } from "./structure-settings.util";
 
 // Ce qu'un changement de composition fait à UNE copie (#720) : l'appliquer, le défaire, ou rendre
 // la composition de la séance-type. Le panneau s'en sert pour griser une semaine et dire pourquoi,
-// le serveur pour écrire chaque copie. Les blocs ne bougent pas : seuls leurs exercices changent.
+// le serveur pour écrire chaque copie. Les blocs ne bougent pas : seuls leurs exercices changent,
+// et un bloc retiré reste à sa place, vide (#744).
 
 /** Un exercice de bloc planifié, tel que la copie le porte. */
 export type PlannedExercise = Pick<ScheduledBlockExercise, "key" | "origin" | "note"> & {
@@ -62,8 +65,10 @@ export const CompositionRefusal = {
    * bibliothèque de l'acteur : son contenu s'y copie.
    */
   NOT_IN_LIBRARY: "NOT_IN_LIBRARY",
-  /** Le bloc n'aurait plus d'exercice. */
-  LAST_EXERCISE: "LAST_EXERCISE",
+  /** La séance n'aurait plus aucun bloc : elle se supprime, elle ne se vide pas (#744). */
+  LAST_BLOCK: "LAST_BLOCK",
+  /** Le bloc est retiré dans la copie : ses exercices ne se changent plus, il se rend d'abord. */
+  BLOCK_REMOVED: "BLOCK_REMOVED",
   BLOCK_FULL: "BLOCK_FULL",
   SESSION_FULL: "SESSION_FULL",
   /** Les tours du bloc ne se répartissent plus sur ses exercices (« un seul par… »). */
@@ -114,9 +119,11 @@ function keysOf(blocks: readonly PlannedCompositionBlock[]): Set<string> {
 
 /**
  * Les exercices de la séance-type que le bloc a retirés : personne n'occupe plus leur place. Le
- * panneau les montre barrés, avec de quoi les rendre.
+ * panneau les montre barrés, avec de quoi les rendre. Un bloc retiré n'en liste aucun : c'est lui
+ * qui se montre barré, et qui se rend.
  */
 export function removedReferences(block: PlannedCompositionBlock): BlockReference["exercises"] {
+  if (isRemovedBlock(block)) return [];
   return block.baseline.exercises.filter(
     (reference) => occupantIndex(block.exercises, reference.key) < 0,
   );
@@ -124,22 +131,25 @@ export function removedReferences(block: PlannedCompositionBlock): BlockReferenc
 
 /**
  * « N changements pour Léa » : chaque ajout, chaque remplaçant et chaque retrait de la copie, par
- * rapport à la séance-type reçue. Les valeurs n'y comptent pas, elles sont l'affaire de Dosage.
+ * rapport à la séance-type reçue — un bloc retiré compte pour un. Les valeurs n'y comptent pas,
+ * elles sont l'affaire de Dosage.
  */
 export function compositionChangeCount(blocks: readonly PlannedCompositionBlock[]): number {
   return blocks.reduce(
     (count, block) =>
       count +
-      block.exercises.filter((exercise) => exercise.origin.kind !== CompositionOrigin.RECEIVED)
-        .length +
-      removedReferences(block).length,
+      (isRemovedBlock(block)
+        ? 1
+        : block.exercises.filter((exercise) => exercise.origin.kind !== CompositionOrigin.RECEIVED)
+            .length + removedReferences(block).length),
     0,
   );
 }
 
 /**
  * Le changement est-il en place dans ces blocs ? Un ajout ou un remplaçant : sa clé est dans le
- * bloc. Un retrait : la séance-type a l'exercice, et personne n'occupe sa place.
+ * bloc. Un retrait : la séance-type a l'exercice, et personne n'occupe sa place. Un retrait de
+ * bloc : le bloc est vide. Un bloc retiré ne porte plus aucun changement d'exercice.
  */
 export function editInPlace(
   blocks: readonly PlannedCompositionBlock[],
@@ -147,6 +157,8 @@ export function editInPlace(
 ): boolean {
   const block = blocks[edit.blockIndex];
   if (block === undefined) return false;
+  if (edit.kind === CompositionEditKind.REMOVE_BLOCK) return isRemovedBlock(block);
+  if (isRemovedBlock(block)) return false;
   if (edit.kind === CompositionEditKind.ADD) {
     return block.exercises.some(
       (exercise) => exercise.key === edit.key && exercise.origin.kind === CompositionOrigin.ADDED,
@@ -173,10 +185,15 @@ export function appliedEdit<E extends PlannedExercise>(
   const block = blocks[edit.blockIndex];
   if (block === undefined) return refused(CompositionRefusal.NO_BLOCK);
   if (editInPlace(blocks, edit)) return UNCHANGED;
+  if (edit.kind === CompositionEditKind.REMOVE_BLOCK) {
+    return withExercises(blocks, edit.blockIndex, [], false);
+  }
+  if (isRemovedBlock(block)) return refused(CompositionRefusal.BLOCK_REMOVED);
 
   if (edit.kind === CompositionEditKind.REMOVE) {
     const index = occupantIndex(block.exercises, edit.key);
-    // En place juste au-dessus si la séance-type l'a et que personne ne l'occupe.
+    // En place juste au-dessus si la séance-type l'a et que personne ne l'occupe. Le dernier
+    // exercice parti, le bloc est retiré (#744).
     if (index < 0) return refused(CompositionRefusal.ABSENT);
     return withExercises(blocks, edit.blockIndex, spliced(block.exercises, index, 1), false);
   }
@@ -222,7 +239,8 @@ export function appliedEdit<E extends PlannedExercise>(
 
 /**
  * Le changement défait dans la copie : l'ajout part, l'exercice remplacé ou retiré revient tel que
- * la séance-type l'a donné — sa note et ses valeurs reçues.
+ * la séance-type l'a donné — sa note et ses valeurs reçues. Un bloc retiré revient de même : il a
+ * gardé ses réglages reçus, et rend ceux de ses exercices que la bibliothèque a encore.
  */
 export function revertedEdit<E extends PlannedExercise>(
   blocks: readonly PlannedCompositionBlock<E>[],
@@ -232,6 +250,11 @@ export function revertedEdit<E extends PlannedExercise>(
   const block = blocks[edit.blockIndex];
   if (block === undefined || !editInPlace(blocks, edit)) return UNCHANGED;
 
+  if (edit.kind === CompositionEditKind.REMOVE_BLOCK) {
+    const restored = restoredExercises(block.baseline, library);
+    if (typeof restored === "string") return refused(restored);
+    return withExercises(blocks, edit.blockIndex, restored, true);
+  }
   if (edit.kind === CompositionEditKind.ADD) {
     const exercises = block.exercises.filter((exercise) => exercise.key !== edit.key);
     return withExercises(blocks, edit.blockIndex, exercises, false);
@@ -259,7 +282,9 @@ export function revertedEdit<E extends PlannedExercise>(
 /**
  * « Tout réinitialiser » : chaque bloc reprend la composition de la séance-type reçue. Un exercice
  * reçu et gardé garde ses valeurs — ce sont celles de Dosage ; un exercice remplacé ou retiré
- * revient avec les valeurs reçues, et les ajouts partent.
+ * revient avec les valeurs reçues, et les ajouts partent. Un bloc retiré revient avec tous ses
+ * exercices reçus : un seul sorti de la bibliothèque refuse tout (`NOT_IN_LIBRARY`), comme pour un
+ * exercice retiré, là où `revertedEdit` rend le bloc sans lui.
  */
 export function resetComposition<E extends PlannedExercise>(
   blocks: readonly PlannedCompositionBlock<E>[],
@@ -312,6 +337,21 @@ function restoredExercise(
 }
 
 /**
+ * Les exercices de la séance-type reçue que la bibliothèque a encore, pour rendre un bloc retiré.
+ * Celui qu'elle n'a plus reste retiré, barré à sa place comme un retrait d'exercice qui ne se
+ * défait plus (`NOT_IN_LIBRARY`) : le bloc ne reste pas bloqué pour un seul. Sans aucun, il l'est.
+ */
+function restoredExercises(
+  baseline: BlockReference,
+  library: CompositionLibrary,
+): ComposedExercise[] | CompositionRefusal {
+  const exercises = baseline.exercises
+    .map((reference) => restoredExercise(baseline, reference.key, library))
+    .filter((restored) => typeof restored !== "string");
+  return exercises.length === 0 ? CompositionRefusal.NOT_IN_LIBRARY : exercises;
+}
+
+/**
  * Le rang où revient un exercice retiré : avant le premier exercice venu APRÈS lui dans la
  * séance-type — un remplaçant compte au rang de l'exercice qu'il remplace —, sinon avant le premier
  * ajout : les ajouts restent en fin de bloc. Sans quoi deux exercices reçus s'échangeraient, ce que
@@ -330,21 +370,48 @@ function restoredRank(block: PlannedCompositionBlock, key: string): number {
   return added >= 0 ? added : block.exercises.length;
 }
 
+/**
+ * Le bloc `blockIndex` avec ces exercices. Vide, il est retiré et reprend ses réglages reçus :
+ * ceux de Dosage n'ont plus rien à régler, et « Revenir » le rendra tel que la séance-type l'a
+ * donné.
+ */
 function withExercises<E extends PlannedExercise>(
   blocks: readonly PlannedCompositionBlock<E>[],
   blockIndex: number,
   exercises: readonly (E | ComposedExercise)[],
   grows: boolean,
 ): CompositionOutcome<E> {
-  // Le bloc existe : chaque appelant l'a lu à ce rang.
-  const block = blocks[blockIndex] as PlannedCompositionBlock<E>;
-  const refusal =
-    blockRefusal(block.settings, exercises) ?? (grows ? sessionRefusal(blocks) : null);
-  if (refusal != null) return refused(refusal);
-  return {
-    kind: CompositionOutcomeKind.CHANGED,
-    blocks: blocks.map((each, index) => (index === blockIndex ? { ...each, exercises } : each)),
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+  const before = required(blocks[blockIndex], "bloc à changer absent");
+  const block: PlannedCompositionBlock<E | ComposedExercise> = {
+    ...before,
+    settings: isRemovedBlock({ exercises }) ? before.baseline.settings : before.settings,
+    exercises,
   };
+  const changed = spliced<PlannedCompositionBlock<E | ComposedExercise>>(
+    blocks,
+    blockIndex,
+    1,
+    block,
+  );
+  const refusal = refusalAfter(changed, block, grows);
+  if (refusal != null) return refused(refusal);
+  return { kind: CompositionOutcomeKind.CHANGED, blocks: changed };
+}
+
+/**
+ * Ce qui retient la copie après le changement du bloc, ou `null`. Retiré, le bloc n'a plus rien à
+ * tenir : seule la séance doit garder un bloc — vide, elle se supprime plutôt (`LAST_BLOCK`).
+ */
+function refusalAfter(
+  blocks: readonly PlannedCompositionBlock[],
+  block: PlannedCompositionBlock,
+  grows: boolean,
+): CompositionRefusal | null {
+  if (isRemovedBlock(block)) {
+    return blocks.every(isRemovedBlock) ? CompositionRefusal.LAST_BLOCK : null;
+  }
+  return blockRefusal(block.settings, block.exercises) ?? (grows ? sessionRefusal(blocks) : null);
 }
 
 /** Ce qui retient le bloc après le changement, ou `null`. */
@@ -353,7 +420,6 @@ function blockRefusal(
   exercises: readonly PlannedExercise[],
 ): CompositionRefusal | null {
   const count = exercises.length;
-  if (count === 0) return CompositionRefusal.LAST_EXERCISE;
   if (count > BLOCK_MAX_EXERCISES) return CompositionRefusal.BLOCK_FULL;
   if (roundsError(settings, count) != null) return CompositionRefusal.ROUNDS;
   const tooLong = exercises.some(
@@ -362,10 +428,10 @@ function blockRefusal(
   return tooLong ? CompositionRefusal.ROUNDS : null;
 }
 
-/** Un exercice de plus dans la copie, comptée AVANT le changement. */
+/** La copie APRÈS le changement : un exercice ajouté, ou un bloc rendu, la ferait déborder. */
 function sessionRefusal(blocks: readonly PlannedCompositionBlock[]): CompositionRefusal | null {
   const count = blocks.reduce((total, block) => total + block.exercises.length, 0);
-  return count + 1 > SESSION_MAX_EXERCISES ? CompositionRefusal.SESSION_FULL : null;
+  return count > SESSION_MAX_EXERCISES ? CompositionRefusal.SESSION_FULL : null;
 }
 
 // ── Pour quelles semaines ? ─────────────────────────────────────────────────────────────────
@@ -373,12 +439,14 @@ function sessionRefusal(blocks: readonly PlannedCompositionBlock[]): Composition
 /**
  * Une copie dans la fenêtre : le changement y est-il en place, et sinon, pourquoi ne s'y
  * appliquerait-il pas ? En place, pourquoi ne se défait-il pas ? `null` : la case se coche, ou se
- * décoche.
+ * décoche. `removesBlock` : là, le changement emporte le dernier exercice du bloc, et le bloc avec
+ * (#744) — la fenêtre le dit.
  */
 export type CopyChoice = {
   id: string;
   inPlace: boolean;
   refusal: CompositionRefusal | null;
+  removesBlock: boolean;
 };
 
 export function copyChoices(
@@ -389,7 +457,7 @@ export function copyChoices(
   return copies.map((copy) => {
     const inPlace = editInPlace(copy.blocks, edit);
     if (isDebriefed(copy)) {
-      return { id: copy.id, inPlace, refusal: CompositionRefusal.DEBRIEFED };
+      return { id: copy.id, inPlace, refusal: CompositionRefusal.DEBRIEFED, removesBlock: false };
     }
     const outcome = inPlace
       ? revertedEdit(copy.blocks, edit, library)
@@ -398,8 +466,17 @@ export function copyChoices(
       id: copy.id,
       inPlace,
       refusal: outcome.kind === CompositionOutcomeKind.REFUSED ? outcome.refusal : null,
+      removesBlock: removesBlock(outcome, edit),
     };
   });
+}
+
+/** Un changement d'exercice qui vide le bloc : le retrait de son dernier exercice. */
+function removesBlock(outcome: CompositionOutcome<PlannedExercise>, edit: CompositionEdit) {
+  if (outcome.kind !== CompositionOutcomeKind.CHANGED) return false;
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+  const block = required(outcome.blocks[edit.blockIndex], "bloc changé absent");
+  return edit.kind !== CompositionEditKind.REMOVE_BLOCK && isRemovedBlock(block);
 }
 
 /** Une copie telle que la fenêtre la juge. */

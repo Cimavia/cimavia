@@ -19,6 +19,7 @@ import { FeedbackAnnouncerService } from "../../message/service/feedback-announc
 import { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService, type PublishedSession } from "../../plan/service/athlete-plan.service";
+import { KEPT_BLOCK_WHERE } from "../../session/session-block.mapper";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseSettings, toJsonInput } from "../../util/block-json.util";
@@ -102,7 +103,7 @@ export class FeedbackService {
    * client viderait alors son suivi local, et la perte serait définitive. Un refus laisse les
    * coches sur l'appareil — l'athlète n'a rien perdu, et le client sait qu'il doit se reprendre.
    * Les cases se lisent avec les exercices du bloc tel qu'il est : une coche sur un exercice
-   * retiré depuis n'a plus de case.
+   * retiré depuis n'a plus de case, et un bloc retiré (#744), vide, n'est plus dans la séance.
    *
    * Contrôlé AVANT toute écriture, texte compris : le débrief n'est pas écrit dans une seule
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
@@ -117,7 +118,7 @@ export class FeedbackService {
     if (cited.length === 0) return;
 
     const known = await this.db.scheduledSessionBlock.findMany({
-      where: { scheduledSessionId, id: { in: cited } },
+      where: { scheduledSessionId, id: { in: cited }, ...KEPT_BLOCK_WHERE },
       select: { id: true, settings: true, exercises: BLOCK_EXERCISE_KEYS },
     });
     const byId = new Map(known.map((block) => [block.id, block]));
@@ -261,10 +262,11 @@ export class FeedbackService {
     if (feedback == null) return null;
 
     // Le décompte ACCOMPAGNE le débrief : il part dans la même réponse, sinon le coach devrait
-    // charger la séance de son athlète juste pour savoir ce qui a été coché.
+    // charger la séance de son athlète juste pour savoir ce qui a été coché. Un bloc retiré
+    // (#744), vide, n'en fait pas partie.
     const [blocks, messages] = await Promise.all([
       this.db.scheduledSessionBlock.findMany({
-        where: { scheduledSessionId },
+        where: { scheduledSessionId, ...KEPT_BLOCK_WHERE },
         orderBy: { position: "asc" },
         select: {
           id: true,

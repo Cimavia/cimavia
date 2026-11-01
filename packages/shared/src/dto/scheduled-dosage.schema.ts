@@ -15,13 +15,15 @@ const dosageExerciseSchema = z.object({ key: z.string().min(1), grid: blockGridS
 
 /**
  * Un bloc, désigné par son identifiant, avec ses réglages. Seules leurs VALEURS bougent : leur
- * forme est verrouillée contre la référence stockée (`plannedLockIssues`).
+ * forme est verrouillée contre la référence stockée (`plannedLockIssues`). Un bloc retiré (#744)
+ * part vide, tel que la copie le porte : le serveur le compare au bloc stocké, et refuse d'en
+ * changer les réglages.
  */
 const dosageBlockSchema = z
   .object({
     id: z.string().min(1),
     settings: structureSettingsSchema,
-    exercises: z.array(dosageExerciseSchema).min(1).max(BLOCK_MAX_EXERCISES),
+    exercises: z.array(dosageExerciseSchema).max(BLOCK_MAX_EXERCISES),
   })
   .strict();
 
