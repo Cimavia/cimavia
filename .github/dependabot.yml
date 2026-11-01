@@ -75,6 +75,17 @@ updates:
           - "@fastify/static"
           - "pino"
           - "pino-http"
+      # Même exception pour vitest et stryker (#734), majeures comprises : `@vitest/coverage-v8` exige
+      # le `vitest` de sa version exacte, et `@stryker-mutator/vitest-runner` le `core` de la sienne.
+      # Une PR par paquet ne s'installe pas : vitest 5 seul (#742) laissait la couverture en 4 et
+      # cassait chaque suite, le runner 10 seul (#741) passait la CI avec un `core` 9 qu'il refuse.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      stryker:
+        patterns:
+          - "@stryker-mutator/*"
       npm:
         update-types: [minor, patch]
         patterns:
@@ -100,6 +111,11 @@ updates:
       - dependency-name: "@sentry/cli"
       - dependency-name: "react"
       - dependency-name: "react-dom"
+      # `@babel/core` est déclaré par le mobile pour fixer le pair de `react-native` (#734) : sans lui,
+      # la Babel 8 de Stryker gagnait. La majeure de Babel suit la chaîne Expo, pas une PR — le plugin
+      # JSX du mobile compris, dont une 8 seule exigerait un `core` 8. Les correctifs de la 7 passent.
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
 
   # Les images de base des deux Dockerfiles, épinglées par digest : Dependabot réécrit le digest
   # quand le tag est reconstruit, et propose le tag suivant quand il en paraît un. Plus l'image de
