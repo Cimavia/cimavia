@@ -316,22 +316,22 @@ describe("CmvAudioRecorder — écran allumé pendant la capture", () => {
 
   // Envoyer comme jeter passent par l'arrêt du natif, qui retombe au repos : le bandeau part, et
   // le maintien avec lui.
-  it.each([
-    "send",
-    "trash-outline",
-  ])("tient l'écran allumé pendant le bandeau, et le rend après %s", async (iconName) => {
-    recording(3000);
-    const view = setup();
-    expect(activateKeepAwakeAsync).toHaveBeenCalledOnce();
+  it.each(["send", "trash-outline"])(
+    "tient l'écran allumé pendant le bandeau, et le rend après %s",
+    async (iconName) => {
+      recording(3000);
+      const view = setup();
+      expect(activateKeepAwakeAsync).toHaveBeenCalledOnce();
 
-    press(icon(view.container, iconName));
-    await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(false));
-    expect(deactivateKeepAwake).not.toHaveBeenCalled();
-    idle();
-    view.rerender(<CmvAudioRecorder onRecorded={view.onRecorded} />);
+      press(icon(view.container, iconName));
+      await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(false));
+      expect(deactivateKeepAwake).not.toHaveBeenCalled();
+      idle();
+      view.rerender(<CmvAudioRecorder onRecorded={view.onRecorded} />);
 
-    expect(deactivateKeepAwake).toHaveBeenCalledOnce();
-  });
+      expect(deactivateKeepAwake).toHaveBeenCalledOnce();
+    },
+  );
 
   it("rend l'écran à la veille quand on quitte en pleine capture", () => {
     recording(3000);

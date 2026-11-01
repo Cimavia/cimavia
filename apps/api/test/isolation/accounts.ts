@@ -663,14 +663,17 @@ describe("Compte Entreprise : exclusif, et sans accès à l'entraînement (#600)
   it.each([
     ["coach", { ...COMPANY, isCoach: true }],
     ["athlète", { ...COMPANY, isAthlete: true }],
-  ])("refuse une entreprise qui serait aussi %s, sans rien créer (400)", async (_, capabilities) => {
-    const email = `company-${capabilities.isCoach ? "coach" : "athlete"}@cmv.test`;
+  ])(
+    "refuse une entreprise qui serait aussi %s, sans rien créer (400)",
+    async (_, capabilities) => {
+      const email = `company-${capabilities.isCoach ? "coach" : "athlete"}@cmv.test`;
 
-    const res = await attempt(email, capabilities);
+      const res = await attempt(email, capabilities);
 
-    expect(res.status).toBe(400);
-    expect(await app.get(PrismaService).user.findUnique({ where: { email } })).toBeNull();
-  });
+      expect(res.status).toBe(400);
+      expect(await app.get(PrismaService).user.findUnique({ where: { email } })).toBeNull();
+    },
+  );
 
   it("refuse une inscription sans aucun type, entreprise comprise (400)", async () => {
     const res = await attempt("company-none@cmv.test", {

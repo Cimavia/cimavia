@@ -7,17 +7,19 @@ const unwritten = (status: number) => new ApiError(status, `Erreur ${status}`, n
 
 describe("shouldReportQueryError", () => {
   describe("en ligne", () => {
-    it.each([
-      400, 403, 404, 409, 422, 500, 503,
-    ])("ne reprend pas le %i que l'API a écrit : elle l'a déjà capturé (#697)", (status) => {
-      expect(shouldReportQueryError(written(status), true)).toBe(false);
-    });
+    it.each([400, 403, 404, 409, 422, 500, 503])(
+      "ne reprend pas le %i que l'API a écrit : elle l'a déjà capturé (#697)",
+      (status) => {
+        expect(shouldReportQueryError(written(status), true)).toBe(false);
+      },
+    );
 
-    it.each([
-      200, 404, 502, 503,
-    ])("signale le %i que l'API n'a pas écrit (proxy, portail captif, corps illisible)", (status) => {
-      expect(shouldReportQueryError(unwritten(status), true)).toBe(true);
-    });
+    it.each([200, 404, 502, 503])(
+      "signale le %i que l'API n'a pas écrit (proxy, portail captif, corps illisible)",
+      (status) => {
+        expect(shouldReportQueryError(unwritten(status), true)).toBe(true);
+      },
+    );
 
     it("signale une panne réseau alors que l'appareil se croit en ligne", () => {
       expect(shouldReportQueryError(new TypeError("Failed to fetch"), true)).toBe(true);

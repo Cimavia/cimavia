@@ -72,15 +72,13 @@ describe("changeAccessSchema", () => {
     expect(changeAccessSchema.parse(coaches)).toEqual({ ...coaches, changes: [] });
   });
 
-  it.each([
-    "NONE",
-    "READ",
-    "WRITE",
-    null,
-  ])("accepte %s sur la ligne d'un Coach (#608), null pour « Hérité »", (level) => {
-    const input = { ids: ["e1"], coachChanges: [{ coachId: "m", level }] };
-    expect(changeAccessSchema.safeParse(input).success).toBe(true);
-  });
+  it.each(["NONE", "READ", "WRITE", null])(
+    "accepte %s sur la ligne d'un Coach (#608), null pour « Hérité »",
+    (level) => {
+      const input = { ids: ["e1"], coachChanges: [{ coachId: "m", level }] };
+      expect(changeAccessSchema.safeParse(input).success).toBe(true);
+    },
+  );
 
   it("dit pourquoi un Coach cité deux fois est refusé", () => {
     const line = { coachId: "m", level: "READ" };

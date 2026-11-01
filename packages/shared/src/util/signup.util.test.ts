@@ -27,14 +27,12 @@ describe("parseEmailList", () => {
    * Une virgule en trop est une faute de frappe, pas une autorisation pour l'adresse vide — qui
    * laisserait passer une inscription dont l'adresse ne serait comparée à rien.
    */
-  it.each([
-    ",",
-    "a@x.fr,",
-    ",a@x.fr",
-    "a@x.fr,,b@x.fr",
-  ])("ignore les entrées vides de %s", (raw) => {
-    expect(parseEmailList(raw)).not.toContain("");
-  });
+  it.each([",", "a@x.fr,", ",a@x.fr", "a@x.fr,,b@x.fr"])(
+    "ignore les entrées vides de %s",
+    (raw) => {
+      expect(parseEmailList(raw)).not.toContain("");
+    },
+  );
 
   /**
    * Variable absente ou vide : aucune adresse autorisée. Surtout pas « tout le monde » — c'est le

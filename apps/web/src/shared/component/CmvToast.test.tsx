@@ -15,19 +15,17 @@ function Trigger({ tone, message }: Readonly<{ tone: Tone; message: string }>) {
 }
 
 describe("CmvToast", () => {
-  it.each<Tone>([
-    "success",
-    "error",
-    "warning",
-    "info",
-  ])("annonce un message %s sans déplacer le focus", async (tone) => {
-    const { user, getByRole } = renderWithProviders(<Trigger tone={tone} message="Enregistré" />);
+  it.each<Tone>(["success", "error", "warning", "info"])(
+    "annonce un message %s sans déplacer le focus",
+    async (tone) => {
+      const { user, getByRole } = renderWithProviders(<Trigger tone={tone} message="Enregistré" />);
 
-    await user.click(getByRole("button", { name: "déclencher" }));
+      await user.click(getByRole("button", { name: "déclencher" }));
 
-    expect(getByRole("status")).toHaveTextContent("Enregistré");
-    expect(getByRole("button", { name: "déclencher" })).toHaveFocus();
-  });
+      expect(getByRole("status")).toHaveTextContent("Enregistré");
+      expect(getByRole("button", { name: "déclencher" })).toHaveFocus();
+    },
+  );
 
   it("se ferme au clic, sans attendre son échéance", async () => {
     const { user, getByRole, queryByRole } = renderWithProviders(

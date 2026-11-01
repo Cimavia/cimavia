@@ -17,13 +17,12 @@ describe("registerPushTokenSchema", () => {
   });
 
   // Ancré des deux côtés : un token entouré d'autre chose ne serait pas plus livrable.
-  it.each([
-    "pas-un-token",
-    "xExpoPushToken[abc123]",
-    "ExpoPushToken[abc123]x",
-  ])("refuse un token qui ne pourrait jamais être livré — %s", (token) => {
-    expectRefusal(registerPushTokenSchema, { token, platform: PushPlatform.ANDROID }, ["token"]);
-  });
+  it.each(["pas-un-token", "xExpoPushToken[abc123]", "ExpoPushToken[abc123]x"])(
+    "refuse un token qui ne pourrait jamais être livré — %s",
+    (token) => {
+      expectRefusal(registerPushTokenSchema, { token, platform: PushPlatform.ANDROID }, ["token"]);
+    },
+  );
 
   it("refuse une plateforme inconnue", () => {
     const result = registerPushTokenSchema.safeParse({

@@ -192,18 +192,21 @@ describe("appliedEdit", () => {
   it.each([
     ["le retrait du bloc", ["a", "b"], REMOVE_BLOCK],
     ["le retrait de son dernier exercice", ["b"], { ...REMOVE_A, key: "b" }],
-  ] as const)("retire le bloc par %s : il reste à son rang, vide, aux réglages reçus", (_case, keys, edit) => {
-    const received = { ...reference(), settings: oneByBeep(60, 4) };
-    const dosed = blockOf(
-      keys.map((key) => planned(key)),
-      received,
-      oneByBeep(60, 6),
-    );
-    const outcome = appliedEdit([dosed, other()], edit, library);
-    if (outcome.kind !== CompositionOutcomeKind.CHANGED) throw new Error(outcome.kind);
-    expect(outcome.blocks[0]).toMatchObject({ settings: received.settings, exercises: [] });
-    expect(outcome.blocks[1]?.exercises.map((exercise) => exercise.key)).toEqual(["c"]);
-  });
+  ] as const)(
+    "retire le bloc par %s : il reste à son rang, vide, aux réglages reçus",
+    (_case, keys, edit) => {
+      const received = { ...reference(), settings: oneByBeep(60, 4) };
+      const dosed = blockOf(
+        keys.map((key) => planned(key)),
+        received,
+        oneByBeep(60, 6),
+      );
+      const outcome = appliedEdit([dosed, other()], edit, library);
+      if (outcome.kind !== CompositionOutcomeKind.CHANGED) throw new Error(outcome.kind);
+      expect(outcome.blocks[0]).toMatchObject({ settings: received.settings, exercises: [] });
+      expect(outcome.blocks[1]?.exercises.map((exercise) => exercise.key)).toEqual(["c"]);
+    },
+  );
 
   it("retire le bloc quand son dernier ajout est défait", () => {
     const added = [blockOf([planned("new", ADDED)]), other()];

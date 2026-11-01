@@ -24,16 +24,14 @@ describe("safeRedirect", () => {
     expect(safeRedirect(target)).toBeNull();
   });
 
-  it.each([
-    "/login",
-    "/login?redirect=/plans",
-    "/register",
-    "/reset-password?token=t",
-  ])("refuse de revenir sur l'écran d'authentification %s", (target) => {
-    // Une fois connecté, ces écrans renvoient aussitôt à l'accueil : y revenir serait un saut
-    // pour rien, et `/login?redirect=/login…` une boucle.
-    expect(safeRedirect(target)).toBeNull();
-  });
+  it.each(["/login", "/login?redirect=/plans", "/register", "/reset-password?token=t"])(
+    "refuse de revenir sur l'écran d'authentification %s",
+    (target) => {
+      // Une fois connecté, ces écrans renvoient aussitôt à l'accueil : y revenir serait un saut
+      // pour rien, et `/login?redirect=/login…` une boucle.
+      expect(safeRedirect(target)).toBeNull();
+    },
+  );
 
   it("refuse ce qui n'est pas une chaîne", () => {
     // La valeur vient de l'URL, désérialisée par le routeur : rien ne garantit son type.

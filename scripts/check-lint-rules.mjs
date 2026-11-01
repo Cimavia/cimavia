@@ -81,9 +81,19 @@ function expectedMarks(dir) {
 
 function lint(dir) {
   const biome = createRequire(join(ROOT, "package.json")).resolve("@biomejs/biome/bin/biome");
+  // `--vcs-use-ignore-file=false` : le banc est copié HORS du dépôt, où son `.gitignore` ne veut
+  // rien dire — et Biome 2.5.15 panique à l'y appliquer (« path is expected to be under the root »).
   const run = spawnSync(
     process.execPath,
-    [biome, "lint", `--config-path=${ROOT}`, "--reporter=json", "--max-diagnostics=none", dir],
+    [
+      biome,
+      "lint",
+      `--config-path=${ROOT}`,
+      "--vcs-use-ignore-file=false",
+      "--reporter=json",
+      "--max-diagnostics=none",
+      dir,
+    ],
     { encoding: "utf8" },
   );
   try {

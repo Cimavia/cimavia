@@ -75,16 +75,19 @@ describe("les mutations de rappel", () => {
       { id: "r-1", input: { dueAt: "2026-10-01T09:00:00.000Z" } },
       () => reminderApi.update,
     ],
-  ] as const)("%s périme les rappels et le centre de notifications", async (_, hook, input, call) => {
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => hook(), { wrapper });
+  ] as const)(
+    "%s périme les rappels et le centre de notifications",
+    async (_, hook, input, call) => {
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      const { result } = renderHook(() => hook(), { wrapper });
 
-    await act(() => (result.current.mutateAsync as (value: unknown) => Promise<unknown>)(input));
+      await act(() => (result.current.mutateAsync as (value: unknown) => Promise<unknown>)(input));
 
-    expect(call()).toHaveBeenCalledOnce();
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: reminderKeys.all });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.all });
-  });
+      expect(call()).toHaveBeenCalledOnce();
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: reminderKeys.all });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.all });
+    },
+  );
 
   it("transmet le statut et le report à l'appel qui les porte", async () => {
     const status = renderHook(() => useUpdateReminderStatus(), { wrapper });

@@ -500,7 +500,9 @@ describe("MetricPicker — catalogue d'un autre Coach (#606)", () => {
     expect(getByText("library.builder.custom.ofOwner")).toBeInTheDocument();
     await user.click(getByRole("button", { name: "Cotation de M" }));
 
-    expect((onChange.mock.lastCall?.[0] as Column[]).at(-1)).toMatchObject({
+    expect(onChange).toHaveBeenCalled();
+    const [columns] = onChange.mock.lastCall as [Column[]];
+    expect(columns.at(-1)).toMatchObject({
       customMetricId: "cm-9",
     });
   });
