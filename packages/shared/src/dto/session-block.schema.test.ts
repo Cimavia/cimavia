@@ -165,6 +165,11 @@ describe("scheduledSessionBlockSchema", () => {
     ).toBe(false);
     expect(scheduledSessionBlockSchema.safeParse(block("b1", ["a"])).success).toBe(false);
   });
+
+  it("accepte un bloc vide, retiré pour l'athlète, que la séance-type refuse", () => {
+    expect(issuesOf(scheduledSessionBlockSchema, block("b1", []))).toEqual([]);
+    expect(sessionBlockSchema.safeParse(block("b1", [])).success).toBe(false);
+  });
 });
 
 describe("sessionBlocksSchema", () => {
