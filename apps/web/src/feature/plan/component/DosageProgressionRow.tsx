@@ -45,6 +45,7 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
   const { t } = useTranslation();
   const { slots, start, measure, names, unit, show, hatched, onApply, onClose } = props;
   const stepId = useId();
+  const directionId = useId();
   const stepRef = useRef<HTMLInputElement>(null);
   // Le pas est la raison d'ouvrir la fenêtre : la saisie y commence.
   useEffect(() => stepRef.current?.focus(), []);
@@ -57,90 +58,103 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
   const isInvalid = start !== null && text.trim() !== "" && progression === null;
 
   return (
-    <tr
-      className="border-cmv-accent border-y bg-cmv-surface"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
-      }}
-    >
-      <td className="px-cmv-md py-cmv-sm align-top">
-        <div className="flex flex-col gap-cmv-sm">
-          <CmvSegmented
-            label={t("plan.dosage.progression.direction")}
-            value={direction}
-            onChange={setDirection}
-            options={[
-              { value: ProgressionDirection.ADD, label: t("plan.dosage.progression.add") },
-              { value: ProgressionDirection.REMOVE, label: t("plan.dosage.progression.remove") },
-            ]}
+    <>
+      {/* L'aperçu juste sous la ligne, chaque semaine sous sa valeur. */}
+      <tr>
+        <td />
+        {slots.map((slot, index) => (
+          <PreviewCell
+            key={dosageColumnKey(slot.column)}
+            slot={slot}
+            cell={progression?.cells[index] ?? null}
+            show={show}
+            hatched={hatched}
           />
-          <div className="flex items-center gap-cmv-sm">
-            <label htmlFor={stepId} className="text-cmv-caption text-cmv-text-mid">
-              {t("plan.dosage.progression.step")}
-            </label>
-            <input
-              id={stepId}
-              ref={stepRef}
-              value={text}
-              inputMode={measure.kind === ProgressionMeasureKind.DURATION ? "text" : "decimal"}
-              placeholder={t(placeholderOf(measure))}
-              aria-invalid={isInvalid}
-              onChange={(event) => setText(event.target.value)}
-              className="w-20 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
-            />
-            {unit == null ? null : (
-              <span className="text-cmv-caption text-cmv-text-mid">{unit}</span>
+        ))}
+      </tr>
+      <tr
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+        }}
+      >
+        <td colSpan={slots.length + 1} className="px-cmv-md pb-cmv-sm">
+          {/* Une seule ligne : le pas et d'où il part, puis les gestes, poussés à droite. */}
+          <div className="flex flex-wrap items-center gap-x-cmv-md gap-y-cmv-sm">
+            <fieldset aria-labelledby={directionId} className="flex items-center gap-cmv-sm">
+              <span id={directionId} className="text-cmv-caption text-cmv-text-mid">
+                {t("plan.dosage.progression.direction")}
+              </span>
+              <CmvSegmented
+                value={direction}
+                onChange={setDirection}
+                options={[
+                  { value: ProgressionDirection.ADD, label: t("plan.dosage.progression.add") },
+                  {
+                    value: ProgressionDirection.REMOVE,
+                    label: t("plan.dosage.progression.remove"),
+                  },
+                ]}
+              />
+            </fieldset>
+            <div className="flex items-center gap-cmv-sm">
+              <label htmlFor={stepId} className="text-cmv-caption text-cmv-text-mid">
+                {t("plan.dosage.progression.step")}
+              </label>
+              <input
+                id={stepId}
+                ref={stepRef}
+                value={text}
+                inputMode={measure.kind === ProgressionMeasureKind.DURATION ? "text" : "decimal"}
+                placeholder={t(placeholderOf(measure))}
+                aria-invalid={isInvalid}
+                onChange={(event) => setText(event.target.value)}
+                className="w-20 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+              />
+              {unit == null ? null : (
+                <span className="text-cmv-caption text-cmv-text-mid">{unit}</span>
+              )}
+            </div>
+            {start === null ? null : (
+              <span className="text-cmv-caption text-cmv-text-lo">
+                {t("plan.dosage.progression.from", {
+                  week: names[start.index],
+                  value: show(start.values),
+                })}
+              </span>
             )}
+            {isInvalid ? (
+              <span className="text-cmv-caption text-cmv-error-on">
+                {t("plan.dosage.progression.invalidStep")}
+              </span>
+            ) : null}
+            {progression === null || progression.overwritten.length === 0 ? null : (
+              <span className="text-cmv-caption text-cmv-warning-on">
+                {t("plan.dosage.progression.overwrites", {
+                  count: progression.overwritten.length,
+                  weeks: progression.overwritten.map((index) => names[index]).join(", "),
+                })}
+              </span>
+            )}
+            <div className="ml-auto flex gap-cmv-sm">
+              <CmvButton
+                variant="primary"
+                disabled={progression === null}
+                onClick={() => {
+                  if (progression === null) return;
+                  onApply(steppedOf(progression));
+                  onClose();
+                }}
+              >
+                {t("plan.dosage.progression.apply")}
+              </CmvButton>
+              <CmvButton variant="ghost" onClick={onClose}>
+                {t("common.cancel")}
+              </CmvButton>
+            </div>
           </div>
-          {isInvalid ? (
-            <span className="text-cmv-caption text-cmv-error-on">
-              {t("plan.dosage.progression.invalidStep")}
-            </span>
-          ) : null}
-          {start === null ? null : (
-            <span className="text-cmv-caption text-cmv-text-lo">
-              {t("plan.dosage.progression.from", {
-                week: names[start.index],
-                value: show(start.values),
-              })}
-            </span>
-          )}
-          {progression === null || progression.overwritten.length === 0 ? null : (
-            <span className="text-cmv-caption text-cmv-warning-on">
-              {t("plan.dosage.progression.overwrites", {
-                count: progression.overwritten.length,
-                weeks: progression.overwritten.map((index) => names[index]).join(", "),
-              })}
-            </span>
-          )}
-          <div className="flex gap-cmv-sm">
-            <CmvButton
-              variant="primary"
-              disabled={progression === null}
-              onClick={() => {
-                if (progression === null) return;
-                onApply(steppedOf(progression));
-                onClose();
-              }}
-            >
-              {t("plan.dosage.progression.apply")}
-            </CmvButton>
-            <CmvButton variant="ghost" onClick={onClose}>
-              {t("common.cancel")}
-            </CmvButton>
-          </div>
-        </div>
-      </td>
-      {slots.map((slot, index) => (
-        <PreviewCell
-          key={dosageColumnKey(slot.column)}
-          slot={slot}
-          cell={progression?.cells[index] ?? null}
-          show={show}
-          hatched={hatched}
-        />
-      ))}
-    </tr>
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -172,15 +186,18 @@ type PreviewCellProps = Pick<DosageProgressionRowProps, "show" | "hatched"> & {
   cell: DosageProgression["cells"][number] | null;
 };
 
+/** Le retrait du texte dans un bouton de valeur, bordure comprise : l'aperçu tombe sous la valeur. */
+const INSET = "block border-x border-transparent px-cmv-sm";
+
 /** Ce qu'une semaine deviendrait, sous sa colonne. */
 function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) {
   const { t } = useTranslation();
-  const tdClass = "px-cmv-sm py-cmv-sm align-top font-cmv-mono text-cmv-caption";
+  const tdClass = "px-cmv-sm pt-cmv-xs pb-cmv-sm align-top font-cmv-mono text-cmv-caption";
   // Une semaine sautée par la progression est celle qui n'a pas de valeur.
   if (slot.cell.kind !== DosageCellKind.VALUE) {
     return (
       <td className={cn(tdClass, hatched)}>
-        <span className="font-cmv-sans text-cmv-text-lo italic">
+        <span className={cn(INSET, "font-cmv-sans text-cmv-text-lo italic")}>
           {t("plan.dosage.progression.skipped")}
         </span>
       </td>
@@ -192,14 +209,15 @@ function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) 
     <td className={cn(tdClass, slot.column.deload && "bg-cmv-bg-0")}>
       <span
         className={cn(
-          "block break-words",
+          INSET,
+          "break-words",
           cell?.kind === ProgressionCellKind.STEPPED ? "text-cmv-text-hi" : "text-cmv-text-mid",
         )}
       >
         {show(values)}
       </span>
       {note == null ? null : (
-        <span className="block font-cmv-sans text-cmv-text-lo italic">{t(note)}</span>
+        <span className={cn(INSET, "font-cmv-sans text-cmv-text-lo italic")}>{t(note)}</span>
       )}
     </td>
   );
