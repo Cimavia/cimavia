@@ -3,6 +3,7 @@ import {
   type CustomMetric,
   type DosageSessionInput,
   gridValueIssues,
+  isRemovedBlock,
   MetricSource,
   required,
   type ScheduledSessionBlockDto,
@@ -21,6 +22,7 @@ export type FrozenMetricsOf = (exerciseId: string) => readonly CustomMetric[];
  *
  * - La composition ne se change pas ici (#720) : les blocs, leurs exercices, leur ordre et leurs
  *   colonnes doivent être ceux stockés, colonne pour colonne — les valeurs y sont indexées.
+ * - Un bloc retiré (#744) n'a plus rien à régler : ses réglages restent ceux reçus.
  * - Les blocs ainsi réglés passent par le schéma d'une séance planifiée (tours et lignes), le
  *   verrou contre la référence stockée (`plannedLockIssues`), et le type de chaque cellule contre
  *   les métriques maison que la ligne a figées.
@@ -33,6 +35,11 @@ export function dosedBlocks(
   if (!sameComposition(stored, sent)) {
     throw new BadRequestException("Dosage ne change pas la composition de la séance");
   }
+  const redosed = stored.some(
+    (block, blockIndex) =>
+      isRemovedBlock(block) && !sameJson(block.settings, sent[blockIndex]?.settings),
+  );
+  if (redosed) throw new BadRequestException("Un bloc retiré ne se dose pas");
   const blocks = stored.map((block, blockIndex) => {
     // Même composition juste au-dessus : chaque bloc et chaque exercice a son envoi au même rang.
     const values = required(sent[blockIndex], "[dosage] bloc non envoyé");

@@ -94,9 +94,10 @@ function toCopyDto({ row, blocks }: Copy): ScheduledSessionCopyDto {
 
 /**
  * La composition d'une séance planifiée pour les semaines choisies (#720), et ses valeurs semaine
- * par semaine (#721). Le panneau ajoute, remplace ou retire un exercice ; Dosage règle les valeurs.
- * L'un comme l'autre s'écrit sur les copies de la même séance-type dans le Plan, en une transaction. Aucun lien n'est stocké
- * entre les copies : un ajout ou un remplaçant porte la même clé dans chacune.
+ * par semaine (#721). Le panneau ajoute, remplace ou retire un exercice, ou retire un bloc (#744) ;
+ * Dosage règle les valeurs. L'un comme l'autre s'écrit sur les copies de la même séance-type dans
+ * le Plan, en une transaction. Aucun lien n'est stocké entre les copies : un ajout ou un
+ * remplaçant porte la même clé dans chacune.
  *
  * Les gestes sont ceux de `@cmv/shared` (`appliedEdit`, `revertedEdit`, `resetComposition`) : le
  * panneau les joue pour griser une semaine, le serveur pour écrire. Le verrou du niveau planifié
@@ -306,6 +307,8 @@ export class ScheduledCompositionService {
           };
         },
       );
+      // Un bloc retiré reprend ses réglages reçus, et les garde en revenant (#744).
+      await writeSettings(tx, written, blocks);
     });
   }
 
@@ -377,6 +380,22 @@ function refused(copy: Copy, refusal: CompositionRefusal): BadRequestException {
   );
 }
 
+/** Les réglages d'une copie : seuls ceux qui ont bougé s'écrivent, sur le bloc stocké au même rang. */
+async function writeSettings(
+  tx: TenantTx,
+  copy: Copy,
+  blocks: readonly Pick<ScheduledSessionBlockDto, "settings">[],
+): Promise<void> {
+  for (const [blockIndex, block] of blocks.entries()) {
+    const before = required(copy.blocks[blockIndex], "[plan] bloc stocké absent");
+    if (sameJson(before.settings, block.settings)) continue;
+    await tx.scheduledSessionBlock.updateMany({
+      where: { id: before.id, scheduledSessionId: copy.row.id },
+      data: { settings: toJsonInput(block.settings) },
+    });
+  }
+}
+
 /** Les valeurs d'une copie : seul ce qui a bougé s'écrit, un bloc retouché ailleurs garde ses réglages. */
 async function writeValues(
   tx: TenantTx,
@@ -384,14 +403,9 @@ async function writeValues(
   blocks: readonly ScheduledSessionBlockDto[],
 ): Promise<void> {
   const scheduledSessionId = copy.row.id;
+  await writeSettings(tx, copy, blocks);
   for (const [blockIndex, block] of blocks.entries()) {
     const before = required(copy.blocks[blockIndex], "[dosage] bloc stocké absent");
-    if (!sameJson(before.settings, block.settings)) {
-      await tx.scheduledSessionBlock.updateMany({
-        where: { id: block.id, scheduledSessionId },
-        data: { settings: toJsonInput(block.settings) },
-      });
-    }
     for (const [index, exercise] of block.exercises.entries()) {
       if (sameJson(before.exercises[index]?.grid, exercise.grid)) continue;
       await tx.scheduledSessionExercise.updateMany({

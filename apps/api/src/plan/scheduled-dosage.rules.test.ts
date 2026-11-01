@@ -93,6 +93,20 @@ describe("dosedBlocks", () => {
     );
   });
 
+  describe("un bloc retiré (#744)", () => {
+    const removed = [{ ...stored[0], exercises: [] }] as ScheduledSessionBlockDto[];
+    const dosing = (settings: StructureSettings) => [{ id: "blk", settings, exercises: [] }];
+
+    it("passe tel quel, vide, avec ses réglages reçus", () => {
+      expect(dosedBlocks(removed, dosing(SERIES), noFrozen)[0]?.exercises).toEqual([]);
+    });
+
+    it("refuse qu'on le dose", () => {
+      const rested = dosing({ ...SERIES, restBetweenRoundsSeconds: 90 });
+      expect(() => dosedBlocks(removed, rested, noFrozen)).toThrow("Un bloc retiré ne se dose pas");
+    });
+  });
+
   it("refuse plus de lignes que l'exercice n'a de tours", () => {
     const twoRounds = { ...SERIES, repeat: { kind: StructureRepeat.ROUNDS, rounds: 2 } };
     const rows = ["r1", "r2", "r3"].map((id) => ({ id, values: {} }));
