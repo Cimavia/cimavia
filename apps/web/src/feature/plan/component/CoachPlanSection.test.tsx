@@ -114,6 +114,17 @@ describe("CoachPlanSection", () => {
     expect(router.state.location.search).toMatchObject({ q: "bel" });
   });
 
+  // Le routeur navigue dans une transition : un segment qui recopierait la recherche du dernier rendu
+  // la ramènerait à une frappe d'avant (#734).
+  it("garde toute la recherche tapée quand un segment est choisi juste après", async () => {
+    const { getByLabelText, getByText, user, router } = await mount([LEA, YANIS]);
+
+    await user.type(getByLabelText("plan.searchLabel"), "bel");
+    await user.click(getByText("plan.stateFilter.ENDED"));
+
+    expect(router.state.location.search).toMatchObject({ q: "bel", state: "ENDED" });
+  });
+
   it("efface la recherche de l'url plutôt que d'y laisser une chaîne vide", async () => {
     const { getByLabelText, user, router } = await mount([LEA, YANIS], { q: "b" });
 

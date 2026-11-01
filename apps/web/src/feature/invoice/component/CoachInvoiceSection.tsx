@@ -11,6 +11,7 @@ import { InvoiceAthleteTable } from "@/feature/invoice/component/InvoiceAthleteT
 import { InvoiceToolbar } from "@/feature/invoice/component/InvoiceToolbar";
 import type { InvoicesSearch } from "@/routes/invoices";
 import { CmvEmptyState } from "@/shared/component";
+import { useUrlSearchText } from "@/shared/hook/useUrlSearchText";
 
 const route = getRouteApi("/invoices");
 
@@ -32,7 +33,7 @@ type CoachInvoiceSectionProps = {
 export function CoachInvoiceSection({ rows, onOpenInvoice }: Readonly<CoachInvoiceSectionProps>) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { as, q, situation, athlete } = route.useSearch();
+  const { q, situation, athlete } = route.useSearch();
 
   const filter: InvoiceRowFilter = situation ?? "ALL";
   const visible = visibleInvoiceAthleteRows(rows, {
@@ -50,18 +51,26 @@ export function CoachInvoiceSection({ rows, onOpenInvoice }: Readonly<CoachInvoi
    *
    * `as` est RECOPIÉ dans chaque navigation : il dit à quel titre on lit la ressource, et l'API
    * l'exige d'un compte à double capacité. L'omettre ferait basculer l'écran d'un rôle à l'autre à
-   * la première frappe.
+   * la première frappe. Recopié de `prev`, l'URL la plus récente, et non du dernier rendu : le
+   * routeur navigue dans une transition, et une frappe suivie d'un clic sur un segment écraserait
+   * sinon la recherche par celle d'avant la frappe (#734).
    */
   const go = (next: Partial<Pick<InvoicesSearch, "q" | "situation" | "athlete">>) =>
-    navigate({ to: "/invoices", search: { as, q, situation, athlete, ...next }, replace: true });
+    navigate({
+      from: "/invoices",
+      to: "/invoices",
+      search: (prev) => ({ ...prev, ...next }),
+      replace: true,
+    });
+  const [searchText, setSearchText] = useUrlSearchText(q, (next) => go({ q: next }));
 
   return (
     <div className="flex flex-col gap-cmv-lg">
       <InvoiceToolbar
-        search={q ?? ""}
+        search={searchText}
         filter={filter}
         counts={counts}
-        onSearchChange={(next) => go({ q: next || undefined })}
+        onSearchChange={setSearchText}
         // « Tous » ne s'écrit pas dans l'URL : c'est la valeur par défaut, l'y laisser serait du bruit.
         onFilterChange={(next) => go({ situation: next === "ALL" ? undefined : next })}
       />

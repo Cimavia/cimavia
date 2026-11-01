@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AthleteTrackingTable } from "@/feature/dashboard/component/AthleteTrackingTable";
 import { AthleteTrackingToolbar } from "@/feature/dashboard/component/AthleteTrackingToolbar";
 import { CmvButton, CmvEmptyState } from "@/shared/component";
+import { useUrlSearchText } from "@/shared/hook/useUrlSearchText";
 
 const route = getRouteApi("/");
 
@@ -32,7 +33,7 @@ export function AthleteTrackingSection({
 }: Readonly<AthleteTrackingSectionProps>) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { q, filter: urlFilter, athlete } = route.useSearch();
+  const { q, filter: urlFilter } = route.useSearch();
 
   /**
    * `replace` sur les deux : la barre est un RÉGLAGE DE VUE, pas une étape de navigation. Sans lui,
@@ -40,22 +41,27 @@ export function AthleteTrackingSection({
    * la saisie au lieu de quitter le tableau de bord.
    */
   // `athlete` est RECOPIÉ dans chaque navigation : l'URL porte aussi la fiche ouverte, qui n'a rien
-  // à voir avec cette barre. L'omettre la refermerait à chaque frappe au clavier.
-  const setSearch = (next: string) =>
-    navigate({
-      to: "/",
-      search: { q: next || undefined, filter: urlFilter, athlete },
-      replace: true,
-    });
+  // à voir avec cette barre. L'omettre la refermerait à chaque frappe au clavier. Recopié de `prev`,
+  // l'URL la plus récente, et non du dernier rendu : le routeur navigue dans une transition, et une
+  // frappe suivie d'un clic sur un filtre écraserait sinon la recherche par celle d'avant (#734).
+  const setSearch = (next: string | undefined) =>
+    navigate({ from: "/", to: "/", search: (prev) => ({ ...prev, q: next }), replace: true });
   // « Tous » ne s'écrit pas dans l'URL : c'est la valeur par défaut, l'y laisser serait du bruit.
   const setFilter = (next: AthleteRowFilter) =>
     navigate({
+      from: "/",
       to: "/",
-      search: { q, filter: next === "ALL" ? undefined : next, athlete },
+      search: (prev) => ({ ...prev, filter: next === "ALL" ? undefined : next }),
       replace: true,
     });
+  const [searchText, setSearchText] = useUrlSearchText(q, setSearch);
   const reset = () =>
-    navigate({ to: "/", search: { q: undefined, filter: undefined, athlete }, replace: true });
+    navigate({
+      from: "/",
+      to: "/",
+      search: (prev) => ({ ...prev, q: undefined, filter: undefined }),
+      replace: true,
+    });
 
   /**
    * Un `?filter=` hérité d'un chargement précédent est IGNORÉ quand les cycles n'ont pas pu être
@@ -78,10 +84,10 @@ export function AthleteTrackingSection({
       {/* Rien à chercher dans une écurie vide : la barre n'apparaît qu'avec des lignes. */}
       {rows.length === 0 ? null : (
         <AthleteTrackingToolbar
-          search={search}
+          search={searchText}
           filter={filter}
           canFilterByPlan={plansLoaded}
-          onSearchChange={setSearch}
+          onSearchChange={setSearchText}
           onFilterChange={setFilter}
         />
       )}

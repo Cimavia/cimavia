@@ -106,11 +106,18 @@ export function DashboardScreen() {
    * `replace: true` — parcourir des fiches ne doit pas empiler des entrées d'historique à remonter
    * une par une.
    */
-  const { q, filter, athlete: sheetAthleteId } = route.useSearch();
+  const { athlete: sheetAthleteId } = route.useSearch();
   // `q` et `filter` sont RECOPIÉS : ouvrir une fiche ne doit pas réinitialiser la barre d'outils
-  // du tableau, sous lequel le panneau s'ouvre et qu'on retrouve en le fermant.
+  // du tableau, sous lequel le panneau s'ouvre et qu'on retrouve en le fermant. De `prev`, l'URL la
+  // plus récente : celle du dernier rendu peut retarder d'une frappe, le routeur navigue dans une
+  // transition (#734).
   const openSheet = (athleteId: string | null) =>
-    navigate({ to: "/", search: { q, filter, athlete: athleteId ?? undefined }, replace: true });
+    navigate({
+      from: "/",
+      to: "/",
+      search: (prev) => ({ ...prev, athlete: athleteId ?? undefined }),
+      replace: true,
+    });
   const [invitationOpen, setInvitationOpen] = useState(false);
 
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
