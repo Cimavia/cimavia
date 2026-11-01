@@ -3,8 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
  * Le suivi local d'UNE séance, bloc par bloc (#722), tel que tous ses lecteurs le voient. L'ancien
- * magasin par exercice est parti avec son modèle (#723) : ses entrées restées sur un appareil ne
- * sont plus lues.
+ * magasin par exercice est parti avec son modèle (#723) : ses entrées restées sur un appareil se
+ * purgent au démarrage (`shared/lib/legacy-tracking`).
  *
  * POURQUOI un magasin au niveau du module (#346). L'écran de séance reste monté sous le débrief,
  * sur la même pile, et chacun tenait sa copie : le débrief corrigeait 3/4 en 4/4 et vidait le

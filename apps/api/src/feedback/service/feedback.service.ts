@@ -24,7 +24,6 @@ import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseSettings, toJsonInput } from "../../util/block-json.util";
 import {
   BLOCK_EXERCISE_KEYS,
-  blockExerciseKeys,
   FEEDBACK_DETAIL_INCLUDE,
   toSessionFeedbackDto,
   toTrackedBlocks,
@@ -131,7 +130,10 @@ export class FeedbackService {
     const misfit = known.filter((block) => {
       const state = tracking[block.id];
       if (state == null) return false;
-      const checks = blockChecks(parseSettings(block.settings), blockExerciseKeys(block.exercises));
+      const checks = blockChecks(
+        parseSettings(block.settings),
+        block.exercises.map((exercise) => exercise.key),
+      );
       return !trackingFitsBlock(checks, state);
     });
     if (misfit.length > 0) {

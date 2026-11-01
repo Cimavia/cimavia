@@ -51,12 +51,6 @@ export const BLOCK_EXERCISE_KEYS = {
   orderBy: { blockPosition: "asc" },
 } as const satisfies Prisma.ScheduledSessionExerciseFindManyArgs;
 
-export function blockExerciseKeys(
-  rows: readonly Pick<ScheduledSessionExercise, "key">[],
-): string[] {
-  return rows.map((row) => row.key);
-}
-
 /**
  * Le suivi par bloc (#722), bloc par bloc : la matière de ses cases et de son décompte, que chaque
  * app rend dans sa langue (`blockChecks`, `blockTally`). Calculé ICI plutôt que chez le client : le
@@ -75,7 +69,7 @@ export function toTrackedBlocks(
     label: block.label,
     name: block.name,
     settings: parseSettings(block.settings),
-    exerciseKeys: blockExerciseKeys(block.exercises),
+    exerciseKeys: block.exercises.map((exercise) => exercise.key),
     tracking: parseBlockTracking(block.tracking),
   }));
 }

@@ -55,6 +55,11 @@ const { store, asyncStorage } = vi.hoisted(() => {
         store.delete(key);
         return Promise.resolve();
       }),
+      getAllKeys: vi.fn(() => Promise.resolve([...store.keys()])),
+      multiRemove: vi.fn((keys: readonly string[]) => {
+        for (const key of keys) store.delete(key);
+        return Promise.resolve();
+      }),
     },
   };
 });
