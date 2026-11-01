@@ -12,7 +12,7 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { waitFor, within } from "@testing-library/react";
+import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
 import { organizationApi } from "@/feature/company/api";
@@ -360,6 +360,22 @@ describe("DashboardScreen — le tableau de suivi", () => {
     expect(view.router.state.location.search).not.toHaveProperty("filter");
   });
 
+  // Le routeur navigue dans une transition : un filtre qui recopierait la recherche du dernier rendu
+  // la ramènerait à une frappe d'avant (#734).
+  it("garde toute la recherche tapée quand un filtre est choisi juste après", async () => {
+    const view = await mount();
+    await view.findByText("Noah Fontaine");
+
+    // `fireEvent`, synchrone : le clic part avant que la frappe ne soit rendue.
+    fireEvent.change(view.getByLabelText("dashboard.table.searchLabel"), {
+      target: { value: "noa" },
+    });
+    fireEvent.click(view.getByRole("button", { name: "dashboard.table.filter.NO_PLAN" }));
+
+    await waitFor(() => expect(view.router.state.status).toBe("idle"));
+    expect(view.router.state.location.search).toMatchObject({ q: "noa", filter: "NO_PLAN" });
+  });
+
   it("efface la recherche de l'url plutôt que d'y laisser une chaîne vide", async () => {
     const view = await mount({}, { q: "n" });
     await view.findByText("Noah Fontaine");
@@ -382,6 +398,23 @@ describe("DashboardScreen — le tableau de suivi", () => {
 
     expect(view.router.state.location.search).toEqual({});
     expect(await view.findByText("Léa Moreau")).toBeInTheDocument();
+  });
+
+  // La frappe n'est pas encore rendue quand Réinitialiser part : l'url rendue garde le même `?q=`,
+  // et le champ doit quand même se vider.
+  it("vide aussi le champ quand on réinitialise juste après une frappe", async () => {
+    const view = await mount({}, { q: "zzz", filter: "ENDED_PLAN" });
+    const reset = await view.findByRole("button", { name: "dashboard.table.noMatch.reset" });
+
+    // `fireEvent`, synchrone : Réinitialiser part avant que la frappe ne soit rendue.
+    fireEvent.change(view.getByLabelText("dashboard.table.searchLabel"), {
+      target: { value: "zzzz" },
+    });
+    fireEvent.click(reset);
+
+    await waitFor(() => expect(view.router.state.status).toBe("idle"));
+    expect(view.router.state.location.search).toEqual({});
+    expect(view.getByLabelText("dashboard.table.searchLabel")).toHaveValue("");
   });
 
   it("invite depuis l'écurie vide, sans barre de recherche à y promener", async () => {

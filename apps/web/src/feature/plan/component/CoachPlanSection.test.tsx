@@ -1,4 +1,5 @@
 import { MyAccessLevel, PlanStatus, type PlanSummaryDto } from "@cmv/shared";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CoachPlanSection } from "@/feature/plan/component/CoachPlanSection";
 import { renderInRoute } from "../../../../test/render";
@@ -117,11 +118,13 @@ describe("CoachPlanSection", () => {
   // Le routeur navigue dans une transition : un segment qui recopierait la recherche du dernier rendu
   // la ramènerait à une frappe d'avant (#734).
   it("garde toute la recherche tapée quand un segment est choisi juste après", async () => {
-    const { getByLabelText, getByText, user, router } = await mount([LEA, YANIS]);
+    const { getByLabelText, getByText, router } = await mount([LEA, YANIS]);
 
-    await user.type(getByLabelText("plan.searchLabel"), "bel");
-    await user.click(getByText("plan.stateFilter.ENDED"));
+    // `fireEvent`, synchrone : le clic part avant que la frappe ne soit rendue.
+    fireEvent.change(getByLabelText("plan.searchLabel"), { target: { value: "bel" } });
+    fireEvent.click(getByText("plan.stateFilter.ENDED"));
 
+    await waitFor(() => expect(router.state.status).toBe("idle"));
     expect(router.state.location.search).toMatchObject({ q: "bel", state: "ENDED" });
   });
 
@@ -140,6 +143,18 @@ describe("CoachPlanSection", () => {
     await user.click(getByText("Yanis Belkacem"));
 
     expect(router.state.location.search).toMatchObject({ athlete: "ath_yanis" });
+  });
+
+  // Plus rapide que la transition du routeur : le second clic compare à l'url à jour (#734).
+  it("un double clic rapide sur un athlète le déplie puis le referme", async () => {
+    const { getByText, router } = await mount([LEA, YANIS]);
+
+    // `fireEvent`, synchrone : les deux clics partent avant que la transition ne soit rendue.
+    fireEvent.click(getByText("Léa Bonnet"));
+    fireEvent.click(getByText("Léa Bonnet"));
+
+    await waitFor(() => expect(router.state.status).toBe("idle"));
+    expect(router.state.location.search).not.toHaveProperty("athlete");
   });
 
   it("recliquer l'athlète déplié le referme", async () => {

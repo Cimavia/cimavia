@@ -1,5 +1,15 @@
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+/**
+ * Le `?q=` d'une URL tel que les routes le valident : une chaîne non vide, ou rien. `?q=42` tapé à
+ * la main est lu comme un nombre par le routeur, et écarté. Une seule règle pour les routes et pour
+ * `useUrlSearchText`, qui compare la sienne à celle du routeur : deux lectures divergentes
+ * l'empêcheraient de reconnaître une URL à jour.
+ */
+export function searchTextFromUrl(raw: unknown): string | undefined {
+  return typeof raw === "string" && raw.length > 0 ? raw : undefined;
+}
 
 /**
  * Le texte d'une barre de recherche écrite dans l'URL (`?q=`), tenu par le champ lui-même (#734).
@@ -15,6 +25,11 @@ import { useEffect, useState } from "react";
  * rattrapée et dit autre chose que le champ vient d'ailleurs (Réinitialiser, bouton Retour). Rien à
  * tenir en file : une transition qui saute des étapes ne laisse pas d'écho en suspens.
  *
+ * La comparaison se fait À CHAQUE RENDU, et pas dans un effet : une remise à zéro qui laisse `?q=`
+ * comme le dernier rendu l'avait — une frappe pas encore rendue, puis Réinitialiser — ne change
+ * pas `fromUrl`, et un effet qui en dépendrait ne la verrait pas. Pendant le rendu, le champ se
+ * recale aussi sans afficher une image de l'ancien texte.
+ *
  * `write` reçoit `undefined` pour un champ vide : un `?q=` vide dans l'URL serait du bruit.
  */
 export function useUrlSearchText(
@@ -24,11 +39,8 @@ export function useUrlSearchText(
   const router = useRouter();
   const [text, setText] = useState(fromUrl ?? "");
 
-  useEffect(() => {
-    const latest = router.latestLocation.search as { q?: unknown };
-    const current = typeof latest.q === "string" && latest.q.length > 0 ? latest.q : undefined;
-    if (fromUrl === current && (fromUrl ?? "") !== text) setText(fromUrl ?? "");
-  }, [router, fromUrl, text]);
+  const latest = searchTextFromUrl((router.latestLocation.search as { q?: unknown }).q);
+  if (fromUrl === latest && (fromUrl ?? "") !== text) setText(fromUrl ?? "");
 
   const change = (next: string) => {
     setText(next);

@@ -3,6 +3,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { DashboardScreen } from "@/feature/dashboard";
 import { CmvRoleGate } from "@/shared/component";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
  * `/` est l'accueil du COACH — son tableau de bord.
@@ -63,7 +64,7 @@ function toFilter(value: unknown): AthleteRowFilter | undefined {
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
-    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    q: searchTextFromUrl(search.q),
     filter: toFilter(search.filter),
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,

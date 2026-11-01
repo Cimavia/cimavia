@@ -52,14 +52,14 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
    * navigue dans une transition, et une frappe suivie d'un clic sur un segment écraserait sinon la
    * recherche par celle d'avant la frappe (#734).
    */
-  const go = (next: Partial<PlansSearch>) =>
+  const go = (next: (prev: PlansSearch) => Partial<PlansSearch>) =>
     navigate({
       from: "/plans/",
       to: "/plans",
-      search: (prev) => ({ ...prev, ...next }),
+      search: (prev) => ({ ...prev, ...next(prev) }),
       replace: true,
     });
-  const [searchText, setSearchText] = useUrlSearchText(q, (next) => go({ q: next }));
+  const [searchText, setSearchText] = useUrlSearchText(q, (next) => go(() => ({ q: next })));
 
   return (
     <div className="flex flex-col gap-cmv-lg">
@@ -69,7 +69,7 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
         counts={counts}
         onSearchChange={setSearchText}
         // « Tous » ne s'écrit pas dans l'URL : c'est la valeur par défaut, l'y laisser serait du bruit.
-        onFilterChange={(next) => go({ state: next === "ALL" ? undefined : next })}
+        onFilterChange={(next) => go(() => ({ state: next === "ALL" ? undefined : next }))}
       />
 
       {visible.length === 0 ? (
@@ -84,7 +84,11 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
           rows={visible}
           expandedAthleteId={athlete ?? null}
           // Recliquer sur l'athlète déplié le referme : un seul historique ouvert à la fois.
-          onToggle={(athleteId) => go({ athlete: athleteId === athlete ? undefined : athleteId })}
+          // Comparé à `prev` et non au dernier rendu : deux clics plus rapides que la transition
+          // rouvriraient la ligne au lieu de la refermer.
+          onToggle={(athleteId) =>
+            go((prev) => ({ athlete: prev.athlete === athleteId ? undefined : athleteId }))
+          }
         />
       )}
     </div>

@@ -77,6 +77,16 @@ describe("useUrlSearchText", () => {
     expect(text()).toBe("");
   });
 
+  // Réinitialiser avant que la frappe ne soit rendue : l'url rendue ne bouge pas, le champ si.
+  it("se vide sur une remise à zéro qui laisse l'url rendue telle quelle", () => {
+    const { type, navigatedElsewhere, text } = mount(undefined);
+
+    type("bel");
+    navigatedElsewhere(undefined);
+
+    expect(text()).toBe("");
+  });
+
   // `?q=42` tapé à la main : le routeur le lit comme un nombre, que la validation de la route écarte.
   it("lit un q qui n'est pas une chaîne comme la route : sans recherche", () => {
     const { rendered, text } = mount("bel");

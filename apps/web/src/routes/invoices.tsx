@@ -2,6 +2,7 @@ import { INVOICE_ROW_FILTERS, type InvoiceRowFilter, type TrainingCapability } f
 import { createFileRoute } from "@tanstack/react-router";
 import { InvoicesScreen } from "@/feature/invoice";
 import { CmvRoleGate } from "@/shared/component";
+import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
  * `?as=coach|athlete` — à quel titre on lit cette ressource.
@@ -56,7 +57,7 @@ function toSituation(value: unknown): InvoiceRowFilter | undefined {
 export function parseInvoicesSearch(search: Record<string, unknown>): InvoicesSearch {
   return {
     as: parseAsSearch(search.as),
-    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    q: searchTextFromUrl(search.q),
     situation: toSituation(search.situation),
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
