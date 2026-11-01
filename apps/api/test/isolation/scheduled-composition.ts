@@ -229,7 +229,8 @@ describe("Composition d'une séance planifiée pour les semaines choisies (#720)
     );
     expect(taken.status).toBe(400);
 
-    // La semaine 1 accepterait le retrait ; la semaine 2 ne le peut pas, il n'y resterait rien.
+    // La semaine 1 accepterait le retrait ; la semaine 2 ne le peut pas : son seul bloc partirait
+    // avec son dernier exercice (#744).
     await compose({ kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a2" }, [w2 as Copy]);
     const [w1b, w2b] = await copies();
     const last = await compose({ kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a1" }, [
@@ -237,6 +238,7 @@ describe("Composition d'une séance planifiée pour les semaines choisies (#720)
       w2b as Copy,
     ]);
     expect(last.status).toBe(400);
+    expect(last.body.detail).toContain("LAST_BLOCK");
     expect((await copies()).map(keysOf).slice(0, 2)).toEqual([["a1", "a2", "x1"], ["a1"]]);
     expect(w1?.updatedAt).toBe(w1b?.updatedAt);
 

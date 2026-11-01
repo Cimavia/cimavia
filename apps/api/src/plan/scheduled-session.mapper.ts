@@ -1,4 +1,8 @@
-import type { ScheduledSessionDto, ScheduledSessionExerciseDto } from "@cmv/shared";
+import {
+  isRemovedBlock,
+  type ScheduledSessionDto,
+  type ScheduledSessionExerciseDto,
+} from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
@@ -54,6 +58,10 @@ export async function toScheduledSessionDto(
   const exercises = await Promise.all(
     session.exercises.map((exercise) => toExerciseDto(exercise, storage)),
   );
+  // Un bloc retiré (#744) ne se lit pas : la séance est ce que l'athlète a à faire — y compris
+  // pour une build mobile déjà installée, qui ne sait rien d'un bloc vide. Le panneau du coach lit
+  // les copies, qui le gardent à son rang.
+  const blocks = session.blocks.filter((block) => !isRemovedBlock(block));
   return {
     id: session.id,
     planId: session.planId,
@@ -65,11 +73,11 @@ export async function toScheduledSessionDto(
     position: session.position,
     status: session.status,
     exerciseCount: session.exercises.length,
-    blockCount: session.blocks.length,
+    blockCount: blocks.length,
     updatedAt: session.updatedAt.toISOString(),
     coachId: session.coachId,
     coachName: session.plan.coach.name,
     exercises,
-    blocks: session.blocks.map(toScheduledSessionBlockDto),
+    blocks: blocks.map(toScheduledSessionBlockDto),
   };
 }
