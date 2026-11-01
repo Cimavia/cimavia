@@ -23,9 +23,9 @@ import { DosageTable } from "./DosageTable";
 
 const SETTINGS = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 const WEEKS = [
-  { id: "pw-1", weekNumber: 1, type: PlanWeekType.TRAINING },
-  { id: "pw-2", weekNumber: 2, type: PlanWeekType.DELOAD },
-  { id: "pw-3", weekNumber: 3, type: PlanWeekType.TRAINING },
+  { id: "pw-1", weekNumber: 1, type: PlanWeekType.TRAINING, startDate: "2026-09-07" },
+  { id: "pw-2", weekNumber: 2, type: PlanWeekType.DELOAD, startDate: "2026-09-14" },
+  { id: "pw-3", weekNumber: 3, type: PlanWeekType.TRAINING, startDate: "2026-09-21" },
 ] as PlanWeekDto[];
 
 const gridOf = (...reps: number[]): BlockGrid => ({
@@ -146,7 +146,9 @@ describe("DosageTable", () => {
     // « Valeur », puis S1 à S3 ; les en-têtes de bloc, eux, couvrent la ligne.
     const [head] = view.getAllByRole("rowgroup");
     expect(within(head as HTMLElement).getAllByRole("columnheader")).toHaveLength(4);
+    // Sans séance, la semaine se date à son lundi.
     expect(view.getByText("plan.dosage.notPlaced")).toBeTruthy();
+    expect(view.getByText(`- ${formatLongDay("2026-09-21")}`)).toBeTruthy();
     // La décharge le dit en tête de sa colonne.
     expect(view.getByText("- plan.dosage.deloadDay")).toBeTruthy();
   });

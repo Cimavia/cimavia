@@ -37,7 +37,7 @@ import {
   shownSeries,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockMark } from "@/feature/library/component/BlockMark";
@@ -182,22 +182,73 @@ function ColumnHead({
   const { t } = useTranslation();
   if (column.kind === DosageColumnKind.ABSENT || copy === null) {
     return (
-      <th scope="col" style={{ width }} className={cn("px-cmv-md py-cmv-sm text-left", HATCHED)}>
-        <span className={cn("block text-cmv-body text-cmv-text-lo", COLUMN_MIN)}>{name}</span>
-        <span className="block text-cmv-caption text-cmv-text-lo">
-          {t("plan.dosage.notPlaced")}
-        </span>
-      </th>
+      <HeadShell column={column} width={width} className={HATCHED}>
+        <span className="text-cmv-caption text-cmv-text-lo">{t("plan.dosage.notPlaced")}</span>
+      </HeadShell>
     );
   }
   const count = dosageAdjustedCount(copy);
   return (
+    <HeadShell
+      column={column}
+      width={width}
+      className={cn(column.deload && "bg-cmv-bg-0")}
+      end={
+        <>
+          {column.locked ? (
+            <span className="rounded-cmv-sm border border-cmv-accent bg-cmv-accent-soft px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-accent-on">
+              {t("plan.dosage.debriefed")}
+            </span>
+          ) : null}
+          <CmvMenu
+            label={t("plan.dosage.columnActions", { week: name })}
+            groups={[
+              [
+                {
+                  label: t("plan.composition.backToSessionType"),
+                  onSelect: () => onRevertCopy(copy.id),
+                  disabled: readOnly || column.locked || count === 0,
+                },
+                { label: t("plan.dosage.compose"), onSelect: () => onCompose(copy.id) },
+              ],
+            ]}
+          />
+        </>
+      }
+    >
+      <span
+        className={cn(
+          "flex items-center gap-cmv-xs text-cmv-caption",
+          count > 0 ? "text-cmv-info-on" : "text-cmv-text-lo",
+        )}
+      >
+        {count > 0 ? <AdjustmentMarker /> : null}
+        {t("plan.dosage.adjusted", { count })}
+      </span>
+    </HeadShell>
+  );
+}
+
+type HeadShellProps = {
+  column: DosageColumn;
+  width: string;
+  className: string | false;
+  /** Sous « S1 - lundi 26 octobre » : où en est la semaine. */
+  children: ReactNode;
+  /** À droite, centré : le badge « Débriefée », le menu. */
+  end?: ReactNode;
+};
+
+/** La même tête pour toutes les semaines, la séance posée ou non : son titre, puis son état. */
+function HeadShell({ column, width, className, children, end }: Readonly<HeadShellProps>) {
+  const { t } = useTranslation();
+  return (
     <th
       scope="col"
       style={{ width }}
-      className={cn("px-cmv-md py-cmv-sm text-left align-top", column.deload && "bg-cmv-bg-0")}
+      className={cn("px-cmv-md py-cmv-sm text-left align-middle", className)}
     >
-      <div className={cn("flex items-start gap-cmv-xs", COLUMN_MIN)}>
+      <div className={cn("flex items-center gap-cmv-xs", COLUMN_MIN)}>
         <div className="flex min-w-0 flex-1 flex-col">
           {/* « S1 - lundi 26 octobre » : le jour en entier suffit à distinguer deux séances de
             la même semaine, sans le répéter après son numéro. */}
@@ -212,34 +263,9 @@ function ColumnHead({
                 : formatLongDay(column.date)}
             </span>
           </span>
-          <span
-            className={cn(
-              "flex items-center gap-cmv-xs text-cmv-caption",
-              count > 0 ? "text-cmv-info-on" : "text-cmv-text-lo",
-            )}
-          >
-            {count > 0 ? <AdjustmentMarker /> : null}
-            {t("plan.dosage.adjusted", { count })}
-          </span>
-          {column.locked ? (
-            <span className="text-cmv-caption text-cmv-accent-on">
-              {t("plan.dosage.debriefed")}
-            </span>
-          ) : null}
+          {children}
         </div>
-        <CmvMenu
-          label={t("plan.dosage.columnActions", { week: name })}
-          groups={[
-            [
-              {
-                label: t("plan.composition.backToSessionType"),
-                onSelect: () => onRevertCopy(copy.id),
-                disabled: readOnly || column.locked || count === 0,
-              },
-              { label: t("plan.dosage.compose"), onSelect: () => onCompose(copy.id) },
-            ],
-          ]}
-        />
+        {end}
       </div>
     </th>
   );
