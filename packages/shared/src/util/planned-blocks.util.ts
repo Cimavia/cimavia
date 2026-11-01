@@ -66,6 +66,16 @@ export type ValueChange =
 export type PlannedChanges = { composition: CompositionChange[]; values: ValueChange[] };
 
 /**
+ * Un bloc retiré pour l'athlète (#744) : il garde sa place — les blocs se répondent par leur rang
+ * (`plannedLockIssues`) —, mais plus aucun exercice, et les réglages qu'il a reçus. Un bloc de
+ * séance-type a toujours un exercice au moins : un bloc planifié vide ne vient que d'un retrait,
+ * et aucune colonne ne le redit.
+ */
+export function isRemovedBlock(block: { exercises: readonly unknown[] }): boolean {
+  return block.exercises.length === 0;
+}
+
+/**
  * Ce qui distingue une séance planifiée de sa référence — la séance-type reçue —, bloc par bloc.
  * Les blocs se répondent par leur rang : au niveau planifié, leur nombre, leur ordre et leurs
  * colonnes ne bougent pas (verrou de #518) ; seules leurs valeurs et leur composition changent.

@@ -95,6 +95,10 @@ const REPLACE_A: CompositionEdit = {
   exerciseId: "ex_rower",
 };
 const REMOVE_A: CompositionEdit = { kind: CompositionEditKind.REMOVE, blockIndex: 0, key: "a" };
+const REMOVE_BLOCK: CompositionEdit = { kind: CompositionEditKind.REMOVE_BLOCK, blockIndex: 0 };
+
+/** Un second bloc, reçu tel quel : la séance garde un bloc quand le premier part. */
+const other = () => blockOf([planned("c")], reference(["c"]));
 
 /** Les clés du premier bloc, et leur origine, après un changement accepté. */
 function exercisesAfter(outcome: ReturnType<typeof appliedEdit>) {
@@ -120,6 +124,15 @@ describe("editInPlace", () => {
     expect(editInPlace([blockOf([planned("x", replacing("a"))])], REMOVE_A)).toBe(false);
     // Un exercice que la séance-type n'a pas ne se retire pas.
     expect(editInPlace([blockOf([planned("b")], reference(["b"]))], REMOVE_A)).toBe(false);
+  });
+
+  it("lit un retrait de bloc au bloc vide, qui ne porte plus aucun changement d'exercice", () => {
+    const removed = [blockOf([]), other()];
+    expect(editInPlace(removed, REMOVE_BLOCK)).toBe(true);
+    expect(editInPlace([blockOf([planned("a")])], REMOVE_BLOCK)).toBe(false);
+    expect(editInPlace(removed, { ...REMOVE_BLOCK, blockIndex: 3 })).toBe(false);
+    // Vide, le bloc n'a personne à la place de `a` : ce n'est pas pour autant un retrait de `a`.
+    expect(editInPlace(removed, REMOVE_A)).toBe(false);
   });
 });
 
@@ -176,11 +189,34 @@ describe("appliedEdit", () => {
     expect(keysAfter(appliedEdit(replaced, REMOVE_A, library))).toEqual(["b"]);
   });
 
+  it.each([
+    ["le retrait du bloc", ["a", "b"], REMOVE_BLOCK],
+    ["le retrait de son dernier exercice", ["b"], { ...REMOVE_A, key: "b" }],
+  ] as const)("retire le bloc par %s : il reste à son rang, vide, aux réglages reçus", (_case, keys, edit) => {
+    const received = { ...reference(), settings: oneByBeep(60, 4) };
+    const dosed = blockOf(
+      keys.map((key) => planned(key)),
+      received,
+      oneByBeep(60, 6),
+    );
+    const outcome = appliedEdit([dosed, other()], edit, library);
+    if (outcome.kind !== CompositionOutcomeKind.CHANGED) throw new Error(outcome.kind);
+    expect(outcome.blocks[0]).toMatchObject({ settings: received.settings, exercises: [] });
+    expect(outcome.blocks[1]?.exercises.map((exercise) => exercise.key)).toEqual(["c"]);
+  });
+
+  it("retire le bloc quand son dernier ajout est défait", () => {
+    const added = [blockOf([planned("new", ADDED)]), other()];
+    expect(keysAfter(revertedEdit(added, ADD, library))).toEqual([]);
+  });
+
   it("ne change rien là où le changement est déjà en place", () => {
     const done = [blockOf([planned("a"), planned("b"), planned("new", ADDED)])];
     expect(appliedEdit(done, ADD, library).kind).toBe(CompositionOutcomeKind.UNCHANGED);
     const removed = [blockOf([planned("b")])];
     expect(appliedEdit(removed, REMOVE_A, library).kind).toBe(CompositionOutcomeKind.UNCHANGED);
+    const empty = [blockOf([]), other()];
+    expect(appliedEdit(empty, REMOVE_BLOCK, library).kind).toBe(CompositionOutcomeKind.UNCHANGED);
   });
 
   it.each([
@@ -203,7 +239,22 @@ describe("appliedEdit", () => {
       REPLACE_A,
       "ABSENT",
     ],
-    ["le dernier exercice du bloc", [blockOf([planned("a")])], REMOVE_A, "LAST_EXERCISE"],
+    ["le dernier exercice du dernier bloc", [blockOf([planned("a")])], REMOVE_A, "LAST_BLOCK"],
+    [
+      "le dernier bloc de la séance",
+      [blockOf([planned("a")]), blockOf([])],
+      REMOVE_BLOCK,
+      "LAST_BLOCK",
+    ],
+    [
+      "le retrait d'un bloc que la copie n'a pas",
+      blocks,
+      { ...REMOVE_BLOCK, blockIndex: 2 },
+      "NO_BLOCK",
+    ],
+    ["un ajout dans un bloc retiré", [blockOf([]), other()], ADD, "BLOCK_REMOVED"],
+    ["un remplacement dans un bloc retiré", [blockOf([]), other()], REPLACE_A, "BLOCK_REMOVED"],
+    ["un retrait dans un bloc retiré", [blockOf([]), other()], REMOVE_A, "BLOCK_REMOVED"],
     ["une clé déjà prise dans la copie", blocks, { ...ADD, key: "b" }, "KEY_TAKEN"],
     [
       "une clé que la séance-type a reçue, même retirée",
@@ -319,11 +370,58 @@ describe("revertedEdit", () => {
     });
   });
 
-  it("refuse de retirer un ajout resté seul dans son bloc", () => {
+  it("refuse de retirer un ajout resté seul dans le dernier bloc", () => {
     const blocks = [blockOf([planned("new", ADDED)])];
     expect(revertedEdit(blocks, ADD, library)).toEqual({
       kind: CompositionOutcomeKind.REFUSED,
-      refusal: CompositionRefusal.LAST_EXERCISE,
+      refusal: CompositionRefusal.LAST_BLOCK,
+    });
+  });
+
+  it("rend le bloc retiré tel que la séance-type l'a donné", () => {
+    const received = { ...reference(), settings: oneByBeep(60, 4) };
+    const blocks = [blockOf([], received, received.settings), other()];
+    const outcome = revertedEdit(blocks, REMOVE_BLOCK, library);
+    if (outcome.kind !== CompositionOutcomeKind.CHANGED) throw new Error(outcome.kind);
+    expect(outcome.blocks[0]?.settings).toBe(received.settings);
+    expect(outcome.blocks[0]?.exercises).toEqual(
+      ["a", "b"].map((key) => ({
+        key,
+        origin: RECEIVED,
+        note: `note ${key}`,
+        grid: GRID,
+        exerciseId: `ex_${key}`,
+      })),
+    );
+  });
+
+  it("ne rend pas un bloc qui n'est pas retiré", () => {
+    const blocks = [blockOf([planned("a")]), other()];
+    expect(revertedEdit(blocks, REMOVE_BLOCK, library).kind).toBe(CompositionOutcomeKind.UNCHANGED);
+  });
+
+  it("refuse de rendre un bloc dont un exercice n'est plus dans la bibliothèque", () => {
+    const blocks = [blockOf([]), other()];
+    const onlyB: CompositionLibrary = (exerciseId) =>
+      exerciseId === "ex_a" ? null : library(exerciseId);
+    expect(revertedEdit(blocks, REMOVE_BLOCK, onlyB)).toEqual({
+      kind: CompositionOutcomeKind.REFUSED,
+      refusal: CompositionRefusal.NOT_IN_LIBRARY,
+    });
+  });
+
+  it("refuse de rendre un bloc qui ferait déborder la séance", () => {
+    const keys = (prefix: string, count: number) =>
+      Array.from({ length: count }, (_unused, index) => planned(`${prefix}${index}`));
+    const blocks = [
+      blockOf([]),
+      blockOf(keys("x", 20)),
+      blockOf(keys("y", 20)),
+      blockOf(keys("z", 9)),
+    ];
+    expect(revertedEdit(blocks, REMOVE_BLOCK, library)).toEqual({
+      kind: CompositionOutcomeKind.REFUSED,
+      refusal: CompositionRefusal.SESSION_FULL,
     });
   });
 });
@@ -336,6 +434,11 @@ describe("resetComposition", () => {
     expect(reset.map((exercise) => exercise.key)).toEqual(["a", "b"]);
     expect(reset[0]).toMatchObject({ exerciseId: "ex_a", grid: GRID });
     expect(reset[1]).toBe(adjusted);
+  });
+
+  it("rend aussi les blocs retirés", () => {
+    const outcome = resetComposition([blockOf([]), other()], library);
+    expect(keysAfter(outcome)).toEqual(["a", "b"]);
   });
 
   it("ne change rien à une copie qui a la composition reçue", () => {
@@ -380,10 +483,27 @@ describe("pour quelles semaines", () => {
 
   it("dit où le changement est en place, et pourquoi une copie ne le prend pas", () => {
     expect(copyChoices(copies, REPLACE_A, library)).toEqual([
-      { id: "s1", inPlace: false, refusal: null },
-      { id: "s2", inPlace: true, refusal: null },
-      { id: "s3", inPlace: false, refusal: CompositionRefusal.NO_BLOCK },
+      { id: "s1", inPlace: false, refusal: null, removesBlock: false },
+      { id: "s2", inPlace: true, refusal: null, removesBlock: false },
+      { id: "s3", inPlace: false, refusal: CompositionRefusal.NO_BLOCK, removesBlock: false },
     ]);
+  });
+
+  it("dit où le retrait d'un exercice emporte le bloc, pas où il le retire lui-même", () => {
+    const twoBlocks = (exercises: PlannedExercise[]) => ({
+      id: "s",
+      status: PLANNED,
+      blocks: [blockOf(exercises), other()],
+    });
+    const choices = copyChoices(
+      [twoBlocks([planned("a")]), twoBlocks([planned("a"), planned("b")])],
+      REMOVE_A,
+      library,
+    );
+    expect(choices.map((choice) => choice.removesBlock)).toEqual([true, false]);
+    expect(copyChoices([twoBlocks([planned("a")])], REMOVE_BLOCK, library)[0]?.removesBlock).toBe(
+      false,
+    );
   });
 
   // Le statut passe avant tout : même une copie qui prendrait le changement se grise.
@@ -414,6 +534,12 @@ describe("compter les changements", () => {
     expect(removedReferences(changed).map((reference) => reference.key)).toEqual(["b"]);
     expect(compositionChangeCount([changed, blockOf([planned("a")])])).toBe(4);
   });
+
+  it("compte un bloc retiré pour un changement, sans ses exercices", () => {
+    const removed = blockOf([]);
+    expect(removedReferences(removed)).toEqual([]);
+    expect(compositionChangeCount([removed, other()])).toBe(1);
+  });
 });
 
 describe("editOfExercise", () => {
@@ -433,6 +559,13 @@ describe("scheduledCompositionInputSchema", () => {
   it("accepte un changement à appliquer, ou à défaire sans source", () => {
     expect(
       scheduledCompositionInputSchema.safeParse({ edit: ADD, apply: [version], revert: [] }),
+    ).toMatchObject({ success: true });
+    expect(
+      scheduledCompositionInputSchema.safeParse({
+        edit: REMOVE_BLOCK,
+        apply: [version],
+        revert: [],
+      }),
     ).toMatchObject({ success: true });
     const sourceless = { ...ADD, exerciseId: null };
     expect(
