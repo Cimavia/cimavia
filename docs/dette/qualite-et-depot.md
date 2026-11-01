@@ -463,10 +463,11 @@ liste des domaines vivent dans l'index.
 > - **Les Dockerfiles lisent pnpm et turbo** dans `package.json` (#479), par un étage `versions`
 >   qui n'en garde que ces deux valeurs : la release, qui change `version` à chaque fois,
 >   n'invalide plus l'installation. Une version non exacte fait échouer le build.
->
-> Découvert en chemin : `expo install --check` réclame huit patchs Expo (`expo` 56.0.24…). Ils ne
-> viennent pas d'ici — Expo avance par `expo install --fix`, hors Dependabot — et `expo-updates` en
-> fait partie : la montée change l'empreinte du runtime, donc un nouveau build EAS.
+> - **Les patchs du SDK Expo montent aussi** (`expo` 56.0.24 et sept autres, ceux que réclame
+>   `expo install --check`), chacun gardant son épinglage, exact ou `~`. Ils n'arrivent jamais
+>   par Dependabot, qui ignore la chaîne Expo. `expo-updates` en fait partie : l'empreinte du
+>   runtime change, et le prochain déploiement mobile demande un build EAS, pas un `eas update`.
+>   Au passage, `xcode` et le `uuid` vulnérable quittent l'arbre.
 
 > **Tranché en [#401](https://github.com/Cimavia/cimavia/issues/401)** (audit des workflows,
 > ferme [#385](https://github.com/Cimavia/cimavia/issues/385)) : zizmor ne relève plus rien, même
