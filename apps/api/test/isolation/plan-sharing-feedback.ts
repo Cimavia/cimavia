@@ -1,6 +1,7 @@
 import { type ConversationDto, directCounterpartId, MessageType } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish } from "../support/actors";
+import { fromTemplate } from "../support/fixtures";
 import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
 
 type Summary = {
@@ -137,7 +138,7 @@ describe("Débriefs d'un cycle partagé : notifiés à chaque Coach, lus par cha
   it("TE débriefe : seul C est prévenu", async () => {
     const session = await world.c
       .post(`/plan-weeks/${world.planTe.weekId}/sessions`)
-      .send({ title: "Séance de TE", scheduledDate: world.monday });
+      .send(await fromTemplate(world.c, { title: "Séance de TE", scheduledDate: world.monday }));
     expect(session.status).toBe(201);
     expect((await billAndPublish(world.c, world.planTe.id)).status).toBe(200);
     const teId = (await world.te.get("/api/auth/get-session")).body.user.id as string;

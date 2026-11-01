@@ -12,6 +12,7 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app } from "../support/app";
+import { blocksOf } from "../support/blocks";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import { expectLocked, patchAtLatest, publishAtLatest } from "../support/version";
 
@@ -38,11 +39,13 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
       .send({ title, startDate: monday, weeks: [{ type: "TRAINING" }] });
     expect(plan.status).toBe(201);
     const weekId = plan.body.weeks[0].id;
-    const session = await coachA.post(`/plan-weeks/${weekId}/sessions`).send({
-      title: "Séance libre",
-      scheduledDate: monday,
-      exercises: [{ sourceExerciseId: exerciseId, title: "Tractions", tags: ["dos"] }],
-    });
+    const template = await coachA
+      .post("/sessions")
+      .send({ title: "Séance libre", blocks: blocksOf(exerciseId) });
+    expect(template.status).toBe(201);
+    const session = await coachA
+      .post(`/plan-weeks/${weekId}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: monday });
     expect(session.status).toBe(201);
     return { planId: plan.body.id as string, sessionId: session.body.id as string };
   }
@@ -88,30 +91,8 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     a2Id = await link(coachA, athleteA2);
     b1Id = await link(coachB, athleteB1);
 
-    // Un exercice BLOQUÉ et TAGUÉ : les blocs donnent au décompte d'exécution un `blk_1` à
-    // cocher, le tag fait vivre la sixième table de la chaîne dénormalisée.
-    const exercise = await coachA.post("/exercises").send({
-      title: "Tractions",
-      tags: ["dos"],
-      blocks: [
-        {
-          id: "blk_1",
-          label: "Travail",
-          structure: { type: "SERIES", setCount: 3, restBetweenSetsSeconds: 120 },
-          metrics: [
-            {
-              id: "col_reps",
-              source: "CATALOG",
-              key: "REPETITIONS",
-              unit: "REPS",
-              label: null,
-              collapsed: false,
-            },
-          ],
-          rows: [{ id: "r1", values: { col_reps: 5 } }],
-        },
-      ],
-    });
+    // Un exercice TAGUÉ : le tag fait vivre la sixième table de la chaîne dénormalisée.
+    const exercise = await coachA.post("/exercises").send({ title: "Tractions", tags: ["dos"] });
     exerciseId = exercise.body.id;
   });
 
@@ -189,7 +170,7 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   /**
    * L'affectation a-t-elle atteint TOUTE la chaîne ? La lecture du cycle ne prouverait que la
    * table `plan`. Le décompte d'exécution, lui, s'écrit par un `updateMany` scopé à l'athlète sur
-   * `scheduled_session_exercise` : s'il était resté sans destinataire, l'écriture toucherait zéro
+   * `scheduled_session_block` : s'il était resté sans destinataire, l'écriture toucherait zéro
    * ligne et le suivi ne reviendrait jamais — une panne parfaitement silencieuse.
    */
   it("affecte, propage jusqu'aux exercices, puis diffuse", async () => {
@@ -207,15 +188,16 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
     const session = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
     expect(session.status).toBe(200);
 
-    const exerciseCopyId = session.body.exercises[0].id;
+    const blockId: string = session.body.blocks[0].id;
+    const checked = [{ row: 0, key: "a1" }];
     const sent = await athleteA1.put(`/me/scheduled-sessions/${sessionId}/feedback`).send({
       content: null,
-      tracking: { [exerciseCopyId]: { blk_1: { checked: [0] } } },
+      blockTracking: { [blockId]: { checked } },
     });
     expect(sent.status).toBe(200);
 
     const reread = await athleteA1.get(`/me/scheduled-sessions/${sessionId}`);
-    expect(reread.body.exercises[0].tracking).toEqual({ blk_1: { checked: [0] } });
+    expect(reread.body.blocks[0].tracking).toEqual({ checked });
   });
 
   it("ne laisse plus changer le destinataire d'un cycle diffusé", async () => {
@@ -512,7 +494,7 @@ describe("Auto-coaching : écrire et diffuser un cycle pour soi (#14)", () => {
     expect(exercise.status).toBe(201);
     const template = await solo.post("/sessions").send({
       title: "Séance solo",
-      exercises: [{ exerciseId: exercise.body.id }],
+      blocks: blocksOf(exercise.body.id),
     });
     expect(template.status).toBe(201);
 

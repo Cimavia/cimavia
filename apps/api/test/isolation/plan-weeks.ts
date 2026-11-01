@@ -2,7 +2,8 @@ import { PLAN_MAX_WEEKS, ProblemType, Role, shiftIsoDate } from "@cmv/shared";
 import type request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
-import { mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
+import { blocksOf } from "../support/blocks";
+import { fromTemplate, mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import {
   ANY_VERSION,
   atWeekVersion,
@@ -91,10 +92,12 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const [, week2, week3] = plan.body.weeks;
     const doomed = await coach
       .post(`/plan-weeks/${week2.id}/sessions`)
-      .send({ title: "Supprimée avec sa semaine", scheduledDate: day(7) });
+      .send(
+        await fromTemplate(coach, { title: "Supprimée avec sa semaine", scheduledDate: day(7) }),
+      );
     const moved = await coach
       .post(`/plan-weeks/${week3.id}/sessions`)
-      .send({ title: "Mardi de S3", scheduledDate: day(15) });
+      .send(await fromTemplate(coach, { title: "Mardi de S3", scheduledDate: day(15) }));
     expect(moved.status).toBe(201);
 
     const res = await coach
@@ -170,7 +173,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     const [, week2, week3] = plan.body.weeks;
     const kept = await coach
       .post(`/plan-weeks/${week3.id}/sessions`)
-      .send({ title: "Mardi de S3", scheduledDate: day(15) });
+      .send(await fromTemplate(coach, { title: "Mardi de S3", scheduledDate: day(15) }));
     expect(kept.status).toBe(201);
     expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 
@@ -245,7 +248,7 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
       .send({ title: "Séance nue", startDate: monday, weeks: [{ type: "TRAINING" }] });
     const session = await coach
       .post(`/plan-weeks/${bare.body.weeks[0].id}/sessions`)
-      .send({ title: "Échauffement libre", scheduledDate: monday });
+      .send(await fromTemplate(coach, { title: "Échauffement libre", scheduledDate: monday }));
     expect(session.body.exercises).toEqual([]);
 
     expect((await patchAtLatest(coach, `/plans/${bare.body.id}`, { athleteId })).status).toBe(200);
@@ -333,7 +336,7 @@ describe("Copie d'une semaine de planification (#4)", () => {
     const template = await coachA.post("/sessions").send({
       title: "Doigts",
       notes: "Échauffement long.",
-      exercises: [{ exerciseId, note: "6×10 s" }],
+      blocks: blocksOf({ exerciseId, note: "6×10 s" }),
     });
     templateId = template.body.id;
 
@@ -353,15 +356,15 @@ describe("Copie d'une semaine de planification (#4)", () => {
       .send({ sourceSessionId: templateId, scheduledDate: day(0) });
     await coachA
       .post(`/plan-weeks/${w1Id}/sessions`)
-      .send({ title: "Renfo court", scheduledDate: day(0) });
+      .send(await fromTemplate(coachA, { title: "Renfo court", scheduledDate: day(0) }));
     await coachA
       .post(`/plan-weeks/${w1Id}/sessions`)
-      .send({ title: "Voie", scheduledDate: day(2) });
+      .send(await fromTemplate(coachA, { title: "Voie", scheduledDate: day(2) }));
 
     // Semaine 3 : déjà occupée — elle devra être REMPLACÉE, pas fusionnée.
     await coachA
       .post(`/plan-weeks/${w3Id}/sessions`)
-      .send({ title: "À écraser", scheduledDate: day(15) });
+      .send(await fromTemplate(coachA, { title: "À écraser", scheduledDate: day(15) }));
 
     // Cycle d'un autre athlète, 8 semaines plus tard.
     const other = await coachA.post("/plans").send({
@@ -457,6 +460,13 @@ describe("Copie d'une semaine de planification (#4)", () => {
     // pas la bibliothèque. Sans remappage sur les nouvelles lignes, l'image ne désignerait plus rien.
     const exercise = await coachA.post("/exercises").send({ title: "Planche" });
     const imageId = await uploadInstructionImage(coachA, exercise.body.id);
+    const illustrated = await patchAtLatest(coachA, `/exercises/${exercise.body.id}`, {
+      instructions: [{ type: "IMAGE", mediaId: imageId, width: "MEDIUM" }],
+    });
+    expect(illustrated.status).toBe(200);
+    const template = await coachA
+      .post("/sessions")
+      .send({ title: "Gainage", blocks: blocksOf(exercise.body.id) });
 
     const plan = await coachA.post("/plans").send({
       athleteId: a1Id,
@@ -465,17 +475,9 @@ describe("Copie d'une semaine de planification (#4)", () => {
       weeks: [{ type: "TRAINING" }, { type: "TRAINING" }],
     });
     const [sourceWeekId, targetWeekId] = plan.body.weeks.map((w: { id: string }) => w.id);
-    const source = await coachA.post(`/plan-weeks/${sourceWeekId}/sessions`).send({
-      title: "Gainage",
-      scheduledDate: day(0),
-      exercises: [
-        {
-          sourceExerciseId: exercise.body.id,
-          title: "Planche",
-          instructions: [{ type: "IMAGE", mediaId: imageId }],
-        },
-      ],
-    });
+    const source = await coachA
+      .post(`/plan-weeks/${sourceWeekId}/sessions`)
+      .send({ sourceSessionId: template.body.id, scheduledDate: day(0) });
     expect(source.status).toBe(201);
     const sourceMediaId = source.body.exercises[0].instructions[0].mediaId;
 
@@ -642,12 +644,15 @@ describe("Semaine — version lue (#604)", () => {
     for (const name of ["Lundi 1", "Lundi 2"]) {
       const session = await coach
         .post(`/plan-weeks/${weekId}/sessions`)
-        .send({ title: name, scheduledDate: monday });
+        .send(await fromTemplate(coach, { title: name, scheduledDate: monday }));
       sessionIds.push(session.body.id);
     }
-    await coach
-      .post(`/plan-weeks/${sourceWeekId}/sessions`)
-      .send({ title: "Source", scheduledDate: shiftIsoDate(monday, 7) });
+    await coach.post(`/plan-weeks/${sourceWeekId}/sessions`).send(
+      await fromTemplate(coach, {
+        title: "Source",
+        scheduledDate: required(shiftIsoDate(monday, 7) ?? undefined, "lundi suivant"),
+      }),
+    );
     return { planId: plan.body.id, weekId, sourceWeekId, sessionIds };
   }
 
@@ -742,10 +747,10 @@ describe("Semaine — version lue (#604)", () => {
   it.each([
     [
       "posée",
-      (g: Grid) =>
+      async (g: Grid) =>
         coach
           .post(`/plan-weeks/${g.weekId}/sessions`)
-          .send({ title: "Posée par l'autre", scheduledDate: monday }),
+          .send(await fromTemplate(coach, { title: "Posée par l'autre", scheduledDate: monday })),
     ],
     [
       "retouchée",
@@ -753,7 +758,6 @@ describe("Semaine — version lue (#604)", () => {
         putAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`, {
           title: "Retouchée",
           scheduledDate: monday,
-          exercises: [],
         }),
     ],
     ["supprimée", (g: Grid) => deleteAtLatest(coach, `/scheduled-sessions/${g.sessionIds[0]}`)],
@@ -881,8 +885,10 @@ describe("Semaine — version lue (#604)", () => {
   it("des séances posées ensemble le même jour prennent chacune leur rang", async () => {
     const g = await grid("Séances croisées");
     const created = await Promise.all(
-      ["A", "B", "C"].map((title) =>
-        coach.post(`/plan-weeks/${g.weekId}/sessions`).send({ title, scheduledDate: monday }),
+      ["A", "B", "C"].map(async (title) =>
+        coach
+          .post(`/plan-weeks/${g.weekId}/sessions`)
+          .send(await fromTemplate(coach, { title, scheduledDate: monday })),
       ),
     );
 
@@ -905,7 +911,7 @@ describe("Séance planifiée — version lue (#604)", () => {
 
   const monday = mondayOfCurrentWeek();
   const path = (sessionId: string) => `/scheduled-sessions/${sessionId}`;
-  const edit = (title: string) => ({ title, scheduledDate: monday, exercises: [] });
+  const edit = (title: string) => ({ title, scheduledDate: monday });
 
   /** Un brouillon d'une semaine, une séance le lundi : rend son identifiant et son cycle. */
   async function scheduled(title: string): Promise<{ planId: string; sessionId: string }> {
@@ -918,7 +924,7 @@ describe("Séance planifiée — version lue (#604)", () => {
     expect(plan.status).toBe(201);
     const session = await coach
       .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-      .send({ title, scheduledDate: monday });
+      .send(await fromTemplate(coach, { title, scheduledDate: monday }));
     expect(session.status).toBe(201);
     return { planId: plan.body.id, sessionId: session.body.id };
   }

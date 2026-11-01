@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import { type Agent, idOf, joinOrganization, signUp, signUpWith } from "../support/actors";
 import { app } from "../support/app";
+import { blocksOf } from "../support/blocks";
 import { type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
 import { asCoach } from "../support/tenant";
 import { patchAtLatest } from "../support/version";
@@ -236,9 +237,7 @@ describe("Droits d'accès par Coach, dans la bibliothèque", () => {
       ids: [id],
       changes: [{ organizationId: ids.f, level: "READ" }],
     });
-    const session = await m
-      .post("/sessions")
-      .send({ title: "Séance de M", exercises: [{ exerciseId: id }] });
+    const session = await m.post("/sessions").send({ title: "Séance de M", blocks: blocksOf(id) });
     expect(session.status).toBe(201);
     const citedBy = async () =>
       (await m.get(`/sessions/${session.body.id}`)).body.exercises[0].exerciseId;
@@ -264,7 +263,7 @@ describe("Droits d'accès par Coach, dans la bibliothèque", () => {
   });
 
   it("une séance s'ouvre aussi à un seul Coach", async () => {
-    const session = await c.post("/sessions").send({ title: "Séance de C", exercises: [] });
+    const session = await c.post("/sessions").send({ title: "Séance de C" });
     expect(session.status).toBe(201);
     const res = await changeAccess(c, "sessions", {
       ids: [session.body.id],

@@ -10,7 +10,7 @@ import {
   signUp,
   signUpWith,
 } from "../support/actors";
-import { inPast, mondayOfCurrentWeek } from "../support/fixtures";
+import { fromTemplate, inPast, mondayOfCurrentWeek } from "../support/fixtures";
 import { countQueries } from "../support/query-count";
 
 /**
@@ -47,7 +47,7 @@ async function follow(coach: Agent, athlete: Agent): Promise<void> {
   expect(plan.status).toBe(201);
   const session = await coach
     .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
-    .send({ title: "Séance mesurée", scheduledDate: monday });
+    .send(await fromTemplate(coach, { title: "Séance mesurée", scheduledDate: monday }));
   expect(session.status).toBe(201);
   expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
 

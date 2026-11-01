@@ -82,7 +82,7 @@ describe("Plusieurs coachs par athlète (#599)", () => {
 
   // Un cycle d'une semaine, une séance au lundi, facturé et diffusé : de quoi lire de chaque côté.
   async function publishedCycle(coach: Agent, title: string) {
-    const template = await coach.post("/sessions").send({ title, notes: null, exercises: [] });
+    const template = await coach.post("/sessions").send({ title, notes: null });
     const plan = await coach.post("/plans").send({
       athleteId: tiId,
       title,
