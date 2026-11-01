@@ -2,6 +2,7 @@ import { PLAN_ROW_FILTERS, type PlanRowFilter } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlansScreen } from "@/feature/plan";
 import { CmvRoleGate } from "@/shared/component";
+import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
  * `?q=`, `?state=` et `?athlete=` — l'état de la barre d'outils et l'athlète déplié vivent dans
@@ -39,7 +40,7 @@ function toState(value: unknown): PlanRowFilter | undefined {
  */
 export function parsePlansSearch(search: Record<string, unknown>): PlansSearch {
   return {
-    q: typeof search.q === "string" && search.q.length > 0 ? search.q : undefined,
+    q: searchTextFromUrl(search.q),
     state: toState(search.state),
     athlete:
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,

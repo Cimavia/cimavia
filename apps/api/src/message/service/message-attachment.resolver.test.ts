@@ -26,8 +26,9 @@ function fakeDb(
 
 /** Les ids demandés par le premier (et unique) `findMany` du lot. */
 function requestedIds(findMany: ReturnType<typeof vi.fn>): string[] {
-  const [args] = findMany.mock.calls;
-  return (args?.[0] as { where: { id: { in: string[] } } }).where.id.in;
+  expect(findMany).toHaveBeenCalledOnce();
+  const [[query]] = findMany.mock.calls as [[{ where: { id: { in: string[] } } }]];
+  return query.where.id.in;
 }
 
 function message(overrides: Partial<Message> & { id: string }): Message {

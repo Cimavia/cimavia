@@ -13,7 +13,7 @@ or {
   TsInterfaceDeclaration(),
   TsEnumDeclaration()
 } as $item where {
-  $item <: not within JsFunctionBody() ,
+  $item <: not within JsFunctionBody(),
   $item <: not r"export \{ \w+ as default \} from \"@/feature/[\w/-]+\";",
   register_diagnostic(span=$item, message="Fichier de route : seulement « export { Screen as default } from @/feature/<x> » ; l'écran vit dans sa feature (règle dure n°4).", severity="error")
 }

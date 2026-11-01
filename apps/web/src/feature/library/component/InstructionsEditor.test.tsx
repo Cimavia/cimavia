@@ -181,19 +181,22 @@ describe("InstructionsEditor — mise en forme", () => {
     ["callout", { type: RichBlockType.CALLOUT, content: [{ text: "Exécution" }] }],
     ["bulletList", { type: RichBlockType.LIST, ordered: false, items: [[{ text: "Exécution" }]] }],
     ["orderedList", { type: RichBlockType.LIST, ordered: true, items: [[{ text: "Exécution" }]] }],
-  ])("« %s » change la nature du bloc du curseur, et le second clic la rend", async (name, block) => {
-    const { user, surface, tool, last } = setup([paragraph("Exécution")]);
+  ])(
+    "« %s » change la nature du bloc du curseur, et le second clic la rend",
+    async (name, block) => {
+      const { user, surface, tool, last } = setup([paragraph("Exécution")]);
 
-    // Le curseur dans le bloc, pas Ctrl+A : sous une sélection TOTALE, TipTap ne voit pas le
-    // bloc actif, et le second clic le reposerait au lieu de le rendre.
-    surface.focus();
-    await user.click(tool(name));
-    expect(last()).toEqual([block]);
-    expect(tool(name)).toHaveAttribute("aria-pressed", "true");
+      // Le curseur dans le bloc, pas Ctrl+A : sous une sélection TOTALE, TipTap ne voit pas le
+      // bloc actif, et le second clic le reposerait au lieu de le rendre.
+      surface.focus();
+      await user.click(tool(name));
+      expect(last()).toEqual([block]);
+      expect(tool(name)).toHaveAttribute("aria-pressed", "true");
 
-    await user.click(tool(name));
-    expect(last()).toEqual([paragraph("Exécution")]);
-  });
+      await user.click(tool(name));
+      expect(last()).toEqual([paragraph("Exécution")]);
+    },
+  );
 
   // Un clic ordinaire volerait le focus à l'éditeur, donc la sélection : la marque tomberait
   // sur un curseur vide.

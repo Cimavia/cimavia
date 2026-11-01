@@ -134,22 +134,23 @@ describe("mailCatalog — gabarits de notification", () => {
    * RÉDACTION, pas une interpolation vide : ce test refuse les guillemets vides et le mot
    * « null », les deux formes que prend une valeur manquante mal traitée.
    */
-  it.each([
-    ...EMAILABLE_NOTIFICATION_TYPES,
-  ])("tourne une phrase complète sans acteur ni sujet pour %s", (type) => {
-    for (const locale of [Locale.FR, Locale.EN]) {
-      const mail = mailCatalog(locale).notification(type, {
-        actorName: null,
-        subjectLabel: null,
-        settingsUrl: SETTINGS,
-      });
-      expect(mail.subject).not.toContain("null");
-      expect(mail.text).not.toContain("null");
-      expect(mail.text).not.toContain("«  »");
-      expect(mail.text).not.toContain('""');
-      expect(mail.subject).not.toMatch(/:\s*$/);
-    }
-  });
+  it.each([...EMAILABLE_NOTIFICATION_TYPES])(
+    "tourne une phrase complète sans acteur ni sujet pour %s",
+    (type) => {
+      for (const locale of [Locale.FR, Locale.EN]) {
+        const mail = mailCatalog(locale).notification(type, {
+          actorName: null,
+          subjectLabel: null,
+          settingsUrl: SETTINGS,
+        });
+        expect(mail.subject).not.toContain("null");
+        expect(mail.text).not.toContain("null");
+        expect(mail.text).not.toContain("«  »");
+        expect(mail.text).not.toContain('""');
+        expect(mail.subject).not.toMatch(/:\s*$/);
+      }
+    },
+  );
 
   it("porte le lien de réglages quand il est configuré", () => {
     const mail = mailCatalog(Locale.FR).notification(NotificationType.MESSAGE_RECEIVED, {
@@ -224,23 +225,23 @@ describe("mailCatalog — gabarit d'invitation", () => {
    * vient ce message. Le nom du coach est donc dans l'objet, et c'est ce qui distingue cet e-mail
    * d'un courrier non sollicité.
    */
-  it.each([
-    Locale.FR,
-    Locale.EN,
-  ])("%s : nomme l'inviteur dans l'objet, et se replie sans mentir quand le nom manque", (locale) => {
-    const named = mailCatalog(locale).invitation({ ...PARAMS, registerUrl: null });
-    expect(named.subject).toContain("Marc Keller");
-    expect(named.text).toContain("Marc Keller");
+  it.each([Locale.FR, Locale.EN])(
+    "%s : nomme l'inviteur dans l'objet, et se replie sans mentir quand le nom manque",
+    (locale) => {
+      const named = mailCatalog(locale).invitation({ ...PARAMS, registerUrl: null });
+      expect(named.subject).toContain("Marc Keller");
+      expect(named.text).toContain("Marc Keller");
 
-    const anonymous = mailCatalog(locale).invitation({
-      ...PARAMS,
-      coachName: null,
-      registerUrl: null,
-    });
-    expect(anonymous.subject.length).toBeGreaterThan(0);
-    expect(anonymous.subject).not.toContain("null");
-    expect(anonymous.text).not.toContain("null");
-  });
+      const anonymous = mailCatalog(locale).invitation({
+        ...PARAMS,
+        coachName: null,
+        registerUrl: null,
+      });
+      expect(anonymous.subject.length).toBeGreaterThan(0);
+      expect(anonymous.subject).not.toContain("null");
+      expect(anonymous.text).not.toContain("null");
+    },
+  );
 
   // Comme la validité du lien de réinitialisation : la durée annoncée est celle qu'on reçoit,
   // jamais une valeur réécrite dans le gabarit.
@@ -277,19 +278,20 @@ describe("mailCatalog — invitation d'une entreprise (#601, #602)", () => {
   const LOCALES = [Locale.FR, Locale.EN];
 
   // Le destinataire n'a aucun contexte : le nom de l'entreprise est dans l'objet et dans le titre.
-  it.each(
-    LOCALES.flatMap((locale) => ROLES.map((role) => [locale, role] as const)),
-  )("%s, %s : nomme l'entreprise dans l'objet et le corps", (locale, role) => {
-    const mail = mailCatalog(locale).organizationInvitation({
-      ...PARAMS,
-      role,
-      registerUrl: null,
-    });
+  it.each(LOCALES.flatMap((locale) => ROLES.map((role) => [locale, role] as const)))(
+    "%s, %s : nomme l'entreprise dans l'objet et le corps",
+    (locale, role) => {
+      const mail = mailCatalog(locale).organizationInvitation({
+        ...PARAMS,
+        role,
+        registerUrl: null,
+      });
 
-    expect(mail.subject).toContain("Fontainebleau Escalade");
-    expect(mail.text).toContain("Fontainebleau Escalade");
-    expect(mail.html).not.toContain("<a href");
-  });
+      expect(mail.subject).toContain("Fontainebleau Escalade");
+      expect(mail.text).toContain("Fontainebleau Escalade");
+      expect(mail.html).not.toContain("<a href");
+    },
+  );
 
   // Un athlète inscrit en Coach seul ne verrait jamais l'invitation : la case est celle du rôle.
   it("dit à l'athlète de cocher « Je m'entraîne », et où l'attend son invitation", () => {

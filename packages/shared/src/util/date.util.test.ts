@@ -28,15 +28,12 @@ describe("isIsoDate", () => {
   });
 
   // Ce que Date.parse lit volontiers, et que l'aller-retour refuse : rien ne passe à côté.
-  it.each([
-    "2026-7-31",
-    "+002026-07-31",
-    " 2026-07-31",
-    "2026-07-31 ",
-    "2026-07-311",
-  ])("refuse %s, que Date.parse accepterait peut-être", (input) => {
-    expect(isIsoDate(input)).toBe(false);
-  });
+  it.each(["2026-7-31", "+002026-07-31", " 2026-07-31", "2026-07-31 ", "2026-07-311"])(
+    "refuse %s, que Date.parse accepterait peut-être",
+    (input) => {
+      expect(isIsoDate(input)).toBe(false);
+    },
+  );
 });
 
 describe("shiftIsoDate", () => {

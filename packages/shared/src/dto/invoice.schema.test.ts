@@ -51,14 +51,12 @@ describe("invoicePeriodSchema", () => {
   });
 
   // Ancré des deux côtés : un jour ou un préfixe collé au mois n'en fait pas une période.
-  it.each([
-    "2026-13",
-    "2026-7",
-    "2026-07-01",
-    "x2026-07",
-  ])("refuse %s, avec son propre message", (period) => {
-    expectRefusal(invoicePeriodSchema, period);
-  });
+  it.each(["2026-13", "2026-7", "2026-07-01", "x2026-07"])(
+    "refuse %s, avec son propre message",
+    (period) => {
+      expectRefusal(invoicePeriodSchema, period);
+    },
+  );
 });
 
 describe("updateInvoiceStatusSchema", () => {

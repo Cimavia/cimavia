@@ -58,12 +58,12 @@ describe("AccessService.assertCan", () => {
     ["delete", "WRITE"],
     ["share", "WRITE"],
     ["delete", "READ"],
-  ] as [
-    AccessGesture,
-    AccessView["myAccess"]["level"],
-  ][])("%s est refusé à %s (403)", (gesture, level) => {
-    expect(() => service.assertCan(view(level), gesture)).toThrow(ForbiddenException);
-  });
+  ] as [AccessGesture, AccessView["myAccess"]["level"]][])(
+    "%s est refusé à %s (403)",
+    (gesture, level) => {
+      expect(() => service.assertCan(view(level), gesture)).toThrow(ForbiddenException);
+    },
+  );
 });
 
 describe("AccessService.myOrganizations", () => {

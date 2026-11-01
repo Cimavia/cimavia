@@ -34,13 +34,22 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
+# Les versions de pnpm et de turbo, LUES dans `package.json` (#479) : les recopier ici les laissait
+# en arrière dès que Dependabot montait turbo. Un étage à part, qui ne garde que ces deux valeurs :
+# `package.json` change à chaque release, et c'est le contenu de `/versions`, comparé par BuildKit,
+# qui décide si les étages suivants repartent du cache (cf. `scripts/docker-versions.mjs`).
+FROM os AS versions
+COPY package.json scripts/docker-versions.mjs ./
+RUN node docker-versions.mjs package.json /versions
+
 FROM os AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-# pnpm est épinglé explicitement : l'arbre produit par `pnpm deploy` n'a pas de champ
-# `packageManager`, et corepack y retomberait sinon sur le dernier pnpm publié (11.x observé).
+COPY --from=versions /versions/ /versions/
+# pnpm est activé à la version lue, explicitement : l'arbre produit par `pnpm deploy` n'a pas de
+# champ `packageManager`, et corepack y retomberait sinon sur le dernier pnpm publié (11.x observé).
 RUN corepack enable \
- && corepack prepare pnpm@10.34.7 --activate
+ && corepack prepare "pnpm@$(cat /versions/pnpm)" --activate
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo
@@ -55,7 +64,7 @@ RUN corepack enable \
 # (À noter : cela ne réduit PAS le poids de l'image — cf. la remarque sur Expo plus bas.)
 FROM base AS pruner
 COPY . .
-RUN pnpm dlx turbo@2.10.0 prune @cmv/api --docker
+RUN pnpm dlx "turbo@$(cat /versions/turbo)" prune @cmv/api --docker
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 2 — build (devDependencies incluses)

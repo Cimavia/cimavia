@@ -38,14 +38,15 @@ describe("metricHint", () => {
    * L'indice est DÉRIVÉ des unités admises. Le vérifier sur tout le catalogue plutôt que sur un
    * exemple : c'est la dérivation qu'on protège, pas une métrique en particulier.
    */
-  it.each(
-    Object.keys(METRIC_CATALOG) as MetricKey[],
-  )("dit exactement les unités admises de %s, ou rien", (key) => {
-    const units = METRIC_CATALOG[key].units.filter((unit) => unit !== MetricUnit.NONE);
-    const hint = metricHint(key, fakeT);
-    if (units.length === 0) expect(hint).toBeNull();
-    else expect(hint?.split(" · ")).toHaveLength(units.length);
-  });
+  it.each(Object.keys(METRIC_CATALOG) as MetricKey[])(
+    "dit exactement les unités admises de %s, ou rien",
+    (key) => {
+      const units = METRIC_CATALOG[key].units.filter((unit) => unit !== MetricUnit.NONE);
+      const hint = metricHint(key, fakeT);
+      if (units.length === 0) expect(hint).toBeNull();
+      else expect(hint?.split(" · ")).toHaveLength(units.length);
+    },
+  );
 
   it("rend null et non une chaîne vide quand la métrique n'a aucune unité", () => {
     const withoutUnit = (Object.keys(METRIC_CATALOG) as MetricKey[]).find(

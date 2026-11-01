@@ -92,8 +92,9 @@ tourne aussi au merge de son fichier, et à la main.
   `pnpm install --frozen-lockfile --ignore-scripts`, `prisma generate`. Un changement
   d'installation se fait là, une fois ;
 - les versions n'y sont pas écrites : pnpm vient de `packageManager` (`package.json` racine), Node
-  de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là — et les `Dockerfile`, qui
-  épinglent encore `node:22`, `pnpm@10.34.7` et `turbo@2.10.0` à part ;
+  de `.nvmrc`. Monter l'un ou l'autre, c'est changer ce fichier-là. Les `Dockerfile` lisent pnpm
+  et turbo dans `package.json` (`scripts/docker-versions.mjs`, #479), mais épinglent encore
+  `node:22` à part ;
 - chaque job porte un `timeout-minutes`, autour de trois fois sa durée observée, mesure en
   commentaire : sans lui, un job bloqué occupe un runner six heures ;
 - tous les jobs tournent sur `ubuntu-26.04`, épinglé : passer à une autre version d'Ubuntu est
@@ -265,9 +266,11 @@ images sont épinglées par **tag + digest** : la PR réécrit les deux ensemble
 
 - **Une PR groupée par écosystème pour `minor` + `patch`**, qui se merge dès que la CI est verte.
   **Les majeures arrivent une par une** : chacune se relit (notes de version) avant d'être mergée.
-  Deux exceptions, des paquets qui ne s'installent qu'ensemble : les `@sentry/*`, toutes
-  versions (#669), et les majeures de la pile Nest — `@nestjs/*`, ses modules tiers,
-  `@fastify/static`, `pino` et `pino-http` (#671). Les mineures et correctifs de Nest, eux, restent dans la PR groupée.
+  Exceptions, des paquets qui ne s'installent qu'ensemble : les `@sentry/*`, toutes
+  versions (#669), les majeures de la pile Nest — `@nestjs/*`, ses modules tiers,
+  `@fastify/static`, `pino` et `pino-http` (#671) —, et, toutes versions, `vitest` avec
+  `@vitest/*` puis les `@stryker-mutator/*` (#734). Les mineures et correctifs de Nest, eux,
+  restent dans la PR groupée.
 - Une version n'est proposée que **7 jours** après sa publication (`cooldown`). Les mises à jour
   de sécurité n'attendent pas.
 - **Ce délai s'applique aussi à ce que le lockfile contient déjà** : Dependabot le transmet à pnpm
@@ -293,7 +296,8 @@ les alertes de sécurité arrivent toujours) :
   ```
 
   Un changement de SDK change l'empreinte native : il demande un nouveau build EAS, pas un
-  `eas update`.
+  `eas update`. Les majeures de Babel (`@babel/*`) en font partie : le mobile déclare son
+  `@babel/core` pour fixer le pair de `react-native`, que la Babel 8 de Stryker gagnait sinon (#734).
 - **Les majeures de `postgres`** : le volume du NAS est dans le format de la majeure en cours. Une
   montée passe par `pg_upgrade` ou une sauvegarde restaurée (#268).
 - **Les majeures de `node`** : `.nvmrc`, `engines` et les deux `Dockerfile` avancent ensemble, et

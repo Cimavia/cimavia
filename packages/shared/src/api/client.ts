@@ -155,7 +155,8 @@ export type ApiClientConfig = {
    */
   fetchFn?: ApiFetch;
   // En-têtes évalués à CHAQUE requête : le cookie de session change au fil de la vie de l'app.
-  headers?: () => Record<string, string>;
+  // Asynchrones pour le mobile, qui lit ce cookie dans SecureStore (Better Auth 1.7, #734).
+  headers?: () => Record<string, string> | Promise<Record<string, string>>;
   // Web : envoie le cookie de session du navigateur.
   credentials?: "include";
 };
@@ -183,7 +184,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
   const doFetch: ApiFetch = resolved;
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers = { ...config.headers?.() };
+    const headers = { ...(await config.headers?.()) };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
     }

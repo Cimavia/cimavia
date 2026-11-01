@@ -718,19 +718,20 @@ describe("Semaine — version lue (#604)", () => {
     ],
   ];
 
-  it.each(
-    gestures,
-  )("refuse %s fondé sur une grille périmée, sans rien écrire", async (_, gesture) => {
-    const g = await grid("Périmée");
-    const read = await outpaced(g);
-    const kept = await planOf(g);
+  it.each(gestures)(
+    "refuse %s fondé sur une grille périmée, sans rien écrire",
+    async (_, gesture) => {
+      const g = await grid("Périmée");
+      const read = await outpaced(g);
+      const kept = await planOf(g);
 
-    const stale = await gesture(g, read);
+      const stale = await gesture(g, read);
 
-    expect(stale.status).toBe(409);
-    expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
-    expect(await planOf(g)).toEqual(kept);
-  });
+      expect(stale.status).toBe(409);
+      expect(stale.body.type).toBe(ProblemType.STALE_WRITE);
+      expect(await planOf(g)).toEqual(kept);
+    },
+  );
 
   it.each(gestures)("refuse %s qui ne dit pas quelle version il a lue", async (_, gesture) => {
     const g = await grid("Sans version");
@@ -1036,17 +1037,18 @@ describe("Séance planifiée — version lue (#604)", () => {
   });
 
   // Un 409 apprendrait à l'autre coach que la séance existe.
-  it.each(
-    writes,
-  )("refuse %s d'un autre coach en 404, même muni de la dernière version", async (_, write) => {
-    const { sessionId } = await scheduled("Chez un autre");
-    const kept = (await coach.get(path(sessionId))).body;
+  it.each(writes)(
+    "refuse %s d'un autre coach en 404, même muni de la dernière version",
+    async (_, write) => {
+      const { sessionId } = await scheduled("Chez un autre");
+      const kept = (await coach.get(path(sessionId))).body;
 
-    const intrusion = await write(other, sessionId, await versionOf(coach, path(sessionId)));
+      const intrusion = await write(other, sessionId, await versionOf(coach, path(sessionId)));
 
-    expect(intrusion.status).toBe(404);
-    expect((await coach.get(path(sessionId))).body).toEqual(kept);
-  });
+      expect(intrusion.status).toBe(404);
+      expect((await coach.get(path(sessionId))).body).toEqual(kept);
+    },
+  );
 
   it("répond 404 sur une séance supprimée, même munie de sa dernière version", async () => {
     const { sessionId } = await scheduled("Supprimée");

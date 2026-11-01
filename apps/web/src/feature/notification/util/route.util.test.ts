@@ -72,10 +72,13 @@ describe("routeForNotification", () => {
       "/invoices",
       { as: undefined, q: undefined, situation: undefined, athlete: undefined },
     ],
-  ])("sert %s aux deux rôles sur la même route, le contenu étant scopé par le tenant", (entityType, to, search) => {
-    expect(routeForNotification(notification(entityType), COACH)).toStrictEqual({ to, search });
-    expect(routeForNotification(notification(entityType), ATHLETE)).toStrictEqual({ to, search });
-  });
+  ])(
+    "sert %s aux deux rôles sur la même route, le contenu étant scopé par le tenant",
+    (entityType, to, search) => {
+      expect(routeForNotification(notification(entityType), COACH)).toStrictEqual({ to, search });
+      expect(routeForNotification(notification(entityType), ATHLETE)).toStrictEqual({ to, search });
+    },
+  );
 
   /**
    * L'invitation se branche par CAPACITÉ, comme le reste de la table : le coach va voir le nouvel

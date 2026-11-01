@@ -24,12 +24,22 @@
 # Base épinglée par DIGEST (#379) : un tag se reconstruit en silence, et l'image changerait de
 # base sans qu'aucune PR ne le dise — ce que #186 refuse pour l'artefact promu. Dependabot
 # réécrit le digest, commentaire de version compris, dans une PR que la CI construit.
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS base
+FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS os
+WORKDIR /app
+
+# Les versions de pnpm et de turbo, LUES dans `package.json` (#479) : les recopier ici les laissait
+# en arrière dès que Dependabot montait turbo. Un étage à part, qui ne garde que ces deux valeurs :
+# `package.json` change à chaque release, et c'est le contenu de `/versions`, comparé par BuildKit,
+# qui décide si les étages suivants repartent du cache (cf. `scripts/docker-versions.mjs`).
+FROM os AS versions
+COPY package.json scripts/docker-versions.mjs ./
+RUN node docker-versions.mjs package.json /versions
+
+FROM os AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-# pnpm épinglé : la même version que `packageManager` (`package.json` racine), à monter ensemble.
-RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
-WORKDIR /app
+COPY --from=versions /versions/ /versions/
+RUN corepack enable && corepack prepare "pnpm@$(cat /versions/pnpm)" --activate
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 1 — pruning du monorepo
@@ -39,7 +49,7 @@ WORKDIR /app
 # ni du mobile, donc une modification côté API n'invalide pas le build du web.
 FROM base AS pruner
 COPY . .
-RUN pnpm dlx turbo@2.10.0 prune @cmv/web --docker
+RUN pnpm dlx "turbo@$(cat /versions/turbo)" prune @cmv/web --docker
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Étape 2 — build

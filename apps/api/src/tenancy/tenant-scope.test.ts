@@ -79,14 +79,14 @@ describe("sharedRoot", () => {
   const scope = sharedRoot("coachId");
   const owned = { coachId: ACTOR };
 
-  it.each([
-    "read",
-    "write",
-  ] as const)("en %s : propriétaire, ou un droit qui le vise", (operation) => {
-    expect(scope.where(ACTOR, operation)).toEqual({
-      AND: [{ OR: [owned, grantedTo(ACTOR, operation)] }],
-    });
-  });
+  it.each(["read", "write"] as const)(
+    "en %s : propriétaire, ou un droit qui le vise",
+    (operation) => {
+      expect(scope.where(ACTOR, operation)).toEqual({
+        AND: [{ OR: [owned, grantedTo(ACTOR, operation)] }],
+      });
+    },
+  );
 
   // Supprimer l'élément, gérer ses accès : aucun droit n'y suffit.
   it("en administration : le propriétaire seul", () => {
@@ -243,15 +243,12 @@ describe("childOf", () => {
     });
   });
 
-  it.each([
-    "Exercise",
-    "Session",
-    "Plan",
-    "SessionFeedback",
-    "FeedbackMedia",
-  ])("%s se crée avec l'acteur", (model) => {
-    expect(scopeOf(model).coach?.parent).toBeNull();
-  });
+  it.each(["Exercise", "Session", "Plan", "SessionFeedback", "FeedbackMedia"])(
+    "%s se crée avec l'acteur",
+    (model) => {
+      expect(scopeOf(model).coach?.parent).toBeNull();
+    },
+  );
 });
 
 describe("parentIdsOrThrow", () => {
@@ -264,14 +261,14 @@ describe("parentIdsOrThrow", () => {
   });
 
   // Une relation écrite `connect`, ou rien du tout : la lecture du parent passerait à côté.
-  it.each([
-    [{ exercise: { connect: { id: "e1" } } }],
-    [{ exerciseId: null }],
-  ])("refuse une ligne qui ne porte pas la clé de son parent (%o)", (row) => {
-    expect(() => parentIdsOrThrow([row], exercise, "ExerciseTag")).toThrow(
-      "[tenancy] ExerciseTag se crée avec son exerciseId : son propriétaire est celui de son Exercise",
-    );
-  });
+  it.each([[{ exercise: { connect: { id: "e1" } } }], [{ exerciseId: null }]])(
+    "refuse une ligne qui ne porte pas la clé de son parent (%o)",
+    (row) => {
+      expect(() => parentIdsOrThrow([row], exercise, "ExerciseTag")).toThrow(
+        "[tenancy] ExerciseTag se crée avec son exerciseId : son propriétaire est celui de son Exercise",
+      );
+    },
+  );
 
   // `null` dit « sans parent » ; une clé absente ne dit rien, et reste refusée.
   it("admet un parent optionnel à null, pas absent", () => {
@@ -283,16 +280,16 @@ describe("parentIdsOrThrow", () => {
 });
 
 describe("participation", () => {
-  it.each([
-    "COACH",
-    "ATHLETE",
-  ] as const)("ouvre ce à quoi l'acteur participe, à ce titre seul (%s)", (capability) => {
-    for (const operation of CLASSES) {
-      expect(participation(capability).where(ACTOR, operation)).toEqual({
-        participants: { some: { userId: ACTOR, capability } },
-      });
-    }
-  });
+  it.each(["COACH", "ATHLETE"] as const)(
+    "ouvre ce à quoi l'acteur participe, à ce titre seul (%s)",
+    (capability) => {
+      for (const operation of CLASSES) {
+        expect(participation(capability).where(ACTOR, operation)).toEqual({
+          participants: { some: { userId: ACTOR, capability } },
+        });
+      }
+    },
+  );
 
   // Aucune colonne ne dit à qui est une conversation : elle se crée avec ses participants.
   it("ne se crée qu'en comptant l'acteur parmi ses participants", () => {
@@ -521,14 +518,17 @@ describe("scopeFor", () => {
   it.each([
     ["coach", "COACH"],
     ["athlete", "ATHLETE"],
-  ] as const)("une conversation se lit par participation, au titre exercé (%s)", (capability, title) => {
-    const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
-    for (const operation of CLASSES) {
-      expect(whereOf(scopeOf("Conversation"), capability, operation)).toEqual(conversation);
-    }
-    expect(whereOf(scopeOf("Message"), capability)).toEqual({ conversation });
-    expect(whereOf(scopeOf("ConversationParticipant"), capability)).toEqual({ conversation });
-  });
+  ] as const)(
+    "une conversation se lit par participation, au titre exercé (%s)",
+    (capability, title) => {
+      const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
+      for (const operation of CLASSES) {
+        expect(whereOf(scopeOf("Conversation"), capability, operation)).toEqual(conversation);
+      }
+      expect(whereOf(scopeOf("Message"), capability)).toEqual({ conversation });
+      expect(whereOf(scopeOf("ConversationParticipant"), capability)).toEqual({ conversation });
+    },
+  );
 
   it.each([
     ["coach", "COACH"],

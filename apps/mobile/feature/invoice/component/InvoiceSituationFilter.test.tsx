@@ -42,15 +42,13 @@ describe("InvoiceSituationFilter", () => {
    * L'état sélectionné n'est pas affirmé ici : `accessibilityState` ne produit aucun attribut sous
    * `react-native-web`, et la teinte du fond n'est pas observable par le harnais (dette Q-6).
    */
-  it.each([
-    "ALL",
-    "OVERDUE",
-    "DUE",
-    "UP_TO_DATE",
-  ] as const)("remonte %s depuis sa chip", (value) => {
-    const { onChange, container } = setup("ALL");
+  it.each(["ALL", "OVERDUE", "DUE", "UP_TO_DATE"] as const)(
+    "remonte %s depuis sa chip",
+    (value) => {
+      const { onChange, container } = setup("ALL");
 
-    pressButton(container, `invoice.coach.situationFilter.${value}`);
-    expect(onChange).toHaveBeenCalledWith(value);
-  });
+      pressButton(container, `invoice.coach.situationFilter.${value}`);
+      expect(onChange).toHaveBeenCalledWith(value);
+    },
+  );
 });

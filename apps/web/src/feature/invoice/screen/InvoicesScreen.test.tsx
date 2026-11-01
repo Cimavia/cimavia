@@ -5,7 +5,7 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   useCancelInvoice,
@@ -169,6 +169,19 @@ describe("InvoicesScreen — coach", () => {
     expect(queryByText("invoice.history.paidOn")).toBeNull();
   });
 
+  // Deux clics plus rapides que la transition du routeur : le second compare à l'url à jour, pas au
+  // dernier rendu, et referme (#734).
+  it("referme l'historique sur un double clic rapide", async () => {
+    const { getByRole, router } = await setup();
+
+    // `fireEvent`, synchrone : les deux clics partent avant que la transition ne soit rendue.
+    fireEvent.click(getByRole("button", { name: /Léa Bonnet/ }));
+    fireEvent.click(getByRole("button", { name: /Léa Bonnet/ }));
+
+    await waitFor(() => expect(router.state.status).toBe("idle"));
+    expect(router.state.location.search).not.toHaveProperty("athlete");
+  });
+
   it("n'ouvre qu'un seul historique à la fois", async () => {
     const { user, getByRole } = await setup();
 
@@ -243,6 +256,19 @@ describe("InvoicesScreen — coach", () => {
 
     expect(getByRole("button", { name: /Théo Marchand/ })).toBeTruthy();
     expect(queryByRole("button", { name: /Léa Bonnet/ })).toBeNull();
+  });
+
+  it("garde toute la recherche tapée quand une situation est choisie juste après", async () => {
+    const { getByRole, router } = await setup();
+
+    // `fireEvent`, synchrone : le clic part avant que la frappe ne soit rendue.
+    fireEvent.change(getByRole("searchbox", { name: "invoice.searchLabel" }), {
+      target: { value: "theo" },
+    });
+    fireEvent.click(getByRole("button", { name: /invoice.situationFilter.DUE/ }));
+
+    await waitFor(() => expect(router.state.status).toBe("idle"));
+    expect(router.state.location.search).toMatchObject({ q: "theo", situation: "DUE" });
   });
 
   // Un champ vidé ne laisse pas `?q=` traîner dans l'url : c'est l'absence de recherche.

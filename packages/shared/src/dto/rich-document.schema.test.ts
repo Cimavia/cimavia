@@ -90,13 +90,12 @@ describe("richDocumentSchema", () => {
   });
 
   // Des url valides, mais pas en http(s) — y compris un protocole qui le CONTIENT sans l'être.
-  it.each([
-    "javascript:alert(1)",
-    "data:text/html,<script>",
-    "xhttps://example.com",
-  ])("refuse un href non http(s), au champ du lien — %s", (href) => {
-    expectRefusal(richDocumentSchema, linked(href), [0, "content", 0, "href"]);
-  });
+  it.each(["javascript:alert(1)", "data:text/html,<script>", "xhttps://example.com"])(
+    "refuse un href non http(s), au champ du lien — %s",
+    (href) => {
+      expectRefusal(richDocumentSchema, linked(href), [0, "content", 0, "href"]);
+    },
+  );
 
   it("accepte un lien http comme un lien https", () => {
     for (const href of ["http://example.com", "HTTPS://example.com"]) {

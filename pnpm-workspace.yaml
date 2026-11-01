@@ -11,38 +11,20 @@ packages:
 # `pnpm install` puis `pnpm audit` ne doivent pas le faire réapparaître.
 #
 # Hors de cette liste, et donc rejetés dans les alertes Dependabot avec leur raison : les
-# correctifs qui exigent une MAJEURE (deepmerge-ts, image-size, uuid, decode-uri-component,
-# postcss-selector-parser, qui attend Tailwind 4), ceux que l'amont n'a pas publiés (braces,
-# node-forge), et ce qu'un paquet épingle à la version exacte : `fastify` suit
-# `@nestjs/platform-fastify`, c'est le serveur HTTP.
+# correctifs qui exigent une MAJEURE (deepmerge-ts, image-size, decode-uri-component,
+# postcss-selector-parser, qui attend Tailwind 4 ; et depuis #734 le `zod` 3 et le `glob` 13
+# d'`@expo/cli`, le `minimatch` de l'outillage Expo, Nest et Stryker), ceux que l'amont n'a pas
+# publiés (braces, deepmerge, la vérification de signature PKCS#1 de node-forge), et ce qu'un
+# paquet épingle à la version exacte : `fastify` suit `@nestjs/platform-fastify`, c'est le serveur
+# HTTP.
+#
+# Revue en #734 : dix-neuf overrides ne visaient plus rien (retirés, `pnpm audit` ne les fait pas
+# revenir) — l'amont a monté, et `hono` a quitté la CLI prisma en 7.10.
 overrides:
-  # Runtime de l'API — expo-server-sdk, @thallesp/nestjs-better-auth, fastify (ajv).
-  "undici@>=7 <7.29.0": "^7.29.0"
-  "qs@>=6 <6.16.0": "^6.16.0"
-  "fast-uri@>=3 <3.1.6": "^3.1.6"
-  # Runtime du web — @tanstack/router-core. Sa (dé)sérialisation ne sert qu'au rendu serveur : la SPA
-  # ne l'embarque pas, l'override suit la règle sans attendre que le routeur monte.
-  "seroval@>=1 <1.6.3": "^1.6.3"
-  # CLI prisma, présent dans l'image pour `migrate deploy` : `prisma dev` et le pilote MySQL, jamais
-  # chargés par l'API.
-  "mysql2@>=3 <3.23.1": "^3.23.1"
-  "hono@>=4 <4.13.5": "^4.13.5"
-  "@hono/node-server@>=1 <1.19.15": "^1.19.15"
-  "valibot@>=1 <1.4.2": "^1.4.2"
-  # Chaîne de build — Expo/metro, babel, tailwind, commitlint, @nestjs/cli.
-  "@xmldom/xmldom@>=0.8 <0.8.15": "^0.8.15"
-  "@xmldom/xmldom@>=0.9 <0.9.12": "^0.9.12"
-  "brace-expansion@>=1 <1.1.18": "^1.1.18"
-  "brace-expansion@>=5 <5.0.9": "^5.0.9"
-  "browserslist@>=4 <4.28.7": "^4.28.7"
-  "baseline-browser-mapping@>=2 <2.11.0": "^2.11.0"
-  "js-yaml@>=4 <4.3.2": "^4.3.2"
-  "nanoid@>=3 <3.3.18": "^3.3.18"
-  "postcss@>=8 <8.5.23": "^8.5.23"
-  "source-map-js@>=1 <1.2.2": "^1.2.2"
-  # Outillage de dev et de test — react-devtools (react-native), serveur de dev Expo, jsdom,
-  # pino-pretty. Rien de tout ça n'entre dans un build release ni dans une image.
-  "shell-quote@>=1 <1.11.0": "^1.11.0"
-  "compression@>=1 <1.8.2": "^1.8.2"
-  "undici@>=8 <8.10.2": "^8.10.2"
-  "fast-copy@>=4 <4.1.0": "^4.1.0"
+  # Runtime de l'API — expo-server-sdk (undici), @thallesp/nestjs-better-auth (qs), fastify (ajv).
+  "undici@>=7 <7.30.1": "^7.30.1"
+  "qs@>=6 <6.16.1": "^6.16.1"
+  "fast-uri@>=3 <3.1.9": "^3.1.9"
+  "fast-uri@>=4 <4.2.3": "^4.2.3"
+  # Chaîne de build mobile — @expo/cli et la signature de code des updates. Jamais dans une image.
+  "node-forge@>=1 <1.4.1": "^1.4.1"

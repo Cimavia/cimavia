@@ -97,17 +97,16 @@ describe("CmvConfirmButton", () => {
    * de trois composants. Un jour où `ghost` cesserait de confirmer, l'annulation d'une facture
    * partirait — ou ne partirait plus — sans que rien d'autre ne bouge.
    */
-  it.each([
-    "danger",
-    "secondary",
-    "ghost",
-  ] as const)("confirme en deux temps quelle que soit la variante (%s)", (variant) => {
-    const { onConfirm, container } = setup({ variant });
+  it.each(["danger", "secondary", "ghost"] as const)(
+    "confirme en deux temps quelle que soit la variante (%s)",
+    (variant) => {
+      const { onConfirm, container } = setup({ variant });
 
-    pressButton(container, "Refuser");
-    expect(onConfirm).not.toHaveBeenCalled();
+      pressButton(container, "Refuser");
+      expect(onConfirm).not.toHaveBeenCalled();
 
-    pressButton(container, "Confirmer");
-    expect(onConfirm).toHaveBeenCalledOnce();
-  });
+      pressButton(container, "Confirmer");
+      expect(onConfirm).toHaveBeenCalledOnce();
+    },
+  );
 });

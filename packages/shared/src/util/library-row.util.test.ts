@@ -117,18 +117,18 @@ describe("accessLabel", () => {
     });
   });
 
-  it.each([
-    MyAccessLevel.READ,
-    MyAccessLevel.WRITE,
-  ] as const)("l'élément d'un autre Coach dit qui le partage, et le droit %s de l'acteur", (level) => {
-    expect(
-      accessLabel({ owner: M, myAccess: { level, via: F }, grants: null, coachGrants: null }),
-    ).toEqual({
-      kind: "sharedBy",
-      owner: "M",
-      level,
-    });
-  });
+  it.each([MyAccessLevel.READ, MyAccessLevel.WRITE] as const)(
+    "l'élément d'un autre Coach dit qui le partage, et le droit %s de l'acteur",
+    (level) => {
+      expect(
+        accessLabel({ owner: M, myAccess: { level, via: F }, grants: null, coachGrants: null }),
+      ).toEqual({
+        kind: "sharedBy",
+        owner: "M",
+        level,
+      });
+    },
+  );
 });
 
 describe("sessionTags", () => {

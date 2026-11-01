@@ -95,19 +95,21 @@ describe("gardes des routes", () => {
    * barre latérale (`useActiveSpace`) : une garde qui la contredit afficherait le menu d'un rôle
    * au-dessus de l'écran de l'autre. Une route ABSENTE de cette table n'a pas de garde du tout.
    */
-  it.each(
-    guarded.map((route) => [route.fullPath] as const),
-  )("%s est gardée pour la capacité de son espace", async (fullPath) => {
-    const space = spaceOfPath(fullPath);
+  it.each(guarded.map((route) => [route.fullPath] as const))(
+    "%s est gardée pour la capacité de son espace",
+    async (fullPath) => {
+      const space = spaceOfPath(fullPath);
 
-    expect(await gateAt(urlOf(fullPath))).toEqual(space == null ? BOTH : [space]);
-  });
+      expect(await gateAt(urlOf(fullPath))).toEqual(space == null ? BOTH : [space]);
+    },
+  );
 
   // La nav ne propose jamais ce que la route refuse (`nav.ts`) — ni une adresse qui n'existe pas,
   // que le routeur servirait sans garde.
-  it.each(
-    NAV_ITEMS.map((item) => [item.to, item.capability] as const),
-  )("l'entrée de nav %s mène à une route qui accepte %s", async (to, capability) => {
-    expect(await gateAt(to)).toContain(capability);
-  });
+  it.each(NAV_ITEMS.map((item) => [item.to, item.capability] as const))(
+    "l'entrée de nav %s mène à une route qui accepte %s",
+    async (to, capability) => {
+      expect(await gateAt(to)).toContain(capability);
+    },
+  );
 });

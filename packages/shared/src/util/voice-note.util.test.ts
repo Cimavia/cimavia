@@ -59,19 +59,17 @@ describe("nextVoiceNoteInThread", () => {
     expect(nextVoiceNoteInThread(thread, "m1")).toBe("m2");
   });
 
-  it.each([
-    MessageType.TEXT,
-    MessageType.IMAGE,
-    MessageType.VIDEO,
-    MessageType.FEEDBACK_CREATED,
-  ])("s'arrête sur un message %s intercalé, sans sauter à la note d'après", (type) => {
-    const thread = [
-      message("m1", MessageType.AUDIO),
-      message("m2", type),
-      message("m3", MessageType.AUDIO),
-    ];
-    expect(nextVoiceNoteInThread(thread, "m1")).toBeNull();
-  });
+  it.each([MessageType.TEXT, MessageType.IMAGE, MessageType.VIDEO, MessageType.FEEDBACK_CREATED])(
+    "s'arrête sur un message %s intercalé, sans sauter à la note d'après",
+    (type) => {
+      const thread = [
+        message("m1", MessageType.AUDIO),
+        message("m2", type),
+        message("m3", MessageType.AUDIO),
+      ];
+      expect(nextVoiceNoteInThread(thread, "m1")).toBeNull();
+    },
+  );
 
   it("s'arrête sur une note vocale sans média : il n'y a rien à jouer", () => {
     const empty = { ...message("m2", MessageType.AUDIO), media: null };

@@ -50,18 +50,21 @@ describe("createOrganizationApi", () => {
   it.each([
     ["inviteCoach", "COACH"],
     ["inviteAthlete", "ATHLETE"],
-  ] as const)("%s invite une adresse en %s, sous le préfixe de l'entreprise", async (name, role) => {
-    const { api, calls } = spyClient();
-    await createOrganizationApi(api)[name]({ email: "julie@example.com" });
+  ] as const)(
+    "%s invite une adresse en %s, sous le préfixe de l'entreprise",
+    async (name, role) => {
+      const { api, calls } = spyClient();
+      await createOrganizationApi(api)[name]({ email: "julie@example.com" });
 
-    expect(calls).toEqual([
-      {
-        method: "POST",
-        path: "/organization/invitations",
-        body: { email: "julie@example.com", role },
-      },
-    ]);
-  });
+      expect(calls).toEqual([
+        {
+          method: "POST",
+          path: "/organization/invitations",
+          body: { email: "julie@example.com", role },
+        },
+      ]);
+    },
+  );
 
   it.each([
     ["revokeInvitation", "POST", "/organization/invitations/inv_1/revoke"],

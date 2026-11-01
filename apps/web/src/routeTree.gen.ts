@@ -9,89 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RemindersRouteImport } from './routes/reminders'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as PlanningRouteImport } from './routes/planning'
-import { Route as MyCoachRouteImport } from './routes/my-coach'
-import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as InvoicesRouteImport } from './routes/invoices'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as FeedbacksRouteImport } from './routes/feedbacks'
-import { Route as AthletesRouteImport } from './routes/athletes'
-import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
-import { Route as PlansIndexRouteImport } from './routes/plans.index'
-import { Route as LibraryIndexRouteImport } from './routes/library.index'
-import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
-import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
-import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as AthletesRouteImport } from './routes/athletes'
+import { Route as FeedbacksRouteImport } from './routes/feedbacks'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as InvoicesRouteImport } from './routes/invoices'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MyCoachRouteImport } from './routes/my-coach'
+import { Route as PlanningRouteImport } from './routes/planning'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as RemindersRouteImport } from './routes/reminders'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
+import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
+import { Route as LibraryIndexRouteImport } from './routes/library.index'
+import { Route as PlansIndexRouteImport } from './routes/plans.index'
+import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as SessionsIndexRouteImport } from './routes/sessions.index'
+import { Route as SessionsSessionIdRouteImport } from './routes/sessions.$sessionId'
+import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
+import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
+import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
+import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
+import { Route as LibraryStructuresStructureIdRouteImport } from './routes/library.structures.$structureId'
+import { Route as LibraryStructuresNewRouteImport } from './routes/library.structures.new'
+import { Route as PlansPlanIdDosageRouteImport } from './routes/plans.$planId_.dosage'
 import { Route as SessionsSessionIdIndexRouteImport } from './routes/sessions.$sessionId.index'
 import { Route as SessionsSessionIdFeedbackRouteImport } from './routes/sessions.$sessionId.feedback'
-import { Route as PlansPlanIdDosageRouteImport } from './routes/plans.$planId_.dosage'
-import { Route as LibraryStructuresNewRouteImport } from './routes/library.structures.new'
-import { Route as LibraryStructuresStructureIdRouteImport } from './routes/library.structures.$structureId'
-import { Route as LibrarySessionsNewRouteImport } from './routes/library.sessions.new'
-import { Route as LibrarySessionsSessionIdRouteImport } from './routes/library.sessions.$sessionId'
-import { Route as LibraryExercisesNewRouteImport } from './routes/library.exercises.new'
-import { Route as LibraryExercisesExerciseIdRouteImport } from './routes/library.exercises.$exerciseId'
 
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RemindersRoute = RemindersRouteImport.update({
-  id: '/reminders',
-  path: '/reminders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlanningRoute = PlanningRouteImport.update({
-  id: '/planning',
-  path: '/planning',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyCoachRoute = MyCoachRouteImport.update({
-  id: '/my-coach',
-  path: '/my-coach',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MessagesRoute = MessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InvoicesRoute = InvoicesRouteImport.update({
-  id: '/invoices',
-  path: '/invoices',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeedbacksRoute = FeedbacksRouteImport.update({
-  id: '/feedbacks',
-  path: '/feedbacks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AthletesRoute = AthletesRouteImport.update({
-  id: '/athletes',
-  path: '/athletes',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -99,34 +49,64 @@ const AccountRoute = AccountRouteImport.update({
   path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AthletesRoute = AthletesRouteImport.update({
+  id: '/athletes',
+  path: '/athletes',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SessionsIndexRoute = SessionsIndexRouteImport.update({
-  id: '/sessions/',
-  path: '/sessions/',
+const FeedbacksRoute = FeedbacksRouteImport.update({
+  id: '/feedbacks',
+  path: '/feedbacks',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlansIndexRoute = PlansIndexRouteImport.update({
-  id: '/plans/',
-  path: '/plans/',
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LibraryIndexRoute = LibraryIndexRouteImport.update({
-  id: '/library/',
-  path: '/library/',
+const InvoicesRoute = InvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
-  id: '/sessions/$sessionId',
-  path: '/sessions/$sessionId',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
-  id: '/plans/$planId',
-  path: '/plans/$planId',
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyCoachRoute = MyCoachRouteImport.update({
+  id: '/my-coach',
+  path: '/my-coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanningRoute = PlanningRouteImport.update({
+  id: '/planning',
+  path: '/planning',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RemindersRoute = RemindersRouteImport.update({
+  id: '/reminders',
+  path: '/reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyAthletesRoute = CompanyAthletesRouteImport.update({
+  id: '/company/athletes',
+  path: '/company/athletes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanyCoachesRoute = CompanyCoachesRouteImport.update({
@@ -134,9 +114,67 @@ const CompanyCoachesRoute = CompanyCoachesRouteImport.update({
   path: '/company/coaches',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CompanyAthletesRoute = CompanyAthletesRouteImport.update({
-  id: '/company/athletes',
-  path: '/company/athletes',
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/library/',
+  path: '/library/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansIndexRoute = PlansIndexRouteImport.update({
+  id: '/plans/',
+  path: '/plans/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
+  id: '/plans/$planId',
+  path: '/plans/$planId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsIndexRoute = SessionsIndexRouteImport.update({
+  id: '/sessions/',
+  path: '/sessions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsSessionIdRoute = SessionsSessionIdRouteImport.update({
+  id: '/sessions/$sessionId',
+  path: '/sessions/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryExercisesExerciseIdRoute =
+  LibraryExercisesExerciseIdRouteImport.update({
+    id: '/library/exercises/$exerciseId',
+    path: '/library/exercises/$exerciseId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LibraryExercisesNewRoute = LibraryExercisesNewRouteImport.update({
+  id: '/library/exercises/new',
+  path: '/library/exercises/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibrarySessionsSessionIdRoute =
+  LibrarySessionsSessionIdRouteImport.update({
+    id: '/library/sessions/$sessionId',
+    path: '/library/sessions/$sessionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LibrarySessionsNewRoute = LibrarySessionsNewRouteImport.update({
+  id: '/library/sessions/new',
+  path: '/library/sessions/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryStructuresStructureIdRoute =
+  LibraryStructuresStructureIdRouteImport.update({
+    id: '/library/structures/$structureId',
+    path: '/library/structures/$structureId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LibraryStructuresNewRoute = LibraryStructuresNewRouteImport.update({
+  id: '/library/structures/new',
+  path: '/library/structures/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansPlanIdDosageRoute = PlansPlanIdDosageRouteImport.update({
+  id: '/plans/$planId_/dosage',
+  path: '/plans/$planId/dosage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SessionsSessionIdIndexRoute = SessionsSessionIdIndexRouteImport.update({
@@ -149,44 +187,6 @@ const SessionsSessionIdFeedbackRoute =
     id: '/feedback',
     path: '/feedback',
     getParentRoute: () => SessionsSessionIdRoute,
-  } as any)
-const PlansPlanIdDosageRoute = PlansPlanIdDosageRouteImport.update({
-  id: '/plans/$planId_/dosage',
-  path: '/plans/$planId/dosage',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryStructuresNewRoute = LibraryStructuresNewRouteImport.update({
-  id: '/library/structures/new',
-  path: '/library/structures/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryStructuresStructureIdRoute =
-  LibraryStructuresStructureIdRouteImport.update({
-    id: '/library/structures/$structureId',
-    path: '/library/structures/$structureId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LibrarySessionsNewRoute = LibrarySessionsNewRouteImport.update({
-  id: '/library/sessions/new',
-  path: '/library/sessions/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibrarySessionsSessionIdRoute =
-  LibrarySessionsSessionIdRouteImport.update({
-    id: '/library/sessions/$sessionId',
-    path: '/library/sessions/$sessionId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LibraryExercisesNewRoute = LibraryExercisesNewRouteImport.update({
-  id: '/library/exercises/new',
-  path: '/library/exercises/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LibraryExercisesExerciseIdRoute =
-  LibraryExercisesExerciseIdRouteImport.update({
-    id: '/library/exercises/$exerciseId',
-    path: '/library/exercises/$exerciseId',
-    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -409,81 +409,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reminders': {
-      id: '/reminders'
-      path: '/reminders'
-      fullPath: '/reminders'
-      preLoaderRoute: typeof RemindersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/planning': {
-      id: '/planning'
-      path: '/planning'
-      fullPath: '/planning'
-      preLoaderRoute: typeof PlanningRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-coach': {
-      id: '/my-coach'
-      path: '/my-coach'
-      fullPath: '/my-coach'
-      preLoaderRoute: typeof MyCoachRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/messages': {
-      id: '/messages'
-      path: '/messages'
-      fullPath: '/messages'
-      preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/invoices': {
-      id: '/invoices'
-      path: '/invoices'
-      fullPath: '/invoices'
-      preLoaderRoute: typeof InvoicesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/feedbacks': {
-      id: '/feedbacks'
-      path: '/feedbacks'
-      fullPath: '/feedbacks'
-      preLoaderRoute: typeof FeedbacksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/athletes': {
-      id: '/athletes'
-      path: '/athletes'
-      fullPath: '/athletes'
-      preLoaderRoute: typeof AthletesRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -493,46 +423,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/athletes': {
+      id: '/athletes'
+      path: '/athletes'
+      fullPath: '/athletes'
+      preLoaderRoute: typeof AthletesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sessions/': {
-      id: '/sessions/'
-      path: '/sessions'
-      fullPath: '/sessions/'
-      preLoaderRoute: typeof SessionsIndexRouteImport
+    '/feedbacks': {
+      id: '/feedbacks'
+      path: '/feedbacks'
+      fullPath: '/feedbacks'
+      preLoaderRoute: typeof FeedbacksRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/plans/': {
-      id: '/plans/'
-      path: '/plans'
-      fullPath: '/plans/'
-      preLoaderRoute: typeof PlansIndexRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/library/': {
-      id: '/library/'
-      path: '/library'
-      fullPath: '/library/'
-      preLoaderRoute: typeof LibraryIndexRouteImport
+    '/invoices': {
+      id: '/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof InvoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sessions/$sessionId': {
-      id: '/sessions/$sessionId'
-      path: '/sessions/$sessionId'
-      fullPath: '/sessions/$sessionId'
-      preLoaderRoute: typeof SessionsSessionIdRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/plans/$planId': {
-      id: '/plans/$planId'
-      path: '/plans/$planId'
-      fullPath: '/plans/$planId'
-      preLoaderRoute: typeof PlansPlanIdRouteImport
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-coach': {
+      id: '/my-coach'
+      path: '/my-coach'
+      fullPath: '/my-coach'
+      preLoaderRoute: typeof MyCoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planning': {
+      id: '/planning'
+      path: '/planning'
+      fullPath: '/planning'
+      preLoaderRoute: typeof PlanningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reminders': {
+      id: '/reminders'
+      path: '/reminders'
+      fullPath: '/reminders'
+      preLoaderRoute: typeof RemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company/athletes': {
+      id: '/company/athletes'
+      path: '/company/athletes'
+      fullPath: '/company/athletes'
+      preLoaderRoute: typeof CompanyAthletesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/company/coaches': {
@@ -542,11 +514,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompanyCoachesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/company/athletes': {
-      id: '/company/athletes'
-      path: '/company/athletes'
-      fullPath: '/company/athletes'
-      preLoaderRoute: typeof CompanyAthletesRouteImport
+    '/library/': {
+      id: '/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans/': {
+      id: '/plans/'
+      path: '/plans'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof PlansIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans/$planId': {
+      id: '/plans/$planId'
+      path: '/plans/$planId'
+      fullPath: '/plans/$planId'
+      preLoaderRoute: typeof PlansPlanIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/': {
+      id: '/sessions/'
+      path: '/sessions'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof SessionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/$sessionId': {
+      id: '/sessions/$sessionId'
+      path: '/sessions/$sessionId'
+      fullPath: '/sessions/$sessionId'
+      preLoaderRoute: typeof SessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/exercises/$exerciseId': {
+      id: '/library/exercises/$exerciseId'
+      path: '/library/exercises/$exerciseId'
+      fullPath: '/library/exercises/$exerciseId'
+      preLoaderRoute: typeof LibraryExercisesExerciseIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/exercises/new': {
+      id: '/library/exercises/new'
+      path: '/library/exercises/new'
+      fullPath: '/library/exercises/new'
+      preLoaderRoute: typeof LibraryExercisesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/sessions/$sessionId': {
+      id: '/library/sessions/$sessionId'
+      path: '/library/sessions/$sessionId'
+      fullPath: '/library/sessions/$sessionId'
+      preLoaderRoute: typeof LibrarySessionsSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/sessions/new': {
+      id: '/library/sessions/new'
+      path: '/library/sessions/new'
+      fullPath: '/library/sessions/new'
+      preLoaderRoute: typeof LibrarySessionsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/structures/$structureId': {
+      id: '/library/structures/$structureId'
+      path: '/library/structures/$structureId'
+      fullPath: '/library/structures/$structureId'
+      preLoaderRoute: typeof LibraryStructuresStructureIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/structures/new': {
+      id: '/library/structures/new'
+      path: '/library/structures/new'
+      fullPath: '/library/structures/new'
+      preLoaderRoute: typeof LibraryStructuresNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans/$planId_/dosage': {
+      id: '/plans/$planId_/dosage'
+      path: '/plans/$planId/dosage'
+      fullPath: '/plans/$planId/dosage'
+      preLoaderRoute: typeof PlansPlanIdDosageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sessions/$sessionId/': {
@@ -562,55 +611,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/sessions/$sessionId/feedback'
       preLoaderRoute: typeof SessionsSessionIdFeedbackRouteImport
       parentRoute: typeof SessionsSessionIdRoute
-    }
-    '/plans/$planId_/dosage': {
-      id: '/plans/$planId_/dosage'
-      path: '/plans/$planId/dosage'
-      fullPath: '/plans/$planId/dosage'
-      preLoaderRoute: typeof PlansPlanIdDosageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/structures/new': {
-      id: '/library/structures/new'
-      path: '/library/structures/new'
-      fullPath: '/library/structures/new'
-      preLoaderRoute: typeof LibraryStructuresNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/structures/$structureId': {
-      id: '/library/structures/$structureId'
-      path: '/library/structures/$structureId'
-      fullPath: '/library/structures/$structureId'
-      preLoaderRoute: typeof LibraryStructuresStructureIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/sessions/new': {
-      id: '/library/sessions/new'
-      path: '/library/sessions/new'
-      fullPath: '/library/sessions/new'
-      preLoaderRoute: typeof LibrarySessionsNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/sessions/$sessionId': {
-      id: '/library/sessions/$sessionId'
-      path: '/library/sessions/$sessionId'
-      fullPath: '/library/sessions/$sessionId'
-      preLoaderRoute: typeof LibrarySessionsSessionIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/exercises/new': {
-      id: '/library/exercises/new'
-      path: '/library/exercises/new'
-      fullPath: '/library/exercises/new'
-      preLoaderRoute: typeof LibraryExercisesNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/library/exercises/$exerciseId': {
-      id: '/library/exercises/$exerciseId'
-      path: '/library/exercises/$exerciseId'
-      fullPath: '/library/exercises/$exerciseId'
-      preLoaderRoute: typeof LibraryExercisesExerciseIdRouteImport
-      parentRoute: typeof rootRouteImport
     }
   }
 }

@@ -402,15 +402,15 @@ describe("pinoIntegration — les erreurs avalées par un catch", () => {
     expect(logs).toEqual([]);
   });
 
-  it.each([
-    "request errored",
-    "request completed",
-  ])("n'envoie pas la ligne « %s » de pino-http : le filtre a déjà capturé la même panne", async (message) => {
-    const logger = await pinoLogger();
+  it.each(["request errored", "request completed"])(
+    "n'envoie pas la ligne « %s » de pino-http : le filtre a déjà capturé la même panne",
+    async (message) => {
+      const logger = await pinoLogger();
 
-    logger.error({ err: new Error("failed with status code 503") }, message);
-    await Sentry.flush(2000);
+      logger.error({ err: new Error("failed with status code 503") }, message);
+      await Sentry.flush(2000);
 
-    expect(sent).toEqual([]);
-  });
+      expect(sent).toEqual([]);
+    },
+  );
 });

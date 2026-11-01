@@ -15,7 +15,7 @@ or {
   TsInterfaceDeclaration(),
   TsEnumDeclaration()
 } as $item where {
-  $item <: not within JsFunctionBody() ,
+  $item <: not within JsFunctionBody(),
   $item <: not or {
     r"(?s)export default function \w+\(.*",
     r"export \{ \w+ as ErrorBoundary \} from \"[^\"]+\";",

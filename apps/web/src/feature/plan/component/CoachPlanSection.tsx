@@ -12,6 +12,7 @@ import { PlanAthleteTable } from "@/feature/plan/component/PlanAthleteTable";
 import { PlanToolbar } from "@/feature/plan/component/PlanToolbar";
 import type { PlansSearch } from "@/routes/plans.index";
 import { CmvEmptyState } from "@/shared/component";
+import { useUrlSearchText } from "@/shared/hook/useUrlSearchText";
 
 const route = getRouteApi("/plans/");
 
@@ -46,19 +47,29 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
    * `replace` partout : la barre est un RÉGLAGE DE VUE, pas une étape de navigation. Sans lui,
    * chaque frappe au clavier empilerait une entrée d'historique, et le bouton Retour rembobinerait
    * la saisie au lieu de quitter l'écran.
+   *
+   * Le reste de l'URL est recopié de `prev`, la plus récente, et non du dernier rendu : le routeur
+   * navigue dans une transition, et une frappe suivie d'un clic sur un segment écraserait sinon la
+   * recherche par celle d'avant la frappe (#734).
    */
-  const go = (next: Partial<PlansSearch>) =>
-    navigate({ to: "/plans", search: { q, state, athlete, ...next }, replace: true });
+  const go = (next: (prev: PlansSearch) => Partial<PlansSearch>) =>
+    navigate({
+      from: "/plans/",
+      to: "/plans",
+      search: (prev) => ({ ...prev, ...next(prev) }),
+      replace: true,
+    });
+  const [searchText, setSearchText] = useUrlSearchText(q, (next) => go(() => ({ q: next })));
 
   return (
     <div className="flex flex-col gap-cmv-lg">
       <PlanToolbar
-        search={q ?? ""}
+        search={searchText}
         filter={filter}
         counts={counts}
-        onSearchChange={(next) => go({ q: next || undefined })}
+        onSearchChange={setSearchText}
         // « Tous » ne s'écrit pas dans l'URL : c'est la valeur par défaut, l'y laisser serait du bruit.
-        onFilterChange={(next) => go({ state: next === "ALL" ? undefined : next })}
+        onFilterChange={(next) => go(() => ({ state: next === "ALL" ? undefined : next }))}
       />
 
       {visible.length === 0 ? (
@@ -73,7 +84,11 @@ export function CoachPlanSection({ plans }: Readonly<CoachPlanSectionProps>) {
           rows={visible}
           expandedAthleteId={athlete ?? null}
           // Recliquer sur l'athlète déplié le referme : un seul historique ouvert à la fois.
-          onToggle={(athleteId) => go({ athlete: athleteId === athlete ? undefined : athleteId })}
+          // Comparé à `prev` et non au dernier rendu : deux clics plus rapides que la transition
+          // rouvriraient la ligne au lieu de la refermer.
+          onToggle={(athleteId) =>
+            go((prev) => ({ athlete: prev.athlete === athleteId ? undefined : athleteId }))
+          }
         />
       )}
     </div>
