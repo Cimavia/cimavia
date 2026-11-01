@@ -21,7 +21,6 @@ import { ChangeAccessDto } from "../../access/dto/change-access.dto";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateSessionDto } from "../dto/create-session.dto";
-import { ReloadSessionExerciseDto } from "../dto/reload-session-exercise.dto";
 import { UpdateSessionDto } from "../dto/update-session.dto";
 import { SessionService } from "../service/session.service";
 
@@ -55,19 +54,6 @@ export class SessionController {
   @Put(":id")
   update(@Param("id") id: string, @Body() dto: UpdateSessionDto) {
     return this.sessions.update(id, dto);
-  }
-
-  /**
-   * `POST` et non `PUT` : ce n'est pas la mise à jour d'une ressource mais une ACTION, qui relit
-   * la bibliothèque et écrase la carte. Le client confirme avant de l'appeler.
-   */
-  @Post(":sessionId/exercises/:sessionExerciseId/reload")
-  reload(
-    @Param("sessionId") sessionId: string,
-    @Param("sessionExerciseId") sessionExerciseId: string,
-    @Body() dto: ReloadSessionExerciseDto,
-  ) {
-    return this.sessions.reloadExerciseFromLibrary(sessionId, sessionExerciseId, dto);
   }
 
   // Sous la version lue (#605, MC-8) : la séance peut être écrite par d'autres Coachs.

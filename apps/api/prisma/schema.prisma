@@ -349,13 +349,9 @@ model Exercise {
   /// cohabitent le temps que le constructeur web bascule (#163) : phase *expand* de
   /// expand/migrate/contract. `description` tombe au *contract*.
   instructions     Json?
-  /// Blocs de structure ordonnés (`ExerciseBlocks` de @cmv/shared) : l'ordre du tableau EST
-  /// l'ordre d'affichage. Stocké en JSON et non en tables — aucune requête n'interroge une
-  /// cellule, et le snapshot de planification se réduit à la copie du blob.
-  blocks           Json  @default("[]")
   /// Les métriques que l'exercice SUGGÈRE, sans valeur (`SuggestedMetric[]` de @cmv/shared) :
-  /// elles préremplissent les colonnes quand on l'ajoute à un bloc de séance (#714). Remplace
-  /// `blocks` quand l'ancien modèle tombe (#723).
+  /// elles préremplissent les colonnes quand on l'ajoute à un bloc de séance (#714). L'exercice ne
+  /// porte pas de dosage : la grille du bloc le fait.
   suggestedMetrics Json  @default("[]")
 
   /// Copie figée (#609) : l'exercice d'un autre Coach, recopié pour la séance qui le citait quand
@@ -507,36 +503,25 @@ model AccessGrant {
 }
 
 model SessionExercise {
-  id          String   @id @default(cuid())
-  coachId     String // dénormalisé pour le scope tenant direct
-  sessionId   String
-  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId  String
-  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
-  position    Int // ordre dans la séance (0-based)
-  /// Le CONTEXTE que la grille ne dit pas — « épaule sensible, reste prudent ». Anciennement
-  /// `prescription`, qui portait le dosage écrit à la main : ce rôle revient désormais à `blocks`.
-  note        String?
-  /// Dosage EFFECTIF de cet exercice dans cette séance — ce que tout le monde lit.
-  blocks      Json     @default("[]")
-  /// La copie faite à l'AJOUT. Sert à « Tout réinitialiser », et c'est contre elle que le verrou
-  /// du niveau séance est vérifié. Elle ne bouge qu'à « Recharger depuis la bibliothèque ».
-  baseline    Json     @default("[]")
-  /// Les chemins de valeurs touchées et leur niveau (`Adjustments` de @cmv/shared). Le marqueur
-  /// hérité/ajusté est ainsi porté par la donnée, jamais déduit d'une comparaison à l'affichage.
-  adjustments Json     @default("[]")
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  coachId    String // dénormalisé pour le scope tenant direct
+  sessionId  String
+  session    Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  position   Int // ordre dans la séance (0-based)
+  /// Le CONTEXTE que la grille ne dit pas — « épaule sensible, reste prudent ».
+  note       String?
+  createdAt  DateTime @default(now())
 
   /// Le bloc qui porte l'exercice (#716), son rang dans le bloc, sa clé et sa grille de valeurs
-  /// (`BlockGrid` de @cmv/shared). Les quatre sont nuls ensemble, un CHECK le garantit : une ligne
-  /// écrite par l'ancien constructeur n'a pas de bloc, jusqu'au retrait de l'ancien modèle (#723).
-  /// La clé est STABLE : la séance planifiée la recopie, et c'est par elle que les deux niveaux se
-  /// comparent.
-  blockId       String?
-  block         SessionBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  blockPosition Int?
-  key           String?
-  grid          Json?
+  /// (`BlockGrid` de @cmv/shared). La clé est STABLE : la séance planifiée la recopie, et c'est par
+  /// elle que les deux niveaux se comparent.
+  blockId       String
+  block         SessionBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  blockPosition Int
+  key           String
+  grid          Json
 
   @@unique([sessionId, position])
   @@unique([blockId, blockPosition])
@@ -630,8 +615,8 @@ model SessionBlock {
 // `status: PUBLISHED` appliqué par le service athlète — voir PlanService.
 //
 // Une séance planifiée est une COPIE FIGÉE d'un modèle de séance, pas une référence :
-// titre/consignes/exercices (titre, description, catégorie, prescription) et les documents
-// sont dupliqués à l'instanciation. Les liens `source*` sont donc nullables (`SetNull`) et ne
+// titre/notes, blocs, exercices (titre, description, consigne, grille) et les documents sont
+// dupliqués à l'instanciation. Les liens `source*` sont donc nullables (`SetNull`) et ne
 // servent qu'à la traçabilité — la bibliothèque du coach reste librement modifiable et
 // supprimable sans jamais dégrader une planif déjà diffusée.
 //
@@ -743,51 +728,37 @@ model ScheduledSession {
 }
 
 model ScheduledSessionExercise {
-  id                  String           @id @default(cuid())
-  coachId             String
-  athleteId           String?
-  scheduledSessionId  String
-  scheduledSession    ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
-  sourceExerciseId    String? // exercice d'origine — traçabilité seule
-  sourceExercise      Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
-  title               String // snapshot : l'affichage ne dépend jamais de sourceExercise
-  description         String?
+  id                 String           @id @default(cuid())
+  coachId            String
+  athleteId          String?
+  scheduledSessionId String
+  scheduledSession   ScheduledSession @relation(fields: [scheduledSessionId], references: [id], onDelete: Cascade)
+  sourceExerciseId   String? // exercice d'origine — traçabilité seule
+  sourceExercise     Exercise?        @relation(fields: [sourceExerciseId], references: [id], onDelete: SetNull)
+  title              String // snapshot : l'affichage ne dépend jamais de sourceExercise
+  description        String?
   /// Mêmes champs que l'Exercise source, copiés au moment de la diffusion. Sans eux une planif
-  /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait consigne et structure.
-  instructions        Json?
-  blocks              Json             @default("[]")
-  /// Le contexte propre à CET athlète. Anciennement `prescription` — même renommage qu'en séance.
-  note                String?
-  /// La copie reçue à la diffusion, et les ajustements des DEUX niveaux : ceux de la séance
-  /// arrivent marqués SESSION, ceux posés pour l'athlète en SCHEDULED.
-  baseline            Json             @default("[]")
-  adjustments         Json             @default("[]")
-  /// Les ajustements REÇUS à la diffusion — les marqueurs SESSION de la séance-type, `[]` pour un
-  /// exercice ajouté dans le panneau (#518). C'est ce que « Revenir au défaut » rend aux marqueurs,
-  /// comme `baseline` aux valeurs : sans lui, revenir effaçait le rond d'une valeur décidée dans la
-  /// séance-type. Même règle que `baseline` : jamais réécrit depuis le panneau du coach.
-  baselineAdjustments Json             @default("[]")
-  /// Les métriques maison citées par `blocks`, copiées à la diffusion. Sans elles l'athlète ne
-  /// verrait qu'un identifiant — `/custom-metrics` est scopé au coach, et faire dépendre la
-  /// lecture d'une planif de sa bibliothèque casserait l'autonomie du snapshot.
-  customMetrics       Json             @default("[]")
-  /// Suivi d'exécution, par identifiant de bloc. `null` = NON SUIVI, ce qui n'est pas
-  /// « zéro coché » : l'athlète n'a rien dit, et on ne lui reproche rien. Il vit en local
-  /// pendant la séance et ne remonte qu'avec le débrief.
-  tracking            Json?
-  position            Int // ordre dans la séance (0-based)
-  createdAt           DateTime         @default(now())
+  /// diffusée se dégraderait : l'athlète verrait le titre mais perdrait la consigne.
+  instructions       Json?
+  /// Le contexte propre à CET athlète.
+  note               String?
+  /// Les métriques maison que cite `grid`, copiées à la diffusion. Sans elles l'athlète ne verrait
+  /// qu'un identifiant — `/custom-metrics` est scopé au coach, et faire dépendre la lecture d'une
+  /// planif de sa bibliothèque casserait l'autonomie du snapshot.
+  customMetrics      Json             @default("[]")
+  position           Int // ordre dans la séance (0-based)
+  createdAt          DateTime         @default(now())
 
   /// Comme sur `SessionExercise` (#716) : le bloc, le rang dans le bloc, la clé recopiée de la
   /// séance-type et la grille de valeurs pour CET athlète. S'y ajoute l'origine de l'exercice dans
-  /// la composition, et la clé qu'il remplace pour un remplaçant. Un CHECK garde tout cela nul
-  /// ensemble, et `replacesKey` présent pour un remplaçant seulement.
-  blockId       String?
-  block         ScheduledSessionBlock? @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  blockPosition Int?
-  key           String?
-  grid          Json?
-  origin        CompositionOrigin?
+  /// la composition, et la clé qu'il remplace pour un remplaçant — un CHECK la veut présente pour
+  /// un remplaçant seulement.
+  blockId       String
+  block         ScheduledSessionBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  blockPosition Int
+  key           String
+  grid          Json
+  origin        CompositionOrigin
   replacesKey   String?
 
   documents ScheduledSessionExerciseDocument[]

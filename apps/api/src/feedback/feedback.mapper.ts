@@ -3,9 +3,7 @@ import type {
   MessageDto,
   SessionFeedbackDto,
   TrackedBlockDto,
-  TrackedExerciseDto,
 } from "@cmv/shared";
-import { required, trackingSummary } from "@cmv/shared";
 import type {
   FeedbackMedia,
   Prisma,
@@ -14,7 +12,6 @@ import type {
 } from "@prisma/client";
 import type { StorageService } from "../infra/storage/storage.service";
 import { parseBlockTracking, parseSettings } from "../util/block-json.util";
-import { parseBlocks, parseTracking } from "../util/exercise-json.util";
 
 // Le débrief avec ses médias, du plus ancien au plus récent (ordre d'ajout par l'athlète).
 export const FEEDBACK_DETAIL_INCLUDE = {
@@ -45,29 +42,6 @@ export async function toFeedbackMediaDto(
 }
 
 /**
- * Le décompte résumé, exercice par exercice.
- *
- * Calculé ICI plutôt que chez le client : le coach lit un débrief sans charger la séance de son
- * athlète, et lui faire dérouler les blocs pour compter des cases ajouterait un appel sur deux
- * surfaces pour la même réponse.
- */
-export function toTrackedExercises(
-  exercises: readonly Pick<ScheduledSessionExercise, "id" | "title" | "blocks" | "tracking">[],
-): TrackedExerciseDto[] {
-  return exercises.map((exercise) => {
-    const summary = trackingSummary(parseBlocks(exercise.blocks), parseTracking(exercise.tracking));
-    return {
-      exerciseId: exercise.id,
-      title: exercise.title,
-      state: summary.state,
-      done: summary.done,
-      total: summary.total,
-      unit: summary.unit,
-    };
-  });
-}
-
-/**
  * Les clés des exercices d'un bloc, dans l'ordre du bloc : une coche désigne sa case par elles. La
  * même lecture sert à valider le suivi reçu et à le rendre, sinon une case acceptée se lirait
  * contre une autre.
@@ -80,12 +54,12 @@ export const BLOCK_EXERCISE_KEYS = {
 export function blockExerciseKeys(
   rows: readonly Pick<ScheduledSessionExercise, "key">[],
 ): string[] {
-  return rows.map((row) => required(row.key, "[feedback] ligne de bloc sans clé"));
+  return rows.map((row) => row.key);
 }
 
 /**
  * Le suivi par bloc (#722), bloc par bloc : la matière de ses cases et de son décompte, que chaque
- * app rend dans sa langue (`blockChecks`, `blockTally`). Même raison que `toTrackedExercises` : le
+ * app rend dans sa langue (`blockChecks`, `blockTally`). Calculé ICI plutôt que chez le client : le
  * coach lit un débrief sans charger la séance de son athlète.
  */
 export function toTrackedBlocks(
@@ -106,14 +80,6 @@ export function toTrackedBlocks(
   }));
 }
 
-/** Le suivi qui accompagne un débrief : par exercice (ancien modèle), et par bloc (#722). */
-export type FeedbackTracked = {
-  trackedExercises: TrackedExerciseDto[];
-  trackedBlocks: TrackedBlockDto[];
-};
-
-const NOTHING_TRACKED: FeedbackTracked = { trackedExercises: [], trackedBlocks: [] };
-
 /**
  * Le débrief tel qu'il se lit — par son auteur comme par son coach, c'est le même DTO.
  *
@@ -124,7 +90,7 @@ const NOTHING_TRACKED: FeedbackTracked = { trackedExercises: [], trackedBlocks: 
 export async function toSessionFeedbackDto(
   feedback: SessionFeedbackWithMedia,
   storage: StorageService,
-  tracked: FeedbackTracked = NOTHING_TRACKED,
+  trackedBlocks: TrackedBlockDto[] = [],
   messages: MessageDto[] = [],
 ): Promise<SessionFeedbackDto> {
   const media = await Promise.all(feedback.media.map((item) => toFeedbackMediaDto(item, storage)));
@@ -134,8 +100,7 @@ export async function toSessionFeedbackDto(
     athleteId: feedback.athleteId,
     content: feedback.content,
     media,
-    trackedExercises: tracked.trackedExercises,
-    trackedBlocks: tracked.trackedBlocks,
+    trackedBlocks,
     messages,
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString(),

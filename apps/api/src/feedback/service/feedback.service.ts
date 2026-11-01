@@ -1,6 +1,5 @@
 import type {
   FeedbackBlockTracking,
-  FeedbackTracking,
   MessageDto,
   SessionFeedbackDto,
   UpsertSessionFeedbackInput,
@@ -29,7 +28,6 @@ import {
   FEEDBACK_DETAIL_INCLUDE,
   toSessionFeedbackDto,
   toTrackedBlocks,
-  toTrackedExercises,
 } from "../feedback.mapper";
 import { FeedbackAudienceService } from "./feedback-audience.service";
 
@@ -77,19 +75,17 @@ export class FeedbackService {
     scheduledSessionId: string,
     input: UpsertSessionFeedbackInput,
   ): Promise<SessionFeedbackDto> {
-    const tracking = input.tracking ?? {};
     const blockTracking = input.blockTracking ?? {};
     // La garde de séance passe en premier, et une seule fois : la séance d'un autre reste un 404,
     // pas un 400 de suivi qui dirait qu'elle existe.
     const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
-    await this.assertTrackedExercisesKnown(scheduledSessionId, tracking);
     await this.assertTrackedBlocksFit(scheduledSessionId, blockTracking);
     const writable = await this.writableOf(session);
     await this.db.sessionFeedback.update({
       where: { id: writable.feedback.id },
       data: { content: input.content ?? null },
     });
-    await this.writeTracking(scheduledSessionId, tracking, blockTracking);
+    await this.writeTracking(scheduledSessionId, blockTracking);
     // Enregistrer le texte est toujours un geste à lui seul : jamais la suite d'un lot.
     await this.markSent(writable, false);
     // Écrit juste au-dessus : le relire ne peut pas manquer.
@@ -100,45 +96,19 @@ export class FeedbackService {
   }
 
   /**
-   * Refuse un suivi qui cite un exercice que la séance ne porte pas (#311).
+   * Refuse un suivi par bloc (#716) qui cite un bloc que la séance ne porte pas, ou une case que
+   * ses réglages ne donnent pas (#311).
    *
-   * L'ignorer, c'était répondre 200 à un débrief dont les coches n'avaient atterri nulle part :
-   * le client vidait alors son suivi local, et la perte était définitive. Un refus laisse les
+   * L'ignorer, ce serait répondre 200 à un débrief dont les coches n'ont atterri nulle part : le
+   * client viderait alors son suivi local, et la perte serait définitive. Un refus laisse les
    * coches sur l'appareil — l'athlète n'a rien perdu, et le client sait qu'il doit se reprendre.
+   * Les cases se lisent avec les exercices du bloc tel qu'il est : une coche sur un exercice
+   * retiré depuis n'a plus de case.
    *
    * Contrôlé AVANT toute écriture, texte compris : le débrief n'est pas écrit dans une seule
    * transaction, et un refus après coup laisserait un débrief à moitié enregistré — voire en
    * créerait un, séance passée en DONE, pour une requête refusée. L'appelant a déjà passé la garde
    * de séance.
-   *
-   * Un exercice de bloc compte pour inconnu (#722) : il se suit avec son bloc, et le débrief ne
-   * rendrait jamais un suivi écrit sur lui — ce serait la même perte silencieuse.
-   */
-  private async assertTrackedExercisesKnown(
-    scheduledSessionId: string,
-    tracking: FeedbackTracking,
-  ): Promise<void> {
-    const cited = Object.keys(tracking);
-    if (cited.length === 0) return;
-
-    const known = await this.db.scheduledSessionExercise.findMany({
-      where: { scheduledSessionId, blockId: null, id: { in: cited } },
-      select: { id: true },
-    });
-    if (known.length === cited.length) return;
-
-    const knownIds = new Set(known.map((exercise) => exercise.id));
-    const unknown = cited.filter((id) => !knownIds.has(id));
-    throw new BadRequestException(
-      `Le suivi cite un exercice absent de cette séance : ${unknown.join(", ")}`,
-    );
-  }
-
-  /**
-   * Refuse un suivi par bloc (#716) qui cite un bloc que la séance ne porte pas, ou une case que
-   * ses réglages ne donnent pas — même raison que `assertTrackedExercisesKnown` : un refus laisse
-   * les coches sur l'appareil, un 200 les perdrait. Les cases se lisent avec les exercices du bloc
-   * tel qu'il est : une coche sur un exercice retiré depuis n'a plus de case.
    */
   private async assertTrackedBlocksFit(
     scheduledSessionId: string,
@@ -174,31 +144,23 @@ export class FeedbackService {
   /**
    * Écrit le suivi d'exécution remonté avec le débrief.
    *
-   * Chaque exercice est mis à jour SÉPARÉMENT et par son `where` scopé : un `updateMany` sur des
+   * Chaque bloc est mis à jour SÉPARÉMENT et par son `where` scopé : un `updateMany` sur des
    * identifiants fournis par le client écrirait chez qui les enverrait. Le scope tenant filtre
    * déjà par athlète, mais on ne s'appuie pas sur lui seul pour une écriture pilotée par l'entrée.
    *
-   * `null` remet l'exercice en NON SUIVI — c'est une intention, pas une absence : l'athlète peut
+   * `null` remet le bloc en NON SUIVI — c'est une intention, pas une absence : l'athlète peut
    * revenir sur un décompte qu'il a posé par erreur.
    *
    * Une seule transaction (#297) : le suivi d'une séance arrive d'un bloc, et s'écrit d'un bloc —
-   * jamais la moitié des exercices. Le nombre de clés est borné par le schéma, et chacune a déjà
-   * été reconnue par `assertTrackedExercisesKnown`, en une seule lecture.
+   * jamais la moitié des blocs. Le nombre de clés est borné par le schéma, et chacune a déjà été
+   * reconnue par `assertTrackedBlocksFit`, en une seule lecture.
    */
   private async writeTracking(
     scheduledSessionId: string,
-    tracking: FeedbackTracking,
     blockTracking: FeedbackBlockTracking,
   ): Promise<void> {
-    if (Object.keys(tracking).length === 0 && Object.keys(blockTracking).length === 0) return;
+    if (Object.keys(blockTracking).length === 0) return;
     await this.db.$transaction(async (tx: TenantTx) => {
-      for (const [exerciseId, state] of Object.entries(tracking)) {
-        await tx.scheduledSessionExercise.updateMany({
-          where: { id: exerciseId, scheduledSessionId },
-          data: { tracking: state == null ? Prisma.DbNull : (state as Prisma.InputJsonValue) },
-        });
-      }
-      // Les blocs de même (#716), dans la même transaction : la séance s'écrit d'un bloc.
       for (const [blockId, state] of Object.entries(blockTracking)) {
         await tx.scheduledSessionBlock.updateMany({
           where: { id: blockId, scheduledSessionId },
@@ -297,14 +259,8 @@ export class FeedbackService {
     if (feedback == null) return null;
 
     // Le décompte ACCOMPAGNE le débrief : il part dans la même réponse, sinon le coach devrait
-    // charger la séance de son athlète juste pour savoir ce qui a été coché. Un exercice de bloc
-    // se compte avec son bloc (#722) : le compter aussi seul dirait deux fois le même suivi.
-    const [exercises, blocks, messages] = await Promise.all([
-      this.db.scheduledSessionExercise.findMany({
-        where: { scheduledSessionId, blockId: null },
-        orderBy: { position: "asc" },
-        select: { id: true, title: true, blocks: true, tracking: true },
-      }),
+    // charger la séance de son athlète juste pour savoir ce qui a été coché.
+    const [blocks, messages] = await Promise.all([
       this.db.scheduledSessionBlock.findMany({
         where: { scheduledSessionId },
         orderBy: { position: "asc" },
@@ -319,12 +275,7 @@ export class FeedbackService {
       }),
       this.attachedMessages(feedback.id),
     ]);
-    return toSessionFeedbackDto(
-      feedback,
-      this.storage,
-      { trackedExercises: toTrackedExercises(exercises), trackedBlocks: toTrackedBlocks(blocks) },
-      messages,
-    );
+    return toSessionFeedbackDto(feedback, this.storage, toTrackedBlocks(blocks), messages);
   }
 
   /**

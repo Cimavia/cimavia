@@ -6,20 +6,11 @@ import { toScheduledSessionBlockDto } from "../../session/session-block.mapper";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { shiftDbDate, toIsoDate } from "../../util/date.util";
-import {
-  parseAdjustments,
-  parseBlocks,
-  parseCustomMetrics,
-  parseInstructions,
-} from "../../util/exercise-json.util";
+import { parseCustomMetrics, parseInstructions } from "../../util/exercise-json.util";
 import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { WEEK_NOT_FOUND } from "../plan-week.version";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
-import {
-  type BlockPlacementDraft,
-  copiedBlocksOf,
-  insertScheduledSessionExercises,
-} from "../scheduled-session.writer";
+import { copiedBlocksOf, insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
 /**
@@ -161,25 +152,24 @@ export class PlanWeekCopyService {
           targetPlan.athleteId,
           // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
           // pas les lignes de la table de copie.
-          // Consigne et blocs repassent par Zod : ils sortent de Prisma en `JsonValue`, que le
-          // draft n'accepte pas — et le faire ICI garde la copie fidèle à l'instance source.
+          // Consigne et métriques repassent par Zod : elles sortent de Prisma en `JsonValue`, que
+          // le draft n'accepte pas — et le faire ICI garde la copie fidèle à l'instance source.
           session.exercises.map((exercise) => ({
             exercise: {
-              ...exercise,
+              sourceExerciseId: exercise.sourceExerciseId,
+              title: exercise.title,
+              description: exercise.description,
               instructions: parseInstructions(exercise.instructions),
-              blocks: parseBlocks(exercise.blocks),
-              adjustments: parseAdjustments(exercise.adjustments),
               customMetrics: parseCustomMetrics(exercise.customMetrics),
               tags: exercise.tags.map((tag) => tag.name),
+              note: exercise.note,
             },
-            // La copie garde la référence de la source : recopier une semaine ne remet pas les
-            // ajustements à zéro, et ne les fige pas non plus comme s'ils étaient le défaut.
-            baseline: parseBlocks(exercise.baseline),
-            // Les marqueurs reçus voyagent avec leur référence : revenir au défaut sur la copie rend
-            // ce que la SÉANCE-TYPE avait décidé, comme sur l'instance source.
-            baselineAdjustments: parseAdjustments(exercise.baselineAdjustments),
             documents: exercise.documents,
-            ...placementOf(placements, exercise.id),
+            // La copie garde la place et la grille de la source, origine comprise.
+            placement: required(
+              placements.get(exercise.id),
+              `[plan] l'exercice ${exercise.id} hors de ses blocs`,
+            ),
           })),
           blocks,
         );
@@ -190,13 +180,4 @@ export class PlanWeekCopyService {
     // refusé plus haut), et un brouillon n'existe pas encore pour l'athlète.
     return this.plans.get(targetPlan.id);
   }
-}
-
-/** La place d'une ligne dans ses blocs, absente pour une ligne de l'ancien modèle. */
-function placementOf(
-  placements: ReadonlyMap<string, BlockPlacementDraft>,
-  rowId: string,
-): { placement?: BlockPlacementDraft } {
-  const placement = placements.get(rowId);
-  return placement === undefined ? {} : { placement };
 }

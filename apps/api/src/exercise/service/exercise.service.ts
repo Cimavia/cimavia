@@ -40,10 +40,8 @@ import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import {
-  parseBlocks,
   parseInstructions,
   parseSuggestedMetrics,
-  toBlocksInput,
   toInstructionsInput,
   toSuggestedMetricsInput,
 } from "../../util/exercise-json.util";
@@ -223,11 +221,7 @@ export class ExerciseService {
     // client les rattache APRÈS, puis réécrit la consigne (`useSaveExercise`).
     assertInstructionImagesOwned(input.instructions, []);
     const suggestedMetrics = input.suggestedMetrics ?? [];
-    assertCitesCatalog(
-      metricCitationsOf(input.blocks ?? [], suggestedMetrics),
-      [],
-      await this.metrics.ownCatalog(),
-    );
+    assertCitesCatalog(metricCitationsOf(suggestedMetrics), [], await this.metrics.ownCatalog());
     const created = await this.db.exercise.create({
       data: {
         title: input.title,
@@ -236,7 +230,6 @@ export class ExerciseService {
         // `?? null` / `?? []` : à la création, « champ absent » et « champ vide » se confondent.
         // C'est à la mise à jour qu'ils divergent — là, `undefined` veut dire « ne touche pas ».
         instructions: toInstructionsInput(input.instructions ?? null),
-        blocks: toBlocksInput(input.blocks ?? []),
         suggestedMetrics: toSuggestedMetricsInput(suggestedMetrics),
       } satisfies Omit<
         Prisma.ExerciseUncheckedCreateInput,
@@ -260,10 +253,10 @@ export class ExerciseService {
    * compte ces copies avant de purger).
    *
    * Seules les images de consigne suivent. Pièces jointes et liens restent à la source : la
-   * variante sert à changer structure, colonnes ou consigne, pas les ressources de l'exercice.
+   * variante sert à changer métriques ou consigne, pas les ressources de l'exercice.
    *
-   * Les blocs reçus viennent d'une ligne de séance qui cite la source : ils citent le catalogue de
-   * son PROPRIÉTAIRE (piège n°9), et la variante les fait passer dans celui de l'acteur.
+   * Ses métriques suggérées citent le catalogue du PROPRIÉTAIRE de la source (piège n°9), et la
+   * variante les fait passer dans celui de l'acteur.
    */
   async duplicate(sourceId: string, input: DuplicateExerciseInput): Promise<ExerciseDto> {
     const source = await this.getReadableOrThrow(sourceId);
@@ -271,17 +264,14 @@ export class ExerciseService {
     const cited = new Set(imageMediaIds(instructions ?? []));
     const owned = instructionImageIds(source.documents);
     const images = source.documents.filter((doc) => cited.has(doc.id) && owned.has(doc.id));
-    const sourceBlocks = parseBlocks(source.blocks);
-    // Lu une fois, hors de la transaction : il juge les blocs reçus, puis la copie l'adopte.
+    // Lu hors de la transaction (piège n°9) : la copie l'adopte.
     const catalog = (await this.metrics.catalogOf([source.coachId]))(source.coachId);
-    if (input.blocks != null) assertCitesCatalog(input.blocks, sourceBlocks, catalog);
     const id = await this.db.$transaction((tx) =>
       this.copies.create(
         tx,
         { ...source, catalog },
         {
           title: input.title,
-          blocks: input.blocks ?? sourceBlocks,
           documents: images,
           frozen: null,
         },
@@ -356,21 +346,13 @@ export class ExerciseService {
     assertInstructionImagesOwned(input.instructions, current.documents);
     // Lu une fois : la réponse résout les mêmes citations dans le même catalogue.
     let catalogOf: CatalogOf | undefined;
-    if (input.blocks !== undefined || input.suggestedMetrics !== undefined) {
+    if (input.suggestedMetrics !== undefined) {
       catalogOf = await this.metrics.catalogOf([current.coachId]);
-      const catalog = catalogOf(current.coachId);
-      // Chaque collection contre ce qu'ELLE citait : une métrique hors catalogue que les blocs
-      // citaient encore ne passe pas aux métriques suggérées sans contrôle (EX-2).
-      if (input.blocks !== undefined) {
-        assertCitesCatalog(input.blocks, parseBlocks(current.blocks), catalog);
-      }
-      if (input.suggestedMetrics !== undefined) {
-        assertCitesCatalog(
-          metricCitationsOf([], input.suggestedMetrics),
-          metricCitationsOf([], parseSuggestedMetrics(current.suggestedMetrics)),
-          catalog,
-        );
-      }
+      assertCitesCatalog(
+        metricCitationsOf(input.suggestedMetrics),
+        metricCitationsOf(parseSuggestedMetrics(current.suggestedMetrics)),
+        catalogOf(current.coachId),
+      );
     }
     const data: Prisma.ExerciseUpdateManyMutationInput = {};
     // Les deux ensemble, sous la MÊME garde : un titre modifié sans sa forme comparable laisserait
@@ -382,7 +364,6 @@ export class ExerciseService {
     if (input.description !== undefined) data.description = input.description;
     if (input.instructions !== undefined)
       data.instructions = toInstructionsInput(input.instructions);
-    if (input.blocks !== undefined) data.blocks = toBlocksInput(input.blocks);
     if (input.suggestedMetrics !== undefined)
       data.suggestedMetrics = toSuggestedMetricsInput(input.suggestedMetrics);
 

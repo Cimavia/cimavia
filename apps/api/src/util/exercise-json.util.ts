@@ -1,12 +1,6 @@
 import {
-  type Adjustments,
-  adjustmentsSchema,
   type CustomMetric,
   customMetricSchema,
-  type ExerciseBlocks,
-  type ExerciseTracking,
-  exerciseBlocksSchema,
-  exerciseTrackingSchema,
   type RichDocument,
   richDocumentSchema,
   type SuggestedMetric,
@@ -16,13 +10,14 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 /**
- * Consigne structurée et blocs vivent en colonnes JSON (décision tranchée : voir
- * `docs/dette/seances-et-exercices.md` § « Refonte du modèle d'exercice »). Prisma les rend en
- * `JsonValue`, sans contrat, et les attend en `InputJsonValue`, qu'un type Zod ne satisfait pas seul.
+ * Consigne structurée, métriques suggérées et métriques maison copiées vivent en colonnes JSON
+ * (décision tranchée : voir `docs/dette/seances-et-exercices.md` § « Refonte du modèle
+ * d'exercice »). Prisma les rend en `JsonValue`, sans contrat, et les attend en `InputJsonValue`,
+ * qu'un type Zod ne satisfait pas seul.
  *
  * Ces fonctions sont le SEUL passage entre les deux mondes. Elles vivent ici et non dans
  * `exercise.mapper` parce que la planification en a autant besoin que la bibliothèque : une séance
- * diffusée copie la consigne et les blocs de l'exercice source.
+ * diffusée copie la consigne de l'exercice source.
  */
 
 /**
@@ -37,11 +32,7 @@ export function parseInstructions(value: Prisma.JsonValue): RichDocument | null 
   return value === null ? null : richDocumentSchema.parse(value);
 }
 
-export function parseBlocks(value: Prisma.JsonValue): ExerciseBlocks {
-  return exerciseBlocksSchema.parse(value);
-}
-
-/** Les métriques suggérées d'un exercice (#718), même trajet que les blocs. */
+/** Les métriques suggérées d'un exercice (#718), même trajet que la consigne. */
 export function parseSuggestedMetrics(value: Prisma.JsonValue): SuggestedMetric[] {
   return suggestedMetricsSchema.parse(value);
 }
@@ -68,41 +59,11 @@ export function toInstructionsInput(
   return instructions ?? Prisma.DbNull;
 }
 
-/**
- * N'a l'air de rien et n'est pas supprimable : sans ce passage explicite par `InputJsonValue`, le
- * littéral de données porte le type Zod des blocs, et sa conversion vers l'`UncheckedCreateInput`
- * de Prisma est refusée — TypeScript ne juge plus les deux types comparables. Le retour explicite
- * fixe le type AVANT que le littéral ne soit construit.
- */
-export function toBlocksInput(blocks: ExerciseBlocks): Prisma.InputJsonValue {
-  return blocks;
-}
-
-/**
- * Les ajustements de dosage, même trajet que les blocs : `JsonValue` à la lecture, `InputJsonValue`
- * à l'écriture, et le schéma partagé comme seul contrat.
- */
-export function parseAdjustments(value: Prisma.JsonValue): Adjustments {
-  return adjustmentsSchema.parse(value);
-}
-
-export function toAdjustmentsInput(adjustments: Adjustments): Prisma.InputJsonValue {
-  return adjustments;
-}
-
-/** Les définitions de métriques maison copiées dans un snapshot, même trajet que les blocs. */
+/** Les définitions de métriques maison copiées dans un snapshot, même trajet que la consigne. */
 export function parseCustomMetrics(value: Prisma.JsonValue): CustomMetric[] {
   return z.array(customMetricSchema).parse(value);
 }
 
 export function toCustomMetricsInput(metrics: readonly CustomMetric[]): Prisma.InputJsonValue {
   return metrics as Prisma.InputJsonValue;
-}
-
-/**
- * Le suivi d'exécution. `null` traverse INTACT : c'est l'état « non suivi », pas une absence de
- * donnée à combler par un objet vide — les deux ne se lisent pas pareil côté athlète.
- */
-export function parseTracking(value: Prisma.JsonValue): ExerciseTracking | null {
-  return value === null ? null : exerciseTrackingSchema.parse(value);
 }

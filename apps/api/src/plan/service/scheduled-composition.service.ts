@@ -272,9 +272,7 @@ export class ScheduledCompositionService {
 
     await this.commit(plan, writes, async (tx, { copy: written, blocks }) => {
       const copy = written.row;
-      const stored = copy.exercises.flatMap((row) =>
-        row.key === null ? [] : [{ id: row.id, key: row.key }],
-      );
+      const stored = copy.exercises.map((row) => ({ id: row.id, key: row.key }));
       const frozen = copy.exercises.flatMap((row) => parseCustomMetrics(row.customMetrics));
       await rewriteScheduledComposition(
         tx,
@@ -296,8 +294,6 @@ export class ScheduledCompositionService {
               title: exercise.title,
               description: exercise.description,
               instructions: parseInstructions(exercise.instructions),
-              blocks: [],
-              adjustments: [],
               customMetrics: definitionsOf(
                 row,
                 frozen,
@@ -306,8 +302,6 @@ export class ScheduledCompositionService {
               tags: exercise.tags.map((tag) => tag.name).sort(),
               note: row.note,
             },
-            baseline: [],
-            baselineAdjustments: [],
             documents: exercise.documents,
           };
         },
@@ -361,10 +355,10 @@ export class ScheduledCompositionService {
   private async sessionTypeKeys(anchor: Anchor): Promise<string[]> {
     if (anchor.sourceSessionId === null) return [];
     const rows = await this.db.sessionExercise.findMany({
-      where: { sessionId: anchor.sourceSessionId, key: { not: null } },
+      where: { sessionId: anchor.sourceSessionId },
       select: { key: true },
     });
-    return rows.flatMap((row) => (row.key === null ? [] : [row.key]));
+    return rows.map((row) => row.key);
   }
 }
 

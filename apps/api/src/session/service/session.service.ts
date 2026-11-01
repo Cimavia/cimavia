@@ -1,19 +1,15 @@
 import {
   ABOUT_BLANK,
-  AdjustmentLevel,
   type ChangeAccessInput,
   type CreateSessionInput,
   customMetricIdsIn,
   type ElementAccessDto,
-  type ExerciseBlocks,
   gridValueIssues,
   type LibraryScope,
   MetricSource,
-  type ReloadSessionExerciseInput,
   required,
   type SessionBlock,
   type SessionDto,
-  type SessionExerciseInput,
   toJsonPointer,
   type UpdateSessionInput,
   type VersionQuery,
@@ -25,14 +21,11 @@ import { type AccessGesture, AccessService } from "../../access/service/access.s
 import { AccessGrantService } from "../../access/service/access-grant.service";
 import { gridCatalogOf, toCustomMetricDto } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
-import type { LibraryExercise } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
 import { ProblemException } from "../../problem/problem.exception";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { parseGrid } from "../../util/block-json.util";
-import { assertShapeLocked } from "../../util/dosage-lock.util";
-import { parseBlocks, toAdjustmentsInput, toBlocksInput } from "../../util/exercise-json.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
   exerciseOwnersOf,
@@ -55,16 +48,11 @@ export class SessionService {
   ) {}
 
   async create(input: CreateSessionInput): Promise<SessionDto> {
-    const composition =
-      input.blocks === undefined
-        ? await this.listedComposition(input.exercises, null)
-        : {
-            blocks: await this.writableBlocksOrThrow(
-              input.blocks,
-              null,
-              (await this.access.context()).actorId,
-            ),
-          };
+    const blocks = await this.writableBlocksOrThrow(
+      input.blocks,
+      null,
+      (await this.access.context()).actorId,
+    );
     const session = await this.db.$transaction(async (tx) => {
       const created = await tx.session.create({
         // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
@@ -73,12 +61,7 @@ export class SessionService {
           "coachId"
         > as Prisma.SessionUncheckedCreateInput,
       });
-      if ("blocks" in composition) {
-        await insertSessionBlocks(tx, created.id, composition.blocks);
-      } else {
-        const { exercises, library } = composition;
-        await this.replaceExercises(tx, created.id, exercises, [], library);
-      }
+      await insertSessionBlocks(tx, created.id, blocks);
       return created;
     });
     return this.getDto(session.id);
@@ -108,13 +91,7 @@ export class SessionService {
     // Avant de valider les exercices cités contre un état que la saisie n'a pas vu.
     assertReadAtVersion(current.updatedAt, expected);
     // Un exercice que la séance cite déjà reste citable, même privé : le droit vient d'elle.
-    const composition =
-      input.blocks === undefined
-        ? await this.listedComposition(
-            required(input.exercises, "[session] l'une des compositions"),
-            current,
-          )
-        : { blocks: await this.writableBlocksOrThrow(input.blocks, current, current.coachId) };
+    const blocks = await this.writableBlocksOrThrow(input.blocks, current, current.coachId);
     const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(
         tx.session,
@@ -123,22 +100,10 @@ export class SessionService {
         { title: input.title, notes: input.notes ?? null },
         SESSION_NOT_FOUND,
       );
-      // Replace-all : la composition est intégralement remplacée par la liste fournie.
-      // Lues AVANT la destruction : elles portent les références que la nouvelle composition
-      // doit récupérer.
-      const previous = await tx.sessionExercise.findMany({
-        where: { sessionId: id },
-        select: { id: true, baseline: true },
-      });
-      // Les deux modèles s'effacent ensemble (#716) : une séance n'en porte qu'un à la fois.
-      await tx.sessionExercise.deleteMany({ where: { sessionId: id } });
+      // Replace-all : la composition est intégralement remplacée par les blocs fournis. Les
+      // exercices partent avec leurs blocs (`onDelete: Cascade`).
       await tx.sessionBlock.deleteMany({ where: { sessionId: id } });
-      if ("blocks" in composition) {
-        await insertSessionBlocks(tx, id, composition.blocks);
-      } else {
-        const { exercises, library } = composition;
-        await this.replaceExercises(tx, id, exercises, previous, library);
-      }
+      await insertSessionBlocks(tx, id, blocks);
       // Relue DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version et NOS lignes. Relue après, elle pourrait déjà porter celles d'un autre
       // Coach — que le builder, qui garde sa saisie, reprendrait comme les siennes.
@@ -227,8 +192,9 @@ export class SessionService {
   /**
    * La composition par blocs à écrire (#716), ce qu'elle cite prouvé utilisable — ou 400 :
    *
-   * - chaque exercice, accessible comme dans l'ancien modèle (#353). Celui qu'une ligne de la séance
-   *   cite déjà sous la même clé n'est pas revérifié (tranché en #605) ;
+   * - chaque exercice, accessible (#353). Celui qu'une ligne de la séance cite déjà sous la même clé
+   *   n'est pas revérifié (tranché en #605) : la séance ne se casse pas sous son auteur quand le
+   *   droit qui lui avait ouvert l'exercice disparaît ;
    * - chaque cellule, dans le type de sa colonne : le schéma partagé ne connaît pas les métriques
    *   du Coach, qui vivent en base.
    *
@@ -261,9 +227,7 @@ export class SessionService {
     // Une colonne déjà enregistrée garde sa métrique même supprimée depuis (dette EX-2) : la
     // refuser bloquerait tout enregistrement de la séance qui la porte.
     const alreadyCited = new Set(
-      customMetricIdsIn(
-        session?.exercises.flatMap((row) => (row.grid === null ? [] : [parseGrid(row.grid)])) ?? [],
-      ),
+      customMetricIdsIn(session?.exercises.map((row) => parseGrid(row.grid)) ?? []),
     );
     blocks.forEach((block, blockIndex) => {
       block.exercises.forEach((exercise, exerciseIndex) => {
@@ -316,162 +280,6 @@ export class SessionService {
         ? block
         : { ...block, sourceStructureId: null },
     );
-  }
-
-  /** Une composition par exercices, avec ce qu'elle cite de la bibliothèque. */
-  private async listedComposition(
-    exercises: SessionExerciseInput[],
-    session: SessionWithExercises | null,
-  ) {
-    return { exercises, library: await this.loadCited(exercises, session) };
-  }
-
-  /**
-   * Les exercices que la composition cite, prouvés accessibles (#353) — ou 400.
-   *
-   * Une ligne REPRISE qui cite toujours le même exercice n'est pas revérifiée : elle garde sa
-   * référence (`baseline`) et ne relit rien de la bibliothèque. La séance ne se casse donc pas
-   * sous son auteur quand le droit qui lui avait ouvert l'exercice disparaît (tranché en #605).
-   */
-  private loadCited(
-    exercises: SessionExerciseInput[],
-    session: { id: string; exercises: readonly { id: string; exerciseId: string }[] } | null,
-  ): Promise<Map<string, LibraryExercise>> {
-    const citedBy = new Map(session?.exercises.map((row) => [row.id, row.exerciseId]));
-    return this.library.loadAccessibleOrThrow(
-      exercises
-        .filter(
-          (exercise) => exercise.id == null || citedBy.get(exercise.id) !== exercise.exerciseId,
-        )
-        .map((exercise) => exercise.exerciseId),
-      session?.id ?? null,
-    );
-  }
-
-  /**
-   * « Recharger depuis la bibliothèque » : la composition reprend le dosage de l'exercice TEL
-   * QU'IL EST AUJOURD'HUI, et repart sans aucun ajustement.
-   *
-   * C'est le SEUL geste qui déplace la référence, et c'est pourquoi il vit côté serveur : partout
-   * ailleurs le client n'envoie que des valeurs, jamais la référence contre laquelle le verrou
-   * est vérifié — il ne pourrait que la forger.
-   *
-   * À ne pas confondre avec « Tout réinitialiser », qui revient aux valeurs copiées à l'ajout et
-   * ne touche pas la référence. Celui-ci ÉCRASE, d'où la confirmation côté client.
-   *
-   * La version de la SÉANCE est vérifiée, et avancée, AVANT de chercher la ligne (#604) : chaque
-   * enregistrement recrée la composition sous de nouveaux identifiants, si bien qu'un onglet resté
-   * sur l'ancienne cite une ligne qui n'existe plus. C'est un conflit, pas une ligne inconnue.
-   */
-  async reloadExerciseFromLibrary(
-    sessionId: string,
-    sessionExerciseId: string,
-    input: ReloadSessionExerciseInput,
-  ): Promise<SessionDto> {
-    const { context } = await this.getForOrThrow(sessionId, "write");
-    const saved = await this.db.$transaction(async (tx) => {
-      // Rien d'autre à écrire sur la séance : seule sa version avance.
-      await writeAtVersion(
-        tx.session,
-        sessionId,
-        new Date(input.expectedUpdatedAt),
-        {},
-        SESSION_NOT_FOUND,
-      );
-      const composed = await tx.sessionExercise.findFirst({
-        where: { id: sessionExerciseId, sessionId },
-        select: { exerciseId: true },
-      });
-      if (composed == null) {
-        throw new NotFoundException("Exercice de séance introuvable");
-      }
-      // Lisible, ou privé au propriétaire de la séance qui le cite (#605) — pas l'exercice d'un
-      // tiers que l'acteur ne lit pas : recharger en recopierait le dosage.
-      const library = await this.library.loadAccessibleOrThrow(
-        [composed.exerciseId],
-        sessionId,
-        tx,
-      );
-      const blocks = parseBlocks(
-        required(library.get(composed.exerciseId), "[session] exercice rechargé non chargé").blocks,
-      );
-      await tx.sessionExercise.update({
-        where: { id: sessionExerciseId },
-        data: {
-          blocks: toBlocksInput(blocks),
-          baseline: toBlocksInput(blocks),
-          adjustments: toAdjustmentsInput([]),
-        },
-      });
-      // Dans la transaction, comme après un enregistrement : la réponse porte NOTRE version.
-      return this.getReadableOrThrow(sessionId, tx);
-    });
-    return this.toDto(saved, context);
-  }
-
-  /**
-   * Insère la composition ordonnée : la position = l'ordre du tableau (coachId injecté).
-   *
-   * La composition est un REMPLACE-ALL — les lignes sont détruites puis recréées. La référence de
-   * dosage doit pourtant survivre à l'opération, sinon « Tout réinitialiser » reviendrait aux
-   * valeurs de la dernière sauvegarde et le verrou n'aurait plus rien contre quoi vérifier. D'où
-   * `previousById` : une ligne qui porte un `id` déjà connu récupère SA référence, une ligne sans
-   * id part d'une copie de l'exercice.
-   *
-   * Le client ne fournit jamais la référence — il ne pourrait que la forger.
-   */
-  private async replaceExercises(
-    tx: TenantTx,
-    sessionId: string,
-    exercises: SessionExerciseInput[],
-    previous: readonly { id: string; baseline: Prisma.JsonValue }[],
-    library: ReadonlyMap<string, LibraryExercise>,
-  ): Promise<void> {
-    if (exercises.length === 0) return;
-
-    const previousById = new Map(previous.map((row) => [row.id, row]));
-    // Une fois par exercice DISTINCT, pas par ligne (#297) : la même référence citée à chaque
-    // ligne faisait reparser ses blocs autant de fois.
-    const libraryBlocks = new Map<string, ExerciseBlocks>();
-    const blocksOf = (exerciseId: string): ExerciseBlocks => {
-      const cached = libraryBlocks.get(exerciseId);
-      if (cached != null) return cached;
-      // `loadAccessibleOrThrow` a déjà refusé en 400 tout exercice inconnu.
-      const exercise = required(
-        library.get(exerciseId),
-        `[session] exercice ${exerciseId} absent de la bibliothèque chargée`,
-      );
-      const blocks = parseBlocks(exercise.blocks);
-      libraryBlocks.set(exerciseId, blocks);
-      return blocks;
-    };
-
-    const rows = exercises.map((input, position) => {
-      const kept = input.id == null ? null : previousById.get(input.id);
-
-      // La référence : celle de la ligne conservée, ou une copie du dosage de l'exercice.
-      const baseline = kept == null ? blocksOf(input.exerciseId) : parseBlocks(kept.baseline);
-      const blocks = input.blocks ?? baseline;
-
-      assertShapeLocked(AdjustmentLevel.SESSION, baseline, blocks);
-
-      return {
-        sessionId,
-        exerciseId: input.exerciseId,
-        position,
-        note: input.note ?? null,
-        blocks: toBlocksInput(blocks),
-        baseline: toBlocksInput(baseline),
-        adjustments: toAdjustmentsInput(input.adjustments ?? []),
-      };
-    });
-
-    await tx.sessionExercise.createMany({
-      data: rows satisfies Omit<
-        Prisma.SessionExerciseUncheckedCreateInput,
-        "coachId"
-      >[] as Prisma.SessionExerciseUncheckedCreateInput[],
-    });
   }
 }
 

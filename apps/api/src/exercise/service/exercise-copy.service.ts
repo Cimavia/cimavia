@@ -1,9 +1,7 @@
 import {
   adoptMetrics,
-  type BlockGrid,
   comparableText,
   customMetricIdsIn,
-  type ExerciseBlocks,
   type MetricCitations,
   remapCustomMetrics,
   remapSuggestedMetrics,
@@ -20,10 +18,8 @@ import type { TenantTx } from "../../tenancy/tenancy.extension";
 import { currentActor, runAsCoach } from "../../tenancy/tenant-context.type";
 import { parseGrid, toJsonInput } from "../../util/block-json.util";
 import {
-  parseBlocks,
   parseInstructions,
   parseSuggestedMetrics,
-  toBlocksInput,
   toInstructionsInput,
   toSuggestedMetricsInput,
 } from "../../util/exercise-json.util";
@@ -44,7 +40,6 @@ export type CopySource = Pick<
   | "title"
   | "description"
   | "instructions"
-  | "blocks"
   | "suggestedMetrics"
   | "documents"
   | "tags"
@@ -53,8 +48,6 @@ export type CopySource = Pick<
 /** Ce que la copie change de sa source. */
 export type CopyOptions = {
   title: string;
-  /** Les blocs, citant encore le catalogue de la SOURCE : la copie les réécrit vers le sien. */
-  blocks: ExerciseBlocks;
   /** Les documents de la source qui suivent : tous pour une copie figée, les images pour une variante. */
   documents: CopySource["documents"];
   /** La provenance d'une copie figée ; `null` pour une variante. */
@@ -67,8 +60,7 @@ export type CopyOptions = {
  *
  * Les documents suivent sous la MÊME clé objet — aucun binaire dupliqué, la garde de purge compte
  * ces lignes avant d'effacer (`DocumentCleanupService`). La consigne est réécrite vers les copies
- * de ses images. Les métriques maison citées, par les blocs comme par les métriques suggérées
- * (#718), passent du catalogue du propriétaire de la source à celui de l'acteur (`adoptMetrics`) :
+ * de ses images. Les métriques maison que ses métriques suggérées citent (#718) passent du catalogue du propriétaire de la source à celui de l'acteur (`adoptMetrics`) :
  * `CustomMetric` est le catalogue d'UN Coach.
  *
  * Toutes les lectures et écritures passent par le client tenant de la transaction de l'appelant :
@@ -82,13 +74,13 @@ export class ExerciseCopyService {
   /** La copie, créée chez l'acteur courant ; rend son id. */
   async create(tx: TenantTx, source: CopySource, options: CopyOptions): Promise<string> {
     const suggested = parseSuggestedMetrics(source.suggestedMetrics);
-    const metricIds = await this.adopt(tx, source, [metricCitationsOf(options.blocks, suggested)]);
+    const metricIds = await this.adopt(tx, source, [metricCitationsOf(suggested)]);
     return this.write(tx, source, { ...options, suggested }, metricIds);
   }
 
   /**
-   * `metricIds` : les métriques déjà adoptées, que `options.blocks` et les métriques suggérées de la
-   * source citent chez son propriétaire.
+   * `metricIds` : les métriques déjà adoptées, que les métriques suggérées de la source citent chez
+   * son propriétaire.
    */
   private async write(
     tx: TenantTx,
@@ -101,7 +93,6 @@ export class ExerciseCopyService {
         title: options.title,
         titleSearch: comparableText(options.title),
         description: source.description,
-        blocks: toBlocksInput(remapCustomMetrics(options.blocks, metricIds)),
         suggestedMetrics: toSuggestedMetricsInput(
           remapSuggestedMetrics(options.suggested, metricIds),
         ),
@@ -160,7 +151,7 @@ export class ExerciseCopyService {
 
   /**
    * La copie figée que `coachId` garde de `source`, qu'il perd (#609) : créée À SON NOM, et ses
-   * séances qui citaient la source repointées vers elle, dosages conservés — leurs blocs citent
+   * séances qui citaient la source repointées vers elle, grilles conservées — leurs colonnes citent
    * désormais son catalogue. Chaque séance avance d'une version : un builder resté ouvert sur
    * l'ancienne citerait un exercice disparu, il recevra « Recharger ».
    *
@@ -172,30 +163,22 @@ export class ExerciseCopyService {
     await runAsCoach(this.cls, coachId, async () => {
       const rows = await tx.sessionExercise.findMany({
         where: { exerciseId: source.id, coachId },
-        select: { id: true, sessionId: true, blocks: true, baseline: true, grid: true },
+        select: { id: true, sessionId: true, grid: true },
       });
       if (rows.length === 0) return;
-      const lines = rows.map((row) => ({
-        ...row,
-        blocks: parseBlocks(row.blocks),
-        baseline: parseBlocks(row.baseline),
-        // La grille d'une ligne de bloc (#716) : `[]` pour une ligne de l'ancien modèle.
-        grid: row.grid === null ? [] : [parseGrid(row.grid)],
-      }));
-      const blocks = parseBlocks(source.blocks);
+      const lines = rows.map((row) => ({ ...row, grid: parseGrid(row.grid) }));
       const suggested = parseSuggestedMetrics(source.suggestedMetrics);
       // Adoptées une fois pour la copie ET ses lignes : une ligne peut citer une métrique que
       // l'exercice ne cite plus.
       const metricIds = await this.adopt(tx, source, [
-        metricCitationsOf(blocks, suggested),
-        ...lines.flatMap((line) => [line.blocks, line.baseline, line.grid]),
+        metricCitationsOf(suggested),
+        lines.map((line) => line.grid),
       ]);
       const copyId = await this.write(
         tx,
         source,
         {
           title: source.title,
-          blocks,
           suggested,
           documents: source.documents,
           frozen: { coachId: source.coachId, at },
@@ -210,9 +193,7 @@ export class ExerciseCopyService {
           where: { id: line.id },
           data: {
             exerciseId: copyId,
-            blocks: toBlocksInput(remapCustomMetrics(line.blocks, metricIds)),
-            baseline: toBlocksInput(remapCustomMetrics(line.baseline, metricIds)),
-            ...gridColumn(remapCustomMetrics(line.grid, metricIds)),
+            grid: toJsonInput(remapCustomMetrics(line.grid, metricIds)),
           },
         });
       }
@@ -226,7 +207,7 @@ export class ExerciseCopyService {
   }
 
   /**
-   * Les métriques que ces blocs citent chez le propriétaire de la source, adoptées dans le catalogue
+   * Les métriques que ces citations nomment chez le propriétaire de la source, adoptées dans le catalogue
    * de l'acteur courant : id chez le propriétaire → id chez l'acteur. Rien à adopter quand l'acteur
    * EST le propriétaire, ni pour une citation que son catalogue ne connaît plus (supprimée depuis,
    * dette EX-2) — elle reste telle quelle.
@@ -234,9 +215,9 @@ export class ExerciseCopyService {
   private async adopt(
     tx: TenantTx,
     source: CopySource,
-    blocks: readonly MetricCitations[],
+    citations: readonly MetricCitations[],
   ): Promise<ReadonlyMap<string, string>> {
-    const cited = new Set(blocks.flatMap(customMetricIdsIn));
+    const cited = new Set(citations.flatMap(customMetricIdsIn));
     if (cited.size === 0 || source.coachId === currentActor(this.cls).userId) return new Map();
     const owned = source.catalog.filter((metric) => cited.has(metric.id)).map(toCustomMetricDto);
     if (owned.length === 0) return new Map();
@@ -257,9 +238,4 @@ export class ExerciseCopyService {
     }
     return ids;
   }
-}
-
-/** La grille remappée d'une ligne de bloc ; rien pour une ligne de l'ancien modèle, sans grille. */
-function gridColumn([grid]: readonly BlockGrid[]): { grid?: Prisma.InputJsonValue } {
-  return grid === undefined ? {} : { grid: toJsonInput(grid) };
 }
