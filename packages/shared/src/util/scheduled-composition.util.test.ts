@@ -400,11 +400,20 @@ describe("revertedEdit", () => {
     expect(revertedEdit(blocks, REMOVE_BLOCK, library).kind).toBe(CompositionOutcomeKind.UNCHANGED);
   });
 
-  it("refuse de rendre un bloc dont un exercice n'est plus dans la bibliothèque", () => {
+  it("rend le bloc sans l'exercice sorti de la bibliothèque, qui reste retiré", () => {
     const blocks = [blockOf([]), other()];
     const onlyB: CompositionLibrary = (exerciseId) =>
       exerciseId === "ex_a" ? null : library(exerciseId);
-    expect(revertedEdit(blocks, REMOVE_BLOCK, onlyB)).toEqual({
+    const outcome = revertedEdit(blocks, REMOVE_BLOCK, onlyB);
+    expect(keysAfter(outcome)).toEqual(["b"]);
+    if (outcome.kind !== CompositionOutcomeKind.CHANGED) throw new Error(outcome.kind);
+    expect(removedReferences(outcome.blocks[0] as PlannedCompositionBlock)).toEqual([
+      reference().exercises[0],
+    ]);
+  });
+
+  it("refuse de rendre un bloc dont aucun exercice n'est plus dans la bibliothèque", () => {
+    expect(revertedEdit([blockOf([]), other()], REMOVE_BLOCK, () => null)).toEqual({
       kind: CompositionOutcomeKind.REFUSED,
       refusal: CompositionRefusal.NOT_IN_LIBRARY,
     });
@@ -436,9 +445,15 @@ describe("resetComposition", () => {
     expect(reset[1]).toBe(adjusted);
   });
 
-  it("rend aussi les blocs retirés", () => {
+  it("rend aussi les blocs retirés, entiers ou pas du tout", () => {
     const outcome = resetComposition([blockOf([]), other()], library);
     expect(keysAfter(outcome)).toEqual(["a", "b"]);
+    const onlyB: CompositionLibrary = (exerciseId) =>
+      exerciseId === "ex_a" ? null : library(exerciseId);
+    expect(resetComposition([blockOf([]), other()], onlyB)).toEqual({
+      kind: CompositionOutcomeKind.REFUSED,
+      refusal: CompositionRefusal.NOT_IN_LIBRARY,
+    });
   });
 
   it("ne change rien à une copie qui a la composition reçue", () => {

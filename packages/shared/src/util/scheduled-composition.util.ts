@@ -240,7 +240,7 @@ export function appliedEdit<E extends PlannedExercise>(
 /**
  * Le changement défait dans la copie : l'ajout part, l'exercice remplacé ou retiré revient tel que
  * la séance-type l'a donné — sa note et ses valeurs reçues. Un bloc retiré revient de même : il a
- * gardé ses réglages reçus.
+ * gardé ses réglages reçus, et rend ceux de ses exercices que la bibliothèque a encore.
  */
 export function revertedEdit<E extends PlannedExercise>(
   blocks: readonly PlannedCompositionBlock<E>[],
@@ -282,8 +282,9 @@ export function revertedEdit<E extends PlannedExercise>(
 /**
  * « Tout réinitialiser » : chaque bloc reprend la composition de la séance-type reçue. Un exercice
  * reçu et gardé garde ses valeurs — ce sont celles de Dosage ; un exercice remplacé ou retiré
- * revient avec les valeurs reçues, et les ajouts partent. Un bloc retiré revient comme
- * `revertedEdit` le rend.
+ * revient avec les valeurs reçues, et les ajouts partent. Un bloc retiré revient avec tous ses
+ * exercices reçus : un seul sorti de la bibliothèque refuse tout (`NOT_IN_LIBRARY`), comme pour un
+ * exercice retiré, là où `revertedEdit` rend le bloc sans lui.
  */
 export function resetComposition<E extends PlannedExercise>(
   blocks: readonly PlannedCompositionBlock<E>[],
@@ -335,18 +336,19 @@ function restoredExercise(
   };
 }
 
-/** Tous les exercices de la séance-type reçue, pour rendre un bloc retiré. */
+/**
+ * Les exercices de la séance-type reçue que la bibliothèque a encore, pour rendre un bloc retiré.
+ * Celui qu'elle n'a plus reste retiré, barré à sa place comme un retrait d'exercice qui ne se
+ * défait plus (`NOT_IN_LIBRARY`) : le bloc ne reste pas bloqué pour un seul. Sans aucun, il l'est.
+ */
 function restoredExercises(
   baseline: BlockReference,
   library: CompositionLibrary,
 ): ComposedExercise[] | CompositionRefusal {
-  const exercises: ComposedExercise[] = [];
-  for (const reference of baseline.exercises) {
-    const restored = restoredExercise(baseline, reference.key, library);
-    if (typeof restored === "string") return restored;
-    exercises.push(restored);
-  }
-  return exercises;
+  const exercises = baseline.exercises
+    .map((reference) => restoredExercise(baseline, reference.key, library))
+    .filter((restored) => typeof restored !== "string");
+  return exercises.length === 0 ? CompositionRefusal.NOT_IN_LIBRARY : exercises;
 }
 
 /**
@@ -379,16 +381,20 @@ function withExercises<E extends PlannedExercise>(
   exercises: readonly (E | ComposedExercise)[],
   grows: boolean,
 ): CompositionOutcome<E> {
-  const changed = blocks.map((each, index) => {
-    if (index !== blockIndex) return each;
-    return {
-      ...each,
-      settings: isRemovedBlock({ exercises }) ? each.baseline.settings : each.settings,
-      exercises,
-    };
-  });
-  // Le bloc existe : chaque appelant l'a lu à ce rang.
-  const refusal = refusalAfter(changed, changed[blockIndex] as PlannedCompositionBlock, grows);
+  // Stryker disable next-line StringLiteral: message d'un invariant que rien n'atteint
+  const before = required(blocks[blockIndex], "bloc à changer absent");
+  const block: PlannedCompositionBlock<E | ComposedExercise> = {
+    ...before,
+    settings: isRemovedBlock({ exercises }) ? before.baseline.settings : before.settings,
+    exercises,
+  };
+  const changed = spliced<PlannedCompositionBlock<E | ComposedExercise>>(
+    blocks,
+    blockIndex,
+    1,
+    block,
+  );
+  const refusal = refusalAfter(changed, block, grows);
   if (refusal != null) return refused(refusal);
   return { kind: CompositionOutcomeKind.CHANGED, blocks: changed };
 }

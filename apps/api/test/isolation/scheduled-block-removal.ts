@@ -2,7 +2,7 @@ import { CompositionEditKind, Role, STRUCTURE_PRESETS, StructurePresetKey } from
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { atWeekVersion } from "../support/version";
+import { atWeekVersion, deleteAtLatest, versionOf as versionAt } from "../support/version";
 
 const SERIES = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 const reps = { id: "col_reps", source: "CATALOG", key: "REPETITIONS", unit: "REPS", label: null };
@@ -43,6 +43,8 @@ describe("Retrait d'un bloc d'une séance planifiée, pour les semaines choisies
   let athlete: Agent;
   let planId: string;
   let anchorId: string;
+  let templateId: string;
+  let exerciseIds: Record<"tractions" | "gainage" | "dips", string>;
 
   const monday = mondayOfCurrentWeek();
 
@@ -72,6 +74,7 @@ describe("Retrait d'un bloc d'une séance planifiée, pour les semaines choisies
         async (title) => (await coach.post("/exercises").send({ title })).body.id as string,
       ),
     );
+    exerciseIds = { tractions, gainage, dips } as typeof exerciseIds;
 
     const template = await coach.post("/sessions").send({
       title: "Force",
@@ -84,6 +87,7 @@ describe("Retrait d'un bloc d'une séance planifiée, pour les semaines choisies
       ],
     });
     expect(template.status).toBe(201);
+    templateId = template.body.id;
 
     const plan = await coach.post("/plans").send({
       athleteId,
@@ -255,5 +259,26 @@ describe("Retrait d'un bloc d'une séance planifiée, pour les semaines choisies
     });
     expect(foreign.status).toBe(404);
     expect(keysOf((await copies())[1] as Copy)).toEqual([["a1"], ["b1", "b2"]]);
+  });
+
+  it("rend le bloc sans l'exercice sorti de la bibliothèque, qui reste retiré", async () => {
+    const [, , w3] = await copies();
+    expect((await compose(REMOVE_B, [w3 as Copy])).status).toBe(200);
+    // Cité par la séance-type, Dips ne se supprime pas : il en sort d'abord.
+    const retouched = await coach.put(`/sessions/${templateId}`).send({
+      expectedUpdatedAt: await versionAt(coach, `/sessions/${templateId}`),
+      title: "Force",
+      blocks: [
+        blockOf("blk_a", [{ key: "a1", exerciseId: exerciseIds.tractions }]),
+        blockOf("blk_b", [{ key: "b1", exerciseId: exerciseIds.gainage }]),
+      ],
+    });
+    expect(retouched.status).toBe(200);
+    expect((await deleteAtLatest(coach, `/exercises/${exerciseIds.dips}`)).status).toBe(204);
+
+    const [, , removed] = await copies();
+    const res = await compose(REMOVE_B, [], [removed as Copy]);
+    expect(res.status).toBe(200);
+    expect(keysOf(res.body[2] as Copy)).toEqual([["a1"], ["b1"]]);
   });
 });
