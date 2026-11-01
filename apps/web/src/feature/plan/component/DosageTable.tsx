@@ -135,7 +135,7 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   );
 }
 
-type ColumnHeadProps = DosageTableProps & {
+type ColumnHeadProps = Pick<DosageTableProps, "readOnly" | "onRevertCopy" | "onCompose"> & {
   column: DosageColumn;
   copy: ScheduledSessionCopyDto | null;
   /** La part de la semaine dans la largeur : toutes la même, plancher `COLUMN_MIN`. */
@@ -143,7 +143,14 @@ type ColumnHeadProps = DosageTableProps & {
 };
 
 /** « S2 », son jour, ses valeurs ajustées ; et son menu : revenir à la séance-type, composer. */
-function ColumnHead({ column, copy, width, readOnly, onRevertCopy, onCompose }: ColumnHeadProps) {
+function ColumnHead({
+  column,
+  copy,
+  width,
+  readOnly,
+  onRevertCopy,
+  onCompose,
+}: Readonly<ColumnHeadProps>) {
   const { t } = useTranslation();
   const week = t("plan.composition.week", { number: column.weekNumber });
   if (column.kind === DosageColumnKind.ABSENT || copy === null) {
