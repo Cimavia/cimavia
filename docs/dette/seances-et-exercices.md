@@ -1037,10 +1037,20 @@ liste des domaines vivent dans l'index.
 >   La composition et les valeurs passent par leurs gestes (#720, #721).
 > - **`createSession` part avec des blocs vides** (`[]`) : une séance-type peut naître vide et se
 >   composer ensuite. `updateSession` exige `blocks`, car omis il viderait la séance.
+> - **Une séance planifiée tirée d'une séance-type vide le reste** : le nombre de blocs est
+>   verrouillé au niveau planifié, et revenir à l'origine rend ce qui a été reçu (`baseline`), pas
+>   la séance-type du moment. Le panneau le dit et renvoie à la bibliothèque : on y compose la
+>   séance-type, puis on la planifie de nouveau. Déverrouiller l'ajout d'un bloc ici aurait ouvert
+>   une composition sans origine, ce que le verrou planifié existe pour empêcher. Refuser une
+>   séance-type vide, lui, aurait contredit #276 (une séance sans exercice est légitime).
+> - **Le `PUT` d'une séance planifiée ne relit plus la séance entière** : il ne lit que les
+>   colonnes qu'il édite, et sa réponse se relit dans la transaction. La composition ne s'écrit
+>   plus par lui, son ancien chargement complet ne servait plus à rien.
 > - **Aucune compatibilité pour les anciennes builds mobiles** : un débrief qui envoie encore
 >   `tracking` (le suivi par exercice) est refusé (400). Le stockage local `cimavia-tracking:*`
->   n'est plus lu. Ses entrées restent orphelines sur les téléphones, sans effet, faute de
->   lecteur.
+>   n'est plus lu, et se purge au démarrage, sur mobile (avec le drapeau
+>   `cimavia-tracking-hint-seen`) comme sur web : sans ça, ses entrées restaient sur l'appareil
+>   pour toujours, faute de lecteur.
 > - **Le chronomètre d'exercice mobile part** avec l'ancien modèle (`TimerOverlay`, `RunnerBody`,
 >   `RestBanner`, `useSegmentRunner`, `useTrackingHint` et l'astuce « Coche au fur et à mesure ») :
 >   le chrono par bloc (#722) le remplace.
