@@ -24,13 +24,13 @@
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",
-    "@stryker-mutator/core": "9.6.1",
-    "@stryker-mutator/vitest-runner": "9.6.1",
-    "@vitest/coverage-v8": "4.1.11",
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
+    "@vitest/coverage-v8": "5.0.5",
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "5.0.5"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   }
 }
