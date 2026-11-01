@@ -440,9 +440,10 @@ jobs:
             fi
           }
           {
-            flag api '^(apps/api/|packages/(shared|tsconfig)/)'
+            # `docker-versions.mjs` : seuls les deux Dockerfiles le lisent (#479), le mobile n'en dépend pas.
+            flag api '^(apps/api/|packages/(shared|tsconfig)/|scripts/docker-versions\.mjs$)'
             # `e2e` : le `tsc` du build web vérifie `e2e/`, qui importe @cmv/e2e (#630).
-            flag web '^(apps/web/|packages/(shared|tokens|tsconfig|e2e)/)'
+            flag web '^(apps/web/|packages/(shared|tokens|tsconfig|e2e)/|scripts/docker-versions\.mjs$)'
             flag mobile '^(apps/mobile/|packages/(shared|tokens|tsconfig)/)'
           } | tee -a "$GITHUB_OUTPUT"
 

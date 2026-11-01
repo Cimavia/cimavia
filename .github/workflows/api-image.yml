@@ -22,6 +22,8 @@ on: # zizmor: ignore[concurrency-limits]
       - "pnpm-lock.yaml"
       - ".github/workflows/api-image.yml"
       - ".github/actions/product-version/**"
+      # Lit les versions de pnpm et de turbo pour le Dockerfile (#479).
+      - "scripts/docker-versions.mjs"
       # Le commit de bump de `release-please` ne touche QUE ces deux fichiers. Sans eux ici, il ne
       # construirait rien : l'image `X.Y.Z` n'existerait pas, et la version serait impossible à
       # promouvoir.
