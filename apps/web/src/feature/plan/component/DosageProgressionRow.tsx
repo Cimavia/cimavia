@@ -1,0 +1,232 @@
+import {
+  DosageCellKind,
+  type DosageProgression,
+  dosageColumnKey,
+  dosageProgression,
+  type MetricValue,
+  ProgressionCellKind,
+  ProgressionDirection,
+  type ProgressionMeasure,
+  ProgressionMeasureKind,
+  type ProgressionSlot,
+  parseDecimal,
+  parseTrainingDuration,
+} from "@cmv/shared";
+import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { CmvButton, CmvSegmented } from "@/shared/component";
+import { cn } from "@/shared/util/cn.util";
+
+type DosageProgressionRowProps = {
+  slots: readonly ProgressionSlot[];
+  /**
+   * La semaine d'où part la ligne (`progressionStart`). Le menu ne s'ouvre que sur une ligne qui en
+   * a une ; une saisie dans la ligne peut la lui retirer.
+   */
+  start: DosageProgression["start"] | null;
+  measure: ProgressionMeasure;
+  /** Le nom de chaque colonne : « S2 », ou « S2 · lun. » posée deux fois la même semaine. */
+  names: readonly string[];
+  /** Ce qui suit le pas : l'unité de la colonne, ou « paliers » sur une échelle. */
+  unit: string | null;
+  show: (values: readonly MetricValue[]) => string;
+  onApply: (changes: { index: number; values: MetricValue[] }[]) => void;
+  onClose: () => void;
+};
+
+/**
+ * « Progression… » (#724, maquette `coach_planification_blocs` frame 3 bis) : un pas, et sous
+ * chaque semaine ce qu'elle deviendrait. « Appliquer » écrit le brouillon ; le pas, lui, n'est
+ * enregistré nulle part.
+ */
+export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>) {
+  const { t } = useTranslation();
+  const { slots, start, measure, names, unit, show, onApply, onClose } = props;
+  const stepId = useId();
+  const directionId = useId();
+  const stepRef = useRef<HTMLInputElement>(null);
+  // Le pas est la raison d'ouvrir la fenêtre : la saisie y commence.
+  useEffect(() => stepRef.current?.focus(), []);
+  const [direction, setDirection] = useState<ProgressionDirection>(ProgressionDirection.ADD);
+  const [text, setText] = useState("");
+  const amount = readAmount(text, measure);
+  const progression =
+    amount === null ? null : dosageProgression(slots, measure, { direction, amount });
+  // Sans départ, rien ne s'applique — mais ce n'est pas le pas qui est en cause.
+  const isInvalid = start !== null && text.trim() !== "" && progression === null;
+
+  return (
+    <>
+      {/* L'aperçu juste sous la ligne, chaque semaine sous sa valeur. La première colonne nomme
+          les lignes : rien n'y tombe. Une seule teinte pour toute la fenêtre, colonnes comprises. */}
+      <tr className={BAND}>
+        <td />
+        {slots.map((slot, index) => (
+          <PreviewCell
+            key={dosageColumnKey(slot.column)}
+            slot={slot}
+            cell={progression?.cells[index] ?? null}
+            show={show}
+          />
+        ))}
+      </tr>
+      <tr
+        className={BAND}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onClose();
+        }}
+      >
+        <td />
+        <td colSpan={slots.length} className="px-cmv-sm pb-cmv-sm">
+          {/* Une seule ligne : le pas et d'où il part, puis les gestes, poussés à droite. */}
+          <div className="flex flex-wrap items-center gap-x-cmv-md gap-y-cmv-sm">
+            <fieldset aria-labelledby={directionId} className="flex items-center gap-cmv-sm">
+              <span id={directionId} className="text-cmv-caption text-cmv-text-mid">
+                {t("plan.dosage.progression.direction")}
+              </span>
+              <CmvSegmented
+                value={direction}
+                onChange={setDirection}
+                options={[
+                  { value: ProgressionDirection.ADD, label: t("plan.dosage.progression.add") },
+                  {
+                    value: ProgressionDirection.REMOVE,
+                    label: t("plan.dosage.progression.remove"),
+                  },
+                ]}
+              />
+            </fieldset>
+            <div className="flex items-center gap-cmv-sm">
+              <label htmlFor={stepId} className="text-cmv-caption text-cmv-text-mid">
+                {t("plan.dosage.progression.step")}
+              </label>
+              <input
+                id={stepId}
+                ref={stepRef}
+                value={text}
+                inputMode={measure.kind === ProgressionMeasureKind.DURATION ? "text" : "decimal"}
+                placeholder={t(placeholderOf(measure))}
+                aria-invalid={isInvalid}
+                onChange={(event) => setText(event.target.value)}
+                className="w-20 rounded-cmv-sm border border-cmv-border bg-cmv-bg-1 px-cmv-sm py-cmv-xs text-cmv-body text-cmv-text-hi outline-none focus:border-cmv-accent"
+              />
+              {unit == null ? null : (
+                <span className="text-cmv-caption text-cmv-text-mid">{unit}</span>
+              )}
+            </div>
+            {start === null ? null : (
+              <span className="text-cmv-caption text-cmv-text-lo">
+                {t("plan.dosage.progression.from", {
+                  week: names[start.index],
+                  value: show(start.values),
+                })}
+              </span>
+            )}
+            {isInvalid ? (
+              <span className="text-cmv-caption text-cmv-error-on">
+                {t("plan.dosage.progression.invalidStep")}
+              </span>
+            ) : null}
+            {progression === null || progression.overwritten.length === 0 ? null : (
+              <span className="text-cmv-caption text-cmv-warning-on">
+                {t("plan.dosage.progression.overwrites", {
+                  count: progression.overwritten.length,
+                  weeks: progression.overwritten.map((index) => names[index]).join(", "),
+                })}
+              </span>
+            )}
+            <div className="ml-auto flex gap-cmv-sm">
+              <CmvButton
+                variant="primary"
+                disabled={progression === null}
+                onClick={() => {
+                  if (progression === null) return;
+                  onApply(steppedOf(progression));
+                  onClose();
+                }}
+              >
+                {t("plan.dosage.progression.apply")}
+              </CmvButton>
+              <CmvButton variant="ghost" onClick={onClose}>
+                {t("common.cancel")}
+              </CmvButton>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
+  );
+}
+
+/** Un pas qu'on tape souvent : « 2,5 » kg, « 15 s », et un entier pour des tours ou des paliers. */
+function placeholderOf(measure: ProgressionMeasure): string {
+  if (measure.kind === ProgressionMeasureKind.DURATION) {
+    return "plan.dosage.progression.placeholder.duration";
+  }
+  return measure.kind === ProgressionMeasureKind.NUMBER && !measure.integer
+    ? "plan.dosage.progression.placeholder.decimal"
+    : "plan.dosage.progression.placeholder.count";
+}
+
+/** Le pas tapé : des secondes pour une durée (« 15 s », « 1:30 »), sinon un nombre. */
+function readAmount(text: string, measure: ProgressionMeasure): number | null {
+  return measure.kind === ProgressionMeasureKind.DURATION
+    ? parseTrainingDuration(text)
+    : parseDecimal(text);
+}
+
+const steppedOf = (progression: DosageProgression) =>
+  progression.cells.flatMap((cell, index) =>
+    cell.kind === ProgressionCellKind.STEPPED ? [{ index, values: cell.values }] : [],
+  );
+
+type PreviewCellProps = Pick<DosageProgressionRowProps, "show"> & {
+  slot: ProgressionSlot;
+  /** Ce que deviendrait la semaine ; `null` tant que le pas ne sert pas — la valeur d'aujourd'hui. */
+  cell: DosageProgression["cells"][number] | null;
+};
+
+const BAND = "bg-cmv-accent-soft";
+
+/** Le retrait du texte dans un bouton de valeur, bordure comprise : l'aperçu tombe sous la valeur. */
+const INSET = "block border-x border-transparent px-cmv-sm";
+
+/** Ce qu'une semaine deviendrait, sous sa colonne. */
+function PreviewCell({ slot, cell, show }: Readonly<PreviewCellProps>) {
+  const { t } = useTranslation();
+  const tdClass = "px-cmv-sm pt-cmv-xs pb-cmv-sm align-top font-cmv-mono text-cmv-caption";
+  // Une semaine sautée par la progression est celle qui n'a pas de valeur.
+  if (slot.cell.kind !== DosageCellKind.VALUE) {
+    return (
+      <td className={tdClass}>
+        <span className={cn(INSET, "font-cmv-sans text-cmv-text-lo italic")}>
+          {t("plan.dosage.progression.skipped")}
+        </span>
+      </td>
+    );
+  }
+  const values = cell !== null && "values" in cell ? cell.values : slot.cell.values;
+  const note = cell === null ? null : NOTE[cell.kind];
+  return (
+    <td className={tdClass}>
+      <span
+        className={cn(
+          INSET,
+          "break-words",
+          cell?.kind === ProgressionCellKind.STEPPED ? "text-cmv-text-hi" : "text-cmv-text-mid",
+        )}
+      >
+        {show(values)}
+      </span>
+      {note == null ? null : (
+        <span className={cn(INSET, "font-cmv-sans text-cmv-text-lo italic")}>{t(note)}</span>
+      )}
+    </td>
+  );
+}
+
+const NOTE: Partial<Record<ProgressionCellKind, string>> = {
+  [ProgressionCellKind.START]: "plan.dosage.progression.start",
+  [ProgressionCellKind.DELOAD]: "plan.dosage.progression.unchanged",
+  [ProgressionCellKind.DEBRIEFED]: "plan.dosage.progression.debriefed",
+};

@@ -16,14 +16,16 @@ import {
 } from "@cmv/shared";
 import { fireEvent, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { formatLongDay } from "@/shared/util/date.util";
+import { cellsOf } from "../../../../test/dosage";
 import { renderWithProviders } from "../../../../test/render";
 import { DosageTable } from "./DosageTable";
 
 const SETTINGS = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
 const WEEKS = [
-  { id: "pw-1", weekNumber: 1, type: PlanWeekType.TRAINING },
-  { id: "pw-2", weekNumber: 2, type: PlanWeekType.DELOAD },
-  { id: "pw-3", weekNumber: 3, type: PlanWeekType.TRAINING },
+  { id: "pw-1", weekNumber: 1, type: PlanWeekType.TRAINING, startDate: "2026-09-07" },
+  { id: "pw-2", weekNumber: 2, type: PlanWeekType.DELOAD, startDate: "2026-09-14" },
+  { id: "pw-3", weekNumber: 3, type: PlanWeekType.TRAINING, startDate: "2026-09-21" },
 ] as PlanWeekDto[];
 
 const gridOf = (...reps: number[]): BlockGrid => ({
@@ -144,16 +146,19 @@ describe("DosageTable", () => {
     // « Valeur », puis S1 à S3 ; les en-têtes de bloc, eux, couvrent la ligne.
     const [head] = view.getAllByRole("rowgroup");
     expect(within(head as HTMLElement).getAllByRole("columnheader")).toHaveLength(4);
+    // Sans séance, la semaine se date à son lundi.
     expect(view.getByText("plan.dosage.notPlaced")).toBeTruthy();
+    expect(view.getByText(`- ${formatLongDay("2026-09-21")}`)).toBeTruthy();
     // La décharge le dit en tête de sa colonne.
-    expect(view.getByText("plan.dosage.deloadDay")).toBeTruthy();
+    expect(view.getByText("- plan.dosage.deloadDay")).toBeTruthy();
   });
 
-  it("nomme par leur jour deux séances posées la même semaine", () => {
+  it("distingue par leur jour deux séances posées la même semaine", () => {
     const thursday = { ...W1, id: "ss-1b", scheduledDate: "2026-09-10" };
     const view = render([W1, thursday, W2]);
 
-    expect(view.getAllByText("plan.dosage.weekOnDay")).toHaveLength(2);
+    expect(view.getByText(`- ${formatLongDay(W1.scheduledDate)}`)).toBeTruthy();
+    expect(view.getByText(`- ${formatLongDay(thursday.scheduledDate)}`)).toBeTruthy();
   });
 
   it("numérote les blocs et nomme ceux qui ont un libellé", () => {
@@ -221,7 +226,7 @@ describe("DosageTable", () => {
 
   it("règle une série d'une semaine, et pose la même valeur partout", async () => {
     const view = render();
-    const [w1Cell] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    const [w1Cell] = cellsOf(rowOf(view, /Tractions/));
 
     await view.user.click(w1Cell as HTMLElement);
     const dialog = view.getByRole("dialog", { name: "plan.dosage.editCell" });
@@ -246,7 +251,7 @@ describe("DosageTable", () => {
 
   it("rend à une cellule ajustée la valeur que sa semaine a reçue", async () => {
     const view = render();
-    const [, w2Cell] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    const [, w2Cell] = cellsOf(rowOf(view, /Tractions/));
 
     await view.user.click(w2Cell as HTMLElement);
     const dialog = view.getByRole("dialog");
@@ -264,7 +269,7 @@ describe("DosageTable", () => {
 
   it("règle les tours d'un bloc, et se referme sur Échap", async () => {
     const view = render();
-    const [rounds] = within(rowOf(view, "plan.dosage.setting.ROUNDS")).getAllByRole("button");
+    const [rounds] = cellsOf(rowOf(view, "plan.dosage.setting.ROUNDS"));
 
     await view.user.click(rounds as HTMLElement);
     const field = view.getByRole("textbox", { name: "plan.dosage.setting.ROUNDS" });
@@ -283,7 +288,7 @@ describe("DosageTable", () => {
 
   it("se referme sur un clic ailleurs, pas sur un clic dans la fenêtre", async () => {
     const view = render();
-    const [cell] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    const [cell] = cellsOf(rowOf(view, /Tractions/));
     await view.user.click(cell as HTMLElement);
     const dialog = view.getByRole("dialog");
     const [field] = within(dialog).getAllByRole("textbox");
@@ -299,7 +304,7 @@ describe("DosageTable", () => {
 
   it("passe d'une cellule à une autre sans refermer celle qui s'ouvre", async () => {
     const view = render();
-    const [w1, w2] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    const [w1, w2] = cellsOf(rowOf(view, /Tractions/));
     await view.user.click(w1 as HTMLElement);
     await view.user.click(w2 as HTMLElement);
 
@@ -309,7 +314,7 @@ describe("DosageTable", () => {
 
   it("ouvre vers la gauche la fenêtre de la dernière semaine", async () => {
     const view = render([W1, W2], { columns: dosageColumns(WEEKS.slice(0, 2), [W1, W2]) });
-    const [w1, w2] = within(rowOf(view, /Tractions/)).getAllByRole("button");
+    const [w1, w2] = cellsOf(rowOf(view, /Tractions/));
 
     await view.user.click(w1 as HTMLElement);
     expect(view.getByRole("dialog")).toHaveClass("left-0");
@@ -355,7 +360,7 @@ describe("DosageTable", () => {
     } as unknown as ScheduledSessionCopyDto;
     const view = render([alone]);
 
-    const [sets] = within(rowOf(view, "plan.dosage.setting.SETS")).getAllByRole("button");
+    const [sets] = cellsOf(rowOf(view, "plan.dosage.setting.SETS"));
     await view.user.click(sets as HTMLElement);
 
     expect(view.getByRole("textbox", { name: "plan.dosage.setting.SETS" })).toBeTruthy();
@@ -398,9 +403,7 @@ describe("DosageTable", () => {
 
   it("règle un repos en durée, et le bouton Fermer referme", async () => {
     const view = render();
-    const [rest] = within(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS")).getAllByRole(
-      "button",
-    );
+    const [rest] = cellsOf(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS"));
 
     await view.user.click(rest as HTMLElement);
     const field = view.getByRole("textbox", { name: "plan.dosage.setting.REST_BETWEEN_ROUNDS" });
@@ -421,13 +424,13 @@ describe("DosageTable", () => {
     const done = { ...W2, status: ScheduledSessionStatus.DONE };
     const locked = render([W1, done]);
     expect(locked.getByText("plan.dosage.debriefed")).toBeTruthy();
-    const [open, closed] = within(rowOf(locked, /Tractions/)).getAllByRole("button");
+    const [open, closed] = cellsOf(rowOf(locked, /Tractions/));
     expect(open).toBeEnabled();
     expect(closed).toBeDisabled();
     locked.unmount();
 
     const reading = render([W1, W2], { readOnly: true });
-    for (const cell of within(rowOf(reading, /Tractions/)).getAllByRole("button")) {
+    for (const cell of cellsOf(rowOf(reading, /Tractions/))) {
       expect(cell).toBeDisabled();
     }
   });
@@ -449,5 +452,247 @@ describe("DosageTable", () => {
       view.getByRole("menuitem", { name: "plan.composition.backToSessionType" }),
     );
     expect(view.onRevertCopy).toHaveBeenCalledWith("ss-2");
+  });
+
+  describe("le menu d'une ligne", () => {
+    /** S3, entraînement : Tractions à 9, ajustées ; S2 reste la décharge. */
+    const W3 = {
+      ...W1,
+      id: "ss-3",
+      planWeekId: "pw-3",
+      scheduledDate: "2026-09-21",
+      blocks: [
+        blockOf([planned("w3-a", "a", gridOf(9)), planned("w3-b", "b", gridOf(8))]),
+        cooldown("blk-2c"),
+      ],
+      exercises: [row("w3-a", "Tractions"), row("w3-b", "Gainage")],
+    } as unknown as ScheduledSessionCopyDto;
+
+    async function openMenu(view: ReturnType<typeof render>, name: string | RegExp) {
+      await view.user.click(
+        within(rowOf(view, name)).getByRole("button", { name: "plan.dosage.rowActions" }),
+      );
+    }
+
+    async function progress(view: ReturnType<typeof render>, name: string | RegExp) {
+      await openMenu(view, name);
+      await view.user.click(view.getByRole("menuitem", { name: "plan.dosage.progression.open" }));
+      return view.getByRole("textbox", { name: "plan.dosage.progression.step" });
+    }
+
+    it("garde son nom à la ligne : le menu n'en fait pas partie", () => {
+      const view = render();
+
+      // Un par bloc.
+      expect(view.getAllByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" })).toHaveLength(
+        2,
+      );
+    });
+
+    it("réinitialise la ligne aux valeurs que chaque semaine a reçues", async () => {
+      const view = render([W1, W2, W3]);
+
+      await openMenu(view, /Tractions/);
+      await view.user.click(view.getByRole("menuitem", { name: "plan.dosage.reset" }));
+
+      // S2, la décharge, et S3 étaient ajustées ; S1 ne l'était pas.
+      expect(view.onChange).toHaveBeenCalledTimes(2);
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-2",
+        expect.objectContaining({ key: "a" }),
+        [8, 8, 8, 8],
+      );
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-3",
+        expect.objectContaining({ key: "a" }),
+        [8, 8, 8, 8],
+      );
+    });
+
+    it("ne réinitialise rien sans ajustement, ni ne progresse sans semaine à écrire", async () => {
+      const view = render();
+
+      // S1 seule porte Gainage : rien d'ajusté, et S3 n'a pas la séance.
+      await openMenu(view, /Gainage/);
+      expect(view.getByRole("menuitem", { name: "plan.dosage.reset" })).toBeDisabled();
+      expect(view.getByRole("menuitem", { name: "plan.dosage.progression.open" })).toBeDisabled();
+    });
+
+    it("applique un pas d'une semaine d'entraînement à la suivante, et saute la décharge", async () => {
+      const view = render([W1, W2, W3]);
+
+      const step = await progress(view, /Tractions/);
+      expect(step).toHaveFocus();
+      // Rien n'est appliqué tant que le pas ne sert pas.
+      const apply = view.getByRole("button", { name: "plan.dosage.progression.apply" });
+      expect(apply).toBeDisabled();
+      await view.user.type(step, "2");
+
+      expect(view.getByText("plan.dosage.progression.start")).toBeTruthy();
+      expect(view.getByText("plan.dosage.progression.unchanged")).toBeTruthy();
+      // S3 était ajustée : « Appliquer » le remplace, et le dit.
+      expect(view.getByText("plan.dosage.progression.overwrites")).toBeTruthy();
+      expect(view.getByText("exercise.unit.reps")).toBeTruthy();
+
+      await view.user.click(apply);
+      expect(view.onChange).toHaveBeenCalledTimes(1);
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-3",
+        expect.objectContaining({ key: "a" }),
+        [10, 10, 10, 10],
+      );
+      expect(view.queryByRole("textbox", { name: "plan.dosage.progression.step" })).toBeNull();
+    });
+
+    it("saute la semaine où l'exercice est retiré", async () => {
+      const view = render([W1, W2, W3]);
+
+      const step = await progress(view, /Gainage/);
+      await view.user.type(step, "1");
+
+      expect(view.getByText("plan.dosage.progression.skipped")).toBeTruthy();
+      await view.user.click(view.getByRole("button", { name: "plan.dosage.progression.apply" }));
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-3",
+        expect.objectContaining({ key: "b" }),
+        [9, 9, 9, 9],
+      );
+    });
+
+    it("retire le pas, et refuse un pas nul", async () => {
+      const view = render([W1, W2, W3]);
+
+      const [rounds] = view.getAllByRole("rowheader", { name: "plan.dosage.setting.ROUNDS" });
+      await view.user.click(
+        within(rounds?.closest("tr") as HTMLElement).getByRole("button", {
+          name: "plan.dosage.rowActions",
+        }),
+      );
+      await view.user.click(view.getByRole("menuitem", { name: "plan.dosage.progression.open" }));
+      const step = view.getByRole("textbox", { name: "plan.dosage.progression.step" });
+      await view.user.click(view.getByRole("button", { name: "plan.dosage.progression.remove" }));
+      await view.user.type(step, "0");
+      expect(view.getByText("plan.dosage.progression.invalidStep")).toBeTruthy();
+      expect(view.getByRole("button", { name: "plan.dosage.progression.apply" })).toBeDisabled();
+
+      await view.user.clear(step);
+      await view.user.type(step, "1");
+      await view.user.click(view.getByRole("button", { name: "plan.dosage.progression.apply" }));
+
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-3",
+        { kind: "setting", blockIndex: 0, field: SettingValue.ROUNDS },
+        [3],
+      );
+    });
+
+    it("lit un pas de durée, et se referme sur Annuler comme sur Échap", async () => {
+      const view = render([W1, W2, W3]);
+
+      const step = await progress(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS");
+      await view.user.type(step, "15 s");
+      await view.user.click(view.getByRole("button", { name: "common.cancel" }));
+      expect(view.onChange).not.toHaveBeenCalled();
+      expect(view.queryByRole("textbox", { name: "plan.dosage.progression.step" })).toBeNull();
+
+      const again = await progress(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS");
+      await view.user.type(again, "15 s");
+      await view.user.click(view.getByRole("button", { name: "plan.dosage.progression.apply" }));
+      expect(view.onChange).toHaveBeenCalledWith(
+        "ss-3",
+        { kind: "setting", blockIndex: 0, field: SettingValue.REST_BETWEEN_ROUNDS },
+        [135],
+      );
+
+      await progress(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS");
+      await view.user.keyboard("{Escape}");
+      expect(view.queryByRole("textbox", { name: "plan.dosage.progression.step" })).toBeNull();
+      // Le clavier reprend au ⋯ qui avait ouvert la fenêtre.
+      expect(
+        within(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS")).getByRole("button", {
+          name: "plan.dosage.rowActions",
+        }),
+      ).toHaveFocus();
+    });
+
+    it("compte en paliers une cotation, et ne fait pas progresser du texte", async () => {
+      const graded = (id: string, grade: string): BlockGrid => ({
+        metrics: [
+          {
+            id: "grade",
+            label: null,
+            source: MetricSource.CATALOG,
+            key: MetricKey.GRADE,
+            unit: MetricUnit.NONE,
+          },
+          {
+            id: "note",
+            label: null,
+            source: MetricSource.CATALOG,
+            key: MetricKey.NOTE,
+            unit: MetricUnit.NONE,
+          },
+        ],
+        rows: [{ id, values: { grade, note: "lent" } }],
+      });
+      const climbing = (copy: ScheduledSessionCopyDto, id: string) =>
+        ({
+          ...copy,
+          blocks: [
+            blockOf([planned(`${id}-v`, "v", graded(id, "6a"))], {
+              baseline: {
+                settings: SETTINGS,
+                exercises: [{ key: "v", exerciseId: "ex-v", note: null, grid: graded(id, "6a") }],
+              },
+            }),
+          ],
+          exercises: [row(`${id}-v`, "Voie")],
+        }) as unknown as ScheduledSessionCopyDto;
+      const view = render([climbing(W1, "s1"), climbing(W3, "s3")]);
+
+      await openMenu(view, /exercise.metric.note/);
+      expect(view.getByRole("menuitem", { name: "plan.dosage.progression.open" })).toBeDisabled();
+      await view.user.keyboard("{Escape}");
+
+      const step = await progress(view, /exercise.metric.grade/);
+      expect(view.getByText("plan.dosage.progression.grades")).toBeTruthy();
+      await view.user.type(step, "2");
+      await view.user.click(view.getByRole("button", { name: "plan.dosage.progression.apply" }));
+      expect(view.onChange).toHaveBeenCalledWith("ss-3", expect.objectContaining({ key: "v" }), [
+        "6b",
+        "6b",
+        "6b",
+        "6b",
+      ]);
+    });
+
+    it("n'accuse pas le pas quand la ligne perd sa dernière semaine à écrire", async () => {
+      const view = render([W1, W2, W3]);
+      const step = await progress(view, /Tractions/);
+
+      // S3 débriefée entre-temps : plus rien à écrire après S1.
+      const done = { ...W3, status: ScheduledSessionStatus.DONE };
+      view.rerender(
+        <DosageTable
+          columns={dosageColumns(WEEKS, [W1, W2, done])}
+          copies={[W1, W2, done]}
+          readOnly={false}
+          onChange={view.onChange}
+          onRevertCopy={view.onRevertCopy}
+          onCompose={view.onCompose}
+        />,
+      );
+      await view.user.type(step, "2");
+
+      expect(view.queryByText("plan.dosage.progression.invalidStep")).toBeNull();
+      expect(view.queryByText("plan.dosage.progression.from")).toBeNull();
+      expect(view.getByRole("button", { name: "plan.dosage.progression.apply" })).toBeDisabled();
+    });
+
+    it("n'a pas de menu en lecture", () => {
+      const view = render([W1, W2, W3], { readOnly: true });
+
+      expect(view.queryByRole("button", { name: "plan.dosage.rowActions" })).toBeNull();
+    });
   });
 });

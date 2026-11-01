@@ -20,6 +20,7 @@ import {
   type DosageCopy,
   DosageOff,
   dosageAdjustedCount,
+  dosageColumnKey,
   dosageColumns,
   dosageGroups,
   dosageInput,
@@ -97,6 +98,8 @@ const week = (n: number, type: PlanWeekType = PlanWeekType.TRAINING) => ({
   id: `w${n}`,
   weekNumber: n,
   type,
+  // Les lundis de novembre 2026, semaine après semaine.
+  startDate: `2026-11-${String(2 + (n - 1) * 7).padStart(2, "0")}`,
 });
 
 describe("dosageSessionTypes", () => {
@@ -162,7 +165,7 @@ describe("dosageColumns", () => {
         showDay: false,
         locked: false,
       },
-      { kind: DosageColumnKind.ABSENT, weekNumber: 2, deload: true },
+      { kind: DosageColumnKind.ABSENT, weekNumber: 2, deload: true, date: "2026-11-09" },
       expect.objectContaining({ copyId: "s3", weekNumber: 3 }),
     ]);
   });
@@ -187,6 +190,14 @@ describe("dosageColumns", () => {
       [copyOf("done", [], { status: ScheduledSessionStatus.DONE }), copyOf("open", [])],
     );
     expect(columns.map((column) => "locked" in column && column.locked)).toEqual([true, false]);
+  });
+
+  it("distingue chaque colonne par sa copie, ou par la semaine où la séance manque", () => {
+    const columns = dosageColumns(
+      [week(1), week(2)],
+      [copyOf("s1", [], { planWeekId: "w1" }), copyOf("s1b", [], { planWeekId: "w1" })],
+    );
+    expect(columns.map(dosageColumnKey)).toEqual(["s1", "s1b", "week-2"]);
   });
 });
 
@@ -295,6 +306,17 @@ describe("dosageSettingCell", () => {
     const same = copyOf("s1", [blockOf([planned("a")])]);
     expect(dosageSettingCell(same, 0, SettingValue.REST_BETWEEN_ROUNDS)).toMatchObject({
       values: [120],
+      adjusted: false,
+    });
+  });
+
+  it("n'a rien où revenir pour une valeur que la séance-type ne portait pas", () => {
+    const rested = settingsOf({ restBetweenRoundsSeconds: 90 });
+    const added = copyOf("s1", [blockOf([planned("a")], undefined, rested, settingsOf())]);
+    expect(dosageSettingCell(added, 0, SettingValue.REST_BETWEEN_ROUNDS)).toEqual({
+      kind: DosageCellKind.VALUE,
+      values: [90],
+      reference: null,
       adjusted: false,
     });
   });

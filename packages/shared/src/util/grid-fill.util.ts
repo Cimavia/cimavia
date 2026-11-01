@@ -1,7 +1,7 @@
 import { GRID_MAX_ROWS, type GridRow } from "../dto/block-grid.schema";
 import { type MetricValue, type OrderedScale, scaleStepIndex } from "../dto/exercise-metric.schema";
 import type { TypesValuesOf } from "../type/generics.type";
-import { decimalPlaces } from "./decimal.util";
+import { roundedLike } from "./decimal.util";
 import { required } from "./invariant.util";
 
 // ── Remplissage d'une colonne ───────────────────────────────────────────────────────────────
@@ -29,20 +29,11 @@ function fillSame(count: number, value: MetricValue): MetricValue[] {
   return Array.from({ length: count }, () => value);
 }
 
-/**
- * Arrondie au nombre de décimales du départ ou du pas, le plus grand des deux : en virgule
- * flottante, 0 + 3 × 0,1 vaut 0,30000000000000004, et c'est ce que la cellule afficherait. Une
- * progression ne peut pas avoir plus de décimales que ce que le coach a tapé.
- */
+/** Arrondie aux décimales du départ ou du pas : une progression n'en a pas plus que ce qui est tapé. */
 function fillStep(count: number, start: number, step: number): MetricValue[] {
-  const startPlaces = decimalPlaces(start);
-  const stepPlaces = decimalPlaces(step);
-  const places =
-    startPlaces == null || stepPlaces == null ? null : Math.max(startPlaces, stepPlaces);
-  return Array.from({ length: count }, (_, index) => {
-    const value = start + index * step;
-    return places == null ? value : Number(value.toFixed(places));
-  });
+  return Array.from({ length: count }, (_, index) =>
+    roundedLike(start + index * step, start, step),
+  );
 }
 
 /**

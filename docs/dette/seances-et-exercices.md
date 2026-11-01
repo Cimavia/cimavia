@@ -715,7 +715,8 @@ liste des domaines vivent dans l'index.
 >   métriques du Coach, que seul le serveur charge. Ce contrôle vient avec l'API des blocs (#716),
 >   en reprenant celui de l'ancienne grille (`validateBlockValues`).
 > - **Laissés aux issues des écrans** : `doseCols`, `doseLines`, `lineIn`, `weekChoices`, `fill`,
->   `fillPreview`, `addStep` et `stepError` (#720, #721, #724).
+>   `fillPreview`, `addStep` et `stepError` (#720, #721, #724). Les quatre derniers sont devenus
+>   `dosage-progression.util` (#724), et `stepError` n'a pas d'équivalent : voir son encadré.
 > - **La grille par blocs emprunte à l'ancien modèle** `MetricSource`, `fittingColumnCount`, les
 >   formes de métrique (`catalogMetricShape`, `customMetricShape`, `metricUnitRefinement`) et ses
 >   bornes de colonnes : ils déménagent avec son retrait (#723). Les aides de libellé
@@ -959,7 +960,7 @@ liste des domaines vivent dans l'index.
 > - **L'écart se calcule, il ne s'écrit pas** : la référence est le `baseline` de chaque copie, et
 >   aucun marqueur d'ajustement n'est stocké au niveau du bloc. « Revenir à la séance-type » rend
 >   les valeurs seules ; la composition ne bouge pas.
-> - **Hors périmètre** : réinitialiser toute la séance (#724) et la progression (#722).
+> - **Hors périmètre** : la progression et la réinitialisation d'une ligne (#724).
 > - **« Dosage » s'ouvre de l'en-tête du cycle**, en Lecture comprise, et règle une séance-type à
 >   la fois : un sélecteur en tête de page (`?type=`, la première du cycle sans lui), aucune
 >   colonne mise en avant. Le bouton ne se montre pas sans séance par blocs : une séance sans bloc
@@ -1066,3 +1067,32 @@ liste des domaines vivent dans l'index.
 >   planifications, le partage, le débrief (identifiants de ligne #311, exercice ajouté ou
 >   dupliqué, plafond d'exercices) et la bibliothèque (« grave le dosage », EX-2 sur `blocks`).
 >   Ce qu'ils gardaient d'isolation est repris sur des séances par blocs.
+
+> **Tranché en [#724](https://github.com/Cimavia/cimavia/issues/724)** (« Progression… » dans
+> Dosage) :
+> - **Le pas prend le type de sa ligne, et `stepError` disparaît** (écart à l'issue et à la frame
+>   3 bis) : dans la maquette, une valeur est une chaîne qui porte son unité (« 60 kg »), d'où
+>   « Le pas doit être en kg ». Dans le modèle, l'unité est celle de la COLONNE et la valeur est
+>   typée. Le champ du pas est donc un nombre suivi de l'unité de la colonne, une durée (« 15 s »,
+>   « 1:30 ») ou un nombre de paliers : un pas dans une autre unité ne se saisit pas.
+> - **Un menu ⋯ par ligne** (« Progression… », « Réinitialiser »), comme l'issue le dit, et non les
+>   deux liens de la maquette. Il n'existe pas en Lecture. L'en-tête de ligne se nomme par son
+>   libellé seul (`aria-labelledby`) : le menu n'en fait pas partie.
+> - **Une semaine débriefée relance** (arbitrage de Kylian) : elle garde sa valeur, et la suivante
+>   en repart. Elle peut servir de départ. La décharge, elle, est sautée : la suite repart de la
+>   dernière semaine active.
+> - **Les cotations progressent par paliers** (arbitrage de Kylian), et butent sur le premier ou le
+>   dernier, comme le remplissage de colonne. Le texte ne progresse pas : l'entrée est grisée.
+> - **Ajouter ou Retirer** (arbitrage de Kylian) : le pas est toujours positif, son sens se choisit.
+>   Il est entier pour des tours, des secondes ou des paliers.
+> - **Les bornes arrêtent la valeur** : 1 à 99 tours, 1 s à 3 h pour une durée de réglage, 0 au
+>   moins pour une durée d'exercice. Un nombre d'exercice n'a pas de plancher — un lest négatif
+>   est une assistance, une pente peut descendre — et l'aperçu montre tout avant « Appliquer ».
+> - **Série par série** : une semaine qui a une série de plus la tire de la dernière de la semaine
+>   d'avant. Une série vide la semaine d'avant n'écrase rien : la semaine garde la sienne, et la
+>   suivante en repart.
+> - **L'aperçu dit ce qu'« Appliquer » remplace** (« Remplace 2 valeurs ajustées (S2, S5) »), comme
+>   la frame 3 bis, que l'issue ne citait pas. « Appliquer » écrit le brouillon ; « Enregistrer »
+>   envoie, comme toute saisie de Dosage (#721). Le pas n'est enregistré nulle part.
+> - **« Réinitialiser » rend à chaque semaine les valeurs de SA séance-type reçue** (`baseline`),
+>   décharge comprise. Une semaine débriefée ne bouge pas, un ajout ou un remplaçant non plus.

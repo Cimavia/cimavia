@@ -50,3 +50,19 @@ export function decimalPlaces(value: number): number | null {
   if (written.includes("e")) return null;
   return written.split(".")[1]?.length ?? 0;
 }
+
+/**
+ * Un calcul ramené au plus grand nombre de décimales de ce qu'on a tapé : en virgule flottante,
+ * 0 + 3 × 0,1 vaut 0,30000000000000004, et c'est ce que la cellule afficherait. Un résultat ne peut
+ * pas avoir plus de décimales que ses opérandes. Laissé tel quel si l'un d'eux s'écrit en
+ * exponentielle : on ne sait pas compter ses décimales.
+ */
+export function roundedLike(value: number, ...operands: readonly number[]): number {
+  let places = 0;
+  for (const operand of operands) {
+    const each = decimalPlaces(operand);
+    if (each == null) return value;
+    places = Math.max(places, each);
+  }
+  return Number(value.toFixed(places));
+}

@@ -10,8 +10,10 @@ import {
   type DosageGroup,
   DosageOff,
   dosageAdjustedCount,
+  dosageColumnKey,
   dosageGroups,
   dosageMetricCell,
+  dosageRowReset,
   dosageSettingCell,
   exerciseCodes,
   formatMetricValue,
@@ -19,25 +21,32 @@ import {
   type GridMetric,
   type MetricValue,
   metricLabel,
+  metricProgressionMeasure,
   metricUnitLabel,
   type Phrase,
+  type ProgressionMeasure,
+  ProgressionMeasureKind,
+  type ProgressionSlot,
+  progressionStart,
   type ScheduledSessionBlockDto,
   type ScheduledSessionCopyDto,
   SettingValue,
   sameJson,
+  settingProgressionMeasure,
   settingsPhrase,
   shownSeries,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
-import { useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockMark } from "@/feature/library/component/BlockMark";
 import { DOSAGE_SETTING_LABEL, DosageCellEditor } from "@/feature/plan/component/DosageCellEditor";
+import { DosageProgressionRow } from "@/feature/plan/component/DosageProgressionRow";
 import { CmvMenu } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
 import { cn } from "@/shared/util/cn.util";
-import { formatDayLabel } from "@/shared/util/date.util";
+import { formatDayLabel, formatLongDay } from "@/shared/util/date.util";
 
 /** Le plancher d'une semaine : partagées à parts égales au-delà, elle s'élargit si une valeur l'exige. */
 const COLUMN_MIN = "min-w-28";
@@ -77,6 +86,8 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   const { t } = useTranslation();
   const { columns, copies } = props;
   const [open, setOpen] = useState<string | null>(null);
+  // La ligne dont « Progression… » est ouverte : une seule à la fois, comme une cellule.
+  const [progressing, setProgressing] = useState<string | null>(null);
   const groups = useMemo(() => dosageGroups(copies), [copies]);
   const rows = useMemo(() => rowIndex(copies), [copies]);
   const byId = useMemo(() => new Map(copies.map((copy) => [copy.id, copy])), [copies]);
@@ -97,7 +108,20 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   );
   const numbers = blockNumbers(longest?.blocks ?? []);
 
-  const rowProps = { ...props, rows, copyOf, open, setOpen, close };
+  const heads = columns.map((column) => ({ column, name: columnName(column, t) }));
+  const names = heads.map(({ name }) => name);
+
+  const rowProps = {
+    ...props,
+    rows,
+    copyOf,
+    open,
+    setOpen,
+    close,
+    names,
+    progressing,
+    setProgressing,
+  };
   return (
     // Le cadre prend toute la page, et le tableau y défile : la fenêtre d'une cellule y a la place
     // de s'ouvrir, et les semaines restent en vue.
@@ -107,14 +131,15 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
           <tr className="border-cmv-border border-b bg-cmv-surface">
             <th
               scope="col"
-              className="w-56 min-w-44 px-cmv-md py-cmv-sm text-left text-cmv-caption text-cmv-text-lo uppercase"
+              className="w-64 min-w-64 px-cmv-md py-cmv-sm text-left text-cmv-caption text-cmv-text-lo uppercase"
             >
               {t("plan.dosage.value")}
             </th>
-            {columns.map((column) => (
+            {heads.map(({ column, name }) => (
               <ColumnHead
-                key={column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}
+                key={dosageColumnKey(column)}
                 column={column}
+                name={name}
                 copy={copyOf(column)}
                 width={`${100 / columns.length}%`}
                 {...props}
@@ -137,6 +162,8 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
 
 type ColumnHeadProps = Pick<DosageTableProps, "readOnly" | "onRevertCopy" | "onCompose"> & {
   column: DosageColumn;
+  /** « S2 », ou « S2 · lun. » quand la séance y est posée deux fois (`columnName`). */
+  name: string;
   copy: ScheduledSessionCopyDto | null;
   /** La part de la semaine dans la largeur : toutes la même, plancher `COLUMN_MIN`. */
   width: string;
@@ -145,6 +172,7 @@ type ColumnHeadProps = Pick<DosageTableProps, "readOnly" | "onRevertCopy" | "onC
 /** « S2 », son jour, ses valeurs ajustées ; et son menu : revenir à la séance-type, composer. */
 function ColumnHead({
   column,
+  name,
   copy,
   width,
   readOnly,
@@ -152,65 +180,103 @@ function ColumnHead({
   onCompose,
 }: Readonly<ColumnHeadProps>) {
   const { t } = useTranslation();
-  const week = t("plan.composition.week", { number: column.weekNumber });
   if (column.kind === DosageColumnKind.ABSENT || copy === null) {
     return (
-      <th scope="col" style={{ width }} className={cn("px-cmv-md py-cmv-sm text-left", HATCHED)}>
-        <span className={cn("block text-cmv-body text-cmv-text-lo", COLUMN_MIN)}>{week}</span>
-        <span className="block text-cmv-caption text-cmv-text-lo">
-          {t("plan.dosage.notPlaced")}
-        </span>
-      </th>
+      <HeadShell column={column} width={width} className={HATCHED}>
+        <span className="text-cmv-caption text-cmv-text-lo">{t("plan.dosage.notPlaced")}</span>
+      </HeadShell>
     );
   }
   const count = dosageAdjustedCount(copy);
-  // Posée deux fois la même semaine, la séance a deux colonnes : son jour les distingue.
-  const name = column.showDay
-    ? t("plan.dosage.weekOnDay", { week, day: formatDayLabel(column.date) })
-    : week;
+  return (
+    <HeadShell
+      column={column}
+      width={width}
+      className={cn(column.deload && "bg-cmv-bg-0")}
+      end={
+        <>
+          {column.locked ? (
+            <span className="rounded-cmv-sm border border-cmv-accent bg-cmv-accent-soft px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-accent-on">
+              {t("plan.dosage.debriefed")}
+            </span>
+          ) : null}
+          <CmvMenu
+            label={t("plan.dosage.columnActions", { week: name })}
+            groups={[
+              [
+                {
+                  label: t("plan.composition.backToSessionType"),
+                  onSelect: () => onRevertCopy(copy.id),
+                  disabled: readOnly || column.locked || count === 0,
+                },
+                { label: t("plan.dosage.compose"), onSelect: () => onCompose(copy.id) },
+              ],
+            ]}
+          />
+        </>
+      }
+    >
+      <span
+        className={cn(
+          "flex items-center gap-cmv-xs text-cmv-caption",
+          count > 0 ? "text-cmv-info-on" : "text-cmv-text-lo",
+        )}
+      >
+        {count > 0 ? <AdjustmentMarker /> : null}
+        {t("plan.dosage.adjusted", { count })}
+      </span>
+    </HeadShell>
+  );
+}
+
+type HeadShellProps = {
+  column: DosageColumn;
+  width: string;
+  className: string | false;
+  /** Sous « S1 - lundi 26 octobre » : où en est la semaine. */
+  children: ReactNode;
+  /** À droite, centré : le badge « Débriefée », le menu. */
+  end?: ReactNode;
+};
+
+/** La même tête pour toutes les semaines, la séance posée ou non : son titre, puis son état. */
+function HeadShell({ column, width, className, children, end }: Readonly<HeadShellProps>) {
+  const { t } = useTranslation();
   return (
     <th
       scope="col"
       style={{ width }}
-      className={cn("px-cmv-md py-cmv-sm text-left align-top", column.deload && "bg-cmv-bg-0")}
+      className={cn("px-cmv-md py-cmv-sm text-left align-middle", className)}
     >
-      <div className={cn("flex items-start gap-cmv-xs", COLUMN_MIN)}>
+      <div className={cn("flex items-center gap-cmv-xs", COLUMN_MIN)}>
         <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-cmv-body text-cmv-text-hi">{name}</span>
-          <span className="text-cmv-caption text-cmv-text-lo">
-            {column.deload
-              ? t("plan.dosage.deloadDay", { day: formatDayLabel(column.date) })
-              : formatDayLabel(column.date)}
+          {/* « S1 - lundi 26 octobre » : le jour en entier suffit à distinguer deux séances de
+            la même semaine, sans le répéter après son numéro. */}
+          <span className="flex flex-wrap items-baseline gap-x-cmv-xs">
+            <span className="text-cmv-body text-cmv-text-hi">
+              {t("plan.composition.week", { number: column.weekNumber })}
+            </span>
+            <span className="text-cmv-caption text-cmv-text-lo">
+              -{" "}
+              {column.deload
+                ? t("plan.dosage.deloadDay", { day: formatLongDay(column.date) })
+                : formatLongDay(column.date)}
+            </span>
           </span>
-          <span
-            className={cn(
-              "flex items-center gap-cmv-xs text-cmv-caption",
-              count > 0 ? "text-cmv-info-on" : "text-cmv-text-lo",
-            )}
-          >
-            {count > 0 ? <AdjustmentMarker /> : null}
-            {t("plan.dosage.adjusted", { count })}
-          </span>
-          {column.locked ? (
-            <span className="text-cmv-caption text-cmv-text-lo">{t("plan.dosage.debriefed")}</span>
-          ) : null}
+          {children}
         </div>
-        <CmvMenu
-          label={t("plan.dosage.columnActions", { week: name })}
-          groups={[
-            [
-              {
-                label: t("plan.composition.backToSessionType"),
-                onSelect: () => onRevertCopy(copy.id),
-                disabled: readOnly || column.locked || count === 0,
-              },
-              { label: t("plan.dosage.compose"), onSelect: () => onCompose(copy.id) },
-            ],
-          ]}
-        />
+        {end}
       </div>
     </th>
   );
+}
+
+/** « S2 » ; posée deux fois la même semaine, la séance a deux colonnes : son jour les distingue. */
+function columnName(column: DosageColumn, t: TFunction): string {
+  const week = t("plan.composition.week", { number: column.weekNumber });
+  return column.kind === DosageColumnKind.COPY && column.showDay
+    ? t("plan.dosage.weekOnDay", { week, day: formatDayLabel(column.date) })
+    : week;
 }
 
 type RowProps = DosageTableProps & {
@@ -219,6 +285,10 @@ type RowProps = DosageTableProps & {
   open: string | null;
   setOpen: (cell: string | null) => void;
   close: (cell: string) => void;
+  /** Le nom de chaque colonne, dans leur ordre. */
+  names: readonly string[];
+  progressing: string | null;
+  setProgressing: (row: string | null) => void;
 };
 
 /** Un bloc : son en-tête, ses valeurs, puis chaque métrique de chacun de ses exercices. */
@@ -283,24 +353,29 @@ function GroupRows({
           name={t(settingLabel(field, sets))}
           note={roundsNote(field, sets, t)}
           target={{ kind: "setting", blockIndex, field }}
+          customMetrics={[]}
+          measure={settingProgressionMeasure(field)}
           cellOf={(copy) => dosageSettingCell(copy, blockIndex, field)}
         />
       ))}
-      {group.exercises.flatMap((line) =>
-        line.metrics.map((metric) => (
+      {group.exercises.flatMap((line) => {
+        const customMetrics = props.rows.metricsOf(line.key);
+        return line.metrics.map((metric) => (
           <ValueRow
             key={`${line.key}:${metric.id}`}
             {...props}
             id={`${blockIndex}:${line.key}:${metric.id}`}
             code={received.includes(line.key) ? (codes[received.indexOf(line.key)] ?? null) : null}
             name={titleOf(rows, line.rowId)}
-            metricName={metricLabel(metric, props.rows.metricsOf(line.key), t)}
+            metricName={metricLabel(metric, customMetrics, t)}
             tag={tagOf(line, received, codes, t)}
             target={{ kind: "metric", blockIndex, key: line.key, metric }}
+            customMetrics={customMetrics}
+            measure={metricProgressionMeasure(metric, customMetrics)}
             cellOf={(copy) => dosageMetricCell(copy, blockIndex, line.key, metric.id)}
           />
-        )),
-      )}
+        ));
+      })}
     </tbody>
   );
 }
@@ -348,7 +423,7 @@ function blockPhrases(
   });
   const said = settingsPhrase(reference.settings, reference.exercises.length, names, sets);
   const weeks = columns.map((column) => ({
-    key: columnKey(column),
+    key: dosageColumnKey(column),
     absent: column.kind === DosageColumnKind.ABSENT,
     said: weekPhrase(copyOf(column)?.blocks[blockIndex], rows, sets),
   }));
@@ -387,9 +462,6 @@ function isSets(
   if (group.reference.exercises.length !== 1) return false;
   return copies.every((copy) => (copy.blocks[group.blockIndex]?.exercises.length ?? 1) === 1);
 }
-
-const columnKey = (column: DosageColumn) =>
-  column.kind === DosageColumnKind.COPY ? column.copyId : String(column.weekNumber);
 
 /** « ajouté », ou « remplace A1 » : ce que certaines semaines seulement portent. */
 function tagOf(
@@ -439,42 +511,114 @@ type ValueRowProps = RowProps & {
   tag?: string | null;
   note?: string | null;
   target: DosageTarget;
+  /** Les métriques maison de la ligne, réunies sur ses semaines : elles disent ce que vaut une valeur. */
+  customMetrics: readonly CustomMetric[];
+  /** Ce qu'un pas fait à la ligne ; `null` : elle ne progresse pas (du texte). */
+  measure: ProgressionMeasure | null;
   cellOf: (copy: ScheduledSessionCopyDto | null) => DosageCell;
 };
 
 function ValueRow(props: Readonly<ValueRowProps>) {
-  const { columns, copyOf, id, name, code, metricName, tag, note } = props;
+  const { t, i18n } = useTranslation();
+  const { columns, copyOf, id, name, code, metricName, tag, note, target, measure } = props;
+  const labelId = useId();
+  const headRef = useRef<HTMLSpanElement>(null);
+  const slots: ProgressionSlot[] = columns.map((column) => ({
+    column,
+    cell: props.cellOf(copyOf(column)),
+  }));
+  const start = progressionStart(slots);
+  const reset = dosageRowReset(slots);
+  const isProgressing = props.progressing === id && measure !== null;
+  const show = (values: readonly MetricValue[]) =>
+    shownText(values, target, props.customMetrics, t, i18n.language);
+
+  /** Les valeurs de quelques semaines, chacune dans sa copie. */
+  function write(changes: readonly { index: number; values: MetricValue[] }[]) {
+    for (const { index, values } of changes) {
+      const column = columns[index];
+      if (column?.kind === DosageColumnKind.COPY) props.onChange(column.copyId, target, values);
+    }
+  }
+
+  /** La fenêtre refermée, le clavier reprend au ⋯ qui l'a ouverte. */
+  function closeProgression() {
+    props.setProgressing(null);
+    headRef.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.focus();
+  }
+
   return (
     <>
       <tr className="border-cmv-surface border-t">
-        <th scope="row" className="px-cmv-md py-cmv-xs text-left font-normal">
-          <span className="flex flex-wrap items-center gap-x-cmv-sm">
-            {code == null ? null : (
-              <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{code}</span>
-            )}
-            <span className="text-cmv-body text-cmv-text-hi">{name}</span>
-            {metricName == null ? null : (
-              <span className="text-cmv-caption text-cmv-text-lo">{metricName}</span>
-            )}
-            {tag == null ? null : (
-              <span className="rounded-cmv-pill border border-cmv-accent px-cmv-sm text-cmv-caption text-cmv-accent-on">
-                {tag}
-              </span>
+        {/* Nommée par son libellé seul : le menu n'en fait pas partie. */}
+        <th
+          scope="row"
+          aria-labelledby={labelId}
+          className="px-cmv-md py-cmv-xs text-left font-normal"
+        >
+          <span ref={headRef} className="flex items-center gap-cmv-xs">
+            <span id={labelId} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-cmv-sm">
+              {code == null ? null : (
+                <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{code}</span>
+              )}
+              <span className="text-cmv-body text-cmv-text-hi">{name}</span>
+              {metricName == null ? null : (
+                <span className="text-cmv-caption text-cmv-text-lo">{metricName}</span>
+              )}
+              {tag == null ? null : (
+                <span className="rounded-cmv-pill border border-cmv-accent px-cmv-sm text-cmv-caption text-cmv-accent-on">
+                  {tag}
+                </span>
+              )}
+            </span>
+            {props.readOnly ? null : (
+              <CmvMenu
+                label={t("plan.dosage.rowActions", {
+                  name: [code, name, metricName].filter(Boolean).join(" "),
+                })}
+                groups={[
+                  [
+                    {
+                      label: t("plan.dosage.progression.open"),
+                      onSelect: () => props.setProgressing(id),
+                      disabled: measure === null || start === null,
+                    },
+                    {
+                      label: t("plan.dosage.reset"),
+                      onSelect: () => write(reset),
+                      disabled: reset.length === 0,
+                    },
+                  ],
+                ]}
+              />
             )}
           </span>
         </th>
-        {columns.map((column, index) => (
+        {slots.map(({ column, cell }, index) => (
           <ValueCell
-            key={column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}
+            key={dosageColumnKey(column)}
             {...props}
             // La fenêtre de la dernière semaine s'ouvre vers la gauche : le tableau s'arrête là.
             alignEnd={columns.length > 1 && index === columns.length - 1}
             column={column}
+            cell={cell}
             copy={copyOf(column)}
-            cellId={`${id}@${column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}`}
+            cellId={`${id}@${dosageColumnKey(column)}`}
           />
         ))}
       </tr>
+      {isProgressing ? (
+        <DosageProgressionRow
+          slots={slots}
+          start={start}
+          measure={measure}
+          names={props.names}
+          unit={stepUnit(measure, target, props.customMetrics, t)}
+          show={show}
+          onApply={write}
+          onClose={closeProgression}
+        />
+      ) : null}
       {note == null ? null : (
         <tr>
           <td
@@ -489,17 +633,29 @@ function ValueRow(props: Readonly<ValueRowProps>) {
   );
 }
 
+/** Ce qui suit le pas : l'unité de la colonne, des paliers, rien pour une durée ou des tours. */
+function stepUnit(
+  measure: ProgressionMeasure,
+  target: DosageTarget,
+  customMetrics: readonly CustomMetric[],
+  t: TFunction,
+): string | null {
+  if (measure.kind === ProgressionMeasureKind.SCALE) return t("plan.dosage.progression.grades");
+  if (measure.kind === ProgressionMeasureKind.DURATION || target.kind === "setting") return null;
+  return metricUnitLabel(target.metric, customMetrics, t);
+}
+
 type ValueCellProps = ValueRowProps & {
   alignEnd: boolean;
   column: DosageColumn;
+  cell: DosageCell;
   copy: ScheduledSessionCopyDto | null;
   cellId: string;
 };
 
 function ValueCell(props: Readonly<ValueCellProps>) {
   const { t } = useTranslation();
-  const { column, copy } = props;
-  const cell = props.cellOf(copy);
+  const { column, copy, cell } = props;
   const deload = column.kind === DosageColumnKind.COPY && column.deload;
   const tdClass = cn("relative px-cmv-sm py-cmv-xs align-middle", deload && "bg-cmv-bg-0");
 

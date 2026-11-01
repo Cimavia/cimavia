@@ -6,6 +6,7 @@ import {
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoInstantDate,
+  formatIsoLongDay,
   formatIsoWeekday,
   formatRelativeOrDateTime,
 } from "./date-format.util";
@@ -34,6 +35,8 @@ export type Formatters = {
   formatDayLabel: (isoDate: string) => string;
   /** « lun. 14 oct. » — le jour, dit en entier. */
   formatFullDay: (isoDate: string) => string;
+  /** « lundi 26 octobre » — le jour en toutes lettres. */
+  formatLongDay: (isoDate: string) => string;
   /** « LUN » — l'en-tête de colonne d'une grille de semaine. */
   formatWeekday: (isoDate: string) => string;
   /** « 14 » — le seul numéro du jour. */
@@ -73,6 +76,7 @@ export function createFormatters(
     formatDate: (isoDate) => formatIsoDate(isoDate, getLocale()),
     formatDayLabel: (isoDate) => formatIsoDayLabel(isoDate, getLocale()),
     formatFullDay: (isoDate) => formatIsoFullDay(isoDate, getLocale()),
+    formatLongDay: (isoDate) => formatIsoLongDay(isoDate, getLocale()),
     formatWeekday: (isoDate) => formatIsoWeekday(isoDate, getLocale()),
     formatDayNumber: (isoDate) => formatIsoDayNumber(isoDate, getLocale()),
     formatDateRange: (start, end) => formatIsoDateRange(start, end, getLocale()),
