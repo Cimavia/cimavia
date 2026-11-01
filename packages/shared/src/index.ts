@@ -856,14 +856,12 @@ export type {
 export {
   dosageProgression,
   dosageRowReset,
-  isUsableStep,
   metricProgressionMeasure,
   ProgressionCellKind,
   ProgressionDirection,
   ProgressionMeasureKind,
   progressionStart,
   settingProgressionMeasure,
-  steppedValue,
 } from "./util/dosage-progression.util";
 export type {
   FeedbackMediaSlots,
@@ -1065,6 +1063,7 @@ export {
   DosageColumnKind,
   DosageOff,
   dosageAdjustedCount,
+  dosageColumnKey,
   dosageColumns,
   dosageGroups,
   dosageInput,

@@ -127,6 +127,11 @@ export function dosageColumns(
     });
 }
 
+/** Ce qui distingue une colonne de ses voisines : sa copie, ou la semaine où la séance manque. */
+export function dosageColumnKey(column: DosageColumn): string {
+  return column.kind === DosageColumnKind.COPY ? column.copyId : `week-${column.weekNumber}`;
+}
+
 // ── Les lignes ──────────────────────────────────────────────────────────────────────────────
 
 /** Les valeurs d'un bloc, dans l'ordre où Dosage les montre : combien, puis à quel rythme, puis les repos. */
@@ -298,7 +303,9 @@ export function dosageSettingCell(
   const block = copy.blocks[blockIndex];
   const value = block === undefined ? null : settingValues(block.settings)[field];
   if (block === undefined || value === null) return off(DosageOff.NONE);
-  return valueCell([value], [settingValues(block.baseline.settings)[field]]);
+  // Une valeur que la séance-type ne portait pas : rien où revenir, comme pour un exercice ajouté.
+  const reference = settingValues(block.baseline.settings)[field];
+  return valueCell([value], reference === null ? null : [reference]);
 }
 
 /**
