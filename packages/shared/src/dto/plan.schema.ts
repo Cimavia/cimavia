@@ -2,29 +2,11 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { isMondayIsoDate } from "../util/date.util";
 import { accessGrantDtoSchema, coachGrantDtoSchema, myAccessSchema } from "./access.schema";
-import { adjustmentsSchema } from "./dosage-override.schema";
-import {
-  EXERCISE_DESCRIPTION_MAX_LENGTH,
-  EXERCISE_TITLE_MAX_LENGTH,
-  exerciseDocumentDtoSchema,
-  exerciseTagsSchema,
-} from "./exercise.schema";
-import {
-  BLOCK_MAX_METRICS,
-  EXERCISE_MAX_BLOCKS,
-  exerciseBlocksSchema,
-  exerciseTrackingSchema,
-} from "./exercise-block.schema";
+import { exerciseDocumentDtoSchema } from "./exercise.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { richDocumentSchema } from "./rich-document.schema";
-import {
-  SESSION_MAX_EXERCISES,
-  SESSION_NOTE_MAX_LENGTH,
-  SESSION_NOTES_MAX_LENGTH,
-  SESSION_TITLE_MAX_LENGTH,
-  SESSION_TOO_MANY_EXERCISES_MESSAGE,
-} from "./session.schema";
+import { SESSION_NOTES_MAX_LENGTH, SESSION_TITLE_MAX_LENGTH } from "./session.schema";
 import { scheduledSessionBlockDtoSchema } from "./session-block-dto.schema";
 
 export const PLAN_TITLE_MAX_LENGTH = 200;
@@ -33,11 +15,6 @@ export const PLAN_WEEK_NOTE_MAX_LENGTH = 1000;
 // Le nombre de semaines est LIBRE (CDC §5.4) ; ce plafond n'est qu'un garde-fou (un cycle
 // d'entraînement ne dure pas 10 ans) qui borne aussi le coût d'une création de plan.
 export const PLAN_MAX_WEEKS = 52;
-/**
- * Les métriques maison qu'un exercice diffusé peut embarquer : au plus une par colonne de chacun
- * de ses blocs, puisque le snapshot ne copie que celles que ses blocs citent (#297).
- */
-export const SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS = EXERCISE_MAX_BLOCKS * BLOCK_MAX_METRICS;
 
 // Cycle de vie d'une planification. DRAFT : en construction, invisible de l'athlète.
 // PUBLISHED : diffusée → l'athlète la voit, notification envoyée. Pas de retour arrière en MVP.
@@ -152,83 +129,32 @@ export const copyPlanWeekSchema = z
   .strict();
 export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
 
-// Exercice d'une séance planifiée : une COPIE (titre/description/catégorie), pas une référence.
-// `sourceExerciseId` ne sert qu'à la traçabilité (et à recopier les documents de la
-// bibliothèque à l'écriture) : il peut être null, et l'affichage n'en dépend jamais.
-export const scheduledSessionExerciseInputSchema = z
-  .object({
-    /**
-     * L'exercice diffusé qu'on renvoie, quand il existe déjà.
-     *
-     * L'édition d'une séance planifiée remplace sa composition, mais la ligne citée par cet `id`
-     * est mise à jour EN PLACE (#296, #311) : elle garde son identifiant, contre lequel l'athlète
-     * coche son suivi en local, et ses documents, que la consigne cite par leur identifiant.
-     * Absent, ou inconnu de la séance = exercice nouveau.
-     */
-    id: z.string().min(1).optional(),
-    sourceExerciseId: z.string().min(1).nullable().optional(),
-    title: z.string().min(1).max(EXERCISE_TITLE_MAX_LENGTH),
-    description: z.string().max(EXERCISE_DESCRIPTION_MAX_LENGTH).nullable().optional(),
-    // Copiés de l'exercice source au moment de la diffusion, comme les documents et les tags.
-    instructions: richDocumentSchema.nullable().optional(),
-    blocks: exerciseBlocksSchema.optional(),
-    customMetrics: z
-      .array(customMetricSchema)
-      .max(
-        SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
-        `Un exercice ne peut pas embarquer plus de ${SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS} métriques maison.`,
-      )
-      .optional(),
-    tags: exerciseTagsSchema.optional(),
-    note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable().optional(),
-    adjustments: adjustmentsSchema.optional(),
-  })
-  .strict();
-export type ScheduledSessionExerciseInput = z.infer<typeof scheduledSessionExerciseInputSchema>;
-
-// Deux façons de poser une séance dans une semaine :
-//  - depuis un modèle (`sourceSessionId`) → l'API copie titre, consignes et composition ;
-//  - ad hoc → le coach fournit le titre (et éventuellement la composition).
-// D'où le refine : sans modèle source, un titre est obligatoire.
+/**
+ * Poser une séance dans une semaine, depuis une séance-type (`sourceSessionId`) : l'API en copie
+ * titre, notes et blocs (#723). Il n'y a plus de séance ad hoc composée exercice par exercice —
+ * une séance se compose par blocs, et ses blocs viennent d'un modèle ; on l'ajuste ensuite.
+ */
 export const createScheduledSessionSchema = z
   .object({
-    sourceSessionId: z.string().min(1).nullable().optional(),
+    sourceSessionId: z.string().min(1),
     scheduledDate: z.iso.date(),
-    title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH).optional(),
-    notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
-    exercises: z
-      .array(scheduledSessionExerciseInputSchema)
-      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
-      .optional(),
   })
-  .strict()
-  .refine((input) => input.sourceSessionId != null || input.title != null, {
-    message: "Titre requis pour une séance sans modèle source",
-    path: ["title"],
-  });
+  .strict();
 export type CreateScheduledSessionInput = z.infer<typeof createScheduledSessionSchema>;
 
 /**
- * Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : replace-all, comme la
- * séance modèle. L'ordre du tableau DÉFINIT les positions. `status` n'est pas éditable en P3.
+ * Édition d'une instance (y compris en cours de cycle diffusé — CDC §5.7) : titre, notes et jour.
+ * La composition s'écrit geste par geste (`scheduledCompositionInputSchema`, #720).
  *
  * Elle cite la version de la séance OUVERTE (#604) : deux Coachs d'une entreprise peuvent ajuster
  * la même séance, et le second effacerait sinon le premier sans un mot. Le débrief de l'athlète ne
  * la fait pas avancer — il ne touche à rien de ce que le Coach a composé.
- *
- * Sans `exercises`, la composition reste intacte (#720) : celle d'une séance par blocs s'écrit
- * geste par geste (`scheduledCompositionInputSchema`), et « Enregistrer » ne porte plus que le
- * titre, les notes et le jour.
  */
 export const updateScheduledSessionSchema = z
   .object({
     title: z.string().min(1).max(SESSION_TITLE_MAX_LENGTH),
     notes: z.string().max(SESSION_NOTES_MAX_LENGTH).nullable().optional(),
     scheduledDate: z.iso.date(),
-    exercises: z
-      .array(scheduledSessionExerciseInputSchema)
-      .max(SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE)
-      .optional(),
     expectedUpdatedAt: expectedVersionSchema,
   })
   .strict();
@@ -278,35 +204,20 @@ export const scheduledSessionExerciseDtoSchema = z.object({
   sourceExerciseId: z.string().nullable(),
   title: z.string(),
   description: z.string().nullable(),
-  // Copies FIGÉES elles aussi : l'athlète lit la consigne et la structure telles qu'elles étaient
-  // à la diffusion, même si le coach a retravaillé l'exercice de sa bibliothèque depuis.
+  // Copie FIGÉE elle aussi : l'athlète lit la consigne telle qu'elle était à la diffusion, même
+  // si le coach a retravaillé l'exercice de sa bibliothèque depuis.
   instructions: richDocumentSchema.nullable(),
-  blocks: exerciseBlocksSchema,
   /**
-   * Les métriques MAISON citées par les blocs, copiées à la diffusion. Sans elles l'athlète ne
-   * verrait qu'un identifiant : `/custom-metrics` est scopé au coach, et faire dépendre la lecture
-   * d'une planif de la bibliothèque du coach casserait l'autonomie du snapshot (décision P3).
+   * Les métriques MAISON que cite la grille de l'exercice, copiées à la diffusion. Sans elles
+   * l'athlète ne verrait qu'un identifiant : `/custom-metrics` est scopé au coach, et faire
+   * dépendre la lecture d'une planif de la bibliothèque du coach casserait l'autonomie du snapshot
+   * (décision P3).
    */
   customMetrics: z.array(customMetricSchema),
-  /**
-   * Le suivi d'exécution. `null` = NON SUIVI, ce qui n'est pas « zéro coché » : l'athlète n'a
-   * rien dit, et l'affichage doit rester silencieux — jamais « 0 sur 4 », jamais de relance.
-   */
-  tracking: exerciseTrackingSchema.nullable(),
   // Copie FIGÉE des tags de l'exercice source, comme les documents : l'affichage d'une planif
   // diffusée ne dépend jamais de la bibliothèque, qui peut avoir été retaguée depuis.
   tags: z.array(z.string()),
   note: z.string().nullable(),
-  /** Ce dont le troisième niveau part : ce que la séance a diffusé. */
-  baseline: exerciseBlocksSchema,
-  adjustments: adjustmentsSchema,
-  /**
-   * Les marqueurs REÇUS à la diffusion — ceux de la séance-type, `[]` pour un exercice ajouté
-   * dans le panneau (#518). La référence des marqueurs, comme `baseline` est celle des valeurs :
-   * « Revenir au défaut » les rend, au lieu d'effacer le rond d'une valeur décidée dans la séance.
-   * Lu seulement : l'entrée ne le porte pas, et le serveur ne le réécrit jamais.
-   */
-  baselineAdjustments: adjustmentsSchema,
   position: z.number().int(),
   // Copies des documents de l'exercice source (URL signée résolue à chaque lecture).
   documents: z.array(exerciseDocumentDtoSchema),
@@ -325,7 +236,6 @@ export const scheduledSessionSummaryDtoSchema = z.object({
   position: z.number().int(),
   status: scheduledSessionStatusSchema,
   exerciseCount: z.number().int(),
-  /** `0` pour une séance de l'ancien modèle, composée d'exercices sans blocs. */
   blockCount: z.number().int(),
   /**
    * La dernière écriture sur la séance (#307). Le mobile s'en sert pour savoir si le déroulé qu'il
@@ -347,7 +257,7 @@ export const scheduledSessionDtoSchema = scheduledSessionSummaryDtoSchema.extend
   exercises: z.array(scheduledSessionExerciseDtoSchema),
   /**
    * La composition par blocs (#716), lue IMBRIQUÉE dans la séance : un exercice de bloc n'a de
-   * sens que dans son bloc. `[]` pour une séance encore composée à l'ancienne.
+   * sens que dans son bloc.
    */
   blocks: z.array(scheduledSessionBlockDtoSchema),
 });

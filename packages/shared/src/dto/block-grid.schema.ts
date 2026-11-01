@@ -1,30 +1,44 @@
 import { z } from "zod";
+import { required } from "../util/invariant.util";
 import {
-  BLOCK_LABEL_MAX_LENGTH,
-  BLOCK_MAX_METRICS,
+  type CustomMetric,
+  type MetricValue,
+  metricValueSchema,
+  metricValueSchemaFor,
+} from "./exercise-metric.schema";
+import {
   catalogMetricShape,
   customMetricShape,
-  distinctColumnIds,
-  distinctRowIds,
+  GRID_MAX_METRICS,
+  type MetricReference,
   MetricSource,
   metricUnitRefinement,
-} from "./exercise-block.schema";
-import { metricValueSchema } from "./exercise-metric.schema";
+  metricValueTypeOf,
+  scaleFor,
+} from "./metric-reference.schema";
 import { STRUCTURE_MAX_ROUNDS } from "./structure.schema";
 import type { SuggestedMetric } from "./suggested-metric.schema";
 
 // La grille d'un exercice de bloc (#715) : ses colonnes et ses lignes de valeurs.
-//
-// Reprend la grille de `exercise-block.schema` sans le repli de colonne (`collapsed`), que le
-// modèle par blocs n'a plus, et en partage les formes et les bornes. Seul écart : le libellé de
-// colonne est taillé ici, pas dans l'ancienne grille, dont les données stockées ne changent pas.
-// L'ancienne grille tombe avec #723, qui rapatrie ici formes et bornes ; les noms `GRID_*` sont
-// ceux qui restent.
 
-export const GRID_MAX_METRICS = BLOCK_MAX_METRICS;
-export const GRID_LABEL_MAX_LENGTH = BLOCK_LABEL_MAX_LENGTH;
+export const GRID_LABEL_MAX_LENGTH = 60;
 /** Une ligne par tour, série ou passage : autant que de tours au plus. */
 export const GRID_MAX_ROWS = STRUCTURE_MAX_ROUNDS;
+
+type GridRefinement<T> = [(grid: T) => boolean, { message: string; path: string[] }];
+const distinctIds = (items: readonly { id: string }[]) =>
+  new Set(items.map((item) => item.id)).size === items.length;
+
+/** Deux colonnes ne partagent pas un identifiant : les valeurs d'une ligne s'y rangent. */
+const distinctColumnIds: GridRefinement<{ metrics: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.metrics),
+  { message: "Deux colonnes ne peuvent pas partager le même identifiant.", path: ["metrics"] },
+];
+
+const distinctRowIds: GridRefinement<{ rows: readonly { id: string }[] }> = [
+  (grid) => distinctIds(grid.rows),
+  { message: "Deux lignes ne peuvent pas partager le même identifiant.", path: ["rows"] },
+];
 
 // ── La grille ───────────────────────────────────────────────────────────────────────────────
 
@@ -46,7 +60,7 @@ export type GridMetric = z.infer<typeof gridMetricSchema>;
 /**
  * La même colonne : même identifiant, même libellé, même mesure. Changer l'UNITÉ change ce que
  * l'athlète comprend — « 6 » en kilos et « 6 » en pourcentage du poids de corps ne sont pas le même
- * effort. Une colonne de l'ancienne grille s'y compare aussi, son repli (`collapsed`) ignoré.
+ * effort.
  */
 export function sameGridMetric(base: GridMetric, next: GridMetric): boolean {
   if (base.id !== next.id || base.label !== next.label) return false;
@@ -114,4 +128,73 @@ export function metricsFromSuggested(
   newId: (index: number) => string,
 ): GridMetric[] {
   return suggested.map((metric, index) => ({ ...metric, id: newId(index), label: null }));
+}
+
+// ── Invariants qui dépendent du contenu ─────────────────────────────────────────────────────
+
+export type GridValueIssue = {
+  readonly rowId: string;
+  readonly metricId: string;
+  readonly message: string;
+};
+
+// `rowId` vide : l'anomalie porte sur la colonne entière, pas sur une cellule.
+const COLUMN_WIDE = "";
+
+type ValuedColumn = MetricReference & { readonly id: string };
+type ValuedRows = { readonly rows: readonly { id: string; values: Record<string, MetricValue> }[] };
+
+function cellIssues(
+  grid: ValuedRows,
+  metric: ValuedColumn,
+  valueSchema: z.ZodType<MetricValue>,
+): GridValueIssue[] {
+  return grid.rows.flatMap((row) => {
+    const parsed = valueSchema.safeParse(row.values[metric.id] ?? null);
+    if (parsed.success) return [];
+    return [
+      {
+        rowId: row.id,
+        metricId: metric.id,
+        // Un échec de Zod porte toujours au moins une issue.
+        message: required(parsed.error.issues[0], "échec de validation sans issue").message,
+      },
+    ];
+  });
+}
+
+/** Le schéma des cellules d'une colonne, ou `null` quand sa métrique est introuvable. */
+function valueSchemaOf(
+  metric: ValuedColumn,
+  customMetrics: readonly CustomMetric[],
+): z.ZodType<MetricValue> | null {
+  const valueType = metricValueTypeOf(metric, customMetrics);
+  return valueType === null
+    ? null
+    : metricValueSchemaFor(valueType, scaleFor(metric, customMetrics));
+}
+
+function unknownColumn(metric: ValuedColumn): GridValueIssue {
+  return {
+    rowId: COLUMN_WIDE,
+    metricId: metric.id,
+    message: "Cette colonne référence une métrique introuvable.",
+  };
+}
+
+/**
+ * Croise chaque cellule de la grille d'un exercice de bloc (#716) avec le type de sa colonne. Ce
+ * contrôle ne peut pas vivre dans le schéma Zod : le type d'une colonne maison n'est connu qu'avec
+ * les métriques du Coach, que seul le serveur charge — il le fait avant d'écrire. Rend des anomalies
+ * LOCALISÉES, pour que l'éditeur surligne la bonne cellule. La grille n'a pas de valeur orpheline
+ * à signaler : son schéma les refuse déjà (#715).
+ */
+export function gridValueIssues(
+  grid: ValuedRows & { readonly metrics: readonly ValuedColumn[] },
+  customMetrics: readonly CustomMetric[],
+): GridValueIssue[] {
+  return grid.metrics.flatMap((metric) => {
+    const valueSchema = valueSchemaOf(metric, customMetrics);
+    return valueSchema === null ? [unknownColumn(metric)] : cellIssues(grid, metric, valueSchema);
+  });
 }

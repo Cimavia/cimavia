@@ -175,26 +175,14 @@ describe("trackedBlockTally", () => {
 });
 
 describe("feedbackTrackingInput", () => {
-  const exercises = [{ id: "ex_1", blocks: [{ id: "b_1" }] }];
-  const exerciseTracking = { ex_1: { b_1: { checked: [0] } }, ex_gone: { b_1: { checked: [0] } } };
-  const blockTracking = {
-    blk_1: { checked: [{ row: 0, key: "a1" }] },
-    blk_gone: { checked: [{ row: 0, key: "z1" }] },
-  };
+  it("envoie le suivi par bloc de la séance, sans les blocs retirés", () => {
+    const blockTracking = {
+      blk_1: { checked: [{ row: 0, key: "a1" }] },
+      blk_gone: { checked: [{ row: 0, key: "z1" }] },
+    };
 
-  it("envoie le suivi par bloc seul d'une séance par blocs, sans les blocs retirés", () => {
-    const session = { exercises, blocks: [series] } as never;
-
-    expect(feedbackTrackingInput(session, exerciseTracking, blockTracking)).toEqual({
+    expect(feedbackTrackingInput({ blocks: [series] } as never, blockTracking)).toEqual({
       blockTracking: { blk_1: { checked: [{ row: 0, key: "a1" }] } },
-    });
-  });
-
-  it("envoie le suivi par exercice seul d'une séance sans bloc, sans les exercices retirés", () => {
-    const session = { exercises, blocks: [] } as never;
-
-    expect(feedbackTrackingInput(session, exerciseTracking, blockTracking)).toEqual({
-      tracking: { ex_1: { b_1: { checked: [0] } } },
     });
   });
 });

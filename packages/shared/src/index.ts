@@ -115,14 +115,14 @@ export {
 } from "./dto/access.schema";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./dto/athlete-sheet.schema";
-export type { BlockGrid, GridMetric, GridRow } from "./dto/block-grid.schema";
+export type { BlockGrid, GridMetric, GridRow, GridValueIssue } from "./dto/block-grid.schema";
 export {
   blockGridSchema,
   GRID_LABEL_MAX_LENGTH,
-  GRID_MAX_METRICS,
   GRID_MAX_ROWS,
   gridMetricSchema,
   gridRowSchema,
+  gridValueIssues,
   metricsFromSuggested,
 } from "./dto/block-grid.schema";
 export type { BlockCheck, SessionBlockTracking } from "./dto/block-tracking.schema";
@@ -147,31 +147,6 @@ export {
   SELF_RELATION_ID,
   UNKNOWN_COUNTERPARTS,
 } from "./dto/coach-athlete.schema";
-export type {
-  Adjustment,
-  AdjustmentLevel as AdjustmentLevelType,
-  Adjustments,
-  DosageState,
-} from "./dto/dosage-override.schema";
-export {
-  ADJUSTMENTS_MAX,
-  AdjustmentLevel,
-  adjustmentCount,
-  adjustmentLevelAt,
-  adjustmentLevelSchema,
-  adjustmentSchema,
-  adjustmentsSchema,
-  cellPath,
-  clearAdjustment,
-  dosageStateSchema,
-  isPathInRow,
-  lockedShapeIssues,
-  markAdjusted,
-  resetRow,
-  resetToBaseline,
-  restoreAdjustment,
-  structurePath,
-} from "./dto/dosage-override.schema";
 export type {
   AttachDocumentInput,
   CreateExerciseInput,
@@ -217,96 +192,6 @@ export {
   uploadUrlDtoSchema,
 } from "./dto/exercise.schema";
 export type {
-  BlockMetric,
-  BlockRow,
-  BlockSegment,
-  BlockStructure,
-  BlockTimer,
-  BlockTracking,
-  BlockTrackingState,
-  BlockType as BlockTypeType,
-  BlockValidationIssue,
-  ColumnFillMode as ColumnFillModeType,
-  ColumnFillPlan,
-  DosageLayout as DosageLayoutType,
-  DosagePhrase,
-  ExerciseBlock,
-  ExerciseBlocks,
-  ExerciseTracking,
-  GridSlot,
-  GridSlotKind as GridSlotKindType,
-  MetricCitations,
-  MetricSource as MetricSourceType,
-  ReadingRow,
-  TimerKind as TimerKindType,
-  TrackingMode as TrackingModeType,
-  TrackingState as TrackingStateType,
-  TrackingSummary,
-  TrackingUnit as TrackingUnitType,
-} from "./dto/exercise-block.schema";
-export {
-  ATHLETE_INDEX_COLUMN_PX,
-  ATHLETE_USABLE_WIDTH_PX,
-  ATHLETE_VALUE_COLUMN_PX,
-  BLOCK_LABEL_MAX_LENGTH,
-  BLOCK_MAX_METRICS,
-  BLOCK_MAX_ROUND_COUNT,
-  BLOCK_MAX_ROWS,
-  BLOCK_MAX_SET_COUNT,
-  BLOCK_MAX_TARGET_ROUNDS,
-  BLOCK_MAX_TRACKING_UNITS,
-  BlockType,
-  blockMetricSchema,
-  blockRowSchema,
-  blockSegments,
-  blockStructureSchema,
-  blockTrackingStateSchema,
-  blockTypeSchema,
-  ColumnFillMode,
-  canCollapseMetric,
-  columnValues,
-  customMetricIdsIn,
-  DosageLayout,
-  dosageLayout,
-  EMOM_MIN_INTERVAL_SECONDS,
-  EXERCISE_MAX_BLOCKS,
-  emomTopCount,
-  exerciseBlockSchema,
-  exerciseBlocksSchema,
-  exerciseTrackingInputSchema,
-  exerciseTrackingSchema,
-  fillableRows,
-  fillColumn,
-  fillRows,
-  fittingColumnCount,
-  GridSlotKind,
-  gridSlots,
-  gridValueIssues,
-  MetricSource,
-  metricValueTypeOf,
-  readingRowLabel,
-  readingRows,
-  restPhrase,
-  rowForUnit,
-  SegmentKind,
-  scaleFor,
-  segmentsDuration,
-  structurePhrase,
-  TimerKind,
-  TrackingMode,
-  TrackingState,
-  TrackingUnit,
-  timerFor,
-  trackableExercises,
-  trackingSummary,
-  trackingUnitSchema,
-  trackingUnits,
-  unitValues,
-  withCellValue,
-  withDuplicatedLastRow,
-  withMaterializedSeries,
-} from "./dto/exercise-block.schema";
-export type {
   CreateCustomMetricInput,
   CustomMetric,
   MetricFamily as MetricFamilyType,
@@ -351,12 +236,10 @@ export type {
   FeedbackAudioMimeType,
   FeedbackBlockTracking,
   FeedbackMediaDto,
-  FeedbackTracking,
   MediaType as MediaTypeType,
   RequestFeedbackUploadUrlInput,
   SessionFeedbackDto,
   TrackedBlockDto,
-  TrackedExerciseDto,
   UpsertSessionFeedbackInput,
 } from "./dto/feedback.schema";
 export {
@@ -369,7 +252,6 @@ export {
   feedbackAudioMimeTypeSchema,
   feedbackBlockTrackingSchema,
   feedbackMediaDtoSchema,
-  feedbackTrackingSchema,
   isAllowedFeedbackAudioMime,
   MAX_FEEDBACK_AUDIO_DURATION_SECONDS,
   MAX_FEEDBACK_AUDIO_SIZE_BYTES,
@@ -383,7 +265,6 @@ export {
   requestFeedbackUploadUrlSchema,
   sessionFeedbackDtoSchema,
   trackedBlockDtoSchema,
-  trackedExerciseDtoSchema,
   upsertSessionFeedbackSchema,
 } from "./dto/feedback.schema";
 export type {
@@ -506,6 +387,18 @@ export {
   sendMessageSchema,
 } from "./dto/message.schema";
 export type {
+  MetricCitations,
+  MetricReference,
+  MetricSource as MetricSourceType,
+} from "./dto/metric-reference.schema";
+export {
+  customMetricIdsIn,
+  GRID_MAX_METRICS,
+  MetricSource,
+  metricValueTypeOf,
+  scaleFor,
+} from "./dto/metric-reference.schema";
+export type {
   EmailableNotificationType,
   NotificationDto,
   NotificationEmailPreferenceDto,
@@ -554,7 +447,6 @@ export type {
   ReorderPlanDayInput,
   ScheduledSessionDto,
   ScheduledSessionExerciseDto,
-  ScheduledSessionExerciseInput,
   ScheduledSessionStatus as ScheduledSessionStatusType,
   ScheduledSessionSummaryDto,
   UpdatePlanInput,
@@ -581,11 +473,9 @@ export {
   planWeekTypeSchema,
   publishPlanSchema,
   reorderPlanDaySchema,
-  SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
   ScheduledSessionStatus,
   scheduledSessionDtoSchema,
   scheduledSessionExerciseDtoSchema,
-  scheduledSessionExerciseInputSchema,
   scheduledSessionStatusSchema,
   scheduledSessionSummaryDtoSchema,
   updatePlanSchema,
@@ -686,16 +576,13 @@ export type { DosageSessionInput, ScheduledDosageInput } from "./dto/scheduled-d
 export { scheduledDosageInputSchema } from "./dto/scheduled-dosage.schema";
 export type {
   CreateSessionInput,
-  ReloadSessionExerciseInput,
   SessionBlocksInput,
   SessionDto,
   SessionExerciseDto,
-  SessionExerciseInput,
   UpdateSessionInput,
 } from "./dto/session.schema";
 export {
   createSessionSchema,
-  reloadSessionExerciseSchema,
   SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
   SESSION_NOTES_MAX_LENGTH,
@@ -703,7 +590,6 @@ export {
   SESSION_TOO_MANY_EXERCISES_MESSAGE,
   sessionDtoSchema,
   sessionExerciseDtoSchema,
-  sessionExerciseInputSchema,
   updateSessionSchema,
 } from "./dto/session.schema";
 export type {
@@ -960,16 +846,6 @@ export {
   relativeTimeFrom,
 } from "./util/date-format.util";
 export { decimalPlaces, formatDecimal, parseDecimal } from "./util/decimal.util";
-export type { DosageEditable, DosageScope } from "./util/dosage-edit.util";
-export {
-  adjustCell,
-  adjustRows,
-  adjustStructure,
-  resetAllAdjustments,
-  revertCell,
-  revertRow,
-  revertStructureField,
-} from "./util/dosage-edit.util";
 export type {
   FeedbackMediaSlots,
   FeedbackReadState,
@@ -989,6 +865,13 @@ export type {
 export { feedbackReplyAttachment, feedbackReplySurface } from "./util/feedback-reply.util";
 export type { Formatters } from "./util/formatter.util";
 export { createFormatters } from "./util/formatter.util";
+export type { ColumnFillMode as ColumnFillModeType, ColumnFillPlan } from "./util/grid-fill.util";
+export {
+  ColumnFillMode,
+  fillRows,
+  withCellValue,
+  withMaterializedSeries,
+} from "./util/grid-fill.util";
 export { translatedOr } from "./util/i18n-fallback.util";
 export { required } from "./util/invariant.util";
 export { INVITATION_CARD_KEY, invitationEmailOf } from "./util/invitation.util";
@@ -1022,12 +905,8 @@ export {
   sortAthleteInvoices,
   visibleInvoiceAthleteRows,
 } from "./util/invoice-row.util";
-export type {
-  ExerciseFields,
-  SessionFields,
-  SessionLineFields,
-} from "./util/library-input.util";
-export { toExerciseInput, toSessionInput } from "./util/library-input.util";
+export type { ExerciseFields } from "./util/library-input.util";
+export { toExerciseInput } from "./util/library-input.util";
 export type { AccessLabel, AccessLabelSubject } from "./util/library-row.util";
 export { accessLabel, matchesTagFilter, sessionTags } from "./util/library-row.util";
 export type {
@@ -1065,7 +944,6 @@ export {
   metricCellText,
   metricLabel,
   metricUnitLabel,
-  unitDetail,
   unitRepeatsHeader,
 } from "./util/metric-label.util";
 export { formatInvoicePeriod, formatMoney } from "./util/money.util";
@@ -1284,18 +1162,6 @@ export {
   withoutExercise,
   withStructure,
 } from "./util/session-composition.util";
-export type { SessionTracking } from "./util/session-tracking.util";
-export {
-  checkedUnitsOf,
-  checkUnit,
-  countedRoundsOf,
-  isTrackingSent,
-  sameTracking,
-  setRounds,
-  toggleUnit,
-  trackingOfExercises,
-  withSentTracking,
-} from "./util/session-tracking.util";
 export type { SignedUrlReceipt } from "./util/signed-url.util";
 export {
   isSignedUrlUsable,

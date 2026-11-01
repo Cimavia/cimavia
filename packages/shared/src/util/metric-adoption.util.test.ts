@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { custom, gridOf, reps } from "../../test/block-fixtures";
-import { type ExerciseBlocks, MetricSource } from "../dto/exercise-block.schema";
 import {
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   type CustomMetric,
@@ -8,6 +7,7 @@ import {
   MetricUnit,
   MetricValueType,
 } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import { adoptMetrics, remapCustomMetrics, remapSuggestedMetrics } from "./metric-adoption.util";
 
 function metric(id: string, label: string, over: Partial<CustomMetric> = {}): CustomMetric {
@@ -121,39 +121,18 @@ describe("adoptMetrics", () => {
   });
 });
 
-describe("remapCustomMetrics", () => {
-  const blocks = [
-    {
-      id: "b1",
-      label: null,
-      structure: { type: "SETS", setCount: 1 },
-      metrics: [
-        { id: "k1", source: MetricSource.CUSTOM, customMetricId: "c1" },
-        { id: "k2", source: MetricSource.CUSTOM, customMetricId: "gone" },
-        { id: "k3", source: MetricSource.CATALOG, key: "REPS", unit: "REPS" },
-      ],
-      rows: [{ id: "r1", values: { k1: 3 } }],
-    },
-  ] as unknown as ExerciseBlocks;
-
-  it("cite le catalogue du destinataire et laisse une citation inconnue telle quelle", () => {
-    const [block] = remapCustomMetrics(blocks, new Map([["c1", "m1"]]));
-    expect(block?.metrics).toEqual([
-      { id: "k1", source: MetricSource.CUSTOM, customMetricId: "m1" },
-      { id: "k2", source: MetricSource.CUSTOM, customMetricId: "gone" },
-      { id: "k3", source: MetricSource.CATALOG, key: "REPS", unit: "REPS" },
-    ]);
-    // Les valeurs suivent l'identifiant de COLONNE, qui ne bouge pas.
-    expect(block?.rows).toEqual([{ id: "r1", values: { k1: 3 } }]);
-  });
-});
-
-describe("remapCustomMetrics sur une grille (#716)", () => {
+describe("remapCustomMetrics (#716)", () => {
   it("réécrit la colonne du Coach et garde ses valeurs, sous le même identifiant de colonne", () => {
     const grid = gridOf([reps, custom], [6, 3]);
-    const [remapped] = remapCustomMetrics([grid], new Map([["metric_1", "metric_m"]]));
-    expect(remapped?.metrics).toEqual([reps, { ...custom, customMetricId: "metric_m" }]);
-    expect(remapped?.rows).toEqual(grid.rows);
+    const remapped = remapCustomMetrics(grid, new Map([["metric_1", "metric_m"]]));
+    expect(remapped.metrics).toEqual([reps, { ...custom, customMetricId: "metric_m" }]);
+    expect(remapped.rows).toEqual(grid.rows);
+  });
+
+  it("laisse telle quelle une citation inconnue du destinataire (#605)", () => {
+    const grid = gridOf([custom], [3]);
+    const remapped = remapCustomMetrics(grid, new Map());
+    expect(remapped.metrics).toEqual([custom]);
   });
 });
 

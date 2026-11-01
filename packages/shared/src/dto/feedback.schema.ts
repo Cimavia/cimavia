@@ -5,11 +5,6 @@ import {
   sessionBlockTrackingSchema,
 } from "./block-tracking.schema";
 import {
-  exerciseTrackingInputSchema,
-  TrackingState,
-  trackingUnitSchema,
-} from "./exercise-block.schema";
-import {
   feedbackImageMimeTypeSchema,
   feedbackVideoMimeTypeSchema,
   MAX_FEEDBACK_PHOTO_SIZE_BYTES,
@@ -18,7 +13,6 @@ import {
   mediaBatchShape,
 } from "./media.schema";
 import { messageDtoSchema } from "./message.schema";
-import { SESSION_MAX_EXERCISES } from "./session.schema";
 import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 import { structureSettingsSchema } from "./structure.schema";
 
@@ -85,33 +79,14 @@ export function maxFeedbackMediaSizeBytes(type: MediaType): number {
 // ── Entrées athlète ──────────────────────────────────────────────────────────
 
 /**
- * Débrief : un seul champ texte libre, NULLABLE — un débrief peut n'être que des photos, et
- * l'athlète peut le compléter en plusieurs fois (texte d'abord, médias plus tard, ou l'inverse).
- * Aucune règle « texte OU média » ici : elle interdirait précisément le débrief média-seul, qui
- * doit bien créer un débrief vide avant d'y rattacher le premier fichier.
- */
-/**
- * Le suivi d'exécution remonté AVEC le débrief, exercice par exercice.
+ * Le suivi d'exécution remonté AVEC le débrief (#716), bloc par bloc et rangé sous l'identifiant
+ * du bloc.
  *
  * Il vit en local pendant la séance — l'athlète est souvent sans réseau en salle — et ne franchit
- * le réseau qu'à cet envoi. Une entrée absente laisse le suivi de l'exercice **tel quel** — non
- * suivi s'il ne l'était pas, suivi sinon ; une entrée à `null` le remet explicitement à « non
- * suivi ».
- */
-export const feedbackTrackingSchema = z
-  .record(z.string(), exerciseTrackingInputSchema.nullable())
-  // Le client n'envoie que les exercices de la séance (`trackingOfExercises`), et le serveur
-  // refuse les autres (#311) : la séance en porte au plus `SESSION_MAX_EXERCISES` (#297).
-  .refine((tracking) => Object.keys(tracking).length <= SESSION_MAX_EXERCISES, {
-    message: `Le suivi ne peut pas citer plus de ${SESSION_MAX_EXERCISES} exercices.`,
-  });
-export type FeedbackTracking = z.infer<typeof feedbackTrackingSchema>;
-
-/**
- * Le suivi d'une séance composée par blocs (#716), bloc par bloc et rangé sous l'identifiant du
- * bloc. Même convention que `feedbackTrackingSchema` : une entrée absente laisse le bloc tel quel,
- * une entrée à `null` le remet à « non suivi ». Le serveur refuse un bloc que la séance n'a pas, et
- * une case que les réglages du bloc ne donnent pas (`trackingFitsBlock`).
+ * le réseau qu'à cet envoi. Une entrée absente laisse le bloc **tel quel** — non suivi s'il ne
+ * l'était pas, suivi sinon ; une entrée à `null` le remet explicitement à « non suivi ». Le
+ * serveur refuse un bloc que la séance n'a pas, et une case que les réglages du bloc ne donnent
+ * pas (`trackingFitsBlock`).
  */
 export const feedbackBlockTrackingSchema = z
   .record(z.string(), sessionBlockTrackingInputSchema.nullable())
@@ -120,6 +95,12 @@ export const feedbackBlockTrackingSchema = z
   });
 export type FeedbackBlockTracking = z.infer<typeof feedbackBlockTrackingSchema>;
 
+/**
+ * Débrief : un seul champ texte libre, NULLABLE — un débrief peut n'être que des photos, et
+ * l'athlète peut le compléter en plusieurs fois (texte d'abord, médias plus tard, ou l'inverse).
+ * Aucune règle « texte OU média » ici : elle interdirait précisément le débrief média-seul, qui
+ * doit bien créer un débrief vide avant d'y rattacher le premier fichier.
+ */
 export const upsertSessionFeedbackSchema = z
   .object({
     content: z.string().max(FEEDBACK_CONTENT_MAX_LENGTH).nullable().optional(),
@@ -127,7 +108,6 @@ export const upsertSessionFeedbackSchema = z
      * Absent = on ne touche à rien. Le décompte ACCOMPAGNE le ressenti, il ne le remplace pas :
      * un débrief sans texte ni média ni coche reste un débrief valable.
      */
-    tracking: feedbackTrackingSchema.optional(),
     blockTracking: feedbackBlockTrackingSchema.optional(),
   })
   .strict();
@@ -220,23 +200,6 @@ export const feedbackMediaDtoSchema = z.object({
 export type FeedbackMediaDto = z.infer<typeof feedbackMediaDtoSchema>;
 
 /**
- * Le suivi d'UN exercice, tel qu'il se lit dans un débrief.
- *
- * `UNTRACKED` reste un état à part entière et se dit ainsi — « non suivi », jamais « 0 sur 4 ».
- * L'athlète n'a rien coché, ce qui ne veut pas dire qu'il n'a rien fait.
- */
-export const trackedExerciseDtoSchema = z.object({
-  exerciseId: z.string(),
-  title: z.string(),
-  state: z.enum(TrackingState),
-  done: z.number().int().nonnegative(),
-  total: z.number().int().nonnegative(),
-  /** `null` quand l'exercice n'a aucune unité cochable — rien à nommer. */
-  unit: trackingUnitSchema.nullable(),
-});
-export type TrackedExerciseDto = z.infer<typeof trackedExerciseDtoSchema>;
-
-/**
  * Le suivi d'UN bloc, tel qu'il se lit dans un débrief (#722) : de quoi refaire ses cases et son
  * décompte (`blockChecks`, `blockTally`) sans charger la séance. Le décompte est une phrase, que
  * chaque app écrit dans sa langue : le serveur en envoie la matière, pas le texte.
@@ -262,14 +225,11 @@ export const sessionFeedbackDtoSchema = z.object({
   // autant de lectures que de Coachs (#610). Celle du Coach courant vit dans le résumé.
   media: z.array(feedbackMediaDtoSchema),
   /**
-   * Le décompte, RÉSUMÉ exercice par exercice — ce que le coach voit du suivi.
+   * Le suivi, bloc par bloc — ce que le coach voit du décompte.
    *
-   * Résumé côté serveur et non recalculé par chaque client : le coach ne charge pas la séance de
-   * son athlète pour lire un débrief, et lui faire dérouler les blocs pour compter des cases
-   * ferait dépendre l'affichage d'un second appel, sur deux surfaces, pour la même réponse.
+   * Servi avec le débrief : le coach ne charge pas la séance de son athlète pour le lire, et le
+   * faire dépendre d'un second appel, sur deux surfaces, doublerait la même réponse.
    */
-  trackedExercises: z.array(trackedExerciseDtoSchema),
-  /** Le suivi d'une séance composée par blocs, bloc par bloc ; `[]` pour l'ancien modèle. */
   trackedBlocks: z.array(trackedBlockDtoSchema),
   /**
    * Les messages rattachés à ce débrief, du plus ancien au plus récent — la conversation qu'il a

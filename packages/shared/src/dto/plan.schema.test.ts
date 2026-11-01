@@ -1,19 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MetricValueType } from "./exercise-metric.schema";
 import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
   publishPlanSchema,
   reorderPlanDaySchema,
-  SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS,
-  scheduledSessionExerciseInputSchema,
   updatePlanSchema,
   updatePlanWeekSchema,
   updateScheduledSessionSchema,
   versionQuerySchema,
 } from "./plan.schema";
-import { SESSION_MAX_EXERCISES, SESSION_TOO_MANY_EXERCISES_MESSAGE } from "./session.schema";
 
 const MONDAY = "2026-10-12";
 const VERSION = "2026-10-12T08:00:00.000Z";
@@ -59,7 +55,7 @@ describe("updatePlanSchema", () => {
 });
 
 describe("createScheduledSessionSchema", () => {
-  it("accepte une instanciation depuis un modèle sans titre (il sera copié)", () => {
+  it("pose une séance depuis un modèle, dont elle copie titre et blocs", () => {
     const result = createScheduledSessionSchema.safeParse({
       sourceSessionId: "ses_1",
       scheduledDate: "2026-10-14",
@@ -67,93 +63,29 @@ describe("createScheduledSessionSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("exige un titre pour une séance ad hoc (sans modèle source)", () => {
-    const result = createScheduledSessionSchema.safeParse({ scheduledDate: "2026-10-14" });
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.path).toEqual(["title"]);
-  });
-});
-
-const scheduledExercises = (count: number) =>
-  Array.from({ length: count }, (_, index) => ({ title: `Exercice ${index}` }));
-
-describe("plafond d'exercices d'une séance planifiée (#297)", () => {
-  const update = (count: number) =>
-    updateScheduledSessionSchema.safeParse({
-      title: "Bloc",
-      scheduledDate: "2026-10-14",
-      exercises: scheduledExercises(count),
-      expectedUpdatedAt: VERSION,
-    });
-  const create = (count: number) =>
-    createScheduledSessionSchema.safeParse({
-      title: "Bloc",
-      scheduledDate: "2026-10-14",
-      exercises: scheduledExercises(count),
-    });
-
-  it.each([
-    ["l'édition", update],
-    ["la création", create],
-  ])("%s accepte le plafond et refuse un exercice de plus", (_, parse) => {
-    expect(parse(SESSION_MAX_EXERCISES).success).toBe(true);
-    const result = parse(SESSION_MAX_EXERCISES + 1);
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toBe(SESSION_TOO_MANY_EXERCISES_MESSAGE);
-  });
-});
-
-describe("plafond de métriques maison d'un exercice diffusé (#297)", () => {
-  const withMetrics = (count: number) =>
-    scheduledSessionExerciseInputSchema.safeParse({
-      title: "Tractions",
-      customMetrics: Array.from({ length: count }, (_, index) => ({
-        id: `cm_${index}`,
-        label: `Métrique ${index}`,
-        unit: null,
-        valueType: MetricValueType.NUMBER,
-        scale: null,
-      })),
-    });
-
-  it("accepte une métrique par colonne de chaque bloc, pas une de plus", () => {
-    expect(withMetrics(SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS).success).toBe(true);
-    expect(withMetrics(SCHEDULED_EXERCISE_MAX_CUSTOM_METRICS + 1).success).toBe(false);
+  it("refuse une séance sans modèle : elle n'aurait aucun bloc d'où partir (#723)", () => {
+    expect(
+      createScheduledSessionSchema.safeParse({ title: "Libre", scheduledDate: "2026-10-14" })
+        .success,
+    ).toBe(false);
   });
 });
 
 describe("updateScheduledSessionSchema", () => {
-  it("porte la composition complète (replace-all) — l'ordre définit les positions", () => {
-    const parsed = updateScheduledSessionSchema.parse({
-      title: "Bloc force max",
-      notes: null,
-      scheduledDate: "2026-10-14",
-      exercises: [
-        { sourceExerciseId: "ex_1", title: "Échauffement" },
-        { title: "Tractions", tags: ["renfo"], note: "Épaule sensible" },
-      ],
-      expectedUpdatedAt: VERSION,
-    });
-    expect(parsed.exercises).toHaveLength(2);
-    expect(parsed.exercises?.[1]?.sourceExerciseId).toBeUndefined();
-  });
-
-  it("laisse la composition intacte sans exercices : titre, notes et jour seuls (#720)", () => {
+  it("porte titre, notes et jour : la composition s'écrit geste par geste (#720)", () => {
     const parsed = updateScheduledSessionSchema.parse({
       title: "Bloc force max",
       scheduledDate: "2026-10-14",
       expectedUpdatedAt: VERSION,
     });
-    expect(parsed.exercises).toBeUndefined();
+    expect(parsed.title).toBe("Bloc force max");
   });
 
-  it("refuse un champ inconnu dans la composition (schéma strict)", () => {
-    // `category` en fait partie depuis #163 : l'envoyer encore est une erreur d'appel, pas une
-    // donnée ignorée en silence.
+  it("refuse l'ancienne composition par exercices (schéma strict)", () => {
     const result = updateScheduledSessionSchema.safeParse({
       title: "Bloc",
       scheduledDate: "2026-10-14",
-      exercises: [{ title: "x", category: "RENFO" }],
+      exercises: [{ title: "Tractions" }],
       expectedUpdatedAt: VERSION,
     });
     expect(result.success).toBe(false);
@@ -242,7 +174,7 @@ describe("version lue (#604)", () => {
     [
       "l'édition d'une séance",
       updateScheduledSessionSchema,
-      { title: "Bloc", scheduledDate: "2026-10-14", exercises: [] },
+      { title: "Bloc", scheduledDate: "2026-10-14" },
     ],
   ] as const)("l'exige pour %s", (_gesture, schema, fields) => {
     expect(schema.safeParse(fields).success).toBe(false);

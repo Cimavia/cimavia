@@ -14,8 +14,8 @@ import {
 } from "../../test/block-fixtures";
 import { say } from "../../test/french";
 import type { GridMetric } from "../dto/block-grid.schema";
-import { MetricSource } from "../dto/exercise-block.schema";
 import { METRIC_CATALOG, MetricKey, MetricUnit } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import { StructureOrder } from "../dto/structure-answer.schema";
 import {
   blockClock,

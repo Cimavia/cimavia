@@ -3,11 +3,12 @@ import { custom, gridOf, issuesOf, load, reps } from "../../test/block-fixtures"
 import {
   blockGridSchema,
   GRID_MAX_ROWS,
+  gridValueIssues,
   metricsFromSuggested,
   sameGridMetrics,
 } from "./block-grid.schema";
-import { customMetricIdsIn, gridValueIssues, MetricSource } from "./exercise-block.schema";
 import { MetricKey, MetricUnit, MetricValueType } from "./exercise-metric.schema";
+import { customMetricIdsIn, MetricSource } from "./metric-reference.schema";
 
 const suggestedReps = {
   source: MetricSource.CATALOG,

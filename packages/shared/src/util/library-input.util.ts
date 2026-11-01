@@ -1,8 +1,5 @@
-import type { Adjustments } from "../dto/dosage-override.schema";
 import type { CreateExerciseInput } from "../dto/exercise.schema";
-import type { ExerciseBlocks } from "../dto/exercise-block.schema";
 import type { RichDocument } from "../dto/rich-document.schema";
-import type { CreateSessionInput } from "../dto/session.schema";
 import type { SuggestedMetric } from "../dto/suggested-metric.schema";
 
 /**
@@ -30,41 +27,4 @@ export function toExerciseInput(fields: ExerciseFields): CreateExerciseInput {
       fields.instructions == null || fields.instructions.length === 0 ? null : fields.instructions,
     suggestedMetrics: fields.suggestedMetrics,
   };
-}
-
-/** Une ligne de composition, telle que saisie (`note` en chaîne) ou relue (`note` nullable). */
-export type SessionLineFields = {
-  /** Absent = ligne ajoutée, jamais enregistrée. */
-  id?: string | undefined;
-  exerciseId: string;
-  note: string | null;
-  blocks: ExerciseBlocks;
-  adjustments: Adjustments;
-};
-
-export type SessionFields = {
-  title: string;
-  notes: string | null;
-  exercises: readonly SessionLineFields[];
-};
-
-/** Ce que le constructeur de séance ENVERRAIT — même rôle que `toExerciseInput`. */
-export function toSessionInput(fields: SessionFields): CreateSessionInput {
-  return {
-    title: fields.title.trim(),
-    notes: blankToNull(fields.notes),
-    exercises: fields.exercises.map((line) => ({
-      ...(line.id == null ? {} : { id: line.id }),
-      exerciseId: line.exerciseId,
-      note: blankToNull(line.note),
-      blocks: line.blocks,
-      adjustments: line.adjustments,
-    })),
-  };
-}
-
-// Un texte blanc n'est pas une note : il part en `null`, comme une note jamais écrite.
-function blankToNull(text: string | null): string | null {
-  const trimmed = text?.trim() ?? "";
-  return trimmed === "" ? null : trimmed;
 }

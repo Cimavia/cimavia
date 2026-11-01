@@ -1,5 +1,4 @@
 import type { BlockGrid, GridMetric, GridRow } from "../dto/block-grid.schema";
-import { withMaterializedSeries } from "../dto/exercise-block.schema";
 import type { MetricValue } from "../dto/exercise-metric.schema";
 import { type PlanWeekDto, PlanWeekType } from "../dto/plan.schema";
 import type { ScheduledSessionCopyDto } from "../dto/scheduled-composition.schema";
@@ -7,6 +6,7 @@ import type { DosageSessionInput } from "../dto/scheduled-dosage.schema";
 import { CompositionOrigin, type ScheduledBlockExercise } from "../dto/session-block.schema";
 import type { ScheduledSessionBlockDto } from "../dto/session-block-dto.schema";
 import type { TypesValuesOf } from "../type/generics.type";
+import { withMaterializedSeries } from "./grid-fill.util";
 import { required } from "./invariant.util";
 import type { Phrase } from "./phrase.util";
 import { gridValueAt, plannedChanges } from "./planned-blocks.util";
@@ -48,7 +48,7 @@ export type DosageSessionType = {
 
 /**
  * Les séances-types que Dosage règle dans ce cycle, dans l'ordre où elles arrivent. Seules celles
- * par blocs : une séance de l'ancien modèle se dose dans son panneau (BL-1).
+ * qui ont des blocs : une séance vide n'a rien à doser.
  */
 export function dosageSessionTypes(
   weeks: readonly Pick<PlanWeekDto, "weekNumber" | "sessions">[],

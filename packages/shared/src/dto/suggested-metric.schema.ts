@@ -1,11 +1,11 @@
 import { z } from "zod";
 import {
-  BLOCK_MAX_METRICS,
   catalogMetricShape,
   customMetricShape,
+  GRID_MAX_METRICS,
   MetricSource,
   metricUnitRefinement,
-} from "./exercise-block.schema";
+} from "./metric-reference.schema";
 
 // Les métriques suggérées d'un exercice (#715, #718).
 //
@@ -33,13 +33,10 @@ export function suggestedMetricIdentity(metric: SuggestedMetric): string {
     : `${metric.source}:${metric.customMetricId}`;
 }
 
-/**
- * Autant qu'une grille a de colonnes (`GRID_MAX_METRICS`) : chaque métrique suggérée en préremplit
- * une. La borne de l'ancien bloc, que la grille reprend, faute de pouvoir l'importer sans cycle.
- */
+/** Autant qu'une grille a de colonnes : chaque métrique suggérée en préremplit une. */
 export const suggestedMetricsSchema = z
   .array(suggestedMetricSchema)
-  .max(BLOCK_MAX_METRICS)
+  .max(GRID_MAX_METRICS)
   .refine((metrics) => new Set(metrics.map(suggestedMetricIdentity)).size === metrics.length, {
     message: "Un exercice ne peut pas suggérer deux fois la même métrique.",
   });

@@ -1,10 +1,10 @@
 import type { BlockGrid } from "../dto/block-grid.schema";
-import { type ExerciseBlocks, MetricSource } from "../dto/exercise-block.schema";
 import {
   type CreateCustomMetricInput,
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
   type CustomMetric,
 } from "../dto/exercise-metric.schema";
+import { MetricSource } from "../dto/metric-reference.schema";
 import { type SuggestedMetric, suggestedMetricIdentity } from "../dto/suggested-metric.schema";
 
 /**
@@ -80,22 +80,19 @@ function sameNature(a: CustomMetric, b: CustomMetric): boolean {
 }
 
 /**
- * Les blocs — ou les grilles de blocs de séance (#716) —, citant le catalogue du destinataire. Une
- * citation absente de `ids` reste telle quelle : une métrique supprimée depuis ne se recopie pas
- * (#605), et la ligne la rend « — ».
+ * La grille d'un exercice de bloc (#716), citant le catalogue du destinataire. Une citation absente
+ * de `ids` reste telle quelle : une métrique supprimée depuis ne se recopie pas (#605), et la ligne
+ * la rend « — ».
  */
-export function remapCustomMetrics<T extends ExerciseBlocks[number] | BlockGrid>(
-  blocks: readonly T[],
-  ids: ReadonlyMap<string, string>,
-): T[] {
-  return blocks.map((block) => ({ ...block, metrics: remapMetrics(block.metrics, ids) }));
+export function remapCustomMetrics(grid: BlockGrid, ids: ReadonlyMap<string, string>): BlockGrid {
+  return { ...grid, metrics: remapMetrics(grid.metrics, ids) };
 }
 
 /**
- * Les métriques suggérées d'un exercice copié (#718), même règle que les colonnes de ses blocs.
+ * Les métriques suggérées d'un exercice copié (#718), même règle que les colonnes d'une grille.
  *
  * Deux métriques de la source peuvent être reprises sous la même chez le destinataire (« Cotation »
- * et « Cotation (C) », de même nature). Une colonne de bloc garde son identifiant et survit au
+ * et « Cotation (C) », de même nature). Une colonne de grille garde son identifiant et survit au
  * doublon ; une métrique suggérée n'en a pas : la seconde tombe, la première garde son rang.
  */
 export function remapSuggestedMetrics(
