@@ -149,7 +149,19 @@ export class ScheduledSessionService {
    * Sous la version de la séance ouverte (#604) : un autre Coach a pu l'ajuster depuis.
    */
   async update(id: string, input: UpdateScheduledSessionInput): Promise<ScheduledSessionDto> {
-    const session = await this.getReadableOrThrow(id);
+    // Les seules colonnes que l'édition lit : la composition ne s'écrit plus ici, et la réponse se
+    // relit dans la transaction. Même scope, donc même 404 pour une séance qu'on ne lit pas.
+    const session = await this.db.scheduledSession.findFirst({
+      where: { id },
+      select: {
+        planId: true,
+        planWeekId: true,
+        scheduledDate: true,
+        position: true,
+        updatedAt: true,
+      },
+    });
+    if (session == null) throw new NotFoundException(SESSION_NOT_FOUND);
     // Le droit avant la version : un lecteur prend son 403, pas un 409 qui l'inviterait à
     // recharger pour réessayer ce qu'il ne pourra jamais faire (#607).
     const { plan } = await this.plans.getForOrThrow(session.planId, "write");
