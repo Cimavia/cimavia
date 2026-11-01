@@ -13,7 +13,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 export const api = createApiClient({
   baseUrl: BASE_URL,
-  headers: () => ({ Cookie: authClient.getCookie() }),
+  headers: async () => ({ Cookie: await authClient.getCookie() }),
 });
 
 export type { ApiFieldError } from "@cmv/shared";

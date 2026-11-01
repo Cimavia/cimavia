@@ -155,12 +155,15 @@ describe("createApiClient — la requête", () => {
   it.each([
     ["get", "GET"],
     ["delete", "DELETE"],
-  ] as const)("%s part en %s sur baseUrl + chemin, sans corps ni Content-Type", async (verb, method) => {
-    const { calls, fetchFn } = recording(200, "{}");
-    await createApiClient({ baseUrl: "http://api.test", fetchFn })[verb]("/plans/p1");
+  ] as const)(
+    "%s part en %s sur baseUrl + chemin, sans corps ni Content-Type",
+    async (verb, method) => {
+      const { calls, fetchFn } = recording(200, "{}");
+      await createApiClient({ baseUrl: "http://api.test", fetchFn })[verb]("/plans/p1");
 
-    expect(calls).toEqual([{ url: "http://api.test/plans/p1", init: { method, headers: {} } }]);
-  });
+      expect(calls).toEqual([{ url: "http://api.test/plans/p1", init: { method, headers: {} } }]);
+    },
+  );
 
   it.each([
     ["post", "POST"],
@@ -212,6 +215,26 @@ describe("createApiClient — la requête", () => {
       { Cookie: "session=a" },
       { Cookie: "session=b", "Content-Type": "application/json" },
     ]);
+  });
+
+  /**
+   * Depuis Better Auth 1.7, le mobile lit son cookie dans SecureStore de façon asynchrone (#734) :
+   * une promesse étalée telle quelle partirait en `{}`, et chaque requête en 401.
+   */
+  it("attend des en-têtes asynchrones avant d'envoyer la requête", async () => {
+    const { calls, fetchFn } = recording(200, "{}");
+    const api = createApiClient({
+      baseUrl: "http://api.test",
+      fetchFn,
+      headers: async () => ({ Cookie: "session=a" }),
+    });
+
+    await api.post("/me", { name: "N" });
+
+    expect(calls[0]?.init.headers).toEqual({
+      Cookie: "session=a",
+      "Content-Type": "application/json",
+    });
   });
 
   it("transmet credentials quand l'app le demande (cookie du navigateur), et seulement alors", async () => {
