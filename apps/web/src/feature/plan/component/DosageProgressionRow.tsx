@@ -1,7 +1,7 @@
 import {
   DosageCellKind,
-  DosageColumnKind,
   type DosageProgression,
+  dosageColumnKey,
   dosageProgression,
   type MetricValue,
   ProgressionCellKind,
@@ -11,7 +11,6 @@ import {
   type ProgressionSlot,
   parseDecimal,
   parseTrainingDuration,
-  progressionStart,
 } from "@cmv/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +19,11 @@ import { cn } from "@/shared/util/cn.util";
 
 type DosageProgressionRowProps = {
   slots: readonly ProgressionSlot[];
+  /**
+   * La semaine d'où part la ligne (`progressionStart`). Le menu ne s'ouvre que sur une ligne qui en
+   * a une ; une saisie dans la ligne peut la lui retirer.
+   */
+  start: DosageProgression["start"] | null;
   measure: ProgressionMeasure;
   /** Le nom de chaque colonne : « S2 », ou « S2 · lun. » posée deux fois la même semaine. */
   names: readonly string[];
@@ -39,7 +43,7 @@ type DosageProgressionRowProps = {
  */
 export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>) {
   const { t } = useTranslation();
-  const { slots, measure, names, unit, show, onApply, onClose } = props;
+  const { slots, start, measure, names, unit, show, hatched, onApply, onClose } = props;
   const stepId = useId();
   const stepRef = useRef<HTMLInputElement>(null);
   // Le pas est la raison d'ouvrir la fenêtre : la saisie y commence.
@@ -49,9 +53,7 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
   const amount = readAmount(text, measure);
   const progression =
     amount === null ? null : dosageProgression(slots, measure, { direction, amount });
-  // Le menu ne s'ouvre que sur une ligne qui a un départ ; une saisie dans la ligne peut le lui
-  // retirer — alors rien ne s'applique, mais ce n'est pas le pas qui est en cause.
-  const start = progressionStart(slots);
+  // Sans départ, rien ne s'applique — mais ce n'est pas le pas qui est en cause.
   const isInvalid = start !== null && text.trim() !== "" && progression === null;
 
   return (
@@ -131,14 +133,11 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
       </td>
       {slots.map((slot, index) => (
         <PreviewCell
-          key={
-            slot.column.kind === DosageColumnKind.COPY
-              ? slot.column.copyId
-              : `week-${slot.column.weekNumber}`
-          }
-          {...props}
-          cell={progression?.cells[index] ?? null}
+          key={dosageColumnKey(slot.column)}
           slot={slot}
+          cell={progression?.cells[index] ?? null}
+          show={show}
+          hatched={hatched}
         />
       ))}
     </tr>
@@ -167,7 +166,7 @@ const steppedOf = (progression: DosageProgression) =>
     cell.kind === ProgressionCellKind.STEPPED ? [{ index, values: cell.values }] : [],
   );
 
-type PreviewCellProps = DosageProgressionRowProps & {
+type PreviewCellProps = Pick<DosageProgressionRowProps, "show" | "hatched"> & {
   slot: ProgressionSlot;
   /** Ce que deviendrait la semaine ; `null` tant que le pas ne sert pas — la valeur d'aujourd'hui. */
   cell: DosageProgression["cells"][number] | null;
@@ -177,7 +176,8 @@ type PreviewCellProps = DosageProgressionRowProps & {
 function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) {
   const { t } = useTranslation();
   const tdClass = "px-cmv-sm py-cmv-sm align-top font-cmv-mono text-cmv-caption";
-  if (slot.cell.kind !== DosageCellKind.VALUE || cell?.kind === ProgressionCellKind.SKIPPED) {
+  // Une semaine sautée par la progression est celle qui n'a pas de valeur.
+  if (slot.cell.kind !== DosageCellKind.VALUE) {
     return (
       <td className={cn(tdClass, hatched)}>
         <span className="font-cmv-sans text-cmv-text-lo italic">
@@ -186,7 +186,7 @@ function PreviewCell({ slot, cell, show, hatched }: Readonly<PreviewCellProps>) 
       </td>
     );
   }
-  const values = cell?.values ?? slot.cell.values;
+  const values = cell !== null && "values" in cell ? cell.values : slot.cell.values;
   const note = cell === null ? null : NOTE[cell.kind];
   return (
     <td className={cn(tdClass, slot.column.deload && "bg-cmv-bg-0")}>

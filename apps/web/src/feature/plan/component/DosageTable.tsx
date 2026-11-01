@@ -10,6 +10,7 @@ import {
   type DosageGroup,
   DosageOff,
   dosageAdjustedCount,
+  dosageColumnKey,
   dosageGroups,
   dosageMetricCell,
   dosageRowReset,
@@ -36,7 +37,7 @@ import {
   shownSeries,
 } from "@cmv/shared";
 import type { TFunction } from "i18next";
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AdjustmentMarker } from "@/feature/library/component/AdjustmentMarker";
 import { BlockMark } from "@/feature/library/component/BlockMark";
@@ -107,10 +108,20 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
   );
   const numbers = blockNumbers(longest?.blocks ?? []);
 
-  const names = columns.map((column) => columnName(column, t));
+  const heads = columns.map((column) => ({ column, name: columnName(column, t) }));
+  const names = heads.map(({ name }) => name);
 
-  const rowProps = { ...props, rows, copyOf, open, setOpen, close, names, progressing };
-  const rowState = { setProgressing };
+  const rowProps = {
+    ...props,
+    rows,
+    copyOf,
+    open,
+    setOpen,
+    close,
+    names,
+    progressing,
+    setProgressing,
+  };
   return (
     // Le cadre prend toute la page, et le tableau y défile : la fenêtre d'une cellule y a la place
     // de s'ouvrir, et les semaines restent en vue.
@@ -124,11 +135,11 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
             >
               {t("plan.dosage.value")}
             </th>
-            {columns.map((column, index) => (
+            {heads.map(({ column, name }) => (
               <ColumnHead
-                key={column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}
+                key={dosageColumnKey(column)}
                 column={column}
-                name={names[index] ?? "—"}
+                name={name}
                 copy={copyOf(column)}
                 width={`${100 / columns.length}%`}
                 {...props}
@@ -142,7 +153,6 @@ export function DosageTable(props: Readonly<DosageTableProps>) {
             group={group}
             number={numbers[group.blockIndex] ?? null}
             {...rowProps}
-            {...rowState}
           />
         ))}
       </table>
@@ -378,7 +388,7 @@ function blockPhrases(
   });
   const said = settingsPhrase(reference.settings, reference.exercises.length, names, sets);
   const weeks = columns.map((column) => ({
-    key: columnKey(column),
+    key: dosageColumnKey(column),
     absent: column.kind === DosageColumnKind.ABSENT,
     said: weekPhrase(copyOf(column)?.blocks[blockIndex], rows, sets),
   }));
@@ -417,9 +427,6 @@ function isSets(
   if (group.reference.exercises.length !== 1) return false;
   return copies.every((copy) => (copy.blocks[group.blockIndex]?.exercises.length ?? 1) === 1);
 }
-
-const columnKey = (column: DosageColumn) =>
-  column.kind === DosageColumnKind.COPY ? column.copyId : String(column.weekNumber);
 
 /** « ajouté », ou « remplace A1 » : ce que certaines semaines seulement portent. */
 function tagOf(
@@ -480,10 +487,12 @@ function ValueRow(props: Readonly<ValueRowProps>) {
   const { t, i18n } = useTranslation();
   const { columns, copyOf, id, name, code, metricName, tag, note, target, measure } = props;
   const labelId = useId();
+  const headRef = useRef<HTMLSpanElement>(null);
   const slots: ProgressionSlot[] = columns.map((column) => ({
     column,
     cell: props.cellOf(copyOf(column)),
   }));
+  const start = progressionStart(slots);
   const reset = dosageRowReset(slots);
   const isProgressing = props.progressing === id && measure !== null;
   const show = (values: readonly MetricValue[]) =>
@@ -497,6 +506,12 @@ function ValueRow(props: Readonly<ValueRowProps>) {
     }
   }
 
+  /** La fenêtre refermée, le clavier reprend au ⋯ qui l'a ouverte. */
+  function closeProgression() {
+    props.setProgressing(null);
+    headRef.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')?.focus();
+  }
+
   return (
     <>
       <tr className="border-cmv-surface border-t">
@@ -506,7 +521,7 @@ function ValueRow(props: Readonly<ValueRowProps>) {
           aria-labelledby={labelId}
           className="px-cmv-md py-cmv-xs text-left font-normal"
         >
-          <span className="flex items-center gap-cmv-xs">
+          <span ref={headRef} className="flex items-center gap-cmv-xs">
             <span id={labelId} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-cmv-sm">
               {code == null ? null : (
                 <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{code}</span>
@@ -531,7 +546,7 @@ function ValueRow(props: Readonly<ValueRowProps>) {
                     {
                       label: t("plan.dosage.progression.open"),
                       onSelect: () => props.setProgressing(id),
-                      disabled: measure === null || progressionStart(slots) === null,
+                      disabled: measure === null || start === null,
                     },
                     {
                       label: t("plan.dosage.reset"),
@@ -546,27 +561,28 @@ function ValueRow(props: Readonly<ValueRowProps>) {
         </th>
         {slots.map(({ column, cell }, index) => (
           <ValueCell
-            key={column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}
+            key={dosageColumnKey(column)}
             {...props}
             // La fenêtre de la dernière semaine s'ouvre vers la gauche : le tableau s'arrête là.
             alignEnd={columns.length > 1 && index === columns.length - 1}
             column={column}
             cell={cell}
             copy={copyOf(column)}
-            cellId={`${id}@${column.kind === DosageColumnKind.COPY ? column.copyId : column.weekNumber}`}
+            cellId={`${id}@${dosageColumnKey(column)}`}
           />
         ))}
       </tr>
       {isProgressing ? (
         <DosageProgressionRow
           slots={slots}
+          start={start}
           measure={measure}
           names={props.names}
           unit={stepUnit(measure, target, props.customMetrics, t)}
           show={show}
           hatched={HATCHED}
           onApply={write}
-          onClose={() => props.setProgressing(null)}
+          onClose={closeProgression}
         />
       ) : null}
       {note == null ? null : (

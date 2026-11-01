@@ -603,6 +603,12 @@ describe("DosageTable", () => {
       await progress(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS");
       await view.user.keyboard("{Escape}");
       expect(view.queryByRole("textbox", { name: "plan.dosage.progression.step" })).toBeNull();
+      // Le clavier reprend au ⋯ qui avait ouvert la fenêtre.
+      expect(
+        within(rowOf(view, "plan.dosage.setting.REST_BETWEEN_ROUNDS")).getByRole("button", {
+          name: "plan.dosage.rowActions",
+        }),
+      ).toHaveFocus();
     });
 
     it("compte en paliers une cotation, et ne fait pas progresser du texte", async () => {
