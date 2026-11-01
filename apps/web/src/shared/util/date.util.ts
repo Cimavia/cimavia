@@ -5,6 +5,7 @@ export const {
   formatDate,
   formatDayLabel,
   formatFullDay,
+  formatLongDay,
   formatWeekday,
   formatDayNumber,
   formatDateRange,

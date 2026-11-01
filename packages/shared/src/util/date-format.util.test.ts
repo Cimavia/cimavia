@@ -4,6 +4,7 @@ import {
   formatIsoDateRange,
   formatIsoDateTime,
   formatIsoInstantDate,
+  formatIsoLongDay,
   formatRelativeOrDateTime,
   relativeTimeFrom,
 } from "./date-format.util";
@@ -15,6 +16,12 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
+
+describe("formatIsoLongDay", () => {
+  it("dit le jour et le mois en toutes lettres, sans l'année", () => {
+    expect(formatIsoLongDay("2026-10-26", "fr-FR")).toBe("lundi 26 octobre");
+  });
+});
 
 describe("relativeTimeFrom", () => {
   it("rend « à l'instant » sous la minute", () => {

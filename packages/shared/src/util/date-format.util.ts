@@ -34,6 +34,11 @@ export function formatIsoFullDay(isoDate: string, locale: string): string {
   return format(isoDate, locale, { weekday: "short", day: "numeric", month: "short" });
 }
 
+// « lundi 26 octobre » — le jour en toutes lettres, quand la place le permet.
+export function formatIsoLongDay(isoDate: string, locale: string): string {
+  return format(isoDate, locale, { weekday: "long", day: "numeric", month: "long" });
+}
+
 // « LUN. » / « 14 » — colonne de jour (vue semaine mobile).
 export function formatIsoWeekday(isoDate: string, locale: string): string {
   return format(isoDate, locale, { weekday: "short" }).toUpperCase();

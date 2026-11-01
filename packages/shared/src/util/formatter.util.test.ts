@@ -7,6 +7,7 @@ import {
   formatIsoDayNumber,
   formatIsoFullDay,
   formatIsoInstantDate,
+  formatIsoLongDay,
   formatIsoWeekday,
   RELATIVE_TIME_KEY,
 } from "./date-format.util";
@@ -34,6 +35,7 @@ describe("createFormatters", () => {
     expect(format.formatDate("2026-10-14")).toBe(formatIsoDate("2026-10-14", "fr-FR"));
     expect(format.formatDayLabel("2026-10-14")).toBe(formatIsoDayLabel("2026-10-14", "fr-FR"));
     expect(format.formatFullDay("2026-10-14")).toBe(formatIsoFullDay("2026-10-14", "fr-FR"));
+    expect(format.formatLongDay("2026-10-14")).toBe(formatIsoLongDay("2026-10-14", "fr-FR"));
     expect(format.formatWeekday("2026-10-14")).toBe(formatIsoWeekday("2026-10-14", "fr-FR"));
     expect(format.formatDayNumber("2026-10-14")).toBe(formatIsoDayNumber("2026-10-14", "fr-FR"));
     expect(format.formatDateRange("2026-10-12", "2026-10-18")).toBe(
