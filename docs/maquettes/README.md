@@ -389,7 +389,7 @@ bouton reste sur les quatre autres types. Voir « Tranché en #520 » dans `docs
 
 ## Constructeur de séance — le dosage à trois niveaux
 
-> ⚠️ **Périmée depuis [#714](https://github.com/Cimavia/cimavia/issues/714)** : cette section décrit l'ancien modèle, où chaque exercice portait sa structure. Voir « Séance par blocs », plus haut.
+> ⚠️ **Périmée depuis [#714](https://github.com/Cimavia/cimavia/issues/714)** : cette section décrit l'ancien modèle, où chaque exercice portait sa structure, retiré du code en [#723](https://github.com/Cimavia/cimavia/issues/723) — « Recharger depuis la bibliothèque » et le rond du niveau séance compris. Voir « Séance par blocs », plus haut.
 
 `coach_constructeur_seance.dc.html` suppose la refonte de l'exercice ci-dessus : à lire après elle.
 La règle qui structure tout l'écran :

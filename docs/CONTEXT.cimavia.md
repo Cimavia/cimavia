@@ -58,7 +58,7 @@ Champ **texte libre** décrivant l'athlète, **éditable par le coach uniquement
 ## Entraînement
 
 ### Exercise
-Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `blocks` (structure de dosage ordonnée) et des **tags** libres — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** (#605). Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si leur lecture disparaît ou si l'exercice est supprimé (#609) : un exercice à leur nom, complet, qui dit d'après qui (`frozenFromCoachId`, `frozenAt`).
+Brique de la bibliothèque du coach : `title`, `description` (nullable), `instructions` (consigne structurée, nullable), `suggestedMetrics` (les métriques qu'il **suggère**, sans valeur — elles préremplissent les colonnes quand on le pose dans un bloc) et des **tags** libres. L'exercice ne porte **aucun dosage** depuis #723 : la grille du bloc qui l'emploie le fait — l'enum `ExerciseCategory` a été retirée en #163, trois cases fermées ne décrivant pas un catalogue réel. Peut porter des **documents** joints. Appartient à un coach (`coachId`), qui peut l'ouvrir par un **droit d'accès** (#605). Réutilisable dans plusieurs `Session` — y compris celles d'un autre Coach à qui il est ouvert, qui le **référencent en direct** et en gardent une **copie figée** si leur lecture disparaît ou si l'exercice est supprimé (#609) : un exercice à leur nom, complet, qui dit d'après qui (`frozenFromCoachId`, `frozenAt`).
 
 ### Document
 Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
@@ -66,7 +66,7 @@ Pièce jointe d'un `Exercise`. Deux types (`DocumentType`) :
 - **`LINK`** — URL externe (ex. vidéo). Aucun fichier stocké.
 
 ### Session (séance) — modèle vs instance
-- **Modèle** (`Session`) : séance réutilisable = liste **ordonnée** de `SessionExercise` (`position`, `note` nullable, plus son **dosage surchargé** — cf. §  ci-dessous) + `notes` (consignes globales, nullable). Vit dans la bibliothèque du coach. La composition se met à jour en **replace-all** (`PUT`) : l'ordre du tableau **définit** les positions.
+- **Modèle** (`Session`) : séance réutilisable = liste **ordonnée** de **blocs** (`SessionBlock`), chacun portant ses exercices (`SessionExercise` : clé, `note` nullable et **grille** de valeurs — cf. « Bloc » ci-dessous) + `notes` (consignes globales, nullable). Vit dans la bibliothèque du coach. La composition se met à jour en **replace-all** (`PUT`) : l'ordre du tableau **définit** les positions.
 - **Instance** (`ScheduledSession`) : **copie éditable** d'un modèle, posée dans une planification (P3). La modifier ne touche **pas** la bibliothèque. C'est le seam qui permet d'ajuster une séance pour un athlète sans casser les modèles.
 
 > ⚠️ **Nommage** : Better Auth possède déjà une table de sessions d'authentification. Son modèle Prisma a été renommé **`AuthSession`** (table `session` conservée via `@@map`, remap par `session.modelName`) pour laisser le nom **`Session`** à l'entité métier séance (table `sessions`). Ne pas confondre les deux dans le code.
@@ -88,45 +88,36 @@ Trois règles à connaître :
 - **La cible doit être un brouillon** : coller dans un cycle `PUBLISHED` est refusé (409), parce que chaque séance écrite notifierait l'athlète séparément et que rien ne groupe ces notifications (dette N-6). Copier **depuis** un cycle diffusé, en revanche, est autorisé — lire ne mute rien.
 
 ### ScheduledSession
-Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Se met à jour en **replace-all** (`PUT`), comme la séance modèle. **Pas d'historique des modifications** en MVP.
+Instance de séance dans une `PlanWeek` (voir « Session — instance »). Porte une `scheduledDate` (dans la plage de sa semaine — invariant vérifié à l'écriture) et une `position` = rang **dans la journée** (plusieurs séances le même jour). Statut `PLANNED` | `DONE` | `SKIPPED` — en P3 tout est créé `PLANNED` ; `DONE` arrive avec le débrief (P4). Naît **d'une séance-type** (#723), dont elle copie titre, notes et blocs ; son `PUT` ne touche plus que titre, notes et date, la composition et les valeurs passant par leurs gestes (#720, #721). **Pas d'historique des modifications** en MVP.
 
-### Dosage à trois niveaux (#164)
+### Structure
+La **forme** d'un bloc, rangée dans la bibliothèque du Coach (`Structure`) ou prête à l'emploi (`StructurePreset` : Séries, EMOM, AMRAP, Tabata, circuit…) : ses réglages (`StructureSettings` — tours, repos, bip, effort/repos, limite), un nom, des tags, une consigne pour l'athlète et une note **privée**. Elle ne cite aucun exercice. Un bloc la **copie** à l'ajout (`copiedSettings`) : la modifier ensuite ne touche pas les séances qui l'emploient, et un bloc dont les réglages s'écartent de la copie se lit « Personnalisé ».
 
-    EXERCICE (bibliothèque)   le défaut, valable partout
-    SÉANCE                    ajusté pour cette séance-type
-    SÉANCE PLANIFIÉE          ajusté pour UN athlète, une semaine
+### Bloc
+L'unité d'une séance (#714) : une structure copiée, un libellé facultatif, une consigne, et ses **exercices** — chacun avec une **clé** stable (`a1`, `a2`…, lue `1.1`, `1.2`) et une **grille** (`BlockGrid` : des colonnes de métriques, une ligne par série). Rien de ce qui se déduit n'est stocké : numéro du bloc, codes des exercices, disposition de la grille, chrono. La séance-type (`SessionBlock`) et la séance planifiée (`ScheduledSessionBlock`) en ont chacune les leurs ; le bloc planifié porte en plus sa **référence** (`baseline`, reçue à la diffusion) et le **suivi** de l'athlète (`tracking`, `null` = NON SUIVI).
 
-Chaque niveau éditable stocke trois choses : `blocks` (ce que tout le monde lit), `baseline` (la copie faite
-à l'ajout, ou reçue à la diffusion) et `adjustments` — la liste des **chemins** de valeurs touchées
-avec leur **niveau** (`SESSION` · `SCHEDULED`). Le marqueur hérité/ajusté est donc porté par la
-**donnée**, jamais déduit d'une comparaison à l'affichage : un coach qui retape à la main la même
-valeur que le défaut a bien ajusté cette cellule.
+### Dosage à deux niveaux (#714)
 
-La séance planifiée en stocke une **quatrième** : `baselineAdjustments`, les marqueurs **reçus** à
-la diffusion (#518). C'est la référence des marqueurs, comme `baseline` est celle des valeurs :
-revenir au défaut y rend +12 kg **et** le rond de la séance-type, pas une cellule nue.
+    SÉANCE-TYPE               la grille de chaque bloc, valable pour tous
+    SÉANCE PLANIFIÉE          ajustée pour UN athlète, une semaine
 
-**Les deux niveaux du bas s'éditent**, par la même mécanique paramétrée par le niveau — le
-constructeur de séance, et le panneau de séance planifiée pour UN athlète, une semaine (#518). Rond
-= modifié dans la séance, carré = modifié pour l'athlète ; les deux coexistent sur une grille.
-Seul un marqueur du niveau qui édite offre d'y revenir.
+L'exercice de bibliothèque ne porte plus de valeur : il **suggère** des métriques, la grille du bloc
+dit combien (#723 a retiré l'ancien troisième niveau, son `blocks`, ses marqueurs `adjustments` et
+le geste « Recharger depuis la bibliothèque »).
 
-**Verrouillé aux deux niveaux** : type de structure, jeu et ordre des colonnes, nombre de blocs et
-libellés. **Modifiable** : valeurs de cellules, paramètres de bandeau, nombre de lignes. Le verrou
-est vérifié **côté serveur** (`lockedShapeIssues`), pas seulement grisé dans l'UI — sur le `PUT`
-d'une séance comme sur celui d'une séance planifiée, contre la référence **stockée**.
+La séance planifiée **copie** les blocs de sa séance-type à la diffusion et garde cette copie comme
+**référence** (`baseline`). Ce qui s'y écarte se **compte** contre elle (`plannedChanges`), jamais
+d'après un marqueur posé à l'écriture. **Verrouillé** au niveau planifié (`PlannedLock`) : nombre
+de blocs, nom, réponses des réglages, ordre relatif et colonnes des exercices reçus. **Libre** :
+les valeurs (tours, repos, cellules) et la composition (ajouter, retirer, remplacer un exercice —
+`origin`, `replacesKey`). Le verrou est vérifié **côté serveur**, contre la référence **stockée** ;
+les valeurs se règlent dans **Dosage**, semaine par semaine (#721).
 
-Deux gestes à ne pas confondre : **« Tout réinitialiser »** revient aux valeurs copiées à l'ajout
-(reçues à la diffusion, au niveau planifié, marqueurs compris) et ne touche pas la référence ; **« Recharger depuis la bibliothèque »** relit l'exercice tel qu'il
-est aujourd'hui, **déplace la référence** et efface les ajustements. Le second est le seul qui vit
-côté serveur (`POST /sessions/:id/exercises/:id/reload`) — partout ailleurs le client n'envoie que
-des valeurs, jamais la référence contre laquelle le verrou est vérifié.
-
-**Ni détection de changement, ni empreinte de version** : une séance composée est indépendante,
-et le coach qui veut la nouveauté la recharge explicitement.
+**Ni détection de changement, ni empreinte de version** : une séance composée est indépendante de
+sa bibliothèque.
 
 ### ScheduledSessionExercise — la copie, pas la référence
-**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `instructions`, `blocks`, `note` et les **tags** sont **copiés** — le dosage vient de la **séance**, pas de la bibliothèque, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
+**Décision structurante (P3).** L'instance est un **instantané autonome** : `title`, `description`, `instructions`, `note`, les **tags** et les métriques maison que cite sa grille (`customMetrics`) sont **copiés** — le dosage vient de la **grille du bloc**, pas de la bibliothèque, et ses documents sont **dupliqués en lignes** (`ScheduledSessionExerciseDocument`) partageant la **même clé objet S3** (aucun binaire dupliqué).
 
 Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: SetNull`)** et ne servent qu'à la traçabilité : **l'affichage n'en dépend jamais**. Conséquences voulues :
 - le coach peut supprimer un exercice de sa bibliothèque **sans jamais bloquer** (pas de `Restrict`, pas de 409 à vie) ni dégrader une planif déjà diffusée ;

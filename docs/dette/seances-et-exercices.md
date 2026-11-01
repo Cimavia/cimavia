@@ -23,7 +23,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | EX-1 | **`description` survit à côté d'`instructions`** : phase *expand* d'un expand/migrate/contract. Deux sources pour la même consigne tant que le constructeur n'écrit pas la version structurée — l'API alimente les deux, et rien n'empêche qu'elles divergent. La moitié `category` → `tags` est **close** (#163, migration `20260824120000_retrait_categorie_exercice`). *Nommée **R-1** avant [#624](https://github.com/Cimavia/cimavia/issues/624), comme une dette des rappels — la migration `20260824070000_reprise_descriptions_en_consigne` la cite encore sous ce nom.* | 🟡 | [#163](https://github.com/Cimavia/cimavia/issues/163) *(le contract est sa dernière étape)* |
-| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les blocs vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les exercices qui l'employaient — et, depuis [#718](https://github.com/Cimavia/cimavia/issues/718), une métrique suggérée orpheline. L'une et l'autre se lisent « — ». *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(le constructeur d'exercice signale une métrique suggérée orpheline au coach — depuis #718, plus une colonne de l'ancienne grille ; le nettoyage en masse attend un besoin réel)* |
+| EX-2 | **`customMetricId` n'est pas une clé étrangère** : les grilles des blocs et les métriques suggérées d'un exercice vivent en JSON, la référence y est un simple identifiant. Supprimer une métrique maison laisse une colonne orpheline dans les grilles de séance-type qui l'employaient, et une métrique suggérée orpheline dans les exercices ([#718](https://github.com/Cimavia/cimavia/issues/718)). L'une et l'autre se lisent « — ». Une séance planifiée n'est pas touchée : elle lit les définitions qu'elle a copiées (`customMetrics`). Depuis [#723](https://github.com/Cimavia/cimavia/issues/723), l'exercice ne porte plus de grille : la dette ne vit plus que dans les blocs et les suggestions. *Nommée **R-2** avant [#624](https://github.com/Cimavia/cimavia/issues/624).* | 🟢 | — *(le constructeur d'exercice signale une métrique suggérée orpheline au coach ; le nettoyage en masse attend un besoin réel)* |
 
 > **Tranché — les blocs en JSON, pas en tables.** Quatre tables (bloc / métrique / ligne / valeur)
 > donnaient l'intégrité référentielle sur `customMetricId` et des cellules interrogeables en SQL.
@@ -33,6 +33,15 @@ liste des domaines vivent dans l'index.
 > relationnel c'est quatre SELECT/INSERT imbriqués avec remapping des identifiants de colonnes
 > dans chaque ligne — soit exactement l'endroit où une planif diffusée se dégrade en silence. Le
 > contrat est tenu par `exerciseBlocksSchema` à l'entrée. Coût accepté : **EX-2**.
+>
+> *Amendé en [#723](https://github.com/Cimavia/cimavia/issues/723).* Le choix tient, mais il a
+> changé d'objet. Les blocs sont devenus des **tables** depuis #716 (`SessionBlock`,
+> `ScheduledSessionBlock`) : un bloc a une identité, une structure source, un suivi, et la séance
+> planifiée les compte un par un. Ce qui reste en JSON, c'est la **grille** de chaque exercice
+> dans son bloc (`grid`, tenue par `blockGridSchema`), les **réglages** de structure, la
+> **référence** d'un bloc planifié (`baseline`) et les **métriques suggérées** d'un exercice. Les
+> raisons sont les mêmes : aucune cellule n'est interrogée, et la valeur reste polymorphe.
+> `Exercise.blocks` et `exerciseBlocksSchema` sont partis avec l'ancien modèle.
 >
 > **Tranché — aucun rattrapage des descriptions.** `description → instructions` touche tous les
 > exercices existants. La base en contient 7, dont 4 avec description, d'une longueur moyenne de
@@ -641,8 +650,9 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| BL-1 | **Les deux modèles de séance cohabitent** sur les mêmes lignes `SessionExercise` et `ScheduledSessionExercise` (*expand*, #716) : enregistrer une séance par exercices efface ses blocs — séance-type comme séance planifiée —, et l'inverse. #723 rejoue donc la reprise sur les lignes restées sans bloc avant de retirer l'ancien modèle. L'ancienne liste `exercises` montre chaque entrée ajoutée par la reprise — une étape de circuit, de libre ou d'AMRAP — comme un exercice sans dosage, et le décompte du débrief (`trackingSummary`) ne lit que l'ancien suivi. Depuis #722, une séance par blocs se lit, se coche et se débriefe bloc par bloc, sur mobile et sur web ; une séance planifiée sans bloc garde sa lecture par exercice, et le débrief n'en compte que les lignes sans bloc (`trackedExercises`). Depuis #719, le constructeur de séance-type n'écrit plus que des blocs ; depuis #720, la séance planifiée par blocs se compose geste par geste, et depuis #721 ses valeurs se règlent dans Dosage, semaine par semaine. Une séance planifiée sans bloc garde l'éditeur à plat. Sans effet tant que l'épic se promeut d'un bloc, #715 à #723 ensemble. | 🟡 | [#723](https://github.com/Cimavia/cimavia/issues/723) *(le retrait de l'ancien modèle)* |
 | BL-2 | **L'unicité du nom d'une structure n'a pas d'index** : le service relit les noms du Coach avant d'écrire (`takenStructureName`, sans tenir compte des majuscules) et refuse un doublon d'un 409 `STRUCTURE_NAME_TAKEN`, mais deux enregistrements simultanés du même nom passent tous deux. Prisma ne déclare pas d'index sur `lower(name)`, il faudrait une migration SQL à la main. Pris en #717. | 🟢 | — *(déclencheur : un doublon constaté — il faut deux onglets du même Coach, enregistrés à la même milliseconde)* |
+
+*Résolues, à l'[archive](archive.md) : BL-1.*
 
 > **Tranché en [#715](https://github.com/Cimavia/cimavia/issues/715)** (les règles de
 > `docs/maquettes/composants/structure_model.js` passent dans `@cmv/shared`, typées) : structure,
@@ -1006,3 +1016,43 @@ liste des domaines vivent dans l'index.
 >   rouvre pas « Enregistrer ».
 > - **Les rangées « Série 1 », « Tour 2 » ont leur phrase pour clé React** (`phraseId`), jamais
 >   leur texte traduit, qui peut se répéter.
+
+> **Tranché en [#723](https://github.com/Cimavia/cimavia/issues/723)** (retrait de l'ancien
+> modèle d'exercice structuré : la phase *contract* de l'épic) :
+> - **La migration garde, elle ne rejoue pas** (amende BL-1, qui annonçait un rejeu de la
+>   reprise). `20261101120000_retrait_ancien_modele` compte les lignes encore sans bloc et
+>   s'arrête si elle en trouve (`RAISE`), en nommant la reprise à rejouer. Rejouer en silence
+>   aurait caché qu'une écriture de l'ancien modèle est passée après la reprise. Le rejeu reste
+>   possible à la main : la reprise est rejouable.
+> - **L'e2e de la reprise part** (`session-blocks-reprise.ts`) : il relit des colonnes que le
+>   *contract* retire, et ne peut plus monter son jeu de départ. La reprise reste couverte par son
+>   historique, et la garde par la migration elle-même.
+> - **Restent** `ScheduledSessionExercise.customMetrics`, parce que la grille en cite les
+>   définitions et que la séance planifiée ne lit pas la bibliothèque, et `Exercise.description`
+>   (EX-1, un *contract* à part). Le placement dans un bloc devient `NOT NULL`. Les CHECK de
+>   placement font place à une seule règle, `scheduled_session_exercise_replaces_key` : un
+>   remplaçant, et lui seul, cite la clé qu'il remplace.
+> - **Une séance planifiée naît d'une séance-type**, sans exercice ni surcharge de titre ou de
+>   notes : elle en copie titre, notes et blocs. Son `PUT` ne touche plus que titre, notes et date.
+>   La composition et les valeurs passent par leurs gestes (#720, #721).
+> - **`createSession` part avec des blocs vides** (`[]`) : une séance-type peut naître vide et se
+>   composer ensuite. `updateSession` exige `blocks`, car omis il viderait la séance.
+> - **Aucune compatibilité pour les anciennes builds mobiles** : un débrief qui envoie encore
+>   `tracking` (le suivi par exercice) est refusé (400). Le stockage local `cimavia-tracking:*`
+>   n'est plus lu. Ses entrées restent orphelines sur les téléphones, sans effet, faute de
+>   lecteur.
+> - **Le chronomètre d'exercice mobile part** avec l'ancien modèle (`TimerOverlay`, `RunnerBody`,
+>   `RestBanner`, `useSegmentRunner`, `useTrackingHint` et l'astuce « Coche au fur et à mesure ») :
+>   le chrono par bloc (#722) le remplace.
+> - **Une variante ne grave plus de dosage** : dupliquer un exercice ne prend que `{ title }`.
+> - **Le sélecteur de bibliothèque gagne une colonne « Métriques »** : ce que l'exercice suggère,
+>   là où il montrait un résumé de dosage. Le marqueur d'ajustement n'est plus que le carré du
+>   niveau planifié (`AdjustmentMarker`).
+> - **Renommages** : `BlockValidationIssue` devient `GridValueIssue`, `BLOCK_MAX_METRICS`
+>   devient `GRID_MAX_METRICS`, et `remapCustomMetrics` prend une seule grille.
+>   `withMaterializedSeries` est borné par `GRID_MAX_ROWS`.
+> - **Les e2e de l'ancien modèle partent avec lui** : « Dosage à trois niveaux (#164) »,
+>   « Dosage au niveau planifié (#518) », et ceux qui composaient par exercice dans les
+>   planifications, le partage, le débrief (identifiants de ligne #311, exercice ajouté ou
+>   dupliqué, plafond d'exercices) et la bibliothèque (« grave le dosage », EX-2 sur `blocks`).
+>   Ce qu'ils gardaient d'isolation est repris sur des séances par blocs.
