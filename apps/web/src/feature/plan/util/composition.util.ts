@@ -113,11 +113,11 @@ export function initiallyChecked(
 export type ChangeWords = {
   kind: CompositionEditKind;
   athlete: string;
-  /** L'exercice ajouté ou le remplaçant ; `null` pour un retrait. */
+  /** L'exercice ajouté ou le remplaçant ; `null` pour un retrait, d'exercice ou de bloc. */
   exercise: string | null;
-  /** L'exercice de la séance-type remplacé ou retiré ; `null` pour un ajout. */
+  /** L'exercice de la séance-type remplacé ou retiré ; `null` pour un ajout ou un bloc retiré. */
   was: string | null;
-  /** Le bloc où l'exercice arrive, tel qu'il se nomme : « 2 », ou son libellé. */
+  /** Le bloc du changement, tel qu'il se nomme : « 2 », ou son libellé. */
   block: string;
 };
 
@@ -136,6 +136,8 @@ export function changeSentence(words: ChangeWords, t: TFunction): string {
       });
     case CompositionEditKind.REMOVE:
       return t("plan.composition.dialog.what.REMOVE", { was: words.was });
+    case CompositionEditKind.REMOVE_BLOCK:
+      return t("plan.composition.dialog.what.REMOVE_BLOCK", { block: words.block });
   }
 }
 
@@ -168,8 +170,14 @@ export function dialogFoot(
   return keep === "" && back !== "" ? `${back}.` : keep;
 }
 
-/** Ce que retrouvent les semaines décochées : l'exercice de la séance-type, ou plus l'ajout. */
+/**
+ * Ce que retrouvent les semaines décochées : le bloc retiré, l'exercice de la séance-type, ou plus
+ * l'ajout.
+ */
 function comingBack(words: ChangeWords, weeks: string, t: TFunction): string {
+  if (words.kind === CompositionEditKind.REMOVE_BLOCK) {
+    return t("plan.composition.dialog.blockComesBack", { block: words.block, weeks });
+  }
   return words.was === null
     ? t("plan.composition.dialog.noLonger", { exercise: words.exercise, weeks })
     : t("plan.composition.dialog.comesBack", { exercise: words.was, weeks });

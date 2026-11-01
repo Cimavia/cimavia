@@ -444,6 +444,102 @@ describe("ScheduledComposition", () => {
     });
   });
 
+  describe("un bloc retiré (#744)", () => {
+    const second = () => ({ ...blockOf(RECEIVED), id: "blk-2" });
+    const REMOVE_BLOCK = { kind: CompositionEditKind.REMOVE_BLOCK, blockIndex: 0 };
+
+    it("retire un bloc entier, sur les semaines cochées", async () => {
+      const blocks = [blockOf(RECEIVED), second()];
+      const view = mount([copyOf("ss-1", "pw-1", blocks), copyOf("ss-2", "pw-2", blocks)]);
+
+      await view.findAllByText("Gainage");
+      await view.user.click(nthButton(view, "plan.composition.removeBlock", 0));
+      expect(view.getByText("plan.composition.dialog.what.REMOVE_BLOCK")).toBeInTheDocument();
+      await view.user.click(view.getByRole("button", { name: VALIDATE, hidden: true }));
+
+      await waitFor(() =>
+        expect(view.onCompose).toHaveBeenCalledWith({
+          edit: REMOVE_BLOCK,
+          apply: [{ id: "ss-1", expectedUpdatedAt: V1 }],
+          revert: [],
+        }),
+      );
+    });
+
+    it("ne propose pas de retirer le seul bloc de la séance-type", async () => {
+      const view = mount(twoWeeks());
+
+      await view.findAllByText("Gainage");
+      expect(view.queryByRole("button", { name: "plan.composition.removeBlock" })).toBeNull();
+    });
+
+    it("grise la semaine où il ne resterait aucun bloc", async () => {
+      const both = [blockOf(RECEIVED), second()];
+      const view = mount([
+        copyOf("ss-1", "pw-1", [blockOf([]), second()]),
+        copyOf("ss-2", "pw-2", both),
+      ]);
+
+      await view.user.click(
+        await view.findByRole("button", { name: "plan.composition.removeBlock" }),
+      );
+
+      const [, mine, other] = weekBoxes(view);
+      expect(mine).toBeDisabled();
+      expect(other).not.toBeDisabled();
+      expect(view.getAllByText("plan.composition.dialog.refusal.LAST_BLOCK")).toHaveLength(1);
+    });
+
+    it("garde le bloc retiré à sa place, barré, que son étiquette ou « Revenir » rendent", async () => {
+      const removed = { ...blockOf([]), label: "Échauffement" };
+      const view = mount([copyOf("ss-1", "pw-1", [removed, second()]), copyOf("ss-2", "pw-2")]);
+
+      expect(await view.findByText("Échauffement")).toHaveClass("line-through");
+      expect(view.getByText("Tractions · Gainage")).toHaveClass("line-through");
+      // Seul le bloc gardé se retire, et reçoit un ajout.
+      expect(view.getAllByRole("button", { name: "plan.composition.removeBlock" })).toHaveLength(1);
+      expect(view.getAllByRole("button", { name: /plan\.composition\.add/ })).toHaveLength(1);
+      expect(
+        view.getByRole("button", { name: /plan\.composition\.change\.REMOVE_BLOCK/ }),
+      ).toBeInTheDocument();
+
+      await view.user.click(
+        view.getByRole("button", { name: "plan.composition.backToSessionType" }),
+      );
+      expect(view.onCompose).toHaveBeenCalledWith({
+        edit: REMOVE_BLOCK,
+        apply: [],
+        revert: [{ id: "ss-1", expectedUpdatedAt: V1 }],
+      });
+    });
+
+    it("se lit seulement, en Lecture", async () => {
+      const view = mount([copyOf("ss-1", "pw-1", [blockOf([]), second()])], { readOnly: true });
+
+      expect(await view.findByText("1.1 Tractions · 1.2 Gainage")).toBeInTheDocument();
+      expect(view.queryByRole("button", { name: "plan.composition.removeBlock" })).toBeNull();
+      expect(view.queryByRole("button", { name: "plan.composition.backToSessionType" })).toBeNull();
+    });
+
+    it("dit, semaine par semaine, que retirer le dernier exercice retire le bloc", async () => {
+      const alone = [blockOf([received("a")]), second()];
+      const view = mount([
+        copyOf("ss-1", "pw-1", alone),
+        copyOf("ss-2", "pw-2", [blockOf(RECEIVED), second()]),
+      ]);
+
+      await view.findByText("Gainage", { selector: ".line-through" });
+      await view.user.click(nthButton(view, "plan.composition.remove", 0));
+      // La semaine du panneau, cochée d'avance, perdrait son bloc ; l'autre garde Gainage.
+      const [, here, other] = weekBoxes(view);
+      await view.user.click(other as HTMLElement);
+      expect(view.getAllByText("plan.composition.dialog.removesBlock")).toHaveLength(1);
+
+      await view.user.click(here as HTMLElement);
+      expect(view.queryByText("plan.composition.dialog.removesBlock")).toBeNull();
+    });
+  });
+
   it("nomme un bloc à libellé sans codes, et ne remplace ni ne retire un ajout", async () => {
     const note = (key: string, exerciseId: string) => ({ key, exerciseId, note: null, grid: GRID });
     const labelled: ScheduledSessionBlockDto = {

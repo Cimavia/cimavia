@@ -929,10 +929,12 @@
       "arrivesAt": "arrivera en {{code}}",
       "replace": "Remplacer",
       "remove": "Retirer",
+      "removeBlock": "Retirer le bloc pour {{name}}",
       "change": {
         "ADD": "ajouté pour {{name}}",
         "REPLACE": "remplacé pour {{name}}",
-        "REMOVE": "retiré pour {{name}}"
+        "REMOVE": "retiré pour {{name}}",
+        "REMOVE_BLOCK": "bloc retiré pour {{name}}"
       },
       "inWeeks": "en {{weeks}}",
       "allWeeks": "toutes les semaines",
@@ -953,10 +955,13 @@
         "what": {
           "ADD": "Ajouter {{exercise}} en fin de bloc {{block}}.",
           "REPLACE": "Remplacer {{was}} par {{exercise}}.",
-          "REMOVE": "Retirer {{was}}."
+          "REMOVE": "Retirer {{was}}.",
+          "REMOVE_BLOCK": "Retirer le bloc {{block}}."
         },
         "comesBack": "{{exercise}} revient en {{weeks}}",
         "noLonger": "{{exercise}} n'est plus en {{weeks}}",
+        "blockComesBack": "le bloc {{block}} revient en {{weeks}}",
+        "removesBlock": "Le bloc {{block}} n'aura plus d'exercice : il sera retiré pour {{name}}.",
         "validate": "Valider",
         "cancelChange": "Annuler ce changement",
         "cancel": "Annuler",
@@ -965,7 +970,8 @@
           "NO_BLOCK": "Ce bloc n'existe pas dans cette séance.",
           "ABSENT": "Cet exercice n'est pas dans cette séance.",
           "NOT_IN_LIBRARY": "L'exercice n'est plus dans ta bibliothèque.",
-          "LAST_EXERCISE": "Le bloc resterait vide.",
+          "LAST_BLOCK": "La séance n'aurait plus aucun bloc.",
+          "BLOCK_REMOVED": "Ce bloc est retiré dans cette séance : rends-le d'abord.",
           "BLOCK_FULL": "Le bloc a déjà le maximum d'exercices.",
           "SESSION_FULL": "La séance a déjà le maximum d'exercices.",
           "ROUNDS": "Les tours du bloc ne se répartiraient plus sur ses exercices.",
@@ -1021,6 +1027,7 @@
         "REPLACED": "remplacé",
         "REMOVED": "retiré",
         "NOT_THIS_WEEK": "pas cette semaine",
+        "BLOCK_REMOVED": "bloc retiré",
         "NONE": "—"
       },
       "weekOnDay": "{{week}} · {{day}}",

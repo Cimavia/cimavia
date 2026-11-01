@@ -8,6 +8,7 @@ import {
   type ExerciseDto,
   editOfExercise,
   exerciseCodes,
+  isRemovedBlock,
   type PlanWeekDto,
   removedReferences,
   required,
@@ -38,6 +39,7 @@ import {
 } from "@/feature/plan/util/composition.util";
 import { CmvButton, CmvConfirmButton, CmvErrorState } from "@/shared/component";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
+import { cn } from "@/shared/util/cn.util";
 import { newId } from "@/shared/util/new-id.util";
 
 /** L'exercice que le Coach va choisir : à ajouter en fin de bloc, ou à mettre à une place. */
@@ -65,7 +67,8 @@ type ScheduledCompositionProps = {
 /**
  * La composition d'une séance par blocs pour un Athlete (#720, frames 2 à 2 quinquies). Les blocs
  * et leurs réglages se lisent ; seuls leurs exercices changent — ajoutés, remplacés, retirés —,
- * et chaque changement s'écrit tout de suite, sur les semaines que la fenêtre coche.
+ * un bloc entier peut partir (#744), et chaque changement s'écrit tout de suite, sur les semaines
+ * que la fenêtre coche.
  *
  * Elle se lit sur les COPIES (`/copies`) et non sur le détail : c'est sur elles que les semaines
  * se cochent, sous leurs versions. Le détail n'apporte que le titre, les tags et la source de
@@ -175,6 +178,8 @@ function Composition(props: Readonly<CompositionProps>) {
     onPickStart: setPicking,
     onPick,
     onRemove: (edit, words) => setChoosing({ edit, reopened: false, words }),
+    // Une séance-type d'un seul bloc ne le perd dans aucune semaine (`LAST_BLOCK`).
+    canRemoveBlock: anchor.blocks.length > 1,
   };
   const numbers = blockNumbers(anchor.blocks);
 
@@ -281,6 +286,7 @@ type BlockGestures = {
   onPickStart: (picking: Picking | null) => void;
   onPick: (exercise: ExerciseDto) => void;
   onRemove: (edit: CompositionEdit, words: ChangeWords) => void;
+  canRemoveBlock: boolean;
 };
 
 type CompositionBlockProps = {
@@ -290,104 +296,186 @@ type CompositionBlockProps = {
   gestures: BlockGestures;
 };
 
-/** Un bloc : son nom et ses réglages, en lecture ; ses exercices, ceux qu'il a perdus, et l'ajout. */
-function CompositionBlock({
-  block,
-  blockIndex,
-  number,
-  gestures,
-}: Readonly<CompositionBlockProps>) {
+/**
+ * Un bloc : son nom et ses réglages, en lecture ; ses exercices, ceux qu'il a perdus, et l'ajout.
+ * Retiré pour l'athlète (#744), il garde sa place, barré, avec son étiquette.
+ */
+function CompositionBlock(props: Readonly<CompositionBlockProps>) {
+  const { block, blockIndex, number, gestures } = props;
   const { t } = useTranslation();
   const text = usePhraseText();
-  const { session, athleteName, readOnly, isBusy, picking } = gestures;
+  const { session, athleteName, readOnly, isBusy } = gestures;
   const names = block.exercises.map(
     (exercise) => session.exercises.find((row) => row.id === exercise.id)?.title ?? "—",
   );
-  const phrase = settingsPhrase(block.settings, block.exercises.length, names);
-  const codes = exerciseCodes(number, block.exercises.length + 1);
-  const referenceCodes = exerciseCodes(number, block.baseline.exercises.length);
   const blockName = number ?? block.label ?? "—";
-  const pickingHere = picking?.blockIndex === blockIndex ? picking : null;
+  const edit: CompositionEdit = { kind: CompositionEditKind.REMOVE_BLOCK, blockIndex };
+  const words: ChangeWords = {
+    kind: CompositionEditKind.REMOVE_BLOCK,
+    athlete: athleteName,
+    exercise: null,
+    was: null,
+    block: blockName,
+  };
+  // L'étiquette d'un bloc retiré : la seule marque de son retrait dans ce qui suit.
+  const change = isRemovedBlock(block) ? gestures.changeOf(edit, words) : null;
+  const phrase =
+    change == null ? settingsPhrase(block.settings, block.exercises.length, names) : null;
 
   return (
     <section className="flex flex-col gap-cmv-sm">
       <div className="flex flex-wrap items-center gap-cmv-sm">
         {number == null ? (
-          <span className="text-cmv-h3 text-cmv-text-hi">{block.label}</span>
+          <span
+            className={cn(
+              "text-cmv-h3",
+              change == null ? "text-cmv-text-hi" : "text-cmv-text-lo line-through",
+            )}
+          >
+            {block.label}
+          </span>
         ) : (
           <BlockMark mark={number} kind="block" />
         )}
         {phrase == null ? null : (
           <span className="text-cmv-caption text-cmv-text-mid">{text(phrase)}</span>
         )}
-      </div>
-
-      <div className="ml-cmv-md flex flex-col gap-cmv-sm border-cmv-border border-l pl-cmv-md">
-        {block.exercises.map((exercise, index) => (
-          <PlannedExerciseCard
-            key={exercise.key}
-            block={block}
-            blockIndex={blockIndex}
-            blockName={blockName}
-            exercise={exercise}
-            code={codes[index] ?? null}
-            referenceCodes={referenceCodes}
-            gestures={gestures}
-          />
-        ))}
-
-        {removedReferences(block).map((reference) => {
-          const place = block.baseline.exercises.indexOf(reference);
-          const title = gestures.titleOfExercise(reference.exerciseId);
-          const was = named(referenceCodes[place], title);
-          const edit: CompositionEdit = {
-            kind: CompositionEditKind.REMOVE,
-            blockIndex,
-            key: reference.key,
-          };
-          return (
-            <ComposedExerciseCard
-              key={reference.key}
-              code={referenceCodes[place] ?? null}
-              title={title}
-              tags={[]}
-              grid={null}
-              customMetrics={[]}
-              note={null}
-              removed
-              change={gestures.changeOf(edit, {
-                kind: CompositionEditKind.REMOVE,
-                athlete: athleteName,
-                exercise: null,
-                was,
-                block: blockName,
-              })}
-              onReplace={null}
-              onRemove={null}
-              readOnly={readOnly}
-              isBusy={isBusy}
-            />
-          );
-        })}
-
-        {readOnly ? null : (
-          <AddOrPick
-            picking={pickingHere}
-            label={t("plan.composition.add", { name: athleteName })}
-            hint={
-              codes[block.exercises.length] == null
-                ? null
-                : t("plan.composition.arrivesAt", { code: codes[block.exercises.length] })
-            }
-            exercises={gestures.exercises}
-            isBusy={isBusy}
-            onStart={() => gestures.onPickStart({ kind: "add", blockIndex, block: blockName })}
-            onPick={gestures.onPick}
-            onCancel={() => gestures.onPickStart(null)}
-          />
+        {change == null ? null : (
+          <CmvButton variant="change" onClick={change.onReopen} disabled={readOnly || isBusy}>
+            {change.label}
+          </CmvButton>
+        )}
+        {change != null || readOnly || !gestures.canRemoveBlock ? null : (
+          <span className="ml-auto">
+            <CmvButton
+              variant="ghost"
+              onClick={() => gestures.onRemove(edit, words)}
+              disabled={isBusy}
+            >
+              {t("plan.composition.removeBlock", { name: athleteName })}
+            </CmvButton>
+          </span>
         )}
       </div>
+
+      {change == null ? (
+        <BlockExercises {...props} blockName={blockName} />
+      ) : (
+        <RemovedBlock {...props} onRevert={change.onRevert} />
+      )}
     </section>
+  );
+}
+
+/**
+ * Un bloc retiré : les exercices que la séance-type y mettait, barrés, et « Revenir à la
+ * séance-type », qui les rend tous.
+ */
+function RemovedBlock({
+  block,
+  number,
+  gestures,
+  onRevert,
+}: Readonly<CompositionBlockProps & { onRevert: () => void }>) {
+  const { t } = useTranslation();
+  const codes = exerciseCodes(number, block.baseline.exercises.length);
+  const names = block.baseline.exercises.map((reference, index) =>
+    named(codes[index], gestures.titleOfExercise(reference.exerciseId)),
+  );
+  return (
+    <div className="ml-cmv-md flex flex-col gap-cmv-sm border-cmv-border border-l border-dashed pl-cmv-md">
+      <p className="text-cmv-caption text-cmv-text-lo line-through">{names.join(" · ")}</p>
+      {gestures.readOnly ? null : (
+        <div>
+          <CmvButton variant="secondary" onClick={onRevert} disabled={gestures.isBusy}>
+            {t("plan.composition.backToSessionType")}
+          </CmvButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Les exercices d'un bloc que la séance porte encore, ceux qu'il a perdus, et l'ajout. */
+function BlockExercises({
+  block,
+  blockIndex,
+  number,
+  gestures,
+  blockName,
+}: Readonly<CompositionBlockProps & { blockName: string }>) {
+  const { t } = useTranslation();
+  const { athleteName, readOnly, isBusy, picking } = gestures;
+  const codes = exerciseCodes(number, block.exercises.length + 1);
+  const referenceCodes = exerciseCodes(number, block.baseline.exercises.length);
+  const pickingHere = picking?.blockIndex === blockIndex ? picking : null;
+
+  return (
+    <div className="ml-cmv-md flex flex-col gap-cmv-sm border-cmv-border border-l pl-cmv-md">
+      {block.exercises.map((exercise, index) => (
+        <PlannedExerciseCard
+          key={exercise.key}
+          block={block}
+          blockIndex={blockIndex}
+          blockName={blockName}
+          exercise={exercise}
+          code={codes[index] ?? null}
+          referenceCodes={referenceCodes}
+          gestures={gestures}
+        />
+      ))}
+
+      {removedReferences(block).map((reference) => {
+        const place = block.baseline.exercises.indexOf(reference);
+        const title = gestures.titleOfExercise(reference.exerciseId);
+        const was = named(referenceCodes[place], title);
+        const edit: CompositionEdit = {
+          kind: CompositionEditKind.REMOVE,
+          blockIndex,
+          key: reference.key,
+        };
+        return (
+          <ComposedExerciseCard
+            key={reference.key}
+            code={referenceCodes[place] ?? null}
+            title={title}
+            tags={[]}
+            grid={null}
+            customMetrics={[]}
+            note={null}
+            removed
+            change={gestures.changeOf(edit, {
+              kind: CompositionEditKind.REMOVE,
+              athlete: athleteName,
+              exercise: null,
+              was,
+              block: blockName,
+            })}
+            onReplace={null}
+            onRemove={null}
+            readOnly={readOnly}
+            isBusy={isBusy}
+          />
+        );
+      })}
+
+      {readOnly ? null : (
+        <AddOrPick
+          picking={pickingHere}
+          label={t("plan.composition.add", { name: athleteName })}
+          hint={
+            codes[block.exercises.length] == null
+              ? null
+              : t("plan.composition.arrivesAt", { code: codes[block.exercises.length] })
+          }
+          exercises={gestures.exercises}
+          isBusy={isBusy}
+          onStart={() => gestures.onPickStart({ kind: "add", blockIndex, block: blockName })}
+          onPick={gestures.onPick}
+          onCancel={() => gestures.onPickStart(null)}
+        />
+      )}
+    </div>
   );
 }
 

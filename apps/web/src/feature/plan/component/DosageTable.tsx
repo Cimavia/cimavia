@@ -19,6 +19,7 @@ import {
   formatMetricValue,
   formatTrainingDuration,
   type GridMetric,
+  isRemovedBlock,
   type MetricValue,
   metricLabel,
   metricProgressionMeasure,
@@ -60,6 +61,7 @@ const OFF_LABEL: Record<DosageOff, string> = {
   [DosageOff.REMOVED]: "plan.dosage.off.REMOVED",
   [DosageOff.NOT_THIS_WEEK]: "plan.dosage.off.NOT_THIS_WEEK",
   [DosageOff.NONE]: "plan.dosage.off.NONE",
+  [DosageOff.BLOCK_REMOVED]: "plan.dosage.off.BLOCK_REMOVED",
 };
 
 /** Ce qu'une cellule règle : une valeur du bloc, ou une métrique d'un exercice. */
@@ -440,13 +442,16 @@ function blockPhrases(
   };
 }
 
-/** Ce que dit le bloc d'une semaine, sur ses valeurs et ses exercices ; rien où il n'est pas. */
+/**
+ * Ce que dit le bloc d'une semaine, sur ses valeurs et ses exercices ; rien où il n'est pas, ni
+ * là où il est retiré (#744).
+ */
 function weekPhrase(
   block: ScheduledSessionBlockDto | undefined,
   rows: RowIndex,
   sets: boolean,
 ): Phrase[] | null {
-  if (block == null) return null;
+  if (block == null || isRemovedBlock(block)) return null;
   const names = block.exercises.map((exercise) => titleOf(rows, exercise.id));
   return settingsPhrase(block.settings, block.exercises.length, names, sets);
 }
@@ -460,7 +465,8 @@ function isSets(
   copies: readonly ScheduledSessionCopyDto[],
 ): boolean {
   if (group.reference.exercises.length !== 1) return false;
-  return copies.every((copy) => (copy.blocks[group.blockIndex]?.exercises.length ?? 1) === 1);
+  // Une semaine où le bloc est absent, ou retiré (#744), ne dit rien de ses exercices.
+  return copies.every((copy) => (copy.blocks[group.blockIndex]?.exercises.length ?? 1) <= 1);
 }
 
 /** « ajouté », ou « remplace A1 » : ce que certaines semaines seulement portent. */
