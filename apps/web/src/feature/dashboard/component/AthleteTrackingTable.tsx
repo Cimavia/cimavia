@@ -86,12 +86,13 @@ export function AthleteTrackingTable({
 
             <PlanCell plan={row.plan} canOfferPlan={canOfferPlan} />
 
-            {/* Mène au dernier débrief NON LU quand il y en a un, sinon à la liste sans rien
-                présélectionner — `undefined` retire simplement le paramètre de l'URL. */}
+            {/* Mène au débrief NON LU qui attend depuis le plus longtemps quand il y en a un, sinon
+                à la liste sans rien présélectionner — `undefined` retire simplement le paramètre
+                de l'URL. */}
             <CountCell
               count={row.unreadFeedbacks}
               to="/feedbacks"
-              search={{ feedback: row.lastUnreadFeedbackId ?? undefined, session: undefined }}
+              search={{ feedback: row.oldestUnreadFeedbackId ?? undefined, session: undefined }}
             />
 
             {/* Toujours cliquable, même à zéro : la colonne sert aussi à ÉCRIRE, pas seulement à

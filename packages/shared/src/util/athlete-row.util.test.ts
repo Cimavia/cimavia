@@ -34,13 +34,14 @@ const FULL: AthleteRowsInput = {
   athletes: [LEA, NOAH],
   plans: [LEA_PLAN],
   feedbacks: [
-    { id: "fbk_1", athleteId: LEA.athleteId, coachReadAt: null, createdAt: "2026-10-24T09:00:00Z" },
-    { id: "fbk_2", athleteId: LEA.athleteId, coachReadAt: null, createdAt: "2026-10-25T09:00:00Z" },
+    { id: "fbk_1", athleteId: LEA.athleteId, coachReadAt: null, updatedAt: "2026-10-24T09:00:00Z" },
+    { id: "fbk_2", athleteId: LEA.athleteId, coachReadAt: null, updatedAt: "2026-10-25T09:00:00Z" },
+    // Le plus ancien de tous, mais lu : il n'attend plus personne, le lien ne l'ouvre pas.
     {
       id: "fbk_3",
       athleteId: LEA.athleteId,
       coachReadAt: "2026-10-23T09:00:00Z",
-      createdAt: "2026-10-23T08:00:00Z",
+      updatedAt: "2026-10-23T08:00:00Z",
     },
   ],
   conversations: [
@@ -153,13 +154,39 @@ describe("buildAthleteRows", () => {
     expect(rows?.map((row) => row.plan)).toEqual([null, null]);
   });
 
-  it("compte les débriefs NON LUS et retient le plus récent pour le lien", () => {
+  it("compte les débriefs NON LUS et retient le plus ancien pour le lien", () => {
     const [lea, noah] = buildAthleteRows(FULL) ?? [];
     expect(lea?.unreadFeedbacks).toBe(2);
-    // Le plus récent des deux non lus — c'est celui que la colonne doit ouvrir.
-    expect(lea?.lastUnreadFeedbackId).toBe("fbk_2");
+    // Le plus ancien des deux non lus — c'est celui que la colonne doit ouvrir (#704).
+    expect(lea?.oldestUnreadFeedbackId).toBe("fbk_1");
     expect(noah?.unreadFeedbacks).toBe(0);
-    expect(noah?.lastUnreadFeedbackId).toBeNull();
+    expect(noah?.oldestUnreadFeedbackId).toBeNull();
+  });
+
+  /**
+   * Un débrief lu repasse non lu quand l'athlète le complète : il n'attend le coach que depuis.
+   * Compté depuis sa CRÉATION, ce débrief d'il y a un mois, revenu ce matin, passerait devant
+   * celui qui attend depuis une semaine — l'inverse de l'ordre de la boîte de réception.
+   */
+  it("élit le non-lu qui attend depuis le plus longtemps, pas le plus ancien créé", () => {
+    const completedToday = {
+      id: "fbk_repris",
+      athleteId: LEA.athleteId,
+      coachReadAt: null,
+      createdAt: "2026-09-25T09:00:00Z",
+      updatedAt: "2026-10-26T08:00:00Z",
+    };
+    const waitingSinceLastWeek = {
+      id: "fbk_attente",
+      athleteId: LEA.athleteId,
+      coachReadAt: null,
+      createdAt: "2026-10-19T09:00:00Z",
+      updatedAt: "2026-10-19T09:00:00Z",
+    };
+
+    const [lea] =
+      buildAthleteRows({ ...FULL, feedbacks: [completedToday, waitingSinceLastWeek] }) ?? [];
+    expect(lea?.oldestUnreadFeedbackId).toBe("fbk_attente");
   });
 
   /**
@@ -184,18 +211,18 @@ describe("buildAthleteRows", () => {
   });
 
   /**
-   * Le « plus récent » se lit sur les DATES, pas sur l'ordre d'arrivée : l'API ne garantit aucun
-   * tri. Rendre la liste à l'envers ne doit changer ni le débrief ouvert par le lien, ni la
-   * pastille de facturation.
+   * Le plus ancien débrief et la plus récente facture se lisent sur les DATES, pas sur l'ordre
+   * d'arrivée : l'API ne garantit aucun tri. Rendre la liste à l'envers ne doit changer ni le
+   * débrief ouvert par le lien, ni la pastille de facturation.
    */
-  it("élit le débrief et la facture les plus récents quel que soit l'ordre reçu", () => {
+  it("élit le débrief et la facture quel que soit l'ordre reçu", () => {
     const [lea] =
       buildAthleteRows({
         ...FULL,
         feedbacks: FULL.feedbacks?.toReversed(),
         invoices: FULL.invoices?.toReversed(),
       }) ?? [];
-    expect(lea?.lastUnreadFeedbackId).toBe("fbk_2");
+    expect(lea?.oldestUnreadFeedbackId).toBe("fbk_1");
     expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
   });
 
@@ -205,7 +232,7 @@ describe("buildAthleteRows", () => {
    */
   it("départage par l'id deux éléments datés à l'identique, quel que soit l'ordre reçu", () => {
     const at = "2026-10-25T09:00:00Z";
-    const feedback = { athleteId: LEA.athleteId, coachReadAt: null, createdAt: at };
+    const feedback = { athleteId: LEA.athleteId, coachReadAt: null, updatedAt: at };
     const feedbacks = [
       { ...feedback, id: "fbk_b" },
       { ...feedback, id: "fbk_a" },
@@ -223,7 +250,7 @@ describe("buildAthleteRows", () => {
       invoices: invoices.toReversed(),
     });
     for (const [lea] of [asReceived ?? [], reversed ?? []]) {
-      expect(lea?.lastUnreadFeedbackId).toBe("fbk_a");
+      expect(lea?.oldestUnreadFeedbackId).toBe("fbk_a");
       expect(lea?.invoiceState).toBe(InvoiceState.OVERDUE);
     }
   });
@@ -309,7 +336,7 @@ describe("buildAthleteRows", () => {
       athleteName: NOAH.athleteName,
       plan: null,
       unreadFeedbacks: 0,
-      lastUnreadFeedbackId: null,
+      oldestUnreadFeedbackId: null,
       unreadMessages: 0,
       invoiceState: null,
     });
@@ -321,7 +348,7 @@ const BLANK: AthleteRow = {
   athleteName: "",
   plan: null,
   unreadFeedbacks: 0,
-  lastUnreadFeedbackId: null,
+  oldestUnreadFeedbackId: null,
   unreadMessages: 0,
   invoiceState: null,
 };

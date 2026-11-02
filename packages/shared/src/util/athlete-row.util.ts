@@ -46,7 +46,11 @@ export type AthleteFeedbackSource = {
   id: string;
   athleteId: string;
   coachReadAt: string | null;
-  createdAt: string;
+  /**
+   * Bouge quand l'athlète complète son débrief, qui repasse alors non lu : c'est depuis cette date
+   * qu'il attend le coach, pas depuis sa création.
+   */
+  updatedAt: string;
 };
 
 // La conversation ne nomme pas son athlète : il se lit parmi ses participants, et seul le fil À
@@ -103,8 +107,12 @@ export type AthleteRow = {
   plan: AthleteRowPlan | null;
   /** `null` = liste indisponible → « — ». `0` = tout est lu. Les deux ne disent pas la même chose. */
   unreadFeedbacks: number | null;
-  /** Le plus récent débrief non lu, pour l'ouvrir directement. `null` s'il n'y en a aucun. */
-  lastUnreadFeedbackId: string | null;
+  /**
+   * Le débrief non lu qui attend depuis le plus longtemps, pour l'ouvrir directement : la file se
+   * vide dans l'ordre, sans qu'un vieux débrief reste enterré sous les récents (#704). `null` s'il
+   * n'y en a aucun.
+   */
+  oldestUnreadFeedbackId: string | null;
   unreadMessages: number | null;
   /** État de la DERNIÈRE facture émise. `null` = aucune, ou liste indisponible. */
   invoiceState: InvoiceState | null;
@@ -162,8 +170,9 @@ export function buildAthleteRows(input: AthleteRowsInput): AthleteRow[] | null {
     athleteName: athlete.athleteName,
     plan: currentAthletePlan(plansOf(athlete.athleteId), input.today),
     unreadFeedbacks: input.feedbacks == null ? null : unreadFeedbacksOf(athlete.athleteId).length,
-    lastUnreadFeedbackId:
-      latestOf(unreadFeedbacksOf(athlete.athleteId), (feedback) => feedback.createdAt)?.id ?? null,
+    oldestUnreadFeedbackId:
+      firstByDate(unreadFeedbacksOf(athlete.athleteId), (feedback) => feedback.updatedAt, "oldest")
+        ?.id ?? null,
     // Pas encore de fil ouvert = 0 message non lu, pas « inconnu » : la liste a répondu.
     unreadMessages:
       input.conversations == null ? null : (unreadMessagesByAthlete.get(athlete.athleteId) ?? 0),
@@ -291,18 +300,22 @@ function matchesFilter(row: AthleteRow, filter: AthleteRowFilter): boolean {
 }
 
 /**
- * Le plus RÉCENT selon `dateOf` — le débrief qu'ouvre le lien de la colonne, la facture qui donne
- * sa pastille. À date égale, le plus petit `id` : le choix ne doit pas dépendre de l'ordre
- * d'arrivée, sans quoi le lien et la pastille changeraient d'un chargement à l'autre.
+ * Le premier selon `dateOf`, dans le sens demandé — le débrief non lu le plus ANCIEN qu'ouvre le
+ * lien de la colonne, la facture la plus RÉCENTE qui donne sa pastille. À date égale, le plus petit
+ * `id`, dans les deux sens : le choix ne doit pas dépendre de l'ordre d'arrivée, sans quoi le lien
+ * et la pastille changeraient d'un chargement à l'autre.
  */
-function latestOf<T extends { id: string }>(
+function firstByDate<T extends { id: string }>(
   items: readonly T[],
   dateOf: (item: T) => string,
+  order: "oldest" | "latest",
 ): T | null {
-  const [latest] = [...items].sort(
-    (left, right) => dateOf(right).localeCompare(dateOf(left)) || left.id.localeCompare(right.id),
+  const direction = order === "oldest" ? 1 : -1;
+  const [first] = [...items].sort(
+    (left, right) =>
+      direction * dateOf(left).localeCompare(dateOf(right)) || left.id.localeCompare(right.id),
   );
-  return latest ?? null;
+  return first ?? null;
 }
 
 /**
@@ -314,7 +327,7 @@ function latestInvoiceState(
   invoices: readonly IssuedInvoice[],
   today: string,
 ): InvoiceState | null {
-  const latest = latestOf(invoices, (invoice) => invoice.issuedAt);
+  const latest = firstByDate(invoices, (invoice) => invoice.issuedAt, "latest");
   return latest == null ? null : resolveInvoiceState(latest, today);
 }
 
