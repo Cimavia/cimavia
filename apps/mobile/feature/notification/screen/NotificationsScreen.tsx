@@ -1,10 +1,18 @@
-import { NOTIFICATION_LABEL_KEY, type NotificationDto, notificationSubject } from "@cmv/shared";
+import {
+  NOTIFICATION_LABEL_KEY,
+  type NotificationCategoryType,
+  type NotificationDto,
+  notificationCategoriesFor,
+  notificationSubject,
+} from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { useQueryClient } from "@tanstack/react-query";
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { notificationKeys } from "@/feature/notification/api";
+import { NotificationCategoryFilter } from "@/feature/notification/component/NotificationCategoryFilter";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -25,16 +33,36 @@ export function NotificationsScreen() {
   const queryClient = useQueryClient();
   // Les destinations dépendent des écrans dont ce rôle dispose, pas seulement du type de la cible.
   const capabilities = useCapabilities();
-  const { data: notifications, isPending, isError, isRefetching, refetch } = useNotifications();
+  // Le filtre du centre (#694), `null` = « Toutes ».
+  const [category, setCategory] = useState<NotificationCategoryType | null>(null);
+  const {
+    data: notifications,
+    isPending,
+    isError,
+    isRefetching,
+    refetch,
+  } = useNotifications(category);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
-  // Refetch à chaque passage au premier plan : c'est l'écran où l'on vient justement voir ce qui
-  // est arrivé pendant qu'on regardait ailleurs — le cache persisté ne suffit pas.
+  /**
+   * À chaque passage au premier plan : retour à « Toutes », puis relecture. C'est l'écran où l'on
+   * vient justement voir ce qui est arrivé pendant qu'on regardait ailleurs — le cache persisté ne
+   * suffit pas.
+   *
+   * Le filtre n'est PAS mémorisé (#694), comme sur le web : le badge d'onglet compte toutes les
+   * catégories, un filtre retenu y opposerait une liste vide. Il faut le remettre à zéro ici parce
+   * que l'onglet reste monté d'une visite à l'autre, son état aussi.
+   *
+   * `invalidateQueries` et non `refetch` : celui-ci viserait la catégorie AVANT la remise à zéro.
+   * L'invalidation relit « Toutes » si elle est déjà affichée, et sinon la marque périmée pour que
+   * le rendu suivant la lise — une seule requête dans les deux cas.
+   */
   useFocusEffect(
     useCallback(() => {
-      void refetch();
-    }, [refetch]),
+      setCategory(null);
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.list(null) });
+    }, [queryClient]),
   );
 
   const hasNotifications = notifications != null && notifications.length > 0;
@@ -66,13 +94,19 @@ export function NotificationsScreen() {
           {t("notification.title")}
         </CmvText>
         {hasUnread ? (
-          <Pressable onPress={() => markAllRead.mutate()} hitSlop={8}>
+          <Pressable onPress={() => markAllRead.mutate(category)} hitSlop={8}>
             <CmvText className="text-cmv-accent-on text-sm">
               {t("notification.markAllRead")}
             </CmvText>
           </Pressable>
         ) : null}
       </View>
+
+      <NotificationCategoryFilter
+        categories={notificationCategoriesFor(capabilities)}
+        category={category}
+        onChange={setCategory}
+      />
 
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"
@@ -92,8 +126,11 @@ export function NotificationsScreen() {
         {!isPending && !isError && !hasNotifications ? (
           <View className="gap-2 rounded-lg border border-cmv-border border-dashed p-6">
             <CmvText className="text-cmv-text-hi">{t("notification.empty.title")}</CmvText>
+            {/* Le vide d'un filtre n'est pas le vide du centre : il ne promet pas ce qui arrivera. */}
             <CmvText className="text-cmv-text-mid text-sm">
-              {t("notification.empty.description")}
+              {t(
+                category == null ? "notification.empty.description" : "notification.empty.category",
+              )}
             </CmvText>
           </View>
         ) : null}
