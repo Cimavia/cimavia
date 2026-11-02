@@ -439,6 +439,27 @@ describe("DosageScreen", () => {
     expect(await view.findByRole("heading", { name: "Force" })).toBeTruthy();
   });
 
+  // Une lecture qui traîne se quitte comme une lecture en panne : par le retour (#746).
+  it.each([
+    ["le cycle", () => vi.mocked(getPlan).mockReturnValue(new Promise(() => undefined))],
+    [
+      "les copies",
+      () => vi.mocked(getScheduledSessionCopies).mockReturnValue(new Promise(() => undefined)),
+    ],
+  ])("ramène au cycle pendant que %s se lit", async (_, stall) => {
+    const read = stall();
+    const view = await mount();
+
+    // La lecture QUI TRAÎNE, et non le chargement d'avant : celui du cycle précède les copies, et
+    // affiche le même texte.
+    await waitFor(() => expect(read).toHaveBeenCalled());
+    expect(view.getByText("common.loading")).toBeTruthy();
+    expect(view.getByRole("link", { name: "plan.dosage.back" })).toHaveAttribute(
+      "href",
+      "/plans/pln_1",
+    );
+  });
+
   it("ramène au cycle quand le cycle lui-même ne se lit pas", async () => {
     vi.mocked(getPlan).mockRejectedValueOnce(new Error("panne"));
     const view = await mount();

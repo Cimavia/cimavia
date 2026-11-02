@@ -68,7 +68,7 @@ export function DosageScreen() {
     return plan.isError ? (
       <DosageUnreadable planId={planId} onRetry={() => void plan.refetch()} />
     ) : (
-      <DosageLoading />
+      <DosageLoading planId={planId} />
     );
   }
   const current = types.find((each) => each.key === (type ?? opening)) ?? types[0];
@@ -125,7 +125,7 @@ function DosageLoader({ onReloadPlan, ...props }: Readonly<DosageLoaderProps>) {
     return copies.isError ? (
       <DosageUnreadable planId={props.plan.id} onRetry={() => void copies.refetch()} />
     ) : (
-      <DosageLoading />
+      <DosageLoading planId={props.plan.id} />
     );
   }
   return (
@@ -157,17 +157,19 @@ function DosageUnreadable({ planId, onRetry }: Readonly<{ planId: string; onRetr
   );
 }
 
-function DosageLoading() {
+// Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
+// ni menu, plus démuni qu'une lecture en panne (#746).
+function DosageLoading({ planId }: Readonly<{ planId: string }>) {
   const { t } = useTranslation();
   return (
-    <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-      {t("common.loading")}
-    </main>
+    <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
+      <p className="text-cmv-text-mid">{t("common.loading")}</p>
+    </CmvAppShell>
   );
 }
 
 /**
- * Le retour au cycle, comme « Planifications » le fait depuis le cycle — dans le bandeau, où il
+ * Le retour au cycle, comme le cycle a le sien vers les planifications — dans le bandeau, où il
  * reste à portée sous un tableau qui défile (#746). Pas de fil d'Ariane (#721).
  */
 function backToPlan(t: TFunction, planId: string) {

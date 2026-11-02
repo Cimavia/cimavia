@@ -217,11 +217,14 @@ export function PlanBuilderScreen() {
     useUnsavedInputs();
   useRequestedSession(plan, isFetching, setEdit);
 
+  // Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
+  // ni menu, plus démuni qu'une lecture en panne (#746). Le titre attend le cycle sans dire
+  // « Planifications » : ce serait l'écran où mène le retour posé juste à côté.
   if (isPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
+      <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
+        <p className="text-cmv-text-mid">{t("common.loading")}</p>
+      </CmvAppShell>
     );
   }
   // Sur la DONNÉE, pas sur l'échec : une relecture ratée — « Recharger », un retour d'onglet —
@@ -558,7 +561,7 @@ function PlanUnreadable({ error, onRetry }: Readonly<{ error: unknown; onRetry: 
     return <Navigate {...PLANS_LINK} />;
   }
   return (
-    <CmvAppShell title={t("plan.title")} back={backToPlans(t)}>
+    <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
       <CmvErrorState
         title={t("common.errorTitle")}
         description={t("common.errorDescription")}

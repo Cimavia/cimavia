@@ -787,6 +787,7 @@
     },
     "builder": {
       "back": "Planifications",
+      "fallbackTitle": "Cycle",
       "addWeek": "Ajouter une semaine",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",

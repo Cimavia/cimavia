@@ -315,10 +315,15 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
     vi.clearAllMocks();
   });
 
-  it("attend le cycle avant de rien affirmer", async () => {
-    const { getByText } = await mount({}, null, [], { isPending: true, data: undefined });
+  // Une lecture qui traîne se quitte comme une lecture en panne : par le retour (#746).
+  it("attend le cycle avant de rien affirmer, sans retenir le Coach", async () => {
+    const { getByRole, getByText } = await mount({}, null, [], {
+      isPending: true,
+      data: undefined,
+    });
 
     expect(getByText("common.loading")).toBeTruthy();
+    expect(getByRole("link", { name: "plan.builder.back" })).toHaveAttribute("href", "/plans");
   });
 
   // Une panne n'est pas une disparition : rediriger vers la liste laisserait croire le cycle perdu.
