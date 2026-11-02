@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { cn } from "@/shared/util/cn.util";
 import { CmvButton } from "./CmvButton";
 
 type CmvConfirmButtonProps = {
@@ -23,6 +24,11 @@ type CmvConfirmButtonProps = {
    * pas le survol) : la raison vit sur une enveloppe, et le bouton laisse passer le pointeur.
    */
   disabledReason?: string;
+  /**
+   * La place de l'état armé, quand il ne tient pas où était le bouton : sur une carte étroite, il
+   * passe sous le titre, sur toute sa largeur (#690). Omis, il prend la place du bouton.
+   */
+  armedClassName?: string | undefined;
 };
 
 /**
@@ -39,6 +45,7 @@ export function CmvConfirmButton({
   icon,
   confirmHint,
   disabledReason,
+  armedClassName,
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
 
@@ -67,7 +74,7 @@ export function CmvConfirmButton({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-cmv-xs">
+    <div className={cn("flex flex-wrap items-center gap-cmv-xs", armedClassName)}>
       {confirmHint == null ? null : (
         <span className="text-cmv-caption text-cmv-text-mid">{confirmHint}</span>
       )}

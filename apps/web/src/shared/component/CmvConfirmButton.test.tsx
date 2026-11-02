@@ -51,6 +51,15 @@ describe("CmvConfirmButton", () => {
     expect(wrapper).toHaveClass("[&>button]:pointer-events-none");
   });
 
+  // #690 : sur une carte étroite, l'état armé passe sous le titre au lieu d'écraser la carte.
+  it("pose l'état armé où l'appelant le place", async () => {
+    const { user, getByRole } = setup({ armedClassName: "basis-full" });
+
+    await user.click(getByRole("button", { name: "Supprimer" }));
+
+    expect(getByRole("button", { name: "Confirmer" }).parentElement).toHaveClass("basis-full");
+  });
+
   it("garde l'icône d'un bouton-icône fermé, et son nom accessible", () => {
     const { getByRole, queryByText } = setup({
       disabledReason: "Séance débriefée",
