@@ -88,7 +88,10 @@ liste des domaines vivent dans l'index.
 > nommées (« À traiter » / « Vue d'ensemble ») là où la maquette n'en prévoyait qu'une de quatre —
 > à sept, une strip unique redevient une grille indifférenciée où rien ne ressort ; et les tuiles
 > « à traiter » sont **cliquables**, alors que la strip de la maquette est décorative — une tuile qui
-> annonce du travail sans y mener est un cul-de-sac.
+> annonce du travail sans y mener est un cul-de-sac. **Tranché en #703** : cliquable ne suffisait pas,
+> rien ne le montrait. Une carte qui ouvre un écran porte un **chevron** (web : posé par `CmvCard`
+> lui-même, qui répond aussi au survol et au focus ; mobile : `DashboardTile`), plutôt qu'un simple
+> effet de survol, invisible avant le geste et absent au tactile.
 
 > **Tranché en #301** (la fiche s'édite une fois REÇUE, pas « tant qu'il n'y a pas d'erreur ») :
 > le panneau web rendait un échec de lecture comme une fiche vierge, et `PUT` remplace — le coach

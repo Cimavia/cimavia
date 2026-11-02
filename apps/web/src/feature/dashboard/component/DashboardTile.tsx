@@ -84,7 +84,9 @@ export function DashboardTile({
       {...(onClick == null ? {} : { onClick })}
       {...(isSignalling ? { surfaceClassName: TONE_SURFACE_CLASS[tone] } : {})}
     >
-      <div className="flex flex-col gap-cmv-xs">
+      {/* `span` et non `div` : la tuile qui ouvre un écran est un bouton, qui n'admet que du
+          contenu de phrase. */}
+      <span className="flex flex-col gap-cmv-xs">
         <span className="text-cmv-caption text-cmv-text-mid">{label}</span>
         <span
           className={cn(
@@ -100,7 +102,7 @@ export function DashboardTile({
         >
           {hint}
         </span>
-      </div>
+      </span>
     </CmvCard>
   );
 }
