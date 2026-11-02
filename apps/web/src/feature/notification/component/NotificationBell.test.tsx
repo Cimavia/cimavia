@@ -4,7 +4,7 @@ import {
   NotificationType,
   toReminderFeedId,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { notificationApi } from "@/feature/notification/api";
 import { renderInRoute } from "../../../../test/render";
@@ -451,6 +451,48 @@ describe("NotificationBell — le panneau réglable (#695)", () => {
 
     expect(corner).toHaveAttribute("aria-valuenow", "336");
     expect(stored()).toMatchObject({ popover: { width: 336, height: 400 } });
+  });
+
+  // Sorti par un portail en fin de page : le focus y entre, puis revient à la cloche.
+  it("prend le focus à l'ouverture, et le rend à la cloche", async () => {
+    const view = await mount();
+    await openBell(view);
+
+    expect(await view.findByRole("dialog", { name: "notification.title" })).toHaveFocus();
+    await view.user.keyboard("{Escape}");
+    expect(view.getByRole("button", { name: BELL })).toHaveFocus();
+  });
+
+  // Dans le bandeau `sticky z-20`, un en-tête de tableau collant passait par-dessus.
+  it("s'ouvre hors du bandeau qui porte la cloche", async () => {
+    const view = await mount();
+    await openBell(view);
+    const corner = await view.findByRole("separator");
+
+    expect(view.getByRole("button", { name: BELL }).parentElement?.contains(corner)).toBe(false);
+  });
+
+  // Glisser re-rendrait la liste et réécrirait le stockage à chaque mouvement : seul le
+  // relâchement retient la taille.
+  it("ne retient la taille qu'au relâchement", async () => {
+    placeBell();
+    const view = await mount();
+    await openBell(view);
+    const corner = await view.findByRole("separator");
+
+    fireEvent.pointerDown(corner, {
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      clientX: 600,
+      clientY: 0,
+    });
+    fireEvent.pointerMove(corner, { buttons: 1, pointerId: 1, clientX: 500, clientY: 50 });
+    expect(corner).toHaveAttribute("aria-valuenow", "420");
+    expect(stored()).toMatchObject({ popover: null });
+
+    fireEvent.pointerUp(corner, { pointerId: 1 });
+    expect(stored()).toMatchObject({ popover: { width: 420, height: 434 } });
   });
 
   // Enregistrée sur un grand écran : la cloche finit à 1000 px, la fenêtre à 768 px de haut.

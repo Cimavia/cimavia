@@ -7,6 +7,7 @@ import { NotificationCenter } from "@/feature/notification/component/Notificatio
 import { useNotificationPanelLayout } from "@/feature/notification/hook/useNotificationPanelLayout";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { CmvPanel, CmvResizeHandle } from "@/shared/component";
+import { useAnchoredPosition } from "@/shared/hook/useAnchoredPosition";
 import { useViewportSize } from "@/shared/hook/useViewportSize";
 import { cn } from "@/shared/util/cn.util";
 import { clampSize, type Size } from "@/shared/util/resize.util";
@@ -41,6 +42,7 @@ export function NotificationBell() {
   const [category, setCategory] = useState<NotificationCategoryType | null>(null);
   const { layout, update } = useNotificationPanelLayout();
   const anchorRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
   /**
    * La bascule vit dans le conteneur qu'elle remplace : un clic la démonte, et le focus clavier
    * retomberait sur la page. Celle du nouveau conteneur le reprend à son montage.
@@ -55,13 +57,19 @@ export function NotificationBell() {
   useEffect(() => {
     if (!open || side) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      bellRef.current?.focus();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, side]);
 
-  const close = () => setOpen(false);
+  // Le focus revient à la cloche : le panneau, sorti par un portail, l'emporterait sinon avec lui.
+  const close = () => {
+    setOpen(false);
+    bellRef.current?.focus();
+  };
   const hasUnread = unreadCount != null && unreadCount > 0;
   const toggleLabel = t(side ? "notification.layout.popover" : "notification.layout.side");
 
@@ -97,6 +105,7 @@ export function NotificationBell() {
   return (
     <div ref={anchorRef} className="relative">
       <button
+        ref={bellRef}
         type="button"
         onClick={() => {
           setCategory(null);
@@ -114,27 +123,30 @@ export function NotificationBell() {
         ) : null}
       </button>
 
-      {open && !side ? (
-        <>
-          {/* Fond cliquable : ferme au clic en dehors, comme le slide-over du design system. */}
-          <button
-            type="button"
-            aria-label={t("common.close")}
-            onClick={close}
-            className="fixed inset-0 z-40 cursor-default"
-          />
-          <NotificationPopover
-            anchorRef={anchorRef}
-            size={layout.popover}
-            onResize={(popover) => update({ popover })}
-          >
-            {center}
-          </NotificationPopover>
-        </>
-      ) : null}
-
-      {/* Hors du bandeau, par un portail : `sticky z-20`, il plafonne tout ce qu'il contient à
-          z-20, et un en-tête de tableau collant plus bas dans la page passerait par-dessus. */}
+      {/* Les deux conteneurs vivent hors du bandeau, par un portail : `sticky z-20`, il plafonne
+          tout ce qu'il contient à z-20, et un en-tête de tableau collant plus bas dans la page
+          passerait par-dessus. */}
+      {open && !side
+        ? createPortal(
+            <>
+              {/* Fond cliquable : ferme au clic en dehors, comme le slide-over du design system. */}
+              <button
+                type="button"
+                aria-label={t("common.close")}
+                onClick={close}
+                className="fixed inset-0 z-40 cursor-default"
+              />
+              <NotificationPopover
+                anchorRef={anchorRef}
+                size={layout.popover}
+                onSizeChange={(popover) => update({ popover })}
+              >
+                {center}
+              </NotificationPopover>
+            </>,
+            document.body,
+          )
+        : null}
       {createPortal(
         <CmvPanel
           open={open && side}
@@ -157,37 +169,65 @@ type NotificationPopoverProps = {
   anchorRef: RefObject<HTMLDivElement | null>;
   /** `null` = jamais redimensionné : il suit son contenu jusqu'à sa hauteur d'origine. */
   size: Size | null;
-  onResize: (size: Size) => void;
+  /** La taille retenue, à la fin d'un geste. */
+  onSizeChange: (size: Size) => void;
   children: ReactNode;
 };
 
 function NotificationPopover({
   anchorRef,
   size,
-  onResize,
+  onSizeChange,
   children,
 }: Readonly<NotificationPopoverProps>) {
+  const { t } = useTranslation();
   const viewport = useViewportSize();
+  const panelRef = useRef<HTMLDivElement>(null);
   /**
-   * Ancré à droite de la cloche et ouvert sous elle : il peut grandir jusqu'au bord gauche et au
-   * bas de la fenêtre. La cloche est déjà montée quand le panneau s'ouvre, et le bandeau qui la
-   * porte est fixe : sa position ne bouge qu'avec la fenêtre, dont le changement rend à nouveau.
+   * En `fixed` sous la cloche, aligné à sa droite, et recalé au défilement comme au
+   * redimensionnement (`useAnchoredPosition`) : sorti du bandeau par le portail, il ne la suit plus
+   * de lui-même.
    */
-  const anchor = anchorRef.current?.getBoundingClientRect();
+  const position = useAnchoredPosition(anchorRef, true, "end");
+  /**
+   * La taille pendant un glisser : seul le panneau se re-rend, la cloche — et la liste, qu'elle
+   * passe telle quelle en `children` — n'apprennent la taille qu'au relâchement.
+   */
+  const [draft, setDraft] = useState<Size | null>(null);
+  /**
+   * Le portail le pose en fin de page : sans ça, Tab depuis la cloche parcourrait tout l'écran avant
+   * de l'atteindre. Le focus y entre dès qu'il est placé — sauf s'il y est déjà, rendu à la
+   * bascule depuis le panneau latéral.
+   */
+  const placed = position != null;
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!placed || panel == null || panel.contains(document.activeElement)) return;
+    panel.focus();
+  }, [placed]);
+  // Mesuré au premier effet : rien à montrer avant, plutôt qu'un panneau à la mauvaise place.
+  if (position == null || !("right" in position)) return null;
+
+  // Ancré à droite et ouvert sous la cloche : il grandit jusqu'au bord gauche et au bas de la fenêtre.
   const max: Size = {
-    width: (anchor?.right ?? viewport.width) - VIEWPORT_GUTTER,
-    height: viewport.height - (anchor?.bottom ?? 0) - VIEWPORT_GUTTER,
+    width: document.documentElement.clientWidth - position.right - VIEWPORT_GUTTER,
+    height: viewport.height - position.top - VIEWPORT_GUTTER,
   };
+  const current = draft ?? size;
   // Une taille enregistrée sur un grand écran se ramène ici à celui-ci, sans être réécrite.
-  const shown = size == null ? null : clampSize(size, POPOVER_MIN, max);
+  const shown = current == null ? null : clampSize(current, POPOVER_MIN, max);
 
   return (
     <div
+      ref={panelRef}
+      role="dialog"
+      aria-label={t("notification.title")}
+      tabIndex={-1}
       className={cn(
-        "absolute right-0 z-50 mt-cmv-xs flex flex-col rounded-cmv-lg border border-cmv-border bg-cmv-bg-1 shadow-xl",
+        "fixed z-50 flex flex-col rounded-cmv-lg border border-cmv-border bg-cmv-bg-1 shadow-xl focus:outline-none",
         shown == null && "max-h-96 w-80",
       )}
-      style={shown ?? undefined}
+      style={{ ...position, ...shown }}
     >
       {children}
       <CmvResizeHandle
@@ -195,7 +235,11 @@ function NotificationPopover({
         size={shown ?? POPOVER_MIN}
         min={POPOVER_MIN}
         max={max}
-        onResize={onResize}
+        onResize={setDraft}
+        onResizeEnd={(end) => {
+          setDraft(null);
+          onSizeChange(end);
+        }}
         className="absolute bottom-0 left-0 z-10"
       />
     </div>
