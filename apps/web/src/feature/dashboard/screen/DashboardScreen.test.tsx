@@ -215,6 +215,35 @@ describe("DashboardScreen — les tuiles", () => {
     expect(view.router.state.location.pathname).toBe("/reminders");
   });
 
+  /**
+   * Le retour du Coach bêta (#703) : rien ne distinguait à l'œil les tuiles qui ouvrent un écran
+   * de celles qui ne font qu'informer. Le chevron est posé par la carte cliquable elle-même.
+   */
+  it.each([
+    "dashboard.tiles.feedback",
+    "dashboard.tiles.remindersDue",
+    "dashboard.tiles.overdueInvoices",
+  ])("marque comme ouvrante la tuile à traiter %s", async (label) => {
+    const view = await mount();
+
+    // `toBeInstanceOf` et non `not.toBeNull` : une tuile qui ne serait pas un bouton donnerait
+    // `undefined`, que `not.toBeNull` laisserait passer.
+    const card = (await view.findByText(label)).closest("button");
+    expect(card?.querySelector("svg")).toBeInstanceOf(SVGElement);
+  });
+
+  // Sur la section entière, pas tuile par tuile : un sélecteur calé sur la profondeur du DOM
+  // passerait à vide dès qu'un conteneur s'ajouterait.
+  it("laisse inertes les tuiles de vue d'ensemble", async () => {
+    const view = await mount();
+
+    const section = (await view.findByText("dashboard.section.overview")).closest("section");
+    if (section == null) throw new Error("section « vue d'ensemble » introuvable");
+    expect(within(section).getByText("dashboard.tiles.athletes")).toBeInTheDocument();
+    expect(within(section).queryByRole("button")).toBeNull();
+    expect(section.querySelector("svg")).toBeNull();
+  });
+
   it("montre la vue d'ensemble telle que les sources l'ont servie", async () => {
     const view = await mount();
 
