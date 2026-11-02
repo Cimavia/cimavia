@@ -1,6 +1,9 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CmvResizeHandle } from "@/shared/component/CmvResizeHandle";
+import { useViewportSize } from "@/shared/hook/useViewportSize";
 import { cn } from "@/shared/util/cn.util";
+import { clamp } from "@/shared/util/resize.util";
 
 // md = formulaire simple (exercice) ; lg = mise en page à deux colonnes (builder de séance).
 type CmvPanelSize = "md" | "lg";
@@ -9,6 +12,14 @@ const SIZE_CLASSES: Record<CmvPanelSize, string> = {
   md: "max-w-xl",
   lg: "max-w-5xl",
 };
+
+/**
+ * Les bornes d'une largeur réglable (#695) : au plus étroit, celle du panneau de la cloche ; au plus
+ * large, la fenêtre moins une bande de fond — il faut encore pouvoir cliquer à côté pour fermer. La
+ * bande l'emporte sur le minimum : une fenêtre plus étroite que les deux rétrécit le panneau.
+ */
+const PANEL_MIN_WIDTH = 320;
+const BACKDROP_STRIP = 48;
 
 type CmvPanelProps = {
   open: boolean;
@@ -19,6 +30,15 @@ type CmvPanelProps = {
   // Zone d'actions en pied de panneau (Annuler / Enregistrer).
   footer?: ReactNode;
   size?: CmvPanelSize;
+  /**
+   * Largeur réglable, en px (#695) : le bord gauche devient une poignée. Les deux vont ensemble ;
+   * sans elles, `size` décide, comme avant. Ramenée à la fenêtre au rendu, sans être réécrite.
+   * `onWidthChange` n'est appelé qu'à la FIN d'un geste : le panneau suit le pointeur seul.
+   */
+  width?: number | undefined;
+  onWidthChange?: ((width: number) => void) | undefined;
+  /** Corps sans marge : pour une liste dont les lignes portent leur propre filet. */
+  flush?: boolean | undefined;
 };
 
 /**
@@ -41,6 +61,9 @@ export function CmvPanel({
   children,
   footer,
   size = "md",
+  width,
+  onWidthChange,
+  flush = false,
 }: Readonly<CmvPanelProps>) {
   const { t } = useTranslation();
   /**
@@ -51,6 +74,13 @@ export function CmvPanel({
    */
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // La largeur pendant un glisser, avant d'être rendue à l'appelant : lui ne re-rend qu'à la fin.
+  const [draftWidth, setDraftWidth] = useState<number | null>(null);
+  // Refermé pendant un glisser (Échap, clic sur le fond) : la poignée part sans conclure, et son
+  // brouillon ne doit pas rouvrir le panneau à une largeur que rien n'a retenue.
+  useEffect(() => {
+    if (!open) setDraftWidth(null);
+  }, [open]);
 
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
@@ -73,6 +103,18 @@ export function CmvPanel({
 
   if (!open) return null;
 
+  const resizable =
+    width == null || onWidthChange == null
+      ? null
+      : {
+          width: draftWidth ?? width,
+          onWidthDraft: setDraftWidth,
+          onWidthChange: (next: number) => {
+            setDraftWidth(null);
+            onWidthChange(next);
+          },
+        };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
@@ -85,9 +127,19 @@ export function CmvPanel({
         aria-label={title}
         className={cn(
           "relative flex h-full w-full flex-col border-cmv-border border-l bg-cmv-bg-1 shadow-xl",
-          SIZE_CLASSES[size],
+          resizable == null && SIZE_CLASSES[size],
         )}
+        // Bornée en CSS, aux mêmes bornes que la poignée : seul le panneau réglable lit la fenêtre.
+        style={
+          resizable == null
+            ? undefined
+            : {
+                width: `min(${resizable.width}px, calc(100vw - ${BACKDROP_STRIP}px))`,
+                minWidth: `min(${PANEL_MIN_WIDTH}px, calc(100vw - ${BACKDROP_STRIP}px))`,
+              }
+        }
       >
+        {resizable == null ? null : <PanelWidthHandle {...resizable} />}
         <header className="flex flex-col gap-cmv-xs border-cmv-border border-b p-cmv-xl">
           <h2 className="text-cmv-title text-cmv-text-hi">{title}</h2>
           {description == null ? null : (
@@ -95,7 +147,7 @@ export function CmvPanel({
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto p-cmv-xl">{children}</div>
+        <div className={cn("flex-1 overflow-y-auto", !flush && "p-cmv-xl")}>{children}</div>
 
         {footer == null ? null : (
           <footer className="flex justify-end gap-cmv-sm border-cmv-border border-t p-cmv-xl">
@@ -104,5 +156,33 @@ export function CmvPanel({
         )}
       </aside>
     </div>
+  );
+}
+
+type PanelWidthHandleProps = {
+  width: number;
+  onWidthDraft: (width: number) => void;
+  onWidthChange: (width: number) => void;
+};
+
+/**
+ * La poignée du bord gauche, à part pour que SEUL un panneau réglable suive la fenêtre : la cloche
+ * monte le sien en permanence, les autres usages n'ont pas à se re-rendre à chaque redimensionnement.
+ */
+function PanelWidthHandle({ width, onWidthDraft, onWidthChange }: Readonly<PanelWidthHandleProps>) {
+  const viewport = useViewportSize();
+  const maxWidth = viewport.width - BACKDROP_STRIP;
+  const minWidth = Math.min(PANEL_MIN_WIDTH, maxWidth);
+
+  return (
+    <CmvResizeHandle
+      axis="x"
+      size={clamp(width, minWidth, maxWidth)}
+      min={minWidth}
+      max={maxWidth}
+      onResize={onWidthDraft}
+      onResizeEnd={onWidthChange}
+      className="-left-1 absolute inset-y-0 z-10"
+    />
   );
 }

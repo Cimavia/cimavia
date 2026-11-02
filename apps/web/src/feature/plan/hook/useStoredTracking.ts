@@ -1,17 +1,6 @@
 import { sameJson } from "@cmv/shared";
 import { useCallback, useRef, useState } from "react";
-
-/** `null` = rien en local. On suit alors le serveur, qui reste le porteur du suivi. */
-function read<T>(key: string): T | null {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw == null ? null : (JSON.parse(raw) as T);
-  } catch {
-    // Stockage indisponible — navigation privée, quota, JSON corrompu : on repart du serveur
-    // plutôt que d'empêcher la séance de s'afficher.
-    return null;
-  }
-}
+import { readStoredJson, removeStored, writeStoredJson } from "@/shared/lib/local-storage";
 
 /**
  * Un suivi gardé en local jusqu'à l'envoi du débrief, sous la clé `key` — le stockage du suivi
@@ -28,7 +17,9 @@ export function useStoredTracking<T>(
   /** Le local dit-il la même chose que le distant ? Il n'est pas « modifié » sinon. */
   same: (local: T, remote: T) => boolean = sameJson,
 ) {
-  const [cached, setCached] = useState<T | null>(() => read<T>(key));
+  // `null` = rien en local, ou rien de lisible — stockage indisponible, JSON corrompu. On suit alors
+  // le serveur, qui reste le porteur du suivi, plutôt que d'empêcher la séance de s'afficher.
+  const [cached, setCached] = useState<T | null>(() => readStoredJson(key) as T | null);
   /**
    * Le local tel qu'il est MAINTENANT, pour `clearIf` : la réponse de l'envoi peut arriver avant
    * le rendu qui suit une coche, et `cached` ne serait alors pas encore à jour.
@@ -39,12 +30,9 @@ export function useStoredTracking<T>(
     (next: T) => {
       latest.current = next;
       setCached(next);
-      try {
-        window.localStorage.setItem(key, JSON.stringify(next));
-      } catch {
-        // Écriture refusée : l'état de l'écran reste juste, seul le rechargement perdrait les
-        // coches. Bloquer la séance pour ça serait pire.
-      }
+      // Écriture refusée : l'état de l'écran reste juste, seul le rechargement perdrait les
+      // coches. Bloquer la séance pour ça serait pire.
+      writeStoredJson(key, next);
     },
     [key],
   );
@@ -63,11 +51,8 @@ export function useStoredTracking<T>(
       if (current == null || !isSent(current)) return;
       latest.current = null;
       setCached(null);
-      try {
-        window.localStorage.removeItem(key);
-      } catch {
-        // Rien à réparer : la donnée est partie au serveur, c'est ce qui compte.
-      }
+      // Effacement refusé, rien à réparer : la donnée est partie au serveur, c'est ce qui compte.
+      removeStored(key);
     },
     [key],
   );

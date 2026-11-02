@@ -44,6 +44,33 @@ describe("useLocalBlockTracking", () => {
     expect(window.localStorage.getItem(KEY)).toBeNull();
   });
 
+  it("reprend ce qui est coché au rechargement", () => {
+    window.localStorage.setItem(KEY, JSON.stringify({ "blk-1": { checked: [SQUAT] } }));
+
+    const { result } = renderHook(() => useLocalBlockTracking("s-1", BLOCKS));
+
+    expect(result.current.tracking).toEqual({ "blk-1": { checked: [SQUAT] } });
+  });
+
+  // JSON abîmé, lecture refusée : on repart du serveur plutôt que d'empêcher la séance de s'afficher.
+  it.each([
+    ["un local corrompu", () => window.localStorage.setItem(KEY, "{checked:")],
+    [
+      "un stockage illisible",
+      () =>
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+          throw new Error("SecurityError");
+        }),
+    ],
+  ])("suit le serveur sur %s", (_case, arrange) => {
+    arrange();
+
+    const { result } = renderHook(() => useLocalBlockTracking("s-1", BLOCKS));
+
+    expect(result.current.tracking).toEqual(EMPTY);
+    expect(result.current.dirty).toBe(false);
+  });
+
   // Les cases restent actives pendant l'envoi (#499) : ce qui est coché entre-temps reste à envoyer.
   it("garde le local quand il a bougé pendant l'envoi", () => {
     const { result } = renderHook(() => useLocalBlockTracking("s-1", BLOCKS));
