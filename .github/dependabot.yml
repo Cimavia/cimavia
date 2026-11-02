@@ -103,6 +103,10 @@ updates:
       - dependency-name: "babel-preset-expo"
       - dependency-name: "react-native"
       - dependency-name: "react-native-*"
+      # Dépend de la version EXACTE de `react-native-css-interop`, que le mobile déclare lui aussi et
+      # que la ligne au-dessus fige. Monté seul en 1.16.0, il a laissé deux copies, et plus aucune
+      # classe ne s'appliquait. Les deux avancent ensemble, à la main (`nativewind.test.ts` y veille).
+      - dependency-name: "nativewind"
       - dependency-name: "@react-native/*"
       - dependency-name: "@react-native-async-storage/*"
       - dependency-name: "@sentry/react-native"
