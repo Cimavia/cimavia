@@ -11,12 +11,11 @@ packages:
 # `pnpm install` puis `pnpm audit` ne doivent pas le faire réapparaître.
 #
 # Hors de cette liste, et donc rejetés dans les alertes Dependabot avec leur raison : les
-# correctifs qui exigent une MAJEURE (deepmerge-ts, image-size, decode-uri-component,
-# postcss-selector-parser, qui attend Tailwind 4 ; et depuis #734 le `zod` 3 et le `glob` 13
-# d'`@expo/cli`, le `minimatch` de l'outillage Expo, Nest et Stryker), ceux que l'amont n'a pas
-# publiés (braces, deepmerge, la vérification de signature PKCS#1 de node-forge), et ce qu'un
-# paquet épingle à la version exacte : `fastify` suit `@nestjs/platform-fastify`, c'est le serveur
-# HTTP.
+# correctifs qui exigent une MAJEURE (deepmerge-ts, image-size, decode-uri-component ; et depuis
+# #734 le `zod` 3 et le `glob` 13 d'`@expo/cli`, le `minimatch` de l'outillage Expo, Nest et
+# Stryker), ceux que l'amont n'a pas publiés (braces, deepmerge, la vérification de signature
+# PKCS#1 de node-forge), et ce qu'un paquet épingle à la version exacte : `fastify` suit
+# `@nestjs/platform-fastify`, c'est le serveur HTTP.
 #
 # Revue en #734 : dix-neuf overrides ne visaient plus rien (retirés, `pnpm audit` ne les fait pas
 # revenir) — l'amont a monté, et `hono` a quitté la CLI prisma en 7.10.
@@ -28,3 +27,6 @@ overrides:
   "fast-uri@>=4 <4.2.3": "^4.2.3"
   # Chaîne de build mobile — @expo/cli et la signature de code des updates. Jamais dans une image.
   "node-forge@>=1 <1.4.1": "^1.4.1"
+  # Chaîne de build CSS — tailwindcss 3 (postcss-nested), pour le web, le mobile et les tokens.
+  # Jamais dans un bundle. Rejeté tant que le correctif n'existait qu'en 7 (#670), levé en #753.
+  "postcss-selector-parser@>=6 <6.1.5": "^6.1.5"

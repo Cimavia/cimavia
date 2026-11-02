@@ -424,6 +424,10 @@ liste des domaines vivent dans l'index.
 > - **Rejetés** : `postcss-selector-parser` (correctif en 7, Tailwind 3 exige la 6 : attend
 >   Tailwind 4), `braces` et `node-forge` (aucun correctif publié ; build, metro et `@expo/cli`).
 >   Les alertes `fastify` et `js-yaml` du relevé se sont fermées seules avec #671.
+> - **Rejet levé en [#753](https://github.com/Cimavia/cimavia/issues/753)** pour
+>   `postcss-selector-parser` : la 6.1.5, publiée le 2026-10-19 après cet arbitrage, corrige la
+>   faille dans la majeure qu'exige Tailwind 3. Elle passe par un override, comme le veut #398 ;
+>   #734 avait repris le rejet sans le revérifier.
 >
 > Découvert en chemin : la PR groupée `npm` ne s'ouvre plus parce que le passage du 2026-10-19
 > échoue sur chaque paquet, `ERR_PNPM_NO_MATURE_MATCHING_VERSION`. Dependabot transmet son
