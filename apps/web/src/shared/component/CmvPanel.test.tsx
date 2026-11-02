@@ -125,3 +125,53 @@ describe("CmvPanel", () => {
     expect(onOuterClose).not.toHaveBeenCalled();
   });
 });
+
+describe("CmvPanel — la largeur réglable (#695)", () => {
+  // Les huit usages d'avant n'en passent pas : ni poignée, ni largeur imposée.
+  it("n'a pas de poignée sans largeur", () => {
+    const { queryByRole, getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+
+    expect(queryByRole("separator")).toBeNull();
+    expect(getByRole("complementary", { name: OUTER })).toHaveClass("max-w-xl");
+  });
+
+  it("s'élargit par la poignée de son bord gauche", async () => {
+    const onWidthChange = vi.fn();
+    const { user, getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}} width={576} onWidthChange={onWidthChange}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+
+    expect(getByRole("separator")).toHaveAttribute("aria-valuenow", "576");
+    getByRole("separator").focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(onWidthChange).toHaveBeenCalledWith(592);
+  });
+
+  // Enregistrée sur un grand écran : ramenée à la fenêtre (1024 px sous jsdom), fond compris.
+  it("ramène une largeur trop grande à la fenêtre", () => {
+    const { getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}} width={2000} onWidthChange={() => {}}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+
+    expect(getByRole("separator")).toHaveAttribute("aria-valuenow", String(window.innerWidth - 48));
+  });
+
+  it("rend son corps sans marge sur demande", () => {
+    const { getByText } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}} flush>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+
+    expect(getByText("Contenu").parentElement).not.toHaveClass("p-cmv-xl");
+  });
+});
