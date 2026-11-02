@@ -314,6 +314,11 @@ liste des domaines vivent dans l'index.
 > - **« Fermer » quitte la Lecture d'un cycle (#607)** : il menait aux cycles, comme le retour.
 >   Deux boutons pour la même action font hésiter.
 > - **Le retour est là en chargement et en panne** : sur la séance et le débrief Athlete, il
->   n'apparaissait qu'une fois la séance lue. Un écran en erreur se quitte désormais.
+>   n'apparaissait qu'une fois la séance lue. Un écran en erreur se quitte désormais. Le cycle et
+>   Dosage chargeaient sur une page nue, sans retour ni menu : ils chargent dans le shell.
+> - **Le libellé nomme la destination, sans « Retour » devant** : la destination est fixe, et
+>   « Retour au planning » mentirait à l'athlète arrivé par la liste Séances ou une notification.
+>   « Planifications » porte le nom du lien du menu, vers la même page : c'est le cas que le
+>   WCAG 2.4.4 demande, un même nom pour une même destination.
 > - **Le mobile reste en l'état** : trois en-têtes ont leur chevron, les autres écrans empilés le
 >   geste système. Ce sera une issue si le besoin se confirme.
