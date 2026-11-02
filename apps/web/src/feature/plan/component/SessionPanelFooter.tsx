@@ -1,18 +1,16 @@
 import type { SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { CmvButton, CmvConfirmButton } from "@/shared/component";
+import { SessionDeleteButton } from "@/feature/plan/component/SessionDeleteButton";
+import { CmvButton } from "@/shared/component";
 
 type SessionPanelFooterProps = {
   /** La séance d'un cycle ouvert en Lecture (#607) : « Fermer », rien d'autre. */
   readOnly: boolean;
   /** Édition : la séance existe déjà, donc elle peut être supprimée. */
   isEditing: boolean;
-  /**
-   * La séance a été débriefée (`DONE`) : la supprimer emporterait le débrief de l'athlète, l'API
-   * la refuse (#313). Le bouton reste visible, grisé, pour dire POURQUOI il ne sert pas.
-   */
+  /** Séance débriefée (`DONE`) : la suppression reste visible, fermée (#313). */
   isDebriefed: boolean;
-  /** Cycle diffusé : l'athlète est prévenu du retrait, le coach doit le savoir avant de confirmer. */
+  /** Cycle diffusé : l'athlète est prévenu du retrait. */
   isPublished: boolean;
   isBusy: boolean;
   canSubmit: boolean;
@@ -42,22 +40,15 @@ export function SessionPanelFooter({
       </>
     );
   }
-  // Omis plutôt qu'`undefined` (`exactOptionalPropertyTypes`) : un brouillon n'a rien à annoncer.
-  const deleteHint = isPublished ? { confirmHint: t("plan.session.deleteHintPublished") } : {};
-  const deleteBlocked = isDebriefed
-    ? { disabledReason: t("plan.session.deleteDisabledDebriefed") }
-    : {};
 
   return (
     <>
       {isEditing ? (
-        <CmvConfirmButton
+        <SessionDeleteButton
           label={t("plan.session.delete")}
-          confirmLabel={t("common.confirmDelete")}
-          cancelLabel={t("common.cancel")}
+          isDebriefed={isDebriefed}
+          isPublished={isPublished}
           disabled={isBusy}
-          {...deleteHint}
-          {...deleteBlocked}
           onConfirm={onDelete}
         />
       ) : null}
