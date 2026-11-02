@@ -1,5 +1,10 @@
-import type { TrainingCapability } from "../capability";
-import { type NotificationDto, NotificationType } from "../dto/notification.schema";
+import { type Capabilities, hasCapability, type TrainingCapability } from "../capability";
+import {
+  NOTIFICATION_CATEGORY,
+  NotificationCategory,
+  type NotificationDto,
+  NotificationType,
+} from "../dto/notification.schema";
 
 /**
  * Les types dont `subjectLabel` porte une DATE CIVILE et non un libellé (#148).
@@ -103,4 +108,35 @@ export function capabilityOfMessage(
   conversation: { coachId: string; athleteId: string },
 ): TrainingCapability {
   return conversation.coachId === recipientId ? "coach" : "athlete";
+}
+
+/**
+ * Les types d'une catégorie (#694), dans l'ordre de l'enum — ce que l'API filtre.
+ *
+ * Lue depuis `NOTIFICATION_CATEGORY` plutôt qu'écrite à part : deux tables diraient un jour deux
+ * choses différentes. `REMINDER_DUE` y figure comme les autres ; c'est à l'API d'écarter ce qu'elle
+ * ne persiste pas.
+ */
+export function notificationTypesOf(category: NotificationCategory): NotificationType[] {
+  return Object.values(NotificationType).filter((type) => NOTIFICATION_CATEGORY[type] === category);
+}
+
+/**
+ * Les catégories que ce compte peut RECEVOIR, dans l'ordre des pastilles (#694) : un athlète seul
+ * n'a pas à voir « Débriefs » ni « Rappels », un Coach seul pas « Facturation ».
+ *
+ * Dérivée de `capabilityOfNotification`, qui dit déjà sous quel titre chaque type se lit : une
+ * catégorie est offerte dès qu'UN de ses types l'est. Le type sans titre (`MESSAGE_RECEIVED`) se
+ * reçoit des deux côtés, donc par tout compte qui coache ou s'entraîne. Un compte Entreprise, qui ne
+ * fait ni l'un ni l'autre, n'a aucune catégorie.
+ */
+export function notificationCategoriesFor(capabilities: Capabilities): NotificationCategory[] {
+  const trains = capabilities.isCoach || capabilities.isAthlete;
+  const receives = (type: NotificationType): boolean => {
+    const capability = capabilityOfNotification(type);
+    return capability == null ? trains : hasCapability(capabilities, capability);
+  };
+  return Object.values(NotificationCategory).filter((category) =>
+    notificationTypesOf(category).some(receives),
+  );
 }

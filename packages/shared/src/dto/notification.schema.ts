@@ -172,6 +172,76 @@ export const NOTIFICATION_SETTING_LABEL_KEY = {
   [NotificationType.INVOICE_ISSUED]: "notification.setting.type.invoiceIssued",
 } as const satisfies Record<EmailableNotificationType, string>;
 
+/**
+ * Les familles du centre de notifications (#694), ce que ses filtres proposent.
+ *
+ * L'ordre de l'objet est celui des pastilles : du fil de l'entraînement vers l'administratif, puis
+ * l'outil privé du coach.
+ */
+export const NotificationCategory = {
+  PLANNING: "PLANNING",
+  FEEDBACK: "FEEDBACK",
+  MESSAGE: "MESSAGE",
+  BILLING: "BILLING",
+  INVITATION: "INVITATION",
+  REMINDER: "REMINDER",
+} as const;
+export type NotificationCategory = TypesValuesOf<typeof NotificationCategory>;
+export const notificationCategorySchema = z.enum(NotificationCategory);
+
+/**
+ * La catégorie de chaque type. Une TABLE et non un `switch` à branche `default` (le motif que #359
+ * réclame pour `capabilityOfNotification`) : un type ajouté sans catégorie ne compile plus, au lieu
+ * de disparaître de tous les filtres sans que rien ne le dise.
+ *
+ * « Invitations » réunit les deux côtés de la relation : l'invitation reçue se lit en athlète, ses
+ * réponses en coach. C'est un même fil, vu de part et d'autre — les séparer ferait deux pastilles
+ * pour deux ou trois lignes par an.
+ */
+export const NOTIFICATION_CATEGORY = {
+  [NotificationType.PLAN_PUBLISHED]: NotificationCategory.PLANNING,
+  [NotificationType.PLAN_UPDATED]: NotificationCategory.PLANNING,
+  [NotificationType.PLAN_SESSION_ADDED]: NotificationCategory.PLANNING,
+  [NotificationType.PLAN_SESSION_REMOVED]: NotificationCategory.PLANNING,
+  [NotificationType.PLAN_SESSIONS_REORDERED]: NotificationCategory.PLANNING,
+  [NotificationType.FEEDBACK_RECEIVED]: NotificationCategory.FEEDBACK,
+  [NotificationType.MESSAGE_RECEIVED]: NotificationCategory.MESSAGE,
+  [NotificationType.INVOICE_ISSUED]: NotificationCategory.BILLING,
+  [NotificationType.INVITATION_RECEIVED]: NotificationCategory.INVITATION,
+  [NotificationType.INVITATION_ACCEPTED]: NotificationCategory.INVITATION,
+  [NotificationType.INVITATION_DECLINED]: NotificationCategory.INVITATION,
+  [NotificationType.ORGANIZATION_INVITATION_RECEIVED]: NotificationCategory.INVITATION,
+  [NotificationType.ORGANIZATION_COACH_JOINED]: NotificationCategory.INVITATION,
+  [NotificationType.REMINDER_DUE]: NotificationCategory.REMINDER,
+} as const satisfies Record<NotificationType, NotificationCategory>;
+
+/** Clé i18n du nom d'une catégorie, pour sa pastille. « Toutes » a la sienne, hors de cette table. */
+export const NOTIFICATION_CATEGORY_LABEL_KEY = {
+  [NotificationCategory.PLANNING]: "notification.category.planning",
+  [NotificationCategory.FEEDBACK]: "notification.category.feedback",
+  [NotificationCategory.MESSAGE]: "notification.category.message",
+  [NotificationCategory.BILLING]: "notification.category.billing",
+  [NotificationCategory.INVITATION]: "notification.category.invitation",
+  [NotificationCategory.REMINDER]: "notification.category.reminder",
+} as const satisfies Record<NotificationCategory, string>;
+
+/**
+ * Le filtre du centre, lu à l'identique sur la liste (`GET ?category=`) et sur « tout marquer
+ * lu » (`POST read-all`) : le bouton éteint ce que la liste montre, rien d'autre. Absent = tout.
+ *
+ * Le filtre se fait dans l'API et non dans le client : la liste est bornée APRÈS fusion de ses
+ * deux sources, et filtrer les 50 lignes reçues ferait paraître vide une catégorie dont les
+ * entrées sont simplement plus anciennes.
+ *
+ * `.default({})` : un `POST` sans corps arrive en `undefined`, et il veut dire « tout
+ * marquer lu », comme avant le filtre — pas un 400.
+ */
+export const notificationFilterSchema = z
+  .object({ category: notificationCategorySchema.optional() })
+  .strict()
+  .default({});
+export type NotificationFilter = z.infer<typeof notificationFilterSchema>;
+
 // Bornage de la liste : le centre montre les récentes, pas l'historique complet. Pas de pagination
 // en première passe (dette assumée, même famille que les exercices P2-2 et les messages P5-1).
 export const NOTIFICATION_PAGE_SIZE = 50;

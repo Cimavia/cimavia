@@ -400,9 +400,11 @@ export {
 } from "./dto/metric-reference.schema";
 export type {
   EmailableNotificationType,
+  NotificationCategory as NotificationCategoryType,
   NotificationDto,
   NotificationEmailPreferenceDto,
   NotificationEntityType as NotificationEntityTypeType,
+  NotificationFilter,
   NotificationType as NotificationTypeType,
   PersistedNotificationType,
   UnreadCountDto,
@@ -411,14 +413,19 @@ export type {
 export {
   EMAILABLE_NOTIFICATION_TYPES,
   emailableNotificationTypeSchema,
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL_KEY,
   NOTIFICATION_LABEL_KEY,
   NOTIFICATION_PAGE_SIZE,
   NOTIFICATION_SETTING_LABEL_KEY,
+  NotificationCategory,
   NotificationEntityType,
   NotificationType,
+  notificationCategorySchema,
   notificationDtoSchema,
   notificationEmailPreferenceDtoSchema,
   notificationEntityTypeSchema,
+  notificationFilterSchema,
   notificationTypeSchema,
   unreadCountDtoSchema,
   updateNotificationEmailPreferencesSchema,
@@ -984,7 +991,9 @@ export { initialsOf, joinNames } from "./util/name.util";
 export {
   capabilityOfMessage,
   capabilityOfNotification,
+  notificationCategoriesFor,
   notificationSubject,
+  notificationTypesOf,
 } from "./util/notification.util";
 export type { Page } from "./util/pagination.util";
 export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";
