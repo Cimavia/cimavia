@@ -5,7 +5,7 @@ import {
   toReminderFeedId,
 } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { notificationApi } from "@/feature/notification/api";
 import { renderInRoute } from "../../../../test/render";
 import { NotificationBell } from "./NotificationBell";
@@ -81,6 +81,7 @@ async function openBell(view: Awaited<ReturnType<typeof mount>>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   session.user = { id: "u_1", name: "Camille", isCoach: true, isAthlete: false };
   unread(2);
 });
@@ -354,5 +355,148 @@ describe("NotificationBell — le filtre par catégorie (#694)", () => {
 
     await view.findByText("notification.empty");
     expect(view.queryByRole("button", { name: "notification.category.all" })).toBeNull();
+  });
+});
+
+describe("NotificationBell — le panneau réglable (#695)", () => {
+  const STORAGE_KEY = "cimavia-notification-panel";
+  const TO_SIDE = "notification.layout.side";
+  const TO_POPOVER = "notification.layout.popover";
+  const sidePanel = (view: Awaited<ReturnType<typeof mount>>) =>
+    view.queryByRole("complementary", { name: "notification.title" });
+  const stored = () => JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");
+
+  // jsdom ne place rien : la cloche est posée en haut à droite d'une fenêtre de 1024 × 768.
+  function placeBell() {
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ right: 1000, bottom: 60 } as DOMRect);
+    onTestFinished(() => spy.mockRestore());
+  }
+
+  it("s'ouvre en panneau latéral, et s'en souvient", async () => {
+    const view = await mount();
+    await openBell(view);
+    await view.user.click(await view.findByRole("button", { name: TO_SIDE }));
+
+    expect(sidePanel(view)).toBeInTheDocument();
+    expect(await view.findByText("notification.type.planPublished")).toBeInTheDocument();
+    // Le clavier reprend où il était : sur la bascule, passée dans l'autre conteneur.
+    expect(view.getByRole("button", { name: TO_POPOVER })).toHaveFocus();
+    expect(stored()).toMatchObject({ mode: "side" });
+
+    view.unmount();
+    const again = await mount();
+    await openBell(again);
+    expect(sidePanel(again)).toBeInTheDocument();
+  });
+
+  it("revient au panneau compact", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "side" }));
+    const view = await mount();
+    await openBell(view);
+
+    await view.user.click(await view.findByRole("button", { name: TO_POPOVER }));
+
+    expect(sidePanel(view)).toBeNull();
+    expect(view.getByText("notification.title")).toBeInTheDocument();
+  });
+
+  // Échap passe alors par la pile de CmvPanel : un seul des deux écouteurs répond.
+  it("se referme par Échap en panneau latéral", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "side" }));
+    const view = await mount();
+    await openBell(view);
+    await view.findByText("notification.type.planPublished");
+
+    await view.user.keyboard("{Escape}");
+
+    expect(sidePanel(view)).toBeNull();
+  });
+
+  it("se referme au clic sur une notification en panneau latéral", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "side" }));
+    const view = await mount();
+    await openBell(view);
+
+    await view.user.click(await view.findByRole("button", { name: /planPublished/ }));
+
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/plans/pln_1"));
+    expect(sidePanel(view)).toBeNull();
+  });
+
+  // Changer de conteneur n'est pas rouvrir : le filtre choisi reste.
+  it("garde le filtre en changeant de conteneur", async () => {
+    const view = await mount();
+    await openBell(view);
+    await view.user.click(
+      await view.findByRole("button", { name: "notification.category.feedback" }),
+    );
+
+    await view.user.click(view.getByRole("button", { name: TO_SIDE }));
+
+    expect(
+      await view.findByRole("button", { name: "notification.category.feedback" }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("s'agrandit par son coin, et s'en souvient", async () => {
+    placeBell();
+    const view = await mount();
+    await openBell(view);
+    const corner = await view.findByRole("separator");
+
+    corner.focus();
+    await view.user.keyboard("{ArrowLeft}{ArrowDown}");
+
+    expect(corner).toHaveAttribute("aria-valuenow", "336");
+    expect(stored()).toMatchObject({ popover: { width: 336, height: 400 } });
+  });
+
+  // Enregistrée sur un grand écran : la cloche finit à 1000 px, la fenêtre à 768 px de haut.
+  it("ramène une taille trop grande à la fenêtre", async () => {
+    placeBell();
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ mode: "popover", popover: { width: 2400, height: 1400 } }),
+    );
+    const view = await mount();
+    await openBell(view);
+
+    expect(await view.findByRole("separator")).toHaveAttribute("aria-valuenow", "984");
+    expect(stored()).toMatchObject({ popover: { width: 2400, height: 1400 } });
+  });
+
+  it("règle la largeur du panneau latéral par son bord", async () => {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "side" }));
+    const view = await mount();
+    await openBell(view);
+    const edge = await view.findByRole("separator");
+
+    expect(edge).toHaveAttribute("aria-valuenow", "576");
+    edge.focus();
+    await view.user.keyboard("{ArrowLeft}");
+
+    expect(stored()).toMatchObject({ mode: "side", sideWidth: 592 });
+  });
+
+  // Navigation privée, politique du navigateur : la cloche marche, à sa taille d'origine.
+  it("s'ouvre sans stockage, et bascule quand même", async () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    onTestFinished(() => {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    });
+    const view = await mount();
+    await openBell(view);
+
+    expect(await view.findByText("notification.title")).toBeInTheDocument();
+    await view.user.click(view.getByRole("button", { name: TO_SIDE }));
+    expect(sidePanel(view)).toBeInTheDocument();
   });
 });
