@@ -10,7 +10,7 @@ describe("CmvToggleChip", () => {
       <CmvToggleChip pressed={pressed} onToggle={onToggle} label="Débriefs" />,
     );
 
-    expect(screen.getByRole("button", { name: "Débriefs" }).getAttribute("aria-selected")).toBe(
+    expect(screen.getByRole("radio", { name: "Débriefs" }).getAttribute("aria-checked")).toBe(
       String(pressed),
     );
     pressButton(container, "Débriefs");

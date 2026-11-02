@@ -38,6 +38,7 @@ export function InvoiceSituationFilter({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      accessibilityRole="radiogroup"
       contentContainerClassName="gap-2 px-4"
     >
       {INVOICE_ROW_FILTERS.map((value) => (
