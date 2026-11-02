@@ -1,8 +1,15 @@
-import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
+import type {
+  NotificationCategoryType,
+  NotificationDto,
+  NotificationFilter,
+  PersistedNotificationType,
+  UnreadCountDto,
+} from "@cmv/shared";
 import {
   capabilityOfNotification,
   NOTIFICATION_PAGE_SIZE,
   NotificationType,
+  notificationTypesOf,
   parseReminderFeedId,
 } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
@@ -34,6 +41,9 @@ import { toNotificationDto } from "../notification.mapper";
  *    marquage et laisse les deux UI ignorer qu'il y a deux sources.
  * 3. **La borne s'applique APRÈS la fusion.** Chaque source est bornée, puis le mélange est retrié et
  *    retronqué : sinon un rappel dû de l'an dernier prendrait la place d'une notification du jour.
+ *
+ * Le filtre par catégorie (#694) se pose donc AVANT la borne, sur chaque source : filtrer les 50
+ * lignes fusionnées ferait paraître vide une catégorie dont les entrées sont plus anciennes.
  */
 @Injectable()
 export class NotificationFeedService {
@@ -51,14 +61,20 @@ export class NotificationFeedService {
    * Un rappel dû est daté de son ÉCHÉANCE (`createdAt` = `dueAt`, cf. `reminderToNotificationDto`) :
    * il se range donc au moment où il commence à compter, pas à celui où le coach l'a saisi.
    */
-  async list(): Promise<NotificationDto[]> {
+  async list({ category }: NotificationFilter): Promise<NotificationDto[]> {
     const now = new Date();
+    const typeWhere = persistedTypeWhere(category);
     const [rows, dueReminders] = await Promise.all([
-      this.db.notification.findMany({
-        orderBy: { createdAt: "desc" },
-        take: NOTIFICATION_PAGE_SIZE,
-      }),
-      this.isCoach() ? this.asCoach(() => this.reminders.listDue(now, NOTIFICATION_PAGE_SIZE)) : [],
+      typeWhere == null
+        ? []
+        : this.db.notification.findMany({
+            where: typeWhere,
+            orderBy: { createdAt: "desc" },
+            take: NOTIFICATION_PAGE_SIZE,
+          }),
+      this.readsReminders(category)
+        ? this.asCoach(() => this.reminders.listDue(now, NOTIFICATION_PAGE_SIZE))
+        : [],
     ]);
 
     const entries = [...rows.map(toNotificationDto), ...dueReminders.map(toReminderFeedEntry)];
@@ -166,16 +182,24 @@ export class NotificationFeedService {
     return toNotificationDto(updated);
   }
 
-  // « Tout marquer comme lu » : vide le badge sans ouvrir chaque entrée. Ne touche que les non
-  // lues, pour ne pas redater celles qui l'étaient déjà.
-  async markAllRead(): Promise<void> {
+  /**
+   * « Tout marquer comme lu » : vide le badge sans ouvrir chaque entrée. Ne touche que les non
+   * lues, pour ne pas redater celles qui l'étaient déjà.
+   *
+   * Il suit le filtre de la liste (#694) : le bouton éteint ce qu'elle montre, rien d'autre. Hors
+   * « Rappels », les rappels dus restent donc allumés.
+   */
+  async markAllRead({ category }: NotificationFilter): Promise<void> {
     const now = new Date();
-    await this.db.notification.updateMany({
-      where: { readAt: null },
-      data: { readAt: new Date() },
-    });
+    const typeWhere = persistedTypeWhere(category);
+    if (typeWhere != null) {
+      await this.db.notification.updateMany({
+        where: { ...typeWhere, readAt: null },
+        data: { readAt: new Date() },
+      });
+    }
     // Seuls les rappels DUS : marquer un rappel encore à venir éteindrait son badge par avance.
-    if (this.isCoach()) {
+    if (this.readsReminders(category)) {
       await this.asCoach(() => this.reminders.markAllDueRead(now));
     }
   }
@@ -197,6 +221,20 @@ export class NotificationFeedService {
   }
 
   /**
+   * Les rappels dus se lisent sans filtre ou sous leur catégorie, jamais ailleurs — et jamais pour qui
+   * n'est pas coach : un athlète qui demande `REMINDER` reçoit une liste vide, pas le 500 que
+   * lèverait la table hors scope.
+   */
+  private readsReminders(category: NotificationCategoryType | undefined): boolean {
+    // Lu dans la table plutôt que comparé à `REMINDER` : ranger les rappels ailleurs ne doit pas
+    // les faire disparaître de leur nouvelle catégorie.
+    return (
+      this.isCoach() &&
+      (category == null || notificationTypesOf(category).includes(NotificationType.REMINDER_DUE))
+    );
+  }
+
+  /**
    * La capacité POSSÉDÉE, pas celle exercée : cette route n'a pas de titre (voir le contrôleur).
    * Un compte à double capacité voit donc l'intégralité de son centre — ses rappels de coach ET
    * ce qu'il reçoit comme athlète — ce qui est le sens même d'un centre de notifications.
@@ -213,4 +251,21 @@ export class NotificationFeedService {
   private asCoach<T>(fn: () => Promise<T>): Promise<T> {
     return runAsCapability(this.cls, "coach", fn);
   }
+}
+
+/**
+ * Le filtre de la table `notification` pour une catégorie : vide sans catégorie, `null` quand elle
+ * n'a aucun type PERSISTÉ (« Rappels », calculés à la lecture) — la table n'a alors rien à rendre
+ * et n'est pas lue.
+ */
+function persistedTypeWhere(
+  category: NotificationCategoryType | undefined,
+): { type?: { in: PersistedNotificationType[] } } | null {
+  if (category == null) return {};
+  const types = notificationTypesOf(category).filter(isPersisted);
+  return types.length === 0 ? null : { type: { in: types } };
+}
+
+function isPersisted(type: NotificationType): type is PersistedNotificationType {
+  return type !== NotificationType.REMINDER_DUE;
 }
