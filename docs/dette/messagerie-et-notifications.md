@@ -46,7 +46,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
+| N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
 | N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
@@ -141,6 +141,20 @@ liste des domaines vivent dans l'index.
 > cycle ne réécrit pas l'historique. Le libellé du **push**, lui, reste rendu côté serveur et en
 > français en dur — il n'y a pas de client pour le traduire au moment de la livraison. Son i18n
 > suivra le catalogue serveur de [#63](https://github.com/Cimavia/cimavia/issues/63).
+
+> **Tranché en #694** (filtrer le centre par catégorie) : le filtre se fait **dans l'API, avant
+> la borne** — la liste est bornée à 50 après fusion de ses deux sources, et un filtre client sur
+> ces 50 lignes ferait paraître vide une catégorie dont les entrées sont plus anciennes. La
+> catégorie d'un type est une **table** (`NOTIFICATION_CATEGORY`, `satisfies Record<…>`), pas un
+> `switch` : un type ajouté sans elle ne compile plus. Quatre écarts assumés : **(1)** le filtre
+> **n'est pas mémorisé** — il revient à « Toutes » à la réouverture du panneau web, et en quittant
+> l'onglet mobile, qui reste monté : le badge compte toutes les catégories, un filtre retenu
+> afficherait « 3 » sur la cloche et une liste vide ; **(2)** aucun compteur de non-lues par
+> catégorie, `unread-count` reste ventilé par espace (#176) ; **(3)** « Tout marquer lu » suit le
+> filtre, et hors « Rappels » il n'éteint **aucun** rappel dû ; **(4)** « Invitations » réunit les
+> deux côtés de la relation (l'invitation reçue en athlète, ses réponses en coach) — c'est un même
+> fil, et deux pastilles pour deux ou trois lignes par an n'aideraient personne. Le filtre croise
+> l'espace actif (#129) sans le remplacer.
 
 > **Appris en test (session de recette #39)** : une notification n'est pas un lien, c'est le
 > **signal que l'état serveur a changé**. L'ouvrir invalide donc tout le cache client avant de
