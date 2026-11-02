@@ -155,12 +155,16 @@ function queryOf(search: Readonly<Record<string, string>>): string {
  *
  * Un segment resté sans valeur lève : le routeur l'accepterait comme une valeur littérale
  * (`$planId`), et l'écran lirait un identifiant que le test n'a jamais donné.
+ *
+ * On part des segments du CHEMIN, chacun remplacé par son nom entier : `$plan` ne mord plus sur
+ * `$planId`, et une valeur qui porte un `$` passe telle quelle, sans être lue comme un motif. Un
+ * `$` sans nom (le joker `/$`) n'est pas pris en charge : il lève plutôt que d'être monté tel quel.
  */
 function interpolate(path: string, params: Readonly<Record<string, string>>): string {
-  const url = Object.entries(params).reduce(
-    (current, [name, value]) => current.replace(`$${name}`, value),
-    path,
-  );
-  if (url.includes("$")) throw new Error(`renderInRoute : un paramètre manque à ${url}`);
-  return url;
+  if (/\$(?!\w)/.test(path)) throw new Error(`renderInRoute : segment sans nom dans ${path}`);
+  return path.replaceAll(/\$(\w+)/g, (_, name: string) => {
+    const value = params[name];
+    if (value === undefined) throw new Error(`renderInRoute : ${name} manque à ${path}`);
+    return value;
+  });
 }
