@@ -66,6 +66,7 @@ type RouteOptions = {
   /**
    * L'id de route sous lequel le composant est monté. Il doit être IDENTIQUE à celui que l'écran
    * réclame par `getRouteApi(...)` — c'est par cette chaîne que `useParams` retrouve son match.
+   * Un segment à `_` final (`$planId_`) garde son id, mais son paramètre se nomme sans (`planId`).
    */
   path: string;
   /** Les valeurs des segments dynamiques de `path`, qui composent l'URL de départ. */
@@ -99,17 +100,30 @@ export async function renderInRoute(
   { path, params = {}, links = [], search = {} }: RouteOptions,
 ): Promise<RenderWithProviders & { router: AnyRouter }> {
   const rootRoute = createRootRoute();
+  const urlPath = urlPathOf(path);
+  const screen = createRoute({
+    getParentRoute: () => rootRoute,
+    path: urlPath,
+    component: () => ui,
+  });
+  // `createRoute` refuse un id ET un chemin : l'id se pose après coup, par `update`, comme le fait
+  // le routeur généré — qui ne le type pas davantage, d'où la conversion.
+  if (urlPath !== path) screen.update({ id: path } as Parameters<typeof screen.update>[0]);
   const routeTree = rootRoute.addChildren([
-    createRoute({ getParentRoute: () => rootRoute, path, component: () => ui }),
+    screen,
     ...links.map((linkPath) =>
-      createRoute({ getParentRoute: () => rootRoute, path: linkPath, component: () => null }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: urlPathOf(linkPath),
+        component: () => null,
+      }),
     ),
   ]);
 
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({
-      initialEntries: [interpolate(path, params) + queryOf(search)],
+      initialEntries: [interpolate(urlPath, params) + queryOf(search)],
     }),
   });
 
@@ -121,16 +135,32 @@ export async function renderInRoute(
   return { ...renderWithProviders(<RouterProvider router={router} />), router };
 }
 
+/**
+ * Le chemin d'URL d'un id de route : `$planId_` y perd son `_` final, qui dit seulement « hors du
+ * layout parent » — `/plans/$planId_/dosage` ne monte pas le constructeur. Le paramètre s'appelle
+ * alors `planId`, comme dans le routeur généré.
+ */
+function urlPathOf(id: string): string {
+  return id.replaceAll(/_(?=\/|$)/g, "");
+}
+
 /** `{ feedback: "f-1" }` → `?feedback=f-1`, et rien du tout quand il n'y a rien à poser. */
 function queryOf(search: Readonly<Record<string, string>>): string {
   const entries = Object.entries(search);
   return entries.length === 0 ? "" : `?${new URLSearchParams(entries).toString()}`;
 }
 
-/** `/sessions/$sessionId/feedback` + `{ sessionId: "ss-1" }` → `/sessions/ss-1/feedback`. */
+/**
+ * `/sessions/$sessionId/feedback` + `{ sessionId: "ss-1" }` → `/sessions/ss-1/feedback`.
+ *
+ * Un segment resté sans valeur lève : le routeur l'accepterait comme une valeur littérale
+ * (`$planId`), et l'écran lirait un identifiant que le test n'a jamais donné.
+ */
 function interpolate(path: string, params: Readonly<Record<string, string>>): string {
-  return Object.entries(params).reduce(
-    (url, [name, value]) => url.replace(`$${name}`, value),
+  const url = Object.entries(params).reduce(
+    (current, [name, value]) => current.replace(`$${name}`, value),
     path,
   );
+  if (url.includes("$")) throw new Error(`renderInRoute : un paramètre manque à ${url}`);
+  return url;
 }

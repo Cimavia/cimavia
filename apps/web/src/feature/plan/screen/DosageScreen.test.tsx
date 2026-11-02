@@ -47,20 +47,9 @@ vi.mock("@/feature/plan/hook/usePlan", async (importOriginal) => {
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    actions,
-    children,
-  }: Readonly<{ title: string; actions?: unknown; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      {actions as never}
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const SETTINGS = STRUCTURE_PRESETS[StructurePresetKey.SERIES];
@@ -168,7 +157,7 @@ const plan = (over: Partial<PlanDto> = {}) =>
 const mount = (search: Record<string, string> = {}) =>
   renderInRoute(<DosageScreen />, {
     path: "/plans/$planId_/dosage",
-    params: { planId_: "pln_1" },
+    params: { planId: "pln_1" },
     links: ["/plans/$planId"],
     search,
   });
@@ -439,8 +428,27 @@ describe("DosageScreen", () => {
     vi.mocked(getScheduledSessionCopies).mockRejectedValueOnce(new Error("panne"));
     const view = await mount();
 
-    await view.user.click(await view.findByRole("button", { name: "common.retry" }));
+    const retry = await view.findByRole("button", { name: "common.retry" });
+    // En panne aussi, le cycle reste à un clic (#746).
+    expect(view.getByRole("link", { name: "plan.dosage.back" })).toHaveAttribute(
+      "href",
+      "/plans/pln_1",
+    );
+    await view.user.click(retry);
 
     expect(await view.findByRole("heading", { name: "Force" })).toBeTruthy();
+  });
+
+  it("ramène au cycle quand le cycle lui-même ne se lit pas", async () => {
+    vi.mocked(getPlan).mockRejectedValueOnce(new Error("panne"));
+    const view = await mount();
+
+    expect(await view.findByRole("button", { name: "common.retry" })).toBeTruthy();
+    // Sans cycle lu, l'écran n'a que l'adresse pour savoir où rentrer.
+    expect(view.getByRole("link", { name: "plan.dosage.back" })).toHaveAttribute(
+      "href",
+      "/plans/pln_1",
+    );
+    expect(getPlan).toHaveBeenCalledWith("pln_1");
   });
 });
