@@ -896,6 +896,18 @@ liste des domaines vivent dans l'index.
 > de l'app, elle, lit le manifeste de l'update : elle affiche 1.5.4. Les sourcemaps sont retrouvées
 > par `debugId`, pas par release — c'est ce qui rend `sentry-expo-upload-sourcemaps` suffisant.
 
+> **Découvert en 1.16.0** (plus aucune classe NativeWind sur les deux plateformes, la barre d'onglets
+> seule stylée) : `nativewind` 4.2.7, monté avec les autres dépendances, exige
+> `react-native-css-interop` **0.2.7 exacte** ; le mobile déclarait toujours 0.2.6, et Dependabot ne
+> la montait pas (`react-native-*` est ignoré). Deux copies, deux stores : Metro remplace
+> `global.css` par un import résolu depuis l'APP (0.2.6), qui enregistre les styles, et
+> `jsxImportSource: "nativewind"` les lit par la copie de NATIVEWIND (0.2.7). Ni erreur ni
+> avertissement, au build comme à l'exécution ; la barre d'onglets échappe parce qu'elle prend ses
+> couleurs en props. La déclaration directe reste (l'import de `global.css` part de l'app), mais
+> `nativewind` rejoint les ignorés de Dependabot pour avancer avec elle, et `nativewind.test.ts`
+> échoue dès que l'app et `nativewind` ne résolvent plus la même copie. Le correctif est du JS
+> seul : il part par update, sans rebuild.
+
 ---
 
 ## Post-MVP — Garde de démarrage des tiers déployés ([#357](https://github.com/Cimavia/cimavia/issues/357))
