@@ -254,7 +254,10 @@ export function CmvAppShell({
                 {back.label}
               </Link>
             )}
-            <div className="flex min-w-0 flex-col gap-cmv-xs">
+            {/* `break-words`, hérité par le titre et le sous-titre : le groupe cède sa largeur au
+                retour, et un nom d'athlète d'un seul tenant déborderait alors sur les actions au
+                lieu de passer à la ligne. */}
+            <div className="flex min-w-0 flex-col gap-cmv-xs break-words">
               <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
               {subtitle == null ? null : (
                 <p className="text-cmv-caption text-cmv-text-mid">{subtitle}</p>
