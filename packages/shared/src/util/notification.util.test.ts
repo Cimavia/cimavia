@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { NotificationType } from "../dto/notification.schema";
+import { NotificationCategory, NotificationType } from "../dto/notification.schema";
 import {
   capabilityOfMessage,
   capabilityOfNotification,
+  notificationCategoriesFor,
+  notificationFilterChoices,
   notificationSubject,
+  notificationTypesOf,
 } from "./notification.util";
 
 describe("capabilityOfNotification", () => {
@@ -133,5 +136,77 @@ describe("notificationSubject", () => {
         formatFullDay,
       ),
     ).toBeNull();
+  });
+});
+
+describe("notificationTypesOf", () => {
+  it("rend les types d'une catégorie, dans l'ordre de l'enum", () => {
+    expect(notificationTypesOf(NotificationCategory.PLANNING)).toEqual([
+      NotificationType.PLAN_PUBLISHED,
+      NotificationType.PLAN_UPDATED,
+      NotificationType.PLAN_SESSION_ADDED,
+      NotificationType.PLAN_SESSION_REMOVED,
+      NotificationType.PLAN_SESSIONS_REORDERED,
+    ]);
+    expect(notificationTypesOf(NotificationCategory.REMINDER)).toEqual([
+      NotificationType.REMINDER_DUE,
+    ]);
+  });
+
+  // Les catégories se partagent l'enum sans recouvrement : un type filtré n'apparaît qu'une fois.
+  it("partitionne l'enum", () => {
+    const all = Object.values(NotificationCategory).flatMap(notificationTypesOf);
+    expect(all.sort()).toEqual(Object.values(NotificationType).sort());
+  });
+});
+
+describe("notificationCategoriesFor", () => {
+  const NONE = { isCoach: false, isAthlete: false, isCompany: false };
+
+  it("n'offre à un athlète seul ni les débriefs ni les rappels", () => {
+    expect(notificationCategoriesFor({ ...NONE, isAthlete: true })).toEqual([
+      NotificationCategory.PLANNING,
+      NotificationCategory.MESSAGE,
+      NotificationCategory.BILLING,
+      NotificationCategory.INVITATION,
+    ]);
+  });
+
+  it("n'offre pas la facturation à un Coach seul", () => {
+    expect(notificationCategoriesFor({ ...NONE, isCoach: true })).toEqual([
+      NotificationCategory.FEEDBACK,
+      NotificationCategory.MESSAGE,
+      NotificationCategory.INVITATION,
+      NotificationCategory.REMINDER,
+    ]);
+  });
+
+  it("offre tout, dans l'ordre des pastilles, à un compte à double capacité", () => {
+    expect(notificationCategoriesFor({ ...NONE, isCoach: true, isAthlete: true })).toEqual(
+      Object.values(NotificationCategory),
+    );
+  });
+
+  // Une Entreprise ne coache ni ne s'entraîne : même le message, reçu des deux côtés, ne la vise pas.
+  it("n'offre rien à un compte Entreprise", () => {
+    expect(notificationCategoriesFor({ ...NONE, isCompany: true })).toEqual([]);
+  });
+});
+
+describe("notificationFilterChoices", () => {
+  const NONE = { isCoach: false, isAthlete: false, isCompany: false };
+
+  it("ouvre sur « Toutes », puis les catégories reçues avec leur libellé", () => {
+    expect(notificationFilterChoices({ ...NONE, isCoach: true })).toEqual([
+      { category: null, labelKey: "notification.category.all" },
+      { category: NotificationCategory.FEEDBACK, labelKey: "notification.category.feedback" },
+      { category: NotificationCategory.MESSAGE, labelKey: "notification.category.message" },
+      { category: NotificationCategory.INVITATION, labelKey: "notification.category.invitation" },
+      { category: NotificationCategory.REMINDER, labelKey: "notification.category.reminder" },
+    ]);
+  });
+
+  it("ne propose rien à qui n'a rien à filtrer", () => {
+    expect(notificationFilterChoices({ ...NONE, isCompany: true })).toEqual([]);
   });
 });

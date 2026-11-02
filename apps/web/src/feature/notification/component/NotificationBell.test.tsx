@@ -292,3 +292,67 @@ describe("NotificationBell — les rappels dus", () => {
     expect(messageRow?.textContent).not.toContain("reminder.snooze.label");
   });
 });
+
+describe("NotificationBell — le filtre par catégorie (#694)", () => {
+  const chip = (view: Awaited<ReturnType<typeof mount>>, name: string) =>
+    view.findByRole("button", { name });
+
+  // Un Coach seul : ni « Facturation » ni « Planification », qu'il ne reçoit pas.
+  it("n'offre que les catégories que le compte reçoit", async () => {
+    const view = await mount();
+    await openBell(view);
+
+    expect(await chip(view, "notification.category.all")).toHaveAttribute("aria-pressed", "true");
+    expect(view.getByRole("button", { name: "notification.category.reminder" })).toBeVisible();
+    expect(view.queryByRole("button", { name: "notification.category.billing" })).toBeNull();
+    expect(view.queryByRole("button", { name: "notification.category.planning" })).toBeNull();
+  });
+
+  it("demande la catégorie à l'API, et solde seulement elle", async () => {
+    const view = await mount();
+    await openBell(view);
+
+    await view.user.click(await chip(view, "notification.category.feedback"));
+    await waitFor(() => expect(notificationApi.list).toHaveBeenLastCalledWith("FEEDBACK"));
+    await view.user.click(await view.findByRole("button", { name: "notification.markAllRead" }));
+
+    expect(notificationApi.markAllRead).toHaveBeenCalledWith("FEEDBACK", expect.anything());
+  });
+
+  it("dit le vide d'une catégorie, sans offrir de solder ce qui est déjà lu", async () => {
+    const view = await mount();
+    await openBell(view);
+    vi.mocked(notificationApi.list).mockResolvedValue([READ_MESSAGE]);
+
+    await view.user.click(await chip(view, "notification.category.message"));
+    await view.findByText("notification.type.messageReceived");
+    expect(view.queryByRole("button", { name: "notification.markAllRead" })).toBeNull();
+
+    vi.mocked(notificationApi.list).mockResolvedValue([]);
+    await view.user.click(await chip(view, "notification.category.reminder"));
+    expect(await view.findByText("notification.emptyCategory")).toBeInTheDocument();
+  });
+
+  // Le badge compte tout : un filtre retenu afficherait « 2 » sur la cloche et une liste vide.
+  it("revient à « Toutes » à la réouverture", async () => {
+    const view = await mount();
+    await openBell(view);
+    await view.user.click(await chip(view, "notification.category.feedback"));
+
+    await openBell(view);
+    await openBell(view);
+
+    expect(await chip(view, "notification.category.all")).toHaveAttribute("aria-pressed", "true");
+    expect(notificationApi.list).toHaveBeenLastCalledWith(null);
+  });
+
+  // Un compte Entreprise ne reçoit rien : pas de rangée de filtres du tout.
+  it("ne montre aucun filtre à qui n'a rien à filtrer", async () => {
+    session.user = { id: "u_1", name: "Camille", isCoach: false, isAthlete: false };
+    const view = await mount([]);
+    await openBell(view);
+
+    await view.findByText("notification.empty");
+    expect(view.queryByRole("button", { name: "notification.category.all" })).toBeNull();
+  });
+});

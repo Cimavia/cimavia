@@ -13,7 +13,7 @@ import {
 } from "../support/actors";
 import { app, baseURL, sentMails } from "../support/app";
 import { blocksOf } from "../support/blocks";
-import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
+import { fromTemplate, inPast, mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest, publishAtLatest, putAtLatest } from "../support/version";
 
 describe("Tokens de notification push (P4)", () => {
@@ -633,6 +633,101 @@ describe("Compteur de notifications ventilé par espace (#176)", () => {
     // L'athlète qui l'a rejoint (#146), puis son message.
     const coachUnread = await coach.get("/me/notifications/unread-count");
     expect(coachUnread.body).toMatchObject({ coach: 2, athlete: 0, count: 2 });
+  });
+});
+
+describe("Filtre du centre par catégorie (#694)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+
+  type Entry = { id: string; type: string; readAt: string | null };
+
+  const inbox = async (agent: Agent, category?: string): Promise<Entry[]> =>
+    (await agent.get("/me/notifications").query(category == null ? {} : { category })).body;
+  const types = async (agent: Agent, category?: string): Promise<string[]> =>
+    (await inbox(agent, category)).map((entry) => entry.type).sort();
+  const unreadTypes = async (agent: Agent): Promise<string[]> =>
+    (await inbox(agent))
+      .filter((entry) => entry.readAt == null)
+      .map((entry) => entry.type)
+      .sort();
+
+  /**
+   * Une entrée par catégorie, ou presque, de chaque côté : le coach reçoit l'acceptation, le
+   * débrief et un rappel dû ; l'athlète l'invitation, le cycle et sa facture.
+   */
+  beforeAll(async () => {
+    coach = await signUp("filter-coach@cmv.test", Role.COACH);
+    athlete = await signUp("filter-athlete@cmv.test", Role.ATHLETE);
+    const invitation = await inviteFor(coach, athlete);
+    const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
+
+    const monday = mondayOfCurrentWeek();
+    const plan = await coach.post("/plans").send({
+      athleteId: accepted.body[0].athleteId,
+      title: "Cycle filtré",
+      startDate: monday,
+      weeks: [{ type: "TRAINING" }],
+    });
+    const session = await coach
+      .post(`/plan-weeks/${plan.body.weeks[0].id}/sessions`)
+      .send(await fromTemplate(coach, { title: "Séance filtrée", scheduledDate: monday }));
+    expect((await billAndPublish(coach, plan.body.id)).status).toBe(200);
+    await athlete
+      .put(`/me/scheduled-sessions/${session.body.id}/feedback`)
+      .send({ content: "Séance faite" });
+    await coach
+      .post("/reminders")
+      .send({ entityType: "PLAN", entityId: plan.body.id, dueAt: inPast(1), note: "Relancer" });
+  });
+
+  it("sans catégorie, le centre rend ses deux sources", async () => {
+    expect(await types(coach)).toEqual([
+      "FEEDBACK_RECEIVED",
+      "INVITATION_ACCEPTED",
+      "REMINDER_DUE",
+    ]);
+  });
+
+  it("une catégorie ne rend que ses types, rappels compris", async () => {
+    expect(await types(coach, "FEEDBACK")).toEqual(["FEEDBACK_RECEIVED"]);
+    expect(await types(coach, "INVITATION")).toEqual(["INVITATION_ACCEPTED"]);
+    expect(await types(coach, "REMINDER")).toEqual(["REMINDER_DUE"]);
+    expect(await types(athlete, "PLANNING")).toEqual(["PLAN_PUBLISHED"]);
+    expect(await types(athlete, "BILLING")).toEqual(["INVOICE_ISSUED"]);
+    expect(await types(coach, "BILLING")).toEqual([]);
+  });
+
+  // `Reminder` n'a aucun scope athlète : le lire pour lui lèverait. La catégorie est valide, elle
+  // n'a simplement rien à lui rendre — et rien à éteindre.
+  it("un athlète qui demande les rappels reçoit une liste vide, pas un 500", async () => {
+    const before = await unreadTypes(athlete);
+
+    const list = await athlete.get("/me/notifications").query({ category: "REMINDER" });
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([]);
+
+    const readAll = await athlete.post("/me/notifications/read-all").send({ category: "REMINDER" });
+    expect(readAll.status).toBe(204);
+    expect(await unreadTypes(athlete)).toEqual(before);
+  });
+
+  it("« tout marquer lu » filtré n'éteint que sa catégorie, rappels compris", async () => {
+    const res = await coach.post("/me/notifications/read-all").send({ category: "FEEDBACK" });
+    expect(res.status).toBe(204);
+    // Le rappel dû reste allumé : hors « Rappels », `markAllDueRead` n'est pas appelé.
+    expect(await unreadTypes(coach)).toEqual(["INVITATION_ACCEPTED", "REMINDER_DUE"]);
+    expect((await coach.get("/me/notifications/unread-count")).body.count).toBe(2);
+
+    await coach.post("/me/notifications/read-all").send({ category: "REMINDER" });
+    expect(await unreadTypes(coach)).toEqual(["INVITATION_ACCEPTED"]);
+  });
+
+  it("refuse une catégorie inconnue, sur la liste comme sur le marquage", async () => {
+    expect((await coach.get("/me/notifications").query({ category: "PLAN" })).status).toBe(400);
+    const readAll = await coach.post("/me/notifications/read-all").send({ category: "PLAN" });
+    expect(readAll.status).toBe(400);
+    expect(await unreadTypes(coach)).toEqual(["INVITATION_ACCEPTED"]);
   });
 });
 

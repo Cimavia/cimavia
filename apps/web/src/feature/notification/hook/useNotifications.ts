@@ -1,4 +1,4 @@
-import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
+import type { NotificationCategoryType, NotificationDto, UnreadCountDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationApi, notificationKeys } from "@/feature/notification/api";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -46,12 +46,17 @@ export function useUnreadByCapability() {
 /**
  * La liste n'est chargée QUE panneau ouvert : le badge suffit à savoir qu'il se passe quelque
  * chose, tirer 50 lignes en permanence sur chaque écran serait du gaspillage.
+ *
+ * `category` est filtrée par l'API (#694) ; `null` = toutes. Une entrée de cache par catégorie,
+ * donc `staleTime: 0` : revenir sur « Débriefs » montre sa dernière liste, puis la relit — sans quoi
+ * un débrief arrivé depuis y manquerait pendant une minute, badge allumé.
  */
-export function useNotifications(enabled: boolean) {
+export function useNotifications(enabled: boolean, category: NotificationCategoryType | null) {
   return useQuery<NotificationDto[]>({
-    queryKey: notificationKeys.list(),
-    queryFn: notificationApi.list,
+    queryKey: notificationKeys.list(category),
+    queryFn: () => notificationApi.list(category),
     enabled,
+    staleTime: 0,
   });
 }
 
@@ -72,6 +77,8 @@ export function useMarkNotificationRead() {
   });
 }
 
+// La variable de la mutation est la catégorie affichée (#694) : le bouton éteint ce que la liste
+// montre, rien d'autre. `null` = tout le centre.
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();

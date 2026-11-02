@@ -1,7 +1,7 @@
 import { INVOICE_ROW_FILTERS, type InvoiceRowFilter } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView } from "react-native";
-import { CmvText } from "@/shared/component";
+import { ScrollView } from "react-native";
+import { CmvToggleChip } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -38,29 +38,19 @@ export function InvoiceSituationFilter({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      accessibilityRole="radiogroup"
       contentContainerClassName="gap-2 px-4"
     >
-      {INVOICE_ROW_FILTERS.map((value) => {
-        const selected = value === filter;
-        return (
-          <Pressable
-            key={value}
-            onPress={() => onChange(value)}
-            accessibilityState={{ selected }}
-            className={`shrink-0 rounded-full border px-4 py-2 ${
-              selected
-                ? "border-cmv-border-hi bg-cmv-surface-hi"
-                : "border-cmv-border bg-cmv-surface"
-            }`}
-          >
-            <CmvText className={`text-xs ${selected ? "text-cmv-text-hi" : "text-cmv-text-mid"}`}>
-              {/* `n` et non `count` : `count` déclencherait la pluralisation d'i18next, qui irait
-                  chercher des variantes `_one`/`_other` que ces libellés n'ont pas. */}
-              {t(`invoice.coach.situationFilter.${value}`, { n: counts[value] })}
-            </CmvText>
-          </Pressable>
-        );
-      })}
+      {INVOICE_ROW_FILTERS.map((value) => (
+        <CmvToggleChip
+          key={value}
+          pressed={value === filter}
+          onToggle={() => onChange(value)}
+          // `n` et non `count` : `count` déclencherait la pluralisation d'i18next, qui irait chercher
+          // des variantes `_one`/`_other` que ces libellés n'ont pas.
+          label={t(`invoice.coach.situationFilter.${value}`, { n: counts[value] })}
+        />
+      ))}
     </ScrollView>
   );
 }

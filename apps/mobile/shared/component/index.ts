@@ -13,5 +13,6 @@ export { CmvImageViewer } from "./CmvImageViewer";
 export { CmvRichDocument } from "./CmvRichDocument";
 export { CmvScreen } from "./CmvScreen";
 export { CmvText } from "./CmvText";
+export { CmvToggleChip } from "./CmvToggleChip";
 export { CmvVideoPlayer } from "./CmvVideoPlayer";
 export { OfflineBanner } from "./OfflineBanner";

@@ -1,5 +1,11 @@
-import type { TrainingCapability } from "../capability";
-import { type NotificationDto, NotificationType } from "../dto/notification.schema";
+import { type Capabilities, hasCapability, type TrainingCapability } from "../capability";
+import {
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL_KEY,
+  NotificationCategory,
+  type NotificationDto,
+  NotificationType,
+} from "../dto/notification.schema";
 
 /**
  * Les types dont `subjectLabel` porte une DATE CIVILE et non un libellé (#148).
@@ -103,4 +109,74 @@ export function capabilityOfMessage(
   conversation: { coachId: string; athleteId: string },
 ): TrainingCapability {
   return conversation.coachId === recipientId ? "coach" : "athlete";
+}
+
+// L'inverse de `NOTIFICATION_CATEGORY`, calculé une fois au chargement : la cloche le lit à chaque
+// rendu, l'API à chaque requête. Le `Record` refuse une catégorie oubliée ici.
+const TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]> = {
+  [NotificationCategory.PLANNING]: [],
+  [NotificationCategory.FEEDBACK]: [],
+  [NotificationCategory.MESSAGE]: [],
+  [NotificationCategory.BILLING]: [],
+  [NotificationCategory.INVITATION]: [],
+  [NotificationCategory.REMINDER]: [],
+};
+for (const type of Object.values(NotificationType)) {
+  TYPES_BY_CATEGORY[NOTIFICATION_CATEGORY[type]].push(type);
+}
+
+/**
+ * Les types d'une catégorie (#694), dans l'ordre de l'enum — ce que l'API filtre.
+ *
+ * Lue depuis `NOTIFICATION_CATEGORY` plutôt qu'écrite à part : deux tables diraient un jour deux
+ * choses différentes. `REMINDER_DUE` y figure comme les autres ; c'est à l'API d'écarter ce qu'elle
+ * ne persiste pas.
+ */
+export function notificationTypesOf(category: NotificationCategory): readonly NotificationType[] {
+  return TYPES_BY_CATEGORY[category];
+}
+
+/**
+ * Les catégories que ce compte peut RECEVOIR, dans l'ordre des pastilles (#694) : un athlète seul
+ * n'a pas à voir « Débriefs » ni « Rappels », un Coach seul pas « Facturation ».
+ *
+ * Dérivée de `capabilityOfNotification`, qui dit déjà sous quel titre chaque type se lit : une
+ * catégorie est offerte dès qu'UN de ses types l'est. Le type sans titre (`MESSAGE_RECEIVED`) se
+ * reçoit des deux côtés, donc par tout compte qui coache ou s'entraîne. Un compte Entreprise, qui ne
+ * fait ni l'un ni l'autre, n'a aucune catégorie.
+ */
+export function notificationCategoriesFor(capabilities: Capabilities): NotificationCategory[] {
+  const trains = capabilities.isCoach || capabilities.isAthlete;
+  const receives = (type: NotificationType): boolean => {
+    const capability = capabilityOfNotification(type);
+    return capability == null ? trains : hasCapability(capabilities, capability);
+  };
+  return Object.values(NotificationCategory).filter((category) =>
+    notificationTypesOf(category).some(receives),
+  );
+}
+
+/** Une pastille du filtre : sa catégorie (`null` = « Toutes ») et la clé i18n de son libellé. */
+export type NotificationFilterChoice = {
+  category: NotificationCategory | null;
+  labelKey: string;
+};
+
+/**
+ * Les pastilles du filtre, dans l'ordre (#694) : « Toutes », puis chaque catégorie que le compte
+ * reçoit. La règle vit ici pour que le web et le mobile ne la réécrivent pas chacun.
+ *
+ * Vide sous deux catégories : une seule n'a rien à filtrer, « Toutes » la montre déjà — et un
+ * compte Entreprise n'en a aucune. Le client ne dessine alors pas de rangée.
+ */
+export function notificationFilterChoices(capabilities: Capabilities): NotificationFilterChoice[] {
+  const categories = notificationCategoriesFor(capabilities);
+  if (categories.length < 2) return [];
+  return [
+    { category: null, labelKey: "notification.category.all" },
+    ...categories.map((category) => ({
+      category,
+      labelKey: NOTIFICATION_CATEGORY_LABEL_KEY[category],
+    })),
+  ];
 }

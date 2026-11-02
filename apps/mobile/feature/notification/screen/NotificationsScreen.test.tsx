@@ -217,3 +217,50 @@ describe("NotificationsScreen — les gestes", () => {
     expect(container.textContent).not.toContain("notification.markAllRead");
   });
 });
+
+describe("NotificationsScreen — le filtre par catégorie (#694)", () => {
+  // Un athlète seul : ni « Débriefs » ni « Rappels », qu'il ne reçoit pas.
+  it("n'offre que les catégories que le compte reçoit", async () => {
+    const { findByText, queryByText } = renderRn(<NotificationsScreen />);
+
+    expect(await findByText("notification.category.all")).toBeTruthy();
+    expect(await findByText("notification.category.billing")).toBeTruthy();
+    expect(queryByText("notification.category.feedback")).toBeNull();
+    expect(queryByText("notification.category.reminder")).toBeNull();
+  });
+
+  it("demande la catégorie à l'API, et solde seulement elle", async () => {
+    const { container, findByText } = renderRn(<NotificationsScreen />);
+    await findByText("notification.category.billing");
+
+    pressButton(container, "notification.category.billing");
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith("BILLING"));
+    await findByText("notification.markAllRead");
+    pressButton(container, "notification.markAllRead");
+
+    await waitFor(() =>
+      expect(notificationApi.markAllRead).toHaveBeenCalledWith("BILLING", expect.anything()),
+    );
+  });
+
+  it("dit le vide d'une catégorie sans promettre ce qui arrivera", async () => {
+    const { container, findByText, queryByText } = renderRn(<NotificationsScreen />);
+    await findByText("notification.category.billing");
+    list.mockResolvedValue([]);
+
+    pressButton(container, "notification.category.billing");
+
+    expect(await findByText("notification.empty.category")).toBeTruthy();
+    expect(queryByText("notification.empty.description")).toBeNull();
+  });
+
+  // Un compte Entreprise ne reçoit rien : pas de ruban du tout.
+  it("ne montre aucun filtre à qui n'a rien à filtrer", async () => {
+    user.current = { id: "co-1", isAthlete: false, isCoach: false };
+    list.mockResolvedValue([]);
+    const { findByText, queryByText } = renderRn(<NotificationsScreen />);
+
+    await findByText("notification.empty.description");
+    expect(queryByText("notification.category.all")).toBeNull();
+  });
+});

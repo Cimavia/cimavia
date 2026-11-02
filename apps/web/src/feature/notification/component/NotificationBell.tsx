@@ -1,6 +1,8 @@
 import {
   NOTIFICATION_LABEL_KEY,
+  type NotificationCategoryType,
   type NotificationDto,
+  notificationFilterChoices,
   notificationSubject,
   parseReminderFeedId,
 } from "@cmv/shared";
@@ -9,6 +11,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoNotificationsOutline } from "react-icons/io5";
+import { NotificationCategoryFilter } from "@/feature/notification/component/NotificationCategoryFilter";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -37,10 +40,16 @@ export function NotificationBell() {
   // type de la cible : sans ça, un athlète serait envoyé vers le builder du coach.
   const capabilities = useCapabilities();
   const [open, setOpen] = useState(false);
+  /**
+   * Le filtre du centre (#694), `null` = « Toutes ». NON mémorisé : il revient à « Toutes » à chaque
+   * ouverture. Le badge compte toutes les catégories — un filtre retenu afficherait « 3 » sur la
+   * cloche et une liste vide à l'ouverture.
+   */
+  const [category, setCategory] = useState<NotificationCategoryType | null>(null);
 
   const { data: unreadCount } = useUnreadNotificationCount();
   // La liste ne se charge qu'à l'ouverture : le badge suffit à savoir qu'il se passe quelque chose.
-  const { data: notifications, isPending, isError, refetch } = useNotifications(open);
+  const { data: notifications, isPending, isError, refetch } = useNotifications(open, category);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
@@ -78,12 +87,21 @@ export function NotificationBell() {
   }
 
   const hasUnread = unreadCount != null && unreadCount > 0;
+  // Sous un filtre, le badge global ne dit plus rien de la liste : le bouton suit ce qu'elle montre,
+  // sans quoi il s'offrirait sur une catégorie déjà toute lue.
+  const offersMarkAll =
+    category == null
+      ? hasUnread
+      : (notifications ?? []).some((notification) => notification.readAt == null);
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        onClick={() => {
+          setCategory(null);
+          setOpen((wasOpen) => !wasOpen);
+        }}
         aria-label={t("notification.open")}
         aria-expanded={open}
         className="relative rounded-cmv-md p-cmv-sm text-cmv-text-mid transition-colors hover:bg-cmv-surface-hi hover:text-cmv-text-hi"
@@ -108,18 +126,26 @@ export function NotificationBell() {
           <div className="absolute right-0 z-50 mt-cmv-xs flex max-h-96 w-80 flex-col rounded-cmv-lg border border-cmv-border bg-cmv-bg-1 shadow-xl">
             <header className="flex items-center justify-between gap-cmv-sm border-cmv-border border-b px-cmv-md py-cmv-sm">
               <span className="text-cmv-body text-cmv-text-hi">{t("notification.title")}</span>
-              {hasUnread ? (
-                <CmvButton variant="ghost" onClick={() => markAllRead.mutate()}>
+              {offersMarkAll ? (
+                <CmvButton variant="ghost" onClick={() => markAllRead.mutate(category)}>
                   {t("notification.markAllRead")}
                 </CmvButton>
               ) : null}
             </header>
+            <NotificationCategoryFilter
+              choices={notificationFilterChoices(capabilities)}
+              category={category}
+              onChange={setCategory}
+            />
 
             <div className="flex-1 overflow-y-auto">
               <NotificationList
                 notifications={notifications}
                 isPending={isPending}
                 isError={isError}
+                emptyLabel={t(
+                  category == null ? "notification.empty" : "notification.emptyCategory",
+                )}
                 onRetry={() => refetch()}
                 onSelect={onSelect}
               />
@@ -135,6 +161,8 @@ type NotificationListProps = {
   notifications: NotificationDto[] | undefined;
   isPending: boolean;
   isError: boolean;
+  // Le vide d'un filtre n'est pas le vide du centre : « rien dans cette catégorie », pas « rien ».
+  emptyLabel: string;
   onRetry: () => void;
   onSelect: (notification: NotificationDto) => void;
 };
@@ -143,6 +171,7 @@ function NotificationList({
   notifications,
   isPending,
   isError,
+  emptyLabel,
   onRetry,
   onSelect,
 }: Readonly<NotificationListProps>) {
@@ -166,11 +195,7 @@ function NotificationList({
     );
   }
   if (notifications.length === 0) {
-    return (
-      <p className="p-cmv-lg text-center text-cmv-caption text-cmv-text-mid">
-        {t("notification.empty")}
-      </p>
-    );
+    return <p className="p-cmv-lg text-center text-cmv-caption text-cmv-text-mid">{emptyLabel}</p>;
   }
 
   return (

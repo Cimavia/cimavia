@@ -1,6 +1,7 @@
-import { Controller, Get, HttpCode, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
+import { NotificationFilterDto } from "../dto/notification-filter.dto";
 import { NotificationFeedService } from "../service/notification-feed.service";
 
 /**
@@ -21,9 +22,11 @@ import { NotificationFeedService } from "../service/notification-feed.service";
 export class NotificationController {
   constructor(private readonly feed: NotificationFeedService) {}
 
+  // `?category=` (#694) : une catégorie inconnue est un 400, pas une liste vide. Le même DTO que
+  // `read-all`, validé par le même pipe global : un seul chemin pour un seul filtre.
   @Get()
-  list() {
-    return this.feed.list();
+  list(@Query() filter: NotificationFilterDto) {
+    return this.feed.list(filter);
   }
 
   // Route séparée de la liste : c'est le badge, rafraîchi en continu — il ne doit pas ramener
@@ -39,10 +42,11 @@ export class NotificationController {
     return this.feed.markRead(id);
   }
 
-  // Geste global, distinct du marquage unitaire : rien à renvoyer, le client réinvalide.
+  // Geste global, distinct du marquage unitaire : rien à renvoyer, le client réinvalide. Le même
+  // filtre que la liste, dans le corps : sans catégorie, tout le centre.
   @Post("read-all")
   @HttpCode(204)
-  markAllRead() {
-    return this.feed.markAllRead();
+  markAllRead(@Body() dto: NotificationFilterDto) {
+    return this.feed.markAllRead(dto);
   }
 }

@@ -1565,6 +1565,7 @@
     "title": "Notifications",
     "open": "Ouvrir les notifications",
     "empty": "Aucune notification pour le moment.",
+    "emptyCategory": "Aucune notification dans cette catégorie.",
     "markAllRead": "Tout marquer comme lu",
     "someone": "Quelqu'un",
     "type": {
@@ -1592,6 +1593,16 @@
         "messageReceived": "Nouveau message",
         "invoiceIssued": "Nouvelle facture"
       }
+    },
+    "category": {
+      "legend": "Filtrer les notifications",
+      "all": "Toutes",
+      "planning": "Planification",
+      "feedback": "Débriefs",
+      "message": "Messages",
+      "billing": "Facturation",
+      "invitation": "Invitations",
+      "reminder": "Rappels"
     }
   },
   "coach": {

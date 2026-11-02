@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   EMAILABLE_NOTIFICATION_TYPES,
+  NOTIFICATION_CATEGORY,
+  NOTIFICATION_CATEGORY_LABEL_KEY,
   NOTIFICATION_LABEL_KEY,
+  NotificationCategory,
   NotificationEntityType,
   NotificationType,
   notificationDtoSchema,
+  notificationFilterSchema,
   unreadCountDtoSchema,
   updateNotificationEmailPreferencesSchema,
 } from "./notification.schema";
@@ -239,5 +243,43 @@ describe("updateNotificationEmailPreferencesSchema", () => {
       enabled: [...EMAILABLE_NOTIFICATION_TYPES],
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("NOTIFICATION_CATEGORY", () => {
+  // Le `satisfies` refuse un type sans catégorie ; ce test refuse une catégorie que rien ne remplit,
+  // qui ferait une pastille toujours vide.
+  it("range chaque type, et chaque catégorie reçoit au moins un type", () => {
+    const used = new Set(Object.values(NOTIFICATION_CATEGORY));
+    expect(Object.keys(NOTIFICATION_CATEGORY).sort()).toEqual(
+      Object.values(NotificationType).sort(),
+    );
+    expect([...used].sort()).toEqual(Object.values(NotificationCategory).sort());
+  });
+
+  it("donne un libellé à chaque catégorie, sous notification.category", () => {
+    for (const category of Object.values(NotificationCategory)) {
+      expect(NOTIFICATION_CATEGORY_LABEL_KEY[category]).toMatch(/^notification\.category\.\w+$/);
+    }
+  });
+});
+
+describe("notificationFilterSchema", () => {
+  it("accepte l'absence de filtre — c'est « Toutes »", () => {
+    expect(notificationFilterSchema.parse({})).toEqual({});
+    expect(notificationFilterSchema.parse(undefined)).toEqual({});
+  });
+
+  it("accepte chaque catégorie", () => {
+    for (const category of Object.values(NotificationCategory)) {
+      expect(notificationFilterSchema.parse({ category })).toEqual({ category });
+    }
+  });
+
+  // Un 400 plutôt qu'une liste vide : une catégorie inconnue est une faute du client, pas une
+  // catégorie sans entrée.
+  it("refuse une catégorie inconnue et un paramètre de trop", () => {
+    expect(notificationFilterSchema.safeParse({ category: "PLAN_PUBLISHED" }).success).toBe(false);
+    expect(notificationFilterSchema.safeParse({ type: "PLAN_PUBLISHED" }).success).toBe(false);
   });
 });

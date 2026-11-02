@@ -39,8 +39,8 @@ describe("InvoiceSituationFilter", () => {
    * sont l'endroit type où un copier-coller fait tout pointer sur « Tous » — un filtre qui ne
    * filtre jamais, et rien à l'écran ne le dirait.
    *
-   * L'état sélectionné n'est pas affirmé ici : `accessibilityState` ne produit aucun attribut sous
-   * `react-native-web`, et la teinte du fond n'est pas observable par le harnais (dette Q-6).
+   * L'état sélectionné s'affirme sur `CmvToggleChip`, qui le porte : ici, seule la valeur
+   * remontée par chaque chip est propre au filtre.
    */
   it.each(["ALL", "OVERDUE", "DUE", "UP_TO_DATE"] as const)(
     "remonte %s depuis sa chip",

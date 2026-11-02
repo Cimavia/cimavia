@@ -562,7 +562,8 @@
     "someone": "Quelqu'un",
     "empty": {
       "title": "Aucune notification",
-      "description": "Les diffusions de cycle, les modifications de séance et les messages de ton coach apparaîtront ici."
+      "description": "Les diffusions de cycle, les modifications de séance et les messages de ton coach apparaîtront ici.",
+      "category": "Rien dans cette catégorie pour le moment."
     },
     "type": {
       "planPublished": "Nouvelle planification : « {{subject}} »",
@@ -589,6 +590,15 @@
         "messageReceived": "Nouveau message",
         "invoiceIssued": "Nouvelle facture"
       }
+    },
+    "category": {
+      "all": "Toutes",
+      "planning": "Planification",
+      "feedback": "Débriefs",
+      "message": "Messages",
+      "billing": "Facturation",
+      "invitation": "Invitations",
+      "reminder": "Rappels"
     }
   },
   "dashboard": {
