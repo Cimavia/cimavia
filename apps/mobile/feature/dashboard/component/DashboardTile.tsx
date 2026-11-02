@@ -1,3 +1,5 @@
+import { cmvColors } from "@cmv/tokens";
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, View } from "react-native";
 import { CmvText } from "@/shared/component";
 
@@ -44,18 +46,25 @@ export function DashboardTile({ label, count, hint, tone, onPress }: Readonly<Da
 
   return (
     <Container
-      {...(onPress == null ? {} : { onPress })}
-      className={`flex-1 gap-1 rounded-lg border p-4 ${signal == null ? "border-cmv-border bg-cmv-surface" : TONE_CLASSES[signal]}`}
+      {...(onPress == null ? {} : { onPress, accessibilityRole: "button" as const })}
+      className={`flex-1 flex-row items-center gap-2 rounded-lg border p-4 ${signal == null ? "border-cmv-border bg-cmv-surface" : TONE_CLASSES[signal]}`}
     >
-      <CmvText className="text-cmv-text-mid text-xs">{label}</CmvText>
-      <CmvText
-        className={`font-cmv-display text-2xl ${signal == null ? "text-cmv-text-hi" : TONE_TEXT[signal]}`}
-      >
-        {count ?? "—"}
-      </CmvText>
-      <CmvText className={`text-xs ${signal == null ? "text-cmv-text-lo" : TONE_TEXT[signal]}`}>
-        {hint}
-      </CmvText>
+      <View className="flex-1 gap-1">
+        <CmvText className="text-cmv-text-mid text-xs">{label}</CmvText>
+        <CmvText
+          className={`font-cmv-display text-2xl ${signal == null ? "text-cmv-text-hi" : TONE_TEXT[signal]}`}
+        >
+          {count ?? "—"}
+        </CmvText>
+        <CmvText className={`text-xs ${signal == null ? "text-cmv-text-lo" : TONE_TEXT[signal]}`}>
+          {hint}
+        </CmvText>
+      </View>
+      {/* Ce qui distingue à l'œil une tuile qui ouvre un écran (#703) — le même chevron que les
+          lignes du Profil, et que les cartes cliquables du web. */}
+      {onPress == null ? null : (
+        <Ionicons name="chevron-forward" size={18} color={cmvColors.text.lo} />
+      )}
     </Container>
   );
 }

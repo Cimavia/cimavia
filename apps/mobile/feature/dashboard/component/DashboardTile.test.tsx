@@ -39,10 +39,21 @@ describe("DashboardTile", () => {
     expect(onPress).toHaveBeenCalledOnce();
   });
 
+  /** Rien ne distinguait à l'œil une tuile qui ouvre un écran d'une tuile qui informe (#703). */
+  it("porte le chevron, et s'annonce comme un bouton, quand elle ouvre un écran", () => {
+    const { container, getByRole } = renderRn(
+      <DashboardTile label="Débriefs" count={0} hint="à lire" tone="warning" onPress={() => {}} />,
+    );
+
+    expect(container.querySelector('[data-icon="chevron-forward"]')).not.toBeNull();
+    expect(getByRole("button", { name: /Débriefs/ })).not.toBeNull();
+  });
+
   /** Une tuile de contexte sans écran cible reste muette plutôt que de mener à un cul-de-sac. */
   it("ne se présente pas comme touchable sans écran à ouvrir", () => {
     const { container } = renderRn(<DashboardTile label="Athlètes" count={4} hint="suivis" />);
 
     expect(container.querySelector("[tabindex]")).toBeNull();
+    expect(container.querySelector('[data-icon="chevron-forward"]')).toBeNull();
   });
 });
