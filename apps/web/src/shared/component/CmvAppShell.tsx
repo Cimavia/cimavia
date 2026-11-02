@@ -1,10 +1,20 @@
 import type { CapabilityName, TrainingCapability } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  type RegisteredRouter,
+  useNavigate,
+  type ValidateLinkOptions,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
-import { IoBarbellOutline, IoPersonOutline, IoSettingsOutline } from "react-icons/io5";
+import {
+  IoBarbellOutline,
+  IoChevronBack,
+  IoPersonOutline,
+  IoSettingsOutline,
+} from "react-icons/io5";
 import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
@@ -91,10 +101,20 @@ function searchFor(to: string, space: CapabilityName) {
     : { as: undefined, athlete: undefined, q: undefined, filter: undefined, session: undefined };
 }
 
-type CmvAppShellProps = {
+/**
+ * Le retour d'écran : ce qu'il dit, et où il mène. Les options du lien sont vérifiées comme celles
+ * d'un `<Link>` écrit en place — route, `params` et `search` compris (#746).
+ */
+export type CmvBackLink<TLink = unknown> = {
+  label: string;
+  link: ValidateLinkOptions<RegisteredRouter, TLink>;
+};
+
+type CmvAppShellProps<TLink = unknown> = {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  back?: CmvBackLink<TLink> | undefined;
   /**
    * La page tient dans l'écran et son contenu en prend toute la hauteur : un tableau y défile dans
    * son cadre, au lieu de s'arrêter à mi-page.
@@ -103,10 +123,13 @@ type CmvAppShellProps = {
   children: ReactNode;
 };
 
+// La signature générique est ce qui fait inférer, puis vérifier, les options du retour à l'appel.
+export function CmvAppShell<TLink>(props: Readonly<CmvAppShellProps<TLink>>): ReactNode;
 export function CmvAppShell({
   title,
   subtitle,
   actions,
+  back,
   fill = false,
   children,
 }: Readonly<CmvAppShellProps>) {
@@ -216,11 +239,27 @@ export function CmvAppShell({
           `-mx`/`px` compensent le padding de `main` pour que le fond couvre toute la largeur.
         */}
         <header className="-mx-cmv-xl -mt-cmv-xl sticky top-0 z-20 mb-cmv-xl flex flex-wrap items-center gap-cmv-md border-cmv-border border-b bg-cmv-bg-0 px-cmv-xl py-cmv-lg">
-          <div className="flex flex-col gap-cmv-xs">
-            <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
-            {subtitle == null ? null : (
-              <p className="text-cmv-caption text-cmv-text-mid">{subtitle}</p>
+          {/* Le retour et le titre dans UN groupe : le `flex-wrap` du bandeau ne renvoie à la
+              ligne que des actions, jamais le retour seul, loin de ce qu'il quitte. */}
+          <div className="flex min-w-0 items-center gap-cmv-md">
+            {back == null ? null : (
+              // Un LIEN et non un bouton qui navigue : clic du milieu, URL au survol. La
+              // destination est FIXE, jamais `history.back()` : arrivé par une notification, il
+              // ferait sortir de l'app.
+              <Link
+                {...back.link}
+                className="flex shrink-0 items-center gap-cmv-xs rounded-cmv-md border border-cmv-border px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:bg-cmv-surface-hi hover:text-cmv-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cmv-accent"
+              >
+                <IoChevronBack aria-hidden className="shrink-0" />
+                {back.label}
+              </Link>
             )}
+            <div className="flex min-w-0 flex-col gap-cmv-xs">
+              <h1 className="font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
+              {subtitle == null ? null : (
+                <p className="text-cmv-caption text-cmv-text-mid">{subtitle}</p>
+              )}
+            </div>
           </div>
           <div className="flex-1" />
           {actions}
