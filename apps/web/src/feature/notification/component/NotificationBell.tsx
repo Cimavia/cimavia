@@ -2,7 +2,7 @@ import {
   NOTIFICATION_LABEL_KEY,
   type NotificationCategoryType,
   type NotificationDto,
-  notificationCategoriesFor,
+  notificationFilterChoices,
   notificationSubject,
   parseReminderFeedId,
 } from "@cmv/shared";
@@ -133,7 +133,7 @@ export function NotificationBell() {
               ) : null}
             </header>
             <NotificationCategoryFilter
-              categories={notificationCategoriesFor(capabilities)}
+              choices={notificationFilterChoices(capabilities)}
               category={category}
               onChange={setCategory}
             />

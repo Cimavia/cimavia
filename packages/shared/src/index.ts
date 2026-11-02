@@ -988,10 +988,12 @@ export {
   uploadPercentOf,
 } from "./util/multipart-upload.util";
 export { initialsOf, joinNames } from "./util/name.util";
+export type { NotificationFilterChoice } from "./util/notification.util";
 export {
   capabilityOfMessage,
   capabilityOfNotification,
   notificationCategoriesFor,
+  notificationFilterChoices,
   notificationSubject,
   notificationTypesOf,
 } from "./util/notification.util";

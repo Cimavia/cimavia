@@ -4,6 +4,7 @@ import {
   capabilityOfMessage,
   capabilityOfNotification,
   notificationCategoriesFor,
+  notificationFilterChoices,
   notificationSubject,
   notificationTypesOf,
 } from "./notification.util";
@@ -189,5 +190,23 @@ describe("notificationCategoriesFor", () => {
   // Une Entreprise ne coache ni ne s'entraîne : même le message, reçu des deux côtés, ne la vise pas.
   it("n'offre rien à un compte Entreprise", () => {
     expect(notificationCategoriesFor({ ...NONE, isCompany: true })).toEqual([]);
+  });
+});
+
+describe("notificationFilterChoices", () => {
+  const NONE = { isCoach: false, isAthlete: false, isCompany: false };
+
+  it("ouvre sur « Toutes », puis les catégories reçues avec leur libellé", () => {
+    expect(notificationFilterChoices({ ...NONE, isCoach: true })).toEqual([
+      { category: null, labelKey: "notification.category.all" },
+      { category: NotificationCategory.FEEDBACK, labelKey: "notification.category.feedback" },
+      { category: NotificationCategory.MESSAGE, labelKey: "notification.category.message" },
+      { category: NotificationCategory.INVITATION, labelKey: "notification.category.invitation" },
+      { category: NotificationCategory.REMINDER, labelKey: "notification.category.reminder" },
+    ]);
+  });
+
+  it("ne propose rien à qui n'a rien à filtrer", () => {
+    expect(notificationFilterChoices({ ...NONE, isCompany: true })).toEqual([]);
   });
 });
