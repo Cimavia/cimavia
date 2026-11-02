@@ -7,7 +7,13 @@ import {
 } from "@cmv/shared";
 import { fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { copyPlanWeek, deletePlanWeek, reorderPlanDay, updatePlanWeek } from "@/feature/plan/api";
+import {
+  copyPlanWeek,
+  deletePlanWeek,
+  deleteScheduledSession,
+  reorderPlanDay,
+  updatePlanWeek,
+} from "@/feature/plan/api";
 import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { formatDayLabel } from "@/shared/util/date.util";
 import { renderWithProviders } from "../../../../test/render";
@@ -23,6 +29,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
   copyPlanWeek: vi.fn(),
   deletePlanWeek: vi.fn(),
+  deleteScheduledSession: vi.fn(),
   reorderPlanDay: vi.fn(),
   updatePlanWeek: vi.fn(),
 }));
@@ -180,6 +187,21 @@ describe("PlanWeekCard — la semaine", () => {
     id: "w-2",
     startDate: MONDAY_2,
     sessions: [session("s-b", MONDAY_2, 0), session("s-c", MONDAY_2, 1)],
+  });
+
+  // #690 : la séance part sous SA version, pas sous celle de la semaine qui la porte.
+  it("supprime une séance depuis sa carte, en citant la version de la séance", async () => {
+    vi.mocked(deleteScheduledSession).mockResolvedValue(undefined);
+    const { user, target } = mount(busy);
+
+    await user.click(
+      target.getAllByRole("button", { name: "plan.session.deleteNamed" })[1] as HTMLElement,
+    );
+    await user.click(target.getByRole("button", { name: "common.confirmDelete" }));
+
+    expect(deleteScheduledSession).toHaveBeenCalledWith("s-c", {
+      expectedUpdatedAt: "2026-08-10T00:00:00.000Z",
+    });
   });
 
   it("réordonne une journée au clavier, en écrivant la journée d'arrivée entière", async () => {

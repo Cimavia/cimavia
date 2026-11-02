@@ -41,7 +41,7 @@ export function PlanWeekCard({
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, pasteWeek, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, pasteWeek, removeGridSession, isBusy } = usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
   // Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API refuse,
   // #312) : le geste reste visible, fermé, avec sa raison.
@@ -183,10 +183,17 @@ export function PlanWeekCard({
             date={day}
             sessions={sessionsByDay.get(day) ?? []}
             isBusy={isBusy}
+            isPublished={isPublished}
             readOnly={readOnly}
             drag={drag}
             onAddSession={onAddSession}
             onEditSession={onEditSession}
+            onRemoveSession={(session) =>
+              removeGridSession.mutate({
+                sessionId: session.id,
+                expectedUpdatedAt: session.updatedAt,
+              })
+            }
             onMoveWithinDay={drag.moveWithinDay}
           />
         ))}

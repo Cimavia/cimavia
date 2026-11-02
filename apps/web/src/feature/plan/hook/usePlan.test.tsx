@@ -14,6 +14,7 @@ const {
   updatePlanWeekMock,
   deletePlanWeekMock,
   reorderPlanDayMock,
+  deleteScheduledSessionMock,
   onSuccessMock,
   onErrorMock,
   onFailureMock,
@@ -25,6 +26,7 @@ const {
   updatePlanWeekMock: vi.fn(),
   deletePlanWeekMock: vi.fn(),
   reorderPlanDayMock: vi.fn(),
+  deleteScheduledSessionMock: vi.fn(),
   onSuccessMock: vi.fn(),
   onErrorMock: vi.fn(),
   onFailureMock: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   updatePlanWeek: updatePlanWeekMock,
   deletePlanWeek: deletePlanWeekMock,
   reorderPlanDay: reorderPlanDayMock,
+  deleteScheduledSession: deleteScheduledSessionMock,
 }));
 
 // Le toast est coupé pour ne pas traîner i18next et le contexte d'affichage : ce qui est vérifié
@@ -339,6 +342,13 @@ describe("usePlanMutations", () => {
         }),
     ],
     ["l'ajout", addPlanWeekMock, (m: Mutations) => m.addWeek.mutateAsync({} as never)],
+    // #690 : depuis la carte, aucun bandeau ne dirait le refus — il passerait en silence.
+    [
+      "la suppression depuis la grille",
+      deleteScheduledSessionMock,
+      (m: Mutations) =>
+        m.removeGridSession.mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION }),
+    ],
   ])("relit le cycle quand %s se fonde sur une grille périmée", async (_, api, gesture) => {
     const stale = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
     api.mockRejectedValue(stale);
@@ -352,6 +362,26 @@ describe("usePlanMutations", () => {
 
     expect(onFailureMock).toHaveBeenCalledWith("plan.toast.stale", stale);
     expect(onErrorMock).not.toHaveBeenCalled();
+    const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);
+    expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
+  });
+
+  // #690 : la séance débriefée entre-temps garderait sinon une poubelle ouverte, refusée à chaque
+  // essai. Le panneau relit sa séance à l'ouverture ; la carte n'a que la grille.
+  it("relit le cycle quand la grille supprime une séance débriefée entre-temps", async () => {
+    const refused = new ApiError(409, "Séance débriefée", null);
+    deleteScheduledSessionMock.mockRejectedValue(refused);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.removeGridSession
+        .mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION })
+        .catch(() => undefined);
+    });
+
+    expect(onErrorMock).toHaveBeenCalledWith(refused);
     const roots = invalidate.mock.calls.map(([options]) => options?.queryKey);
     expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
   });

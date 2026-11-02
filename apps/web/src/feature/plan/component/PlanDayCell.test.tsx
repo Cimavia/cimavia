@@ -11,6 +11,8 @@ const TUESDAY = "2026-10-13";
 const WEEK = "pw_1";
 const HANDLE = (rank: number) => `plan.week.moveSession ${rank}`;
 const ADD = "plan.week.addSession";
+// Le titre interpolé ne se voit pas en test (`cimode` rend la clé seule) : la clé, elle, est propre.
+const TRASH = "plan.session.deleteNamed";
 
 const session = (id: string, title: string, position: number, date = MONDAY) =>
   ({
@@ -42,10 +44,16 @@ function Week({
   onDrop,
   days,
   onEditSession = vi.fn(),
+  onRemoveSession = vi.fn(),
+  isPublished = false,
+  readOnly = false,
 }: Readonly<{
   onDrop: (from: WeekSlot, to: WeekSlot) => void;
   days: Record<string, ScheduledSessionSummaryDto[]>;
   onEditSession?: (session: ScheduledSessionSummaryDto) => void;
+  onRemoveSession?: (session: ScheduledSessionSummaryDto) => void;
+  isPublished?: boolean;
+  readOnly?: boolean;
 }>) {
   const drag = useWeekDrag(onDrop);
   return (
@@ -57,10 +65,12 @@ function Week({
           date={date}
           sessions={sessions}
           isBusy={false}
-          readOnly={false}
+          isPublished={isPublished}
+          readOnly={readOnly}
           drag={drag}
           onAddSession={vi.fn()}
           onEditSession={onEditSession}
+          onRemoveSession={onRemoveSession}
           onMoveWithinDay={(slot, direction) =>
             onDrop(slot, { ...slot, index: slot.index + direction })
           }
@@ -192,6 +202,65 @@ describe("PlanDayCell", () => {
         { weekId: WEEK, date: MONDAY, index: 0 },
         { weekId: WEEK, date: MONDAY, index: 1 },
       );
+    });
+  });
+
+  // #690 : retirer une séance sans passer par son panneau.
+  describe("la poubelle", () => {
+    function render(props: Partial<Parameters<typeof Week>[0]> = {}) {
+      const onRemoveSession = vi.fn();
+      const view = renderWithProviders(
+        <Week
+          onDrop={vi.fn()}
+          days={{ [MONDAY]: monday }}
+          onRemoveSession={onRemoveSession}
+          {...props}
+        />,
+      );
+      return { ...view, onRemoveSession };
+    }
+
+    it("retire la séance de sa carte, une fois la suppression confirmée", async () => {
+      const { user, getAllByRole, getByRole, onRemoveSession } = render();
+
+      await user.click(getAllByRole("button", { name: TRASH })[1] as HTMLElement);
+      expect(onRemoveSession).not.toHaveBeenCalled();
+      await user.click(getByRole("button", { name: "common.confirmDelete" }));
+
+      expect(onRemoveSession).toHaveBeenCalledWith(monday[1]);
+    });
+
+    // Quatorze « Supprimer la séance » dans une semaine ne se distinguent pas au lecteur d'écran.
+    it("nomme chaque poubelle autrement que la suppression du panneau", () => {
+      const { getAllByRole, queryByRole } = render();
+
+      expect(getAllByRole("button", { name: TRASH })).toHaveLength(3);
+      expect(queryByRole("button", { name: "plan.session.delete" })).not.toBeInTheDocument();
+    });
+
+    it("ferme la poubelle d'une séance débriefée, en disant pourquoi", () => {
+      const { getByRole, getByTitle } = render({
+        days: {
+          [MONDAY]: [{ ...session("ss_1", "Force", 0), status: ScheduledSessionStatus.DONE }],
+        },
+      });
+
+      expect(getByRole("button", { name: TRASH })).toBeDisabled();
+      expect(getByTitle("plan.session.deleteDisabledDebriefed")).toBeInTheDocument();
+    });
+
+    it("prévient, sur un cycle diffusé, que l'athlète verra le retrait", async () => {
+      const { user, getAllByRole, getByText } = render({ isPublished: true });
+
+      await user.click(getAllByRole("button", { name: TRASH })[0] as HTMLElement);
+
+      expect(getByText("plan.session.deleteHintPublished")).toBeInTheDocument();
+    });
+
+    it("n'offre aucune poubelle en Lecture", () => {
+      const { queryByRole } = render({ readOnly: true });
+
+      expect(queryByRole("button", { name: TRASH })).not.toBeInTheDocument();
     });
   });
 });
