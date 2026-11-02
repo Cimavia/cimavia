@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvResizeHandle } from "@/shared/component/CmvResizeHandle";
 import { useViewportSize } from "@/shared/hook/useViewportSize";
@@ -15,12 +15,11 @@ const SIZE_CLASSES: Record<CmvPanelSize, string> = {
 
 /**
  * Les bornes d'une largeur réglable (#695) : au plus étroit, celle du panneau de la cloche ; au plus
- * large, la fenêtre moins une bande de fond — il faut encore pouvoir cliquer à côté pour fermer.
+ * large, la fenêtre moins une bande de fond — il faut encore pouvoir cliquer à côté pour fermer. La
+ * bande l'emporte sur le minimum : une fenêtre plus étroite que les deux rétrécit le panneau.
  */
 const PANEL_MIN_WIDTH = 320;
 const BACKDROP_STRIP = 48;
-// Une poignée de bord n'a qu'une dimension : la hauteur passée est sans effet.
-const NO_HEIGHT = 0;
 
 type CmvPanelProps = {
   open: boolean;
@@ -34,6 +33,7 @@ type CmvPanelProps = {
   /**
    * Largeur réglable, en px (#695) : le bord gauche devient une poignée. Les deux vont ensemble ;
    * sans elles, `size` décide, comme avant. Ramenée à la fenêtre au rendu, sans être réécrite.
+   * `onWidthChange` n'est appelé qu'à la FIN d'un geste : le panneau suit le pointeur seul.
    */
   width?: number | undefined;
   onWidthChange?: ((width: number) => void) | undefined;
@@ -74,6 +74,13 @@ export function CmvPanel({
    */
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // La largeur pendant un glisser, avant d'être rendue à l'appelant : lui ne re-rend qu'à la fin.
+  const [draftWidth, setDraftWidth] = useState<number | null>(null);
+  // Refermé pendant un glisser (Échap, clic sur le fond) : la poignée part sans conclure, et son
+  // brouillon ne doit pas rouvrir le panneau à une largeur que rien n'a retenue.
+  useEffect(() => {
+    if (!open) setDraftWidth(null);
+  }, [open]);
 
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
@@ -96,7 +103,17 @@ export function CmvPanel({
 
   if (!open) return null;
 
-  const resizable = width == null || onWidthChange == null ? null : { width, onWidthChange };
+  const resizable =
+    width == null || onWidthChange == null
+      ? null
+      : {
+          width: draftWidth ?? width,
+          onWidthDraft: setDraftWidth,
+          onWidthChange: (next: number) => {
+            setDraftWidth(null);
+            onWidthChange(next);
+          },
+        };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -118,7 +135,7 @@ export function CmvPanel({
             ? undefined
             : {
                 width: `min(${resizable.width}px, calc(100vw - ${BACKDROP_STRIP}px))`,
-                minWidth: PANEL_MIN_WIDTH,
+                minWidth: `min(${PANEL_MIN_WIDTH}px, calc(100vw - ${BACKDROP_STRIP}px))`,
               }
         }
       >
@@ -144,6 +161,7 @@ export function CmvPanel({
 
 type PanelWidthHandleProps = {
   width: number;
+  onWidthDraft: (width: number) => void;
   onWidthChange: (width: number) => void;
 };
 
@@ -151,17 +169,19 @@ type PanelWidthHandleProps = {
  * La poignée du bord gauche, à part pour que SEUL un panneau réglable suive la fenêtre : la cloche
  * monte le sien en permanence, les autres usages n'ont pas à se re-rendre à chaque redimensionnement.
  */
-function PanelWidthHandle({ width, onWidthChange }: Readonly<PanelWidthHandleProps>) {
+function PanelWidthHandle({ width, onWidthDraft, onWidthChange }: Readonly<PanelWidthHandleProps>) {
   const viewport = useViewportSize();
   const maxWidth = viewport.width - BACKDROP_STRIP;
+  const minWidth = Math.min(PANEL_MIN_WIDTH, maxWidth);
 
   return (
     <CmvResizeHandle
       axis="x"
-      size={{ width: clamp(width, PANEL_MIN_WIDTH, maxWidth), height: NO_HEIGHT }}
-      min={{ width: PANEL_MIN_WIDTH, height: NO_HEIGHT }}
-      max={{ width: maxWidth, height: NO_HEIGHT }}
-      onResize={(next) => onWidthChange(next.width)}
+      size={clamp(width, minWidth, maxWidth)}
+      min={minWidth}
+      max={maxWidth}
+      onResize={onWidthDraft}
+      onResizeEnd={onWidthChange}
       className="-left-1 absolute inset-y-0 z-10"
     />
   );

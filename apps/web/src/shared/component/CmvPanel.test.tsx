@@ -1,5 +1,6 @@
+import { fireEvent } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { renderWithProviders } from "../../../test/render";
 import { CmvPanel } from "./CmvPanel";
 
@@ -163,6 +164,42 @@ describe("CmvPanel — la largeur réglable (#695)", () => {
     );
 
     expect(getByRole("separator")).toHaveAttribute("aria-valuenow", String(window.innerWidth - 48));
+  });
+
+  // Le panneau suit le pointeur seul : l'appelant n'apprend la largeur qu'au relâchement.
+  it("ne rend la largeur qu'à la fin du geste", () => {
+    const onWidthChange = vi.fn();
+    const { getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}} width={576} onWidthChange={onWidthChange}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+    const edge = getByRole("separator");
+
+    fireEvent.pointerDown(edge, { button: 0, buttons: 1, pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(edge, { buttons: 1, pointerId: 1, clientX: 400 });
+    expect(edge).toHaveAttribute("aria-valuenow", "676");
+    expect(onWidthChange).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(edge, { pointerId: 1 });
+    expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(676);
+  });
+
+  // Plus étroite que le minimum et la bande de fond réunis : la bande reste, le panneau cède.
+  it("garde une bande de fond dans une fenêtre étroite", () => {
+    const innerWidth = window.innerWidth;
+    window.innerWidth = 300;
+    onTestFinished(() => {
+      window.innerWidth = innerWidth;
+    });
+    const { getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={() => {}} width={576} onWidthChange={() => {}}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+
+    expect(getByRole("separator")).toHaveAttribute("aria-valuenow", "252");
+    expect(getByRole("separator")).toHaveAttribute("aria-valuemin", "252");
   });
 
   it("rend son corps sans marge sur demande", () => {
