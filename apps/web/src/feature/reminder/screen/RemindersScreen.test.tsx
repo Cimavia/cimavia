@@ -29,15 +29,9 @@ vi.mock("@/feature/reminder/api", async (importOriginal) => {
     },
   };
 });
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({ title, children }: Readonly<{ title: string; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const reminder = (over: Partial<ReminderDto> & Pick<ReminderDto, "id">): ReminderDto => ({

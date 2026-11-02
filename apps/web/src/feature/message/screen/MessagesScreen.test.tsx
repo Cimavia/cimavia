@@ -40,21 +40,10 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
     },
   };
 });
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici. Ses
-// actions, elles, portent « Nouvelle conversation ».
+// Ses actions portent « Nouvelle conversation ».
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    actions,
-    children,
-  }: Readonly<{ title: string; actions?: unknown; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      {actions as never}
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const person = (

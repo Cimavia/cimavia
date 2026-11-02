@@ -31,20 +31,9 @@ vi.mock("@/shared/lib/auth", () => ({
     signOut: () => Promise.resolve(),
   },
 }));
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    subtitle,
-    children,
-  }: Readonly<{ title: string; subtitle?: string; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      <p>{subtitle}</p>
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 /** Les cycles sont datés depuis le lundi RÉEL : « aujourd'hui » tombe alors en semaine 1. */

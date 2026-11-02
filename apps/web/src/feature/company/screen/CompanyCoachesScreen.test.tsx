@@ -6,7 +6,6 @@ import {
   type OrganizationCoachDto,
 } from "@cmv/shared";
 import { screen, waitFor, within } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CompanyCoachesScreen } from "@/feature/company/screen/CompanyCoachesScreen";
 import { renderWithProviders } from "../../../../test/render";
@@ -31,22 +30,9 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { name: "Fontainebleau Escalade" } } }) },
 }));
 
-// L'AppShell tire toute la navigation : seul compte ici ce que l'écran y pose.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    subtitle,
-    actions,
-    children,
-  }: Readonly<{ title: string; subtitle?: string; actions?: ReactNode; children?: ReactNode }>) => (
-    <main>
-      <h1>{title}</h1>
-      {subtitle == null ? null : <p data-testid="subtitle">{subtitle}</p>}
-      {actions}
-      {children}
-    </main>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const { organizationApi } = await import("@/feature/company/api");
