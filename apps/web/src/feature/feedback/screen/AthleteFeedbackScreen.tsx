@@ -20,7 +20,7 @@ import {
   required,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { type ChangeEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,6 +65,7 @@ const route = getRouteApi("/sessions/$sessionId/feedback");
 export function AthleteFeedbackScreen() {
   const { t } = useTranslation();
   const { sessionId } = route.useParams();
+  const { from } = route.useSearch();
   const session = useMyScheduledSession(sessionId);
   const { data: feedback, isPending, isError, refetch } = useMyFeedback(sessionId);
 
@@ -72,6 +73,13 @@ export function AthleteFeedbackScreen() {
     <CmvAppShell
       title={t("feedback.title")}
       subtitle={session.data?.title ?? t("feedback.subtitle")}
+      // Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
+      // qu'on vient. La semaine du planning suit (#251) — sans elle, « Mon planning » oublierait
+      // d'où l'athlète est parti dès qu'il est passé par le débrief.
+      back={{
+        label: t("feedback.backToSession"),
+        link: { to: "/sessions/$sessionId", params: { sessionId }, search: { from } },
+      }}
     >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
@@ -119,7 +127,6 @@ function FeedbackBody({
   feedback: SessionFeedbackDto | null;
 }>) {
   const { t } = useTranslation();
-  const { from } = route.useSearch();
   const tracking = useFeedbackTracking(sessionId, session);
   const upsert = useUpsertMyFeedback(sessionId, tracking.onSaved);
   const [content, setContent] = useState("");
@@ -145,18 +152,6 @@ function FeedbackBody({
 
   return (
     <div className="flex flex-col gap-cmv-lg">
-      {/* Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
-          qu'on vient. La semaine du planning suit (#251) — sans elle, « ← Mon planning » oublierait
-          d'où l'athlète est parti dès qu'il est passé par le débrief. */}
-      <Link
-        to="/sessions/$sessionId"
-        params={{ sessionId }}
-        search={{ from }}
-        className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-      >
-        {t("feedback.backToSession")}
-      </Link>
-
       <div className="grid w-full gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-cmv-lg">
           {tracking.section}

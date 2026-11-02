@@ -1,5 +1,5 @@
 import { readScheduledBlocks, type ScheduledSessionDto } from "@cmv/shared";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AthleteBlockSession } from "@/feature/plan/component/AthleteBlockSession";
@@ -37,6 +37,7 @@ const route = getRouteApi("/sessions/$sessionId/");
 export function AthleteSessionScreen() {
   const { t } = useTranslation();
   const { sessionId } = route.useParams();
+  const { from } = route.useSearch();
   const { data: session, isPending, isError, refetch } = useMyScheduledSession(sessionId);
 
   /**
@@ -53,7 +54,22 @@ export function AthleteSessionScreen() {
         };
 
   return (
-    <CmvAppShell title={session?.title ?? t("plan.athlete.sessionFallbackTitle")} {...headerProps}>
+    <CmvAppShell
+      title={session?.title ?? t("plan.athlete.sessionFallbackTitle")}
+      // Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
+      // liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
+      // dernier cas. Le planning est le parent naturel d'une séance.
+      //
+      // La ROUTE est fixe, la semaine ne l'est plus (#251) : celle d'où l'athlète est venu,
+      // relayée par l'URL de la séance, et non celle de la séance — « Mon planning » promet de
+      // revenir là où on était. Arrivé d'ailleurs, il n'y en a pas, et le planning rouvre son
+      // défaut. Dans le bandeau (#746), il reste là pendant le chargement et en panne.
+      back={{
+        label: t("plan.athlete.backToPlanning"),
+        link: { to: "/planning", search: { from } },
+      }}
+      {...headerProps}
+    >
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -65,7 +81,7 @@ export function AthleteSessionScreen() {
         />
       ) : null}
 
-      {session == null ? null : <LoadedSession session={session} />}
+      {session == null ? null : <LoadedSession session={session} from={from} />}
     </CmvAppShell>
   );
 }
@@ -77,10 +93,12 @@ export function AthleteSessionScreen() {
  * figerait sur un état vide, et une séance déjà débriefée rouverte sur un autre navigateur
  * n'afficherait plus aucune coche. Il vit donc là où la séance est garantie présente.
  */
-function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) {
+function LoadedSession({
+  session,
+  from,
+}: Readonly<{ session: ScheduledSessionDto; from: string | undefined }>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { from } = route.useSearch();
 
   const blocks = useMemo(() => readScheduledBlocks(session), [session]);
   const localBlocks = useLocalBlockTracking(session.id, session.blocks);
@@ -102,22 +120,6 @@ function LoadedSession({ session }: Readonly<{ session: ScheduledSessionDto }>) 
     // Plus de `max-w` : la séance occupe la page, le rail a besoin de sa place et une grille
     // à quatre colonnes ne se lit pas dans une colonne étroite.
     <div className="flex flex-col gap-cmv-lg">
-      {/* Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
-              liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
-              dernier cas. Le planning est le parent naturel d'une séance.
-
-              La ROUTE est fixe, la semaine ne l'est plus (#251) : celle d'où l'athlète est venu,
-              relayée par l'URL de la séance, et non celle de la séance — « ← Mon planning » promet
-              de revenir là où on était. Arrivé d'ailleurs, il n'y en a pas, et le planning rouvre
-              son défaut. */}
-      <Link
-        to="/planning"
-        search={{ from }}
-        className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-      >
-        {t("plan.athlete.backToPlanning")}
-      </Link>
-
       {/* Le débrief vit dans le RAIL, collé en bas, et nulle part ailleurs : deux boutons pour
               la même action font hésiter sur ce qu'ils font de différent. C'est un écart avec le
               mobile, où il n'y a pas de rail et où l'action reste en tête d'écran. */}
