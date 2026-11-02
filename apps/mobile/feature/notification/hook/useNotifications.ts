@@ -1,4 +1,4 @@
-import type { NotificationDto, UnreadCountDto } from "@cmv/shared";
+import type { NotificationCategoryType, NotificationDto, UnreadCountDto } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationApi, notificationKeys } from "@/feature/notification/api";
 
@@ -45,11 +45,15 @@ export function useUnreadByCapability() {
 }
 
 // La liste elle-même se rafraîchit à l'ouverture de l'écran (`useFocusEffect` côté écran), comme
-// les factures : pas de polling sur des données qu'on ne regarde pas.
-export function useNotifications() {
+// les factures : pas de polling sur des données qu'on ne regarde pas. `category` est filtrée par
+// l'API (#694) ; `null` = toutes. Une entrée de cache par catégorie, donc `staleTime: 0` : le
+// refetch du focus ne relit que la liste affichée, et une catégorie reprise montrerait sinon sa
+// version d'il y a cinq minutes, sans la facture arrivée depuis.
+export function useNotifications(category: NotificationCategoryType | null) {
   return useQuery<NotificationDto[]>({
-    queryKey: notificationKeys.list(),
-    queryFn: notificationApi.list,
+    queryKey: notificationKeys.list(category),
+    queryFn: () => notificationApi.list(category),
+    staleTime: 0,
   });
 }
 
@@ -67,6 +71,8 @@ export function useMarkNotificationRead() {
   });
 }
 
+// La variable de la mutation est la catégorie affichée (#694) : le bouton éteint ce que la liste
+// montre, rien d'autre. `null` = tout le centre.
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
   return useMutation({

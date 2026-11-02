@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NotificationType } from "../dto/notification.schema";
+import { NotificationCategory, NotificationType } from "../dto/notification.schema";
 import type { ApiClient } from "./client";
 import {
   createNotificationApi,
@@ -34,12 +34,21 @@ describe("createNotificationApi", () => {
     const { api, calls } = spyClient();
     const notifications = createNotificationApi(api);
 
-    await notifications.list();
+    await notifications.list(null);
     await notifications.unreadCount();
 
     expect(calls).toEqual([
       { method: "GET", path: "/me/notifications", body: undefined },
       { method: "GET", path: "/me/notifications/unread-count", body: undefined },
+    ]);
+  });
+
+  it("passe la catégorie à l'API, qui filtre avant la borne", async () => {
+    const { api, calls } = spyClient();
+    await createNotificationApi(api).list(NotificationCategory.BILLING);
+
+    expect(calls).toEqual([
+      { method: "GET", path: "/me/notifications?category=BILLING", body: undefined },
     ]);
   });
 
@@ -56,9 +65,18 @@ describe("createNotificationApi", () => {
   // refuse un POST sans corps déclaré.
   it("solde tout par POST, avec un corps vide", async () => {
     const { api, calls } = spyClient();
-    await createNotificationApi(api).markAllRead();
+    await createNotificationApi(api).markAllRead(null);
 
     expect(calls).toEqual([{ method: "POST", path: "/me/notifications/read-all", body: {} }]);
+  });
+
+  it("ne solde qu'une catégorie quand la liste est filtrée", async () => {
+    const { api, calls } = spyClient();
+    await createNotificationApi(api).markAllRead(NotificationCategory.REMINDER);
+
+    expect(calls).toEqual([
+      { method: "POST", path: "/me/notifications/read-all", body: { category: "REMINDER" } },
+    ]);
   });
 });
 
@@ -66,9 +84,16 @@ describe("notificationKeys", () => {
   // Les deux clés doivent partager la racine : les mutations invalident `all`, et c'est ce
   // préfixe commun qui fait tomber la liste ET le compteur d'un seul geste.
   it("préfixe la liste et le compteur par la racine", () => {
-    expect(notificationKeys.list()[0]).toBe(notificationKeys.all[0]);
+    expect(notificationKeys.list(null)[0]).toBe(notificationKeys.all[0]);
     expect(notificationKeys.unreadCount()[0]).toBe(notificationKeys.all[0]);
-    expect(notificationKeys.list()).not.toEqual(notificationKeys.unreadCount());
+    expect(notificationKeys.list(null)).not.toEqual(notificationKeys.unreadCount());
+  });
+
+  // Une entrée par filtre : « Facturation » ne doit pas afficher la liste mise en cache par « Toutes ».
+  it("distingue la liste de chaque filtre", () => {
+    expect(notificationKeys.list(NotificationCategory.BILLING)).not.toEqual(
+      notificationKeys.list(null),
+    );
   });
 });
 

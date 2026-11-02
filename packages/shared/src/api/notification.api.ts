@@ -1,5 +1,6 @@
 import type {
   EmailableNotificationType,
+  NotificationCategory,
   NotificationDto,
   NotificationEmailPreferenceDto,
   UnreadCountDto,
@@ -19,7 +20,9 @@ import type { ApiClient } from "./client";
  */
 export const notificationKeys = {
   all: ["notifications"] as const,
-  list: () => ["notifications", "list"] as const,
+  // Une entrée de cache par filtre (#694), toutes sous `all` : une invalidation de la racine les
+  // fait tomber ensemble. `null` = « Toutes ».
+  list: (category: NotificationCategory | null) => ["notifications", "list", { category }] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
 };
 
@@ -34,21 +37,28 @@ export const notificationPreferenceKeys = {
 };
 
 export type NotificationApi = {
-  /** Les plus récentes d'abord, bornées côté API (`NOTIFICATION_PAGE_SIZE`). */
-  list: () => Promise<NotificationDto[]>;
+  /**
+   * Les plus récentes d'abord, bornées côté API (`NOTIFICATION_PAGE_SIZE`). Filtrées par l'API
+   * (#694) : la borne tombe APRÈS le filtre. `null` = toutes les catégories.
+   */
+  list: (category: NotificationCategory | null) => Promise<NotificationDto[]>;
   /** Servi à part de la liste : c'est le badge, rafraîchi en continu. */
   unreadCount: () => Promise<UnreadCountDto>;
   markRead: (id: string) => Promise<NotificationDto>;
-  /** 204, pas de corps. */
-  markAllRead: () => Promise<void>;
+  /** 204, pas de corps. Suit le filtre de la liste : n'éteint que ce qu'elle montre. */
+  markAllRead: (category: NotificationCategory | null) => Promise<void>;
 };
 
 export function createNotificationApi(api: ApiClient): NotificationApi {
   return {
-    list: () => api.get<NotificationDto[]>("/me/notifications"),
+    list: (category) =>
+      api.get<NotificationDto[]>(
+        category == null ? "/me/notifications" : `/me/notifications?category=${category}`,
+      ),
     unreadCount: () => api.get<UnreadCountDto>("/me/notifications/unread-count"),
     markRead: (id) => api.patch<NotificationDto>(`/me/notifications/${id}/read`),
-    markAllRead: () => api.post<void>("/me/notifications/read-all", {}),
+    markAllRead: (category) =>
+      api.post<void>("/me/notifications/read-all", category == null ? {} : { category }),
   };
 }
 
