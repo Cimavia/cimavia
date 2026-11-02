@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.16.1](https://github.com/Cimavia/cimavia/compare/v1.16.0...v1.16.1) (2026-11-02)
+
+
+### Corrections
+
+* **mobile:** css-interop en 0.2.7 comme nativewind, une copie, les classes reviennent ([d4b33f4](https://github.com/Cimavia/cimavia/commit/d4b33f495ef7c758db8395192251b51ea77669c3))
+
+
+### Technique
+
+* **dependabot:** nativewind ignoré, il avance avec le react-native-css-interop qu'il fige ([e5a3a8b](https://github.com/Cimavia/cimavia/commit/e5a3a8b0e40168203a97e65a9bff496990e87cd4))
+
 ## [1.16.0](https://github.com/Cimavia/cimavia/compare/v1.15.1...v1.16.0) (2026-11-02)
 
 
