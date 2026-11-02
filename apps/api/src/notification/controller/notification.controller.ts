@@ -1,8 +1,6 @@
-import { type NotificationFilter, notificationFilterSchema } from "@cmv/shared";
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ExercisesNoCapability } from "../../auth/decorator/require-capability.decorator";
-import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { NotificationFilterDto } from "../dto/notification-filter.dto";
 import { NotificationFeedService } from "../service/notification-feed.service";
 
@@ -24,9 +22,10 @@ import { NotificationFeedService } from "../service/notification-feed.service";
 export class NotificationController {
   constructor(private readonly feed: NotificationFeedService) {}
 
-  // `?category=` (#694) : une catégorie inconnue est un 400, pas une liste vide.
+  // `?category=` (#694) : une catégorie inconnue est un 400, pas une liste vide. Le même DTO que
+  // `read-all`, validé par le même pipe global : un seul chemin pour un seul filtre.
   @Get()
-  list(@Query(new ZodSchemaPipe(notificationFilterSchema)) filter: NotificationFilter) {
+  list(@Query() filter: NotificationFilterDto) {
     return this.feed.list(filter);
   }
 
