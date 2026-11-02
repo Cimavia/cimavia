@@ -28,18 +28,11 @@ function readSize(value: unknown): Size | null {
 }
 
 /**
- * Relit ce que le stockage garde, champ par champ : une largeur corrompue ne fait pas perdre le
- * mode choisi. Les tailles sont relues TELLES QUELLES — c'est au rendu qu'elles se ramènent à la
- * fenêtre, qui peut avoir changé depuis.
+ * Valide ce que le stockage garde (`null` = rien de lisible), champ par champ : une largeur
+ * corrompue ne fait pas perdre le mode choisi. Les tailles sont relues TELLES QUELLES — c'est au
+ * rendu qu'elles se ramènent à la fenêtre, qui peut avoir changé depuis.
  */
-export function parsePanelLayout(raw: string | null): NotificationPanelLayout {
-  if (raw == null) return DEFAULT_PANEL_LAYOUT;
-  let stored: unknown;
-  try {
-    stored = JSON.parse(raw);
-  } catch {
-    return DEFAULT_PANEL_LAYOUT;
-  }
+export function parsePanelLayout(stored: unknown): NotificationPanelLayout {
   if (typeof stored !== "object" || stored == null) return DEFAULT_PANEL_LAYOUT;
   const { mode, popover, sideWidth } = stored as Record<string, unknown>;
   return {
