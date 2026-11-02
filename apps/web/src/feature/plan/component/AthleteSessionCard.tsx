@@ -16,7 +16,7 @@ type AthleteSessionCardProps = {
   planLabel?: string | null;
   /**
    * La semaine du PLANNING d'où l'on ouvre la séance (#251) : le `from` de son URL, relayé tel
-   * quel pour que « ← Mon planning » rouvre exactement l'URL quittée. `undefined` quand le
+   * quel pour que « Mon planning » rouvre exactement l'URL quittée. `undefined` quand le
    * planning est sur son défaut — poser `week.startDate` rendrait explicite un défaut qui ne
    * l'était pas —, et depuis la liste Séances, d'où l'on ne vient d'aucune semaine.
    *

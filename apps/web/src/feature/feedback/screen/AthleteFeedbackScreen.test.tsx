@@ -872,7 +872,7 @@ describe("AthleteFeedbackScreen", () => {
 
   /**
    * #251 : la semaine du planning d'où l'athlète est parti TRAVERSE le débrief. Perdue ici, le
-   * « ← Mon planning » de la séance ne saurait plus où le ramener.
+   * « Mon planning » de la séance ne saurait plus où le ramener.
    */
   it("garde la semaine du planning en revenant à la séance", async () => {
     const { findByRole } = await setup({ from: "2026-10-12" });

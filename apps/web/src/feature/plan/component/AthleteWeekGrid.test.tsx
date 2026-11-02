@@ -87,7 +87,7 @@ const columnAt = (container: HTMLElement, index: number): HTMLElement => {
 
 describe("AthleteWeekGrid", () => {
   /**
-   * #251 : la carte emporte la semaine du planning, pour que « ← Mon planning » rouvre celle qu'on
+   * #251 : la carte emporte la semaine du planning, pour que « Mon planning » rouvre celle qu'on
    * regardait. Relayée TELLE QUELLE — absente sur le défaut, sans quoi la séance rendrait
    * explicite un défaut qui ne l'était pas.
    */

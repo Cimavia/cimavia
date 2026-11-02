@@ -14,7 +14,7 @@ import { CmvRoleGate } from "@/shared/component";
  * de l'athlète lui est réservé, et une garde unique ne peut pas diverger entre deux frères.
  *
  * `?from=<lundi>` est la semaine du PLANNING d'où l'athlète est venu (#251), relayée telle quelle
- * pour que « ← Mon planning » rouvre exactement l'URL quittée. Validée ici, sur le layout, parce
+ * pour que « Mon planning » rouvre exactement l'URL quittée. Validée ici, sur le layout, parce
  * qu'elle voyage de la séance au débrief et retour ; et par LE validateur du planning, parce que
  * c'est la même donnée — un second parseur finirait par diverger du premier. Absente quand on
  * arrive d'ailleurs (liste Séances, message, notification) : il n'y a alors aucune semaine à rendre.

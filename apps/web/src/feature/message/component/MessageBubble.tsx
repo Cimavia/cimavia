@@ -104,7 +104,7 @@ function AttachmentChip({ attachment }: Readonly<{ attachment: MessageAttachment
   });
 
   // Aucune semaine de planning n'est transmise, ni vers la séance ni vers le débrief : on n'arrive
-  // pas du planning, et « ← Mon planning » rouvrira donc son défaut (#251).
+  // pas du planning, et « Mon planning » rouvrira donc son défaut (#251).
   if (target.destination === AttachmentDestination.SESSION) {
     return (
       <Link
