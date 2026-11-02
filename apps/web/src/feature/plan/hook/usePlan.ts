@@ -229,12 +229,30 @@ export function usePlanMutations(planId: string) {
     onError: onFormError,
   });
 
+  const deleteSession = ({ sessionId, expectedUpdatedAt }: OpenedSessionVariables) =>
+    deleteScheduledSession(sessionId, { expectedUpdatedAt });
+
   const removeSession = useMutation({
     mutationKey,
-    mutationFn: ({ sessionId, expectedUpdatedAt }: OpenedSessionVariables) =>
-      deleteScheduledSession(sessionId, { expectedUpdatedAt }),
+    mutationFn: deleteSession,
     onSuccess: done("plan.toast.sessionDeleted"),
     onError: onFormError,
+  });
+
+  /**
+   * La même suppression, depuis la carte de la grille (#690) : là, aucun bandeau ne dirait un
+   * refus sur version périmée, il passerait en silence. C'est un geste comme les autres — à ceci
+   * près que TOUT refus dit que la carte ment : séance débriefée entre-temps (409 sans version),
+   * déjà supprimée (404). Le panneau relit sa séance à l'ouverture ; la carte, elle, doit se relire.
+   */
+  const removeGridSession = useMutation({
+    mutationKey,
+    mutationFn: deleteSession,
+    onSuccess: done("plan.toast.sessionDeleted"),
+    onError: async (error) => {
+      await onGestureError(error);
+      if (!isStaleWriteError(error)) await invalidate();
+    },
   });
 
   /**
@@ -281,6 +299,7 @@ export function usePlanMutations(planId: string) {
     createSession,
     saveSession,
     removeSession,
+    removeGridSession,
     composeSession,
     resetComposition,
     doseSession,

@@ -775,6 +775,7 @@
       "notesPlaceholder": "Ex. Bien s'échauffer les épaules avant les essais.",
       "pickerTitle": "Bibliothèque d'exercices",
       "delete": "Supprimer la séance",
+      "deleteNamed": "Supprimer « {{title}} »",
       "deleteDisabledDebriefed": "Séance débriefée par l'athlète : il n'est plus possible de la supprimer. Elle reste modifiable.",
       "deleteHintPublished": "L'athlète sera prévenu du retrait.",
       "submit": "Enregistrer",

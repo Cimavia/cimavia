@@ -1,5 +1,7 @@
-import type { ScheduledSessionSummaryDto } from "@cmv/shared";
+import { isDebriefed, type ScheduledSessionSummaryDto } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
+import { IoTrashOutline } from "react-icons/io5";
+import { SessionDeleteButton } from "@/feature/plan/component/SessionDeleteButton";
 import type { useWeekDrag, WeekSlot } from "@/feature/plan/hook/useWeekDrag";
 import { CmvButton, CmvDragHandle } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
@@ -12,6 +14,8 @@ type PlanDayCellProps = {
   date: string;
   sessions: readonly ScheduledSessionSummaryDto[];
   isBusy: boolean;
+  /** Cycle diffusé : retirer une séance prévient l'athlète, la confirmation l'annonce. */
+  isPublished: boolean;
   /**
    * En Lecture (#607), la séance s'ouvre pour se lire ; elle ne s'ajoute ni ne se glisse. Sans
    * poignée, aucun glisser ne part : les cibles de dépôt restent inertes.
@@ -23,6 +27,7 @@ type PlanDayCellProps = {
   onEditSession: (session: ScheduledSessionSummaryDto) => void;
   /** Déplace d'un cran DANS la journée — le chemin clavier de la poignée. */
   onMoveWithinDay: (slot: WeekSlot, direction: -1 | 1) => void;
+  onRemoveSession: (session: ScheduledSessionSummaryDto) => void;
 };
 
 /**
@@ -30,7 +35,9 @@ type PlanDayCellProps = {
  *
  * Pas de flèches ↑/↓ ici, contrairement au constructeur de séance : une case fait un septième de
  * la largeur, et deux boutons de plus par séance la rendraient illisible. La poignée EST le chemin
- * clavier — c'est un bouton focusable qui répond aux flèches.
+ * clavier — c'est un bouton focusable qui répond aux flèches. La poubelle (#690), elle, coûte UN
+ * bouton, et rien ne la remplace : le glisser remplace les flèches, rien ne remplace la
+ * suppression, sinon un détour par le panneau.
  *
  * Ce que le clavier ne fait PAS : sortir de la journée. Déplacer une séance vers un autre jour, de
  * n'importe quelle semaine du cycle, se fait au glisser, ou par le sélecteur « Jour » du panneau de
@@ -42,11 +49,13 @@ export function PlanDayCell({
   date,
   sessions,
   isBusy,
+  isPublished,
   readOnly,
   drag,
   onAddSession,
   onEditSession,
   onMoveWithinDay,
+  onRemoveSession,
 }: Readonly<PlanDayCellProps>) {
   const { t } = useTranslation();
   const slot = (index: number): WeekSlot => ({ weekId, date, index });
@@ -67,7 +76,7 @@ export function PlanDayCell({
           key={session.id}
           {...drag.cardProps(slot(index))}
           className={cn(
-            "flex items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border transition-colors",
+            "flex flex-wrap items-center gap-cmv-xs rounded-cmv-sm border border-cmv-border transition-colors",
             drag.isDragging(slot(index)) && "opacity-40",
             drag.isOver(slot(index))
               ? "bg-cmv-accent-soft"
@@ -95,6 +104,19 @@ export function PlanDayCell({
               {compositionSummary(session, t)}
             </span>
           </button>
+          {/* Frère du titre, jamais dedans. Armée, la confirmation passe sous le titre, sur toute
+              la carte : à côté, ses deux boutons et son avertissement l'écraseraient. */}
+          {readOnly ? null : (
+            <SessionDeleteButton
+              label={t("plan.session.deleteNamed", { title: session.title })}
+              icon={<IoTrashOutline aria-hidden />}
+              armedClassName="basis-full px-cmv-sm pb-cmv-xs"
+              isDebriefed={isDebriefed(session)}
+              isPublished={isPublished}
+              disabled={isBusy}
+              onConfirm={() => onRemoveSession(session)}
+            />
+          )}
         </div>
       ))}
 
