@@ -193,19 +193,26 @@ afterEach(() => {
 
 describe("AthleteFeedbackScreen", () => {
   describe("le chargement", () => {
-    it("dit qu'il charge avant de montrer un formulaire", async () => {
-      const { getByText } = await setup();
+    it("dit qu'il charge avant de montrer un formulaire, retour compris", async () => {
+      const { getByRole, getByText } = await setup();
 
       expect(getByText("common.loading")).toBeInTheDocument();
+      // Le retour ne dépend pas du débrief : on peut quitter avant qu'il soit lu (#746).
+      expect(getByRole("link", { name: "feedback.backToSession" })).toBeInTheDocument();
     });
 
     it("propose de réessayer quand le débrief ne se charge pas", async () => {
       getFeedbackMock.mockRejectedValue(new Error("réseau"));
-      const { findByText } = await setup();
+      const { findByText, getByRole } = await setup();
 
       // L'écriture exige le réseau : l'échec est DIT, pas masqué par un formulaire vide qui
       // laisserait croire qu'il n'y a rien à reprendre.
       expect(await findByText("common.errorTitle")).toBeInTheDocument();
+      // Et la séance reste à un clic : le retour vit dans le bandeau, pas dans le formulaire (#746).
+      expect(getByRole("link", { name: "feedback.backToSession" })).toHaveAttribute(
+        "href",
+        `/sessions/${SESSION_ID}`,
+      );
     });
   });
 
@@ -865,7 +872,7 @@ describe("AthleteFeedbackScreen", () => {
 
   /**
    * #251 : la semaine du planning d'où l'athlète est parti TRAVERSE le débrief. Perdue ici, le
-   * « ← Mon planning » de la séance ne saurait plus où le ramener.
+   * « Mon planning » de la séance ne saurait plus où le ramener.
    */
   it("garde la semaine du planning en revenant à la séance", async () => {
     const { findByRole } = await setup({ from: "2026-10-12" });

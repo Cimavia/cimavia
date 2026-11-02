@@ -101,7 +101,7 @@ export function routeForNotification(
      * existent, et la destination existe désormais (#25).
      *
      * Côté athlète, aucune semaine de planning n'accompagne la séance : on n'arrive pas du planning,
-     * et « ← Mon planning » rouvrira donc son défaut (#251).
+     * et « Mon planning » rouvrira donc son défaut (#251).
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach

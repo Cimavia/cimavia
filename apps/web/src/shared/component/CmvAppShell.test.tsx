@@ -6,7 +6,7 @@ import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { authClient } from "@/shared/lib/auth";
 import { NAV_ITEMS } from "@/shared/lib/nav";
 import { renderInRoute } from "../../../test/render";
-import { CmvAppShell } from "./CmvAppShell";
+import { CmvAppShell, type CmvBackLink } from "./CmvAppShell";
 import { CmvLeaveDialog } from "./CmvLeaveDialog";
 
 const session = vi.hoisted(() => ({
@@ -39,9 +39,15 @@ function Unsaved() {
   return <CmvLeaveDialog {...guard.dialog} />;
 }
 
-const open = ({ unsaved = false, fill = false } = {}) =>
+/** Le retour d'un écran Athlete : une route et sa semaine, comme le débrief le transmet (#251). */
+const BACK: CmvBackLink<{ to: "/planning"; search: { from: string } }> = {
+  label: "Mon planning",
+  link: { to: "/planning", search: { from: "2026-11-09" } },
+};
+
+const open = ({ unsaved = false, fill = false, back = false } = {}) =>
   renderInRoute(
-    <CmvAppShell title="Tableau de bord" fill={fill}>
+    <CmvAppShell title="Tableau de bord" fill={fill} back={back ? BACK : undefined}>
       <p>contenu</p>
       {unsaved ? <Unsaved /> : null}
     </CmvAppShell>,
@@ -209,5 +215,44 @@ describe("CmvAppShell — la page qui tient dans l'écran", () => {
 
     const plain = await open();
     expect(plain.getByRole("main")).not.toHaveClass("h-screen");
+  });
+});
+
+describe("CmvAppShell — le retour d'écran (#746)", () => {
+  // Le bandeau par sa balise : un `<header>` dans `<main>` n'est pas le repère `banner`.
+  it("est un lien du bandeau vers sa destination, semaine comprise", async () => {
+    const { getByRole } = await open({ back: true });
+
+    const back = getByRole("link", { name: "Mon planning" });
+    expect(back.closest("header")).not.toBeNull();
+    expect(back).toHaveAttribute("href", "/planning?from=2026-11-09");
+  });
+
+  // Groupé avec le titre : le retour à la ligne des actions ne l'isole jamais.
+  it("se place à gauche du titre, dans le même groupe", async () => {
+    const { getByRole } = await open({ back: true });
+
+    const back = getByRole("link", { name: "Mon planning" });
+    const group = back.parentElement as HTMLElement;
+    expect(within(group).getByRole("heading", { name: "Tableau de bord" })).toBeInTheDocument();
+    expect(group.firstElementChild).toBe(back);
+  });
+
+  it("n'existe pas sans destination", async () => {
+    const { container } = await open();
+
+    expect(within(container.querySelector("header") as HTMLElement).queryByRole("link")).toBeNull();
+  });
+
+  it("retient la sortie d'une saisie non enregistrée, puis mène à sa destination", async () => {
+    const { user, getByRole, findByRole, router } = await open({ back: true, unsaved: true });
+
+    await user.click(getByRole("link", { name: "Mon planning" }));
+    expect(await findByRole("dialog")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+
+    await user.click(getByRole("button", { name: "common.leave.discard" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/planning"));
+    expect(router.state.location.search).toEqual({ from: "2026-11-09" });
   });
 });

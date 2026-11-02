@@ -30,20 +30,9 @@ vi.mock("@/shared/hook/useCapabilities", () => ({ useActingCapability: vi.fn() }
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "usr_coach" } } }) },
 }));
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    subtitle,
-    children,
-  }: Readonly<{ title: string; subtitle?: string; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      <p>{subtitle}</p>
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 /**

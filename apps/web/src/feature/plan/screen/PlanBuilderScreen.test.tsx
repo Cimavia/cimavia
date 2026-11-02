@@ -71,20 +71,9 @@ vi.mock("@/feature/athlete/hook/useAthletes", () => ({
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    actions,
-    children,
-  }: Readonly<{ title: string; actions?: unknown; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      {actions as never}
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 vi.mock("@/feature/reminder", () => ({ ScheduleReminderButton: () => null }));
 // Le détail d'une séance se charge à l'ouverture du panneau : c'est l'écran qui le demande.
@@ -326,10 +315,15 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
     vi.clearAllMocks();
   });
 
-  it("attend le cycle avant de rien affirmer", async () => {
-    const { getByText } = await mount({}, null, [], { isPending: true, data: undefined });
+  // Une lecture qui traîne se quitte comme une lecture en panne : par le retour (#746).
+  it("attend le cycle avant de rien affirmer, sans retenir le Coach", async () => {
+    const { getByRole, getByText } = await mount({}, null, [], {
+      isPending: true,
+      data: undefined,
+    });
 
     expect(getByText("common.loading")).toBeTruthy();
+    expect(getByRole("link", { name: "plan.builder.back" })).toHaveAttribute("href", "/plans");
   });
 
   // Une panne n'est pas une disparition : rediriger vers la liste laisserait croire le cycle perdu.
@@ -339,6 +333,8 @@ describe("PlanBuilderScreen — le cycle ne se lit pas", () => {
       data: undefined,
     });
 
+    // En panne aussi, la liste des cycles reste à un clic (#746).
+    expect(getByRole("link", { name: "plan.builder.back" })).toHaveAttribute("href", "/plans");
     await user.click(getByRole("button", { name: "common.retry" }));
 
     expect(refetch).toHaveBeenCalledOnce();
@@ -879,7 +875,7 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     vi.mocked(listMyOrganizations).mockResolvedValue([]);
   });
 
-  it("en Lecture : le bandeau nomme le propriétaire, tout se fige, « Fermer » ramène aux cycles", async () => {
+  it("en Lecture : le bandeau nomme le propriétaire, tout se fige, le retour ramène aux cycles", async () => {
     const { container, getByRole, getByText, queryByRole, queryByText, router, user } = await mount(
       shared(MyAccessLevel.READ),
     );
@@ -894,7 +890,9 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     // La semaine se copie encore : vers un cycle qu'on écrit.
     expect(getByRole("button", { name: "plan.week.copy" })).toBeTruthy();
 
-    await user.click(getByRole("button", { name: "common.close" }));
+    // Plus de « Fermer » : il menait où mène le retour du bandeau (#746).
+    expect(queryByRole("button", { name: "common.close" })).toBeNull();
+    await user.click(getByRole("link", { name: "plan.builder.back" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/plans"));
   });
 

@@ -679,7 +679,7 @@
         "cycleCount": "{{count}} cycle en cours",
         "cycleCount_other": "{{count}} cycles en cours"
       },
-      "backToPlanning": "← Mon planning",
+      "backToPlanning": "Mon planning",
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "contactCoach": "Écrire à {{name}}",
@@ -786,7 +786,8 @@
       "templateRequired": "Choisis une séance modèle pour l'ajouter au cycle."
     },
     "builder": {
-      "back": "← Planifications",
+      "back": "Planifications",
+      "fallbackTitle": "Cycle",
       "addWeek": "Ajouter une semaine",
       "publish": "Diffuser le cycle",
       "published": "Cycle diffusé",
@@ -983,7 +984,7 @@
     "dosage": {
       "title": "Dosage",
       "subtitle": "Les valeurs de {{name}}, semaine par semaine",
-      "back": "← Retour au cycle",
+      "back": "Retour au cycle",
       "sessionType": "Séance-type",
       "empty": {
         "title": "Rien à doser",
@@ -1401,7 +1402,7 @@
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "unreadable": "Ce fichier est illisible."
     },
-    "backToSession": "← Retour à la séance",
+    "backToSession": "Retour à la séance",
     "tracking": {
       "title": "Ce que tu as coché",
       "edit": "Corriger le décompte de {{exercise}}",

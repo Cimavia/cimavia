@@ -16,7 +16,8 @@ import {
   todayIsoDate,
 } from "@cmv/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Navigate, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PlanBillingSection } from "@/feature/invoice";
@@ -55,6 +56,17 @@ import { ApiError, isStaleWriteError } from "@/shared/lib/api";
 // Séance en cours d'édition : le jour visé + l'instance (null = création sur ce jour). Pas de
 // semaine : le jour la désigne, et le panneau peut l'envoyer dans une autre (#689).
 type SessionEdit = { date: string; sessionId: string | null };
+
+/** La liste des cycles, sans filtre : là où mène le retour, et où renvoie un cycle disparu. */
+const PLANS_LINK = {
+  to: "/plans",
+  search: { q: undefined, state: undefined, athlete: undefined },
+} as const;
+
+/** Le retour aux cycles, le même depuis le cycle ouvert et depuis sa panne (#746). */
+function backToPlans(t: TFunction) {
+  return { label: t("plan.builder.back"), link: PLANS_LINK };
+}
 
 /**
  * Les cycles à comparer : ceux du coach, MOINS la copie que sa liste porte de celui qu'on regarde,
@@ -183,7 +195,6 @@ export function PlanBuilderScreen() {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
   const { planId } = useParams({ from: "/plans/$planId" });
-  const navigate = useNavigate();
 
   const { data: plan, isPending, isFetching, error, refetch } = usePlan(planId);
   /**
@@ -206,11 +217,14 @@ export function PlanBuilderScreen() {
     useUnsavedInputs();
   useRequestedSession(plan, isFetching, setEdit);
 
+  // Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
+  // ni menu, plus démuni qu'une lecture en panne (#746). Le titre attend le cycle sans dire
+  // « Planifications » : ce serait l'écran où mène le retour posé juste à côté.
   if (isPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
+      <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
+        <p className="text-cmv-text-mid">{t("common.loading")}</p>
+      </CmvAppShell>
     );
   }
   // Sur la DONNÉE, pas sur l'échec : une relecture ratée — « Recharger », un retour d'onglet —
@@ -255,55 +269,37 @@ export function PlanBuilderScreen() {
         weeks: plan.weekCount,
         sessions: plan.sessionCount,
       })}
+      back={backToPlans(t)}
       actions={
-        // En Lecture, le cycle se consulte et se quitte : rien d'autre ne s'y fait (#607).
-        readOnly ? (
-          <>
-            <DosageButton plan={plan} />
-            <CmvButton
-              onClick={() =>
-                navigate({
-                  to: "/plans",
-                  search: { q: undefined, state: undefined, athlete: undefined },
-                })
-              }
-            >
-              {t("common.close")}
-            </CmvButton>
-          </>
-        ) : (
-          <>
-            <DosageButton plan={plan} />
-            {isMine ? (
-              <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
-            ) : null}
-            <PlanBuilderActions
-              planId={planId}
-              version={plan.updatedAt}
-              isPublished={isPublished}
-              canDelete={isMine}
-              hasWeeks={plan.weeks.length > 0}
-              hasAthlete={hasAthlete}
-              isBillingFilled={billing != null}
-              requiresBilling={!isSelfCoached(plan)}
-              isHeaderUnsaved={isHeaderUnsaved}
-              isBillingUnsaved={isBillingUnsaved}
-              isBusy={isBusy}
-              onDeleted={guard.release}
-            />
-          </>
-        )
+        <>
+          <DosageButton plan={plan} />
+          {/* En Lecture, le cycle se consulte et se quitte — par le retour du bandeau, qui mène
+              où menait « Fermer » (#746) : rien d'autre ne s'y fait (#607). */}
+          {readOnly ? null : (
+            <>
+              {isMine ? (
+                <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
+              ) : null}
+              <PlanBuilderActions
+                planId={planId}
+                version={plan.updatedAt}
+                isPublished={isPublished}
+                canDelete={isMine}
+                hasWeeks={plan.weeks.length > 0}
+                hasAthlete={hasAthlete}
+                isBillingFilled={billing != null}
+                requiresBilling={!isSelfCoached(plan)}
+                isHeaderUnsaved={isHeaderUnsaved}
+                isBillingUnsaved={isBillingUnsaved}
+                isBusy={isBusy}
+                onDeleted={guard.release}
+              />
+            </>
+          )}
+        </>
       }
     >
       <div className="mb-cmv-lg flex flex-col gap-cmv-sm">
-        <Link
-          to="/plans"
-          search={{ q: undefined, state: undefined, athlete: undefined }}
-          className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-        >
-          {t("plan.builder.back")}
-        </Link>
-
         <PlanStatusLine
           status={plan.status}
           hasAthlete={hasAthlete}
@@ -562,10 +558,10 @@ function PlanUnreadable({ error, onRetry }: Readonly<{ error: unknown; onRetry: 
   const { t } = useTranslation();
 
   if (error == null || isNotFound(error)) {
-    return <Navigate to="/plans" search={{ q: undefined, state: undefined, athlete: undefined }} />;
+    return <Navigate {...PLANS_LINK} />;
   }
   return (
-    <CmvAppShell title={t("plan.title")}>
+    <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
       <CmvErrorState
         title={t("common.errorTitle")}
         description={t("common.errorDescription")}

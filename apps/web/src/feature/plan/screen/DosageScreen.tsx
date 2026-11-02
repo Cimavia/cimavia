@@ -18,7 +18,7 @@ import {
   withDosageSetting,
 } from "@cmv/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,22 +66,19 @@ export function DosageScreen() {
   // Une relecture qui échoue garde ce qui est lu : seule une première lecture en panne se dit ici.
   if (plan.data == null) {
     return plan.isError ? (
-      <DosageUnreadable onRetry={() => void plan.refetch()} />
+      <DosageUnreadable planId={planId} onRetry={() => void plan.refetch()} />
     ) : (
-      <DosageLoading />
+      <DosageLoading planId={planId} />
     );
   }
   const current = types.find((each) => each.key === (type ?? opening)) ?? types[0];
   if (current === undefined) {
     return (
-      <CmvAppShell title={t("plan.dosage.title")}>
-        <div className="flex flex-col gap-cmv-md">
-          <BackToPlan planId={plan.data.id} />
-          <CmvEmptyState
-            title={t("plan.dosage.empty.title")}
-            description={t("plan.dosage.empty.description")}
-          />
-        </div>
+      <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, plan.data.id)}>
+        <CmvEmptyState
+          title={t("plan.dosage.empty.title")}
+          description={t("plan.dosage.empty.description")}
+        />
       </CmvAppShell>
     );
   }
@@ -126,9 +123,9 @@ function DosageLoader({ onReloadPlan, ...props }: Readonly<DosageLoaderProps>) {
 
   if (!isOpen && !isRead) {
     return copies.isError ? (
-      <DosageUnreadable onRetry={() => void copies.refetch()} />
+      <DosageUnreadable planId={props.plan.id} onRetry={() => void copies.refetch()} />
     ) : (
-      <DosageLoading />
+      <DosageLoading planId={props.plan.id} />
     );
   }
   return (
@@ -146,10 +143,10 @@ function DosageLoader({ onReloadPlan, ...props }: Readonly<DosageLoaderProps>) {
   );
 }
 
-function DosageUnreadable({ onRetry }: Readonly<{ onRetry: () => void }>) {
+function DosageUnreadable({ planId, onRetry }: Readonly<{ planId: string; onRetry: () => void }>) {
   const { t } = useTranslation();
   return (
-    <CmvAppShell title={t("plan.dosage.title")}>
+    <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
       <CmvErrorState
         title={t("common.errorTitle")}
         description={t("common.errorDescription")}
@@ -160,27 +157,26 @@ function DosageUnreadable({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
-function DosageLoading() {
+// Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
+// ni menu, plus démuni qu'une lecture en panne (#746).
+function DosageLoading({ planId }: Readonly<{ planId: string }>) {
   const { t } = useTranslation();
   return (
-    <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-      {t("common.loading")}
-    </main>
+    <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
+      <p className="text-cmv-text-mid">{t("common.loading")}</p>
+    </CmvAppShell>
   );
 }
 
-/** Le retour au cycle, comme « ← Planifications » le fait depuis le cycle. */
-function BackToPlan({ planId }: Readonly<{ planId: string }>) {
-  const { t } = useTranslation();
-  return (
-    <Link
-      to="/plans/$planId"
-      params={{ planId }}
-      className="text-cmv-caption text-cmv-text-mid hover:text-cmv-text-hi"
-    >
-      {t("plan.dosage.back")}
-    </Link>
-  );
+/**
+ * Le retour au cycle, comme le cycle a le sien vers les planifications — dans le bandeau, où il
+ * reste à portée sous un tableau qui défile (#746). Pas de fil d'Ariane (#721).
+ */
+function backToPlan(t: TFunction, planId: string) {
+  return {
+    label: t("plan.dosage.back"),
+    link: { to: "/plans/$planId", params: { planId } },
+  } as const;
 }
 
 type DosageEditorProps = Omit<DosageLoaderProps, "onReloadPlan"> & {
@@ -300,6 +296,7 @@ function DosageEditor({
       fill
       title={current.title}
       subtitle={t("plan.dosage.subtitle", { name: athleteName })}
+      back={backToPlan(t, plan.id)}
       actions={
         <>
           {current.sourceSessionId == null ? null : (
@@ -326,7 +323,6 @@ function DosageEditor({
       }
     >
       <div className="flex min-h-0 flex-1 flex-col gap-cmv-md">
-        <BackToPlan planId={plan.id} />
         {/* Toujours là, même seule : la page dit ce qu'elle règle, et où en changer. */}
         <div className="max-w-sm">
           <CmvSelect

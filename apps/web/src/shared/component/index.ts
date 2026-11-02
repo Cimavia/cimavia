@@ -1,4 +1,4 @@
-export { CmvAppShell } from "./CmvAppShell";
+export { CmvAppShell, type CmvBackLink } from "./CmvAppShell";
 export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";

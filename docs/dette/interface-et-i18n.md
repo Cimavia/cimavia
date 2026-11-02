@@ -292,3 +292,33 @@ liste des domaines vivent dans l'index.
 >   pas (il ne lit que `apps/api/src`).
 > - **Le repli des écrans était déjà en place** : l'issue citait deux encarts vides, et `c2104cb`
 >   (`CmvFormError`) les avait corrigés. Les quinze appelants web et mobile en ont un.
+
+## Post-MVP — Le retour d'écran dans le bandeau ([#746](https://github.com/Cimavia/cimavia/issues/746))
+
+> **Tranché en [#746](https://github.com/Cimavia/cimavia/issues/746)** (le retour vit dans le
+> bandeau, et il reste un lien) : les quatre retours d'écran du web étaient des légendes grises
+> posées dans le contenu, qui sortaient de l'écran au défilement. `CmvAppShell` prend désormais
+> `back` (un libellé, et les options d'un `Link` vérifiées par `ValidateLinkOptions`) et le pose à
+> gauche du titre.
+>
+> - **Un `Link` et pas un bouton qui navigue** : le clic du milieu et l'URL au survol restent. La
+>   destination est **fixe**, jamais `history.back()` : arrivé par une notification, il ferait
+>   sortir de l'app. Le `search` passe tel quel, et la semaine du planning (#251) le traverse.
+> - **Le retour et le titre forment un seul groupe** : le `flex-wrap` du bandeau renvoie des
+>   actions à la ligne, jamais le retour seul.
+> - **La garde de saisie n'a rien demandé** : `useLeaveGuard` passe par `useBlocker`, qui
+>   intercepte toute navigation du routeur, bandeau compris (#327, #518).
+> - **Dosage n'a pas de fil d'Ariane** : l'issue en citait un « sous le bandeau », mais il n'a
+>   jamais existé dans le code. La maquette le dessine, et #721 l'avait écarté. Le retour au cycle
+>   du bandeau suffit.
+> - **« Fermer » quitte la Lecture d'un cycle (#607)** : il menait aux cycles, comme le retour.
+>   Deux boutons pour la même action font hésiter.
+> - **Le retour est là en chargement et en panne** : sur la séance et le débrief Athlete, il
+>   n'apparaissait qu'une fois la séance lue. Un écran en erreur se quitte désormais. Le cycle et
+>   Dosage chargeaient sur une page nue, sans retour ni menu : ils chargent dans le shell.
+> - **Le libellé nomme la destination, sans « Retour » devant** : la destination est fixe, et
+>   « Retour au planning » mentirait à l'athlète arrivé par la liste Séances ou une notification.
+>   « Planifications » porte le nom du lien du menu, vers la même page : c'est le cas que le
+>   WCAG 2.4.4 demande, un même nom pour une même destination.
+> - **Le mobile reste en l'état** : trois en-têtes ont leur chevron, les autres écrans empilés le
+>   geste système. Ce sera une issue si le besoin se confirme.

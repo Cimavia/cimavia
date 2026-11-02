@@ -24,20 +24,9 @@ vi.mock("@/shared/lib/auth", () => ({
     signOut: () => Promise.resolve(),
   },
 }));
-// L'AppShell tire toute la navigation (capacités, cloche, interlocuteurs) : hors sujet ici.
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: ({
-    title,
-    subtitle,
-    children,
-  }: Readonly<{ title: string; subtitle?: string; children?: unknown }>) => (
-    <div>
-      <h1>{title}</h1>
-      <p>{subtitle}</p>
-      {children as never}
-    </div>
-  ),
+  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const TODAY = todayIsoDate();
@@ -172,7 +161,7 @@ describe("AthleteSessionsScreen", () => {
 
   /**
    * #251 : la carte est la même que celle de la grille, mais on n'ouvre pas la séance depuis une
-   * semaine du planning. Elle n'en transmet donc aucune, et « ← Mon planning » rouvrira le défaut.
+   * semaine du planning. Elle n'en transmet donc aucune, et « Mon planning » rouvrira le défaut.
    */
   it("ouvre la séance sans semaine de planning à rendre", async () => {
     const { getByText } = await mount({ data: [BLOC] }, "upcoming");

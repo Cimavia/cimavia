@@ -146,11 +146,23 @@ describe("AthleteSessionScreen", () => {
     });
   });
 
+  // Le retour ne dépend pas de la séance : on peut quitter avant qu'elle soit lue (#746).
+  it("ramène au planning pendant que la séance se charge", async () => {
+    getSessionMock.mockReturnValue(new Promise(() => undefined));
+    const { getByRole, getByText } = await setup({ from: MONDAY });
+
+    expect(getByText("common.loading")).toBeInTheDocument();
+    expect(getByRole("link", { name: BACK })).toHaveAttribute("href", `/planning?from=${MONDAY}`);
+  });
+
   it("offre de réessayer une séance qui n'a pas pu se charger", async () => {
     getSessionMock.mockRejectedValueOnce(new Error("réseau"));
-    const { findByRole, findByText, user } = await setup();
+    const { findByRole, findByText, getByRole, user } = await setup({ from: MONDAY });
 
-    await user.click(await findByRole("button", { name: "common.retry" }));
+    const retry = await findByRole("button", { name: "common.retry" });
+    // Dans le bandeau, le retour ne dépend plus de la séance : en panne aussi, on rentre (#746).
+    expect(getByRole("link", { name: BACK })).toHaveAttribute("href", `/planning?from=${MONDAY}`);
+    await user.click(retry);
 
     // Le rejeu relit la séance : elle s'affiche, l'erreur s'efface.
     expect(await findByText("plan.athlete.blocks.count")).toBeInTheDocument();
