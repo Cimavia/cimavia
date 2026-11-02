@@ -379,6 +379,25 @@ liste des domaines vivent dans l'index.
 
 ---
 
+## Post-MVP — Supprimer une séance depuis sa carte ([#690](https://github.com/Cimavia/cimavia/issues/690))
+
+> **Tranché en #690** (un bouton de plus sur la carte, malgré #148) : #148 refusait les flèches ↑/↓
+> faute de place, parce que la poignée les remplaçait. Rien ne remplace la poubelle, sinon le
+> détour par le panneau. Elle coûte un seul bouton, **toujours visible** : le survol n'existe ni
+> sur tablette ni au clavier, comme dans `MetricPicker`. Armée, la confirmation passe **sous** le
+> titre, sur toute la carte, pour ne pas écraser le septième de largeur. La suppression du
+> panneau reste.
+
+> **Tranché en #690** (le même geste, deux traitements du conflit) : depuis le panneau, un 409
+> périmé s'affiche dans le bandeau, à côté de ce qu'on voit. Depuis la carte, aucun bandeau : le
+> refus passerait en silence. `removeGridSession` traite donc le conflit comme les autres gestes
+> de la grille (toast, puis relecture), avec la même requête que `removeSession`. Il va plus loin :
+> **tout** refus relit le cycle. Une séance débriefée entre-temps (409 sans version) ou déjà
+> supprimée (404) prouve que la carte ment, et le panneau, qui relit sa séance à l'ouverture, n'a
+> pas ce besoin.
+
+---
+
 ## Post-MVP — Hauteur des cases de la semaine athlète ([#206](https://github.com/Cimavia/cimavia/issues/206))
 
 > **Tranché en #206** (l'écart est à la MAQUETTE, pas au code) : `athlete_web.dc.html` dessine
