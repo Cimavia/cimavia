@@ -84,6 +84,19 @@ liste des domaines vivent dans l'index.
 > survit pas à F5 n'est pas le même produit, mais ce n'est pas une étape de navigation — le bouton
 > Retour doit quitter l'écran, pas rembobiner la frappe.
 
+> **Tranché en [#704](https://github.com/Cimavia/cimavia/issues/704)** (le débrief qu'ouvre la
+> colonne « Débriefs ») : le compteur mène au non-lu qui attend **depuis le plus longtemps**, pas au
+> plus récent — retour du Coach bêta : la file se vide dans l'ordre, rien ne reste enterré sous les
+> récents. « Ancien » se lit sur **`updatedAt`, pas `createdAt`** : un débrief lu repasse non lu
+> quand l'athlète le complète, et n'attend le coach que depuis. Classé par création, un débrief d'il
+> y a un mois revenu ce matin passerait devant celui qui attend depuis une semaine ; classé ainsi, le
+> lien ouvre le dernier non-lu de la boîte de réception, triée par `updatedAt` décroissant.
+> **Le calcul est exact parce que la liste n'est pas paginée** : le tableau charge tous les
+> débriefs. [#201](https://github.com/Cimavia/cimavia/issues/201) ne nomme que la tuile, mais le
+> tableau dépend aussi de la liste entière — son compteur par athlète comme ce lien. Paginée, la
+> liste ferait de « le plus ancien non lu » « le plus ancien parmi les 30 derniers » : l'un et
+> l'autre devront être servis par l'API.
+
 > **Deux écarts volontaires** à la même maquette : les tuiles sont réparties en **deux rangées**
 > nommées (« À traiter » / « Vue d'ensemble ») là où la maquette n'en prévoyait qu'une de quatre —
 > à sept, une strip unique redevient une grille indifférenciée où rien ne ressort ; et les tuiles
