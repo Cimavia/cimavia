@@ -55,6 +55,7 @@ liste des domaines vivent dans l'index.
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
 | N-8 | **L'e-mail suit le rythme de la trace** (N-3) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq. La relance attendue de #91 n'a plus d'objet depuis #537 : le push prévient de chaque message. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-9 | **Aucun lien vers l'entité dans l'e-mail de notification** : seul le pied « gérer mes notifications » est cliquable. Ouvrir le cycle ou la conversation demande de retrouver l'application à la main. | 🟢 | — *(déclencheur : un retour beta disant que l'e-mail ne sert à rien sans lien — voir « Tranché en #65 »)* |
+| N-10 | **Le filtre par catégorie n'a pas d'index dédié** (#694) : `type IN (…)` trié par date parcourt l'index `(recipientId, createdAt)` jusqu'à trouver 50 lignes du type demandé. Pour une catégorie rare chez un destinataire qui a beaucoup reçu, c'est toutes ses lignes — quelques milliers au plus aujourd'hui, la table n'ayant ni purge (N-2) ni volume. | 🟢 | — *(déclencheur : une lecture filtrée lente en observabilité, ou la rétention de [#76](https://github.com/Cimavia/cimavia/issues/76) qui trancherait le volume ; la sortie est un index `(recipientId, type, createdAt)`)* |
 
 > **Tranché en #537** (le push suit chaque envoi, la trace chaque série) : retour du Coach bêta,
 > sur iPhone — des messages et des compléments de débrief qui ne le prévenaient pas. Le throttle
@@ -147,14 +148,17 @@ liste des domaines vivent dans l'index.
 > ces 50 lignes ferait paraître vide une catégorie dont les entrées sont plus anciennes. La
 > catégorie d'un type est une **table** (`NOTIFICATION_CATEGORY`, `satisfies Record<…>`), pas un
 > `switch` : un type ajouté sans elle ne compile plus. Quatre écarts assumés : **(1)** le filtre
-> **n'est pas mémorisé** — il revient à « Toutes » à la réouverture du panneau web, et en quittant
-> l'onglet mobile, qui reste monté : le badge compte toutes les catégories, un filtre retenu
+> **n'est pas mémorisé** — il revient à « Toutes » à la réouverture du panneau web, et à chaque
+> retour sur l'onglet mobile, qui reste monté — y compris au retour d'une notification ouverte,
+> comme le panneau web se referme au clic : le badge compte toutes les catégories, un filtre retenu
 > afficherait « 3 » sur la cloche et une liste vide ; **(2)** aucun compteur de non-lues par
 > catégorie, `unread-count` reste ventilé par espace (#176) ; **(3)** « Tout marquer lu » suit le
 > filtre, et hors « Rappels » il n'éteint **aucun** rappel dû ; **(4)** « Invitations » réunit les
 > deux côtés de la relation (l'invitation reçue en athlète, ses réponses en coach) — c'est un même
 > fil, et deux pastilles pour deux ou trois lignes par an n'aideraient personne. Le filtre croise
-> l'espace actif (#129) sans le remplacer.
+> l'espace actif (#129) sans le remplacer. Sous un filtre, « Tout marquer lu » suit la liste reçue :
+> une catégorie dont les 50 plus récentes sont lues ne l'offre plus, même si des plus anciennes ne
+> le sont pas — elles sont aussi hors d'atteinte que dans la liste, ce que N-1 couvre.
 
 > **Appris en test (session de recette #39)** : une notification n'est pas un lien, c'est le
 > **signal que l'état serveur a changé**. L'ouvrir invalide donc tout le cache client avant de
