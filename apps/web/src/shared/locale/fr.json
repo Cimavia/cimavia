@@ -21,6 +21,12 @@
     "errorTitle": "Chargement impossible",
     "errorDescription": "Les données n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
+    "resize": {
+      "width": "Régler la largeur du panneau",
+      "size": "Régler la taille du panneau",
+      "widthValue": "{{width}} px de large",
+      "sizeValue": "{{width}} × {{height}} px"
+    },
     "staleReload": "Recharger",
     "staleReloadFailed": "La dernière version n'a pas pu être chargée. Ta saisie reste affichée : réessaie dans un instant.",
     "staleWrite": "Modifié entre-temps par un autre coach : recharge la page, puis recommence.",
@@ -1567,6 +1573,10 @@
     "empty": "Aucune notification pour le moment.",
     "emptyCategory": "Aucune notification dans cette catégorie.",
     "markAllRead": "Tout marquer comme lu",
+    "layout": {
+      "side": "Ouvrir en panneau latéral",
+      "popover": "Revenir au panneau compact"
+    },
     "someone": "Quelqu'un",
     "type": {
       "planPublished": "Nouvelle planification : « {{subject}} »",
