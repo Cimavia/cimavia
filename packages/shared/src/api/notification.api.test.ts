@@ -95,6 +95,15 @@ describe("notificationKeys", () => {
       notificationKeys.list(null),
     );
   });
+
+  // Le préfixe couvre chaque filtre, et lui seul : périmer les listes ne relit pas le badge.
+  it("rassemble les listes sous un préfixe qui épargne le compteur", () => {
+    const prefix = notificationKeys.lists();
+    expect(notificationKeys.list(NotificationCategory.BILLING).slice(0, prefix.length)).toEqual(
+      prefix,
+    );
+    expect(notificationKeys.unreadCount().slice(0, prefix.length)).not.toEqual(prefix);
+  });
 });
 
 describe("createNotificationPreferenceApi", () => {

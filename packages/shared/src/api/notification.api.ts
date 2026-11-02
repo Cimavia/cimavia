@@ -22,7 +22,10 @@ export const notificationKeys = {
   all: ["notifications"] as const,
   // Une entrée de cache par filtre (#694), toutes sous `all` : une invalidation de la racine les
   // fait tomber ensemble. `null` = « Toutes ».
-  list: (category: NotificationCategory | null) => ["notifications", "list", { category }] as const,
+  list: (category: NotificationCategory | null) =>
+    [...notificationKeys.lists(), { category }] as const,
+  // Le préfixe de toutes les listes filtrées, pour les périmer d'un geste sans toucher au badge.
+  lists: () => ["notifications", "list"] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
 };
 

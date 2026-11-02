@@ -46,14 +46,12 @@ export function useUnreadByCapability() {
 
 // La liste elle-même se rafraîchit à l'ouverture de l'écran (`useFocusEffect` côté écran), comme
 // les factures : pas de polling sur des données qu'on ne regarde pas. `category` est filtrée par
-// l'API (#694) ; `null` = toutes. Une entrée de cache par catégorie, donc `staleTime: 0` : le
-// refetch du focus ne relit que la liste affichée, et une catégorie reprise montrerait sinon sa
-// version d'il y a cinq minutes, sans la facture arrivée depuis.
+// l'API (#694) ; `null` = toutes. Une entrée de cache par catégorie : l'écran les périme toutes à
+// son focus.
 export function useNotifications(category: NotificationCategoryType | null) {
   return useQuery<NotificationDto[]>({
     queryKey: notificationKeys.list(category),
     queryFn: () => notificationApi.list(category),
-    staleTime: 0,
   });
 }
 

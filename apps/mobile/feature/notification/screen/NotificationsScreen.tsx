@@ -2,7 +2,7 @@ import {
   NOTIFICATION_LABEL_KEY,
   type NotificationCategoryType,
   type NotificationDto,
-  notificationCategoriesFor,
+  notificationFilterChoices,
   notificationSubject,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
@@ -54,13 +54,22 @@ export function NotificationsScreen() {
    * catégories, un filtre retenu y opposerait une liste vide. Il faut le remettre à zéro ici parce
    * que l'onglet reste monté d'une visite à l'autre, son état aussi.
    *
-   * `invalidateQueries` et non `refetch` : celui-ci viserait la catégorie AVANT la remise à zéro.
-   * L'invalidation relit « Toutes » si elle est déjà affichée, et sinon la marque périmée pour que
-   * le rendu suivant la lise — une seule requête dans les deux cas.
+   * Chaque catégorie a son entrée de cache, fraîche cinq minutes : toutes sont donc PÉRIMÉES ici,
+   * sans être relues, pour qu'une pastille reprise pendant la visite relise sa liste. Une
+   * fraîcheur nulle aurait fait le même travail, mais aussi relu la liste à chaque retour de l'app
+   * au premier plan, onglet monté et pas regardé.
+   *
+   * Puis « Toutes » seule est relue — par invalidation et non `refetch`, qui viserait la catégorie
+   * AVANT la remise à zéro : déjà affichée, elle repart tout de suite ; sinon, le rendu suivant la
+   * lit, périmée. Une seule requête dans les deux cas.
    */
   useFocusEffect(
     useCallback(() => {
       setCategory(null);
+      void queryClient.invalidateQueries({
+        queryKey: notificationKeys.lists(),
+        refetchType: "none",
+      });
       void queryClient.invalidateQueries({ queryKey: notificationKeys.list(null) });
     }, [queryClient]),
   );
@@ -103,7 +112,7 @@ export function NotificationsScreen() {
       </View>
 
       <NotificationCategoryFilter
-        categories={notificationCategoriesFor(capabilities)}
+        choices={notificationFilterChoices(capabilities)}
         category={category}
         onChange={setCategory}
       />

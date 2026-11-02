@@ -1,11 +1,11 @@
-import { NOTIFICATION_CATEGORY_LABEL_KEY, type NotificationCategoryType } from "@cmv/shared";
+import type { NotificationCategoryType, NotificationFilterChoice } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { ScrollView, View } from "react-native";
 import { CmvToggleChip } from "@/shared/component";
 
 type NotificationCategoryFilterProps = {
-  /** Ce que le compte peut recevoir, dans l'ordre des pastilles (`notificationCategoriesFor`). */
-  categories: NotificationCategoryType[];
+  /** Les pastilles, « Toutes » comprise (`notificationFilterChoices`) ; vide = pas de ruban. */
+  choices: NotificationFilterChoice[];
   /** `null` = « Toutes ». */
   category: NotificationCategoryType | null;
   onChange: (category: NotificationCategoryType | null) => void;
@@ -17,33 +17,28 @@ type NotificationCategoryFilterProps = {
  * retour.
  */
 export function NotificationCategoryFilter({
-  categories,
+  choices,
   category,
   onChange,
 }: Readonly<NotificationCategoryFilterProps>) {
   const { t } = useTranslation();
 
-  // Une seule catégorie n'a rien à filtrer : « Toutes » la montre déjà.
-  if (categories.length < 2) return null;
+  if (choices.length === 0) return null;
 
   return (
     <View className="pt-4">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        accessibilityRole="radiogroup"
         contentContainerClassName="gap-2 px-4"
       >
-        <CmvToggleChip
-          pressed={category == null}
-          onToggle={() => onChange(null)}
-          label={t("notification.category.all")}
-        />
-        {categories.map((value) => (
+        {choices.map((choice) => (
           <CmvToggleChip
-            key={value}
-            pressed={value === category}
-            onToggle={() => onChange(value)}
-            label={t(NOTIFICATION_CATEGORY_LABEL_KEY[value])}
+            key={choice.labelKey}
+            pressed={choice.category === category}
+            onToggle={() => onChange(choice.category)}
+            label={t(choice.labelKey)}
           />
         ))}
       </ScrollView>
