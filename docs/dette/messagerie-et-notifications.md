@@ -166,16 +166,26 @@ liste des domaines vivent dans l'index.
 > grandir à l'opposé du geste), ou un `CmvPanel` pleine hauteur dont seule la largeur se règle.
 > `CmvPanel` gagne deux props que ses usages existants ne passent pas : `width` + `onWidthChange`
 > (la poignée de son bord gauche) et `flush` (corps sans marge, pour une liste à filets) ; son titre
-> remplace celui de la barre. Le latéral est rendu **par un portail** : dans le bandeau
-> `sticky z-20`, un en-tête de tableau collant plus bas dans la page passait par-dessus. Le mode et
-> les tailles sont retenus dans `localStorage` — **pas** dans `resetAccountData` : une préférence du
-> poste, qui ne nomme aucun tenant. Une taille trop grande pour la fenêtre s'y ramène **au rendu**,
-> sans être réécrite : revenu sur le grand écran, on retrouve la sienne. Trois écarts assumés :
+> remplace celui de la barre. Les **deux** conteneurs sont rendus **par un portail** : dans le
+> bandeau `sticky z-20`, un en-tête de tableau collant plus bas dans la page passait par-dessus ; le
+> panneau déroulant y est donc en `fixed`, recalé par `useAnchoredPosition` ; posé en fin de page,
+> il prend le focus à l'ouverture et le rend à la cloche à la fermeture. Pendant un glisser, la
+> taille vit dans le conteneur seul : la cloche — et sa liste — ne l'apprennent qu'au relâchement.
+> Le mode et les tailles sont retenus dans `localStorage` (`shared/lib/local-storage`, partagé avec
+> le suivi local des séances) — **pas** dans `resetAccountData` : une préférence du poste, qui ne
+> nomme aucun tenant. Une taille trop grande pour la fenêtre s'y ramène **au rendu**,
+> sans être réécrite : revenu sur le grand écran, on retrouve la sienne. Le latéral garde toujours
+> une bande de fond où cliquer : dans une fenêtre trop étroite, c'est son minimum qui cède. Quatre
+> écarts assumés :
 > **(1)** le panneau reste **modal** — pas de panneau épinglé ouvert pendant qu'on travaille ;
 > **(2)** tant qu'il n'a jamais été redimensionné, le panneau déroulant suit son contenu, et le
 > premier geste part de sa taille d'origine (320 × 384 px), qui est aussi son minimum : une liste
 > courte grandit donc d'un coup jusqu'à 384 px ; **(3)** la poignée d'angle annonce sa largeur en
-> `aria-valuenow` — un séparateur n'en porte qu'une — et les deux dimensions en `aria-valuetext`.
+> `aria-valuenow` — un séparateur n'en porte qu'une — et les deux dimensions en `aria-valuetext`
+> (Sonar `S6847` écarté sur ce seul fichier : un séparateur focusable est un widget en ARIA 1.2) ;
+> **(4)** changer de conteneur **remonte** le contenu : la liste est relue (`staleTime: 0`), un
+> « Repousser » déplié se replie et le défilement repart du haut. Seul le filtre survit, tenu par la
+> cloche — un geste rare, qui ne vaut pas un contenu monté hors de ses deux conteneurs.
 > Le mobile n'est pas concerné : son centre est déjà un écran plein.
 
 > **Appris en test (session de recette #39)** : une notification n'est pas un lien, c'est le
