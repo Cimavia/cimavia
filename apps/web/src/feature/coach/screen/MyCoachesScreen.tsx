@@ -143,6 +143,7 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           coach: coach.coachId,
           conversation: undefined,
           as: "athlete",
+          q: undefined,
         }}
         aria-label={t("coach.linked.messageTo", { name: coach.coachName })}
         className="inline-flex items-center rounded-cmv-md border border-cmv-border px-cmv-lg py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:text-cmv-text-hi"

@@ -55,6 +55,7 @@ export function AthleteSessionRail({
             coach: session.coachId,
             conversation: undefined,
             as: "athlete",
+            q: undefined,
           }}
           className="text-cmv-caption text-cmv-accent hover:underline"
         >

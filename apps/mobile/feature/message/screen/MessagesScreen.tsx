@@ -2,12 +2,13 @@ import {
   type ConversationDto,
   conversationPreviewText,
   conversationTitle,
+  filterConversations,
   hasCandidates as hasAnyone,
   type TrainingCapability,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { type ReactNode, useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { ParticipantAvatars } from "@/feature/message/component/ParticipantAvatars";
@@ -23,6 +24,7 @@ import {
   CmvScreen,
   CmvText,
 } from "@/shared/component";
+import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { authClient } from "@/shared/lib/auth";
@@ -83,6 +85,14 @@ export function MessagesScreen() {
   const isPending = conversations.isPending || candidates.isPending;
   const isError = conversations.isError || candidates.isError;
   const list = conversations.data ?? [];
+  // La recherche (#702) vit dans l'écran : l'onglet reste monté sous le fil, le terme survit donc à
+  // l'aller-retour — l'URL qu'on lui donne sur le web n'a pas d'équivalent à servir ici. Il
+  // appartient à l'ESPACE où il a été tapé : changer de titre rend la liste entière, comme le web,
+  // dont le sélecteur d'espace quitte `?q=`.
+  const [typed, setTyped] = useState({ as, text: "" });
+  const search = typed.as === as ? typed.text : "";
+  // Une liste à montrer, donc à chercher : ni en panne, ni vide.
+  const hasList = !isError && list.length > 0;
   const refresh = () => {
     conversations.refetch();
     candidates.refetch();
@@ -100,8 +110,25 @@ export function MessagesScreen() {
         <CmvCapabilitySwitch unread={unread} />
       </View>
 
+      {/* Hors de la zone qui défile : au bas d'une longue liste, la recherche reste à portée et dit
+          qu'un filtre est posé. Rien à chercher dans une liste vide : le champ n'y est pas. */}
+      {hasList ? (
+        <View className="px-4 pt-4">
+          <CmvTextField
+            label={t("messages.search.label")}
+            value={search}
+            onChangeText={(text) => setTyped({ as, text })}
+            placeholder={t("messages.search.placeholder")}
+            autoCapitalize="none"
+          />
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerClassName="gap-3 px-4 pb-4 pt-4"
+        // Clavier ouvert, le premier toucher sur une ligne doit l'ouvrir, pas seulement fermer le
+        // clavier.
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={conversations.isRefetching || candidates.isRefetching}
@@ -128,18 +155,43 @@ export function MessagesScreen() {
           <NoConversation as={as} hasCandidates={hasCandidates} />
         ) : null}
 
-        {isError
-          ? null
-          : list.map((conversation) => (
-              <ConversationRow
-                key={conversation.id}
-                conversation={conversation}
-                currentUserId={session?.user.id ?? null}
-              />
-            ))}
+        {hasList ? (
+          <SearchResults
+            shown={filterConversations(list, search)}
+            search={search}
+            currentUserId={session?.user.id ?? null}
+          />
+        ) : null}
       </ScrollView>
     </CmvScreen>
   );
+}
+
+/**
+ * Les conversations que la recherche retient. Rien ne correspond n'est PAS « aucune conversation » :
+ * les confondre enverrait en créer une alors qu'il suffit de vider la recherche.
+ */
+function SearchResults({
+  shown,
+  search,
+  currentUserId,
+}: Readonly<{ shown: ConversationDto[]; search: string; currentUserId: string | null }>) {
+  const { t } = useTranslation();
+
+  if (shown.length === 0) {
+    return (
+      <CmvText className="text-cmv-text-mid text-sm">
+        {t("messages.search.noMatch", { search: search.trim() })}
+      </CmvText>
+    );
+  }
+  return shown.map((conversation) => (
+    <ConversationRow
+      key={conversation.id}
+      conversation={conversation}
+      currentUserId={currentUserId}
+    />
+  ));
 }
 
 /**

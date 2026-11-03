@@ -1,6 +1,7 @@
 import {
   type ConversationCandidatesDto,
   type ConversationDto,
+  filterConversations,
   hasCandidates as hasAnyone,
   type TrainingCapability,
 } from "@cmv/shared";
@@ -21,6 +22,7 @@ import {
 import type { MessagesSearch } from "@/routes/messages";
 import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useActingCapability, useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useUrlSearchText } from "@/shared/hook/useUrlSearchText";
 import { authClient } from "@/shared/lib/auth";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
@@ -54,10 +56,17 @@ export function MessagesScreen() {
   const [creating, setCreating] = useState(false);
 
   // Changer de fil ne change pas le TITRE auquel on lit : `as` est préservé, sinon un compte à
-  // double capacité basculerait d'univers en cliquant sur une ligne. `replace: true` — parcourir
-  // ses fils ne doit pas empiler vingt entrées d'historique à remonter une par une.
-  const select = (conversationId: string) =>
-    navigate({ to: "/messages", search: searchOf(conversationId, search.as), replace: true });
+  // double capacité basculerait d'univers en cliquant sur une ligne. La recherche l'est aussi, sauf
+  // pour une conversation tout juste créée : elle doit se voir dans la liste, que son nom réponde
+  // ou non au terme. `replace: true` — parcourir ses fils ne doit pas empiler vingt entrées
+  // d'historique à remonter une par une.
+  const select = (conversationId: string, { keepSearch = true } = {}) =>
+    navigate({
+      from: "/messages",
+      to: "/messages",
+      search: (prev) => threadSearch(prev, conversationId, keepSearch ? prev.q : undefined),
+      replace: true,
+    });
 
   const entry = useCounterpartEntry(as, exercised, search, candidates.data);
 
@@ -114,7 +123,7 @@ export function MessagesScreen() {
           onClose={() => setCreating(false)}
           onOpened={(conversationId) => {
             setCreating(false);
-            select(conversationId);
+            select(conversationId, { keepSearch: false });
           }}
         />
       ) : null}
@@ -122,7 +131,13 @@ export function MessagesScreen() {
   );
 }
 
-/** La liste et le fil choisi — ou l'invitation à en choisir un. */
+/**
+ * La liste et le fil choisi — ou l'invitation à en choisir un.
+ *
+ * La recherche (#702) restreint la LISTE, pas le fil : le fil ouvert se cherche dans la liste
+ * entière et reste affiché quand le filtre écarte sa ligne (tranché en #702) — taper un nom ne
+ * ferme pas sous les yeux la conversation qu'on lisait.
+ */
 function ConversationsPane({
   conversations,
   currentUserId,
@@ -135,15 +150,32 @@ function ConversationsPane({
   onSelect: (conversationId: string) => void;
 }>) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { q } = route.useSearch();
   const selected = conversations.find((listed) => listed.id === selectedId) ?? null;
+
+  // `replace` : la recherche est un RÉGLAGE DE VUE, chaque frappe empilerait sinon une entrée
+  // d'historique. Le reste de l'URL vient de `prev`, la plus récente (#734).
+  const [searchText, setSearchText] = useUrlSearchText(q, (next) =>
+    navigate({
+      from: "/messages",
+      to: "/messages",
+      search: (prev) => ({ ...prev, q: next }),
+      replace: true,
+    }),
+  );
 
   return (
     <div className="flex h-[calc(100vh-11rem)] overflow-hidden rounded-cmv-lg border border-cmv-border bg-cmv-bg-1">
       <ConversationList
-        conversations={conversations}
+        // Filtrée par la saisie et non par `q` : le texte de l'état vide et les lignes montrées
+        // disent le même terme, même le temps que l'URL rattrape la frappe.
+        conversations={filterConversations(conversations, searchText)}
         currentUserId={currentUserId}
         selectedId={selected?.id ?? null}
         onSelect={onSelect}
+        search={searchText}
+        onSearchChange={setSearchText}
       />
       {selected == null ? (
         <div className="flex flex-1 items-center justify-center p-cmv-lg">
@@ -158,9 +190,16 @@ function ConversationsPane({
   );
 }
 
-/** Le fil désigné par son id, au titre déjà précisé par l'URL. */
-function searchOf(conversationId: string, as: TrainingCapability | undefined): MessagesSearch {
-  return { athlete: undefined, coach: undefined, conversation: conversationId, as };
+/**
+ * Le fil désigné par son id, l'entrée par interlocuteur consommée. Le titre (`as`) vient de l'URL
+ * la plus récente.
+ */
+function threadSearch(
+  prev: MessagesSearch,
+  conversationId: string,
+  q: string | undefined,
+): MessagesSearch {
+  return { ...prev, athlete: undefined, coach: undefined, conversation: conversationId, q };
 }
 
 /**
@@ -188,12 +227,16 @@ function useCounterpartEntry(
   const entry = as === "coach" ? withAthlete : withCoach;
   const resolved = entry.data;
 
-  const asSearch = search.as;
   useEffect(() => {
     if (resolved == null) return;
     seedConversation(queryClient, exercised, resolved);
-    void navigate({ to: "/messages", search: searchOf(resolved.id, asSearch), replace: true });
-  }, [resolved, queryClient, exercised, navigate, asSearch]);
+    void navigate({
+      from: "/messages",
+      to: "/messages",
+      search: (prev) => threadSearch(prev, resolved.id, prev.q),
+      replace: true,
+    });
+  }, [resolved, queryClient, exercised, navigate]);
 
   return entry;
 }

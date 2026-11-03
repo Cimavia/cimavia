@@ -323,6 +323,11 @@
       "foregroundOnly": "Notifications désactivées : la note se met en pause écran verrouillé."
     },
     "title": "Messages",
+    "search": {
+      "label": "Chercher une conversation",
+      "placeholder": "Nom d'un participant…",
+      "noMatch": "Aucune conversation ne correspond à « {{search}} »"
+    },
     "noAthletes": {
       "title": "Aucun athlète pour l'instant",
       "description": "Invite un premier athlète depuis l'accueil pour commencer à échanger."

@@ -10,6 +10,7 @@ import {
   conversationSubtitle,
   conversationTitle,
   filterCandidates,
+  filterConversations,
   isSameParticipant,
   messageAuthorOf,
   previewAuthorOf,
@@ -241,6 +242,34 @@ describe("filterCandidates", () => {
 
   it("garde tout sur une recherche vide", () => {
     expect(filterCandidates(candidates, "  ")).toEqual(candidates);
+  });
+});
+
+describe("filterConversations", () => {
+  const named = (userId: string, name: string): ConversationParticipantDto => ({
+    ...participant(userId, "athlete"),
+    name,
+  });
+  const withLea = conversation([named("lea", "Léa Martin")], { id: "lea" });
+  const group = conversation([named("c", "Camille"), named("ti", "Timéo")], { id: "group" });
+  const erased = conversation([], { id: "erased" });
+  const list = [withLea, group, erased];
+
+  it("garde les conversations dont un participant contient la recherche, sans casse ni accent", () => {
+    expect(filterConversations(list, "LEA").map(({ id }) => id)).toEqual(["lea"]);
+    expect(filterConversations(list, "martin").map(({ id }) => id)).toEqual(["lea"]);
+  });
+
+  it("retrouve une conversation à plusieurs par un seul de ses participants", () => {
+    expect(filterConversations(list, "timeo").map(({ id }) => id)).toEqual(["group"]);
+  });
+
+  it("garde tout sur une recherche vide, conversation sans participant comprise", () => {
+    expect(filterConversations(list, "  ")).toEqual(list);
+  });
+
+  it("écarte la conversation sans participant dès qu'un terme est cherché", () => {
+    expect(filterConversations([erased], "a")).toEqual([]);
   });
 });
 

@@ -65,7 +65,13 @@ describe("routeForNotification", () => {
     [
       NotificationEntityType.CONVERSATION,
       "/messages",
-      { athlete: undefined, coach: undefined, conversation: "entity-1", as: undefined },
+      {
+        athlete: undefined,
+        coach: undefined,
+        conversation: "entity-1",
+        as: undefined,
+        q: undefined,
+      },
     ],
     [
       NotificationEntityType.INVOICE,

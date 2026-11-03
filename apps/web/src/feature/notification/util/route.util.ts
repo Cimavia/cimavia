@@ -21,7 +21,13 @@ type NotificationTarget =
   | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
   | {
       to: "/messages";
-      search: { athlete: undefined; coach: undefined; conversation: string; as: undefined };
+      search: {
+        athlete: undefined;
+        coach: undefined;
+        conversation: string;
+        as: undefined;
+        q: undefined;
+      };
     }
   | { to: "/planning"; search: { from: undefined } }
   | {
@@ -122,6 +128,7 @@ export function routeForNotification(
           coach: undefined,
           conversation: notification.entityId,
           as: undefined,
+          q: undefined,
         },
       };
     // Servie aux deux rôles depuis #27 : même route, contenu scopé par le tenant.

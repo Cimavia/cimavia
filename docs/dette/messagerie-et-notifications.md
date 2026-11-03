@@ -625,3 +625,17 @@ liste des domaines vivent dans l'index.
 >   établie, et un repli la masquerait en disant « se met en pause écran verrouillé » sur une panne
 >   mal comprise. L'erreur s'affiche. Le repli se rouvre par une issue dédiée, une fois la cause
 >   nommée par les tags.
+
+## Post-MVP — Recherche dans la messagerie ([#702](https://github.com/Cimavia/cimavia/issues/702))
+
+> **Tranché en #702** (ce que la recherche restreint) : la **liste**, jamais le fil. Sur le web, le
+> fil ouvert se cherche dans la liste entière : quand le filtre écarte sa ligne, il reste affiché à
+> droite et seule la ligne disparaît — taper un nom ne ferme pas la conversation qu'on lisait, et
+> la liste ne montre que ce qui correspond.
+>
+> - **Le nom des participants, pas le texte des messages** : celui-ci exige une recherche en base
+>   (index, scope de participation, pagination #77), un autre chantier à ouvrir si le besoin se
+>   confirme.
+> - **L'acteur ne s'écarte pas à la main** : `participants` ne nomme déjà que les autres (#611).
+> - **Le terme vit dans l'URL sur le web** (`?q=`, comme le tableau de bord en #123), **dans l'écran
+>   sur le mobile** : l'onglet reste monté sous le fil, le terme survit à l'aller-retour.
