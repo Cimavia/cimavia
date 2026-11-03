@@ -621,8 +621,10 @@ function AddOrPick({
   }
   return (
     <div className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-accent-line p-cmv-md">
-      <div className="flex items-center justify-between gap-cmv-sm">
-        <span className="text-cmv-body text-cmv-text-hi">
+      {/* `flex-wrap` : serrée, la rangée renvoie « Annuler » à la ligne plutôt que de tasser la
+          phrase jusqu'à la couper au milieu d'un mot (#584). */}
+      <div className="flex flex-wrap items-center justify-between gap-cmv-sm">
+        <span className="text-cmv-body text-cmv-text-hi wrap-anywhere">
           {picking.kind === "add"
             ? t("plan.composition.pick.addTitle", { block: picking.block })
             : t("plan.composition.pick.replaceTitle", { exercise: picking.was })}
