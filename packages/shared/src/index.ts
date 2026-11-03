@@ -814,6 +814,7 @@ export {
   candidateRows,
   conversationTitle,
   filterCandidates,
+  filterConversations,
   isSameParticipant,
   messageAuthorOf,
   readByOf,

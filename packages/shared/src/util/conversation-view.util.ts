@@ -7,7 +7,7 @@ import {
   isFeedbackEventMessage,
   type MessageDto,
 } from "../dto/message.schema";
-import { searchMatcher } from "./search.util";
+import { comparableText, searchMatcher } from "./search.util";
 
 /**
  * Ce qu'une conversation à participants montre à l'un d'eux (#612) — titre, sous-titre, auteur
@@ -159,6 +159,29 @@ export function filterCandidates(
     athletes: candidates.athletes.filter((athlete) => matches(athlete.name)),
     coaches: candidates.coaches.filter((coach) => matches(coach.name)),
   };
+}
+
+/**
+ * Les conversations dont l'un des participants porte un nom qui contient la recherche — même règle
+ * que les candidats (`searchMatcher`). Pas de `currentUserId` à écarter : `participants` ne nomme
+ * que les AUTRES (#611), chercher son propre nom ne fait donc rien remonter. Un terme vide garde
+ * tout, une conversation sans plus personne (MC-18) comprise ; un terme non vide l'écarte, elle n'a
+ * aucun nom à comparer.
+ *
+ * Le nom des participants seulement, pas le texte des messages : celui-là exige une recherche en
+ * base (écart assumé de #702).
+ */
+export function filterConversations(
+  conversations: readonly ConversationDto[],
+  search: string,
+): ConversationDto[] {
+  // Le terme vide se traite à part : `some` sur une liste vide répond non, et écarterait la
+  // conversation sans participant là où rien n'est cherché.
+  if (comparableText(search) === "") return [...conversations];
+  const matches = searchMatcher(search);
+  return conversations.filter((conversation) =>
+    conversation.participants.some((participant) => matches(participant.name)),
+  );
 }
 
 /**
