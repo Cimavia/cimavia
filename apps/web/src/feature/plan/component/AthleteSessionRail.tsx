@@ -40,7 +40,8 @@ export function AthleteSessionRail({
         <CmvCard>
           <div className="flex flex-col gap-cmv-xs">
             <span className="text-cmv-caption text-cmv-text-mid">{t("plan.athlete.notes")}</span>
-            <p className="text-cmv-body text-cmv-text-hi">{session.notes}</p>
+            {/* Une URL collée ne force plus la colonne de 320 px (#584). */}
+            <p className="text-cmv-body text-cmv-text-hi wrap-anywhere">{session.notes}</p>
           </div>
         </CmvCard>
       )}
