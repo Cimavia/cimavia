@@ -1,4 +1,5 @@
 import { type ConversationDto, MessageType } from "@cmv/shared";
+import { fireEvent } from "@testing-library/react";
 import { router, useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -176,6 +177,54 @@ describe("MessagesScreen — la liste (#612)", () => {
     const { queryByText } = renderRn(<MessagesScreen />);
 
     expect(queryByText("2")).not.toBeNull();
+  });
+});
+
+describe("MessagesScreen — la recherche (#702)", () => {
+  /** Le seul champ de l'écran — `CmvTextField` n'associe pas de `<label>`. */
+  function searchFor(container: HTMLElement, value: string): void {
+    const input = container.querySelector("input");
+    if (input == null) throw new Error("champ de recherche introuvable");
+    fireEvent.change(input, { target: { value } });
+  }
+
+  it("restreint la liste aux conversations d'un participant cherché, sans accent", () => {
+    mockConversations({ data: [conversation(), GROUP] });
+    const { container, queryByText } = renderRn(<MessagesScreen />);
+
+    searchFor(container, "chloe");
+
+    expect(queryByText("Chloé Caron, Marc Morel")).not.toBeNull();
+    expect(queryByText("Marc Morel")).toBeNull();
+  });
+
+  it("dit qu'aucune conversation ne correspond, sans dire qu'il n'y en a aucune", () => {
+    mockConversations({ data: [conversation()] });
+    const { container, queryByText } = renderRn(<MessagesScreen />);
+
+    searchFor(container, "zzz");
+
+    expect(queryByText("messages.search.noMatch")).not.toBeNull();
+    expect(queryByText("messages.noConversations.title")).toBeNull();
+    expect(queryByText("Marc Morel")).toBeNull();
+  });
+
+  it("rend la liste entière au changement d'espace", () => {
+    mockConversations({ data: [conversation(), GROUP] });
+    const view = renderRn(<MessagesScreen />);
+    searchFor(view.container, "chloe");
+
+    vi.mocked(useActingCapability).mockReturnValue("coach");
+    view.rerender(<MessagesScreen />);
+
+    expect(view.queryByText("Marc Morel")).not.toBeNull();
+    expect(view.container.querySelector("input")?.value).toBe("");
+  });
+
+  it("n'offre pas de recherche sans conversation", () => {
+    const { container } = renderRn(<MessagesScreen />);
+
+    expect(container.querySelector("input")).toBeNull();
   });
 });
 
