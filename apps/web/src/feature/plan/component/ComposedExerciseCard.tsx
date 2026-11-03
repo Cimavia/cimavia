@@ -81,7 +81,7 @@ export function ComposedExerciseCard(props: Readonly<ComposedExerciseCardProps>)
         {code == null ? null : <BlockMark mark={code} kind="exercise" />}
         <span
           className={cn(
-            "text-cmv-body",
+            "text-cmv-body wrap-anywhere",
             removed ? "text-cmv-text-lo line-through" : "text-cmv-text-hi",
           )}
         >
@@ -127,7 +127,9 @@ function ExerciseContent({ grid, customMetrics, note }: Readonly<ComposedExercis
         </ul>
       )}
       {note == null ? null : (
-        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid">{note}</p>
+        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid wrap-anywhere">
+          {note}
+        </p>
       )}
     </>
   );

@@ -322,3 +322,33 @@ liste des domaines vivent dans l'index.
 >   WCAG 2.4.4 demande, un même nom pour une même destination.
 > - **Le mobile reste en l'état** : trois en-têtes ont leur chevron, les autres écrans empilés le
 >   geste système. Ce sera une issue si le besoin se confirme.
+
+## Post-MVP — Un mot sans espace passe à la ligne ([#584](https://github.com/Cimavia/cimavia/issues/584))
+
+> **Tranché en [#584](https://github.com/Cimavia/cimavia/issues/584)** (`wrap-anywhere` sur le
+> texte, une borne sur les pastilles et les boutons, rien de global) : une URL collée dans la
+> consigne sortait de l'aperçu athlète et faisait défiler la page de côté.
+>
+> - **Pas de règle globale.** `overflow-wrap: anywhere` sur `body` aurait tout couvert d'un coup,
+>   mais il ramène la largeur min-content de CHAQUE texte à un caractère : un tableau en
+>   disposition automatique y écraserait ses colonnes, et une rangée flex serrée couperait ses
+>   libellés au milieu d'un mot plutôt qu'aux espaces. La règle reste posée texte par texte.
+> - **Pastilles et boutons ont leur propre règle** : `max-w-full break-words` sur `CmvButton`, et
+>   sur le texte de `CmvBadge`. Un libellé qui cite un texte du Coach (« Ajouter un exercice à… »,
+>   un nom de fichier, un nom de structure maison) ne dépasse plus son conteneur, et un libellé
+>   ordinaire garde ses mots entiers. `wrap-anywhere` les aurait laissés se tasser. La borne est
+>   un pourcentage : elle ne tient que dans un conteneur de largeur définie, pas dans une piste de
+>   grille `auto` ni une cellule de tableau en disposition automatique.
+> - **`AthleteExerciseCard` n'existait plus** : la refonte en blocs l'a remplacé. La consigne passe
+>   par `CmvRichDocument`, couvert à sa racine. Le titre et la note passent par `BlockReading`, qui
+>   sert l'aperçu de séance et la séance de l'athlète.
+> - **Le périmètre a dépassé les aperçus.** Il couvre aussi la composition de séance
+>   (`SessionBlockCard`, `BlockExerciseItem`), celle d'une séance planifiée (`ComposedExerciseCard`,
+>   `ScheduledComposition`), la consigne de séance du rail athlète et le planning de l'athlète
+>   (`AthleteSessionCard`, titre et note de cycle). Même défaut, constaté sur les mêmes parcours.
+> - **Le contrôle est un parcours Playwright** (`long-text.e2e-spec.ts`) : jsdom ne calcule aucune
+>   mise en page. À 1440 et à 768 px, chaque texte doit tenir dans sa boîte et dans chacun de ses
+>   ancêtres : dans une grille à `minmax(0, 1fr)`, un débordement passe sur la colonne voisine sans
+>   faire défiler la page. Un `truncate` voulu (le rail) n'y compte pas.
+> - **Le mobile n'a pas changé** : `Text` coupe un mot trop long de lui-même. Reste à le constater
+>   sur un téléphone.

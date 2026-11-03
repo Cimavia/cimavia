@@ -148,6 +148,9 @@ type BlockHeaderProps = Readonly<SessionBlockCardProps> & {
 /**
  * Poignée, chevron, numéro ou libellé, le titre d'un exercice seul, la structure et le menu. Replié,
  * la phrase des réglages s'y ajoute : c'est tout ce qu'il reste du bloc à lire.
+ *
+ * `wrap-anywhere` sur les textes du Coach, pas sur la rangée (#584) : un titre d'un seul tenant
+ * passe à la ligne, les pastilles et le menu restent entiers.
  */
 function BlockHeader(props: BlockHeaderProps) {
   const { block, number, name, titles, folded, readOnly, folds } = props;
@@ -160,19 +163,19 @@ function BlockHeader(props: BlockHeaderProps) {
     <header className="flex flex-wrap items-center gap-cmv-sm">
       {props.dragHandle}
       {number == null ? (
-        <span className="text-cmv-title text-cmv-text-hi">{block.label}</span>
+        <span className="text-cmv-title text-cmv-text-hi wrap-anywhere">{block.label}</span>
       ) : (
         <BlockMark mark={number} kind="block" />
       )}
       {single == null ? null : (
         <>
-          <span className="text-cmv-body text-cmv-text-hi">{titles[0]}</span>
+          <span className="text-cmv-body text-cmv-text-hi wrap-anywhere">{titles[0]}</span>
           <FrozenBadge frozenFrom={props.draft.info[single.key]?.frozenFrom ?? null} />
         </>
       )}
       <StructureTag block={block} readOnly={readOnly} onOpen={props.onOpenSettings} />
       {summary == null ? null : (
-        <span className="text-cmv-caption text-cmv-text-lo">{text(summary)}</span>
+        <span className="text-cmv-caption text-cmv-text-lo wrap-anywhere">{text(summary)}</span>
       )}
       <span className="flex-1" />
       {readOnly ? null : (
@@ -399,10 +402,14 @@ function BlockReading({ block, codes, titles, issue }: Readonly<BlockReadingProp
 
   return (
     <>
-      {phrase == null ? null : <p className="text-cmv-body text-cmv-text-hi">{text(phrase)}</p>}
-      {flow == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{text([flow])}</p>}
+      {phrase == null ? null : (
+        <p className="text-cmv-body text-cmv-text-hi wrap-anywhere">{text(phrase)}</p>
+      )}
+      {flow == null ? null : (
+        <p className="text-cmv-caption text-cmv-text-mid wrap-anywhere">{text([flow])}</p>
+      )}
       {block.instructions == null ? null : (
-        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid">
+        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid wrap-anywhere">
           {block.instructions}
         </p>
       )}
@@ -412,7 +419,7 @@ function BlockReading({ block, codes, titles, issue }: Readonly<BlockReadingProp
         </p>
       )}
       {rowsBeyond(block).map(({ key, count }) => (
-        <p key={key} className="text-cmv-caption text-cmv-warning-on">
+        <p key={key} className="text-cmv-caption text-cmv-warning-on wrap-anywhere">
           {t("library.session.blocks.beyondNotice", {
             count,
             exercise: label(block.exercises.findIndex((exercise) => exercise.key === key)),
@@ -503,7 +510,7 @@ function FoldedExercises({ items, issue }: Readonly<FoldedExercisesProps>) {
                   {code}
                 </span>
               )}
-              <span className="text-cmv-body text-cmv-text-mid">{title}</span>
+              <span className="text-cmv-body text-cmv-text-mid wrap-anywhere">{title}</span>
             </li>
           ))}
         </ul>

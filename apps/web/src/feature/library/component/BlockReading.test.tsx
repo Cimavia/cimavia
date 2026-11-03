@@ -1,4 +1,5 @@
 import { STRUCTURE_PRESETS } from "@cmv/shared";
+import { oneByBeep } from "@cmv/shared/test/block-fixtures";
 import { repsGrid } from "@cmv/shared/test/block-session";
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -58,5 +59,23 @@ describe("BlockReading", () => {
     );
 
     expect(screen.getAllByText(/block\.grid\.set/)).toHaveLength(2);
+  });
+
+  it("ne dit aucun rythme quand aucun ne serait vrai : trois exercices pour deux bips", () => {
+    renderWithProviders(
+      <BlockReading
+        number="1"
+        label={null}
+        settings={oneByBeep(60, 2)}
+        instructions={null}
+        exercises={["Squat", "Fente", "Gainage"].map((name, rank) =>
+          exercise({ id: `row-${rank}`, name }),
+        )}
+      />,
+    );
+
+    // Ni rythme ni déroulé à lire : le bloc se réduit à ses exercices, sans phrase fausse.
+    expect(screen.queryAllByRole("paragraph")).toHaveLength(0);
+    expect(screen.getByText("Gainage")).toBeTruthy();
   });
 });

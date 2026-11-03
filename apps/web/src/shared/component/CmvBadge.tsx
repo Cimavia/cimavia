@@ -28,13 +28,17 @@ export function CmvBadge({ children, variant = "neutral", dot = false }: Readonl
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-cmv-xs rounded-cmv-sm border px-cmv-md py-cmv-xs text-cmv-caption font-semibold",
+        "inline-flex max-w-full items-center gap-cmv-xs rounded-cmv-sm border px-cmv-md py-cmv-xs text-cmv-caption font-semibold",
         VARIANT_CLASSES[variant],
       )}
     >
       {/* La puce hérite de la couleur du texte (`currentColor`) : un seul token par variant. */}
       {dot ? <span className="size-1.5 rounded-cmv-pill bg-current" aria-hidden="true" /> : null}
-      {children}
+      {/* Un nom d'un seul tenant (une structure maison) se coupe dans la pastille plutôt que de la
+          faire sortir (#584). `break-words` : un nom ordinaire garde ses mots entiers. Le texte
+          dans son propre `span`, `min-w-0` : nu, il serait un élément flex anonyme, que rien ne
+          laisse rétrécir. */}
+      <span className="min-w-0 break-words">{children}</span>
     </span>
   );
 }

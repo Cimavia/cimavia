@@ -140,7 +140,7 @@ function ExerciseHeader({
     <header className="flex flex-wrap items-center gap-cmv-sm">
       {dragHandle}
       {code == null ? null : <BlockMark mark={code} kind="exercise" />}
-      <span className="flex-1 text-cmv-body text-cmv-text-hi">{title}</span>
+      <span className="flex-1 text-cmv-body text-cmv-text-hi wrap-anywhere">{title}</span>
       <CmvTagList tags={info?.tags ?? []} />
       <FrozenBadge frozenFrom={info?.frozenFrom ?? null} />
       {readOnly ? null : (

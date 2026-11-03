@@ -185,11 +185,17 @@ export class Seed {
     );
   }
 
-  /** Un cycle d'une semaine et d'une séance, facturé puis diffusé à l'athlète. */
-  async publishedPlan(coach: Account, athleteId: string): Promise<PublishedPlan> {
+  /**
+   * Un cycle d'une semaine et d'une séance, facturé puis diffusé à l'athlète. La séance naît de
+   * `template` quand le parcours en compose une ; sinon d'une séance-type d'un exercice nu.
+   */
+  async publishedPlan(
+    coach: Account,
+    athleteId: string,
+    template?: { id: string; title: string },
+  ): Promise<PublishedPlan> {
     const monday = mondayOfThisWeek();
     const title = `Cycle ${this.run}`;
-    const sessionTitle = `Séance ${this.run}`;
 
     const plan = await json<{ id: string; updatedAt: string; weeks: { id: string }[] }>(
       await coach.api.post("/plans", {
@@ -199,10 +205,10 @@ export class Seed {
     );
     const week = required(plan.weeks[0], "semaine du cycle");
     // Une séance planifiée naît d'une séance-type (#723), dont elle reprend le titre.
-    const template = await this.sessionType(coach, sessionTitle);
+    const source = template ?? (await this.sessionType(coach, `Séance ${this.run}`));
     const session = await json<{ id: string }>(
       await coach.api.post(`/plan-weeks/${week.id}/sessions`, {
-        data: { sourceSessionId: template.id, scheduledDate: monday },
+        data: { sourceSessionId: source.id, scheduledDate: monday },
       }),
       "création de la séance",
     );
@@ -220,7 +226,7 @@ export class Seed {
       "diffusion du cycle",
     );
 
-    return { planId: plan.id, title, sessionId: session.id, sessionTitle };
+    return { planId: plan.id, title, sessionId: session.id, sessionTitle: source.title };
   }
 
   /** L'athlète débriefe la séance : c'est ce qui la fait remonter chez son coach. */
