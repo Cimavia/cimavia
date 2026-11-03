@@ -36,10 +36,10 @@ S3_SCHEME="${S3_SCHEME:-http}"
 S3_HOST="${S3_HOST:-silo}"
 S3_PORT="${S3_PORT:-9000}"
 S3_ENDPOINT="${S3_ENDPOINT:-${S3_SCHEME}://${S3_HOST}:${S3_PORT}}"
-# Vide = l'image de `mc` qu'épingle le compose déployé, lue plus bas. Contre la pile locale, depuis
-# la racine du dépôt : DEPLOYED_COMPOSE="$PWD/apps/api/docker-compose.yml".
+# Vide = l'image du conteneur `silo-setup`, lue plus bas. Contre la pile locale, démarrée par
+# `docker compose up -d` (un `run --rm` ne laisse aucun conteneur) : SETUP_CONTAINER=cimavia_silo_setup.
 MC_IMAGE="${MC_IMAGE:-}"
-DEPLOYED_COMPOSE="${DEPLOYED_COMPOSE:-$STACK_DIR/pull-preview/docker-compose.yml}"
+SETUP_CONTAINER="${SETUP_CONTAINER:-cimavia_preview_silo_setup}"
 KEEP_DUMPS="${KEEP_DUMPS:-7}"
 MIN_FREE_MB="${MIN_FREE_MB:-2048}"
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -86,12 +86,12 @@ done
 
 # Le client du stockage suit la version de SILO qui tourne, pas un tag écrit ici (#676). Ce script
 # s'installe une fois, à la main : un tag en dur y restait figé pendant que les promotions montaient
-# SILO. `pull-preview.sh` recopie, lui, le compose de chaque déploiement réussi.
+# SILO. Le conteneur `silo-setup`, lui, naît du même `up -d` que SILO — même quand la promotion
+# échoue ensuite à la sonde de l'API, là où le compose n'est recopié qu'après. Son image est aussi
+# déjà sur le NAS : rien à tirer.
 if [[ -z "$MC_IMAGE" ]]; then
-  [[ -f "$DEPLOYED_COMPOSE" ]] || fail "$DEPLOYED_COMPOSE introuvable : aucune promotion passée par pull-preview.sh ?"
-  # La valeur d'une clé `image:`, digest compris s'il y en a un — jamais un tag cité en commentaire.
-  MC_IMAGE="$(sed -nE 's/^[[:space:]]*image:[[:space:]]*(ghcr\.io\/cimavia\/mc:[^[:space:]#]+).*/\1/p' "$DEPLOYED_COMPOSE" | head -n1)"
-  [[ -n "$MC_IMAGE" ]] || fail "aucune image mc épinglée dans $DEPLOYED_COMPOSE"
+  MC_IMAGE="$(docker inspect --format '{{.Config.Image}}' "$SETUP_CONTAINER" 2>/dev/null || true)"
+  [[ -n "$MC_IMAGE" ]] || fail "conteneur $SETUP_CONTAINER introuvable : promouvoir de nouveau le recrée"
 fi
 
 # Le miroir LISTE le bucket, ce que la clé de l'API ne peut pas faire depuis #267 : sa policy ne
