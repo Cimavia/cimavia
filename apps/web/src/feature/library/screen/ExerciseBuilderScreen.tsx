@@ -362,7 +362,10 @@ function ExerciseBuilder({
             </fieldset>
 
             {/* `sticky` : l'aperçu suit le défilement du formulaire, qui sera bien plus long que lui. */}
-            <aside className="xl:sticky xl:top-cmv-xl xl:self-start">
+            <aside
+              aria-label={t("library.builder.previewTitle")}
+              className="min-w-0 xl:sticky xl:top-cmv-xl xl:self-start"
+            >
               <ExercisePreview
                 title={draft.trimmedTitle}
                 tags={draft.tags}

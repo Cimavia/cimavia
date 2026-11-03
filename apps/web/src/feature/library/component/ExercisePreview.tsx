@@ -64,7 +64,8 @@ export function ExercisePreview({
         // `min-w-0` : sans lui, un enfant à défilement impose sa largeur intrinsèque au conteneur
         // flex, et la carte s'élargit au lieu de laisser défiler.
         <CmvCard className="flex min-w-0 flex-col gap-cmv-sm">
-          <h3 className="text-cmv-subtitle text-cmv-text-hi">{title}</h3>
+          {/* Borné en longueur, un titre d'un seul tenant dépasse quand même 360 px (#584). */}
+          <h3 className="text-cmv-subtitle text-cmv-text-hi wrap-anywhere">{title}</h3>
           <CmvTagList tags={tags} />
           <CmvRichDocument blocks={instructions} resolveImage={resolveImage} />
 
