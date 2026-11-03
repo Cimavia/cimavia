@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockMark } from "@/feature/library/component/BlockMark";
 import { usePhraseText } from "@/shared/hook/usePhraseText";
+import { cn } from "@/shared/util/cn.util";
 
 export type BlockReadingExercise = {
   id: string;
@@ -46,6 +47,9 @@ type BlockReadingProps = {
  * Un bloc tel que l'athlète le lit (#719, #722) : le rythme une fois en tête, chaque exercice sous
  * son code. Une valeur absente ne s'affiche pas ; sans valeur, l'athlète voit juste le nom. Commun
  * à l'aperçu du constructeur et à la séance planifiée.
+ *
+ * Chaque texte saisi par le Coach porte `wrap-anywhere` (#584) : un mot d'un seul tenant passe à
+ * la ligne au lieu de sortir de la colonne. `aside` et `extras` non : ils portent des boutons.
  */
 export function BlockReading({
   number,
@@ -65,22 +69,31 @@ export function BlockReading({
   return (
     <section className="flex flex-col gap-cmv-sm">
       <div className="flex items-center gap-cmv-sm">
-        <h3 className="text-cmv-h3 text-cmv-text-hi">
+        {/* Le libellé se coupe, le numéro non : c'est une pastille. */}
+        <h3 className={cn("text-cmv-h3 text-cmv-text-hi", number == null && "wrap-anywhere")}>
           {number == null ? label : <BlockMark mark={number} kind="block" />}
         </h3>
         {aside}
       </div>
-      {phrase == null ? null : <p className="text-cmv-body text-cmv-text-hi">{text(phrase)}</p>}
-      {flow == null ? null : <p className="text-cmv-caption text-cmv-text-mid">{text([flow])}</p>}
+      {phrase == null ? null : (
+        <p className="text-cmv-body text-cmv-text-hi wrap-anywhere">{text(phrase)}</p>
+      )}
+      {flow == null ? null : (
+        <p className="text-cmv-caption text-cmv-text-mid wrap-anywhere">{text([flow])}</p>
+      )}
       {instructions == null ? null : (
-        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid">{instructions}</p>
+        <p className="whitespace-pre-line text-cmv-caption text-cmv-text-mid wrap-anywhere">
+          {instructions}
+        </p>
       )}
       <ol className="flex flex-col gap-cmv-sm border-cmv-border border-l pl-cmv-md">
         {exercises.map((exercise, index) => (
           <li key={exercise.id} className="flex flex-col gap-cmv-xs">
-            <span className="text-cmv-body text-cmv-text-hi">
+            <span className="text-cmv-body text-cmv-text-hi wrap-anywhere">
               {codes[index] == null ? null : (
-                <span className="mr-cmv-sm text-cmv-text-mid tabular-nums">{codes[index]}</span>
+                <span className="mr-cmv-sm whitespace-nowrap text-cmv-text-mid tabular-nums">
+                  {codes[index]}
+                </span>
               )}
               {exercise.name}
             </span>
@@ -89,7 +102,9 @@ export function BlockReading({
               customMetrics={exercise.customMetrics}
             />
             {exercise.note == null ? null : (
-              <span className="text-cmv-caption text-cmv-text-lo">{exercise.note}</span>
+              <span className="text-cmv-caption text-cmv-text-lo wrap-anywhere">
+                {exercise.note}
+              </span>
             )}
             {exercise.extras}
           </li>
@@ -118,13 +133,13 @@ function ExerciseValues({
   if (reading.layout === GridLayout.LINE) {
     const each: Phrase[] = reading.each == null ? [] : [reading.each];
     return (
-      <span className="text-cmv-caption text-cmv-text-mid">
+      <span className="text-cmv-caption text-cmv-text-mid wrap-anywhere">
         {[...(each.length === 0 ? [] : [text(each)]), line(reading.cells)].join(" ")}
       </span>
     );
   }
   return (
-    <ul className="flex flex-col text-cmv-caption text-cmv-text-mid">
+    <ul className="flex flex-col text-cmv-caption text-cmv-text-mid wrap-anywhere">
       {reading.rows.map((row) => (
         <li key={phraseId(row.label)}>
           {text([row.label])} · {line(row.cells)}
