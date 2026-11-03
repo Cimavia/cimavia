@@ -182,7 +182,10 @@ function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[
           key={cycle.planId}
           className="flex flex-wrap items-center gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface px-cmv-md py-cmv-sm"
         >
-          <span className="font-cmv-display text-cmv-body text-cmv-text-hi">{cycle.title}</span>
+          {/* Titre et note du Coach : un mot d'un seul tenant sortirait de la carte (#584). */}
+          <span className="font-cmv-display text-cmv-body text-cmv-text-hi wrap-anywhere">
+            {cycle.title}
+          </span>
           {/* Deux cycles concurrents peuvent venir de deux coachs (#599) : chacun dit le sien. */}
           <span className="text-cmv-caption text-cmv-text-mid">
             {t("plan.athlete.cycle.coach", { name: cycle.coachName })}
@@ -197,7 +200,7 @@ function CycleList({ cycles }: Readonly<{ cycles: readonly AthleteCalendarCycle[
             })}
           </CmvBadge>
           {cycle.note == null ? null : (
-            <span className="text-cmv-caption text-cmv-text-mid">{cycle.note}</span>
+            <span className="text-cmv-caption text-cmv-text-mid wrap-anywhere">{cycle.note}</span>
           )}
         </li>
       ))}

@@ -53,7 +53,10 @@ export function AthleteSessionCard({
       {planLabel == null ? null : (
         <span className="font-cmv-mono text-cmv-caption text-cmv-text-lo">{planLabel}</span>
       )}
-      <span className="font-cmv-display text-cmv-body text-cmv-text-hi">{session.title}</span>
+      {/* Un titre d'un seul tenant passerait sur le jour suivant de la grille (#584). */}
+      <span className="font-cmv-display text-cmv-body text-cmv-text-hi wrap-anywhere">
+        {session.title}
+      </span>
       <span className="text-cmv-caption text-cmv-text-lo">
         {t("plan.athlete.exerciseCount", { count: session.exerciseCount })}
       </span>
