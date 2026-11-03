@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.17.0](https://github.com/Cimavia/cimavia/compare/v1.16.1...v1.17.0) (2026-11-03)
+
+
+### Fonctionnalités
+
+* **api:** le centre filtre par catégorie avant la borne, tout marquer lu suit le filtre ([393c587](https://github.com/Cimavia/cimavia/commit/393c587ef68830612e4ac3e3f9e77b0c5602fb11))
+* **mobile:** chercher dans la liste de messagerie, terme propre à l'espace, champ fixe ([5fc594b](https://github.com/Cimavia/cimavia/commit/5fc594b50813f00a714845ca944d098ae907c1fb))
+* **mobile:** le centre filtre par catégorie en ruban, remis à toutes à chaque retour ([053b1f7](https://github.com/Cimavia/cimavia/commit/053b1f7ee311e8b5dc7d62d7e42af89de5c64de2))
+* **shared:** filtrer les conversations par le nom d'un participant, sans casse ni accent ([42806d9](https://github.com/Cimavia/cimavia/commit/42806d95ab65fd750492d89f06bc39738584001b))
+* **shared:** le client des notifications passe la catégorie, un cache par filtre ([dfc611f](https://github.com/Cimavia/cimavia/commit/dfc611f3a4889238c3f88ed7b1af7460b0e6e97e))
+* **shared:** le lien débriefs ouvre le non-lu qui attend depuis le plus longtemps ([1367816](https://github.com/Cimavia/cimavia/commit/13678162142758e76dd2b76794dd3fadef48b856))
+* **shared:** les notifications se rangent en six catégories, offertes selon le compte ([12dd112](https://github.com/Cimavia/cimavia/commit/12dd1123ccee39499a3a64a8bd7d0abdeb97586e))
+* **web:** chercher dans la liste de messagerie, terme dans l'url, fil ouvert gardé ([f9a9e91](https://github.com/Cimavia/cimavia/commit/f9a9e9126fc405ae301593f86356295be35bd56c))
+* **web:** cmvpanel gagne une largeur réglable et un corps sans marge, ses usages intacts ([ee6be87](https://github.com/Cimavia/cimavia/commit/ee6be87a47b4391364207b19de14cc9e6fc697e4))
+* **web:** cycle et dosage reviennent par le bandeau, fermer doublait le retour ([c0f1b17](https://github.com/Cimavia/cimavia/commit/c0f1b177f31d14130d35b61bb40f8ba0104c4c09))
+* **web:** la cloche filtre par catégorie et revient à toutes à chaque ouverture ([125fc3b](https://github.com/Cimavia/cimavia/commit/125fc3b977e9e8517784804d77020498919ea0e3))
+* **web:** la cloche s'agrandit par son coin ou s'ouvre en panneau latéral, contenu commun ([3de9826](https://github.com/Cimavia/cimavia/commit/3de982623c728b55376969c2585888d68f790685))
+* **web:** le mode et la taille du panneau de la cloche se retiennent dans ce navigateur ([7167828](https://github.com/Cimavia/cimavia/commit/7167828fba9e0cce14d512435c4fb150035d1b94))
+* **web:** le retour d'écran passe dans le bandeau, visible au défilement ([40796bf](https://github.com/Cimavia/cimavia/commit/40796bf0515a35aac70e088e6b58ab05133d069a))
+* **web:** séance et débrief reviennent par le bandeau, même en chargement ([3963d21](https://github.com/Cimavia/cimavia/commit/3963d21e1b1deef8355d60cd802dfb823d19eb00))
+* **web:** une poignée de taille au clavier et au pointeur, bornée à la fenêtre ([be93865](https://github.com/Cimavia/cimavia/commit/be93865b1aa66b3309afaeedad813c31c708460f))
+
+
+### Corrections
+
+* **deploy:** la sauvegarde du nas prend le mc du compose déployé, jamais un tag figé ([76af19b](https://github.com/Cimavia/cimavia/commit/76af19bf76a46ef8e5b4fd357c383547dff59853))
+* **deploy:** la sauvegarde du nas prend le mc du conteneur silo-setup, plus un tag figé ([e691190](https://github.com/Cimavia/cimavia/commit/e691190f209ebe5756bcf3d59c78a5fece747fc9))
+* **deploy:** silo et mc en 2026-10-26 contre sn-2026-017, refus de policy plus avalé ([0aac5b3](https://github.com/Cimavia/cimavia/commit/0aac5b378f5b6e24e496b489a1dd3dec5e334443))
+* **mobile:** le chip de filtre se lit comme un bouton radio, à choix unique ([724aba3](https://github.com/Cimavia/cimavia/commit/724aba3b61238d44c9f33184e1c88560a9ebc153))
+* **mobile:** le focus périme chaque filtre, sans relire la liste au retour de l'app ([2d12eb7](https://github.com/Cimavia/cimavia/commit/2d12eb79f748c2bb57aa6ff97a563847e48ca2ab))
+* **web:** cmvpanel suit le glisser seul, oublie un brouillon interrompu et garde le fond ([775ba1a](https://github.com/Cimavia/cimavia/commit/775ba1a41b83c0dd6881305bd608b680ae95fdaf))
+* **web:** cycle et dosage gardent leur retour pendant le chargement, plus de page nue ([bf3151a](https://github.com/Cimavia/cimavia/commit/bf3151acdc1041eca38145a583dcf29f2d1d9d7f))
+* **web:** la poignée ne retient qu'un geste qui a bougé, et finit le glisser hors capture ([81d11d5](https://github.com/Cimavia/cimavia/commit/81d11d5e490d007547e0c85d5c23da4053183af2))
+* **web:** le panneau compact sort du bandeau par un portail, focus pris puis rendu ([7ac1b2c](https://github.com/Cimavia/cimavia/commit/7ac1b2c36bdfd3971048980efc722895e37060c4))
+* **web:** un nom sans espace passe à la ligne dans le bandeau, sans couvrir les actions ([bf1cb91](https://github.com/Cimavia/cimavia/commit/bf1cb91419449083ac5dcae115a9e661d7dddb8d))
+
+
+### Technique
+
+* **api:** la liste et le marquage valident le filtre par le même dto ([c370252](https://github.com/Cimavia/cimavia/commit/c370252833c839f9b7f46e53493f20824a306862))
+* **deploy:** silo et mc en 2026-10-26, qui corrige l'élargissement de droits sn-2026-017 ([50ef47c](https://github.com/Cimavia/cimavia/commit/50ef47cd3d8d3ce3e052b7c2d6030040aa0fff9f))
+* **mobile:** le chip du filtre des factures devient cmvtogglechip, testable ([5084a52](https://github.com/Cimavia/cimavia/commit/5084a521ef8ac6a447d3d82633c29b2724a4ad5e))
+* **shared:** les pastilles du filtre se décident dans shared, pour les deux apps ([4b11318](https://github.com/Cimavia/cimavia/commit/4b113181bba5ce3b8d99b2bd4419ab9f44c2e933))
+* **sonar:** le séparateur focusable de la poignée est un widget, s6847 écarté là seul ([2f283f7](https://github.com/Cimavia/cimavia/commit/2f283f7bbd22a60d58317b4b7c45963b04ed44c7))
+* **web:** un seul accès tolérant au stockage local, pour le suivi et la cloche ([dd756d0](https://github.com/Cimavia/cimavia/commit/dd756d0635f18c28d7be9874e673403ab60aa2a8))
+
 ## [1.16.1](https://github.com/Cimavia/cimavia/compare/v1.16.0...v1.16.1) (2026-11-02)
 
 
