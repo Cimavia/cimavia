@@ -68,7 +68,9 @@ export function BlockReading({
 
   return (
     <section className="flex flex-col gap-cmv-sm">
-      <div className="flex items-center gap-cmv-sm">
+      {/* `flex-wrap` : une rangée serrée renvoie pastilles et boutons à la ligne, au lieu de tasser
+          le libellé jusqu'à le couper au milieu d'un mot (#584). */}
+      <div className="flex flex-wrap items-center gap-cmv-sm">
         {/* Le libellé se coupe, le numéro non : c'est une pastille. */}
         <h3 className={cn("text-cmv-h3 text-cmv-text-hi", number == null && "wrap-anywhere")}>
           {number == null ? label : <BlockMark mark={number} kind="block" />}
