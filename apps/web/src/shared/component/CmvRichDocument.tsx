@@ -135,8 +135,10 @@ export function CmvRichDocument({ blocks, resolveImage }: Readonly<CmvRichDocume
   // Une consigne absente n'affiche RIEN — pas de « aucune consigne », qui serait du bruit sur une
   // absence légitime (règle nullable n°5).
   if (blocks == null || blocks.length === 0) return null;
+  // `wrap-anywhere` à la racine, hérité par chaque bloc : une URL collée passe à la ligne au lieu
+  // de sortir de la carte (#584). Aucune pastille ni bouton ici que la règle viendrait couper.
   return (
-    <div className="flex flex-col gap-cmv-sm">
+    <div className="flex flex-col gap-cmv-sm wrap-anywhere">
       {blocks.map((block, index) => (
         <Block key={index} block={block} resolveImage={resolveImage} />
       ))}
