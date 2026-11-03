@@ -322,3 +322,25 @@ liste des domaines vivent dans l'index.
 >   WCAG 2.4.4 demande, un même nom pour une même destination.
 > - **Le mobile reste en l'état** : trois en-têtes ont leur chevron, les autres écrans empilés le
 >   geste système. Ce sera une issue si le besoin se confirme.
+
+## Post-MVP — Un mot sans espace passe à la ligne ([#584](https://github.com/Cimavia/cimavia/issues/584))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| WR-1 | **Les pastilles ne passent pas à la ligne** : `CmvBadge` n'a ni `wrap-anywhere` ni `truncate`, et la rangée d'en-tête de `BlockReading` n'est pas en `flex-wrap`. Un nom de structure d'un seul tenant (60 caractères au plus) pousse encore la rangée hors de la carte, sur l'aperçu de séance comme sur la séance de l'athlète. Les noms des presets sont courts ; seul un nom de structure maison peut l'être moins. | 🟢 | — *(déclencheur : un premier nom de structure qui déborde — la pastille s'abrège alors, elle ne se coupe pas)* |
+
+> **Tranché en [#584](https://github.com/Cimavia/cimavia/issues/584)** (`wrap-anywhere` sur le
+> texte, jamais sur un conteneur) : une URL collée dans la consigne sortait de l'aperçu athlète et
+> faisait défiler la page de côté.
+>
+> - **`AthleteExerciseCard` n'existait plus** : la refonte en blocs l'a remplacé. La consigne passe
+>   par `CmvRichDocument`, couvert à sa racine. Le titre et la note passent par `BlockReading`, qui
+>   sert l'aperçu de séance et la séance de l'athlète.
+> - **La composition de séance est entrée dans la PR** (`SessionBlockCard`, `BlockExerciseItem`) :
+>   l'issue ne visait que les aperçus, mais à 768 px le titre d'un bloc d'un seul exercice faisait
+>   défiler la même page.
+> - **Le contrôle est un parcours Playwright** (`long-text.e2e-spec.ts`) : jsdom ne calcule aucune
+>   mise en page. Le parcours tourne à 1440 et à 768 px, et un `truncate` voulu (le rail) n'y compte
+>   pas pour un débordement.
+> - **Le mobile n'a pas changé** : `Text` coupe un mot trop long de lui-même. Reste à le constater
+>   sur un téléphone.
