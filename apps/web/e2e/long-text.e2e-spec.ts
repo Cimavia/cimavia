@@ -11,6 +11,7 @@ const link = (path: string) => `https://exemple.test/${path}?id=${"a1B2c3D4e5".r
 const INSTRUCTIONS = link("consigne");
 const BLOCK_INSTRUCTIONS = link("bloc");
 const NOTE = link("note");
+const SESSION_NOTES = link("seance");
 /** Un titre d'exercice d'un seul tenant : borné en longueur, il dépasse quand même 360 px. */
 const TITLE = "Tractionslesteesaugiletdedixkilosavecpausedetroissecondesenpositionhaute";
 /** Le libellé d'un bloc, à sa longueur maximale (60). */
@@ -90,7 +91,9 @@ test.describe("Un mot sans espace passe à la ligne (#584)", () => {
       },
     ]);
     const session = await json<{ id: string; title: string }>(
-      await coach.api.post("/sessions", { data: { title: "Séance aux liens", blocks } }),
+      await coach.api.post("/sessions", {
+        data: { title: "Séance aux liens", notes: SESSION_NOTES, blocks },
+      }),
       "séance aux liens",
     );
     const plan = await seed.publishedPlan(coach, athleteId, session);
@@ -123,7 +126,9 @@ test.describe("Un mot sans espace passe à la ligne (#584)", () => {
       const main = athletePage.getByRole("main");
       await expectWrapped(
         athletePage,
-        [TITLE, LABEL, INSTRUCTIONS, BLOCK_INSTRUCTIONS, NOTE].map((text) => main.getByText(text)),
+        [TITLE, LABEL, INSTRUCTIONS, BLOCK_INSTRUCTIONS, NOTE, SESSION_NOTES].map((text) =>
+          main.getByText(text),
+        ),
       );
     } finally {
       await athleteContext.close();
