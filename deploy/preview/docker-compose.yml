@@ -52,7 +52,7 @@ services:
   # signée. Même API, mêmes variables `MINIO_*`, même format sur disque : le volume se relit tel
   # quel. Tirée du miroir GHCR, épinglée (voir le compose local).
   silo:
-    image: ghcr.io/cimavia/silo:RELEASE.2026-09-16T00-00-00Z
+    image: ghcr.io/cimavia/silo:RELEASE.2026-10-26T00-00-00Z
     container_name: cimavia_preview_silo
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -70,7 +70,7 @@ services:
   # pas de sonde. C'est le SEUL service qui se connecte en root.
   silo-setup:
     # Même miroir et même version que `silo` ci-dessus.
-    image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
+    image: ghcr.io/cimavia/mc:RELEASE.2026-10-26T00-00-00Z
     container_name: cimavia_preview_silo_setup
     depends_on:
       - silo

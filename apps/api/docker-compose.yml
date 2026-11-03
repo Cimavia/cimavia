@@ -28,7 +28,7 @@ services:
     # Tirée de NOTRE miroir GHCR, jamais de Docker Hub : l'E2E est un check requis, et un registre
     # tiers en panne ou qui retire ses images le bloquerait (`mirror-images.yml`). Version ÉPINGLÉE ;
     # l'issue `[silo-version]` signale quand une plus récente est copiée.
-    image: ghcr.io/cimavia/silo:RELEASE.2026-09-16T00-00-00Z
+    image: ghcr.io/cimavia/silo:RELEASE.2026-10-26T00-00-00Z
     container_name: cimavia_silo
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -50,7 +50,7 @@ services:
   # rien faire d'autre que manipuler les objets de ses buckets (#267).
   silo-setup:
     # Même miroir et même version que `silo` ci-dessus.
-    image: ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z
+    image: ghcr.io/cimavia/mc:RELEASE.2026-10-26T00-00-00Z
     container_name: cimavia_silo_setup
     depends_on:
       - silo
