@@ -33,7 +33,7 @@ describe("paramètres d'url lus en ligne", () => {
     expect(parse(FeedbacksRoute, search)).toStrictEqual(expected);
   });
 
-  const noThread = { athlete: undefined, coach: undefined, conversation: undefined };
+  const noThread = { athlete: undefined, coach: undefined, conversation: undefined, q: undefined };
   it.each([
     [
       { athlete: "a-1", as: "coach" },
@@ -54,6 +54,13 @@ describe("paramètres d'url lus en ligne", () => {
       { athlete: 7, coach: 7, conversation: 7 },
       { ...noThread, as: undefined },
     ],
+    // La recherche dans la liste (#702) : un nombre tapé à la main ne cherche rien.
+    [
+      { q: "léa", conversation: "cnv-1" },
+      { ...noThread, conversation: "cnv-1", q: "léa", as: undefined },
+    ],
+    [{ q: "" }, { ...noThread, as: undefined }],
+    [{ q: 42 }, { ...noThread, as: undefined }],
   ])("/messages lit %j comme %j", (search, expected) => {
     expect(parse(MessagesRoute, search)).toStrictEqual(expected);
   });

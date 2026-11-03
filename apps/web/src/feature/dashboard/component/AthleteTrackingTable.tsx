@@ -105,6 +105,7 @@ export function AthleteTrackingTable({
                 coach: undefined,
                 conversation: undefined,
                 as: "coach",
+                q: undefined,
               }}
             />
 
@@ -214,7 +215,13 @@ type CountCellProps =
   | {
       count: number | null;
       to: "/messages";
-      search: { athlete: string; coach: undefined; conversation: undefined; as: "coach" };
+      search: {
+        athlete: string;
+        coach: undefined;
+        conversation: undefined;
+        as: "coach";
+        q: undefined;
+      };
     }
   | {
       count: number | null;

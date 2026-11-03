@@ -326,9 +326,58 @@ describe("MessagesScreen — le fil", () => {
   });
 });
 
+describe("MessagesScreen — la recherche (#702)", () => {
+  const search = (view: Pick<RenderResult, "getByLabelText">) =>
+    view.getByLabelText("messages.search.label");
+
+  it("restreint la liste aux conversations d'un participant cherché, et l'écrit dans l'url", async () => {
+    const view = await open({ conversations: [GROUP, conversation()] });
+
+    await view.user.type(search(view), "m");
+
+    await waitFor(() => expect(row(view, "TI")).toBeNull());
+    expect(row(view, "M, TI")).not.toBeNull();
+    expect(view.router.state.location.search).toMatchObject({ q: "m" });
+  });
+
+  // Rien ne correspond n'est PAS « aucune conversation » : les confondre enverrait en créer une.
+  it("dit qu'aucune conversation ne correspond, sans dire qu'il n'y en a aucune", async () => {
+    const view = await open({ conversations: [conversation()] }, { q: "zzz" });
+
+    expect(row(view, "TI")).toBeNull();
+    expect(view.getByText("messages.search.noMatch")).toBeInTheDocument();
+    expect(view.queryByText("messages.noConversations.title")).toBeNull();
+    expect(search(view)).toHaveValue("zzz");
+  });
+
+  it("garde le fil ouvert quand le filtre écarte sa ligne (tranché en #702)", async () => {
+    const view = await open(
+      { conversations: [GROUP, conversation()] },
+      { conversation: "c-ti", q: "m" },
+    );
+
+    expect(row(view, "TI")).toBeNull();
+    expect(await view.findByText("Message m-1")).toBeInTheDocument();
+  });
+
+  it("garde la recherche quand on ouvre un fil", async () => {
+    const view = await open({ conversations: [GROUP, conversation()] }, { q: "ti", as: "coach" });
+
+    await view.user.click(row(view, "TI") as HTMLElement);
+
+    await waitFor(() =>
+      expect(view.router.state.location.search).toEqual({
+        conversation: "c-ti",
+        as: "coach",
+        q: "ti",
+      }),
+    );
+  });
+});
+
 describe("MessagesScreen — nouvelle conversation, côté Coach (B2)", () => {
-  async function openPanel() {
-    const view = await open();
+  async function openPanel(search = {}) {
+    const view = await open({}, search);
     await view.user.click(view.getByRole("button", { name: "messages.newConversation" }));
     return view;
   }
@@ -409,6 +458,20 @@ describe("MessagesScreen — nouvelle conversation, côté Coach (B2)", () => {
     );
     expect(view.router.state.location.search).toEqual({ conversation: "c-group" });
     expect(view.queryByText("messages.new.title")).toBeNull();
+  });
+
+  // Créée pendant une recherche qui ne la nomme pas, elle doit se voir dans la liste : le terme part.
+  it("vide la recherche en ouvrant la conversation créée", async () => {
+    vi.mocked(messageApi.createConversation).mockResolvedValue(GROUP);
+    const view = await openPanel({ q: "zzz" });
+    vi.mocked(messageApi.listConversations).mockResolvedValue([GROUP, conversation()]);
+
+    await view.user.click(candidate(view, "M"));
+    await view.user.click(view.getByRole("button", { name: "messages.new.create" }));
+
+    await waitFor(() => expect(row(view, "M, TI")).not.toBeNull());
+    expect(view.router.state.location.search).toEqual({ conversation: "c-group" });
+    expect(view.getByLabelText("messages.search.label")).toHaveValue("");
   });
 
   // Un refus (participant qui n'est plus candidat) se dit, et le choix reste là pour réessayer.

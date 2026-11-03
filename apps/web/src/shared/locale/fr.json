@@ -1187,6 +1187,11 @@
     "pickThread": {
       "title": "Aucune conversation sélectionnée"
     },
+    "search": {
+      "label": "Chercher une conversation",
+      "placeholder": "Nom d'un participant…",
+      "noMatch": "Aucune conversation ne correspond à « {{search}} »"
+    },
     "noAthletes": {
       "title": "Aucun athlète",
       "description": "Invite un premier athlète depuis le tableau de bord pour pouvoir lui écrire."

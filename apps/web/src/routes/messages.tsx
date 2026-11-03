@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MessagesScreen } from "@/feature/message";
 import { parseAsSearch } from "@/routes/invoices";
 import { CmvRoleGate } from "@/shared/component";
+import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
  * Le fil ouvert vit dans l'URL, pas dans un `useState` : `?conversation=<id>`, à deux comme à
@@ -13,6 +14,9 @@ import { CmvRoleGate } from "@/shared/component";
  * C'est ce qui permet au tableau de suivi du dashboard d'ouvrir directement la bonne conversation
  * (#113), et accessoirement de recharger la page ou d'utiliser le bouton Retour sans perdre le fil.
  *
+ * `?q=` : la recherche dans la liste (#702), un réglage de vue comme celui du tableau de bord
+ * (#123) — elle survit au rechargement et à l'ouverture d'un fil.
+ *
  * Clé REQUISE mais possiblement `undefined` (et non `athlete?: string`) : sous
  * `exactOptionalPropertyTypes`, « absente » et « présente à undefined » ne sont pas la même chose,
  * et TanStack construit toujours l'objet.
@@ -22,6 +26,7 @@ export type MessagesSearch = {
   coach: string | undefined;
   conversation: string | undefined;
   as: TrainingCapability | undefined;
+  q: string | undefined;
 };
 
 const idSearch = (value: unknown) =>
@@ -35,6 +40,7 @@ export const Route = createFileRoute("/messages")({
     // `?as=` : à quel titre on ouvre la messagerie. Même raison que sur `/invoices` — deux entrées
     // de nav distinctes pour un compte à double capacité, et l'API qui l'exige de lui (#129).
     as: parseAsSearch(search.as),
+    q: searchTextFromUrl(search.q),
   }),
   // Les DEUX rôles : `conversation.controller.ts` et `message.controller.ts` portent
   // `@Roles([COACH, ATHLETE])`. Ce que chacun y voit diffère (ses conversations au titre exercé),
