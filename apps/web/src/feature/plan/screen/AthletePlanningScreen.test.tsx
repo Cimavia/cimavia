@@ -268,7 +268,8 @@ describe("AthletePlanningScreen", () => {
     ]);
     const { getByText } = await mount({ data: [deload] });
 
-    expect(getByText("plan.athlete.cycle.week")).toHaveClass("bg-cmv-info-soft");
+    // La couleur est sur la pastille ; son texte vit dans un `span` à lui (#584).
+    expect(getByText("plan.athlete.cycle.week").parentElement).toHaveClass("bg-cmv-info-soft");
   });
 
   /**

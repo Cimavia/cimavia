@@ -23,6 +23,12 @@ type CmvButtonProps = Pick<
   fullWidth?: boolean;
 };
 
+/**
+ * `max-w-full break-words` : un libellé qui cite un texte du Coach — « Ajouter un exercice à
+ * <libellé> », un nom de fichier — ne dépasse jamais son conteneur (#584). `break-words` et non
+ * `wrap-anywhere` : un libellé ordinaire garde ses mots entiers quand sa rangée se resserre, seul
+ * un mot plus large que le conteneur se coupe.
+ */
 export function CmvButton({
   children,
   type = "button",
@@ -39,7 +45,7 @@ export function CmvButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "rounded-cmv-md px-cmv-lg py-cmv-sm text-cmv-caption transition-colors disabled:opacity-50",
+        "max-w-full break-words rounded-cmv-md px-cmv-lg py-cmv-sm text-cmv-caption transition-colors disabled:opacity-50",
         VARIANT_CLASSES[variant],
         fullWidth && "w-full",
       )}
