@@ -379,7 +379,12 @@ commande `bash /volume1/<…>/cimavia-preview/backup.sh`, et « Envoyer les dét
 **uniquement en cas d'arrêt anormal**.
 
 Comme `pull-preview.sh`, ce script est une **copie** : quand il change dans le dépôt, relancer le
-`curl` ci-dessus.
+`curl` ci-dessus. Il ne porte en revanche **aucune version de `mc`** : il prend l'image du conteneur
+`cimavia_preview_silo_setup`, créé par le même `up -d` que SILO, si bien qu'une montée de SILO
+l'atteint sans le retélécharger (#676). Le `curl` se fait donc **avant ou après une promotion,
+indifféremment** : il suit le dernier `up -d`. Une copie d'avant #676, elle, garde le `mc` écrit
+en dur dans son en-tête — la retélécharger une fois. Si ce conteneur a disparu (`docker container
+prune`), la sauvegarde échoue en le disant ; promouvoir de nouveau le recrée.
 
 ### Emporter une copie hors du NAS
 
@@ -410,9 +415,10 @@ Tout se passe sur le poste de développement, **à côté** de la base de dev, s
 docker exec cimavia_postgres createdb -U cimavia cimavia_restore
 docker exec -i cimavia_postgres pg_restore -U cimavia -d cimavia_restore --no-owner --no-acl < base/cimavia-<date>.dump
 
-# 3. Les médias dans un bucket à part
-docker run --rm --network api_default -v "$PWD/media:/media" --entrypoint sh \
-  ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+# 3. Les médias dans un bucket à part. Le service `silo-setup` du compose du dépôt apporte le `mc`
+#    de la même version que SILO et le bon réseau, sans tag à recopier ici. Le dossier courant reste
+#    celui de la sauvegarde, et le SILO local doit déjà tourner : `--no-deps` n'y touche pas.
+docker compose -f <…>/cimavia/apps/api/docker-compose.yml run --rm -T --no-deps -v "$PWD/media:/media" --entrypoint sh silo-setup -c \
   "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null \
    && mc mb --ignore-existing s/cimavia-restore && mc mirror --quiet /media s/cimavia-restore \
    && mc ls --recursive --summarize s/cimavia-restore | tail -2"
@@ -443,7 +449,7 @@ Le second vérifie que **chaque média référencé par la base existe dans le s
 ```bash
 P="SELECT \"storagePath\" FROM feedback_media UNION SELECT \"storagePath\" FROM exercise_document UNION SELECT \"storagePath\" FROM scheduled_session_exercise_document UNION SELECT \"storagePath\" FROM message WHERE \"storagePath\" IS NOT NULL UNION SELECT \"documentPath\" FROM invoice WHERE \"documentPath\" IS NOT NULL;"
 docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -c "$P" | sed '/^$/d' | sort > /tmp/paths.txt
-docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+docker compose -f <…>/cimavia/apps/api/docker-compose.yml run --rm -T --no-deps --entrypoint sh silo-setup -c \
   "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc ls --recursive s/cimavia-restore" \
   | awk '{print $NF}' | sort > /tmp/objects.txt
 comm -23 /tmp/paths.txt /tmp/objects.txt    # chemins SANS objet : doit être vide
@@ -459,7 +465,7 @@ Ménage une fois le test fait :
 
 ```bash
 docker exec cimavia_postgres dropdb -U cimavia cimavia_restore
-docker run --rm --network api_default --entrypoint sh ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z -c \
+docker compose -f <…>/cimavia/apps/api/docker-compose.yml run --rm -T --no-deps --entrypoint sh silo-setup -c \
   "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc rb --force s/cimavia-restore"
 ```
 
