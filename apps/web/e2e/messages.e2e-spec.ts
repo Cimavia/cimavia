@@ -37,6 +37,11 @@ function candidate(page: Page, name: string, caption: string) {
   return page.getByRole("button").filter({ hasText: name }).filter({ hasText: caption });
 }
 
+/** Le panneau « Nouvelle conversation », distinct de la liste qu'il recouvre. */
+function newConversationPanel(page: Page) {
+  return page.getByRole("complementary", { name: t("messages.new.title") });
+}
+
 async function userIdOf(account: Account): Promise<string> {
   const session = await json<{ user: { id: string } }>(
     await account.api.get("/api/auth/get-session"),
@@ -74,11 +79,12 @@ test.describe("Conversations à plusieurs (#612)", () => {
     const create = page.getByRole("button", { name: t("messages.new.create"), exact: true });
     await expect(create).toBeDisabled();
 
-    // La recherche filtre.
-    await page.getByRole("searchbox").fill("tia");
+    // La recherche filtre. Celle du PANNEAU : la liste derrière lui porte la sienne (#702).
+    const panelSearch = newConversationPanel(page).getByRole("searchbox");
+    await panelSearch.fill("tia");
     await expect(candidate(page, ti.name, t("messages.capability.athlete"))).toBeVisible();
     await expect(candidate(page, te.name, t("messages.capability.athlete"))).toBeHidden();
-    await page.getByRole("searchbox").fill("");
+    await panelSearch.fill("");
 
     // Les deux avertissements se cumulent.
     await candidate(page, te.name, t("messages.capability.athlete")).click();
@@ -139,10 +145,11 @@ test.describe("Conversations à plusieurs (#612)", () => {
         tiPage.getByText(t("messages.previewSelf", { preview: "Présente demain" })),
       ).toBeVisible();
 
-      // Côté athlète, « Nouvelle conversation » propose ses coachs seuls, sans recherche.
+      // Côté athlète, « Nouvelle conversation » propose ses coachs seuls, sans recherche — dans le
+      // panneau : la liste derrière lui a la sienne (#702).
       await tiPage.getByRole("button", { name: t("messages.newConversation") }).click();
       await expect(tiPage.getByText(t("messages.new.myCoaches"), { exact: true })).toBeVisible();
-      await expect(tiPage.getByRole("searchbox")).toHaveCount(0);
+      await expect(newConversationPanel(tiPage).getByRole("searchbox")).toHaveCount(0);
       await expect(tiPage.getByRole("button").filter({ hasText: c.name }).first()).toBeVisible();
       await expect(tiPage.getByRole("button").filter({ hasText: m.name }).first()).toBeVisible();
     } finally {
