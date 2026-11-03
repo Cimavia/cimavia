@@ -36,7 +36,10 @@ S3_SCHEME="${S3_SCHEME:-http}"
 S3_HOST="${S3_HOST:-silo}"
 S3_PORT="${S3_PORT:-9000}"
 S3_ENDPOINT="${S3_ENDPOINT:-${S3_SCHEME}://${S3_HOST}:${S3_PORT}}"
-MC_IMAGE="${MC_IMAGE:-ghcr.io/cimavia/mc:RELEASE.2026-09-16T00-00-00Z}"
+# Vide = l'image de `mc` qu'épingle le compose déployé, lue plus bas. Contre la pile locale, depuis
+# la racine du dépôt : DEPLOYED_COMPOSE="$PWD/apps/api/docker-compose.yml".
+MC_IMAGE="${MC_IMAGE:-}"
+DEPLOYED_COMPOSE="${DEPLOYED_COMPOSE:-$STACK_DIR/pull-preview/docker-compose.yml}"
 KEEP_DUMPS="${KEEP_DUMPS:-7}"
 MIN_FREE_MB="${MIN_FREE_MB:-2048}"
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -80,6 +83,16 @@ val() {
 for var in POSTGRES_USER POSTGRES_DB S3_BUCKET; do
   [[ -n "$(val "$var")" ]] || fail "$var absente de $ENV_FILE"
 done
+
+# Le client du stockage suit la version de SILO qui tourne, pas un tag écrit ici (#676). Ce script
+# s'installe une fois, à la main : un tag en dur y restait figé pendant que les promotions montaient
+# SILO. `pull-preview.sh` recopie, lui, le compose de chaque déploiement réussi.
+if [[ -z "$MC_IMAGE" ]]; then
+  [[ -f "$DEPLOYED_COMPOSE" ]] || fail "$DEPLOYED_COMPOSE introuvable : aucune promotion passée par pull-preview.sh ?"
+  # La valeur d'une clé `image:`, digest compris s'il y en a un — jamais un tag cité en commentaire.
+  MC_IMAGE="$(sed -nE 's/^[[:space:]]*image:[[:space:]]*(ghcr\.io\/cimavia\/mc:[^[:space:]#]+).*/\1/p' "$DEPLOYED_COMPOSE" | head -n1)"
+  [[ -n "$MC_IMAGE" ]] || fail "aucune image mc épinglée dans $DEPLOYED_COMPOSE"
+fi
 
 # Le miroir LISTE le bucket, ce que la clé de l'API ne peut pas faire depuis #267 : sa policy ne
 # porte que sur les objets. La sauvegarde est une tâche d'administration, elle prend donc le compte
