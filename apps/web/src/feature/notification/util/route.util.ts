@@ -111,7 +111,7 @@ export function routeForNotification(
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach
-        ? { to: "/feedbacks", search: { feedback: undefined, session: undefined } }
+        ? { to: "/feedbacks", search: { feedback: undefined, session: notification.entityId } }
         : {
             to: "/sessions/$sessionId",
             params: { sessionId: notification.entityId },

@@ -51,7 +51,7 @@ describe("routeForNotification", () => {
     const dto = notification(NotificationEntityType.SCHEDULED_SESSION, "session-7");
     expect(routeForNotification(dto, COACH)).toStrictEqual({
       to: "/feedbacks",
-      search: { feedback: undefined, session: undefined },
+      search: { feedback: undefined, session: "session-7" },
     });
     expect(routeForNotification(dto, ATHLETE)).toStrictEqual({
       to: "/sessions/$sessionId",
