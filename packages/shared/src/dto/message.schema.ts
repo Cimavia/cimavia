@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TrainingCapability } from "../capability";
 import type { TypesValuesOf } from "../type/generics.type";
+import { MAX_DOCUMENT_SIZE_BYTES } from "./exercise.schema";
 import {
   feedbackImageMimeTypeSchema,
   feedbackVideoMimeTypeSchema,
@@ -12,10 +13,14 @@ import {
 
 /**
  * Messagerie à participants, à deux ou à plusieurs (CDC §5.8, #611). Un message est SOIT du texte SOIT UN média
- * (audio/image/vidéo) — jamais les deux (pas de légende sur média en MVP). `TEXT` n'étant pas un
- * média, l'enum est distinct du `MediaType` du débrief : le débrief vocal ajoutera `AUDIO` là-bas,
- * pas ici. Image et vidéo réutilisent les bornes du débrief (mêmes plafonds génériques, source
- * unique) ; l'audio a les siennes.
+ * (audio/image/vidéo/fichier) — jamais les deux (pas de légende sur média en MVP). `TEXT` n'étant
+ * pas un média, l'enum est distinct du `MediaType` du débrief : le débrief vocal ajoutera `AUDIO`
+ * là-bas, pas ici. Image et vidéo réutilisent les bornes du débrief (mêmes plafonds génériques,
+ * source unique) ; l'audio a les siennes.
+ *
+ * `FILE` (#771) est un fichier qu'on ouvre, pas un média qu'on lit — un PDF aujourd'hui. Ni
+ * `DOCUMENT`, que le glossaire réserve à la pièce jointe d'un Exercise, ni `PDF` : accepter un
+ * autre format sera une liste de mimes, pas une migration d'enum.
  *
  * Les deux derniers ne sont pas écrits par quelqu'un : ce sont des **avis**, posés par le serveur
  * quand l'athlète dépose ou complète un débrief. Ils ne portent NI texte NI média — seulement leur
@@ -28,6 +33,7 @@ export const MessageType = {
   AUDIO: "AUDIO",
   IMAGE: "IMAGE",
   VIDEO: "VIDEO",
+  FILE: "FILE",
   FEEDBACK_CREATED: "FEEDBACK_CREATED",
   FEEDBACK_UPDATED: "FEEDBACK_UPDATED",
 } as const;
@@ -84,6 +90,22 @@ export const MAX_MESSAGE_IMAGE_SIZE_BYTES = MAX_FEEDBACK_PHOTO_SIZE_BYTES;
 export const MAX_MESSAGE_VIDEO_SIZE_BYTES = MAX_FEEDBACK_VIDEO_SIZE_BYTES;
 export const MAX_MESSAGE_VIDEO_DURATION_SECONDS = MAX_FEEDBACK_VIDEO_DURATION_SECONDS;
 /**
+ * Fichier joint à un message (#771) : le PDF seul, c'est la demande. Même plafond que le document
+ * d'exercice — c'est le même genre de pièce (programme, bilan, compte rendu).
+ *
+ * Ce n'est PAS un `MediaType` : le débrief n'accepte pas de fichier, et `mediaKindOfMime` impute
+ * des quotas de débrief. La messagerie a son propre classifieur (`messageMediaKindOfMime`).
+ */
+export const MESSAGE_FILE_MIME_TYPES = ["application/pdf"] as const;
+export type MessageFileMimeType = (typeof MESSAGE_FILE_MIME_TYPES)[number];
+export const messageFileMimeTypeSchema = z.enum(MESSAGE_FILE_MIME_TYPES);
+export const MAX_MESSAGE_FILE_SIZE_BYTES = MAX_DOCUMENT_SIZE_BYTES;
+
+export function isAllowedMessageFileMime(mimeType: string): mimeType is MessageFileMimeType {
+  return (MESSAGE_FILE_MIME_TYPES as readonly string[]).includes(mimeType);
+}
+
+/**
  * Combien de médias un même geste peut envoyer dans un fil.
  *
  * Contrairement au débrief, la messagerie n'a AUCUN quota — chaque média y est un message — donc
@@ -92,6 +114,24 @@ export const MAX_MESSAGE_VIDEO_DURATION_SECONDS = MAX_FEEDBACK_VIDEO_DURATION_SE
  * savoir. Elle vit ici pour que les deux surfaces ne s'en donnent pas deux valeurs différentes.
  */
 export const MAX_MESSAGE_MEDIA_BATCH = 10;
+
+/** Les familles qu'un message peut porter — tout sauf le texte et les avis de débrief. */
+export type MessageMediaKind =
+  | typeof MessageType.AUDIO
+  | typeof MessageType.IMAGE
+  | typeof MessageType.VIDEO
+  | typeof MessageType.FILE;
+
+/**
+ * Les places d'un lot de messages, famille par famille. Le fil n'ayant aucun quota, chacune vaut
+ * le plafond du lot : écrite ici une fois plutôt que sur chaque surface d'envoi.
+ */
+export const MESSAGE_MEDIA_BATCH_SLOTS = {
+  [MessageType.AUDIO]: MAX_MESSAGE_MEDIA_BATCH,
+  [MessageType.IMAGE]: MAX_MESSAGE_MEDIA_BATCH,
+  [MessageType.VIDEO]: MAX_MESSAGE_MEDIA_BATCH,
+  [MessageType.FILE]: MAX_MESSAGE_MEDIA_BATCH,
+} as const satisfies Record<MessageMediaKind, number>;
 
 export {
   FEEDBACK_IMAGE_MIME_TYPES as MESSAGE_IMAGE_MIME_TYPES,
@@ -159,11 +199,22 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_VIDEO_DURATION_SECONDS),
     })
     .strict(),
+  z
+    .object({
+      ...messageAttachmentShape,
+      ...mediaBatchShape,
+      type: z.literal(MessageType.FILE),
+      storagePath: z.string().min(1),
+      fileName: z.string().min(1),
+      mimeType: messageFileMimeTypeSchema,
+      size: z.number().int().positive().max(MAX_MESSAGE_FILE_SIZE_BYTES),
+    })
+    .strict(),
 ]);
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
 /**
- * URL PUT signée pour un média de message (audio/image/vidéo — jamais du texte). Mime, taille et
+ * URL PUT signée pour un média de message (audio/image/vidéo/fichier — jamais du texte). Mime, taille et
  * durée sont contraints ICI → 400 automatique du pipe, et le client réutilise les mêmes bornes
  * avant capture. La taille est ensuite signée dans l'URL (ContentLength) donc opposable.
  */
@@ -192,6 +243,14 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_VIDEO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_VIDEO_DURATION_SECONDS),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal(MessageType.FILE),
+      fileName: z.string().min(1),
+      mimeType: messageFileMimeTypeSchema,
+      size: z.number().int().positive().max(MAX_MESSAGE_FILE_SIZE_BYTES),
     })
     .strict(),
 ]);
@@ -247,7 +306,7 @@ export const messageMediaDtoSchema = z.object({
   fileName: z.string(),
   mimeType: z.string(),
   sizeBytes: z.number().int(),
-  durationSeconds: z.number().int().nullable(), // audio/vidéo uniquement
+  durationSeconds: z.number().int().nullable(), // audio/vidéo uniquement — ni image ni fichier
 });
 export type MessageMediaDto = z.infer<typeof messageMediaDtoSchema>;
 

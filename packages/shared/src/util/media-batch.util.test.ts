@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { MediaType } from "../dto/feedback.schema";
+import { MESSAGE_MEDIA_BATCH_SLOTS, MessageType } from "../dto/message.schema";
 import type { MediaBatch, MediaBatchStep, MediaRejection } from "./media-batch.util";
 import {
   mediaRecapText,
@@ -252,6 +253,36 @@ describe("sendMediaBatch", () => {
 
     expect(send).not.toHaveBeenCalled();
     expect(recap).toHaveLength(1);
+  });
+  /**
+   * Les familles sont celles de l'appelant (#771) : la messagerie y ajoute le fichier joint, que
+   * `MediaType` n'a pas — un PDF y prend sa place au lieu d'être « non géré ».
+   */
+  it("compte les familles propres à l'appelant, au-delà de celles du débrief", async () => {
+    const sent: string[] = [];
+    const items = [
+      { name: "programme.pdf", kind: MessageType.FILE },
+      { name: "a.jpg", kind: MessageType.IMAGE },
+      { name: "bilan.pdf", kind: MessageType.FILE },
+    ];
+
+    const recap = await sendMediaBatch({
+      items,
+      maxItems: Number.POSITIVE_INFINITY,
+      remaining: { ...MESSAGE_MEDIA_BATCH_SLOTS, [MessageType.FILE]: 1 },
+      kindOf: (item) => item.kind,
+      nameOf: (item) => item.name,
+      send: async (item) => {
+        sent.push(item.name);
+      },
+      rejectedReason: ({ cause, kind }) => ({ key: cause, params: { kind: kind ?? "—" } }),
+      failureReason: (error: unknown) => ({ message: String(error) }),
+    });
+
+    expect(sent).toEqual(["programme.pdf", "a.jpg"]);
+    expect(recap).toEqual([
+      { id: "2", fileName: "bilan.pdf", reason: { key: "noSlot", params: { kind: "FILE" } } },
+    ]);
   });
 });
 

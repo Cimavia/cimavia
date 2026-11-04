@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MediaType } from "../dto/feedback.schema";
-import { mediaKindOfMime } from "./media-kind.util";
+import { MessageType } from "../dto/message.schema";
+import { mediaKindOfMime, messageMediaKindOfMime } from "./media-kind.util";
 
 describe("mediaKindOfMime", () => {
   it("range un fichier dans sa famille de média", () => {
@@ -26,5 +27,22 @@ describe("mediaKindOfMime", () => {
     expect(mediaKindOfMime("")).toBeNull();
     expect(mediaKindOfMime(null)).toBeNull();
     expect(mediaKindOfMime(undefined)).toBeNull();
+  });
+});
+
+describe("messageMediaKindOfMime", () => {
+  it("range le PDF en fichier, et le reste comme le débrief", () => {
+    expect(messageMediaKindOfMime("application/pdf")).toBe(MessageType.FILE);
+    expect(messageMediaKindOfMime("image/heic")).toBe(MessageType.IMAGE);
+    expect(messageMediaKindOfMime("video/mp4")).toBe(MessageType.VIDEO);
+    expect(messageMediaKindOfMime("audio/m4a")).toBe(MessageType.AUDIO);
+  });
+
+  // Le fichier se reconnaît à la liste, pas à la famille : un tableur n'occupe aucune place pour se
+  // faire refuser au format ensuite, il est « pas géré » d'emblée.
+  it("rend null sur un fichier hors liste, ou un type absent", () => {
+    expect(messageMediaKindOfMime("application/zip")).toBeNull();
+    expect(messageMediaKindOfMime(null)).toBeNull();
+    expect(messageMediaKindOfMime(undefined)).toBeNull();
   });
 });

@@ -43,3 +43,32 @@ export function formatMmSs(seconds: number): string {
 export function formatMediaDuration(seconds: number | null | undefined): string | null {
   return seconds == null ? null : formatMmSs(seconds);
 }
+
+const BYTES_PER_KILOBYTE = 1024;
+
+/**
+ * Le libellé de la taille d'un fichier, en clés LITTÉRALES — `check:i18n` les lit ici avec chaque
+ * catalogue. L'unité est dans la phrase, pas dans le code : « Ko » et « Mo » se traduisent.
+ */
+export const FILE_SIZE_LABEL_KEY = {
+  KB: "common.fileSize.kilobytes",
+  MB: "common.fileSize.megabytes",
+} as const;
+
+/**
+ * La taille d'un fichier joint à montrer (#771) : en Ko sous le mégaoctet, en Mo au-delà, à un
+ * chiffre après la virgule. Un ordre de grandeur pour décider d'ouvrir, pas une mesure.
+ *
+ * Jamais « 0 Ko » : un fichier de quelques octets n'est pas vide, il pèse moins d'un Ko.
+ */
+export function fileSizeOf(bytes: number): {
+  unit: keyof typeof FILE_SIZE_LABEL_KEY;
+  value: number;
+} {
+  // Arrondi AVANT de choisir l'unité : 1 048 100 octets ne s'écrivent pas « 1 024 Ko ».
+  const kilobytes = Math.round(bytes / BYTES_PER_KILOBYTE);
+  if (kilobytes < BYTES_PER_MEGABYTE / BYTES_PER_KILOBYTE) {
+    return { unit: "KB", value: Math.max(1, kilobytes) };
+  }
+  return { unit: "MB", value: Math.round((bytes / BYTES_PER_MEGABYTE) * 10) / 10 };
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatMediaDuration, formatMmSs, megabytesOf, minutesOf } from "./media-format.util";
+import {
+  fileSizeOf,
+  formatMediaDuration,
+  formatMmSs,
+  megabytesOf,
+  minutesOf,
+} from "./media-format.util";
 
 describe("megabytesOf", () => {
   it("convertit en mégaoctets binaires (1 Mo = 1024 Ko)", () => {
@@ -62,5 +68,23 @@ describe("formatMediaDuration", () => {
 
   it("distingue une durée nulle d'une durée inconnue", () => {
     expect(formatMediaDuration(0)).toBe("0:00");
+  });
+});
+
+describe("fileSizeOf", () => {
+  it("dit les Ko sous le mégaoctet, jamais zéro", () => {
+    expect(fileSizeOf(320 * 1024)).toEqual({ unit: "KB", value: 320 });
+    expect(fileSizeOf(12)).toEqual({ unit: "KB", value: 1 });
+  });
+
+  // Juste sous le mégaoctet, l'arrondi en Ko tombe sur 1 024 : c'est déjà « 1 Mo ».
+  it("passe aux Mo quand l'arrondi atteint le mégaoctet", () => {
+    expect(fileSizeOf(1024 * 1024 - 100)).toEqual({ unit: "MB", value: 1 });
+    expect(fileSizeOf(1023 * 1024)).toEqual({ unit: "KB", value: 1023 });
+  });
+
+  it("dit les Mo au-delà, à un chiffre après la virgule", () => {
+    expect(fileSizeOf(1024 * 1024)).toEqual({ unit: "MB", value: 1 });
+    expect(fileSizeOf(2.46 * 1024 * 1024)).toEqual({ unit: "MB", value: 2.5 });
   });
 });
