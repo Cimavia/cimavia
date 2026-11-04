@@ -58,7 +58,7 @@ gh api repos/Cimavia/cimavia/milestones --jq '.[] | "\(.number) \(.title)"'
 ```
 
 - `area: api|infra|mobile|shared|tokens|web` · `type: feat|dette|chore` · `bug` ·
-  `prio: high|med|low` · `epic` · **`en attente beta`** pour les retours du coach bêta
+  `prio: urgent|high|med|low` (échelle : skill `prioriser`) · `epic` · **`en attente beta`** pour les retours du coach bêta
   (précédents : #2, #5 ; l'arbitrage couleurs #37 en est issu).
 - Jalons : `2` = « v1.0 — Ready for prod », `3` = « Multi rôle ». v0.9 (MVP) est clos.
 - Board « Cimavia — Roadmap » : toute issue créée y est ajoutée, **Status = Prêt**, **Phase** selon
