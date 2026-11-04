@@ -13,7 +13,7 @@ import {
   type MultipartUploadTicket,
   mediaRecapText,
   messageMediaKindOfMime,
-  type RequestMessageUploadUrlInput,
+  messageUploadInput,
   runMultipartUpload,
   type SendMessageInput,
   sendMediaBatch,
@@ -231,7 +231,7 @@ async function uploadAndSend(
   as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
-  const uploadInput = toUploadUrlInput(media);
+  const uploadInput = messageUploadInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
   // un PUT unique ne franchirait pas le bord réseau (cf. `upload.schema.ts`).
   const ticket = await messageApi.requestUploadUrl(conversationId, uploadInput, as);
@@ -278,21 +278,4 @@ function sendInParts(
     onProgress,
     onRetry,
   });
-}
-
-// Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.
-function toUploadUrlInput(media: PreparedMessageMedia): RequestMessageUploadUrlInput {
-  const descriptor = {
-    type: media.type,
-    fileName: media.fileName,
-    mimeType: media.mimeType,
-    size: media.size,
-  };
-  // AUDIO et VIDEO portent en plus leur durée. Le cast couvre l'union que TS ne narrow pas quand
-  // `type` et `mimeType` restent ouverts.
-  return (
-    "durationSeconds" in media
-      ? { ...descriptor, durationSeconds: media.durationSeconds }
-      : descriptor
-  ) as RequestMessageUploadUrlInput;
 }
