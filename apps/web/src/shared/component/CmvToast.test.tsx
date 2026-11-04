@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../test/render";
 import { useToast } from "./CmvToast";
 
@@ -15,6 +15,10 @@ function Trigger({ tone, message }: Readonly<{ tone: Tone; message: string }>) {
 }
 
 describe("CmvToast", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each<Tone>(["success", "error", "warning", "info"])(
     "annonce un message %s sans déplacer le focus",
     async (tone) => {
@@ -36,6 +40,19 @@ describe("CmvToast", () => {
     await user.click(getByRole("button", { name: "Date recalée" }));
 
     expect(queryByRole("button", { name: "Date recalée" })).toBeNull();
+  });
+
+  it("désarme ses minuteurs au démontage", () => {
+    vi.useFakeTimers();
+    const { getByRole, unmount } = renderWithProviders(
+      <Trigger tone="info" message="Date recalée" />,
+    );
+
+    getByRole("button", { name: "déclencher" }).click();
+    unmount();
+
+    expect(vi.getTimerCount()).toBe(0);
+    vi.runAllTimers();
   });
 
   it("refuse d'être appelé hors de son fournisseur", () => {

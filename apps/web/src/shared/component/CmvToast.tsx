@@ -1,4 +1,13 @@
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { cn } from "@/shared/util/cn.util";
 
 // Nature du message : elle porte l'information AVANT le texte (couleur + pastille).
@@ -37,8 +46,22 @@ const TONE_CLASSES: Record<ToastTone, { bar: string; dot: string }> = {
  */
 export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timers = useRef(new Map<string, number>());
+
+  useEffect(
+    () => () => {
+      for (const timer of timers.current.values()) window.clearTimeout(timer);
+      timers.current.clear();
+    },
+    [],
+  );
 
   const dismiss = useCallback((id: string) => {
+    const timer = timers.current.get(id);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timers.current.delete(id);
+    }
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
@@ -46,7 +69,11 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
     (message: string, tone: ToastTone) => {
       const id = crypto.randomUUID();
       setToasts((current) => [...current, { id, message, tone }]);
-      window.setTimeout(() => dismiss(id), tone === "error" ? ERROR_TOAST_TTL_MS : TOAST_TTL_MS);
+      const timer = window.setTimeout(
+        () => dismiss(id),
+        tone === "error" ? ERROR_TOAST_TTL_MS : TOAST_TTL_MS,
+      );
+      timers.current.set(id, timer);
     },
     [dismiss],
   );
