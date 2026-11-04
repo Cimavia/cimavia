@@ -223,3 +223,16 @@ describe("RegisterScreen (mobile)", () => {
     expect(router.push).toHaveBeenCalledWith("/login");
   });
 });
+
+describe("RegisterScreen (mobile) — l'information à la collecte (#778)", () => {
+  // `cimode` rend la phrase sous sa clé, sans ses liens : ceux-ci sont éprouvés avec le vrai
+  // catalogue par `LegalLinks.test.tsx`. Ici, seule la place de la mention compte.
+  it("pose la mention à côté du bouton, et pas avant", () => {
+    const { queryByText } = renderRn(<RegisterScreen />);
+    expect(queryByText("auth.register.consent")).toBeNull();
+
+    choose(TRAINING);
+
+    expect(queryByText("auth.register.consent")).not.toBeNull();
+  });
+});

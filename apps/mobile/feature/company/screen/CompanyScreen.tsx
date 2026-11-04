@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, View } from "react-native";
 import { useLogout } from "@/feature/account/hook/useLogout";
+import { LegalLinks } from "@/feature/legal";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { WEB_URL } from "@/shared/lib/web-url";
 
@@ -32,6 +33,12 @@ export function CompanyScreen() {
           <CmvText className="font-cmv-mono text-cmv-accent">{address}</CmvText>
         </Pressable>
         <CmvButton label={t("common.logout")} onPress={logout} />
+        {/* L'Entreprise n'a pas d'écran Profil sur le téléphone : c'est ici que les documents
+            légaux restent joignables depuis l'app (#778), sous le même titre qu'au Profil. */}
+        <View className="items-center gap-2">
+          <CmvText className="text-cmv-text-hi">{t("legal.title")}</CmvText>
+          <LegalLinks />
+        </View>
       </View>
     </CmvScreen>
   );

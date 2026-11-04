@@ -10,6 +10,7 @@ import {
   useCapabilityUpdate,
 } from "@/feature/account/hook/useCapabilityUpdate";
 import { useLogout } from "@/feature/account/hook/useLogout";
+import { LegalLinks } from "@/feature/legal";
 import { NotificationEmailSection } from "@/feature/notification";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
 import { appVersionLabel } from "@/shared/lib/app-version";
@@ -147,6 +148,15 @@ export function ProfileScreen() {
             place (#66). Quatre interrupteurs tiennent dans la page : un lien vers un écran qui
             n'aurait contenu qu'eux ferait payer une navigation pour rien. */}
         <NotificationEmailSection />
+
+        {/* Depuis l'app, et pas seulement à l'inscription : l'App Store l'exige (règle 5.1.1), et
+            c'est ici qu'on revient chercher ses droits une fois inscrit (#778). */}
+        <View className="gap-2">
+          <CmvText className="font-cmv-display text-cmv-text-hi text-lg">
+            {t("legal.title")}
+          </CmvText>
+          <LegalLinks />
+        </View>
 
         <CmvButton label={t("common.logout")} onPress={logout} />
 
