@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  boundedFileName,
   completeMultipartUploadSchema,
   MULTIPART_PART_SIZE_BYTES,
   MULTIPART_THRESHOLD_BYTES,
@@ -10,8 +11,60 @@ import {
   requiresMultipart,
   S3_MAX_PART_COUNT,
   S3_MIN_PART_SIZE_BYTES,
+  UPLOAD_FILE_NAME_MAX_LENGTH,
   UploadMode,
+  uploadFileNameSchema,
 } from "./upload.schema";
+
+describe("boundedFileName", () => {
+  const MAX = UPLOAD_FILE_NAME_MAX_LENGTH;
+
+  it("garde tel quel un nom à la borne", () => {
+    const name = "x".repeat(MAX);
+    expect(boundedFileName(name)).toBe(name);
+  });
+
+  it("raccourcit un nom au-delà, en gardant son extension", () => {
+    const shortened = boundedFileName(`${"x".repeat(MAX)}.pdf`);
+    expect(shortened).toHaveLength(MAX);
+    expect(shortened.endsWith("x.pdf")).toBe(true);
+  });
+
+  it("coupe simplement un nom sans extension", () => {
+    expect(boundedFileName("x".repeat(MAX + 1))).toBe("x".repeat(MAX));
+  });
+
+  // Un point en tête (`.profile`) n'ouvre pas une extension : le nom entier en serait une.
+  it("ne prend pas pour extension ce qui suit un point de tête", () => {
+    expect(boundedFileName(`.${"x".repeat(MAX)}`)).toBe(`.${"x".repeat(MAX - 1)}`);
+  });
+
+  it("garde une extension de dix caractères, pas de onze", () => {
+    const tenth = `.${"e".repeat(10)}`;
+    expect(boundedFileName(`${"x".repeat(MAX)}${tenth}`).endsWith(`x${tenth}`)).toBe(true);
+    const eleventh = `${"x".repeat(MAX)}.${"e".repeat(11)}`;
+    expect(boundedFileName(eleventh)).toBe("x".repeat(MAX));
+  });
+
+  // Couper entre les deux moitiés d'un emoji laisserait un caractère que Postgres refuse.
+  it("compte en caractères, sans couper un emoji en deux", () => {
+    const shortened = boundedFileName("😀".repeat(MAX + 5));
+    expect(Array.from(shortened)).toHaveLength(MAX);
+    expect(shortened).toBe("😀".repeat(MAX));
+  });
+});
+
+describe("uploadFileNameSchema", () => {
+  it("raccourcit un nom trop long plutôt que de le refuser", () => {
+    expect(
+      uploadFileNameSchema.parse(`${"x".repeat(UPLOAD_FILE_NAME_MAX_LENGTH)}.jpg`),
+    ).toHaveLength(UPLOAD_FILE_NAME_MAX_LENGTH);
+  });
+
+  it("exige un nom", () => {
+    expect(uploadFileNameSchema.safeParse("").success).toBe(false);
+  });
+});
 
 describe("bornes du découpage", () => {
   it("garde une part au-dessus du plancher S3 et un seuil sous le plafond du bord", () => {

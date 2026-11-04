@@ -30,6 +30,35 @@ export const MULTIPART_PART_SIZE_BYTES = 10 * 1024 * 1024;
 export const S3_MIN_PART_SIZE_BYTES = 5 * 1024 * 1024;
 export const S3_MAX_PART_COUNT = 10_000;
 
+/**
+ * Le nom d'un fichier envoyé, tel que le client le déclare. Persisté puis réémis dans chaque DTO
+ * qui le porte — dont le fil, relu à chaque tick de polling : sans borne, cinquante noms de 900 Ko
+ * y faisaient 45 Mo à re-télécharger (#354). 255, c'est ce qu'admettent les systèmes de fichiers.
+ *
+ * Raccourci, pas refusé : un fournisseur cloud (Drive, Dropbox) peut donner au sélecteur un nom
+ * plus long, et un refus ne dirait à l'athlète que « échec ». Compté en caractères et non en unités
+ * UTF-16, pour ne jamais couper un emoji en deux — une moitié de paire que Postgres refuserait.
+ */
+export const UPLOAD_FILE_NAME_MAX_LENGTH = 255;
+// Au-delà, ce qui suit le dernier point n'est pas une extension : `.jpeg`, `.m4a`, `.pdf`…
+const FILE_EXTENSION_MAX_LENGTH = 10;
+
+export function boundedFileName(name: string): string {
+  const characters = Array.from(name);
+  if (characters.length <= UPLOAD_FILE_NAME_MAX_LENGTH) return name;
+  const dot = characters.lastIndexOf(".");
+  const extension =
+    dot > 0 && characters.length - dot <= FILE_EXTENSION_MAX_LENGTH + 1
+      ? characters.slice(dot)
+      : [];
+  return [
+    ...characters.slice(0, UPLOAD_FILE_NAME_MAX_LENGTH - extension.length),
+    ...extension,
+  ].join("");
+}
+
+export const uploadFileNameSchema = z.string().min(1).transform(boundedFileName);
+
 export const UploadMode = {
   SINGLE: "SINGLE",
   MULTIPART: "MULTIPART",

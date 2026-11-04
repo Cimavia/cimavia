@@ -734,6 +734,16 @@ liste des domaines vivent dans l'index.
 > l'appelant. Dans `FeedbackMediaService.attach`, la garde passe AVANT `getOrCreateWritable` : un
 > refus ne crée pas de débrief et ne passe pas la séance en DONE.
 
+> **Tranché en [#354](https://github.com/Cimavia/cimavia/issues/354)** (le nom est raccourci à
+> l'entrée, ni refusé ni tronqué dans la clé) : les dix-huit `fileName` reçus passent par
+> `uploadFileNameSchema` (`@cmv/shared`), qui ramène le nom à 255 caractères en gardant son
+> extension (`boundedFileName`). L'issue prévoyait un `.max(255)`. Un refus aurait renvoyé un 400
+> vague à l'athlète dont le sélecteur tient le nom d'un fournisseur cloud, qui peut dépasser ce que
+> permet un système de fichiers. L'issue demandait aussi de tronquer le nom dans `buildObjectKey` :
+> ce code ne servirait jamais, puisque l'assainissement ne rallonge pas un nom et que la clé reste
+> alors sous 400 octets, loin des 1 024 que S3 admet. La borne vit dans Zod, pas en `@db.VarChar` : aucune colonne texte du
+> schéma Prisma n'en porte, et une borne écrite des deux côtés dériverait à la première retouche.
+
 ---
 
 ## Post-MVP — Taille signée d'un document d'exercice ([#317](https://github.com/Cimavia/cimavia/issues/317))

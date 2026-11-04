@@ -10,6 +10,7 @@ import {
   MAX_FEEDBACK_VIDEO_SIZE_BYTES,
   mediaBatchShape,
 } from "./media.schema";
+import { uploadFileNameSchema } from "./upload.schema";
 
 /**
  * Messagerie à participants, à deux ou à plusieurs (CDC §5.8, #611). Un message est SOIT du texte SOIT UN média
@@ -170,7 +171,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MessageType.AUDIO),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: messageAudioMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_AUDIO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_AUDIO_DURATION_SECONDS),
@@ -182,7 +183,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MessageType.IMAGE),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackImageMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_IMAGE_SIZE_BYTES),
     })
@@ -193,7 +194,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MessageType.VIDEO),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_VIDEO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_VIDEO_DURATION_SECONDS),
@@ -205,7 +206,7 @@ export const sendMessageSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MessageType.FILE),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: messageFileMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_FILE_SIZE_BYTES),
     })
@@ -222,7 +223,7 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MessageType.AUDIO),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: messageAudioMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_AUDIO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_AUDIO_DURATION_SECONDS),
@@ -231,7 +232,7 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MessageType.IMAGE),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackImageMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_IMAGE_SIZE_BYTES),
     })
@@ -239,7 +240,7 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MessageType.VIDEO),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_VIDEO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_MESSAGE_VIDEO_DURATION_SECONDS),
@@ -248,7 +249,7 @@ export const requestMessageUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MessageType.FILE),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: messageFileMimeTypeSchema,
       size: z.number().int().positive().max(MAX_MESSAGE_FILE_SIZE_BYTES),
     })
