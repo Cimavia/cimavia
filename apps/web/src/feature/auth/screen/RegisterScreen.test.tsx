@@ -265,3 +265,24 @@ describe("RegisterScreen", () => {
     expect(getByRole("radio", { name: TRAINING })).toBeInTheDocument();
   });
 });
+
+describe("RegisterScreen — l'information à la collecte (#778)", () => {
+  // `cimode` rend la phrase sous sa clé, sans ses liens : ceux-ci sont éprouvés avec le vrai
+  // catalogue par `LegalLinks.test.tsx`. Ici, seule la place de la mention compte.
+  it("pose la mention à côté du bouton, et pas avant", async () => {
+    const view = await setup();
+    expect(view.queryByText("auth.register.consent")).not.toBeInTheDocument();
+
+    await chooseTraining(view);
+
+    expect(view.getByText("auth.register.consent")).toBeInTheDocument();
+  });
+
+  it("garde les documents légaux joignables avant tout choix", async () => {
+    const view = await setup();
+    expect(view.getByRole("link", { name: "legal.privacy" })).toHaveAttribute(
+      "href",
+      "/legal/fr/privacy",
+    );
+  });
+});

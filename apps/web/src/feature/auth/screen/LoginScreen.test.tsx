@@ -57,6 +57,17 @@ beforeEach(() => {
 });
 
 describe("LoginScreen", () => {
+  // Le pied de toutes les pages d'authentification (#778) : lisible avant d'avoir un compte.
+  it("donne accès aux documents légaux", async () => {
+    const view = await setup();
+
+    expect(view.getByRole("navigation", { name: "legal.title" })).toBeInTheDocument();
+    expect(view.getByRole("link", { name: "legal.terms" })).toHaveAttribute(
+      "href",
+      "/legal/fr/terms",
+    );
+  });
+
   it("emmène à l'accueil sans cible", async () => {
     const view = await setup();
 

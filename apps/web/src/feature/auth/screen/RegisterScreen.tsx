@@ -19,6 +19,7 @@ import {
   IoEllipseOutline,
   IoPersonOutline,
 } from "react-icons/io5";
+import { LegalConsent } from "@/feature/legal";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { resetAccountData } from "@/shared/lib/account-reset";
@@ -219,6 +220,9 @@ export function RegisterScreen() {
             <CmvButton type="submit" disabled={submitting} fullWidth>
               {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             </CmvButton>
+            {/* Sous le bouton, à l'instant de la collecte : c'est là que l'information est due
+                (RGPD art. 13, #778). */}
+            <LegalConsent />
           </>
         )}
       </form>

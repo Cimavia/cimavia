@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoWarningOutline } from "react-icons/io5";
 import { useCapabilityUpdate } from "@/feature/account/hook/useCapabilityUpdate";
+import { LegalLinks } from "@/feature/legal";
 import { NotificationEmailSection } from "@/feature/notification";
 import { CmvAppShell, CmvButton } from "@/shared/component";
 import { appVersionLabel } from "@/shared/lib/app-version";
@@ -106,6 +107,14 @@ export function AccountScreen() {
       <div className="mt-cmv-xl">
         <NotificationEmailSection />
       </div>
+
+      {/* Depuis l'app, et pas seulement avant l'inscription : les stores l'exigent (App Store,
+          règle 5.1.1), et c'est ici qu'on revient chercher ses droits une fois inscrit (#778). */}
+      <section className="mt-cmv-xl flex max-w-xl flex-col gap-cmv-md">
+        <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("legal.title")}</h2>
+        <p className="text-cmv-caption text-cmv-text-mid">{t("account.legal.description")}</p>
+        <LegalLinks />
+      </section>
 
       {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), sous le dernier bloc : c'est la
           seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison mobile est un
