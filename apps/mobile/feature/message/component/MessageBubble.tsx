@@ -15,6 +15,7 @@ import {
 import { type Href, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { FileMessage } from "@/feature/message/component/FileMessage";
 import { CmvAudioPlayer, CmvImageViewer, CmvText, CmvVideoPlayer } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
 import { formatDate } from "@/shared/util/date.util";
@@ -55,30 +56,45 @@ function MediaContent({
   resolveMediaUrl: ResolveMediaUrl;
   voiceNoteCue: VoiceNoteCue | undefined;
 }>) {
+  const { t } = useTranslation();
   const media = message.media;
   if (media == null) return null;
 
-  if (message.type === MessageType.AUDIO) {
-    return (
-      <CmvAudioPlayer
-        url={media.url}
-        durationSeconds={media.durationSeconds}
-        resolveUrl={() => resolveMediaUrl(message.id)}
-        cue={voiceNoteCue}
-      />
-    );
+  switch (message.type) {
+    case MessageType.AUDIO:
+      return (
+        <CmvAudioPlayer
+          url={media.url}
+          durationSeconds={media.durationSeconds}
+          resolveUrl={() => resolveMediaUrl(message.id)}
+          cue={voiceNoteCue}
+        />
+      );
+    case MessageType.IMAGE:
+      return <CmvImageViewer url={media.url} />;
+    case MessageType.VIDEO:
+      // Sa vignette (#155), lue en plein écran dans l'app sur une URL vérifiée juste avant.
+      return (
+        <CmvVideoPlayer
+          mediaId={message.id}
+          durationSeconds={media.durationSeconds}
+          resolveUrl={() => resolveMediaUrl(message.id)}
+        />
+      );
+    case MessageType.FILE:
+      return (
+        <FileMessage
+          messageId={message.id}
+          media={media}
+          resolveUrl={() => resolveMediaUrl(message.id)}
+        />
+      );
+    default:
+      // Un type que cette version ne connaît pas — un binaire resté en arrière quand l'API en a
+      // appris un (#771). Le rendre en lecteur vidéo, comme avant, donnait une pastille qui ne
+      // lisait rien ; il se DIT, et la mise à jour de l'app le montrera.
+      return <CmvText className="text-cmv-text-mid text-xs">{t("messages.unsupported")}</CmvText>;
   }
-  if (message.type === MessageType.IMAGE) {
-    return <CmvImageViewer url={media.url} />;
-  }
-  // Vidéo : sa vignette (#155), lue en plein écran dans l'app sur une URL vérifiée juste avant.
-  return (
-    <CmvVideoPlayer
-      mediaId={message.id}
-      durationSeconds={media.durationSeconds}
-      resolveUrl={() => resolveMediaUrl(message.id)}
-    />
-  );
 }
 
 /**

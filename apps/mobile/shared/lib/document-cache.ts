@@ -52,9 +52,10 @@ function planDirectory(planId: string): Directory {
 
 /**
  * L'extension est reprise du nom d'origine : sans elle, l'application tierce à qui on tend le PDF
- * n'a plus que le type MIME pour deviner ce qu'elle ouvre, et certaines s'y refusent.
+ * n'a plus que le type MIME pour deviner ce qu'elle ouvre, et certaines s'y refusent. Reprise par
+ * le fichier joint d'un message (#771), pour la même raison.
  */
-function extensionOf(fileName: string | null): string {
+export function extensionOf(fileName: string | null): string {
   const candidate = fileName?.split(".").pop()?.toLowerCase();
   if (candidate == null || candidate === fileName?.toLowerCase()) return "";
   return EXTENSION_PATTERN.test(candidate) ? `.${candidate}` : "";
