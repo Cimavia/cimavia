@@ -639,3 +639,37 @@ liste des domaines vivent dans l'index.
 > - **L'acteur ne s'écarte pas à la main** : `participants` ne nomme déjà que les autres (#611).
 > - **Le terme vit dans l'URL sur le web** (`?q=`, comme le tableau de bord en #123), **dans l'écran
 >   sur le mobile** : l'onglet reste monté sous le fil, le terme survit à l'aller-retour.
+
+## Post-MVP — Fichier joint dans la messagerie ([#771](https://github.com/Cimavia/cimavia/issues/771))
+
+> **Tranché en #771** (le PDF entre dans le fil) : un nouveau type de message **`FILE`**, et non
+> `DOCUMENT` — ce nom est déjà le document d'exercice — ni `PDF` : la liste des types acceptés
+> (`MESSAGE_FILE_MIME_TYPES`) s'élargira sans migration d'enum.
+>
+> - **`MediaType` ne s'élargit pas** : il porte aussi le débrief, que ce choix ne concerne pas.
+>   `sendMediaBatch` devient générique sur la famille, et la messagerie lui passe la sienne
+>   (`MessageMediaKind`, `MESSAGE_MEDIA_BATCH_SLOTS`).
+> - **Le fichier est confronté à l'arrivée** (`assertUploadedAsDeclared`) : une branche neuve n'ajoute
+>   pas de cas à S-1.
+> - **La taille s'affiche**, comme la maquette `conversation_1_1` la dessine (`fileSizeOf`).
+> - **Un PDF répond aussi à un débrief** : la barre d'envoi est la même, la limiter au fil aurait
+>   demandé une variante pour rien.
+> - **Web : l'onglet s'ouvre dans le clic**, vide, puis reçoit l'URL re-signée (`openInNewTab`).
+>   Ouvert après l'attente, Safari et Firefox le bloqueraient comme fenêtre surgissante.
+> - **Mobile : `expo-document-picker`**, comme l'issue le citait, et non le sélecteur
+>   d'`expo-file-system`, pourtant déjà là : sur Android, le nom que celui-ci rend au JS est
+>   l'identifiant du fournisseur (`msf:1000038591`), sans extension. Le PDF serait parti sous ce
+>   nom, et le lecteur du destinataire n'aurait plus su ce qu'il ouvrait.
+> - **Ce qui laisse partir un PDF se décide une fois** (`checkMessageFile`) : type, taille connue et
+>   non nulle, plafond. Le web et le mobile le disent pareil.
+> - **Mobile : le choix « Photo ou vidéo / Fichier PDF » se fait en ligne** dans la barre d'envoi,
+>   pas par l'alerte native : elle ignore les tokens et le harnais ne la voit pas
+>   (cf. `CmvConfirmButton`).
+> - **Mobile : le fichier est descendu au premier tap** dans `Paths.cache/message-files`, gardé
+>   s'il a la taille du message (un processus tué en route laisse un fichier tronqué), puis
+>   remis au lecteur par le geste des documents de séance (#95), promu en `shared/lib/open-file.ts`.
+>   `Paths.cache` et non `Paths.document` : un fichier de message n'a pas à survivre hors ligne
+>   comme une séance. Il est purgé au changement de compte (`resetAccountData`).
+> - **Un type inconnu se dit** (« ne s'affiche pas dans cette version ») au lieu de tomber dans le
+>   lecteur vidéo, sur les deux clients. Les binaires mobiles déjà installés, eux, rendront un
+>   `FILE` en pastille vidéo muette jusqu'à leur mise à jour : c'est une `feat`, pas d'OTA (#287).
