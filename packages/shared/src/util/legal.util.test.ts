@@ -43,8 +43,9 @@ describe("legalDocumentUrl", () => {
     );
   });
 
-  it("retombe sur le français pour une langue vide", () => {
-    expect(legalDocumentUrl("https://app.cimavia.fr", "privacy", "")).toBe(
+  // i18next n'a pas de langue avant sa première initialisation.
+  it.each(["", undefined])("retombe sur le français pour une langue absente : %j", (language) => {
+    expect(legalDocumentUrl("https://app.cimavia.fr", "privacy", language)).toBe(
       "https://app.cimavia.fr/legal/fr/privacy",
     );
   });

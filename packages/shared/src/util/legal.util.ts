@@ -31,14 +31,15 @@ export const LEGAL_LOCALES: readonly Locale[] = [Locale.FR];
  *
  * Le repli sur le français n'est pas une donnée inventée : c'est le texte qui fait foi, et une
  * personne qui lit l'app en anglais doit tout de même pouvoir lire ce qu'elle accepte. `language`
- * vient d'i18next, qui peut porter une région (« fr-FR ») : seule la langue compte.
+ * vient d'i18next, qui peut porter une région (« fr-FR »), ou rien du tout avant sa première
+ * initialisation : seule la langue compte, et son absence vaut le français, pour la même raison.
  */
 export function legalDocumentUrl(
   webUrl: string,
   document: LegalDocument,
-  language: string,
+  language: string | undefined,
 ): string {
-  const primary = language.split("-")[0]?.toLowerCase();
+  const primary = language?.split("-")[0]?.toLowerCase();
   const locale = LEGAL_LOCALES.find((candidate) => candidate === primary) ?? Locale.FR;
   return `${trimTrailingSlashes(webUrl)}/legal/${locale}/${document}`;
 }
