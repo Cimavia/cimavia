@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { gridOf, issuesOf, oneByBeep, presets, reps } from "../../test/block-fixtures";
+import { CLIENT_KEY_MAX_LENGTH } from "./client-key.schema";
 import { SESSION_MAX_EXERCISES, SESSION_NOTE_MAX_LENGTH } from "./session.schema";
 import {
   BLOCK_MAX_EXERCISES,
@@ -81,6 +82,17 @@ describe("sessionBlockSchema", () => {
       "settings: « Un seul par… » demande au moins autant de bips ou d'intervalles que d'exercices.",
     ]);
     expect(issuesOf(sessionBlockSchema, block("b1", ["a", "b"], { settings }))).toEqual([]);
+  });
+
+  // Tirée par le client et écrite telle quelle : sans borne, une clé de 900 Ko s'écrivait (#354).
+  it("borne la clé d'un exercice de bloc", () => {
+    const keyed = (key: string) => block("b1", [], { exercises: [exercise(key)] });
+    expect(sessionBlockSchema.safeParse(keyed("k".repeat(CLIENT_KEY_MAX_LENGTH))).success).toBe(
+      true,
+    );
+    expect(sessionBlockSchema.safeParse(keyed("k".repeat(CLIENT_KEY_MAX_LENGTH + 1))).success).toBe(
+      false,
+    );
   });
 
   it("refuse une grille qui a plus de lignes que l'exercice n'a de tours", () => {
