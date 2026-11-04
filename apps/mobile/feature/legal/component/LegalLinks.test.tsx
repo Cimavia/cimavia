@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react";
+import * as Sentry from "@sentry/react-native";
+import { render, waitFor } from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { Linking } from "react-native";
@@ -26,6 +27,16 @@ describe("LegalLinks", () => {
     press(getByText(label));
 
     expect(open).toHaveBeenCalledWith(`${WEB_URL}/legal/fr/${document}`);
+  });
+
+  it("signale à Sentry un lien que le système refuse d'ouvrir", async () => {
+    const cause = new Error("aucun navigateur");
+    open.mockRejectedValue(cause);
+    const { getByText } = renderRn(<LegalLinks />);
+
+    press(getByText("legal.terms"));
+
+    await waitFor(() => expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(cause));
   });
 });
 

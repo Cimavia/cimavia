@@ -1,4 +1,5 @@
 import { LEGAL_DOCUMENTS, type LegalDocument, legalDocumentUrl } from "@cmv/shared";
+import * as Sentry from "@sentry/react-native";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Linking, Text, View } from "react-native";
@@ -25,7 +26,10 @@ function LegalLink({ document, className, children }: Readonly<LegalLinkProps>) 
       accessibilityRole="link"
       className={className ?? "text-cmv-accent"}
       onPress={() => {
-        void Linking.openURL(legalDocumentUrl(WEB_URL, document, i18n.language));
+        // Aucun navigateur pour l'ouvrir : rare, mais le lien resterait muet — Sentry le dira.
+        Linking.openURL(legalDocumentUrl(WEB_URL, document, i18n.language)).catch(
+          (error: unknown) => Sentry.captureException(error),
+        );
       }}
     >
       {children}
