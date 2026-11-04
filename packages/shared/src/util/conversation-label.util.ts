@@ -19,7 +19,7 @@ type Translate = (key: string, params: Record<string, string | number>) => strin
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
-// i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FEEDBACK_CREATED, FEEDBACK_UPDATED
+// i18n-values messages.preview: IMAGE, VIDEO, AUDIO, FILE, FEEDBACK_CREATED, FEEDBACK_UPDATED
 // i18n-values messages.capability: coach, athlete
 
 /**

@@ -5,12 +5,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
+import type { AttachSource } from "@/feature/message/hook/useMessageMedia";
 import { CmvAudioRecorder, CmvCharCount, CmvText, type RecordedAudio } from "@/shared/component";
 
 type ComposerProps = {
   /** Le champ ne se vide qu'une fois la promesse tenue : un échec laisse le texte en place. */
   onSendText: (text: string) => Promise<unknown>;
-  onPickMedia: () => void;
+  onPickMedia: (source: AttachSource) => void;
   onRecordAudio: (audio: RecordedAudio) => void;
   onMediaError: (reasonKey: string) => void;
   sending: boolean;
@@ -20,7 +21,20 @@ type ComposerProps = {
 };
 
 /**
- * Barre d'envoi : texte, pièce jointe (photo/vidéo) et note vocale. Un seul `CmvAudioRecorder`
+ * Ce que le bouton « joindre » propose (#771). Un choix EN LIGNE plutôt qu'une alerte native, pour
+ * la raison que donne `CmvConfirmButton` : elle ignore les tokens, et le harnais ne la voit pas.
+ */
+const ATTACH_CHOICES = [
+  { source: "media", icon: "images-outline", labelKey: "messages.attachChoice.media" },
+  { source: "file", icon: "document-text-outline", labelKey: "messages.attachChoice.file" },
+] as const satisfies readonly {
+  source: AttachSource;
+  icon: keyof typeof Ionicons.glyphMap;
+  labelKey: string;
+}[];
+
+/**
+ * Barre d'envoi : texte, pièce jointe (photo, vidéo ou PDF) et note vocale. Un seul `CmvAudioRecorder`
  * (instance persistante) occupe l'emplacement de fin : micro au repos, bandeau d'enregistrement
  * une fois lancé — pendant quoi la saisie texte et la pièce jointe s'effacent.
  */
@@ -36,6 +50,10 @@ export function Composer({
   const { t } = useTranslation();
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  // Un envoi qui démarre referme le choix — un débrief qui recharge passe aussi par là. Masqué
+  // seulement, il resurgirait à la fin de l'envoi sans qu'on l'ait demandé.
+  if (mediaBusy && choosing) setChoosing(false);
 
   const trimmed = text.trim();
   const canSendText = trimmed.length > 0 && !sending;
@@ -53,21 +71,49 @@ export function Composer({
   const recorder = (
     <CmvAudioRecorder
       onRecorded={onRecordAudio}
-      onRecordingChange={setRecording}
+      onRecordingChange={(next) => {
+        setRecording(next);
+        // Le choix ouvert avant le micro ne doit pas resurgir quand l'enregistrement se termine.
+        if (next) setChoosing(false);
+      }}
       onError={onMediaError}
       disabled={mediaBusy}
     />
   );
 
+  const pick = (source: AttachSource) => {
+    setChoosing(false);
+    onPickMedia(source);
+  };
+
   return (
     <View className="border-cmv-border border-t bg-cmv-bg-1 p-3">
+      {choosing ? (
+        <View className="flex-row gap-2 pb-2">
+          {ATTACH_CHOICES.map((choice) => (
+            <Pressable
+              key={choice.source}
+              onPress={() => pick(choice.source)}
+              accessibilityRole="button"
+              className="flex-row items-center gap-1.5 rounded-full border border-cmv-border bg-cmv-surface px-3 py-1.5"
+            >
+              <Ionicons name={choice.icon} size={16} color={cmvColors.text.mid} />
+              <CmvText className="text-cmv-text-hi text-sm">{t(choice.labelKey)}</CmvText>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       <View className="flex-row items-end gap-2">
         {recording ? null : (
           <>
             <Pressable
-              onPress={onPickMedia}
+              onPress={() => setChoosing((current) => !current)}
               disabled={mediaBusy}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t("messages.attach")}
+              accessibilityState={{ expanded: choosing }}
               className={mediaBusy ? "pb-1 opacity-50" : "pb-1"}
             >
               <Ionicons name="add-circle-outline" size={26} color={cmvColors.text.mid} />

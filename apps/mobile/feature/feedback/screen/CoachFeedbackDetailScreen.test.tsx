@@ -275,11 +275,10 @@ describe("CoachFeedbackDetailScreen", () => {
     } as unknown as ReturnType<typeof useFeedbackReply>);
 
     const { container, findByText } = renderRn(<CoachFeedbackDetailScreen />);
-    const add = container.querySelector('[data-icon="add-circle-outline"]')?.parentElement;
-    if (add == null) throw new Error("bouton de pièce jointe introuvable");
-    press(add);
+    pressAttach(container, "document-text-outline");
 
-    expect(pickAndSend).toHaveBeenCalled();
+    // La source choisie traverse jusqu'au hook : c'est elle qui ouvre les PDF plutôt que la galerie.
+    expect(pickAndSend).toHaveBeenCalledWith(expect.any(Function), "file");
     // Une ligne PAR fichier : « 2 sur 5 n'ont pas pu partir » ne dirait pas lesquels.
     expect(await findByText(/voie\.mp4/)).not.toBeNull();
   });
@@ -303,9 +302,7 @@ describe("CoachFeedbackDetailScreen", () => {
     } as unknown as ReturnType<typeof useFeedbackReply>);
 
     const { container, findByText } = renderRn(<CoachFeedbackDetailScreen />);
-    press(
-      container.querySelector('[data-icon="add-circle-outline"]')?.parentElement as HTMLElement,
-    );
+    pressAttach(container, "images-outline");
 
     expect(await findByText(/messages\.media\.unnamedFile/)).not.toBeNull();
   });
@@ -547,3 +544,12 @@ describe("CoachFeedbackDetailScreen — les notes vocales s'enchaînent (#529)",
     expect(isCued("r-2")).toBe(true);
   });
 });
+
+/** Le bouton « joindre » ouvre son choix (#771) ; `choice` est l'icône de la source à prendre. */
+function pressAttach(container: HTMLElement, choice: string): void {
+  for (const icon of ["add-circle-outline", choice]) {
+    const button = container.querySelector(`[data-icon="${icon}"]`)?.parentElement;
+    if (button == null) throw new Error(`bouton « ${icon} » introuvable`);
+    press(button);
+  }
+}

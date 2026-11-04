@@ -57,6 +57,10 @@
       "blocks_other": "{{count}} blocs",
       "exercises": "{{count}} exercice",
       "exercises_other": "{{count}} exercices"
+    },
+    "fileSize": {
+      "kilobytes": "{{value, number}} Ko",
+      "megabytes": "{{value, number}} Mo"
     }
   },
   "auth": {
@@ -1157,7 +1161,7 @@
     "subtitle": "Échange avec tes athlètes et les coachs de tes entreprises.",
     "placeholder": "Écris un message…",
     "send": "Envoyer",
-    "attach": "Joindre des photos ou des vidéos",
+    "attach": "Joindre des photos, des vidéos ou des PDF",
     "record": "Enregistrer un message vocal",
     "loadError": "Impossible de charger la conversation.",
     "media": {
@@ -1174,7 +1178,8 @@
       "audioFormat": "Ce format audio n'est pas géré par ton navigateur.",
       "audioTooBig": "Cette note vocale dépasse {{max}} Mo.",
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
-      "unreadable": "Ce fichier est illisible."
+      "unreadable": "Ce fichier est illisible.",
+      "fileTooBig": "Ce fichier dépasse {{max}} Mo."
     },
     "audio": {
       "permission": "Autorise l'accès au micro pour enregistrer un message vocal.",
@@ -1200,6 +1205,7 @@
       "AUDIO": "🎤 Message vocal",
       "IMAGE": "📷 Photo",
       "VIDEO": "🎥 Vidéo",
+      "FILE": "📄 Fichier",
       "FEEDBACK_CREATED": "📝 Débrief déposé",
       "FEEDBACK_UPDATED": "📝 Débrief mis à jour"
     },
@@ -1255,6 +1261,12 @@
       "nor": "ni",
       "fixed": "Les participants ne pourront plus être modifiés après la création.",
       "create": "Créer"
+    },
+    "unsupported": "Ce message ne s'affiche pas dans cette version de l'application.",
+    "file": {
+      "open": "Ouvrir {{fileName}}",
+      "openError": "Ce fichier ne s'ouvre pas pour l'instant. Réessaie dans un instant.",
+      "popupBlocked": "Ton navigateur a bloqué l'onglet du fichier. Autorise les fenêtres pour Cimavia, puis réessaie."
     }
   },
   "athlete": {

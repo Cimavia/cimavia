@@ -342,8 +342,10 @@ function pressRetry(container: HTMLElement): void {
   pressButton(container, "common.retry");
 }
 
+/** Le bouton « joindre » ouvre son choix : la galerie est ce que ces tests envoient. */
 function pressAttach(container: HTMLElement): void {
   pressIcon(container, "add-circle-outline");
+  pressIcon(container, "images-outline");
 }
 
 /** Les boutons de la barre d'envoi n'ont que leur icône pour se distinguer. */

@@ -345,7 +345,9 @@ export type {
   MessageAttachmentType as MessageAttachmentTypeType,
   MessageAudioMimeType,
   MessageDto,
+  MessageFileMimeType,
   MessageMediaDto,
+  MessageMediaKind,
   MessageType as MessageTypeType,
   RequestMessageUploadUrlInput,
   SendMessageInput,
@@ -362,16 +364,20 @@ export {
   FEEDBACK_EVENT_LABEL_KEY,
   FEEDBACK_EVENT_MESSAGE_TYPES,
   isAllowedMessageAudioMime,
+  isAllowedMessageFileMime,
   isFeedbackEventMessage,
   MAX_CONVERSATION_PARTICIPANTS,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
+  MAX_MESSAGE_FILE_SIZE_BYTES,
   MAX_MESSAGE_IMAGE_SIZE_BYTES,
   MAX_MESSAGE_MEDIA_BATCH,
   MAX_MESSAGE_VIDEO_DURATION_SECONDS,
   MAX_MESSAGE_VIDEO_SIZE_BYTES,
   MESSAGE_AUDIO_MIME_TYPES,
+  MESSAGE_FILE_MIME_TYPES,
   MESSAGE_IMAGE_MIME_TYPES,
+  MESSAGE_MEDIA_BATCH_SLOTS,
   MESSAGE_TEXT_MAX_LENGTH,
   MESSAGE_VIDEO_MIME_TYPES,
   MessageAttachmentType,
@@ -380,6 +386,7 @@ export {
   messageAttachmentTypeSchema,
   messageAudioMimeTypeSchema,
   messageDtoSchema,
+  messageFileMimeTypeSchema,
   messageMediaDtoSchema,
   messageTypeSchema,
   participantCapabilitySchema,
@@ -943,12 +950,14 @@ export type {
 } from "./util/media-batch.util";
 export { mediaRecapText, sendMediaBatch } from "./util/media-batch.util";
 export {
+  FILE_SIZE_LABEL_KEY,
+  fileSizeOf,
   formatMediaDuration,
   formatMmSs,
   megabytesOf,
   minutesOf,
 } from "./util/media-format.util";
-export { mediaKindOfMime } from "./util/media-kind.util";
+export { mediaKindOfMime, messageMediaKindOfMime } from "./util/media-kind.util";
 export type { AttachmentTarget } from "./util/message-attachment.util";
 export {
   AttachmentDestination,
@@ -956,8 +965,10 @@ export {
   MESSAGE_ATTACHMENT_LABEL_KEY,
 } from "./util/message-attachment.util";
 export { draftAfterSend } from "./util/message-draft.util";
+export { checkMessageFile, type MessageFileCheck } from "./util/message-file.util";
 export type { ReadMarker } from "./util/message-read.util";
 export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export { type MessageUploadSource, messageUploadInput } from "./util/message-upload.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export {
   adoptMetrics,

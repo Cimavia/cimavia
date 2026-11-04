@@ -30,7 +30,11 @@
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "close": "Fermer",
-    "and": "et"
+    "and": "et",
+    "fileSize": {
+      "kilobytes": "{{value, number}} Ko",
+      "megabytes": "{{value, number}} Mo"
+    }
   },
   "auth": {
     "login": {
@@ -315,7 +319,9 @@
       "audioTooLong": "Une note vocale ne peut pas dépasser {{max}} minutes.",
       "unreadable": "Ce fichier est illisible.",
       "storageUnreachable": "Le serveur de médias est injoignable depuis ton téléphone. Réessaie sur un autre réseau.",
-      "storageRejected": "Le serveur a refusé ce fichier. Réessaie ; si ça persiste, préviens ton coach."
+      "storageRejected": "Le serveur a refusé ce fichier. Réessaie ; si ça persiste, préviens ton coach.",
+      "unsupported": "Seuls les PDF peuvent être joints.",
+      "fileTooBig": "Ce fichier dépasse {{max}} Mo."
     },
     "audio": {
       "permission": "cimavia a besoin du micro pour enregistrer un message vocal.",
@@ -335,6 +341,7 @@
     "preview": {
       "IMAGE": "Photo",
       "VIDEO": "Vidéo",
+      "FILE": "Fichier",
       "AUDIO": "Note vocale",
       "FEEDBACK_CREATED": "Débrief déposé",
       "FEEDBACK_UPDATED": "Débrief mis à jour"
@@ -384,7 +391,18 @@
       "fixed": "Les participants ne pourront plus être modifiés après la création.",
       "create": "Créer",
       "createError": "La conversation n'a pas pu être créée. Vérifie ta connexion, puis réessaie."
-    }
+    },
+    "attach": "Joindre des photos, des vidéos ou des PDF",
+    "attachChoice": {
+      "media": "Photo ou vidéo",
+      "file": "Fichier PDF"
+    },
+    "file": {
+      "open": "Ouvrir {{fileName}}",
+      "offline": "Ce fichier n'est pas sur ton téléphone. Reconnecte-toi pour l'ouvrir.",
+      "openError": "Ce fichier n'a pas pu être ouvert."
+    },
+    "unsupported": "Ce message ne s'affiche pas dans cette version de l'application. Mets-la à jour pour le voir."
   },
   "coach": {
     "title": "Mes coachs",

@@ -16,7 +16,11 @@ import type { MediaType } from "../dto/feedback.schema";
 
 // Un élément sélectionné, ramené à ce qui décide de son sort : la famille de média qu'il occupe.
 // Chaque surface enveloppe sa propre source (un `File` web, un asset de picker mobile) autour.
-export type SlottedMedia = { kind: MediaType };
+//
+// Les familles sont un paramètre, `MediaType` par défaut : le débrief en a trois, la messagerie y
+// ajoute le fichier joint (#771) — qu'il ne fallait pas glisser dans `MediaType`, dont les quotas
+// sont ceux du débrief.
+export type SlottedMedia<K extends string = MediaType> = { kind: K };
 
 export type SlotSplit<T> = {
   /** Dans l'ordre de sélection : ce qui tient dans les places restantes. */
@@ -35,18 +39,18 @@ export type SlotSplit<T> = {
  * cinq places envoient cinq photos et signalent la sixième, plutôt que de tout refuser et de
  * renvoyer l'athlète dans sa galerie.
  *
- * `remaining` doit porter les TROIS familles : un `Partial` laisserait un type absent valoir zéro
+ * `remaining` doit porter TOUTES les familles : un `Partial` laisserait un type absent valoir zéro
  * en silence, alors qu'une place inconnue et une place occupée ne sont pas la même chose (règle
  * nullable). Une valeur négative — un quota déjà dépassé côté serveur — vaut zéro place, pas une
  * dette à rattraper.
  */
-export function splitByRemainingSlots<T extends SlottedMedia>(
+export function splitByRemainingSlots<T extends SlottedMedia<K>, K extends string = MediaType>(
   items: readonly T[],
-  remaining: Readonly<Record<MediaType, number>>,
+  remaining: Readonly<Record<K, number>>,
 ): SlotSplit<T> {
-  // Une copie du `Record` et non une `Map` : le type garantit les trois familles, la lecture n'a
+  // Une copie du `Record` et non une `Map` : le type garantit toutes les familles, la lecture n'a
   // donc aucune absence à rattraper.
-  const left: Record<MediaType, number> = { ...remaining };
+  const left: Record<K, number> = { ...remaining };
   const split: SlotSplit<T> = { accepted: [], rejected: [] };
 
   for (const item of items) {
@@ -150,10 +154,10 @@ export function mediaRecapText(
  * Pourquoi un média a été écarté AVANT tout envoi. `kind` accompagne la cause pour que l'appelant
  * puisse nommer la place qui manque (« plus de place pour une photo ») plutôt que de rester vague.
  */
-export type MediaRejection =
+export type MediaRejection<K extends string = MediaType> =
   | { cause: "unsupported"; kind: null }
-  | { cause: "noSlot"; kind: MediaType }
-  | { cause: "tooMany"; kind: MediaType | null };
+  | { cause: "noSlot"; kind: K }
+  | { cause: "tooMany"; kind: K | null };
 
 /** Où en est le lot, pour que l'écran puisse dire « Envoi 2 / 5 » en nommant le média en cours. */
 export type MediaBatchStep<N extends string | null = string | null> = {
@@ -168,16 +172,16 @@ export type MediaBatchStep<N extends string | null = string | null> = {
   continuesBatch: boolean;
 };
 
-export type MediaBatch<T, N extends string | null = string | null> = {
+export type MediaBatch<T, N extends string | null = string | null, K extends string = MediaType> = {
   items: readonly T[];
   /** Au-delà, on n'examine même pas : les quotas du débrief, ou le plafond d'un lot de messages. */
   maxItems: number;
-  remaining: Readonly<Record<MediaType, number>>;
+  remaining: Readonly<Record<K, number>>;
   /** La famille du média, `null` quand cette surface ne sait pas le joindre du tout. */
-  kindOf: (item: T) => MediaType | null;
+  kindOf: (item: T) => K | null;
   nameOf: (item: T) => N;
   send: (item: T, step: MediaBatchStep<N>) => Promise<void>;
-  rejectedReason: (rejection: MediaRejection) => MediaRecapReason;
+  rejectedReason: (rejection: MediaRejection<K>) => MediaRecapReason;
   failureReason: (error: unknown) => MediaRecapReason;
 };
 
@@ -195,8 +199,8 @@ type Ranked<T> = { item: T; rank: number };
  * galerie ou dans le fil, et le répéter en ferait un compte rendu d'exécution plutôt qu'une liste
  * de choses à corriger.
  */
-export async function sendMediaBatch<T, N extends string | null>(
-  batch: MediaBatch<T, N>,
+export async function sendMediaBatch<T, N extends string | null, K extends string = MediaType>(
+  batch: MediaBatch<T, N, K>,
 ): Promise<MediaRecapLine<N>[]> {
   const limit = Math.max(0, batch.maxItems);
   // Le rang dans la SÉLECTION accompagne chaque élément jusqu'au récapitulatif : c'est lui qui
@@ -208,7 +212,7 @@ export async function sendMediaBatch<T, N extends string | null>(
     reason,
   });
 
-  const slottable: (Ranked<T> & { kind: MediaType })[] = [];
+  const slottable: (Ranked<T> & { kind: K })[] = [];
   const unsupported: Ranked<T>[] = [];
   for (const entry of ranked.slice(0, limit)) {
     const kind = batch.kindOf(entry.item);

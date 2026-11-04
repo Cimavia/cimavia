@@ -4,10 +4,12 @@ import {
   FEEDBACK_EVENT_LABEL_KEY,
   FEEDBACK_EVENT_MESSAGE_TYPES,
   isAllowedMessageAudioMime,
+  isAllowedMessageFileMime,
   isFeedbackEventMessage,
   MAX_CONVERSATION_PARTICIPANTS,
   MAX_MESSAGE_AUDIO_DURATION_SECONDS,
   MAX_MESSAGE_AUDIO_SIZE_BYTES,
+  MAX_MESSAGE_FILE_SIZE_BYTES,
   MESSAGE_TEXT_MAX_LENGTH,
   MessageAttachmentType,
   MessageType,
@@ -274,5 +276,52 @@ describe("isAllowedMessageAudioMime", () => {
 
   it.each(["audio/mpeg", "video/webm", ""])("refuse %s", (mime) => {
     expect(isAllowedMessageAudioMime(mime)).toBe(false);
+  });
+});
+
+describe("fichier joint (#771)", () => {
+  const pdf = {
+    type: MessageType.FILE,
+    fileName: "programme.pdf",
+    mimeType: "application/pdf",
+    size: 320 * 1024,
+  };
+
+  it("se demande et s'envoie en PDF, sans durée", () => {
+    expect(requestMessageUploadUrlSchema.safeParse(pdf).success).toBe(true);
+    expect(
+      sendMessageSchema.safeParse({ ...pdf, storagePath: "conversation/c/p.pdf" }).success,
+    ).toBe(true);
+  });
+
+  // Une durée n'a pas de sens sur un fichier : le schéma strict la refuse plutôt que de la stocker.
+  it("refuse une durée", () => {
+    expect(requestMessageUploadUrlSchema.safeParse({ ...pdf, durationSeconds: 12 }).success).toBe(
+      false,
+    );
+  });
+
+  it("refuse un autre format que le PDF, et un fichier trop lourd", () => {
+    expect(
+      requestMessageUploadUrlSchema.safeParse({
+        ...pdf,
+        fileName: "bilan.docx",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }).success,
+    ).toBe(false);
+    expect(
+      requestMessageUploadUrlSchema.safeParse({ ...pdf, size: MAX_MESSAGE_FILE_SIZE_BYTES + 1 })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("isAllowedMessageFileMime", () => {
+  it("accepte le PDF", () => {
+    expect(isAllowedMessageFileMime("application/pdf")).toBe(true);
+  });
+
+  it.each(["application/zip", "image/png", ""])("refuse %s", (mime) => {
+    expect(isAllowedMessageFileMime(mime)).toBe(false);
   });
 });

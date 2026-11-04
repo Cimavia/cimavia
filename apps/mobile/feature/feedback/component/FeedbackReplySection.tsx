@@ -124,10 +124,10 @@ export function FeedbackReplyComposer({
 
       <Composer
         onSendText={reply.sendText}
-        onPickMedia={() => {
+        onPickMedia={(source) => {
           onPreUploadError(null);
           onRecap([]);
-          void reply.pickAndSend(onPreUploadError).then(onRecap);
+          void reply.pickAndSend(onPreUploadError, source).then(onRecap);
         }}
         onRecordAudio={(audio) => {
           onPreUploadError(null);

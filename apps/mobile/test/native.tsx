@@ -254,6 +254,7 @@ vi.mock("expo-image-manipulator", () => ({
 // Connecté par défaut : le hors-ligne est un état qu'un test doit demander, pas subir.
 vi.mock("expo-network", () => ({
   useNetworkState: () => ({ isConnected: true, isInternetReachable: true }),
+  getNetworkStateAsync: vi.fn(async () => ({ isConnected: true, isInternetReachable: true })),
   addNetworkStateListener: vi.fn(() => ({ remove: vi.fn() })),
 }));
 

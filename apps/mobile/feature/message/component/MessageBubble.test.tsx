@@ -158,6 +158,29 @@ describe("MessageBubble — les médias", () => {
     expect(resolve).toHaveBeenCalledWith("m-1");
   });
 
+  it("rend un fichier joint par son nom et sa taille (#771)", () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const file = { ...media, fileName: "plan.pdf", mimeType: "application/pdf", sizeBytes: 2_048 };
+    const dto = { ...message(null), type: "FILE", content: null, media: file } as MessageDto;
+    const { getByText } = renderRn(
+      <MessageBubble message={dto} mine={false} resolveMediaUrl={noResolve} />,
+    );
+
+    expect(getByText("plan.pdf")).toBeTruthy();
+    expect(getByText("common.fileSize.kilobytes")).toBeTruthy();
+  });
+
+  /**
+   * Un type que ce binaire ne connaît pas — l'API en a appris un depuis sa sortie. Il se DIT, au
+   * lieu de tomber dans le lecteur vidéo, qui donnait une pastille ne lisant rien.
+   */
+  it("dit qu'un type inconnu ne s'affiche pas, sans lecteur", () => {
+    const { container, getByText } = renderMedia("STICKER" as MessageDto["type"]);
+
+    expect(getByText("messages.unsupported")).toBeTruthy();
+    expect(container.querySelector('[data-icon="play-circle"]')).toBeNull();
+  });
+
   /** Un message média sans média servi ne rend rien plutôt qu'un lecteur vide. */
   it("ne rend aucun lecteur sur un média absent", () => {
     vi.mocked(useActingCapability).mockReturnValue("athlete");

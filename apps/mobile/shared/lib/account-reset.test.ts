@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const purgeAllDocuments = vi.fn();
 vi.mock("@/shared/lib/document-cache", () => ({ purgeAllDocuments: () => purgeAllDocuments() }));
 
+const purgeMessageFiles = vi.fn();
+vi.mock("@/shared/lib/message-file", () => ({ purgeMessageFiles: () => purgeMessageFiles() }));
+
 const purgeVideoThumbnails = vi.fn();
 vi.mock("@/shared/lib/video-thumbnail", () => ({
   purgeVideoThumbnails: () => purgeVideoThumbnails(),
@@ -19,10 +22,11 @@ beforeEach(() => {
 });
 
 describe("resetAccountData", () => {
-  it("efface le cache de requêtes, les documents ET les vignettes vidéo de l'appareil", async () => {
+  it("efface le cache de requêtes, les documents, les fichiers joints ET les vignettes vidéo", async () => {
     await resetAccountData();
 
     expect(purgeAllDocuments).toHaveBeenCalledTimes(1);
+    expect(purgeMessageFiles).toHaveBeenCalledTimes(1);
     expect(purgeVideoThumbnails).toHaveBeenCalledTimes(1);
     expect(resetQueryCache).toHaveBeenCalledTimes(1);
   });
@@ -38,6 +42,7 @@ describe("resetAccountData", () => {
     await expect(resetAccountData()).rejects.toThrow();
 
     expect(purgeAllDocuments).toHaveBeenCalledTimes(1);
+    expect(purgeMessageFiles).toHaveBeenCalledTimes(1);
     expect(purgeVideoThumbnails).toHaveBeenCalledTimes(1);
   });
 });
