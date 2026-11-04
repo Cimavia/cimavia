@@ -1,7 +1,7 @@
 import { FILE_SIZE_LABEL_KEY, fileSizeOf, type MessageMediaDto } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { useNetworkState } from "expo-network";
+import { getNetworkStateAsync } from "expo-network";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, View } from "react-native";
@@ -17,14 +17,22 @@ type FileMessageProps = {
 };
 
 /**
+ * La connectivité lue AU TAP, et non par un abonnement : un fil de dizaines de PDF en tiendrait
+ * autant, re-rendus à chaque changement de réseau, pour un état qui ne sert qu'à ce geste. Inconnue,
+ * elle laisse tenter le téléchargement — c'est lui qui dira l'échec.
+ */
+async function isOnline(): Promise<boolean> {
+  const state = await getNetworkStateAsync().catch(() => null);
+  return state?.isInternetReachable !== false;
+}
+
+/**
  * Fichier joint d'un message (#771) : son nom et sa taille, comme la maquette `conversation_1_1`
  * le dessine. Au tap, il est descendu puis remis au lecteur PDF de l'appareil — il ne se lit pas
  * dans la bulle.
  */
 export function FileMessage({ messageId, media, resolveUrl }: Readonly<FileMessageProps>) {
   const { t } = useTranslation();
-  const network = useNetworkState();
-  const isOnline = network.isInternetReachable !== false;
   const [opening, setOpening] = useState(false);
   const [failure, setFailure] = useState<Exclude<OpenFileOutcome, "opened"> | null>(null);
   const size = fileSizeOf(media.sizeBytes);
@@ -32,7 +40,7 @@ export function FileMessage({ messageId, media, resolveUrl }: Readonly<FileMessa
   const open = async () => {
     setFailure(null);
     setOpening(true);
-    const outcome = await openMessageFile(messageId, media, isOnline, resolveUrl);
+    const outcome = await openMessageFile(messageId, media, await isOnline(), resolveUrl);
     setOpening(false);
     setFailure(outcome === "opened" ? null : outcome);
   };

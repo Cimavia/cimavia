@@ -1,4 +1,5 @@
 import { waitFor } from "@testing-library/react";
+import { getNetworkStateAsync } from "expo-network";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FileMessage } from "@/feature/message/component/FileMessage";
 import { press, renderRn } from "@/test/render";
@@ -28,6 +29,10 @@ function pressFile(getByLabelText: (label: string) => Element): void {
 
 beforeEach(() => {
   openMessageFile.mockReset();
+  vi.mocked(getNetworkStateAsync).mockResolvedValue({
+    isConnected: true,
+    isInternetReachable: true,
+  });
 });
 
 describe("FileMessage", () => {
@@ -47,6 +52,28 @@ describe("FileMessage", () => {
       expect(openMessageFile).toHaveBeenCalledWith("m-1", media, true, resolveUrl),
     );
     expect(queryByText("messages.file.openError")).toBeNull();
+  });
+
+  it.each([
+    ["hors réseau", async () => ({ isConnected: false, isInternetReachable: false }), false],
+    // Inconnue, elle laisse tenter : c'est le téléchargement qui dira l'échec.
+    [
+      "illisible",
+      async () => {
+        throw new Error("module");
+      },
+      true,
+    ],
+  ])("lit la connectivité au tap, %s", async (_case, state, online) => {
+    vi.mocked(getNetworkStateAsync).mockImplementation(state as never);
+    openMessageFile.mockResolvedValue("opened");
+    const { getByLabelText } = renderFile();
+
+    pressFile(getByLabelText);
+
+    await waitFor(() =>
+      expect(openMessageFile).toHaveBeenCalledWith("m-1", media, online, resolveUrl),
+    );
   });
 
   it.each([
