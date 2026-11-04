@@ -237,6 +237,39 @@ describe("MessageBubble — le fichier joint (#771)", () => {
     open.mockRestore();
   });
 
+  // Réessayer ne servirait à rien : c'est au navigateur qu'il faut toucher.
+  it("dit l'onglet bloqué par le navigateur autrement qu'un fichier introuvable", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const { user, getByRole, findByText } = await renderFile(noResolve);
+
+    await user.click(getByRole("button", { name: "messages.file.open" }));
+
+    expect(await findByText("messages.file.popupBlocked")).toBeInTheDocument();
+    open.mockRestore();
+  });
+
+  it("n'ouvre qu'un onglet tant que la re-signature traîne", async () => {
+    const tab = { closed: false, opener: {}, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    let release: (url: string) => void = () => {};
+    const resolve = vi.fn(
+      () =>
+        new Promise<string>((resolveUrl) => {
+          release = resolveUrl;
+        }),
+    );
+    const { user, getByRole } = await renderFile(resolve);
+    const button = getByRole("button", { name: "messages.file.open" });
+
+    await user.click(button);
+    await user.click(button);
+    release("https://x/fraiche.pdf");
+
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(open).toHaveBeenCalledOnce();
+    open.mockRestore();
+  });
+
   /**
    * Un type que ce client ne connaît pas encore ne se rend pas en lecteur : le DTO n'est pas validé
    * côté client, et le vieux repli « tout le reste est une vidéo » affichait un lecteur cassé.

@@ -1265,7 +1265,8 @@
     "unsupported": "Ce message ne s'affiche pas dans cette version de l'application.",
     "file": {
       "open": "Ouvrir {{fileName}}",
-      "openError": "Ce fichier ne s'ouvre pas pour l'instant. Réessaie dans un instant."
+      "openError": "Ce fichier ne s'ouvre pas pour l'instant. Réessaie dans un instant.",
+      "popupBlocked": "Ton navigateur a bloqué l'onglet du fichier. Autorise les fenêtres pour Cimavia, puis réessaie."
     }
   },
   "athlete": {

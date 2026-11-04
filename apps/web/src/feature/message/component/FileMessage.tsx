@@ -1,8 +1,16 @@
 import { FILE_SIZE_LABEL_KEY, fileSizeOf, type MessageMediaDto } from "@cmv/shared";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoDocumentTextOutline } from "react-icons/io5";
 import { useToast } from "@/shared/component";
-import { openInNewTab } from "@/shared/lib/open-in-new-tab";
+import { type OpenInNewTabOutcome, openInNewTab } from "@/shared/lib/open-in-new-tab";
+
+// Ce qui se dit quand l'onglet n'a pas reçu le fichier. Un onglet refermé par l'utilisateur, lui,
+// n'appelle rien.
+const FAILURE_KEY: Partial<Record<OpenInNewTabOutcome, string>> = {
+  blocked: "messages.file.popupBlocked",
+  failed: "messages.file.openError",
+};
 
 type FileMessageProps = {
   media: MessageMediaDto;
@@ -21,19 +29,26 @@ type FileMessageProps = {
 export function FileMessage({ media, resolveUrl }: Readonly<FileMessageProps>) {
   const { t } = useTranslation();
   const toast = useToast();
+  const [opening, setOpening] = useState(false);
   const size = fileSizeOf(media.sizeBytes);
 
+  // Un clic à la fois : un second pendant la re-signature ouvrirait un second onglet.
   const open = async () => {
-    if (!(await openInNewTab(resolveUrl))) toast.error(t("messages.file.openError"));
+    setOpening(true);
+    const failureKey = FAILURE_KEY[await openInNewTab(resolveUrl)];
+    setOpening(false);
+    if (failureKey != null) toast.error(t(failureKey));
   };
 
   return (
     <button
       type="button"
       onClick={() => void open()}
+      disabled={opening}
+      aria-busy={opening}
       aria-label={t("messages.file.open", { fileName: media.fileName })}
       title={t("messages.file.open", { fileName: media.fileName })}
-      className="flex w-52 max-w-full items-center gap-cmv-md text-left"
+      className="flex w-52 max-w-full items-center gap-cmv-md text-left disabled:cursor-progress"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-cmv-md bg-cmv-error-soft text-cmv-error">
         <IoDocumentTextOutline size={18} />
