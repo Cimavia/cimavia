@@ -95,7 +95,10 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
      se charge. Si elle se charge sans rien demander, la policy Access manque (#263).
    - `https://app-preview.<domaine>/legal/fr/privacy`, en navigation privée → la politique de
      confidentialité s'affiche **sans** rien demander. Une demande de code : l'exception `/legal`
-     manque (#778). `https://app-preview.<domaine>/legal/fr/inconnu` → 404, jamais l'app.
+     manque (#778). `https://app-preview.<domaine>/legal/fr/inconnu` → 404, jamais l'app. Et
+     `curl -s -o /dev/null -w "%{http_code}" --path-as-is "https://app-preview.<domaine>/legal/..%2Findex.html"`
+     → 404 : un 200 voudrait dire que la garde de `nginx.conf` ne tient plus, et que l'exception
+     `/legal` ouvre l'app entière.
 
 ## Déploiement : le NAS tire la version promue
 

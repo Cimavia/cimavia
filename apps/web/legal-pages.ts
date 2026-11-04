@@ -1,6 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
+import type { ServerResponse } from "node:http";
 import path from "node:path";
 import type { Connect, Plugin } from "vite";
+// Le JSON, et non `cmvColors` d'`@cmv/tokens` : ce fichier est chargé avec la config Vite, par Node,
+// qui lit le paquet sans les alias de l'app. Son `index.ts` importe ce même JSON sans l'attribut
+// `type: "json"` que Node exige — démarrage refusé (`ERR_IMPORT_ATTRIBUTE_MISSING`). Même source.
 import palette from "../../packages/tokens/src/palette.json";
 
 /**
@@ -11,9 +15,9 @@ import palette from "../../packages/tokens/src/palette.json";
  *
  * Chaque texte est un FRAGMENT HTML, `legal/<langue>/<document>.html`, qui commence par son `<h1>`.
  * Le plugin l'enveloppe dans un gabarit dont le style est tiré de `@cmv/tokens` (règle n°3) et
- * l'émet en `dist/legal/<langue>/<document>.html` ; nginx le sert sans l'extension. En dev et en
- * `vite preview`, un middleware rend la même page à la volée : modifier un texte puis recharger
- * suffit.
+ * l'émet en `dist/legal/<langue>/<document>.html` ; nginx le sert sans l'extension. En dev, un
+ * middleware rend la même page à la volée : modifier un texte puis recharger suffit. En
+ * `vite preview`, un autre sert la page CONSTRUITE, comme nginx : c'est l'artefact qu'il éprouve.
  *
  * Les chemins publiés sont ceux de `LEGAL_DOCUMENTS` (@cmv/shared) : le plugin ne les importe pas
  * — la config Vite est chargée par Node, sans les alias de l'app —, `legal-pages.test.ts` vérifie
@@ -99,25 +103,61 @@ export function readLegalSources(dir: string = SOURCE_DIR): LegalSource[] {
 }
 
 /**
- * Le middleware de dev et de preview, monté sous `/legal` : `/fr/privacy` rend
- * `legal/fr/privacy.html`. Tout autre chemin répond 404 — jamais la SPA, comme nginx en
- * déploiement : une page absente qui renverrait `index.html` chargerait l'app, que Cloudflare
- * Access garde.
+ * Le seul chemin servi sous `/legal` : `/<langue>/<document>`, en minuscules. Tout le reste — `..`,
+ * `%2F`, une majuscule, une extension — répond 404, jamais la SPA : une page absente qui renverrait
+ * `index.html` chargerait l'app, que Cloudflare Access garde. Même forme que le `map` de nginx.
  */
+const LEGAL_PATH = /^\/([a-z]{2})\/([a-z-]+)$/;
+
+/** `/fr/privacy` → la langue et le document ; `null` pour tout chemin hors de la forme permise. */
+export function legalPathOf(url: string | undefined): { locale: string; document: string } | null {
+  const match = LEGAL_PATH.exec(url?.split("?")[0] ?? "");
+  if (match?.[1] == null || match[2] == null) return null;
+  return { locale: match[1], document: match[2] };
+}
+
+/** Le contenu d'un fichier, `null` s'il n'existe pas. */
+function readIfExists(file: string): string | null {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function send(res: ServerResponse, page: string | null): void {
+  if (page == null) {
+    res.statusCode = 404;
+    res.end();
+    return;
+  }
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  res.end(page);
+}
+
+/** Dev, monté sous `/legal` : `/fr/privacy` rend `legal/fr/privacy.html` à la volée. */
 export function legalMiddleware(dir: string = SOURCE_DIR): Connect.NextHandleFunction {
   return (req, res) => {
-    const wanted = req.url?.split("?")[0]?.replace(/^\//, "");
-    const source = readLegalSources(dir).find(
-      ({ locale, document }) => `${locale}/${document}` === wanted,
+    const target = legalPathOf(req.url);
+    const fragment =
+      target == null
+        ? null
+        : readIfExists(path.join(dir, target.locale, `${target.document}${EXTENSION}`));
+    send(res, target == null || fragment == null ? null : renderLegalPage({ ...target, fragment }));
+  };
+}
+
+/** `vite preview`, monté sous `/legal` : sert `dist/legal/fr/privacy.html` tel que le build l'a émis. */
+export function builtLegalMiddleware(outDir: string): Connect.NextHandleFunction {
+  return (req, res) => {
+    const target = legalPathOf(req.url);
+    send(
+      res,
+      target == null
+        ? null
+        : readIfExists(path.join(outDir, "legal", target.locale, `${target.document}${EXTENSION}`)),
     );
-    if (source == null) {
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Cache-Control", "no-cache");
-    res.end(renderLegalPage(source));
   };
 }
 
@@ -128,7 +168,8 @@ export function legalPagesPlugin(dir: string = SOURCE_DIR): Plugin {
       server.middlewares.use("/legal", legalMiddleware(dir));
     },
     configurePreviewServer(server) {
-      server.middlewares.use("/legal", legalMiddleware(dir));
+      const outDir = path.resolve(server.config.root, server.config.build.outDir);
+      server.middlewares.use("/legal", builtLegalMiddleware(outDir));
     },
     generateBundle() {
       for (const source of readLegalSources(dir)) {

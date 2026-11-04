@@ -1280,6 +1280,14 @@ liste des domaines vivent dans l'index.
 >   enveloppé au build par `legal-pages.ts` dans un gabarit dont le style vient de `palette.json`
 >   (règle n°3), émis en `dist/legal/…` et servi par nginx en `try_files $uri.html =404` — **jamais
 >   le repli SPA**, pour la même raison. Une seule exception Access, sur `/legal`.
+> - **nginx juge le chemin BRUT** : Access accorde l'exception sur le chemin tel qu'il arrive, nginx
+>   choisit sa `location` sur le chemin normalisé — `/legal/..%2Findex.html` passait Access comme un
+>   document légal, puis recevait l'app (constaté au curl). Une garde sur `$request_uri` n'admet
+>   sous `/legal` que `/legal/<langue>/<document>`, et refuse partout les barres et points encodés,
+>   les doubles barres et les segments `..` ; tout le reste qui commence par `/legal` répond 404.
+> - **Les champs à remplir bloquent le merge** : `legal-sources.test.ts` refuse tout `&lt;…&gt;`
+>   resté dans un texte — l'identité de l'éditeur et son adresse de contact n'ont pas de valeur
+>   par défaut qu'on puisse publier.
 > - **Les textes longs ne vont pas dans les catalogues i18n** : la règle n°6 vise l'interface, et
 >   dix pages par langue n'y sont pas des libellés. Les libellés et la phrase de la mention, eux,
 >   passent par i18next. Un fichier par langue ; `legalDocumentUrl` (`@cmv/shared`) retombe sur le

@@ -4,9 +4,11 @@ import path from "node:path";
 import { cmvColors } from "@cmv/tokens";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  builtLegalMiddleware,
   type LegalSource,
   legalMiddleware,
   legalPagesPlugin,
+  legalPathOf,
   legalTitle,
   readLegalSources,
   renderLegalPage,
@@ -98,12 +100,43 @@ describe("readLegalSources", () => {
   });
 });
 
-function call(url: string | undefined) {
+type Handle = (req: unknown, res: unknown) => void;
+
+function call(url: string | undefined, handle: Handle = legalMiddleware(dir) as Handle) {
   const res = { statusCode: 200, setHeader: vi.fn(), end: vi.fn() };
-  const handle = legalMiddleware(dir) as (req: unknown, res: unknown) => void;
   handle({ url }, res);
   return res;
 }
+
+// Jamais la SPA : elle chargerait l'app, que Cloudflare Access garde. Les traversées sont déjà
+// normalisées par nginx et Vite avant d'arriver ici : la forme permise est la seconde barrière.
+const REFUSED = [
+  "/fr/inconnu",
+  "/en/terms",
+  "/fr/terms.html",
+  "/FR/terms",
+  "/fr/../terms",
+  "/fr/..%2Fterms",
+  "/fr",
+  "/",
+  undefined,
+];
+
+describe("legalPathOf", () => {
+  it("lit la langue et le document", () => {
+    expect(legalPathOf("/fr/legal-notice?from=app")).toEqual({
+      locale: "fr",
+      document: "legal-notice",
+    });
+  });
+
+  it.each(["/fr/../terms", "/fr/..%2Fterms", "/FR/terms", "/fr/terms.html", "/fr/", undefined])(
+    "refuse %s",
+    (url) => {
+      expect(legalPathOf(url)).toBeNull();
+    },
+  );
+});
 
 describe("legalMiddleware", () => {
   it("rend la page d'un document, sans cache", () => {
@@ -118,15 +151,31 @@ describe("legalMiddleware", () => {
     expect(call("/fr/terms?from=app").statusCode).toBe(200);
   });
 
-  // Jamais la SPA : elle chargerait l'app, que Cloudflare Access garde.
-  it.each(["/fr/inconnu", "/en/terms", "/fr/terms.html", "/", undefined])(
-    "répond 404 à %s",
-    (url) => {
-      const res = call(url);
-      expect(res.statusCode).toBe(404);
-      expect(res.end).toHaveBeenCalledWith();
-    },
-  );
+  it.each(REFUSED)("répond 404 à %s", (url) => {
+    const res = call(url);
+    expect(res.statusCode).toBe(404);
+    expect(res.end).toHaveBeenCalledWith();
+  });
+});
+
+describe("builtLegalMiddleware", () => {
+  // `dir` joue ici le dossier du build : la page y est déjà complète, servie telle quelle.
+  beforeEach(() => {
+    mkdirSync(path.join(dir, "legal", "fr"), { recursive: true });
+    writeFileSync(path.join(dir, "legal", "fr", "terms.html"), "<!doctype html>construite");
+  });
+
+  const built = () => builtLegalMiddleware(dir) as Handle;
+
+  it("sert la page émise par le build, sans la rendre", () => {
+    const res = call("/fr/terms", built());
+    expect(res.statusCode).toBe(200);
+    expect(res.end).toHaveBeenCalledWith("<!doctype html>construite");
+  });
+
+  it.each(REFUSED)("répond 404 à %s", (url) => {
+    expect(call(url, built()).statusCode).toBe(404);
+  });
 });
 
 describe("legalPagesPlugin", () => {
@@ -148,12 +197,25 @@ describe("legalPagesPlugin", () => {
     );
   });
 
-  it.each(["configureServer", "configurePreviewServer"] as const)(
-    "monte le middleware sous /legal en %s",
-    (hook) => {
-      const use = vi.fn();
-      (plugin()[hook] as (server: unknown) => void)({ middlewares: { use } });
-      expect(use).toHaveBeenCalledWith("/legal", expect.any(Function));
-    },
-  );
+  it("rend les sources en dev", () => {
+    const use = vi.fn();
+    (plugin().configureServer as (server: unknown) => void)({ middlewares: { use } });
+    expect(use).toHaveBeenCalledWith("/legal", expect.any(Function));
+    expect(call("/fr/privacy", use.mock.calls[0]?.[1]).statusCode).toBe(200);
+  });
+
+  // `vite preview` doit éprouver l'artefact, comme nginx : un fragment présent mais jamais émis y
+  // répondrait 404.
+  it("sert le build en preview, depuis son dossier de sortie", () => {
+    const use = vi.fn();
+    (plugin().configurePreviewServer as (server: unknown) => void)({
+      middlewares: { use },
+      config: { root: dir, build: { outDir: "dist" } },
+    });
+    expect(use).toHaveBeenCalledWith("/legal", expect.any(Function));
+    expect(call("/fr/privacy", use.mock.calls[0]?.[1]).statusCode).toBe(404);
+    mkdirSync(path.join(dir, "dist", "legal", "fr"), { recursive: true });
+    writeFileSync(path.join(dir, "dist", "legal", "fr", "privacy.html"), "page");
+    expect(call("/fr/privacy", use.mock.calls[0]?.[1]).statusCode).toBe(200);
+  });
 });
