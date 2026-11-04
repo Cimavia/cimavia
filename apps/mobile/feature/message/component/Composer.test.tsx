@@ -126,6 +126,43 @@ describe("Composer", () => {
     expect(onPickMedia).not.toHaveBeenCalled();
   });
 
+  /** Joindre ouvre d'abord un choix (#771) : la galerie, ou les PDF de l'appareil. */
+  it.each([
+    ["images-outline", "media"],
+    ["document-text-outline", "file"],
+  ])("ouvre la source choisie (%s), puis referme le choix", (icon, source) => {
+    const onPickMedia = vi.fn();
+    const { container } = renderRn(<Composer {...base} onPickMedia={onPickMedia} />);
+    expect(iconButton(container, icon)).toBeNull();
+
+    press(iconButton(container, "add-circle-outline") as Element);
+    press(iconButton(container, icon) as Element);
+
+    expect(onPickMedia).toHaveBeenCalledWith(source);
+    expect(iconButton(container, icon)).toBeNull();
+  });
+
+  it("referme le choix au second appui sur joindre, sans rien ouvrir", () => {
+    const onPickMedia = vi.fn();
+    const { container } = renderRn(<Composer {...base} onPickMedia={onPickMedia} />);
+    const attach = iconButton(container, "add-circle-outline") as Element;
+
+    press(attach);
+    press(attach);
+
+    expect(iconButton(container, "images-outline")).toBeNull();
+    expect(onPickMedia).not.toHaveBeenCalled();
+  });
+
+  it("ne rouvre pas le choix à la fin d'un enregistrement lancé par-dessus", () => {
+    const { container } = renderRn(<Composer {...base} />);
+
+    press(iconButton(container, "add-circle-outline") as Element);
+    press(iconButton(container, "mic-outline") as Element);
+
+    expect(iconButton(container, "images-outline")).toBeNull();
+  });
+
   it("ne montre l'avancement que pendant un envoi de média", () => {
     const { queryByText, rerender } = renderRn(<Composer {...base} />);
     expect(queryByText("messages.media.uploading")).toBeNull();

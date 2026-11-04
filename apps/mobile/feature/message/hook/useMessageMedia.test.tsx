@@ -1,4 +1,10 @@
-import { MAX_MESSAGE_MEDIA_BATCH, MessageType, messageKeys, UploadMode } from "@cmv/shared";
+import {
+  MAX_MESSAGE_MEDIA_BATCH,
+  type MediaRecapLine,
+  MessageType,
+  messageKeys,
+  UploadMode,
+} from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -19,6 +25,7 @@ const {
   fileSizeMock,
   permissionMock,
   launchLibraryMock,
+  pickFileMock,
 } = vi.hoisted(() => ({
   requestUrlMock: vi.fn(),
   sendMessageMock: vi.fn(),
@@ -32,6 +39,7 @@ const {
   fileSizeMock: vi.fn(),
   permissionMock: vi.fn(),
   launchLibraryMock: vi.fn(),
+  pickFileMock: vi.fn(),
 }));
 
 /**
@@ -81,7 +89,22 @@ vi.mock("expo-image-picker", () => ({
   launchImageLibraryAsync: launchLibraryMock,
 }));
 
+vi.mock("expo-document-picker", () => ({ getDocumentAsync: pickFileMock }));
+
 const CONVERSATION_ID = "cv-1";
+
+/** Un fichier tel que le sélecteur le rend : copié dans le cache, sous son nom affiché. */
+const pickedFile = (
+  name: string,
+  mimeType = "application/pdf",
+  size: number | undefined = 2_000,
+) => ({
+  name,
+  mimeType,
+  size,
+  uri: `file:///cache/DocumentPicker/${name}`,
+  lastModified: 0,
+});
 
 const asset = (fileName: string | null, type = "image") =>
   ({ fileName, type, uri: `file://${fileName}` }) as ImagePickerAsset;
@@ -145,7 +168,7 @@ describe("useSendMessageMedia", () => {
     launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("longue.mp4")] });
     const { result } = setup();
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     expect(uploadFileMock).not.toHaveBeenCalled();
     expect(sendPartMock.mock.calls.map(([, part]) => part)).toEqual([
@@ -168,7 +191,7 @@ describe("useSendMessageMedia", () => {
     launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("longue.mp4")] });
     const { result } = setup();
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     expect(abortMock).toHaveBeenCalledWith(
       CONVERSATION_ID,
@@ -186,7 +209,7 @@ describe("useSendMessageMedia", () => {
     });
     const { result } = setup();
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     // Chaque média EST un message : deux fichiers font deux messages, pas un message à deux
     // pièces jointes.
@@ -200,7 +223,7 @@ describe("useSendMessageMedia", () => {
     launchLibraryMock.mockResolvedValue({ canceled: false, assets: [] });
     const { result } = setup();
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     expect(launchLibraryMock.mock.calls[0]?.[0]).toMatchObject({
       mediaTypes: ["images", "videos"],
@@ -224,7 +247,7 @@ describe("useSendMessageMedia", () => {
 
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
 
     expect(sendMessageMock).toHaveBeenCalledTimes(MAX_MESSAGE_MEDIA_BATCH);
@@ -245,7 +268,7 @@ describe("useSendMessageMedia", () => {
 
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
 
     expect(sendMessageMock).toHaveBeenCalledTimes(2);
@@ -263,7 +286,7 @@ describe("useSendMessageMedia", () => {
 
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
 
     expect(onPickError).toHaveBeenCalledWith("messages.media.permission");
@@ -278,7 +301,7 @@ describe("useSendMessageMedia", () => {
 
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
 
     expect(recap).toEqual([]);
@@ -297,7 +320,7 @@ describe("useSendMessageMedia", () => {
 
     let batchDone: Promise<unknown> = Promise.resolve();
     await act(async () => {
-      batchDone = result.current.pickAndSend(onPickError);
+      batchDone = result.current.pickAndSend(onPickError, "media");
       await Promise.resolve();
     });
 
@@ -355,7 +378,7 @@ describe("useSendMessageMedia", () => {
       ),
     });
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     expect(queryClient.getQueryState(messageKeys.conversations(null))?.isInvalidated).toBe(true);
     expect(
@@ -378,7 +401,7 @@ describe("useSendMessageMedia", () => {
     launchLibraryMock.mockRejectedValue(new Error("galerie"));
     const { result } = setup();
 
-    await act(() => result.current.pickAndSend(onPickError));
+    await act(() => result.current.pickAndSend(onPickError, "media"));
 
     expect(onPickError).toHaveBeenCalledWith("messages.media.uploadError");
   });
@@ -395,7 +418,7 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
     const { result } = setup();
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
     return recap;
   }
@@ -426,7 +449,7 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
 
     let recap: Awaited<ReturnType<typeof result.current.pickAndSend>> = [];
     await act(async () => {
-      recap = await result.current.pickAndSend(onPickError);
+      recap = await result.current.pickAndSend(onPickError, "media");
     });
 
     expect(recap[0]?.reason).toEqual({ key: "messages.media.tooLarge", params: { max: 50 } });
@@ -438,5 +461,95 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
 
     expect(recap).toHaveLength(1);
     expect(recap[0]?.fileName).toBeNull();
+  });
+
+  describe("les fichiers PDF (#771)", () => {
+    it("ouvre le sélecteur sur les seuls PDF, puis envoie le fichier tel quel", async () => {
+      pickFileMock.mockResolvedValue({ canceled: false, assets: [pickedFile("plan.pdf")] });
+      const { result } = setup();
+
+      let recap: unknown[] = [];
+      await act(async () => {
+        recap = await result.current.pickAndSend(onPickError, "file");
+      });
+
+      expect(pickFileMock).toHaveBeenCalledWith({ type: ["application/pdf"], multiple: true });
+      expect(launchLibraryMock).not.toHaveBeenCalled();
+      // Rien à préparer : un PDF ne se compresse ni ne se mesure.
+      expect(prepareMediaMock).not.toHaveBeenCalled();
+      const descriptor = {
+        type: MessageType.FILE,
+        fileName: "plan.pdf",
+        mimeType: "application/pdf",
+        size: 2_000,
+      };
+      expect(requestUrlMock).toHaveBeenCalledWith(CONVERSATION_ID, descriptor, null);
+      expect(uploadFileMock).toHaveBeenCalledWith(
+        "https://signed",
+        "file:///cache/DocumentPicker/plan.pdf",
+        "application/pdf",
+      );
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        CONVERSATION_ID,
+        { ...descriptor, storagePath: "k/1", continuesBatch: false },
+        null,
+      );
+      expect(recap).toEqual([]);
+    });
+
+    it("ne dit rien d'une sélection annulée", async () => {
+      pickFileMock.mockResolvedValue({ canceled: true, assets: null });
+      const { result } = setup();
+
+      await act(() => result.current.pickAndSend(onPickError, "file"));
+
+      expect(requestUrlMock).not.toHaveBeenCalled();
+      expect(onPickError).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        "un fichier qui n'est pas un PDF",
+        pickedFile("photo.png", "image/png"),
+        "messages.media.unsupported",
+      ],
+      [
+        "un fichier illisible",
+        pickedFile("vide.pdf", "application/pdf", 0),
+        "messages.media.unreadable",
+      ],
+      [
+        "un fichier dont le fournisseur tait la taille",
+        { ...pickedFile("muet.pdf"), size: undefined },
+        "messages.media.unreadable",
+      ],
+      [
+        "un fichier trop lourd",
+        pickedFile("gros.pdf", "application/pdf", 21 * 1024 * 1024),
+        "messages.media.fileTooBig",
+      ],
+    ])("refuse %s avant tout envoi, et le dit sur sa ligne", async (_case, file, key) => {
+      pickFileMock.mockResolvedValue({ canceled: false, assets: [file] });
+      const { result } = setup();
+
+      let recap: MediaRecapLine[] = [];
+      await act(async () => {
+        recap = await result.current.pickAndSend(onPickError, "file");
+      });
+
+      expect(requestUrlMock).not.toHaveBeenCalled();
+      expect(recap).toEqual([
+        expect.objectContaining({ fileName: file.name, reason: expect.objectContaining({ key }) }),
+      ]);
+    });
+
+    it("dit l'échec du sélecteur lui-même à part, sans récapitulatif", async () => {
+      pickFileMock.mockRejectedValue(new Error("sélecteur indisponible"));
+      const { result } = setup();
+
+      await act(() => result.current.pickAndSend(onPickError, "file"));
+
+      expect(onPickError).toHaveBeenCalledWith("messages.media.uploadError");
+    });
   });
 });

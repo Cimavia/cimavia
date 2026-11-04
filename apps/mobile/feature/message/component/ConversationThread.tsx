@@ -194,10 +194,10 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
 
         <Composer
           onSendText={(content) => send.mutateAsync({ type: "TEXT", content })}
-          onPickMedia={() => {
+          onPickMedia={(source) => {
             setPreUploadErrorKey(null);
             setRecap([]);
-            void media.pickAndSend(setPreUploadErrorKey).then(setRecap);
+            void media.pickAndSend(setPreUploadErrorKey, source).then(setRecap);
           }}
           onRecordAudio={(audio) => {
             setPreUploadErrorKey(null);
