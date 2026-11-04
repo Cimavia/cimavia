@@ -43,7 +43,15 @@ Côté dashboard Cloudflare (**Zero Trust → Networks → Tunnels**), créer un
 
 > **`app-preview` est derrière Cloudflare Access** (#263), les deux autres non : l'API est appelée par
 > le téléphone, qui ne sait pas résoudre un écran de connexion, et `s3-preview` sert les URLs signées
-> que ce même téléphone appelle. Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
+> que ce même téléphone appelle.
+>
+> **Une seule exception sous `app-preview` : `/legal`** (#778). Les documents légaux doivent se lire
+> sans compte — les stores l'exigent, et l'inscription y renvoie. Dans *Zero Trust → Access →
+> Applications*, une **seconde** application *Self-hosted* sur `app-preview.<domaine>`, chemin
+> `legal`, avec une politique **Bypass → Everyone** : Access applique l'application au chemin le
+> plus précis. Rien d'autre ne s'ouvre, et c'est voulu : ces pages sont du HTML statique sans JS,
+> alors qu'une route de la SPA chargerait l'app entière, d'où l'on rejoint `/login` sans repasser
+> par Access (« Tranché en #778 »). Un quatrième hostname a existé jusqu'à #269, `mail-dev`, qui
 > exposait la boîte Mailpit du tier — il n'a plus de service derrière lui.
 
 > **`web:8080`, et non `web:80`**, depuis #379 : l'image web tourne sur `nginx-unprivileged`, dont
@@ -85,6 +93,9 @@ poser dans `CLOUDFLARE_TUNNEL_TOKEN` du `.env`.
    - `https://api-preview.<domaine>/health/ready` → `{"database":"up"}`
    - `https://app-preview.<domaine>` → Cloudflare demande une adresse et un code, **puis** l'app web
      se charge. Si elle se charge sans rien demander, la policy Access manque (#263).
+   - `https://app-preview.<domaine>/legal/fr/privacy`, en navigation privée → la politique de
+     confidentialité s'affiche **sans** rien demander. Une demande de code : l'exception `/legal`
+     manque (#778). `https://app-preview.<domaine>/legal/fr/inconnu` → 404, jamais l'app.
 
 ## Déploiement : le NAS tire la version promue
 
