@@ -71,6 +71,11 @@ export class MessageService {
     if (input.type !== MessageType.TEXT) {
       assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
     }
+    // Puis l'objet doit être celui que le ticket a signé (#317). Le fichier joint seul pour
+    // l'instant : une branche neuve n'agrandit pas la dette S-1, les médias l'attendent en #468.
+    if (input.type === MessageType.FILE) {
+      await this.storage.assertUploadedAsDeclared(input.storagePath, input);
+    }
 
     // Le message ouvre-t-il une SÉRIE chez ce destinataire ? Oui s'il a lu mon dernier message —
     // le passage « tout lu » → « non lu ». C'est le rythme de la trace (entrée de centre, e-mail),
@@ -288,7 +293,7 @@ function buildMessageData(
     fileName: input.fileName,
     mimeType: input.mimeType,
     sizeBytes: input.size,
-    // L'image n'a pas de durée ; l'audio et la vidéo, oui (déclarée par le client — cf. P4-2).
-    durationSeconds: input.type === MessageType.IMAGE ? null : input.durationSeconds,
+    // Seuls l'audio et la vidéo ont une durée (déclarée par le client — cf. P4-2).
+    durationSeconds: "durationSeconds" in input ? input.durationSeconds : null,
   };
 }

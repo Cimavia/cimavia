@@ -58,6 +58,14 @@ const PHOTO: SendMessageInput = {
   size: 1024,
 };
 
+const PDF: SendMessageInput = {
+  type: MessageType.FILE,
+  storagePath: "conversation/conv1/0b6f3c2e-8d1a-4c5e-9f7b-2a4d6e8c0f13-programme.pdf",
+  fileName: "programme.pdf",
+  mimeType: "application/pdf",
+  size: 2048,
+};
+
 // Mon dernier message du fil, avant celui qu'on envoie.
 const MY_LAST = new Date("2026-10-02T10:00:00Z");
 const BEFORE = new Date("2026-10-02T09:00:00Z");
@@ -99,10 +107,14 @@ function build(setup: Setup = {}) {
   } as unknown as TenantPrisma;
   const notifyMessageReceived = vi.fn().mockResolvedValue(undefined);
   const getJoinedOrThrow = vi.fn().mockResolvedValue(conversation);
+  const assertUploadedAsDeclared = vi.fn().mockResolvedValue(undefined);
 
   const service = new MessageService(
     db,
-    { createDownloadUrl: vi.fn().mockResolvedValue("https://signed") } as unknown as StorageService,
+    {
+      createDownloadUrl: vi.fn().mockResolvedValue("https://signed"),
+      assertUploadedAsDeclared,
+    } as unknown as StorageService,
     { getJoinedOrThrow } as unknown as ConversationService,
     { notifyMessageReceived } as unknown as NotificationService,
     {
@@ -112,7 +124,15 @@ function build(setup: Setup = {}) {
     { get: () => setup.actor ?? ATHLETE } as unknown as ClsService,
     {} as PrismaService,
   );
-  return { service, findFirst, create, updateMany, notifyMessageReceived, getJoinedOrThrow };
+  return {
+    service,
+    findFirst,
+    create,
+    updateMany,
+    notifyMessageReceived,
+    getJoinedOrThrow,
+    assertUploadedAsDeclared,
+  };
 }
 
 beforeEach(() => {
@@ -269,6 +289,53 @@ describe("MessageService.send — canaux de notification", () => {
         content: "Fini la séance",
       },
     });
+  });
+});
+
+describe("MessageService.send — fichier joint (#771)", () => {
+  // Ce que le ticket a signé est relu au storage : un fichier déclaré PDF de 2 Ko doit l'être.
+  it("confronte l'objet reçu à ce que le message déclare", async () => {
+    const { service, assertUploadedAsDeclared } = build();
+
+    await service.send("conv1", PDF);
+
+    expect(assertUploadedAsDeclared).toHaveBeenCalledWith(PDF.storagePath, PDF);
+  });
+
+  it("écrit le fichier sans durée", async () => {
+    const { service, create } = build();
+
+    await service.send("conv1", PDF);
+
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: MessageType.FILE,
+        storagePath: PDF.storagePath,
+        mimeType: "application/pdf",
+        sizeBytes: 2048,
+        durationSeconds: null,
+      }),
+    });
+  });
+
+  // L'objet ne correspond pas au ticket : rien ne s'écrit, personne n'est prévenu.
+  it("n'écrit rien quand le storage dément la déclaration", async () => {
+    const { service, create, notifyMessageReceived, assertUploadedAsDeclared } = build();
+    assertUploadedAsDeclared.mockRejectedValueOnce(new Error("409"));
+
+    await expect(service.send("conv1", PDF)).rejects.toThrow("409");
+
+    expect(create).not.toHaveBeenCalled();
+    expect(notifyMessageReceived).not.toHaveBeenCalled();
+  });
+
+  // S-1 reste ouverte pour les médias (#468) : la branche neuve ne l'agrandit pas, sans la traiter.
+  it("ne relit pas encore le storage pour une photo", async () => {
+    const { service, assertUploadedAsDeclared } = build();
+
+    await service.send("conv1", PHOTO);
+
+    expect(assertUploadedAsDeclared).not.toHaveBeenCalled();
   });
 });
 

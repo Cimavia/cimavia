@@ -979,6 +979,9 @@ enum MessageType {
   AUDIO
   IMAGE
   VIDEO
+  // Un fichier qu'on ouvre, pas un média qu'on lit — un PDF aujourd'hui (#771). La liste des
+  // formats vit dans `@cmv/shared` : en accepter un autre ne passera pas par cet enum.
+  FILE
   // Avis posés par le SERVEUR quand l'athlète dépose ou complète un débrief (#96) : ni texte ni
   // média, seulement `sessionFeedbackId`. Le libellé se rend côté client — rien de traduit en base.
   FEEDBACK_CREATED

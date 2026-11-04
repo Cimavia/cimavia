@@ -260,6 +260,84 @@ describe("Messagerie : médias (P5)", () => {
     expect(sent.body.media.durationSeconds).toBeNull();
   });
 
+  describe("fichier joint (#771)", () => {
+    const pdf = (fileName = "programme.pdf") => ({
+      type: "FILE",
+      fileName,
+      mimeType: "application/pdf",
+      size: 32_000,
+    });
+
+    it("envoie un PDF : URL de lecture signée, sans durée, lu par l'autre participant", async () => {
+      const storagePath = await upload(coachA, pdf());
+      const sent = await coachA
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...pdf(), storagePath });
+      expect(sent.status).toBe(201);
+      expect(sent.body.type).toBe("FILE");
+      expect(sent.body.media).toMatchObject({
+        fileName: "programme.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 32_000,
+        durationSeconds: null,
+      });
+      expect(sent.body.media.url).toContain("X-Amz-Signature");
+
+      const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
+      expect(list.body.at(-1).id).toBe(sent.body.id);
+    });
+
+    it("le schéma rejette un autre format que le PDF, au ticket comme à l'envoi (400)", async () => {
+      const docx = {
+        ...pdf("bilan.docx"),
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      };
+      const ticket = await coachA
+        .post(`/conversations/${conversationId}/messages/upload-url`)
+        .send(docx);
+      expect(ticket.status).toBe(400);
+
+      const sent = await coachA
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...docx, storagePath: `conversation/${conversationId}/bilan.docx` });
+      expect(sent.status).toBe(400);
+    });
+
+    // L'objet est relu au storage : déclarer une autre taille que celle envoyée ne passe pas.
+    it("refuse un PDF dont la déclaration dément l'objet reçu (409)", async () => {
+      const storagePath = await upload(coachA, pdf("menteur.pdf"));
+      const sent = await coachA
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...pdf("menteur.pdf"), size: 1_000, storagePath });
+      expect(sent.status).toBe(409);
+    });
+
+    it("refuse un PDF jamais envoyé au storage (404)", async () => {
+      const signed = await coachA
+        .post(`/conversations/${conversationId}/messages/upload-url`)
+        .send(pdf("fantome.pdf"));
+      expect(signed.status).toBe(201);
+
+      const sent = await coachA
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...pdf("fantome.pdf"), storagePath: signed.body.storagePath });
+      expect(sent.status).toBe(404);
+    });
+
+    it("un tiers ne demande pas de ticket ni n'envoie de PDF sur ce fil (404)", async () => {
+      const ticket = await coachB
+        .post(`/conversations/${conversationId}/messages/upload-url`)
+        .send(pdf());
+      expect(ticket.status).toBe(404);
+
+      const storagePath = await upload(coachA, pdf("convoite.pdf"));
+      const sent = await coachB
+        .post(`/conversations/${conversationId}/messages`)
+        .send({ ...pdf("convoite.pdf"), storagePath });
+      expect(sent.status).toBe(404);
+    });
+  });
+
   // Sans la taille dans la signature, un client pourrait déclarer 200 Ko puis pousser plus lourd :
   // le plafond du schéma ne serait qu'une politesse.
   it("le storage refuse un envoi plus lourd que la taille signée", async () => {
