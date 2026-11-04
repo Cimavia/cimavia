@@ -947,6 +947,8 @@ export {
   sortAthleteInvoices,
   visibleInvoiceAthleteRows,
 } from "./util/invoice-row.util";
+export type { LegalDocument } from "./util/legal.util";
+export { LEGAL_DOCUMENTS, LEGAL_LOCALES, legalDocumentUrl } from "./util/legal.util";
 export type { ExerciseFields } from "./util/library-input.util";
 export { toExerciseInput } from "./util/library-input.util";
 export type { AccessLabel, AccessLabelSubject } from "./util/library-row.util";
