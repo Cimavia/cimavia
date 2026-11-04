@@ -7,7 +7,6 @@ import type {
   MessageFileMimeType,
   MessageMediaKind,
   MultipartUploadTicket,
-  RequestMessageUploadUrlInput,
   SendMessageInput,
   TrainingCapability,
 } from "@cmv/shared";
@@ -18,6 +17,7 @@ import {
   MESSAGE_MEDIA_BATCH_SLOTS,
   MessageType,
   messageMediaKindOfMime,
+  messageUploadInput,
   runMultipartUpload,
   sendMediaBatch,
   UploadMode,
@@ -30,6 +30,7 @@ import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { discardPickedFile } from "@/shared/lib/message-file";
 import {
   StorageUploadError,
   sendStoragePart,
@@ -131,6 +132,7 @@ export function useSendMessageMedia(
           kindOf: fileMessageKind,
           nameOf: (file) => file.name,
           prepare: async (file) => prepareMessageFile(file),
+          release: (file) => discardPickedFile(file.uri),
         })
       : pickThenSend(pickImagesOrVideos, onPickError, {
           kindOf: assetMediaKind,
@@ -146,6 +148,8 @@ export function useSendMessageMedia(
       kindOf: (item: T) => MessageMediaKind | null;
       nameOf: (item: T) => string | null;
       prepare: (item: T) => Promise<PreparedMessageMedia>;
+      /** Rend ce que la sélection a laissé sur l'appareil, envoyé ou non. */
+      release?: (item: T) => void;
     },
   ): Promise<MediaRecapLine[]> => {
     let picked: T[];
@@ -169,7 +173,10 @@ export function useSendMessageMedia(
       send: (one, current) => upload(() => item.prepare(one), current),
       rejectedReason,
       failureReason,
-    }).finally(() => setStep(null));
+    }).finally(() => {
+      setStep(null);
+      if (item.release != null) for (const one of picked) item.release(one);
+    });
   };
 
   const recordAndSend = (recorded: RecordedAudio) => audio.mutate(recorded);
@@ -200,8 +207,13 @@ function fileMessageKind(file: DocumentPicker.DocumentPickerAsset): MessageMedia
   return messageMediaKindOfMime(file.mimeType) === MessageType.FILE ? MessageType.FILE : null;
 }
 
+/**
+ * La taille est celle de la COPIE locale, la seule envoyée, et non celle que le fournisseur
+ * déclare : un fichier virtuel ou converti (Drive) en annonce une autre, et le storage refuserait
+ * l'objet au poids signé.
+ */
 function prepareMessageFile(file: DocumentPicker.DocumentPickerAsset): PreparedMessageFile {
-  const check = checkMessageFile(file.mimeType ?? "", file.size ?? null);
+  const check = checkMessageFile(file.mimeType ?? "", storageFileSize(file.uri));
   if (!check.accepted) throw new MediaRejectedError(check.reasonKey, check.params);
   return {
     type: MessageType.FILE,
@@ -231,7 +243,7 @@ async function uploadAndSend(
   as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
-  const uploadInput = toUploadUrlInput(media);
+  const uploadInput = messageUploadInput(media);
   // C'est l'API qui décide de la forme de l'envoi, à partir de la seule taille : au-delà du seuil,
   // un PUT unique ne franchirait pas le bord réseau (cf. `upload.schema.ts`).
   const ticket = await messageApi.requestUploadUrl(conversationId, uploadInput, as);
@@ -324,8 +336,9 @@ async function pickImagesOrVideos(): Promise<ImagePicker.ImagePickerAsset[]> {
  * `expo-document-picker` et non le sélecteur d'`expo-file-system`, pourtant déjà là : sur Android,
  * celui-ci rend un `content://` dont le nom lu côté JS est l'identifiant du fournisseur
  * (`msf:1000038591`), sans extension. Le PDF partait sous ce nom, et le lecteur du destinataire
- * ne savait plus ce qu'il ouvrait. Celui-ci rend le nom affiché, la taille et le type, et copie le
- * fichier dans le cache de l'app : l'envoi lit un `file://` ordinaire.
+ * ne savait plus ce qu'il ouvrait. Celui-ci rend le nom affiché et le type, et copie le fichier
+ * dans le cache de l'app : l'envoi lit un `file://` ordinaire. Cette copie est effacée à la fin du
+ * lot (`discardPickedFile`) — elle resterait sinon à l'appareil du compte suivant.
  */
 async function pickFiles(): Promise<DocumentPicker.DocumentPickerAsset[]> {
   const picked = await DocumentPicker.getDocumentAsync({
@@ -333,22 +346,4 @@ async function pickFiles(): Promise<DocumentPicker.DocumentPickerAsset[]> {
     multiple: true,
   });
   return picked.canceled ? [] : picked.assets;
-}
-
-// Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive entre la taille
-// signée et la taille rattachée.
-function toUploadUrlInput(media: PreparedMessageMedia): RequestMessageUploadUrlInput {
-  const descriptor = {
-    type: media.type,
-    fileName: media.fileName,
-    mimeType: media.mimeType,
-    size: media.size,
-  };
-  // AUDIO et VIDEO portent en plus leur durée. Le cast couvre l'union que TS ne narrow pas quand
-  // `type` et `mimeType` restent ouverts.
-  return (
-    "durationSeconds" in media
-      ? { ...descriptor, durationSeconds: media.durationSeconds }
-      : descriptor
-  ) as RequestMessageUploadUrlInput;
 }

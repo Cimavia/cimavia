@@ -26,6 +26,7 @@ const {
   permissionMock,
   launchLibraryMock,
   pickFileMock,
+  discardPickedMock,
 } = vi.hoisted(() => ({
   requestUrlMock: vi.fn(),
   sendMessageMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   permissionMock: vi.fn(),
   launchLibraryMock: vi.fn(),
   pickFileMock: vi.fn(),
+  discardPickedMock: vi.fn(),
 }));
 
 /**
@@ -91,17 +93,18 @@ vi.mock("expo-image-picker", () => ({
 
 vi.mock("expo-document-picker", () => ({ getDocumentAsync: pickFileMock }));
 
+vi.mock("@/shared/lib/message-file", () => ({ discardPickedFile: discardPickedMock }));
+
 const CONVERSATION_ID = "cv-1";
 
-/** Un fichier tel que le sélecteur le rend : copié dans le cache, sous son nom affiché. */
-const pickedFile = (
-  name: string,
-  mimeType = "application/pdf",
-  size: number | undefined = 2_000,
-) => ({
+/**
+ * Un fichier tel que le sélecteur le rend : copié dans le cache, sous son nom affiché. La taille
+ * qu'il DÉCLARE est celle du fournisseur ; celle de la copie, `fileSizeMock` la donne.
+ */
+const pickedFile = (name: string, mimeType = "application/pdf") => ({
   name,
   mimeType,
-  size,
+  size: 2_000,
   uri: `file:///cache/DocumentPicker/${name}`,
   lastModified: 0,
 });
@@ -464,7 +467,7 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
   });
 
   describe("les fichiers PDF (#771)", () => {
-    it("ouvre le sélecteur sur les seuls PDF, puis envoie le fichier tel quel", async () => {
+    it("ouvre le sélecteur sur les seuls PDF, puis envoie la copie au poids mesuré", async () => {
       pickFileMock.mockResolvedValue({ canceled: false, assets: [pickedFile("plan.pdf")] });
       const { result } = setup();
 
@@ -475,13 +478,16 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
 
       expect(pickFileMock).toHaveBeenCalledWith({ type: ["application/pdf"], multiple: true });
       expect(launchLibraryMock).not.toHaveBeenCalled();
-      // Rien à préparer : un PDF ne se compresse ni ne se mesure.
+      // Rien à compresser : un PDF part tel quel.
       expect(prepareMediaMock).not.toHaveBeenCalled();
+      expect(fileSizeMock).toHaveBeenCalledWith("file:///cache/DocumentPicker/plan.pdf");
+      // Le poids de la copie, et non les 2 000 octets que le fournisseur annonçait : c'est elle
+      // que le storage reçoit, au poids signé.
       const descriptor = {
         type: MessageType.FILE,
         fileName: "plan.pdf",
         mimeType: "application/pdf",
-        size: 2_000,
+        size: 1_000,
       };
       expect(requestUrlMock).toHaveBeenCalledWith(CONVERSATION_ID, descriptor, null);
       expect(uploadFileMock).toHaveBeenCalledWith(
@@ -495,6 +501,28 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
         null,
       );
       expect(recap).toEqual([]);
+    });
+
+    it("efface chaque copie du sélecteur à la fin du lot, envoyée ou refusée", async () => {
+      pickFileMock.mockResolvedValue({
+        canceled: false,
+        assets: [pickedFile("plan.pdf"), pickedFile("photo.png", "image/png")],
+      });
+      const { result } = setup();
+
+      await act(() => result.current.pickAndSend(onPickError, "file"));
+
+      expect(discardPickedMock).toHaveBeenCalledWith("file:///cache/DocumentPicker/plan.pdf");
+      expect(discardPickedMock).toHaveBeenCalledWith("file:///cache/DocumentPicker/photo.png");
+    });
+
+    it("ne touche pas aux fichiers de la galerie", async () => {
+      launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("a.jpg")] });
+      const { result } = setup();
+
+      await act(() => result.current.pickAndSend(onPickError, "media"));
+
+      expect(discardPickedMock).not.toHaveBeenCalled();
     });
 
     it("ne dit rien d'une sélection annulée", async () => {
@@ -511,24 +539,18 @@ describe("useSendMessageMedia — la raison d'un fichier refusé", () => {
       [
         "un fichier qui n'est pas un PDF",
         pickedFile("photo.png", "image/png"),
+        1_000,
         "messages.media.unsupported",
       ],
-      [
-        "un fichier illisible",
-        pickedFile("vide.pdf", "application/pdf", 0),
-        "messages.media.unreadable",
-      ],
-      [
-        "un fichier dont le fournisseur tait la taille",
-        { ...pickedFile("muet.pdf"), size: undefined },
-        "messages.media.unreadable",
-      ],
+      ["un fichier illisible", pickedFile("vide.pdf"), 0, "messages.media.unreadable"],
       [
         "un fichier trop lourd",
-        pickedFile("gros.pdf", "application/pdf", 21 * 1024 * 1024),
+        pickedFile("gros.pdf"),
+        21 * 1024 * 1024,
         "messages.media.fileTooBig",
       ],
-    ])("refuse %s avant tout envoi, et le dit sur sa ligne", async (_case, file, key) => {
+    ])("refuse %s avant tout envoi, et le dit sur sa ligne", async (_case, file, size, key) => {
+      fileSizeMock.mockReturnValue(size);
       pickFileMock.mockResolvedValue({ canceled: false, assets: [file] });
       const { result } = setup();
 

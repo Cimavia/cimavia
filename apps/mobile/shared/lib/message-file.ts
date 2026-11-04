@@ -20,6 +20,9 @@ import { type OpenFileOutcome, openLocalFile } from "@/shared/lib/open-file";
 
 const DIRECTORY_NAME = "message-files";
 
+// Là où `expo-document-picker` copie chaque fichier choisi, sous le cache, iOS comme Android.
+const PICKED_DIRECTORY_NAME = "DocumentPicker";
+
 type LocalMedia = Pick<MessageMediaDto, "fileName" | "mimeType" | "sizeBytes">;
 
 // L'identifiant compose un chemin de fichier : borné et filtré, même s'il vient de notre API.
@@ -38,6 +41,10 @@ const inFlight = new Map<string, Promise<string | null>>();
 
 function filesDirectory(): Directory {
   return new Directory(Paths.cache, DIRECTORY_NAME);
+}
+
+function pickedDirectory(): Directory {
+  return new Directory(Paths.cache, PICKED_DIRECTORY_NAME);
 }
 
 function messageFile(messageId: string, fileName: string): File {
@@ -139,15 +146,30 @@ export async function openMessageFile(
 }
 
 /**
+ * Efface la copie qu'a laissée le sélecteur d'un fichier envoyé (#771). Rien hors de son dossier :
+ * une URI d'ailleurs serait le fichier de l'utilisateur lui-même, pas une copie.
+ */
+export function discardPickedFile(uri: string): void {
+  const root = pickedDirectory().uri.replace(/\/$/, "");
+  if (uri.startsWith(`${root}/`)) discard(new File(uri));
+}
+
+/**
  * Efface les fichiers de messages — appelé au changement de compte, comme les documents : laisser
  * les PDF d'un compte sur l'appareil du suivant serait la fuite que `resetAccountData` referme.
+ *
+ * Les copies du sélecteur partent avec : `discardPickedFile` les efface après l'envoi, mais un
+ * processus tué en plein lot en laisse.
  */
 export function purgeMessageFiles(): void {
   // AVANT la suppression : aucun téléchargement en vol ne doit se croire encore légitime.
   generation += 1;
   inFlight.clear();
+  for (const directory of [filesDirectory(), pickedDirectory()]) deleteDirectory(directory);
+}
+
+function deleteDirectory(directory: Directory): void {
   try {
-    const directory = filesDirectory();
     if (directory.exists) directory.delete();
   } catch {
     // Rien qui vaille de faire échouer une déconnexion.

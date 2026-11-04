@@ -70,11 +70,12 @@ vi.mock("@/shared/lib/open-file", () => ({
   openLocalFile: (uri: string, mime: string | null) => openLocalFile(uri, mime),
 }));
 
-const { openMessageFile, purgeMessageFiles } = await import("./message-file");
+const { discardPickedFile, openMessageFile, purgeMessageFiles } = await import("./message-file");
 
 const SIZE = 2_048;
 const PDF = { fileName: "Plan.Semaine.PDF", mimeType: "application/pdf", sizeBytes: SIZE };
 const LOCAL = `${ROOT}/m-1.pdf`;
+const PICKED = `${CACHE}/DocumentPicker/0b8e.pdf`;
 const URL = "https://s3.test/plan.pdf?X-Amz-Date=120000";
 const resolveUrl = vi.fn(async (): Promise<string | null> => URL);
 
@@ -175,9 +176,25 @@ describe("openMessageFile", () => {
   });
 });
 
+describe("discardPickedFile", () => {
+  it("efface la copie laissée par le sélecteur", () => {
+    files.set(PICKED, SIZE);
+    discardPickedFile(PICKED);
+    expect(files.has(PICKED)).toBe(false);
+  });
+
+  it("ne touche à rien hors du dossier du sélecteur", () => {
+    const original = "file:///storage/emulated/0/Download/plan.pdf";
+    files.set(original, SIZE);
+    discardPickedFile(original);
+    expect(files.has(original)).toBe(true);
+  });
+});
+
 describe("purgeMessageFiles", () => {
-  it("efface les fichiers descendus", () => {
+  it("efface les fichiers descendus et les copies du sélecteur", () => {
     files.set(LOCAL, SIZE);
+    files.set(PICKED, SIZE);
     purgeMessageFiles();
     expect(files.size).toBe(0);
   });

@@ -659,7 +659,10 @@ liste des domaines vivent dans l'index.
 > - **Mobile : `expo-document-picker`**, comme l'issue le citait, et non le sélecteur
 >   d'`expo-file-system`, pourtant déjà là : sur Android, le nom que celui-ci rend au JS est
 >   l'identifiant du fournisseur (`msf:1000038591`), sans extension. Le PDF serait parti sous ce
->   nom, et le lecteur du destinataire n'aurait plus su ce qu'il ouvrait.
+>   nom, et le lecteur du destinataire n'aurait plus su ce qu'il ouvrait. Il copie chaque fichier
+>   dans `cache/DocumentPicker` : la taille signée est celle de cette copie, mesurée (un fichier
+>   Drive en déclare une autre), et la copie est effacée à la fin du lot comme au changement de
+>   compte.
 > - **Ce qui laisse partir un PDF se décide une fois** (`checkMessageFile`) : type, taille connue et
 >   non nulle, plafond. Le web et le mobile le disent pareil.
 > - **Mobile : le choix « Photo ou vidéo / Fichier PDF » se fait en ligne** dans la barre d'envoi,
@@ -672,4 +675,6 @@ liste des domaines vivent dans l'index.
 >   comme une séance. Il est purgé au changement de compte (`resetAccountData`).
 > - **Un type inconnu se dit** (« ne s'affiche pas dans cette version ») au lieu de tomber dans le
 >   lecteur vidéo, sur les deux clients. Les binaires mobiles déjà installés, eux, rendront un
->   `FILE` en pastille vidéo muette jusqu'à leur mise à jour : c'est une `feat`, pas d'OTA (#287).
+>   `FILE` en pastille vidéo muette jusqu'à leur mise à jour, et l'aperçu de la liste des
+>   conversations en clé brute (`messages.preview.FILE`, absente de leur catalogue) : c'est une
+>   `feat` avec un module natif neuf, pas d'OTA (#287).
