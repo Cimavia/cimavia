@@ -418,6 +418,28 @@ liste des domaines vivent dans l'index.
 > côté client (`trackingOfExercises`), désormais aussi pour les **blocs** retirés : sans lui, une
 > clé morte suffisait à dépasser le plafond de blocs, et l'athlète restait bloqué à chaque envoi.
 
+> **Tranché en [#354](https://github.com/Cimavia/cimavia/issues/354)** (les identifiants tirés par
+> le client sont bornés, ceux du serveur non) : `clientKeySchema` (64 caractères) borne la `key`
+> d'un exercice de bloc, celle d'un ajout ou d'un remplaçant de composition, et l'`id` d'une colonne
+> ou d'une ligne de grille. Ces valeurs sont écrites telles quelles. `exerciseId`, l'`id` d'un bloc,
+> la clé d'un exercice retiré ou remplacé (`REMOVE`, `replacesKey`) et celle de Dosage n'ont pas
+> cette borne : elles désignent un exercice stocké, une valeur inconnue échoue à la recherche. Ce
+> point remplace l'`adjustment.path` de l'issue, retiré avec l'ancien modèle (1daf21b6). Une séance
+> dont une clé stockée dépasserait 64 se lirait encore mais ne se réenregistrerait plus : aucune
+> sur la preview au merge (requête de la PR), et les clients tirent des UUID de 36 caractères.
+>
+> La relecture ne prend pas cette borne, comme l'a tranché #297 : la grille relue
+> (`storedBlockGridSchema`, celle de `parseGrid` et de `blockReferenceSchema`) sort de la même
+> fabrique que celle d'entrée, sans borne sur ses identifiants. Ses libellés et ses lignes gardent
+> en revanche leurs bornes à la relecture, comme avant #354.
+>
+> **Tranché en #354** (le lien borné une seule fois) : `LINK_URL_MAX_LENGTH` (2 048 caractères) vit
+> dans `linkHrefSchema`, la garde du protocole que le lien joint à un exercice partage avec celui de
+> la consigne depuis #324 (plus bas). Les deux liens prennent donc la même borne, sans code de plus.
+> La consigne relue (`parseInstructions`) garde ses bornes, celle du lien comprise, comme son texte
+> depuis #319 : en faire une fabrique comme la grille pour un cas qu'aucune donnée ne porte n'en
+> valait pas le prix. Aucun lien de consigne au-delà de 2 048 sur la preview au merge.
+
 ---
 
 ## Post-MVP — Créer l'exercice manquant sans perdre la séance ([#303](https://github.com/Cimavia/cimavia/issues/303))

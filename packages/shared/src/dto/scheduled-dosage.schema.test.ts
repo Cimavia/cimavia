@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { gridOf, issuesOf, load, settingsOf } from "../../test/block-fixtures";
+import { CLIENT_KEY_MAX_LENGTH } from "./client-key.schema";
 import { scheduledDosageInputSchema } from "./scheduled-dosage.schema";
 
 const VERSION = "2026-10-01T00:00:00.000Z";
@@ -42,6 +43,17 @@ describe("scheduledDosageInputSchema", () => {
       blocks: [...session("s1").blocks, { id: "b", settings: settingsOf(), exercises: [] }],
     };
     expect(issuesOf(scheduledDosageInputSchema, { sessions: [removed] })).toEqual([]);
+  });
+
+  // Comparée à la clé stockée, jamais écrite : une clé d'avant la borne se dose encore (#354).
+  it("désigne un exercice par sa clé stockée, sans la borner", () => {
+    const [block] = session("s1").blocks;
+    const key = "k".repeat(CLIENT_KEY_MAX_LENGTH + 1);
+    const legacy = {
+      ...session("s1"),
+      blocks: [{ ...block, exercises: [{ key, grid: gridOf([load], [60]) }] }],
+    };
+    expect(issuesOf(scheduledDosageInputSchema, { sessions: [legacy] })).toEqual([]);
   });
 
   it("refuse ce que Dosage ne règle pas, comme l'origine d'un exercice", () => {

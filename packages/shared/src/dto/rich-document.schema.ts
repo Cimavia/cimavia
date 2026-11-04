@@ -35,9 +35,13 @@ export const inlineMarkSchema = z.enum(InlineMark);
 // joint à l'exercice (#324) — devient un vecteur XSS dès le premier `<a href>` rendu côté web.
 // Vérifié par motif plutôt qu'avec `new URL()` : ce package est compilé sans lib DOM ni types
 // Node pour rester consommable tel quel par l'API, le web et React Native.
+// Une url de 2 048 caractères tient dans tous les navigateurs : au-delà, ce n'est plus un lien qu'on
+// colle (#354). La borne vaut aussi pour le lien joint à un exercice, qui passe par ce schéma.
 const LINK_PROTOCOL_PATTERN = /^https?:\/\//i;
+export const LINK_URL_MAX_LENGTH = 2048;
 export const linkHrefSchema = z
   .url()
+  .max(LINK_URL_MAX_LENGTH)
   .regex(LINK_PROTOCOL_PATTERN, { message: "Un lien doit être en http ou https." });
 
 // Fragment de texte homogène. Un lien est un fragment porteur de `href` : il peut donc être

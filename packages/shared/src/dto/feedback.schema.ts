@@ -15,6 +15,7 @@ import {
 import { messageDtoSchema } from "./message.schema";
 import { SESSION_MAX_BLOCKS } from "./session-block.schema";
 import { structureSettingsSchema } from "./structure.schema";
+import { uploadFileNameSchema } from "./upload.schema";
 
 export const FEEDBACK_CONTENT_MAX_LENGTH = 5000;
 
@@ -119,7 +120,7 @@ export const requestFeedbackUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MediaType.IMAGE),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackImageMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_PHOTO_SIZE_BYTES),
     })
@@ -127,7 +128,7 @@ export const requestFeedbackUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MediaType.VIDEO),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_SIZE_BYTES),
       // Déclarée par le client (le serveur ne décode pas le fichier) : la borne des 60 s est
@@ -138,7 +139,7 @@ export const requestFeedbackUploadUrlSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(MediaType.AUDIO),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackAudioMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_DURATION_SECONDS),
@@ -154,7 +155,7 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MediaType.IMAGE),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackImageMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_PHOTO_SIZE_BYTES),
     })
@@ -164,7 +165,7 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MediaType.VIDEO),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_DURATION_SECONDS),
@@ -175,7 +176,7 @@ export const attachFeedbackMediaSchema = z.discriminatedUnion("type", [
       ...mediaBatchShape,
       type: z.literal(MediaType.AUDIO),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: feedbackAudioMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_SIZE_BYTES),
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_AUDIO_DURATION_SECONDS),

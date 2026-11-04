@@ -2,6 +2,7 @@ import {
   DocumentType,
   DocumentUsage,
   type ExerciseDto,
+  LINK_URL_MAX_LENGTH,
   MAX_DOCUMENT_SIZE_BYTES,
 } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
@@ -20,6 +21,7 @@ const ADD_LINK = "library.builder.attachment.addLink";
 const ADD_LINK_ACTION = "library.builder.attachment.addLinkAction";
 const REMOVE = "library.builder.attachment.remove";
 const LINK_ERROR = "library.builder.attachment.errorLink";
+const LINK_TOO_LONG = "library.builder.attachment.errorLinkTooLong";
 
 /** Un fichier dont on force la TAILLE : produire 20 Mo d'octets pour un test serait absurde. */
 function fileOfSize(name: string, type: string, size: number): File {
@@ -168,6 +170,24 @@ describe("AttachmentsSection", () => {
       expect(await findByText(LINK_ERROR)).toBeInTheDocument();
       expect(onPendingLinks).not.toHaveBeenCalled();
       expect(getByLabelText(ADD_LINK)).toHaveValue("youtube.com/watch?v=1");
+    });
+
+    // Le lien a déjà son https:// : le message générique l'enverrait corriger ce qui est juste.
+    it("dit qu'un lien est trop long plutôt que mal formé", async () => {
+      const { user, getByRole, getByLabelText, findByText, queryByText, onPendingLinks } = setup();
+      const base = "https://example.test/";
+      const atBound = `${base}${"a".repeat(LINK_URL_MAX_LENGTH - base.length)}`;
+
+      fireEvent.change(getByLabelText(ADD_LINK), { target: { value: `${atBound}a` } });
+      await user.click(getByRole("button", { name: ADD_LINK_ACTION }));
+
+      expect(await findByText(LINK_TOO_LONG)).toBeInTheDocument();
+      expect(queryByText(LINK_ERROR)).not.toBeInTheDocument();
+      expect(onPendingLinks).not.toHaveBeenCalled();
+
+      fireEvent.change(getByLabelText(ADD_LINK), { target: { value: atBound } });
+      await user.click(getByRole("button", { name: ADD_LINK_ACTION }));
+      expect(onPendingLinks).toHaveBeenCalledWith([atBound]);
     });
 
     it("efface le message dès que le coach corrige", async () => {

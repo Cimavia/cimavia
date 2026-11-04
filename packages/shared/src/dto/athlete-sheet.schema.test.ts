@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { athleteSheetDtoSchema, updateAthleteSheetSchema } from "./athlete-sheet.schema";
+import {
+  ATHLETE_SHEET_CONTENT_MAX_LENGTH,
+  athleteSheetDtoSchema,
+  updateAthleteSheetSchema,
+} from "./athlete-sheet.schema";
 
 describe("updateAthleteSheetSchema", () => {
   const READ_AT = "2026-09-30T08:00:00.000Z";
@@ -15,6 +19,20 @@ describe("updateAthleteSheetSchema", () => {
     expect(
       updateAthleteSheetSchema.safeParse({ content: "", expectedUpdatedAt: READ_AT }).success,
     ).toBe(true);
+  });
+
+  // Sans borne, une fiche de 900 Ko s'écrivait et repartait à chaque lecture (#354).
+  it("borne le contenu à sa constante", () => {
+    const at = (length: number) => ({
+      content: "x".repeat(length),
+      expectedUpdatedAt: READ_AT,
+    });
+    expect(updateAthleteSheetSchema.safeParse(at(ATHLETE_SHEET_CONTENT_MAX_LENGTH)).success).toBe(
+      true,
+    );
+    expect(
+      updateAthleteSheetSchema.safeParse(at(ATHLETE_SHEET_CONTENT_MAX_LENGTH + 1)).success,
+    ).toBe(false);
   });
 
   it("exige le contenu", () => {

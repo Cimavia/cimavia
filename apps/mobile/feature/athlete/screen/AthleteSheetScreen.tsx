@@ -1,4 +1,5 @@
 import {
+  ATHLETE_SHEET_CONTENT_MAX_LENGTH,
   type AthleteSheetDto,
   athleteSheetDraft,
   type CoachAthleteDto,
@@ -136,6 +137,7 @@ function SheetNote({ athleteId }: Readonly<{ athleteId: string }>) {
             value={draft.content}
             onChangeText={(content) => setDraft({ ...draft, content })}
             multiline
+            maxLength={ATHLETE_SHEET_CONTENT_MAX_LENGTH}
             editable={!save.isPending}
           />
           <View className="flex-row gap-3">

@@ -17,6 +17,7 @@ import {
   requestMessageUploadUrlSchema,
   sendMessageSchema,
 } from "./message.schema";
+import { UPLOAD_FILE_NAME_MAX_LENGTH } from "./upload.schema";
 
 describe("sendMessageSchema", () => {
   it("accepte un message texte", () => {
@@ -35,6 +36,19 @@ describe("sendMessageSchema", () => {
       content: "x".repeat(MESSAGE_TEXT_MAX_LENGTH + 1),
     });
     expect(result.success).toBe(false);
+  });
+
+  // Le fil est relu à chaque tick de polling : un nom sans borne y repartait à chaque fois (#354).
+  it("raccourcit un nom de fichier au-delà de sa borne", () => {
+    const parsed = sendMessageSchema.parse({
+      type: MessageType.AUDIO,
+      storagePath: "a/b.m4a",
+      fileName: "x".repeat(UPLOAD_FILE_NAME_MAX_LENGTH + 1),
+      mimeType: "audio/m4a",
+      size: 1024,
+      durationSeconds: 12,
+    });
+    expect(parsed).toMatchObject({ fileName: "x".repeat(UPLOAD_FILE_NAME_MAX_LENGTH) });
   });
 
   it("refuse un contenu texte sur une branche média (champ inconnu, schéma strict)", () => {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { required } from "../util/invariant.util";
+import { clientKeySchema } from "./client-key.schema";
 import {
   type CustomMetric,
   type MetricValue,
@@ -42,20 +43,65 @@ const distinctRowIds: GridRefinement<{ rows: readonly { id: string }[] }> = [
 
 // ── La grille ───────────────────────────────────────────────────────────────────────────────
 
-/** `label` remplace l'en-tête par défaut quand le Coach le renseigne (« Voie » plutôt que « Libellé »). */
-const gridMetricBase = {
-  id: z.string().min(1),
-  label: z.string().trim().min(1).max(GRID_LABEL_MAX_LENGTH).nullable(),
-};
-
-export const gridMetricSchema = z.discriminatedUnion("source", [
-  z
-    .object({ ...gridMetricBase, ...catalogMetricShape })
+/**
+ * La grille, à l'identifiant de colonne et de ligne près. L'ENTRÉE le borne (`clientKeySchema`,
+ * #354) ; la RELECTURE non, pour qu'une grille stockée avant la borne ne fasse pas échouer en 500 la
+ * lecture de toute la séance (#297).
+ *
+ * Toutes les valeurs sont facultatives : une cellule vide se lit « — », et la séance s'enregistre
+ * quand même. Une grille sans colonne est permise — une routine de mobilité n'a rien à mesurer.
+ */
+function gridSchemasOf(id: z.ZodString) {
+  /** `label` remplace l'en-tête par défaut quand le Coach le renseigne (« Voie » plutôt que « Libellé »). */
+  const metricBase = {
+    id,
+    label: z.string().trim().min(1).max(GRID_LABEL_MAX_LENGTH).nullable(),
+  };
+  const metric = z.discriminatedUnion("source", [
+    z
+      .object({ ...metricBase, ...catalogMetricShape })
+      .strict()
+      .refine(...metricUnitRefinement),
+    z.object({ ...metricBase, ...customMetricShape }).strict(),
+  ]);
+  /** Les valeurs sont indexées par l'`id` de la colonne : réordonner les colonnes ne les déplace pas. */
+  const row = z.object({ id, values: z.record(z.string(), metricValueSchema) }).strict();
+  const grid = z
+    .object({
+      metrics: z.array(metric).max(GRID_MAX_METRICS),
+      rows: z.array(row).max(GRID_MAX_ROWS),
+    })
     .strict()
-    .refine(...metricUnitRefinement),
-  z.object({ ...gridMetricBase, ...customMetricShape }).strict(),
-]);
+    .refine(...distinctColumnIds)
+    .refine(...distinctRowIds)
+    .superRefine((value, context) => {
+      // Chaque valeur orpheline est refusée À SA CELLULE, pour que l'éditeur la montre.
+      const known = new Set(value.metrics.map((column) => column.id));
+      value.rows.forEach((line, index) => {
+        for (const metricId of Object.keys(line.values)) {
+          if (known.has(metricId)) continue;
+          context.addIssue({
+            code: "custom",
+            path: ["rows", index, "values", metricId],
+            message: "Une ligne porte une valeur pour une colonne inexistante.",
+          });
+        }
+      });
+    });
+  return { metric, row, grid };
+}
+
+const entryGrid = gridSchemasOf(clientKeySchema);
+
+export const gridMetricSchema = entryGrid.metric;
 export type GridMetric = z.infer<typeof gridMetricSchema>;
+export const gridRowSchema = entryGrid.row;
+export type GridRow = z.infer<typeof gridRowSchema>;
+export const blockGridSchema = entryGrid.grid;
+export type BlockGrid = z.infer<typeof blockGridSchema>;
+
+/** La grille relue depuis la base : la même, sans borne sur ses identifiants. */
+export const storedBlockGridSchema = gridSchemasOf(z.string().min(1)).grid;
 
 /**
  * La même colonne : même identifiant, même libellé, même mesure. Changer l'UNITÉ change ce que
@@ -81,43 +127,6 @@ export function sameGridMetrics(base: readonly GridMetric[], next: readonly Grid
     })
   );
 }
-
-/** Les valeurs sont indexées par l'`id` de la colonne : réordonner les colonnes ne les déplace pas. */
-export const gridRowSchema = z
-  .object({
-    id: z.string().min(1),
-    values: z.record(z.string(), metricValueSchema),
-  })
-  .strict();
-export type GridRow = z.infer<typeof gridRowSchema>;
-
-/**
- * Toutes les valeurs sont facultatives : une cellule vide se lit « — », et la séance s'enregistre
- * quand même. Une grille sans colonne est permise — une routine de mobilité n'a rien à mesurer.
- */
-export const blockGridSchema = z
-  .object({
-    metrics: z.array(gridMetricSchema).max(GRID_MAX_METRICS),
-    rows: z.array(gridRowSchema).max(GRID_MAX_ROWS),
-  })
-  .strict()
-  .refine(...distinctColumnIds)
-  .refine(...distinctRowIds)
-  .superRefine((grid, context) => {
-    // Chaque valeur orpheline est refusée À SA CELLULE, pour que l'éditeur la montre.
-    const known = new Set(grid.metrics.map((metric) => metric.id));
-    grid.rows.forEach((row, index) => {
-      for (const metricId of Object.keys(row.values)) {
-        if (known.has(metricId)) continue;
-        context.addIssue({
-          code: "custom",
-          path: ["rows", index, "values", metricId],
-          message: "Une ligne porte une valeur pour une colonne inexistante.",
-        });
-      }
-    });
-  });
-export type BlockGrid = z.infer<typeof blockGridSchema>;
 
 /**
  * Les colonnes d'un exercice qu'on ajoute à un bloc : ses métriques suggérées, dans l'ordre.

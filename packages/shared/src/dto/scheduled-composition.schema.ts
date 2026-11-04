@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { clientKeySchema } from "./client-key.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { PLAN_MAX_WEEKS, scheduledSessionStatusSchema } from "./plan.schema";
@@ -39,7 +40,9 @@ const blockIndexSchema = z
  * - `REMOVE_BLOCK` : tous les exercices du bloc partent, et le bloc reste, vide.
  *
  * La clé d'un ajout ou d'un remplaçant est tirée par le client : neuve pour un nouveau changement,
- * celle qu'il porte déjà quand on l'étend à d'autres semaines. `exerciseId` est `null` quand la
+ * celle qu'il porte déjà quand on l'étend à d'autres semaines. Elle s'écrit, d'où sa borne (#354).
+ * Celle d'un exercice retiré ou remplacé désigne un exercice déjà stocké : elle n'est que cherchée,
+ * et une clé stockée avant la borne se retire encore. `exerciseId` est `null` quand la
  * source de l'exercice a disparu de la bibliothèque : le changement se défait encore, mais ne
  * s'applique plus nulle part.
  */
@@ -48,7 +51,7 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal(CompositionEditKind.ADD),
       blockIndex: blockIndexSchema,
-      key: z.string().min(1),
+      key: clientKeySchema,
       exerciseId: z.string().min(1).nullable(),
     })
     .strict(),
@@ -57,7 +60,7 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
       kind: z.literal(CompositionEditKind.REPLACE),
       blockIndex: blockIndexSchema,
       replacesKey: z.string().min(1),
-      key: z.string().min(1),
+      key: clientKeySchema,
       exerciseId: z.string().min(1).nullable(),
     })
     .strict()

@@ -4,6 +4,7 @@ import {
   DocumentUsage,
   type ExerciseDto,
   isAllowedDocumentMime,
+  LINK_URL_MAX_LENGTH,
   MAX_DOCUMENT_SIZE_BYTES,
   required,
 } from "@cmv/shared";
@@ -83,11 +84,17 @@ export function AttachmentsSection({
   /**
    * Le lien est validé ICI, par le schéma que l'API applique au rattachement : l'attribut
    * `type="url"` du champ ne valide rien hors d'un `<form>`. Refusé à l'enregistrement, le lien
-   * faisait échouer l'enregistrement après la création de l'exercice (#302).
+   * faisait échouer l'enregistrement après la création de l'exercice (#302). Pas de `maxLength` sur
+   * le champ (#354) : il couperait une url collée sans le dire, et le lien tronqué passerait le
+   * schéma. Une url trop longue a son message : « ajoute https:// » égarerait le coach.
    */
   function addLink() {
     // Jamais blanc : le bouton, seul appelant, est fermé sur un brouillon blanc.
     const url = linkDraft.trim();
+    if (url.length > LINK_URL_MAX_LENGTH) {
+      setLinkError(t("library.builder.attachment.errorLinkTooLong", { max: LINK_URL_MAX_LENGTH }));
+      return;
+    }
     if (!attachDocumentSchema.safeParse({ type: DocumentType.LINK, url }).success) {
       setLinkError(t("library.builder.attachment.errorLink"));
       return;

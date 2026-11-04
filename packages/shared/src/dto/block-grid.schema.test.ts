@@ -6,7 +6,9 @@ import {
   gridValueIssues,
   metricsFromSuggested,
   sameGridMetrics,
+  storedBlockGridSchema,
 } from "./block-grid.schema";
+import { CLIENT_KEY_MAX_LENGTH } from "./client-key.schema";
 import { MetricKey, MetricUnit, MetricValueType } from "./exercise-metric.schema";
 import { customMetricIdsIn, MetricSource } from "./metric-reference.schema";
 
@@ -57,6 +59,24 @@ describe("blockGridSchema", () => {
     expect(issuesOf(blockGridSchema, { ...grid, rows: [first, first] })).toEqual([
       "rows: Deux lignes ne peuvent pas partager le même identifiant.",
     ]);
+  });
+
+  // Tirés par le client et gardés tels quels : sans borne, une clé de 900 Ko s'écrivait (#354).
+  it("borne les identifiants de colonne et de ligne", () => {
+    const tooLong = "k".repeat(CLIENT_KEY_MAX_LENGTH + 1);
+    const grid = gridOf([{ ...reps, id: tooLong }]);
+    const withRow = { metrics: [], rows: [{ id: tooLong, values: {} }] };
+    const pathsOf = (input: unknown) =>
+      blockGridSchema.safeParse(input).error?.issues.map((issue) => issue.path.join("."));
+    expect(pathsOf(grid)).toEqual(["metrics.0.id"]);
+    expect(pathsOf(withRow)).toEqual(["rows.0.id"]);
+  });
+
+  // La relecture ne borne pas : une grille stockée avant la borne se lit encore (#297).
+  it("relit une grille stockée dont les identifiants dépassent la borne", () => {
+    const tooLong = "k".repeat(CLIENT_KEY_MAX_LENGTH + 1);
+    const stored = { metrics: [{ ...reps, id: tooLong }], rows: [{ id: tooLong, values: {} }] };
+    expect(storedBlockGridSchema.safeParse(stored).success).toBe(true);
   });
 
   it("refuse à sa cellule une valeur dont la colonne n'existe pas, même à côté de valeurs connues", () => {

@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// Le double des autres textes longs (débrief, notes de séance : 5 000) : une fiche se tient sur des
+// mois, là où un débrief dit une séance (#354).
+export const ATHLETE_SHEET_CONTENT_MAX_LENGTH = 10_000;
+
 /**
  * Entrée : le coach édite le champ libre de la fiche athlète (coach seul — appliqué par le tenancy
  * layer).
@@ -11,7 +15,7 @@ import { z } from "zod";
  */
 export const updateAthleteSheetSchema = z
   .object({
-    content: z.string(),
+    content: z.string().max(ATHLETE_SHEET_CONTENT_MAX_LENGTH),
     expectedUpdatedAt: z.iso.datetime().nullable(),
   })
   .strict();

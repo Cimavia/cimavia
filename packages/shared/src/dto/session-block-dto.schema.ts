@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { blockGridSchema } from "./block-grid.schema";
+import { storedBlockGridSchema } from "./block-grid.schema";
 import { sessionBlockTrackingSchema } from "./block-tracking.schema";
 import { compositionOriginSchema } from "./session-block.schema";
 import { structurePresetKeySchema, structureSettingsSchema } from "./structure.schema";
@@ -24,7 +24,7 @@ const blockExerciseDtoFields = {
   id: z.string(),
   key: z.string(),
   note: z.string().nullable(),
-  grid: blockGridSchema,
+  grid: storedBlockGridSchema,
 };
 
 export const sessionBlockDtoSchema = z.object({
@@ -48,7 +48,7 @@ export const blockReferenceSchema = z.object({
       key: z.string().min(1),
       exerciseId: z.string().min(1).nullable(),
       note: z.string().nullable(),
-      grid: blockGridSchema,
+      grid: storedBlockGridSchema,
     }),
   ),
 });

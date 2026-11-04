@@ -1,11 +1,11 @@
 import {
   type BlockGrid,
   type BlockReference,
-  blockGridSchema,
   blockReferenceSchema,
   type SessionBlockTracking,
   type StructureSettings,
   sessionBlockTrackingSchema,
+  storedBlockGridSchema,
   structureSettingsSchema,
 } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
@@ -22,7 +22,7 @@ export function parseSettings(value: Prisma.JsonValue): StructureSettings {
 }
 
 export function parseGrid(value: Prisma.JsonValue): BlockGrid {
-  return blockGridSchema.parse(value);
+  return storedBlockGridSchema.parse(value);
 }
 
 export function parseBlockReference(value: Prisma.JsonValue): BlockReference {

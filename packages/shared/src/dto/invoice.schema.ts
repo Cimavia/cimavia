@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { myAccessSchema } from "./access.schema";
+import { uploadFileNameSchema } from "./upload.schema";
 
 export const INVOICE_NOTE_MAX_LENGTH = 2000;
 // Plafond de garde-fou (100 000 €) : borne le champ, pas une règle métier. amountCents est un
@@ -79,7 +80,7 @@ export function isAllowedInvoiceDocumentMime(
 // Étape 1 : URL PUT signée (le binaire ne transite jamais par l'API — règle 7).
 export const requestInvoiceDocumentUploadUrlSchema = z
   .object({
-    fileName: z.string().min(1),
+    fileName: uploadFileNameSchema,
     mimeType: invoiceDocumentMimeTypeSchema,
     size: z.number().int().positive().max(MAX_INVOICE_DOCUMENT_SIZE_BYTES),
   })
@@ -92,7 +93,7 @@ export type RequestInvoiceDocumentUploadUrlInput = z.infer<
 export const attachInvoiceDocumentSchema = z
   .object({
     storagePath: z.string().min(1),
-    fileName: z.string().min(1),
+    fileName: uploadFileNameSchema,
     mimeType: invoiceDocumentMimeTypeSchema,
     size: z.number().int().positive().max(MAX_INVOICE_DOCUMENT_SIZE_BYTES),
   })
