@@ -430,11 +430,9 @@ liste des domaines vivent dans l'index.
 > fabrique que celle d'entrée, sans borne sur ses identifiants. Ses libellés et ses lignes gardent
 > en revanche leurs bornes à la relecture, comme avant #354.
 >
-> **Tranché en #354** (le lien d'un exercice passe la garde du lien de consigne) : borner son `url`
-> a montré que `z.url()` acceptait `javascript:alert(1)`, rendu ensuite dans le `href` de la pièce
-> jointe. React 19 bloque ce lien au clic, mais la consigne riche avait déjà sa garde
-> (`linkHrefSchema`) : le lien joint la reprend, http(s) seulement et 2 048 caractères au plus. Un
-> lien déjà enregistré avec un autre protocole reste affiché, seul un nouvel ajout est refusé.
+> **Tranché en #354** (le lien borné une seule fois) : `LINK_URL_MAX_LENGTH` (2 048 caractères) vit
+> dans `linkHrefSchema`, la garde du protocole que le lien joint à un exercice partage avec celui de
+> la consigne depuis #324 (plus bas). Les deux liens prennent donc la même borne, sans code de plus.
 
 ---
 
