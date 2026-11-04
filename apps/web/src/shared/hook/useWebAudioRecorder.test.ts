@@ -159,6 +159,19 @@ describe("useWebAudioRecorder — la capture", () => {
 
     expect(track.stop).toHaveBeenCalled();
   });
+
+  it("n'envoie pas la capture au démontage, même quand le navigateur finit l'arrêt en coupant le micro", async () => {
+    // Un vrai navigateur arrête l'enregistreur quand on coupe ses pistes : `onstop` part alors.
+    getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: () => lastRecorder().stop() }] });
+    const { result, onRecorded, unmount } = setup();
+    await act(() => result.current.start());
+    act(() => vi.advanceTimersByTime(3000));
+    lastRecorder().chunks = [new Blob(["son"])];
+
+    unmount();
+
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
 });
 
 describe("useWebAudioRecorder — les refus", () => {

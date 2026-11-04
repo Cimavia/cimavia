@@ -60,8 +60,19 @@ export function useWebAudioRecorder({
     setIsRecording(false);
   }, []);
 
-  // Libère le micro si le composant est démonté en cours d'enregistrement.
-  useEffect(() => cleanup, [cleanup]);
+  // Libère le micro si le composant est démonté en cours d'enregistrement. Les rappels sont
+  // neutralisés AVANT de couper les pistes : le navigateur finit l'enregistrement en les coupant,
+  // et son `onstop` enverrait sinon la capture tronquée après le démontage.
+  useEffect(
+    () => () => {
+      if (recorderRef.current != null) {
+        recorderRef.current.onstop = null;
+        recorderRef.current.ondataavailable = null;
+      }
+      cleanup();
+    },
+    [cleanup],
+  );
 
   const start = async () => {
     try {
