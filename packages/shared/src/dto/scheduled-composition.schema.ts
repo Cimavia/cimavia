@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { clientKeySchema } from "./client-key.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
 import { PLAN_MAX_WEEKS, scheduledSessionStatusSchema } from "./plan.schema";
@@ -48,7 +49,7 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal(CompositionEditKind.ADD),
       blockIndex: blockIndexSchema,
-      key: z.string().min(1),
+      key: clientKeySchema,
       exerciseId: z.string().min(1).nullable(),
     })
     .strict(),
@@ -56,8 +57,8 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal(CompositionEditKind.REPLACE),
       blockIndex: blockIndexSchema,
-      replacesKey: z.string().min(1),
-      key: z.string().min(1),
+      replacesKey: clientKeySchema,
+      key: clientKeySchema,
       exerciseId: z.string().min(1).nullable(),
     })
     .strict()
@@ -69,7 +70,7 @@ export const compositionEditSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal(CompositionEditKind.REMOVE),
       blockIndex: blockIndexSchema,
-      key: z.string().min(1),
+      key: clientKeySchema,
     })
     .strict(),
   z

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
 import { gridRowLimit, roundsError } from "../util/structure-settings.util";
 import { blockGridSchema } from "./block-grid.schema";
+import { clientKeySchema } from "./client-key.schema";
 import {
   SESSION_MAX_EXERCISES,
   SESSION_NOTE_MAX_LENGTH,
@@ -37,7 +38,7 @@ export const SESSION_BLOCK_LABEL_MAX_LENGTH = 60;
  */
 export const sessionBlockExerciseSchema = z
   .object({
-    key: z.string().min(1),
+    key: clientKeySchema,
     exerciseId: z.string().min(1),
     note: z.string().max(SESSION_NOTE_MAX_LENGTH).nullable(),
     grid: blockGridSchema,
