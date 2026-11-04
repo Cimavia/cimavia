@@ -183,6 +183,77 @@ describe("MessageBubble — les médias", () => {
   });
 });
 
+describe("MessageBubble — le fichier joint (#771)", () => {
+  const pdf = {
+    url: "https://x/programme.pdf",
+    fileName: "programme.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 320 * 1024,
+    durationSeconds: null,
+  };
+
+  function renderFile(resolve: (id: string) => Promise<string | null>) {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const dto = { ...message(null), type: "FILE", content: null, media: pdf } as MessageDto;
+    return renderInRoute(<MessageBubble message={dto} mine={false} resolveMediaUrl={resolve} />, {
+      path: "/messages",
+      links: LINKS,
+    });
+  }
+
+  it("nomme le fichier et sa taille, sans lecteur", async () => {
+    const { container, getByText } = await renderFile(noResolve);
+
+    expect(getByText("programme.pdf")).toBeInTheDocument();
+    expect(getByText("common.fileSize.kilobytes")).toBeInTheDocument();
+    expect(container.querySelector("img, audio, video")).toBeNull();
+  });
+
+  // L'URL du fil n'est jamais ouverte telle quelle : elle peut avoir expiré (V-2).
+  it("ouvre l'url re-signée de CE message dans un onglet", async () => {
+    const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const resolve = vi.fn(async () => "https://x/fraiche.pdf");
+    const { user, getByRole } = await renderFile(resolve);
+
+    await user.click(getByRole("button", { name: "messages.file.open" }));
+
+    await waitFor(() => expect(tab.location.href).toBe("https://x/fraiche.pdf"));
+    expect(resolve).toHaveBeenCalledWith("m-1");
+    expect(tab.opener).toBeNull();
+    open.mockRestore();
+  });
+
+  it("dit l'échec plutôt que d'ouvrir le 403 du storage", async () => {
+    const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const { user, getByRole, findByText } = await renderFile(noResolve);
+
+    await user.click(getByRole("button", { name: "messages.file.open" }));
+
+    expect(await findByText("messages.file.openError")).toBeInTheDocument();
+    expect(tab.close).toHaveBeenCalledOnce();
+    expect(tab.location.href).toBe("");
+    open.mockRestore();
+  });
+
+  /**
+   * Un type que ce client ne connaît pas encore ne se rend pas en lecteur : le DTO n'est pas validé
+   * côté client, et le vieux repli « tout le reste est une vidéo » affichait un lecteur cassé.
+   */
+  it("rend un type inconnu en libellé neutre, jamais en lecteur", async () => {
+    vi.mocked(useActingCapability).mockReturnValue("athlete");
+    const dto = { ...message(null), type: "STICKER", content: null, media: pdf } as unknown;
+    const { container, getByText } = await renderInRoute(
+      <MessageBubble message={dto as MessageDto} mine={false} resolveMediaUrl={noResolve} />,
+      { path: "/messages", links: LINKS },
+    );
+
+    expect(getByText("messages.unsupported")).toBeInTheDocument();
+    expect(container.querySelector("img, audio, video, button")).toBeNull();
+  });
+});
+
 /**
  * Un avis n'est pas une parole : le serveur le pose. Ce qui s'éprouve ici est qu'il ne se DÉGUISE
  * pas en message — ni bulle alignée, ni couleur d'auteur — tout en gardant le lien qui est sa seule

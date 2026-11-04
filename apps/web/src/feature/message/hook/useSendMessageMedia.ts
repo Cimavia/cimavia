@@ -1,14 +1,18 @@
 import {
+  checkMessageFile,
   MAX_MESSAGE_MEDIA_BATCH,
+  MESSAGE_MEDIA_BATCH_SLOTS,
   type MediaBatchStep,
   type MediaRecapReason,
   type MediaRejection,
-  MediaType,
   type MessageDto,
+  type MessageFileMimeType,
+  type MessageMediaKind,
   MessageType,
   type MultipartRetry,
   type MultipartUploadTicket,
   mediaRecapText,
+  messageMediaKindOfMime,
   type RequestMessageUploadUrlInput,
   runMultipartUpload,
   type SendMessageInput,
@@ -27,7 +31,6 @@ import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
-  attachableMediaKind,
   MediaRejectedError,
   type PreparedWebMedia,
   prepareWebMedia,
@@ -116,13 +119,9 @@ export function useSendMessageMedia(
     const recap = await sendMediaBatch({
       items: files,
       maxItems: MAX_MESSAGE_MEDIA_BATCH,
-      // Le fil n'a aucun quota : sa seule borne est celle du lot, la même pour les trois familles.
-      remaining: {
-        [MediaType.IMAGE]: MAX_MESSAGE_MEDIA_BATCH,
-        [MediaType.VIDEO]: MAX_MESSAGE_MEDIA_BATCH,
-        [MediaType.AUDIO]: MAX_MESSAGE_MEDIA_BATCH,
-      },
-      kindOf: attachableMediaKind,
+      // Le fil n'a aucun quota : sa seule borne est celle du lot, la même pour chaque famille.
+      remaining: MESSAGE_MEDIA_BATCH_SLOTS,
+      kindOf: attachableMessageKind,
       nameOf: (file) => file.name,
       send: upload,
       rejectedReason,
@@ -154,7 +153,7 @@ export function useSendMessageMedia(
  * et ses places valent le plafond du lot — donc tout ce qui n'est pas un type refusé est un lot
  * trop grand.
  */
-function rejectedReason({ cause }: MediaRejection): MediaRecapReason {
+function rejectedReason({ cause }: MediaRejection<MessageMediaKind>): MediaRecapReason {
   if (cause === "unsupported") return { key: "messages.media.unsupported", params: {} };
   return { key: "messages.media.tooMany", params: { max: MAX_MESSAGE_MEDIA_BATCH } };
 }
@@ -167,6 +166,39 @@ function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
   const message = apiErrorMessage(error);
   return message == null ? { key: "common.error", params: {} } : { message };
+}
+
+/**
+ * La famille d'un fichier JOINT au fil : celles du débrief, plus le fichier (#771). L'audio est
+ * écarté — une note vocale s'enregistre, elle ne se joint pas. C'est aussi elle qui aiguille la
+ * préparation : deux lectures du type feraient qu'un fichier occupe une place puis se prépare
+ * comme autre chose.
+ */
+function attachableMessageKind(file: File): MessageMediaKind | null {
+  const kind = messageMediaKindOfMime(file.type);
+  return kind === MessageType.AUDIO ? null : kind;
+}
+
+/** Un fichier joint prêt à envoyer : rien à mesurer ni à compresser, seulement sa taille à borner. */
+type PreparedMessageFile = {
+  type: typeof MessageType.FILE;
+  file: File;
+  fileName: string;
+  mimeType: MessageFileMimeType;
+  size: number;
+};
+type PreparedMessageMedia = PreparedWebMedia | PreparedMessageFile;
+
+function prepareMessageFile(file: File): PreparedMessageFile {
+  const check = checkMessageFile(file.type, file.size);
+  if (!check.accepted) throw new MediaRejectedError(check.reasonKey, check.params);
+  return {
+    type: MessageType.FILE,
+    file,
+    fileName: file.name,
+    mimeType: check.mimeType,
+    size: check.size,
+  };
 }
 
 /**
@@ -183,13 +215,16 @@ async function prepareAndSend(
   as: TrainingCapability | null,
   extra: SendExtra,
 ): Promise<MessageDto> {
-  const prepared = await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
+  const prepared =
+    source.kind === "file" && attachableMessageKind(source.file) === MessageType.FILE
+      ? prepareMessageFile(source.file)
+      : await prepareWebMedia(source, MESSAGE_MEDIA_PROFILE);
   return uploadAndSend(conversationId, prepared, onProgress, onRetry, as, extra);
 }
 
 async function uploadAndSend(
   conversationId: string,
-  media: PreparedWebMedia,
+  media: PreparedMessageMedia,
   onProgress: (percent: number) => void,
   onRetry: (retry: MultipartRetry | null) => void,
   // Le titre traverse jusqu'ici : un upload est une écriture dans un fil, donc scopée comme lui.
@@ -246,22 +281,18 @@ function sendInParts(
 }
 
 // Descripteur commun à la demande d'URL et à l'envoi : une source, pas de dérive de taille.
-function toUploadUrlInput(media: PreparedWebMedia): RequestMessageUploadUrlInput {
-  if (media.type === MessageType.IMAGE) {
-    return {
-      type: media.type,
-      fileName: media.fileName,
-      mimeType: media.mimeType,
-      size: media.size,
-    };
-  }
-  // AUDIO et VIDEO portent `durationSeconds` ; le cast couvre l'union que TS ne narrow pas quand
-  // `type` et `mimeType` restent ouverts.
-  return {
+function toUploadUrlInput(media: PreparedMessageMedia): RequestMessageUploadUrlInput {
+  const descriptor = {
     type: media.type,
     fileName: media.fileName,
     mimeType: media.mimeType,
     size: media.size,
-    durationSeconds: media.durationSeconds,
-  } as RequestMessageUploadUrlInput;
+  };
+  // AUDIO et VIDEO portent en plus leur durée. Le cast couvre l'union que TS ne narrow pas quand
+  // `type` et `mimeType` restent ouverts.
+  return (
+    "durationSeconds" in media
+      ? { ...descriptor, durationSeconds: media.durationSeconds }
+      : descriptor
+  ) as RequestMessageUploadUrlInput;
 }

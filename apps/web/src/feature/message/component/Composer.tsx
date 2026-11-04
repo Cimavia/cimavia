@@ -115,7 +115,7 @@ export function Composer({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,video/*"
+          accept="image/*,video/*,application/pdf"
           onChange={onFileChange}
           className="hidden"
         />

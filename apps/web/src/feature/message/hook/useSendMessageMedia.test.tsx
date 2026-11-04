@@ -1,4 +1,10 @@
-import { MAX_MESSAGE_MEDIA_BATCH, MediaType, UploadMode } from "@cmv/shared";
+import {
+  MAX_MESSAGE_FILE_SIZE_BYTES,
+  MAX_MESSAGE_MEDIA_BATCH,
+  MediaType,
+  MessageType,
+  UploadMode,
+} from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
@@ -212,11 +218,60 @@ describe("useSendMessageMedia", () => {
   it("écarte un fichier que le fil ne sait pas envoyer, sans le tenter", async () => {
     const { result } = setup();
 
-    act(() => result.current.sendFiles([file("seance.pdf", "application/pdf")]));
+    act(() => result.current.sendFiles([file("seance.zip", "application/zip")]));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
     expect(requestUrlMock).not.toHaveBeenCalled();
-    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("seance.pdf");
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("seance.zip");
+  });
+
+  // Un PDF ne passe pas par la préparation des médias : rien à mesurer, seulement à borner.
+  it("envoie un PDF en fichier, sans durée ni préparation de média", async () => {
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("programme.pdf", "application/pdf", 2_048)]));
+
+    await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
+    expect(prepareMock).not.toHaveBeenCalled();
+    expect(requestUrlMock).toHaveBeenCalledWith(
+      CONVERSATION_ID,
+      {
+        type: MessageType.FILE,
+        fileName: "programme.pdf",
+        mimeType: "application/pdf",
+        size: 2_048,
+      },
+      null,
+    );
+    expect(sendMessageMock.mock.calls[0]?.[1]).toMatchObject({
+      type: MessageType.FILE,
+      storagePath: "k/1",
+    });
+  });
+
+  it("refuse un PDF trop lourd avant tout envoi, en citant le plafond", async () => {
+    const { result } = setup();
+
+    act(() =>
+      result.current.sendFiles([
+        file("enorme.pdf", "application/pdf", MAX_MESSAGE_FILE_SIZE_BYTES + 1),
+      ]),
+    );
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
+    expect(requestUrlMock).not.toHaveBeenCalled();
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("messages.media.fileTooBig");
+  });
+
+  // Un PDF vide n'a rien à envoyer : signé tel quel, l'API le refuserait sans dire pourquoi.
+  it("dit illisible un PDF vide, avant tout envoi", async () => {
+    const { result } = setup();
+
+    act(() => result.current.sendFiles([file("vide.pdf", "application/pdf", 0)]));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce());
+    expect(requestUrlMock).not.toHaveBeenCalled();
+    expect(toastErrorMock.mock.calls[0]?.[0]).toContain("messages.media.unreadable");
   });
 
   it("rafraîchit le fil à chaque message plutôt qu'à la fin", async () => {

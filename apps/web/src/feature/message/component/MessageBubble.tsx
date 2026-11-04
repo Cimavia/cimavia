@@ -12,6 +12,7 @@ import {
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { FileMessage } from "@/feature/message/component/FileMessage";
 import { ImageMessage } from "@/feature/message/component/ImageMessage";
 import { CmvMediaPlayer } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
@@ -46,8 +47,14 @@ type MessageBubbleProps = {
 
 export type ResolveMediaUrl = (mediaId: string) => Promise<string | null>;
 
-// Rendu d'un média reçu (URL GET signée). Le web lit tout nativement — pas de lib : le lecteur du
-// navigateur pour une note vocale ou une vidéo, <img> pour une photo.
+/**
+ * Rendu d'un média reçu (URL GET signée). Le web lit tout nativement — pas de lib : le lecteur du
+ * navigateur pour une note vocale ou une vidéo, <img> pour une photo, un onglet pour un fichier.
+ *
+ * Chaque type a SA branche, et ce qui n'en a pas tombe sur un libellé neutre — jamais sur un
+ * lecteur (#771). Le client ne valide pas le DTO : un type ajouté côté serveur arrive ici tel quel,
+ * et le lire comme une vidéo afficherait un lecteur cassé.
+ */
 function MediaContent({
   message,
   resolveMediaUrl,
@@ -57,22 +64,38 @@ function MediaContent({
   resolveMediaUrl: ResolveMediaUrl;
   voiceNoteCue: VoiceNoteCue | undefined;
 }>) {
+  const { t } = useTranslation();
   const media = message.media;
   if (media == null) return null;
+  const resolveUrl = () => resolveMediaUrl(message.id);
 
-  if (message.type === MessageType.IMAGE) {
-    return <ImageMessage url={media.url} alt={media.fileName} />;
+  switch (message.type) {
+    case MessageType.IMAGE:
+      return <ImageMessage url={media.url} alt={media.fileName} />;
+    case MessageType.AUDIO:
+      return (
+        <CmvMediaPlayer
+          kind="audio"
+          url={media.url}
+          resolveUrl={resolveUrl}
+          className="max-w-full"
+          cue={voiceNoteCue}
+        />
+      );
+    case MessageType.VIDEO:
+      return (
+        <CmvMediaPlayer
+          kind="video"
+          url={media.url}
+          resolveUrl={resolveUrl}
+          className="max-h-80 rounded-cmv-md"
+        />
+      );
+    case MessageType.FILE:
+      return <FileMessage media={media} resolveUrl={resolveUrl} />;
+    default:
+      return <p className="text-cmv-caption text-cmv-text-mid">{t("messages.unsupported")}</p>;
   }
-  const isAudio = message.type === MessageType.AUDIO;
-  return (
-    <CmvMediaPlayer
-      kind={isAudio ? "audio" : "video"}
-      url={media.url}
-      resolveUrl={() => resolveMediaUrl(message.id)}
-      className={isAudio ? "max-w-full" : "max-h-80 rounded-cmv-md"}
-      cue={isAudio ? voiceNoteCue : undefined}
-    />
-  );
 }
 
 /**
