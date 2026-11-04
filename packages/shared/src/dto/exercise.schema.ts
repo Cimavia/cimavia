@@ -8,8 +8,9 @@ import {
 } from "./access.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
-import { richDocumentSchema } from "./rich-document.schema";
+import { linkHrefSchema, richDocumentSchema } from "./rich-document.schema";
 import { suggestedMetricsSchema } from "./suggested-metric.schema";
+import { uploadFileNameSchema } from "./upload.schema";
 
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
 export const EXERCISE_DESCRIPTION_MAX_LENGTH = 5000;
@@ -162,7 +163,7 @@ export function isAllowedDocumentMime(mimeType: string): mimeType is DocumentMim
 // Le type MIME et la taille sont contraints ICI → l'API rejette en 400 sans code dédié.
 export const requestUploadUrlSchema = z
   .object({
-    fileName: z.string().min(1),
+    fileName: uploadFileNameSchema,
     mimeType: documentMimeTypeSchema,
     size: z.number().int().positive().max(MAX_DOCUMENT_SIZE_BYTES),
   })
@@ -181,7 +182,7 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal(DocumentType.FILE),
       storagePath: z.string().min(1),
-      fileName: z.string().min(1),
+      fileName: uploadFileNameSchema,
       mimeType: documentMimeTypeSchema,
       // Redite du ticket : l'API la confronte à l'objet que le storage a réellement reçu (#317).
       size: z.number().int().positive().max(MAX_DOCUMENT_SIZE_BYTES),
@@ -201,7 +202,9 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(DocumentType.LINK),
-      url: z.url(),
+      // La garde du lien de consigne (#354) : http(s) seulement, borné. `z.url()` seul laissait
+      // passer `javascript:alert(1)` jusqu'au `href` de la pièce jointe.
+      url: linkHrefSchema,
     })
     .strict(),
 ]);

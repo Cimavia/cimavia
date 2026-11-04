@@ -83,7 +83,9 @@ export function AttachmentsSection({
   /**
    * Le lien est validé ICI, par le schéma que l'API applique au rattachement : l'attribut
    * `type="url"` du champ ne valide rien hors d'un `<form>`. Refusé à l'enregistrement, le lien
-   * faisait échouer l'enregistrement après la création de l'exercice (#302).
+   * faisait échouer l'enregistrement après la création de l'exercice (#302). Pas de `maxLength` sur
+   * le champ (#354) : il couperait une url collée sans le dire, et le lien tronqué passerait le
+   * schéma — c'est ce dernier qui refuse une url trop longue.
    */
   function addLink() {
     // Jamais blanc : le bouton, seul appelant, est fermé sur un brouillon blanc.

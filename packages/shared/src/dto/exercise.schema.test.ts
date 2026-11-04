@@ -247,6 +247,13 @@ describe("attachDocumentSchema", () => {
     expect(attachDocumentSchema.safeParse({ ...atCap, size: atCap.size + 1 }).success).toBe(false);
     expect(attachDocumentSchema.safeParse({ ...atCap, size: 0 }).success).toBe(false);
   });
+
+  // La garde du lien de consigne (#354), testée avec elle : `z.url()` seul acceptait `javascript:`.
+  it("passe le lien par la garde du lien de consigne", () => {
+    const link = (url: string) => ({ type: DocumentType.LINK, url });
+    expect(attachDocumentSchema.safeParse(link("https://example.com/topo")).success).toBe(true);
+    expect(attachDocumentSchema.safeParse(link("javascript:alert(1)")).success).toBe(false);
+  });
 });
 
 describe("isAllowedDocumentMime", () => {

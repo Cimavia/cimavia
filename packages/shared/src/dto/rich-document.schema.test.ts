@@ -4,6 +4,7 @@ import {
   InlineMark,
   imageMediaIds,
   isRichDocumentTooLong,
+  LINK_URL_MAX_LENGTH,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichBlock,
   RichBlockType,
@@ -96,6 +97,17 @@ describe("richDocumentSchema", () => {
       expectRefusal(richDocumentSchema, linked(href), [0, "content", 0, "href"]);
     },
   );
+
+  it("borne le lien à sa constante", () => {
+    const urlOf = (length: number) => {
+      const base = "https://example.com/";
+      return `${base}${"a".repeat(length - base.length)}`;
+    };
+    expect(richDocumentSchema.safeParse(linked(urlOf(LINK_URL_MAX_LENGTH))).success).toBe(true);
+    expect(richDocumentSchema.safeParse(linked(urlOf(LINK_URL_MAX_LENGTH + 1))).success).toBe(
+      false,
+    );
+  });
 
   it("accepte un lien http comme un lien https", () => {
     for (const href of ["http://example.com", "HTTPS://example.com"]) {

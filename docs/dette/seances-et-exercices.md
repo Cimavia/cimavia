@@ -418,6 +418,24 @@ liste des domaines vivent dans l'index.
 > côté client (`trackingOfExercises`), désormais aussi pour les **blocs** retirés : sans lui, une
 > clé morte suffisait à dépasser le plafond de blocs, et l'athlète restait bloqué à chaque envoi.
 
+> **Tranché en [#354](https://github.com/Cimavia/cimavia/issues/354)** (les identifiants tirés par
+> le client sont bornés, ceux du serveur non) : `clientKeySchema` (64 caractères) borne la `key`
+> d'un exercice de bloc, `replacesKey`, et l'`id` d'une colonne ou d'une ligne de grille. Ces
+> valeurs sont écrites telles quelles. `exerciseId` et l'`id` d'un bloc n'ont pas cette borne : une
+> valeur inconnue échoue à la recherche et n'est jamais écrite. Ce point remplace
+> l'`adjustment.path` de l'issue, retiré avec l'ancien modèle (1daf21b6).
+>
+> La relecture ne prend pas cette borne, comme l'a tranché #297 : la grille relue
+> (`storedBlockGridSchema`, celle de `parseGrid` et de `blockReferenceSchema`) sort de la même
+> fabrique que celle d'entrée, sans borne sur ses identifiants. Ses libellés et ses lignes gardent
+> en revanche leurs bornes à la relecture, comme avant #354.
+>
+> **Tranché en #354** (le lien d'un exercice passe la garde du lien de consigne) : borner son `url`
+> a montré que `z.url()` acceptait `javascript:alert(1)`, rendu ensuite dans le `href` de la pièce
+> jointe. React 19 bloque ce lien au clic, mais la consigne riche avait déjà sa garde
+> (`linkHrefSchema`) : le lien joint la reprend, http(s) seulement et 2 048 caractères au plus. Un
+> lien déjà enregistré avec un autre protocole reste affiché, seul un nouvel ajout est refusé.
+
 ---
 
 ## Post-MVP — Créer l'exercice manquant sans perdre la séance ([#303](https://github.com/Cimavia/cimavia/issues/303))
