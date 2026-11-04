@@ -8,7 +8,7 @@ import {
 } from "./access.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
 import { expectedVersionSchema } from "./expected-version.schema";
-import { richDocumentSchema } from "./rich-document.schema";
+import { linkHrefSchema, richDocumentSchema } from "./rich-document.schema";
 import { suggestedMetricsSchema } from "./suggested-metric.schema";
 
 export const EXERCISE_TITLE_MAX_LENGTH = 200;
@@ -201,7 +201,9 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(DocumentType.LINK),
-      url: z.url(),
+      // L'Athlete n'en voit que le libellé « Lien » avant de l'ouvrir : un schéma d'app ou
+      // `intent:` y lancerait autre chose qu'une page (#324).
+      url: linkHrefSchema,
     })
     .strict(),
 ]);
