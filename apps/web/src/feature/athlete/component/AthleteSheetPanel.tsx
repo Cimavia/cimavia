@@ -1,4 +1,9 @@
-import { type AthleteIdentity, athleteSheetDraft, type UpdateAthleteSheetInput } from "@cmv/shared";
+import {
+  ATHLETE_SHEET_CONTENT_MAX_LENGTH,
+  type AthleteIdentity,
+  athleteSheetDraft,
+  type UpdateAthleteSheetInput,
+} from "@cmv/shared";
 import { type SyntheticEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAthleteSheet, useSaveAthleteSheet } from "@/feature/athlete/hook/useAthletes";
@@ -97,6 +102,7 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
             onChange={(event) => setDraft({ ...current, content: event.target.value })}
             placeholder={t("athlete.sheet.placeholder")}
             rows={16}
+            maxLength={ATHLETE_SHEET_CONTENT_MAX_LENGTH}
           />
         </form>
       ) : (
