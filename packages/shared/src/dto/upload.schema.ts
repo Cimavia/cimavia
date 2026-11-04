@@ -33,17 +33,22 @@ export const S3_MAX_PART_COUNT = 10_000;
 /**
  * Le nom d'un fichier envoyé, tel que le client le déclare. Persisté puis réémis dans chaque DTO
  * qui le porte — dont le fil, relu à chaque tick de polling : sans borne, cinquante noms de 900 Ko
- * y faisaient 45 Mo à re-télécharger (#354). 255, c'est ce qu'admettent les systèmes de fichiers.
+ * y faisaient 45 Mo à re-télécharger (#354). 255, c'est le plafond courant d'un nom de fichier — en
+octets là-bas, en caractères ici : la borne tient le poids du DTO, pas la sauvegarde sur disque.
  *
  * Raccourci, pas refusé : un fournisseur cloud (Drive, Dropbox) peut donner au sélecteur un nom
  * plus long, et un refus ne dirait à l'athlète que « échec ». Compté en caractères et non en unités
- * UTF-16, pour ne jamais couper un emoji en deux — une moitié de paire que Postgres refuserait.
+ * UTF-16, pour ne jamais couper un emoji en deux — une moitié de paire que Postgres refuserait. Un
+accent décomposé ou un emoji composé peut encore perdre sa fin juste avant l'extension : un glyphe
+abîmé sur un nom de 255 caractères, pas une erreur.
  */
 export const UPLOAD_FILE_NAME_MAX_LENGTH = 255;
 // Au-delà, ce qui suit le dernier point n'est pas une extension : `.jpeg`, `.m4a`, `.pdf`…
 const FILE_EXTENSION_MAX_LENGTH = 10;
 
 export function boundedFileName(name: string): string {
+  // Jamais plus de caractères que d'unités UTF-16 : un nom court sort sans être découpé.
+  if (name.length <= UPLOAD_FILE_NAME_MAX_LENGTH) return name;
   const characters = Array.from(name);
   if (characters.length <= UPLOAD_FILE_NAME_MAX_LENGTH) return name;
   const dot = characters.lastIndexOf(".");
