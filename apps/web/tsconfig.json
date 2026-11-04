@@ -21,6 +21,9 @@
     "vite.config.ts",
     "bundle-budget.ts",
     "bundle-budget.test.ts",
+    "legal-pages.ts",
+    "legal-pages.test.ts",
+    "legal-sources.test.ts",
     "vitest.config.ts",
     "vitest.setup.ts",
     "playwright.config.ts"
