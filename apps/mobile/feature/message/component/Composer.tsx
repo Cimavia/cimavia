@@ -51,6 +51,9 @@ export function Composer({
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  // Un envoi qui démarre referme le choix — un débrief qui recharge passe aussi par là. Masqué
+  // seulement, il resurgirait à la fin de l'envoi sans qu'on l'ait demandé.
+  if (mediaBusy && choosing) setChoosing(false);
 
   const trimmed = text.trim();
   const canSendText = trimmed.length > 0 && !sending;
@@ -85,7 +88,7 @@ export function Composer({
 
   return (
     <View className="border-cmv-border border-t bg-cmv-bg-1 p-3">
-      {choosing && !mediaBusy ? (
+      {choosing ? (
         <View className="flex-row gap-2 pb-2">
           {ATTACH_CHOICES.map((choice) => (
             <Pressable

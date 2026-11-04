@@ -163,6 +163,17 @@ describe("Composer", () => {
     expect(iconButton(container, "images-outline")).toBeNull();
   });
 
+  it("referme le choix quand un envoi démarre : il ne resurgit pas à la fin", () => {
+    const { container, rerender } = renderRn(<Composer {...base} />);
+    press(iconButton(container, "add-circle-outline") as Element);
+
+    rerender(<Composer {...base} mediaBusy />);
+    expect(iconButton(container, "images-outline")).toBeNull();
+    rerender(<Composer {...base} />);
+
+    expect(iconButton(container, "images-outline")).toBeNull();
+  });
+
   it("ne montre l'avancement que pendant un envoi de média", () => {
     const { queryByText, rerender } = renderRn(<Composer {...base} />);
     expect(queryByText("messages.media.uploading")).toBeNull();
