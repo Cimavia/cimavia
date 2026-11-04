@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expectRefusal } from "../../test/expect-refusal";
 import {
   attachDocumentSchema,
   createExerciseSchema,
@@ -247,6 +248,24 @@ describe("attachDocumentSchema", () => {
     expect(attachDocumentSchema.safeParse({ ...atCap, size: atCap.size + 1 }).success).toBe(false);
     expect(attachDocumentSchema.safeParse({ ...atCap, size: 0 }).success).toBe(false);
   });
+
+  // Des url valides pour `z.url()`, que l'Athlete ouvrirait sans voir que ce n'est pas une page :
+  // un script, une autre app, l'app elle-même — et un protocole qui CONTIENT https sans l'être.
+  it.each([
+    "javascript:alert(1)",
+    "intent://scan/#Intent;scheme=zxing;end",
+    "cimavia://settings",
+    "xhttps://example.com",
+  ])("refuse un lien non http(s), au champ de l'url — %s", (url) => {
+    expectRefusal(attachDocumentSchema, { type: DocumentType.LINK, url }, ["url"]);
+  });
+
+  it.each(["https://youtu.be/demo", "http://exemple.test/fiche"])(
+    "accepte un lien http comme https — %s",
+    (url) => {
+      expect(attachDocumentSchema.safeParse({ type: DocumentType.LINK, url }).success).toBe(true);
+    },
+  );
 });
 
 describe("isAllowedDocumentMime", () => {
