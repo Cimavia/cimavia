@@ -202,8 +202,8 @@ export const attachDocumentSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal(DocumentType.LINK),
-      // La garde du lien de consigne (#354) : http(s) seulement, borné. `z.url()` seul laissait
-      // passer `javascript:alert(1)` jusqu'au `href` de la pièce jointe.
+      // L'Athlete n'en voit que le libellé « Lien » avant de l'ouvrir : un schéma d'app ou
+      // `intent:` y lancerait autre chose qu'une page (#324).
       url: linkHrefSchema,
     })
     .strict(),

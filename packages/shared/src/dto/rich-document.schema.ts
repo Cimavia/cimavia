@@ -31,8 +31,8 @@ export type InlineMark = TypesValuesOf<typeof InlineMark>;
 export const inlineMarkSchema = z.enum(InlineMark);
 
 // Seuls http(s) passent. `z.url()` ne valide que la SYNTAXE, et `javascript:alert(1)` est une
-// URL syntaxiquement correcte : sans ce garde, un lien de consigne écrit par un coach devient un
-// vecteur XSS dès le premier `<a href>` rendu côté web.
+// URL syntaxiquement correcte : sans ce garde, un lien écrit par un coach — dans la consigne ou
+// joint à l'exercice (#324) — devient un vecteur XSS dès le premier `<a href>` rendu côté web.
 // Vérifié par motif plutôt qu'avec `new URL()` : ce package est compilé sans lib DOM ni types
 // Node pour rester consommable tel quel par l'API, le web et React Native.
 // Une url de 2 048 caractères tient dans tous les navigateurs : au-delà, ce n'est plus un lien qu'on
