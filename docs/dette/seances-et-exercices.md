@@ -1129,3 +1129,13 @@ liste des domaines vivent dans l'index.
 >   comme pour un exercice retiré (#722).
 > - **Copier une semaine copie aussi le bloc retiré**, sans code de plus : la copie reprend les
 >   blocs tels qu'ils sont.
+
+## Post-MVP — Protocole d'un lien joint ([#324](https://github.com/Cimavia/cimavia/issues/324))
+
+> **Tranché en [#324](https://github.com/Cimavia/cimavia/issues/324)** (le protocole se garde à
+> l'ÉCRITURE, pas à l'affichage) : un document `LINK` passe par `linkHrefSchema`, comme le lien de
+> la consigne — `http` et `https` seuls. Le rattachement est son unique entrée : la copie et le gel
+> d'un exercice reprennent une ligne déjà validée. Ni l'aperçu web ni `openDocument` côté mobile ne
+> revérifient donc l'URL. Ce qui était en base avant le correctif a été contrôlé par une requête
+> sur la preview (`url !~* '^https?://'`, aucune ligne). Un nouvel écrivain de `exercise_document`
+> (import, migration de données) passe par le même schéma, ou rouvre la question.
