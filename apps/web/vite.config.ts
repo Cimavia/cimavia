@@ -4,6 +4,7 @@ import { TanStackRouterVite } from "@tanstack/router-vite-plugin";
 import react from "@vitejs/plugin-react";
 import { type Connect, defineConfig, loadEnv, type Plugin } from "vite";
 import { bundleBudgetPlugin } from "./bundle-budget";
+import { legalPagesPlugin } from "./legal-pages";
 
 /**
  * Téléversement des sourcemaps à Sentry. Le JETON est le seul déclencheur : présent, on publie ;
@@ -96,6 +97,7 @@ export default defineConfig({
   plugins: [
     react(),
     runtimeConfigPlugin(),
+    legalPagesPlugin(),
     TanStackRouterVite({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.gen.ts",
