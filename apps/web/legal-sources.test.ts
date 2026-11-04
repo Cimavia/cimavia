@@ -34,4 +34,14 @@ describe("les documents légaux", () => {
       .filter((href) => !/^(?:https:\/\/|mailto:)/.test(href));
     expect(internal.filter((href) => !known.has(href))).toEqual([]);
   });
+
+  /**
+   * Un champ à remplir, `&lt;adresse postale&gt;` ou `mailto:&lt;contact&gt;@…`, ne part jamais en
+   * ligne : le texte publié mentirait sur l'éditeur, et un `mailto:` invalide laisserait la personne
+   * sans moyen d'exercer ses droits. Rouge tant que les champs ne sont pas remplis — c'est voulu :
+   * ce test bloque le merge, pas le développement.
+   */
+  it.each(sources)("$locale/$document n'a plus de champ à remplir", (source) => {
+    expect(source.fragment.match(/&lt;[^&]*&gt;/g) ?? []).toEqual([]);
+  });
 });
