@@ -1,5 +1,62 @@
 # Changelog
 
+## [1.18.0](https://github.com/Cimavia/cimavia/compare/v1.17.0...v1.18.0) (2026-11-07)
+
+
+### Fonctionnalités
+
+* **api:** accepter un pdf dans un message et le confronter au fichier déposé ([84aee8e](https://github.com/Cimavia/cimavia/commit/84aee8e38ccfe5448af1ecd91dc93935bed8dc7a))
+* **mobile:** documents légaux à l'inscription et depuis l'app, comme l'app store l'exige ([422ccb8](https://github.com/Cimavia/cimavia/commit/422ccb8f1a26c66f53770ba6375e3837dfe2d3a1))
+* **mobile:** joindre un pdf depuis la barre d'envoi, au choix avec la galerie ([65c6cf7](https://github.com/Cimavia/cimavia/commit/65c6cf723de95f118db549c9a59f0cf46ef4de0c))
+* **mobile:** ouvrir le pdf reçu depuis sa bulle, copie purgée au changement de compte ([fff5a58](https://github.com/Cimavia/cimavia/commit/fff5a5863d3e4574f87a66ba838afbbb47a62127))
+* **shared:** chemins publiés des documents légaux, une table pour le web et le mobile ([56724c5](https://github.com/Cimavia/cimavia/commit/56724c59b4a33bae2ea61d01dca8e4ce4b0ca0a3))
+* **shared:** type de message fichier pour joindre un pdf, avec sa taille et ses gardes ([0b3e9ab](https://github.com/Cimavia/cimavia/commit/0b3e9ab4442f90e42e6610e554c996b2af62c181))
+* **web:** documents légaux joignables avant, pendant et après l'inscription ([d65b7d3](https://github.com/Cimavia/cimavia/commit/d65b7d3bb665d96a33a6fa68b6ed5f808b50f2d1))
+* **web:** joindre un pdf au fil et l'ouvrir dans un onglet sur une url re-signée ([8f5918b](https://github.com/Cimavia/cimavia/commit/8f5918b24a28129af2d8ebe87134e4319cb779f7))
+* **web:** pages légales statiques hors de la spa, seules exemptables de cloudflare access ([4604394](https://github.com/Cimavia/cimavia/commit/460439482d450b9c7035c76cb7a6d03b7d84f9a1))
+* **web:** politique de confidentialité, mentions légales et conditions d'utilisation ([a559928](https://github.com/Cimavia/cimavia/commit/a5599285291d2ef0c5c5224e9a7c4503d854531e))
+
+
+### Corrections
+
+* **mobile:** pdf signé au poids de sa copie, copie du sélecteur effacée après le lot ([5279183](https://github.com/Cimavia/cimavia/commit/5279183b4aa4cb360ac12be553afceaecff89044))
+* **mobile:** un document légal que le système refuse d'ouvrir est signalé à sentry ([3592e5e](https://github.com/Cimavia/cimavia/commit/3592e5e8867afd87714e89b2098363b4f766c577))
+* **mobile:** un envoi qui démarre referme le choix photo ou pdf de la barre d'envoi ([f9951ab](https://github.com/Cimavia/cimavia/commit/f9951ab8926ec3dc3a13e8cd4d379611740cd162))
+* **mobile:** un second tap sur le micro en préparation ne casse plus l'enregistrement ([7647a8d](https://github.com/Cimavia/cimavia/commit/7647a8d26fd760a79b591fed80402f8982b4d733))
+* **mobile:** une note vocale qui charge encore garde son url quand le fil se recharge ([ee5f421](https://github.com/Cimavia/cimavia/commit/ee5f42196013660770cf602073d25b70faa38750))
+* **shared:** clé retirée, remplacée ou dosée non bornée, elle désigne un exercice stocké ([d043675](https://github.com/Cimavia/cimavia/commit/d043675b5cd366324f7043f4c693d6ac0d947598))
+* **shared:** fiche athlète bornée à 10 000 caractères, compteur sur le champ web et mobile ([3431f55](https://github.com/Cimavia/cimavia/commit/3431f558e31fc7364acc063ee7b20136a994a1dc))
+* **shared:** identifiants tirés par le client bornés à 64, la grille relue sans borne ([98755ca](https://github.com/Cimavia/cimavia/commit/98755ca31842728d3562ef20f528d682b72aaab3))
+* **shared:** lien d'exercice en http(s) et sous 2 048 caractères, comme celui de consigne ([90537e6](https://github.com/Cimavia/cimavia/commit/90537e6e88e0d1b6963e30ba0d1698204f9129d6))
+* **shared:** nom de fichier raccourci à 255 caractères en gardant l'extension, sans refus ([361741f](https://github.com/Cimavia/cimavia/commit/361741faf7166ceed303f058e2881d50ba8ab2fe))
+* **shared:** un lien joint n'accepte plus que http et https, comme celui de la consigne ([45dd633](https://github.com/Cimavia/cimavia/commit/45dd633d3a14914b2ccaaae5cfa755bc5c7d6063))
+* **shared:** un lien légal sans langue i18next retombe sur le français ([910b899](https://github.com/Cimavia/cimavia/commit/910b899c7d8ecea4acb89316df2db3c3c869a404))
+* **web:** /legal juge le chemin brut, celui qu'access voit, et non le chemin normalisé ([4cb1a74](https://github.com/Cimavia/cimavia/commit/4cb1a74bb0fc2f57004f3e09fc5abf8e74c0882c))
+* **web:** boutons et pastilles bornés à leur conteneur, un nom d'un seul tenant s'y coupe ([4003bcb](https://github.com/Cimavia/cimavia/commit/4003bcb00faaf3444403e5823eeff952b2c6f423))
+* **web:** l'en-tête de bloc renvoie ses pastilles à la ligne au lieu de couper le libellé ([88dbbfa](https://github.com/Cimavia/cimavia/commit/88dbbfab0d3bdc8f245a37d9e7dd3066b6ee29af))
+* **web:** la consigne de séance du rail athlète passe à la ligne, la page ne défile plus ([0ac7fd0](https://github.com/Cimavia/cimavia/commit/0ac7fd090150fe17f8c1ce99eafa2bc4aa7a052f))
+* **web:** la politique nomme tous les lecteurs d'un débrief ou d'un message ([2dc2b83](https://github.com/Cimavia/cimavia/commit/2dc2b834bf4a764617b1822a21df3b4ab5d12ee1))
+* **web:** le titre de l'aperçu d'exercice passe à la ligne, sa colonne ne s'élargit plus ([959ad02](https://github.com/Cimavia/cimavia/commit/959ad02c96d0e913adc0f7918c76a8b4a26449a0))
+* **web:** titre et note de la séance planifiée passent à la ligne dans le cycle ([96b6f16](https://github.com/Cimavia/cimavia/commit/96b6f169006e6b5252067e9f937d693c4b9acd16))
+* **web:** titre, note et consigne de bloc passent à la ligne, aperçu et séance athlète ([463b632](https://github.com/Cimavia/cimavia/commit/463b63251c8e7cacdc7948e42a18d14b3a3d729a))
+* **web:** titres de séance et de cycle passent à la ligne sur le planning athlète ([4562051](https://github.com/Cimavia/cimavia/commit/45620512c44274dac092fd6e1e4ba0e7c2efec65))
+* **web:** un lien trop long le dit, au lieu de demander un https:// qu'il porte déjà ([edc4409](https://github.com/Cimavia/cimavia/commit/edc4409373b15d850526e893e79a5e49aaf94ff0))
+* **web:** un seul onglet par clic sur un pdf, l'onglet bloqué distingué de l'échec ([f179f52](https://github.com/Cimavia/cimavia/commit/f179f52ab7eb2f6aa4326dc2aa600b1a4e294d9f))
+* **web:** un titre d'un seul tenant ne fait plus défiler la composition de séance ([b678d9d](https://github.com/Cimavia/cimavia/commit/b678d9d198a04dcc1b565396f9fb89b0c1960279))
+* **web:** une url collée dans la consigne passe à la ligne au lieu de sortir de la carte ([746a315](https://github.com/Cimavia/cimavia/commit/746a315e9739d00909f5942ceb474146caa30d29))
+
+
+### Performance
+
+* **mobile:** connectivité lue au tap, plus d'abonnement réseau par bulle de fichier ([110a273](https://github.com/Cimavia/cimavia/commit/110a273708c45bd2a2b58b68d7fc306e0d053c55))
+* **shared:** nom de fichier court rendu sans découpe, limites de la borne écrites ([020e24d](https://github.com/Cimavia/cimavia/commit/020e24d019f0c008e68d93515c874776aa42952a))
+
+
+### Technique
+
+* **mobile:** promouvoir le geste d'ouverture d'un fichier local dans shared/lib ([42bc9cf](https://github.com/Cimavia/cimavia/commit/42bc9cf1715a08a7f4d4e3c99665c8e3dfd54454))
+* **shared:** un descripteur d'envoi de message pour le web et le mobile ([0a79e68](https://github.com/Cimavia/cimavia/commit/0a79e6855117f647edd9549f0eb038256bfb6271))
+
 ## [1.17.0](https://github.com/Cimavia/cimavia/compare/v1.16.1...v1.17.0) (2026-11-03)
 
 
