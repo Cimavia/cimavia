@@ -1,8 +1,9 @@
-import { type EnvSchema, type InvitationRole, trimTrailingSlashes } from "@cmv/shared";
+import type { EnvSchema, InvitationRole } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mailCatalog } from "./mail.catalog";
 import { MailService } from "./mail.service";
+import { webPage } from "./web-page";
 
 /**
  * L'e-mail d'invitation (#146) — le second canal d'une invitation nominative, et le seul qui
@@ -33,16 +34,11 @@ export class InvitationMailer {
     private readonly mail: MailService,
     config: ConfigService<EnvSchema, true>,
   ) {
-    const webUrl = config.get("WEB_URL", { infer: true });
     // Sans `WEB_URL`, le lien disparaît et le message part quand même : la consigne — s'inscrire
-    // avec CETTE adresse — est le contenu, le lien n'est qu'un raccourci. Même arbitrage que le
-    // pied de `NotificationMailer`.
+    // avec CETTE adresse — est le contenu, le lien n'est qu'un raccourci.
     //
-    // ⚠️ `/register` est la route d'inscription côté web (`apps/web/src/routes/register.tsx`).
-    // Aucun test ne peut le vérifier — l'API ne connaît pas le routeur du client —, donc la
-    // renommer casse ce lien EN SILENCE. La nommer ici est la seule parade : un `grep register.tsx`
-    // la trouve.
-    this.registerUrl = webUrl == null ? null : `${trimTrailingSlashes(webUrl)}/register`;
+    // ⚠️ `apps/web/src/routes/register.tsx` — voir `webPage` (dette I-2).
+    this.registerUrl = webPage(config, "/register");
   }
 
   async send(params: {

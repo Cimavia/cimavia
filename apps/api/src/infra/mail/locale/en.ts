@@ -12,15 +12,43 @@ export const en = {
     signature: "The Cimavia team",
     linkFallback: "If the link above does not work, copy this address into your browser:",
     manageNotifications: "Manage my email notifications",
+    linkExpiry: (hours: number) =>
+      hours > 1 ? `This link is valid for ${hours} hours.` : "This link is valid for one hour.",
   },
   resetPassword: {
     subject: "Reset your Cimavia password",
     heading: "New password",
     intro: "You asked to reset your Cimavia password. Follow the link below to choose a new one.",
     cta: "Choose a new password",
-    expiry: (hours: number) =>
-      hours > 1 ? `This link is valid for ${hours} hours.` : "This link is valid for one hour.",
     ignore: "If you did not ask for this, ignore this email: your password stays unchanged.",
+  },
+  verifyEmail: {
+    subject: "Confirm your Cimavia email address",
+    heading: "Confirm your address",
+    intro:
+      "You just created your Cimavia account. Follow the link below to confirm this address is yours: you will then be able to sign in.",
+    cta: "Confirm my address",
+    ignore:
+      "If you did not create an account, ignore this email: without confirmation, nobody can sign in with this address.",
+  },
+  existingAccount: {
+    subject: "Your address already has a Cimavia account",
+    heading: "You already have an account",
+    intro:
+      "Someone just asked to create a Cimavia account with this address. It already has one: no new account was created.",
+    hint: "If it was you, sign in with your usual password. Forgot it? The sign-in page lets you choose a new one.",
+    cta: "Sign in",
+    ignore: "If it was not you, ignore this email: your account and password stay unchanged.",
+  },
+  pendingAccount: {
+    subject: "Choose your Cimavia password",
+    heading: "An account is waiting for your confirmation",
+    intro:
+      "Someone just asked to create a Cimavia account with this address. An account was already waiting for it, never confirmed: as a precaution, its password has been erased.",
+    hint: "If it is you, choose a new password from “Forgot password”: your address will be confirmed at the same time, and you will be able to sign in.",
+    cta: "Choose my password",
+    ignore:
+      "If it was not you, ignore this email: nobody can sign in to this account any more without going through your inbox.",
   },
   invitation: {
     subject: (coachName) =>
