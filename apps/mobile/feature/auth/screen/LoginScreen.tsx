@@ -1,3 +1,4 @@
+import { signInErrorKey } from "@cmv/shared";
 import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,7 +32,8 @@ export function LoginScreen() {
     try {
       const { error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError != null) {
-        setError(t("auth.errors.invalidCredentials"));
+        // `EMAIL_NOT_VERIFIED` : l'adresse n'est pas confirmée, l'API vient de renvoyer le lien (#270).
+        setError(t(signInErrorKey(signInError)));
         return;
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène

@@ -2,22 +2,19 @@ import { fireEvent, screen } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegisterScreen } from "@/feature/auth/screen/RegisterScreen";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { press, pressButton, renderRn } from "@/test/render";
-
-vi.mock("@/shared/lib/account-reset", () => ({ resetAccountData: vi.fn(async () => undefined) }));
 
 vi.mock("@/shared/lib/auth", () => ({
   authClient: {
     useSession: vi.fn(),
     signUp: { email: vi.fn() },
+    sendVerificationEmail: vi.fn(),
   },
 }));
 
 const useSession = vi.mocked(authClient.useSession);
 const signUp = vi.mocked(authClient.signUp.email);
-const resetAccount = vi.mocked(resetAccountData);
 
 const SUBMIT = "auth.register.submit";
 const ATHLETE = "auth.register.capabilityAthlete";
@@ -117,16 +114,21 @@ describe("RegisterScreen (mobile)", () => {
     );
   });
 
-  it("vide le cache du compte précédent avant de laisser entrer", async () => {
-    const { container } = renderRn(<RegisterScreen />);
+  /**
+   * L'inscription n'ouvre plus de session (#270) : l'écran dit qu'un e-mail est à ouvrir. Sans ce
+   * changement d'état, l'inscription réussie resterait devant le formulaire qu'on vient
+   * d'envoyer — indiscernable d'un échec silencieux.
+   */
+  it("annonce l'e-mail à ouvrir une fois l'inscription envoyée", async () => {
+    const { container, queryByText } = renderRn(<RegisterScreen />);
     choose(TRAINING);
     fillIdentity(container);
 
     pressButton(container, SUBMIT);
 
-    // Le seul point de passage OBLIGÉ d'un changement de compte sur un téléphone : sans cette
-    // purge, les données persistées du compte d'avant seraient resservies au nouveau.
-    await vi.waitFor(() => expect(resetAccount).toHaveBeenCalled());
+    await vi.waitFor(() => expect(queryByText("auth.verificationSent.title")).not.toBeNull());
+    expect(queryByText("auth.verificationSent.resend")).not.toBeNull();
+    expect(queryByText(SUBMIT)).toBeNull();
   });
 
   it("refuse une inscription sans aucune capacité, sans appeler l'API", async () => {
@@ -151,12 +153,11 @@ describe("RegisterScreen (mobile)", () => {
     /**
      * LE cas de #263 côté téléphone, et la raison de cette table. Le message générique ferait
      * recommencer une saisie juste, indéfiniment : l'APK porte l'URL de l'environnement en dur,
-     * aucune tentative ne passera. 422 est le seul code que Better Auth réserve à l'e-mail déjà
-     * pris ; les autres validations sont des 400, donc génériques.
+     * aucune tentative ne passera. Une adresse déjà prise ne se dit plus (#270) : l'API répond
+     * comme à une adresse neuve, et c'est son propriétaire qu'elle prévient.
      */
     it.each([
       [403, "auth.errors.signupClosed"],
-      [422, "auth.errors.emailInUse"],
       [400, "auth.errors.generic"],
     ])("traduit le refus %s en %s", async (status, message) => {
       signUp.mockResolvedValue({ error: { status } } as never);
@@ -204,15 +205,17 @@ describe("RegisterScreen (mobile)", () => {
     expect(queryByText(SUBMIT)).toBeNull();
   });
 
+  // Pas de session au retour de l'inscription : rien à aiguiller, l'écran reste.
   it("n'aiguille pas lui-même après l'inscription", async () => {
-    const { container } = renderRn(<RegisterScreen />);
+    const { container, queryByText } = renderRn(<RegisterScreen />);
     choose(TRAINING);
     fillIdentity(container);
 
     pressButton(container, SUBMIT);
 
-    await vi.waitFor(() => expect(resetAccount).toHaveBeenCalled());
+    await vi.waitFor(() => expect(queryByText("auth.verificationSent.title")).not.toBeNull());
     expect(router.replace).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it("mène à la connexion", () => {
