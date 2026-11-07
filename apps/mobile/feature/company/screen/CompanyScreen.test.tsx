@@ -26,6 +26,17 @@ describe("CompanyScreen", () => {
     expect(open).toHaveBeenCalledWith(WEB_URL);
   });
 
+  // L'Entreprise n'a pas d'écran Profil : les documents légaux restent joignables ici (#778).
+  it("donne accès aux documents légaux", () => {
+    const open = vi.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const { getByText } = renderRn(<CompanyScreen />);
+
+    expect(getByText("legal.title")).toBeTruthy();
+    press(getByText("legal.privacy"));
+
+    expect(open).toHaveBeenCalledWith(`${WEB_URL}/legal/fr/privacy`);
+  });
+
   it("laisse se déconnecter", () => {
     const { container } = renderRn(<CompanyScreen />);
 

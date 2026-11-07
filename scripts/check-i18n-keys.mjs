@@ -12,7 +12,7 @@
  * production. Ce script est le seul filet sous cette famille de bugs.
  *
  * CE QU'IL VÉRIFIE
- *   A. Clés littérales — `t("a.b")`, `labelKey: "a.b"`, `toast.onSuccess("a.b")`, et les tables
+ *   A. Clés littérales — `t("a.b")`, `labelKey: "a.b"`, `toast.onSuccess("a.b")`, `i18nKey="a.b"`, et les tables
  *      partagées `const X_KEY = { … }` de @cmv/shared.
  *   B. Préfixes dynamiques — t(`a.b.${x}`) : le nœud `a.b` doit exister et porter des enfants.
  *   C. Motifs à trou — t(`a.b.${x}.title`) : CHAQUE enfant de `a.b` doit porter `title`.
@@ -93,6 +93,8 @@ function collectLiterals(src, literals) {
   for (const [, v] of src.matchAll(/\bt\(\s*"([\w.]+)"/g)) add(v);
   for (const [, v] of src.matchAll(/\b\w*[Kk]ey\s*:\s*"([\w.]+)"/g)) add(v);
   for (const [, v] of src.matchAll(/\bon(?:Success|Info)\(\s*"([\w.]+)"/g)) add(v);
+  // `<Trans i18nKey="…">` (#778) : la phrase qui porte des liens. Attribut JSX, d'où `=` et non `:`.
+  for (const [, v] of src.matchAll(/\bi18nKey="([\w.]+)"/g)) add(v);
   for (const [, body] of src.matchAll(/const\s+[A-Z0-9_]*(?:KEY|BADGE)\s*=\s*\{([\s\S]*?)\n\}/g)) {
     for (const [, v] of body.matchAll(/"([\w.]+)"/g)) add(v);
   }

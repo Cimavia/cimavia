@@ -12,6 +12,7 @@ import { Redirect, useRouter } from "expo-router";
 import { type ComponentProps, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, View } from "react-native";
+import { LegalConsent } from "@/feature/legal";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
@@ -207,6 +208,9 @@ export function RegisterScreen() {
             onPress={onSubmit}
             disabled={submitting}
           />
+          {/* Sous le bouton, à l'instant de la collecte : c'est là que l'information est due
+              (RGPD art. 13, #778). */}
+          <LegalConsent />
         </>
       )}
       <Pressable onPress={() => router.push("/login")} className="items-center py-2">

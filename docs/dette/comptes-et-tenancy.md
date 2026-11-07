@@ -1260,3 +1260,44 @@ liste des domaines vivent dans l'index.
 >   avertissements du web : la planche M2 ne montrait que l'athlète.
 > - **La pastille d'un espace compte toutes ses conversations**, à plusieurs comprises, sans code
 >   client : elle se lit dans les notifications, posées pour chaque destinataire depuis #611.
+
+---
+
+## Informations légales et RGPD ([#778](https://github.com/Cimavia/cimavia/issues/778))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| RG-1 | **Textes rédigés sans juriste** : politique de confidentialité, mentions légales et conditions d'utilisation (`apps/web/legal/fr/`) partent d'un brouillon relu par l'éditeur seul. Les rôles RGPD y sont simplifiés : l'éditeur est posé seul responsable, alors que le Coach décide lui-même d'une partie de ce qu'il fait des données de ses athlètes. | 🔴 | — *(déclencheur : la mise en production — une relecture juridique, pas une issue de code)* |
+| RG-2 | **Prestataires et durées nommés sans inventaire vérifié** : la politique cite Sentry, Axiom, Scaleway, Expo, Cloudflare et le NAS tels que le code les montre, sans région ni DPA confirmés, et des durées de conservation « du prestataire ». À amender à la clôture de #783 et de #259, et quand #256 rendra la suppression du compte possible depuis l'app (la politique dit « en préparation »). | 🔴 | [#783](https://github.com/Cimavia/cimavia/issues/783) *(et [#259](https://github.com/Cimavia/cimavia/issues/259), [#256](https://github.com/Cimavia/cimavia/issues/256))* |
+| RG-3 | **Mention, et non case, à l'inscription** : juste tant que la base du traitement est le contrat. Si #259 qualifie les débriefs de données de santé (RGPD art. 9), il faut un consentement explicite : une case, et la date et la version acceptées en base. | 🔴 | [#259](https://github.com/Cimavia/cimavia/issues/259) |
+
+> **Tranché en #778** (des pages statiques, hors de la SPA) : l'issue demandait « une route publique
+> du web ». Elle ne survivrait pas à Cloudflare Access, qui garde tout `app-preview` (#263). Ouvrir
+> le seul chemin `/legal` laisserait `/assets/*` et `/config.js` fermés, donc une page cassée ; les
+> ouvrir aussi rendrait l'app entière publique, puisqu'une fois chargée la SPA rejoint `/login` sans
+> repasser par Cloudflare. D'où trois conséquences.
+> - **Du HTML sans JS** : chaque texte est un fragment `apps/web/legal/<langue>/<document>.html`,
+>   enveloppé au build par `legal-pages.ts` dans un gabarit dont le style vient de `palette.json`
+>   (règle n°3), émis en `dist/legal/…` et servi par nginx en `try_files $uri.html =404` — **jamais
+>   le repli SPA**, pour la même raison. Une seule exception Access, sur `/legal`.
+> - **nginx juge le chemin BRUT** : Access accorde l'exception sur le chemin tel qu'il arrive, nginx
+>   choisit sa `location` sur le chemin normalisé — `/legal/..%2Findex.html` passait Access comme un
+>   document légal, puis recevait l'app (constaté au curl). Une garde sur `$request_uri` n'admet
+>   sous `/legal` que `/legal/<langue>/<document>`, et refuse partout les barres et points encodés,
+>   les doubles barres et les segments `..` ; tout le reste qui commence par `/legal` répond 404.
+> - **Les champs à remplir bloquent le merge** : `legal-sources.test.ts` refuse tout `&lt;…&gt;`
+>   resté dans un texte — l'identité de l'éditeur et son adresse de contact n'ont pas de valeur
+>   par défaut qu'on puisse publier.
+> - **Les textes longs ne vont pas dans les catalogues i18n** : la règle n°6 vise l'interface, et
+>   dix pages par langue n'y sont pas des libellés. Les libellés et la phrase de la mention, eux,
+>   passent par i18next. Un fichier par langue ; `legalDocumentUrl` (`@cmv/shared`) retombe sur le
+>   français tant qu'une langue n'est pas rédigée — c'est le texte qui fait foi, et un lien vers une
+>   page absente serait une 404.
+> - **L'URL suit l'environnement** : `${WEB_URL}/legal/…` sur le mobile, un chemin relatif sur le
+>   web. Celle déclarée aux stores est une donnée de la fiche, modifiable sans nouveau build : pas
+>   d'hébergement dédié pour la garder fixe.
+>
+> **La mention plutôt qu'une case** : la base légale est l'exécution du contrat, qui ne demande pas
+> de consentement — d'où RG-3. Les mineurs s'inscrivent avec l'accord déclaré d'un parent, sans
+> vérification dans l'app. `<Trans i18nKey>` entre au dépôt pour cette phrase à liens :
+> `check:i18n` lit désormais l'attribut, sans quoi une clé absente serait passée inaperçue.

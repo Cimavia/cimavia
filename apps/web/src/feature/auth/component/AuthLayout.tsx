@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { IoCheckmark } from "react-icons/io5";
+import { LegalLinks } from "@/feature/legal";
 
 type AuthLayoutProps = {
   title: string;
@@ -68,6 +69,9 @@ export function AuthLayout({ title, children }: Readonly<AuthLayoutProps>) {
         <div className="w-full max-w-[440px]">
           <h1 className="mb-cmv-xl font-cmv-display text-cmv-title text-cmv-text-hi">{title}</h1>
           {children}
+          {/* Sur TOUTES les pages d'authentification (#778) : c'est avant d'avoir un compte qu'on
+              cherche ce que le service fera de ses données. */}
+          <LegalLinks className="mt-cmv-2xl flex justify-center" />
         </div>
       </div>
     </main>

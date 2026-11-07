@@ -80,6 +80,16 @@ beforeEach(() => {
 });
 
 describe("ProfileScreen", () => {
+  // Depuis l'app, et pas seulement à l'inscription : l'App Store l'exige (#778).
+  it("liste les trois documents légaux", () => {
+    renderRn(<ProfileScreen />);
+
+    expect(screen.getByText("legal.title")).toBeTruthy();
+    expect(screen.getByText("legal.privacy")).toBeTruthy();
+    expect(screen.getByText("legal.legalNotice")).toBeTruthy();
+    expect(screen.getByText("legal.terms")).toBeTruthy();
+  });
+
   /**
    * L'assertion porte sur la CLÉ : le harnais rend la clé et perd l'interpolation, comme côté web.
    * Ce qui s'éprouve est donc la décision de l'écran, pas la mise en forme du numéro — celle-là est

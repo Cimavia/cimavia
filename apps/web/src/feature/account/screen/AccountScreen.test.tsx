@@ -90,6 +90,21 @@ describe("AccountScreen — le pied", () => {
   });
 });
 
+describe("AccountScreen — les informations légales (#778)", () => {
+  // Une fois inscrit, c'est ici qu'on revient chercher ses droits.
+  it("liste les trois documents", async () => {
+    await open();
+
+    expect(screen.getByRole("heading", { name: "legal.title" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "legal.privacy" })).toHaveAttribute(
+      "href",
+      "/legal/fr/privacy",
+    );
+    expect(screen.getByRole("link", { name: "legal.legalNotice" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "legal.terms" })).toBeInTheDocument();
+  });
+});
+
 describe("AccountScreen — les casquettes", () => {
   /**
    * L'écran sert d'abord à AJOUTER une casquette. Le bouton reste fermé tant que rien ne change —
