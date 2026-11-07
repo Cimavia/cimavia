@@ -24,4 +24,26 @@ describe("browserOrigins", () => {
 
     expect(origins).toEqual(["https://api.cimavia.fr", "https://app.cimavia.fr"]);
   });
+
+  // Vide, `ConfigService` rend la chaîne de `process.env` : l'API doit démarrer quand même.
+  it("ignore un WEB_URL vide", () => {
+    const origins = browserOrigins(
+      configWith({ BETTER_AUTH_URL: "https://api.cimavia.fr", WEB_URL: "" }),
+    );
+
+    expect(origins).toEqual(["https://api.cimavia.fr"]);
+  });
+
+  // Le retour du lien de vérification (#270) : sans elle, Better Auth le refuserait en 403.
+  it("ajoute l'origine de WEB_URL, même absente de CORS_ORIGINS", () => {
+    const origins = browserOrigins(
+      configWith({
+        BETTER_AUTH_URL: "https://api.cimavia.fr",
+        WEB_URL: "https://app.cimavia.fr/",
+        CORS_ORIGINS: "https://app.cimavia.fr",
+      }),
+    );
+
+    expect(origins).toEqual(["https://api.cimavia.fr", "https://app.cimavia.fr"]);
+  });
 });

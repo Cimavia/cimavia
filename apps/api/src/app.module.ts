@@ -18,6 +18,7 @@ import { CustomMetricModule } from "./custom-metric/custom-metric.module";
 import { ExerciseModule } from "./exercise/exercise.module";
 import { FeedbackModule } from "./feedback/feedback.module";
 import { HealthModule } from "./health/health.module";
+import { EmailVerificationMailer } from "./infra/mail/email-verification.mailer";
 import { MailModule } from "./infra/mail/mail.module";
 import { PasswordResetMailer } from "./infra/mail/password-reset.mailer";
 import { PrismaModule } from "./infra/prisma/prisma.module";
@@ -50,11 +51,18 @@ import { VersionModule } from "./version/version.module";
       // `imports` et non un MailModule global : `PrismaService` arrive ici parce que PrismaModule
       // est @Global, mais l'envoi de mails n'a aucune raison d'être visible de tout le monde.
       imports: [MailModule, SignupModule],
-      inject: [PrismaService, ConfigService, PasswordResetMailer, SignupPolicy],
+      inject: [
+        PrismaService,
+        ConfigService,
+        PasswordResetMailer,
+        EmailVerificationMailer,
+        SignupPolicy,
+      ],
       useFactory: (
         prisma: PrismaService,
         config: ConfigService<EnvSchema, true>,
         passwordReset: PasswordResetMailer,
+        emailVerification: EmailVerificationMailer,
         signup: SignupPolicy,
       ) => ({
         auth: createAuth(prisma, {
@@ -62,6 +70,8 @@ import { VersionModule } from "./version/version.module";
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
           sendResetPassword: (params) => passwordReset.send(params),
+          sendVerificationEmail: (params) => emailVerification.sendVerification(params),
+          notifyExistingAccount: (params) => emailVerification.sendExistingAccount(params),
           mayCreateAccount: (email, account) => signup.mayCreateAccount(email, account),
         }),
       }),

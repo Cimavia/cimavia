@@ -9,7 +9,8 @@ import {
   todayIsoDateIn,
 } from "@cmv/shared";
 import type { APIRequest, APIRequestContext, APIResponse, BrowserContext } from "@playwright/test";
-import { API_URL } from "./env";
+import { createEmailVerificationToken } from "better-auth/api";
+import { API_URL, AUTH_SECRET } from "./env";
 import { t } from "./i18n";
 
 export const PASSWORD = "password123";
@@ -116,7 +117,26 @@ export class Seed {
       }),
       `inscription de ${label}`,
     );
+    await this.verifyAndSignIn(api, email, label);
     return { name, email, api } satisfies Account;
+  }
+
+  /**
+   * L'inscription n'ouvre plus de session (#270) : l'adresse se vérifie, puis l'on se connecte.
+   * Le seed ne reçoit pas l'e-mail — l'API de test n'a pas de SMTP — et fabrique donc le jeton que
+   * le lien aurait porté, avec le secret de l'API. Il passe ensuite par la vraie route, comme le
+   * reste du seed : jamais par la base.
+   */
+  private async verifyAndSignIn(api: APIRequestContext, email: string, label: string) {
+    const token = await createEmailVerificationToken(AUTH_SECRET, email);
+    await json(
+      await api.get(`/api/auth/verify-email?token=${token}`),
+      `vérification de l'adresse de ${label}`,
+    );
+    await json(
+      await api.post("/api/auth/sign-in/email", { data: { email, password: PASSWORD } }),
+      `connexion de ${label}`,
+    );
   }
 
   coach(label = "Coach"): Promise<Account> {
