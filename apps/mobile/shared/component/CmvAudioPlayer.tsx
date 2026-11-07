@@ -256,9 +256,11 @@ function CmvAudioPlayerLive({
   );
 
   // (A) Une URL neuve n'est adoptée qu'au repos : en lecture, ou en pause à mi-chemin, la prendre
-  // rechargerait la note — la coupure même de #304.
+  // rechargerait la note — la coupure même de #304. Le repos se lit à l'INTENTION, pas à
+  // `player.playing` : sur Android c'est l'`isPlaying` d'ExoPlayer, faux tant qu'une note lancée
+  // charge, et le sondage du fil la rechargeait alors en plein chargement (#731).
   useEffect(() => {
-    if (url === sourceRef.current || player.playing || player.currentTime > 0) return;
+    if (url === sourceRef.current || wantsPlayRef.current || player.currentTime > 0) return;
     sourceRef.current = url;
     player.replace(url);
   }, [url, player]);
