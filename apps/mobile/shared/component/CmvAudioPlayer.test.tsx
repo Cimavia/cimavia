@@ -174,6 +174,30 @@ describe("CmvAudioPlayer — l'URL change sous le lecteur (#304)", () => {
 
     expect(player.replace).toHaveBeenCalledWith(SECOND);
   });
+
+  /**
+   * #731 : `player.playing` est l'`isPlaying` d'ExoPlayer, faux tant que la note charge. Lancée,
+   * elle passait donc pour « au repos » jusqu'au premier son, et le sondage de la messagerie, qui
+   * re-signe le fil toutes les 10 s, la rechargeait en plein chargement.
+   */
+  it("garde son URL pendant le chargement qui suit l'appui", async () => {
+    const { container, rerenderWith } = setup();
+    press(playButton(container));
+    await waitFor(() => expect(player.play).toHaveBeenCalledOnce());
+
+    rerenderWith(SECOND);
+
+    expect(player.replace).not.toHaveBeenCalled();
+  });
+
+  it("garde son URL pendant le chargement d'une note que la liste désigne", async () => {
+    setStatus({ isLoaded: false });
+    const { rerenderWith } = setup(undefined, listedCue(true));
+
+    rerenderWith(SECOND);
+
+    expect(player.replace).not.toHaveBeenCalled();
+  });
 });
 
 describe("CmvAudioPlayer — la lecture casse en route", () => {

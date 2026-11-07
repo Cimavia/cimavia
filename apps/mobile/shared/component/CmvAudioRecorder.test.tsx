@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react-native";
-import { waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
@@ -28,10 +28,15 @@ let notificationsGranted = true;
  * Sa préparation suit la règle d'Android (#619) : en arrière-plan, sans `POST_NOTIFICATIONS`, elle
  * lève. Elle lit le DERNIER mode posé — un repli qui retenterait sans changer de mode échouerait
  * donc ici comme sur le téléphone.
+ *
+ * L'enregistreur est pris DÈS le début de la préparation, puis attend la liaison du service de
+ * premier plan — jusqu'à 5 s sur Android (#731). `hold()` suspend cette attente et rend de quoi la
+ * lever : c'est la fenêtre où un second tap trouvait l'enregistreur déjà pris.
  */
 function fakeRecorder() {
   // Android refuse une seconde préparation tant que l'enregistreur n'est ni arrêté ni libéré (#700).
   let prepared = false;
+  let binding: Promise<void> = Promise.resolve();
   return {
     record: vi.fn(),
     stop: vi.fn(async () => {
@@ -44,7 +49,15 @@ function fakeRecorder() {
         throw notificationsRefused();
       }
       prepared = true;
+      await binding;
     }),
+    hold(): () => void {
+      let release = () => {};
+      binding = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return () => release();
+    },
     uri: "file:///cache/note.m4a" as string | null,
   };
 }
@@ -155,6 +168,133 @@ describe("CmvAudioRecorder — démarrage", () => {
     );
     expect(recorder.prepareToRecordAsync).not.toHaveBeenCalled();
     expect(onRecordingChange).not.toHaveBeenCalled();
+  });
+});
+
+/** L'indicateur de chargement : `react-native-web` rend `ActivityIndicator` en `progressbar`. */
+function spinner(container: HTMLElement): Element | null {
+  return container.querySelector('[role="progressbar"]');
+}
+
+describe("CmvAudioRecorder — taps pendant la préparation du micro (#731)", () => {
+  it("ne prépare qu'une fois quand on retape pendant la liaison du service", async () => {
+    const release = recorder.hold();
+    const { container, onRecordingChange, onError } = setup();
+    const mic = icon(container, "mic-outline");
+
+    press(mic);
+    await waitFor(() => expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce());
+    press(mic);
+    press(mic);
+    release();
+
+    await waitFor(() => expect(recorder.record).toHaveBeenCalledOnce());
+    expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce();
+    // Le second tap libérait l'enregistreur du premier en pleine préparation.
+    expect(recorder.stop).not.toHaveBeenCalled();
+    expect(onRecordingChange).toHaveBeenCalledExactlyOnceWith(true);
+    expect(onError).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  // Deux taps dans le même rendu : le second atteint encore le micro, avant que l'indicateur ne le
+  // remplace. Seul le `ref` l'arrête.
+  it("ne prépare qu'une fois pour deux taps arrivés avant le rendu suivant", async () => {
+    const release = recorder.hold();
+    const { container, onError } = setup();
+    const mic = icon(container, "mic-outline");
+
+    act(() => {
+      press(mic);
+      press(mic);
+    });
+    release();
+
+    await waitFor(() => expect(recorder.record).toHaveBeenCalledOnce());
+    expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce();
+    expect(requestRecordingPermissionsAsync).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("montre que le tap est pris tant que la préparation dure", async () => {
+    const release = recorder.hold();
+    const { container } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(spinner(container)).not.toBeNull());
+    expect(container.querySelector('[data-icon="mic-outline"]')).toBeNull();
+    release();
+  });
+
+  it("montre le bandeau dès que record() est parti, sans attendre le relevé natif", async () => {
+    const { container, onRecordingChange } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    // L'état natif n'est relu que toutes les 500 ms : le micro ne doit pas revenir dans
+    // l'intervalle, un tap y trouverait l'enregistreur pris.
+    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(true));
+    expect(icon(container, "send")).toBeDefined();
+    expect(spinner(container)).toBeNull();
+    expect(container.querySelector('[data-icon="mic-outline"]')).toBeNull();
+  });
+
+  // Une capture coupée par le natif avant tout relevé (appel entrant, micro repris) : sans bandeau,
+  // l'attente n'aurait plus d'issue.
+  it("garde la corbeille d'une capture que le natif ne confirme jamais", async () => {
+    const { container, onRecordingChange } = setup();
+    press(icon(container, "mic-outline"));
+    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(true));
+
+    press(icon(container, "trash-outline"));
+
+    await waitFor(() => expect(onRecordingChange).toHaveBeenLastCalledWith(false));
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(icon(container, "mic-outline")).toBeDefined();
+  });
+
+  it("rend le micro après une préparation ratée", async () => {
+    recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("micro occupé"));
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(spinner(container)).toBeNull();
+    expect(icon(container, "mic-outline")).toBeDefined();
+  });
+
+  it("rend le micro après une permission refusée", async () => {
+    vi.mocked(requestRecordingPermissionsAsync).mockResolvedValueOnce({
+      granted: false,
+    } as Awaited<ReturnType<typeof requestRecordingPermissionsAsync>>);
+    const { container, onError } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(spinner(container)).toBeNull();
+    expect(icon(container, "mic-outline")).toBeDefined();
+  });
+
+  it("rend le micro quand la capture se termine", async () => {
+    const view = setup();
+    await startCapture(view);
+
+    press(icon(view.container, "send"));
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenLastCalledWith(false));
+    idle();
+    view.rerender(
+      <CmvAudioRecorder
+        onRecorded={view.onRecorded}
+        onRecordingChange={view.onRecordingChange}
+        onError={view.onError}
+      />,
+    );
+
+    expect(spinner(view.container)).toBeNull();
+    expect(icon(view.container, "mic-outline")).toBeDefined();
   });
 });
 
