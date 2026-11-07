@@ -15,3 +15,15 @@ export const PASSWORD_MAX_LENGTH = 128;
 export const RESET_PASSWORD_TOKEN_TTL_HOURS = 1;
 const SECONDS_PER_HOUR = 3600;
 export const RESET_PASSWORD_TOKEN_TTL_SECONDS = RESET_PASSWORD_TOKEN_TTL_HOURS * SECONDS_PER_HOUR;
+
+/**
+ * Durée de validité du lien de vérification d'adresse (#270).
+ *
+ * Une journée et non l'heure par défaut de Better Auth : ce lien se lit souvent plus tard que celui
+ * d'une réinitialisation, qu'on demande au moment même où l'on veut se connecter. Un Athlete inscrit
+ * sur le téléphone que lui tend son coach ouvrira sa boîte le soir. Écrite pour la même raison que
+ * la précédente : c'est la durée que l'e-mail annonce.
+ */
+export const EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24;
+export const EMAIL_VERIFICATION_TOKEN_TTL_SECONDS =
+  EMAIL_VERIFICATION_TOKEN_TTL_HOURS * SECONDS_PER_HOUR;

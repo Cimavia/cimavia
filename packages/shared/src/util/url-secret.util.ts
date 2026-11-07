@@ -7,7 +7,8 @@
  *
  * En paramètre de requête :
  * - `token` — le lien de réinitialisation, côté web (`/reset-password?token=…`) comme dans la
- *   redirection que l'API renvoie vers lui ;
+ *   redirection que l'API renvoie vers lui ; et le lien de vérification d'adresse (#270), qui
+ *   arrive sur l'API en `/verify-email?token=…` ;
  * - `x-amz-signature` — une URL signée donne de quoi lire ou écrire un média sans être connecté ;
  * - `code` — défensif : aucune route ne le porte aujourd'hui, c'est le nom qu'un futur lien magique
  *   prendrait.
