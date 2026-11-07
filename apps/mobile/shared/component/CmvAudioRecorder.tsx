@@ -12,7 +12,7 @@ import {
 import { useKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform, Pressable, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 import { CmvText } from "./CmvText";
 
 export type RecordedAudio = { uri: string; durationSeconds: number };
@@ -154,6 +154,24 @@ export function CmvAudioRecorder({
   // Le mode « record » est posé, et ni `finish` ni un échec ne l'ont encore retiré : c'est lui que
   // le démontage rend. Posé AVANT la préparation, qui attend le service et laisse le temps de partir.
   const capturing = useRef(false);
+  /**
+   * L'enregistreur est à nous, du tap jusqu'à la fin de `finish` ou d'un démarrage raté (#731).
+   * Android le prend dès le début de la préparation, puis attend jusqu'à 5 s la liaison du service
+   * de premier plan : un second tap dans cet intervalle le trouvait pris, et son échec libérait
+   * celui du premier. Le `ref` refuse ce tap même avant le rendu suivant.
+   */
+  const engaged = useRef(false);
+  /**
+   * Ce que montre le composant. `recording` est posé dès que `record()` est passé, sans attendre
+   * le relevé natif (toutes les 500 ms) : le micro ne revient pas dans l'intervalle, et une capture
+   * que le natif ne confirme jamais garde son bandeau, donc sa corbeille.
+   */
+  const [phase, setPhase] = useState<"idle" | "preparing" | "recording">("idle");
+
+  const toIdle = () => {
+    engaged.current = false;
+    setPhase("idle");
+  };
 
   // Quitter l'écran en pleine capture : expo-audio libère l'enregistreur, rien ne part, mais le
   // mode « record » resterait posé et rendrait muettes les notes lues ensuite.
@@ -182,11 +200,15 @@ export function CmvAudioRecorder({
   };
 
   const start = async () => {
+    if (engaged.current) return;
+    engaged.current = true;
+    setPhase("preparing");
     try {
       // Permission demandée au moment de l'usage (pas au lancement) : l'utilisateur comprend
       // pourquoi on la lui demande.
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
+        toIdle();
         onError?.("messages.audio.permission");
         return;
       }
@@ -194,6 +216,7 @@ export function CmvAudioRecorder({
       await setAudioModeAsync(recordMode(true));
       const background = await prepare();
       recorder.record();
+      setPhase("recording");
       setForegroundOnly(!background);
       onRecordingChange?.(true);
     } catch (error) {
@@ -203,6 +226,8 @@ export function CmvAudioRecorder({
       captureRecorderError(error);
       await releaseRecorder(recorder);
       await restorePlayback();
+      // Le micro ne revient qu'une fois l'enregistreur libéré : un tap plus tôt le trouverait pris.
+      toIdle();
       onError?.("messages.audio.recordError");
     }
   };
@@ -225,11 +250,13 @@ export function CmvAudioRecorder({
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
     } finally {
+      toIdle();
       setBusy(false);
     }
   };
 
-  if (state.isRecording) {
+  // La fin, elle, revient au natif : le bandeau part quand le relevé ne dit plus enregistrer.
+  if (phase === "recording" || state.isRecording) {
     return (
       <RecordingBanner
         durationMillis={state.durationMillis}
@@ -237,6 +264,15 @@ export function CmvAudioRecorder({
         foregroundOnly={foregroundOnly}
         onFinish={finish}
       />
+    );
+  }
+
+  // Même emprise que l'icône du micro (24 px), pour que la barre ne bouge pas pendant l'attente.
+  if (phase === "preparing") {
+    return (
+      <View className="h-6 w-6 items-center justify-center">
+        <ActivityIndicator size="small" color={cmvColors.text.mid} />
+      </View>
     );
   }
 
