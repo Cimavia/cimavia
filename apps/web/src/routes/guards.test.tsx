@@ -43,6 +43,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "/register": "idem — et seule une inscription invitée passe l'API (#263)",
   "/forgot-password": "idem",
   "/reset-password": "idem : le jeton du lien fait office d'accès",
+  "/verify-email": "idem : ouverte depuis l'e-mail, souvent sur un autre appareil (#270)",
   "/athletes": "redirection pure vers `/` (#113), qui porte la garde — aucun écran monté",
 };
 

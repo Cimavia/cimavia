@@ -7,8 +7,7 @@ import {
   signUpErrorKey,
   toggledCapability,
 } from "@cmv/shared";
-import { useQueryClient } from "@tanstack/react-query";
-import { Link, Navigate, useNavigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { type SubmitEvent, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
@@ -22,9 +21,9 @@ import {
 import { LegalConsent } from "@/feature/legal";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
+import { VerificationSent } from "../component/VerificationSent";
 
 const TYPE_ICONS: Record<AccountType, IconType> = {
   training: IoPersonOutline,
@@ -37,8 +36,6 @@ const CHOICE_OFF = `${CHOICE_BASE} border-cmv-border bg-cmv-surface hover:border
 
 export function RegisterScreen() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const hintId = useId();
   const { data: session, isPending } = authClient.useSession();
   const [name, setName] = useState("");
@@ -52,6 +49,12 @@ export function RegisterScreen() {
   const [noCapability, setNoCapability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * L'adresse à laquelle le lien est parti (#270). L'inscription n'ouvre plus de session : il n'y a
+   * nulle part où naviguer, et rien du compte précédent à purger — c'est la connexion, plus tard,
+   * qui le fera.
+   */
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   if (!isPending && session) {
     return <Navigate to="/" search={{ q: undefined, filter: undefined, athlete: undefined }} />;
@@ -82,14 +85,20 @@ export function RegisterScreen() {
         setError(t(signUpErrorKey(signUpError.status)));
         return;
       }
-      // Même raison qu'à la connexion : rien du compte précédent ne doit survivre au changement.
-      resetAccountData(queryClient);
-      navigate({ to: "/", search: { q: undefined, filter: undefined, athlete: undefined } });
+      setSentTo(email);
     } catch {
       setError(t("auth.errors.generic"));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (sentTo != null) {
+    return (
+      <AuthLayout title={t("auth.verificationSent.title")}>
+        <VerificationSent email={sentTo} />
+      </AuthLayout>
+    );
   }
 
   return (
