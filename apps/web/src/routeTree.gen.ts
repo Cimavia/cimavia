@@ -22,6 +22,7 @@ import { Route as PlanningRouteImport } from './routes/planning'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
 import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
 import { Route as LibraryIndexRouteImport } from './routes/library.index'
@@ -102,6 +103,11 @@ const RemindersRoute = RemindersRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanyAthletesRoute = CompanyAthletesRouteImport.update({
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/verify-email'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/verify-email'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/reminders'
     | '/reset-password'
+    | '/verify-email'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -391,6 +403,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   CompanyAthletesRoute: typeof CompanyAthletesRoute
   CompanyCoachesRoute: typeof CompanyCoachesRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
@@ -498,6 +511,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/company/athletes': {
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   CompanyAthletesRoute: CompanyAthletesRoute,
   CompanyCoachesRoute: CompanyCoachesRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,

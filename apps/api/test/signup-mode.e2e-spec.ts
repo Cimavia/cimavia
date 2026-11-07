@@ -4,8 +4,9 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { configureApp, createHttpAdapter } from "../src/app.setup";
-import { MailService } from "../src/infra/mail/mail.service";
+import { type MailMessage, MailService } from "../src/infra/mail/mail.service";
 import { PrismaService } from "../src/infra/prisma/prisma.service";
+import { verifyAndSignIn } from "./support/verification";
 
 /**
  * Inscription FERMÉE (#263) — le comportement du tier preview (NAS).
@@ -32,7 +33,23 @@ let prisma: PrismaService;
 let previousMode: string | undefined;
 let previousAllowed: string | undefined;
 
-const mailServiceDouble = { isConfigured: true, send: () => Promise.resolve(true) };
+// Un double qui ENREGISTRE : l'inscription n'ouvre plus de session (#270), les comptes de cette
+// suite se connectent donc par le lien de vérification qu'il a reçu.
+const mails: MailMessage[] = [];
+const mailServiceDouble = {
+  isConfigured: true,
+  send: (message: MailMessage) => {
+    mails.push(message);
+    return Promise.resolve(true);
+  },
+};
+
+/** Inscrit par `agent`, puis vérifie l'adresse et connecte l'agent. */
+async function signUpVerified(agent: Agent, body: Record<string, unknown>): Promise<void> {
+  const created = await agent.post("/api/auth/sign-up/email").send(body);
+  expect([200, 201]).toContain(created.status);
+  await verifyAndSignIn(agent, mails, String(body.email), PASSWORD);
+}
 
 /** L'inscription telle que les deux clients l'envoient : capacités, jamais `role` (#12). */
 function signUp(
@@ -46,14 +63,13 @@ function signUp(
 
 async function signUpAgent(email: string, role: string): Promise<Agent> {
   const agent = request.agent(baseURL);
-  const res = await agent.post("/api/auth/sign-up/email").send({
+  await signUpVerified(agent, {
     name: email,
     email,
     password: PASSWORD,
     isCoach: role === Role.COACH,
     isAthlete: role === Role.ATHLETE,
   });
-  expect([200, 201]).toContain(res.status);
   return agent;
 }
 
@@ -120,6 +136,16 @@ describe("Inscription fermée (#263)", () => {
     await expect(prisma.user.count({ where: { email: "inconnu@cmv.test" } })).resolves.toBe(0);
   });
 
+  // La porte passe AVANT la route (#270), donc avant sa validation : ce qu'elle ne sait pas lire,
+  // elle le refuse, au lieu de le laisser filer jusqu'à la création.
+  it("refuse une adresse qui n'est pas une chaîne (400), sans rien créer", async () => {
+    const res = await request(baseURL)
+      .post("/api/auth/sign-up/email")
+      .send({ name: "x", email: ["inconnu@cmv.test"], password: PASSWORD, isAthlete: true });
+    expect(res.status).toBe(400);
+    await expect(prisma.user.count({ where: { email: "inconnu@cmv.test" } })).resolves.toBe(0);
+  });
+
   // La porte de ceux que personne n'invite. Le compte ci-dessus a été créé par `beforeAll`,
   // avec une casse et des espaces différents de ceux du `.env` — et c'est exprès.
   it("laisse entrer une adresse listée malgré la casse et les espaces", async () => {
@@ -132,7 +158,7 @@ describe("Inscription fermée (#263)", () => {
     expect(invitation.status).toBe(201);
 
     const athlete = request.agent(baseURL);
-    const created = await athlete.post("/api/auth/sign-up/email").send({
+    await signUpVerified(athlete, {
       name: "Lea",
       // La casse de l'inscription n'est pas celle de l'invitation : deux personnes l'ont tapée.
       email: "Lea@cmv.test",
@@ -140,7 +166,6 @@ describe("Inscription fermée (#263)", () => {
       isCoach: false,
       isAthlete: true,
     });
-    expect([200, 201]).toContain(created.status);
 
     const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
     expect(accepted.status).toBe(201);
@@ -189,13 +214,12 @@ describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601
 
   beforeAll(async () => {
     company = request.agent(baseURL);
-    const created = await company.post("/api/auth/sign-up/email").send({
+    await signUpVerified(company, {
       name: "F",
       email: COMPANY_EMAIL,
       password: PASSWORD,
       ...COMPANY,
     });
-    expect([200, 201]).toContain(created.status);
   });
 
   // L'invitation d'une entreprise ouvre la porte comme celle d'un Coach : c'est la même table.
@@ -206,14 +230,13 @@ describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601
     expect(invitation.status).toBe(201);
 
     const coach = request.agent(baseURL);
-    const created = await coach.post("/api/auth/sign-up/email").send({
+    await signUpVerified(coach, {
       name: "C",
       email: "c@cmv.test",
       password: PASSWORD,
       isCoach: true,
       isAthlete: false,
     });
-    expect([200, 201]).toContain(created.status);
     expect(
       (await coach.post(`/organization-invitations/${invitation.body.id}/accept`)).status,
     ).toBe(204);
@@ -227,14 +250,13 @@ describe("Inscription fermée : la porte d'une entreprise et de ses Coachs (#601
     expect(invitation.status).toBe(201);
 
     const athlete = request.agent(baseURL);
-    const created = await athlete.post("/api/auth/sign-up/email").send({
+    await signUpVerified(athlete, {
       name: "TI",
       email: "ti@cmv.test",
       password: PASSWORD,
       isCoach: false,
       isAthlete: true,
     });
-    expect([200, 201]).toContain(created.status);
     expect((await athlete.post(`/invitations/${invitation.body.id}/accept`)).status).toBe(201);
   });
 

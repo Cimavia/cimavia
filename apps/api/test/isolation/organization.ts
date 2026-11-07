@@ -2,7 +2,7 @@ import { InvitationRole, InvitationStatus } from "@cmv/shared";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { fr } from "../../src/infra/mail/locale/fr";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
-import { type Agent, idOf, required, signUpWith } from "../support/actors";
+import { type Agent, idOf, required, signUpUnverified, signUpWith } from "../support/actors";
 import { app, sentMails } from "../support/app";
 
 /**
@@ -424,6 +424,23 @@ describe("L'entreprise invite des athlètes, suivis par tous ses Coachs (#602)",
     expect(sentMails).toEqual([]);
     expect(await typesOf(coach)).toEqual([]);
     expect((await coach.get("/organization-invitations/for-me")).body).toEqual([]);
+  });
+
+  /**
+   * …sauf si ce compte n'a jamais été vérifié (#270) : il n'a rien prouvé, et c'est peut-être celui
+   * d'un tiers. Pour le canal il n'existe pas — l'adresse reçoit l'e-mail, au lieu de rien du tout.
+   */
+  it("écrit à une adresse dont le compte n'a jamais été vérifié", async () => {
+    const email = "org-ath-non-verifie@cmv.test";
+    const created = await signUpUnverified(email, { capabilities: COACH });
+    expect(created.status).toBe(200);
+    sentMails.length = 0;
+
+    await invite(company, email, InvitationRole.ATHLETE);
+
+    const mail = required(sentMails[0], "e-mail d'invitation");
+    expect(mail.to).toBe(email);
+    expect(mail.text).toContain(fr.organizationInvitation.ATHLETE.addressLine);
   });
 
   it("lie l'athlète à chaque Coach, et les prévient", async () => {

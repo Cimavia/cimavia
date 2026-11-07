@@ -157,6 +157,20 @@ describe("LoginScreen", () => {
     expect(view.router.state.location.pathname).toBe("/login");
   });
 
+  /**
+   * Le mot de passe était le bon : l'adresse n'est simplement pas confirmée (#270), et l'API vient
+   * de renvoyer le lien. « Identifiants incorrects » ferait retaper un mot de passe juste.
+   */
+  it("dit que l'adresse n'est pas confirmée plutôt que les identifiants faux", async () => {
+    signInMock.mockResolvedValue({ error: { status: 403, code: "EMAIL_NOT_VERIFIED" } });
+    const view = await setup();
+
+    await signIn(view);
+
+    expect(await view.findByText("auth.errors.emailNotVerified")).toBeInTheDocument();
+    expect(view.queryByText("auth.errors.invalidCredentials")).not.toBeInTheDocument();
+  });
+
   it("dit quelque chose même quand l'appel casse", async () => {
     signInMock.mockRejectedValue(new Error("réseau coupé"));
     const view = await setup();

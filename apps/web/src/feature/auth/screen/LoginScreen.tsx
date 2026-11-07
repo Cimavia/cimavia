@@ -1,3 +1,4 @@
+import { signInErrorKey } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useNavigate, useSearch } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
@@ -51,7 +52,8 @@ export function LoginScreen() {
     try {
       const { error: signInError } = await authClient.signIn.email({ email, password });
       if (signInError) {
-        setError(t("auth.errors.invalidCredentials"));
+        // `EMAIL_NOT_VERIFIED` : l'adresse n'est pas confirmée, l'API vient de renvoyer le lien (#270).
+        setError(t(signInErrorKey(signInError)));
         return;
       }
       // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène

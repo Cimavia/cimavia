@@ -8,6 +8,7 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { createEmailVerificationToken } from "better-auth/api";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 /**
@@ -120,7 +121,25 @@ async function exerciseApi() {
       isAthlete: false,
     }),
   });
-  const cookie = signUp.headers
+  // L'inscription n'ouvre plus de session (#270) : l'adresse se vérifie, puis l'on se connecte. Le
+  // jeton se fabrique avec le secret que le processus hérite de `.env.test` — ce test n'a pas la
+  // main sur les e-mails du processus compilé, et c'est la route qu'il éprouve, pas l'envoi.
+  //
+  // Vérification et connexion sont affirmées ICI : un secret qui ne serait pas celui du processus
+  // ferait échouer la suite plus loin, sur une 401 qui ne dirait rien de sa cause.
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret)
+    throw new Error("BETTER_AUTH_SECRET manque : le jeton de vérification ne se signe pas");
+  const token = await createEmailVerificationToken(secret, email);
+  const verified = await fetch(`${origin}/api/auth/verify-email?token=${token}`);
+  expect(verified.status, "vérification de l'adresse").toBe(200);
+  const signIn = await fetch(`${origin}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password: "password123" }),
+  });
+  expect(signIn.status, "connexion après vérification").toBe(200);
+  const cookie = signIn.headers
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");

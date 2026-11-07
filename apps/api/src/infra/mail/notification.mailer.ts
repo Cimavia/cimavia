@@ -1,8 +1,9 @@
-import { type EmailableNotificationType, type EnvSchema, trimTrailingSlashes } from "@cmv/shared";
+import type { EmailableNotificationType, EnvSchema } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mailCatalog } from "./mail.catalog";
 import { MailService } from "./mail.service";
+import { webPage } from "./web-page";
 
 export type NotificationMailRecipient = {
   email: string;
@@ -25,15 +26,12 @@ export class NotificationMailer {
     private readonly mail: MailService,
     config: ConfigService<EnvSchema, true>,
   ) {
-    const webUrl = config.get("WEB_URL", { infer: true });
     // Sans `WEB_URL`, le pied disparaît et le message part quand même : un e-mail sans porte de
     // sortie reste préférable à pas d'e-mail. C'est un réglage de production, pas un prérequis.
     //
-    // ⚠️ `/account` est la route du COMPTE côté web (`apps/web/src/routes/account.tsx`), où vivent
-    // les réglages de notification. Aucun test ne peut vérifier qu'elle existe — l'API ne connaît
-    // pas le routeur du client —, donc renommer ce fichier casse ce lien EN SILENCE. Le nommer ici
-    // est la seule parade : un `grep account.tsx` le trouve.
-    this.settingsUrl = webUrl == null ? null : `${trimTrailingSlashes(webUrl)}/account`;
+    // ⚠️ `apps/web/src/routes/account.tsx`, où vivent les réglages de notification — voir
+    // `webPage` (dette I-2).
+    this.settingsUrl = webPage(config, "/account");
   }
 
   async send(

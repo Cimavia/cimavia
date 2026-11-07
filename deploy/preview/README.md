@@ -299,7 +299,8 @@ distincts, et certains n'en demandent qu'un.
 > ⚠️ **Access d'abord, invitation ensuite.** Un lien d'e-mail envoyé à quelqu'un qui n'est pas dans
 > la policy `beta-web` s'arrête sur une demande de code qu'il ne peut pas satisfaire, sans rien lui
 > dire d'utile. Vrai pour l'invitation comme pour la réinitialisation de mot de passe, que le
-> mobile renvoie vers le web.
+> mobile renvoie vers le web — et pour la **vérification d'adresse** (#270) : le lien envoyé à
+> l'inscription ramène sur `app-preview/verify-email`, et sans ce lien ouvert, pas de connexion.
 
 ### Un Coach
 
@@ -312,7 +313,8 @@ Personne ne l'invite : c'est le seul cas qui demande une intervention sur le NAS
    démarrage.
 3. Lui donner l'app (`eas build --profile preview --platform android`, § *App mobile de test*) ou
    l'URL du web.
-4. Il crée son compte avec **l'adresse autorisée**, case *coach* cochée.
+4. Il crée son compte avec **l'adresse autorisée**, case *coach* cochée, ouvre le lien reçu par
+   e-mail, puis se connecte.
 
 ### Un Athlete
 
@@ -322,8 +324,8 @@ Aucune intervention sur le NAS : c'est son coach qui ouvre la porte, depuis l'ap
 2. **Son coach l'invite par son ADRESSE** (l'invitation nominative), pas par un lien générique :
    un lien sans adresse n'identifie personne, donc n'autorise aucune inscription.
 3. Lui donner l'app.
-4. Il crée son compte avec **l'adresse invitée**, case *athlète* cochée, puis accepte l'invitation
-   qui l'attend dans l'app.
+4. Il crée son compte avec **l'adresse invitée**, case *athlète* cochée, ouvre le lien reçu par
+   e-mail, se connecte, puis accepte l'invitation qui l'attend dans l'app.
 
 ### Quelqu'un qui est les deux
 

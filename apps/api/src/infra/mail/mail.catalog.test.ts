@@ -38,6 +38,9 @@ describe("catalogues — parité des deux langues", () => {
   // deuxième bout : qu'aucun texte ne soit vide ou resté en français côté anglais.
   it("porte exactement les mêmes clés", () => {
     expect(Object.keys(en.resetPassword).sort()).toEqual(Object.keys(fr.resetPassword).sort());
+    expect(Object.keys(en.verifyEmail).sort()).toEqual(Object.keys(fr.verifyEmail).sort());
+    expect(Object.keys(en.existingAccount).sort()).toEqual(Object.keys(fr.existingAccount).sort());
+    expect(Object.keys(en.pendingAccount).sort()).toEqual(Object.keys(fr.pendingAccount).sort());
     expect(Object.keys(en.common).sort()).toEqual(Object.keys(fr.common).sort());
   });
 
@@ -48,6 +51,23 @@ describe("catalogues — parité des deux langues", () => {
       [fr.resetPassword.intro, en.resetPassword.intro],
       [fr.resetPassword.cta, en.resetPassword.cta],
       [fr.resetPassword.ignore, en.resetPassword.ignore],
+      [fr.verifyEmail.subject, en.verifyEmail.subject],
+      [fr.verifyEmail.heading, en.verifyEmail.heading],
+      [fr.verifyEmail.intro, en.verifyEmail.intro],
+      [fr.verifyEmail.cta, en.verifyEmail.cta],
+      [fr.verifyEmail.ignore, en.verifyEmail.ignore],
+      [fr.existingAccount.subject, en.existingAccount.subject],
+      [fr.existingAccount.heading, en.existingAccount.heading],
+      [fr.existingAccount.intro, en.existingAccount.intro],
+      [fr.existingAccount.hint, en.existingAccount.hint],
+      [fr.existingAccount.cta, en.existingAccount.cta],
+      [fr.existingAccount.ignore, en.existingAccount.ignore],
+      [fr.pendingAccount.subject, en.pendingAccount.subject],
+      [fr.pendingAccount.heading, en.pendingAccount.heading],
+      [fr.pendingAccount.intro, en.pendingAccount.intro],
+      [fr.pendingAccount.hint, en.pendingAccount.hint],
+      [fr.pendingAccount.cta, en.pendingAccount.cta],
+      [fr.pendingAccount.ignore, en.pendingAccount.ignore],
       [fr.common.signature, en.common.signature],
       [fr.common.linkFallback, en.common.linkFallback],
     ] as const;
@@ -60,10 +80,10 @@ describe("catalogues — parité des deux langues", () => {
 
   // Une heure au singulier, plusieurs au pluriel — dans les deux langues.
   it("accorde la durée de validité au nombre d'heures", () => {
-    expect(fr.resetPassword.expiry(1)).toContain("une heure");
-    expect(fr.resetPassword.expiry(3)).toContain("3 heures");
-    expect(en.resetPassword.expiry(1)).toContain("one hour");
-    expect(en.resetPassword.expiry(3)).toContain("3 hours");
+    expect(fr.common.linkExpiry(1)).toContain("une heure");
+    expect(fr.common.linkExpiry(3)).toContain("3 heures");
+    expect(en.common.linkExpiry(1)).toContain("one hour");
+    expect(en.common.linkExpiry(3)).toContain("3 hours");
   });
 });
 
@@ -107,6 +127,52 @@ describe("mailCatalog — gabarit de réinitialisation", () => {
     });
     expect(mail.html).not.toContain("<script>");
     expect(mail.html).toContain("&quot;&gt;&lt;script&gt;");
+  });
+});
+
+describe("mailCatalog — vérification d'adresse et adresse déjà inscrite (#270)", () => {
+  it("rend le lien de vérification et sa durée dans la langue demandée", () => {
+    const mail = mailCatalog(Locale.EN).verifyEmail({ url: RESET_URL, expiresInHours: 24 });
+    expect(mail.subject).toBe(en.verifyEmail.subject);
+    expect(mail.text).toContain(RESET_URL);
+    expect(mail.text).toContain("24 hours");
+    expect(mail.html).toContain(en.verifyEmail.cta);
+  });
+
+  it("propose la connexion au propriétaire quand le lien est connu", () => {
+    const mail = mailCatalog(Locale.FR).existingAccount({
+      loginUrl: "https://app.cimavia.fr/login",
+    });
+    expect(mail.subject).toBe(fr.existingAccount.subject);
+    expect(mail.text).toContain(`${fr.existingAccount.cta} : https://app.cimavia.fr/login`);
+    expect(mail.text).toContain(fr.existingAccount.ignore);
+  });
+
+  // La consigne seule, sans libellé de lien orphelin.
+  it("garde la consigne et retire le lien quand il est inconnu", () => {
+    const mail = mailCatalog(Locale.FR).existingAccount({ loginUrl: null });
+    expect(mail.text).toContain(fr.existingAccount.hint);
+    expect(mail.text).not.toContain(fr.existingAccount.cta);
+  });
+});
+
+describe("mailCatalog — compte jamais confirmé (#270)", () => {
+  it("mène au choix d'un mot de passe, dans la langue demandée", () => {
+    const mail = mailCatalog(Locale.EN).pendingAccount({
+      forgotPasswordUrl: "https://app.cimavia.fr/forgot-password",
+    });
+    expect(mail.subject).toBe(en.pendingAccount.subject);
+    expect(mail.text).toContain(en.pendingAccount.hint);
+    expect(mail.text).toContain(
+      `${en.pendingAccount.cta} : https://app.cimavia.fr/forgot-password`,
+    );
+    expect(mail.html).toContain('lang="en"');
+  });
+
+  it("garde la consigne et retire le lien quand il est inconnu", () => {
+    const mail = mailCatalog(Locale.FR).pendingAccount({ forgotPasswordUrl: null });
+    expect(mail.text).toContain(fr.pendingAccount.hint);
+    expect(mail.text).not.toContain(fr.pendingAccount.cta);
   });
 });
 

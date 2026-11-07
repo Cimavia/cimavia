@@ -1,8 +1,9 @@
 import { Role, type TrainingCapability } from "@cmv/shared";
 import request from "supertest";
 import { expect } from "vitest";
-import { baseURL } from "./app";
+import { baseURL, sentMails } from "./app";
 import { required } from "./required";
+import { verifyAndSignIn } from "./verification";
 import { publishAtLatest } from "./version";
 
 export const PASSWORD = "password123";
@@ -21,19 +22,38 @@ export async function signUp(email: string, role: string): Promise<Agent> {
   return signUpWith(email, { isCoach: role === Role.COACH, isAthlete: role === Role.ATHLETE });
 }
 
+type CapabilityFlags = { isCoach: boolean; isAthlete: boolean; isCompany?: boolean };
+
+/**
+ * L'inscription seule, sans ouvrir le lien reçu (#270) : un compte NON vérifié, sans session —
+ * celui qu'obtient un tiers qui s'inscrit avec l'adresse d'un autre. La réponse est rendue telle
+ * quelle, c'est souvent elle qu'on regarde. Athlète par défaut, `name = email`.
+ */
+export function signUpUnverified(
+  email: string,
+  {
+    agent = request.agent(baseURL),
+    password = PASSWORD,
+    capabilities = { isCoach: false, isAthlete: true },
+  }: { agent?: Agent; password?: string; capabilities?: CapabilityFlags } = {},
+) {
+  return agent
+    .post("/api/auth/sign-up/email")
+    .send({ name: email, email, password, ...capabilities });
+}
+
 /**
  * Inscription à capacités explicites — le seul moyen d'obtenir un compte qui CUMULE, ou une
  * entreprise. `name = email` : le nom d'un compte s'y lit comme son adresse.
+ *
+ * L'agent rendu est CONNECTÉ : l'inscription n'ouvre plus de session depuis #270, il ouvre donc le
+ * lien de vérification reçu puis se connecte, comme l'inscrit le ferait.
  */
-export async function signUpWith(
-  email: string,
-  capabilities: { isCoach: boolean; isAthlete: boolean; isCompany?: boolean },
-): Promise<Agent> {
+export async function signUpWith(email: string, capabilities: CapabilityFlags): Promise<Agent> {
   const agent = request.agent(baseURL);
-  const res = await agent
-    .post("/api/auth/sign-up/email")
-    .send({ name: email, email, password: PASSWORD, ...capabilities });
+  const res = await signUpUnverified(email, { agent, capabilities });
   expect([200, 201]).toContain(res.status);
+  await verifyAndSignIn(agent, sentMails, email, PASSWORD);
   return agent;
 }
 

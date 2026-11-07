@@ -125,6 +125,22 @@ describe("LoginScreen — la connexion", () => {
     expect(resetAccount).not.toHaveBeenCalled();
   });
 
+  /**
+   * Adresse pas encore confirmée (#270) : l'API refuse en 403 ET renvoie le lien. Sans ce message
+   * distinct, l'utilisateur lirait « identifiants incorrects » et réinitialiserait un mot de passe
+   * juste.
+   */
+  it("dit que l'adresse reste à confirmer quand l'API répond EMAIL_NOT_VERIFIED", async () => {
+    signIn.mockResolvedValue({ error: { status: 403, code: "EMAIL_NOT_VERIFIED" } } as never);
+    const { container, queryByText } = renderRn(<LoginScreen />);
+    fillCredentials(container);
+
+    pressButton(container, SUBMIT);
+
+    await waitFor(() => expect(queryByText("auth.errors.emailNotVerified")).not.toBeNull());
+    expect(resetAccount).not.toHaveBeenCalled();
+  });
+
   /** Le réseau lève, le client Better Auth non : sans ce repli, l'écran resterait muet. */
   it("dit quelque chose même quand l'appel casse", async () => {
     signIn.mockRejectedValue(new Error("réseau coupé"));

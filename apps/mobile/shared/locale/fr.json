@@ -73,10 +73,18 @@
     },
     "errors": {
       "generic": "Une erreur est survenue. Réessaie.",
-      "emailInUse": "Cette adresse e-mail est déjà utilisée.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
       "noCapability": "Coche au moins une case : « Je coache », « Je m'entraîne » ou les deux.",
-      "signupClosed": "Les inscriptions sont fermées sur cet environnement. Il faut une invitation."
+      "signupClosed": "Les inscriptions sont fermées sur cet environnement. Il faut une invitation.",
+      "emailNotVerified": "Ton adresse n'est pas encore confirmée. On vient de te renvoyer le lien : ouvre-le, puis reconnecte-toi."
+    },
+    "verificationSent": {
+      "title": "Vérifie ta boîte",
+      "body": "Un e-mail vient de partir vers {{email}}. Ouvre le lien qu'il contient, puis connecte-toi.",
+      "resend": "Renvoyer l'e-mail",
+      "resending": "Envoi…",
+      "resent": "C'est reparti. Pense à regarder dans tes indésirables.",
+      "toLogin": "Aller à la connexion"
     }
   },
   "exercise": {

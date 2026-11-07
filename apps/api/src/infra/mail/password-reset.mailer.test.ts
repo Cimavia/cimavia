@@ -43,7 +43,7 @@ describe("PasswordResetMailer", () => {
     await mailer.send({ to: "coach@example.com", locale: Locale.FR, url: URL });
 
     const message = send.mock.calls[0]?.[0];
-    expect(message?.text).toContain(fr.resetPassword.expiry(RESET_PASSWORD_TOKEN_TTL_HOURS));
+    expect(message?.text).toContain(fr.common.linkExpiry(RESET_PASSWORD_TOKEN_TTL_HOURS));
   });
 
   it("porte le lien dans les deux corps", async () => {

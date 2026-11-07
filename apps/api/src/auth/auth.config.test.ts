@@ -1,7 +1,7 @@
-import { Role } from "@cmv/shared";
+import { EMAIL_VERIFICATION_TOKEN_TTL_SECONDS, Role } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type AuthConfig, createAuth, type SendResetPassword } from "./auth.config";
+import { type AuthConfig, createAuth, type SendAuthLink } from "./auth.config";
 
 /**
  * La fabrique seule, sans base : Better Auth ne touche pas Prisma à la construction. Ce qui se
@@ -14,6 +14,8 @@ function authWith(overrides: Partial<AuthConfig> = {}, prisma = {} as PrismaClie
     baseURL: "http://localhost:3001",
     trustedOrigins: ["http://localhost:5173"],
     sendResetPassword: () => Promise.resolve(),
+    sendVerificationEmail: () => Promise.resolve(),
+    notifyExistingAccount: () => Promise.resolve(),
     mayCreateAccount: () => Promise.resolve(true),
     ...overrides,
   });
@@ -45,7 +47,7 @@ describe("createAuth — origines de confiance", () => {
 
 describe("createAuth — langue de l'e-mail de réinitialisation", () => {
   async function localeSentFor(user: Record<string, unknown>) {
-    const sendResetPassword = vi.fn<SendResetPassword>(() => Promise.resolve());
+    const sendResetPassword = vi.fn<SendAuthLink>(() => Promise.resolve());
     const reset = authWith({ sendResetPassword }).options.emailAndPassword?.sendResetPassword;
     await reset?.({ user: { email: "a@cmv.test", ...user } as never, url: "u", token: "t" });
     return sendResetPassword.mock.calls[0]?.[0];
@@ -72,8 +74,103 @@ describe("createAuth — langue de l'e-mail de réinitialisation", () => {
   });
 });
 
+/**
+ * La politique de #270, lue sur la configuration : chacune de ces valeurs a un défaut différent dans
+ * Better Auth, et une mise à jour qui le changerait rouvrirait la porte sans qu'un écran le montre.
+ */
+describe("createAuth — vérification d'adresse (#270)", () => {
+  it("refuse la session sans adresse vérifiée, et renvoie le lien à la connexion", () => {
+    const { options } = authWith();
+    expect(options.emailAndPassword?.requireEmailVerification).toBe(true);
+    expect(options.emailVerification).toMatchObject({
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: false,
+      expiresIn: EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
+    });
+  });
+
+  it("envoie le lien à l'adresse, dans la langue du compte", async () => {
+    const sendVerificationEmail = vi.fn<SendAuthLink>(() => Promise.resolve());
+    const send = authWith({ sendVerificationEmail }).options.emailVerification
+      ?.sendVerificationEmail;
+    await send?.({ user: { email: "a@cmv.test", locale: "en" } as never, url: "u", token: "t" });
+    expect(sendVerificationEmail).toHaveBeenCalledExactlyOnceWith({
+      to: "a@cmv.test",
+      locale: "en",
+      url: "u",
+    });
+  });
+
+  describe("inscription sur une adresse déjà prise", () => {
+    function setup() {
+      const notifyExistingAccount = vi.fn<AuthConfig["notifyExistingAccount"]>(() =>
+        Promise.resolve(),
+      );
+      const deleteMany = vi.fn(() => Promise.resolve({ count: 1 }));
+      const prisma = { account: { deleteMany } } as unknown as PrismaClient;
+      const notify = authWith({ notifyExistingAccount }, prisma).options.emailAndPassword
+        ?.onExistingUserSignUp;
+      return { notifyExistingAccount, deleteMany, notify };
+    }
+
+    it("prévient le propriétaire d'un compte confirmé, sans y toucher", async () => {
+      const { notifyExistingAccount, deleteMany, notify } = setup();
+      await notify?.({ user: { id: "u1", email: "a@cmv.test", emailVerified: true } as never });
+      expect(deleteMany).not.toHaveBeenCalled();
+      expect(notifyExistingAccount).toHaveBeenCalledExactlyOnceWith({
+        to: "a@cmv.test",
+        locale: null,
+        verified: true,
+      });
+    });
+
+    /**
+     * Le lien de confirmation ne porte que l'adresse : gardé, le mot de passe de celui qui a créé le
+     * compte redeviendrait bon dès que le vrai propriétaire l'ouvrirait.
+     */
+    it("efface le mot de passe d'un compte jamais confirmé, puis prévient", async () => {
+      const { notifyExistingAccount, deleteMany, notify } = setup();
+      await notify?.({ user: { id: "u1", email: "a@cmv.test", emailVerified: false } as never });
+      expect(deleteMany).toHaveBeenCalledExactlyOnceWith({
+        where: { userId: "u1", providerId: "credential" },
+      });
+      expect(notifyExistingAccount).toHaveBeenCalledWith(
+        expect.objectContaining({ verified: false }),
+      );
+    });
+  });
+
+  describe("réinitialisation du mot de passe", () => {
+    function setup() {
+      const update = vi.fn(() => Promise.resolve({}));
+      const prisma = { user: { update } } as unknown as PrismaClient;
+      const onReset = authWith({}, prisma).options.emailAndPassword?.onPasswordReset;
+      return { update, onReset };
+    }
+
+    // Le lien est arrivé dans la boîte : l'adresse est prouvée, comme par la confirmation.
+    it("confirme l'adresse d'un compte qui ne l'était pas", async () => {
+      const { update, onReset } = setup();
+      await onReset?.({ user: { id: "u1", emailVerified: false } as never });
+      expect(update).toHaveBeenCalledExactlyOnceWith({
+        where: { id: "u1" },
+        data: { emailVerified: true },
+      });
+    });
+
+    it("n'écrit rien pour une adresse déjà confirmée", async () => {
+      const { update, onReset } = setup();
+      await onReset?.({ user: { id: "u1", emailVerified: true } as never });
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe("createAuth — type de compte à l'inscription (#600)", () => {
-  const before = (user: Record<string, unknown>) => {
+  // `async` comme pour `update` : le hook lève, et c'est le `await` de Better Auth qui en fait un
+  // rejet — le wrapper rejoue exactement ça.
+  const before = async (user: Record<string, unknown>) => {
     const hook = authWith().options.databaseHooks?.user?.create?.before;
     return hook?.({ email: "f@cmv.test", name: "F", ...user } as never);
   };

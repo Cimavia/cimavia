@@ -12,6 +12,8 @@ export const fr = {
     linkFallback:
       "Si le lien ci-dessus ne fonctionne pas, copie cette adresse dans ton navigateur :",
     manageNotifications: "Gérer mes notifications par e-mail",
+    linkExpiry: (hours: number) =>
+      hours > 1 ? `Ce lien est valable ${hours} heures.` : "Ce lien est valable une heure.",
   },
   resetPassword: {
     subject: "Réinitialise ton mot de passe Cimavia",
@@ -19,10 +21,37 @@ export const fr = {
     intro:
       "Tu as demandé à réinitialiser ton mot de passe Cimavia. Suis le lien ci-dessous pour en choisir un nouveau.",
     cta: "Choisir un nouveau mot de passe",
-    expiry: (hours: number) =>
-      hours > 1 ? `Ce lien est valable ${hours} heures.` : "Ce lien est valable une heure.",
     ignore:
       "Si tu n'es pas à l'origine de cette demande, ignore cet e-mail : ton mot de passe reste inchangé.",
+  },
+  verifyEmail: {
+    subject: "Confirme ton adresse e-mail Cimavia",
+    heading: "Confirme ton adresse",
+    intro:
+      "Tu viens de créer ton compte Cimavia. Suis le lien ci-dessous pour confirmer que cette adresse est bien la tienne : tu pourras ensuite te connecter.",
+    cta: "Confirmer mon adresse",
+    ignore:
+      "Si tu n'as pas créé de compte, ignore cet e-mail : sans confirmation, personne ne pourra se connecter avec cette adresse.",
+  },
+  existingAccount: {
+    subject: "Ton adresse a déjà un compte Cimavia",
+    heading: "Tu as déjà un compte",
+    intro:
+      "Quelqu'un vient de demander à créer un compte Cimavia avec cette adresse. Elle en a déjà un : aucun nouveau compte n'a été créé.",
+    hint: "Si c'était toi, connecte-toi avec ton mot de passe habituel. Tu l'as oublié ? La page de connexion te permet d'en choisir un nouveau.",
+    cta: "Me connecter",
+    ignore:
+      "Si ce n'était pas toi, ignore cet e-mail : ton compte et ton mot de passe restent inchangés.",
+  },
+  pendingAccount: {
+    subject: "Choisis ton mot de passe Cimavia",
+    heading: "Un compte attend ta confirmation",
+    intro:
+      "Quelqu'un vient de demander à créer un compte Cimavia avec cette adresse. Un compte l'attendait déjà, jamais confirmé : par prudence, son mot de passe a été effacé.",
+    hint: "Si c'est toi, choisis un nouveau mot de passe depuis « Mot de passe oublié » : ton adresse sera confirmée du même coup, et tu pourras te connecter.",
+    cta: "Choisir mon mot de passe",
+    ignore:
+      "Si ce n'était pas toi, ignore cet e-mail : personne ne peut plus se connecter à ce compte sans passer par ta boîte.",
   },
   /**
    * L'invitation d'un athlète sans compte. Tutoiement comme partout, et le nom du coach en objet :
