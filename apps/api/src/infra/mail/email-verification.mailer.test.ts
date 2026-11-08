@@ -1,8 +1,11 @@
 import type { EnvSchema } from "@cmv/shared";
 import { EMAIL_VERIFICATION_TOKEN_TTL_HOURS, Locale } from "@cmv/shared";
 import type { ConfigService } from "@nestjs/config";
-import { describe, expect, it, vi } from "vitest";
-import { EmailVerificationMailer } from "./email-verification.mailer";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  EmailVerificationMailer,
+  EXISTING_ACCOUNT_NOTICE_INTERVAL_MS,
+} from "./email-verification.mailer";
 import { en } from "./locale/en";
 import { fr } from "./locale/fr";
 import { mailCatalog } from "./mail.catalog";
@@ -124,5 +127,42 @@ describe("EmailVerificationMailer — adresse déjà inscrite", () => {
         forgotPasswordUrl: "https://app.cimavia.fr/forgot-password",
       }),
     });
+  });
+});
+
+describe("EmailVerificationMailer — plafond des avis", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const notice = (to: string) => ({ to, locale: Locale.FR, verified: true });
+
+  /**
+   * L'avis part sur une inscription anonyme : sans plafond par destinataire, rejouer le formulaire
+   * remplirait la boîte de l'inscrit.
+   */
+  it("n'envoie qu'un avis par adresse dans l'heure, casse comprise", async () => {
+    vi.useFakeTimers();
+    const { mailer, send } = mailerWith("https://app.cimavia.fr");
+
+    await mailer.sendExistingAccount(notice("lea@example.com"));
+    await mailer.sendExistingAccount(notice("Lea@Example.com"));
+    await mailer.sendExistingAccount(notice("tom@example.com"));
+
+    expect(send.mock.calls.map(([message]) => message.to)).toEqual([
+      "lea@example.com",
+      "tom@example.com",
+    ]);
+  });
+
+  it("renvoie l'avis une fois l'heure passée", async () => {
+    vi.useFakeTimers();
+    const { mailer, send } = mailerWith("https://app.cimavia.fr");
+
+    await mailer.sendExistingAccount(notice("lea@example.com"));
+    vi.advanceTimersByTime(EXISTING_ACCOUNT_NOTICE_INTERVAL_MS);
+    await mailer.sendExistingAccount(notice("lea@example.com"));
+
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,6 +6,16 @@ import { MailService } from "./mail.service";
 import { webPage } from "./web-page";
 
 /**
+ * Un avis « adresse déjà prise » par adresse et par heure, au plus.
+ *
+ * L'avis part sur une simple inscription anonyme : sans plafond par destinataire, n'importe qui
+ * pourrait remplir la boîte d'un inscrit — et user la réputation de l'expéditeur — en rejouant le
+ * formulaire, la limite par IP de Better Auth ne freinant qu'une source à la fois. Une heure : le
+ * propriétaire a déjà l'information, la répéter ne lui apprend rien.
+ */
+export const EXISTING_ACCOUNT_NOTICE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
  * Les e-mails de l'inscription vérifiée (#270) : le lien qui prouve que l'inscrit possède son
  * adresse, et l'avis au propriétaire d'une adresse déjà inscrite — confirmée ou non.
  *
@@ -22,6 +32,11 @@ export class EmailVerificationMailer {
   private readonly verifiedUrl: string | null;
   private readonly loginUrl: string | null;
   private readonly forgotPasswordUrl: string | null;
+  /**
+   * Adresse → instant du dernier avis. En mémoire du processus : la preview tourne sur une seule
+   * instance (dette AV-3).
+   */
+  private readonly lastNotice = new Map<string, number>();
 
   constructor(
     private readonly mail: MailService,
@@ -61,17 +76,33 @@ export class EmailVerificationMailer {
    *
    * `verified: false` — le compte n'avait jamais été confirmé, et son mot de passe vient d'être
    * effacé (`auth.config.ts`) : l'avis mène au choix d'un mot de passe, pas à la connexion.
+   *
+   * Plafonné (`EXISTING_ACCOUNT_NOTICE_INTERVAL_MS`) : l'avis retenu est abandonné sans erreur — la
+   * réponse de l'inscription ne doit pas en dépendre.
    */
   async sendExistingAccount(params: {
     to: string;
     locale: string | null;
     verified: boolean;
   }): Promise<void> {
+    if (!this.claimNotice(params.to)) return;
     const catalog = mailCatalog(params.locale);
     const template = params.verified
       ? catalog.existingAccount({ loginUrl: this.loginUrl })
       : catalog.pendingAccount({ forgotPasswordUrl: this.forgotPasswordUrl });
     await this.mail.send({ to: params.to, ...template });
+  }
+
+  /** Vrai si l'avis peut partir, et le note ; purge au passage les entrées échues. */
+  private claimNotice(to: string): boolean {
+    const now = Date.now();
+    for (const [address, at] of this.lastNotice) {
+      if (now - at >= EXISTING_ACCOUNT_NOTICE_INTERVAL_MS) this.lastNotice.delete(address);
+    }
+    const address = to.toLowerCase();
+    if (this.lastNotice.has(address)) return false;
+    this.lastNotice.set(address, now);
+    return true;
   }
 
   private withVerifiedPage(url: string): string {
