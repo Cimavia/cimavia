@@ -1,4 +1,9 @@
-import { InvoiceStatus, type Prisma } from "@prisma/client";
+import {
+  InvoiceStatus,
+  type NotificationEntityType,
+  type Prisma,
+  type ReminderEntityType,
+} from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
 
@@ -10,8 +15,9 @@ export type ErasureFootprint = {
   invitationIds: string[];
   /** Candidates seulement : une clé partagée reste citée ailleurs. */
   objectKeys: string[];
-  noticeTargets: Prisma.NotificationWhereInput[];
-  reminderTargets: Prisma.ReminderWhereInput[];
+  /** Un `Record` et non une liste : une nouvelle entité ne compile pas sans dire ce qu'il en advient. */
+  notices: Record<NotificationEntityType, string[]>;
+  reminders: Record<ReminderEntityType, string[]>;
 };
 
 const idsOf = (rows: readonly { id: string }[]) => rows.map((row) => row.id);
@@ -52,21 +58,15 @@ export async function readErasureFootprint(
     groupConversationIds: conversations.group,
     invitationIds,
     objectKeys: await readObjectKeys(tx, userId, conversations.direct, invoices.leaving),
-    noticeTargets: [
-      { entityType: "PLAN", entityId: { in: planIds } },
-      { entityType: "SCHEDULED_SESSION", entityId: { in: idsOf(sessions) } },
-      { entityType: "INVOICE", entityId: { in: invoiceIds } },
-      // Les groupes aussi : un aperçu y porterait son nom, et le compteur de non-lus ne s'en sert pas.
-      {
-        entityType: "CONVERSATION",
-        entityId: { in: [...conversations.direct, ...conversations.group] },
-      },
-      { entityType: "INVITATION", entityId: { in: invitationIds } },
-    ],
-    reminderTargets: [
-      { entityType: "PLAN", entityId: { in: planIds } },
-      { entityType: "INVOICE", entityId: { in: invoiceIds } },
-    ],
+    notices: {
+      PLAN: planIds,
+      SCHEDULED_SESSION: idsOf(sessions),
+      INVOICE: invoiceIds,
+      // Les groupes aussi : un aperçu y porte le nom de l'expéditeur, et rien d'autre ne l'identifie.
+      CONVERSATION: [...conversations.direct, ...conversations.group],
+      INVITATION: invitationIds,
+    },
+    reminders: { PLAN: planIds, INVOICE: invoiceIds },
   };
 }
 
@@ -149,8 +149,9 @@ async function readObjectKeys(
     })),
     ...(await tx.message.findMany({ where: { senderId: userId, ...FILED }, select: PATH_ONLY })),
   ];
-  const keys = new Set<string>();
-  for (const { storagePath } of rows) if (storagePath != null) keys.add(storagePath);
-  for (const { documentPath } of leavingInvoices) if (documentPath != null) keys.add(documentPath);
-  return [...keys];
+  const paths = [
+    ...rows.map((row) => row.storagePath),
+    ...leavingInvoices.map((invoice) => invoice.documentPath),
+  ];
+  return [...new Set(paths.filter((path) => path != null))];
 }

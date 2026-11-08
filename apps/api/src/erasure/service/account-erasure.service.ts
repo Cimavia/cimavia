@@ -6,7 +6,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { InvoiceStatus, type Prisma } from "@prisma/client";
+import {
+  InvoiceStatus,
+  NotificationEntityType,
+  type Prisma,
+  ReminderEntityType,
+} from "@prisma/client";
 import { AuthService } from "@thallesp/nestjs-better-auth";
 import { ClsService } from "nestjs-cls";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
@@ -16,6 +21,7 @@ import { ExerciseCopyService } from "../../exercise/service/exercise-copy.servic
 import { AccountErasedMailer } from "../../infra/mail/account-erased.mailer";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { explainForeignKeyViolation } from "../../infra/prisma/prisma-error";
+import { chunked, citedStorageKeys } from "../../infra/storage/object-citations";
 import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { ProblemException } from "../../problem/problem.exception";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -29,6 +35,9 @@ import { ErasureAttemptsService } from "./erasure-attempts.service";
  * années part avec des milliers de lignes, en une fois.
  */
 const ERASURE_TRANSACTION = { timeout: 60_000, maxWait: 10_000 };
+
+/** À la place du nom dans « Cotation (…) » : le libellé est stocké, il survivrait au compte. */
+const ERASED_OWNER_LABEL = "copie";
 
 const BUSY_MESSAGE = "Ton compte vient d'être utilisé ailleurs : réessaie dans un instant";
 
@@ -72,8 +81,11 @@ export class AccountErasureService {
         "Mot de passe incorrect",
       );
     }
-    await this.erase(userId);
+    // Avant l'effacement : un « réessaie » (409) avec le bon mot de passe n'est pas un essai perdu.
     this.attempts.clear(userId);
+    await this.removeAccount(userId, true);
+    // Sans l'attendre : le compte est parti, un stockage lent n'a pas à retenir la réponse.
+    void this.purge.drainSafely();
   }
 
   /**
@@ -82,6 +94,12 @@ export class AccountErasureService {
    * prévenue, et un second message annoncerait un événement qu'elle n'a pas provoqué.
    */
   async erase(userId: string, { notify = true }: { notify?: boolean } = {}): Promise<void> {
+    await this.removeAccount(userId, notify);
+    // Attendue ici : la commande ferme ensuite la connexion à la base.
+    await this.purge.drainSafely();
+  }
+
+  private async removeAccount(userId: string, notify: boolean): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, locale: true },
@@ -93,18 +111,13 @@ export class AccountErasureService {
     // parti. Rejouer suffit, la copie étant idempotente.
     await explainForeignKeyViolation(
       () => this.prisma.$transaction((tx) => this.eraseRows(tx, userId, user), ERASURE_TRANSACTION),
-      async () => {
-        throw new ConflictException(BUSY_MESSAGE);
-      },
+      () => Promise.reject(new ConflictException(BUSY_MESSAGE)),
     );
 
     // Avant tout le reste, et l'id seul : c'est ce journal qui permet de rejouer la suppression
     // après une restauration.
     this.logger.info({ userId }, "account.erased");
     if (notify) await this.mailer.send({ to: user.email, locale: user.locale });
-    // Sans l'attendre : le compte est parti, un stockage lent n'a pas à retenir la réponse. Le tick
-    // reprend ce qui n'aura pas été retiré ici.
-    void this.drainQuietly(userId);
   }
 
   private async passwordMatches(userId: string, password: string): Promise<boolean> {
@@ -127,24 +140,20 @@ export class AccountErasureService {
     const citations = await this.prisma.sessionExercise.findMany({
       where: { exercise: { coachId: userId }, coachId: { not: userId } },
       distinct: ["exerciseId", "coachId"],
-      select: { exerciseId: true, coachId: true },
+      select: { coachId: true, exercise: { include: EXERCISE_DETAIL_INCLUDE } },
     });
     if (citations.length === 0) return;
 
-    const sources = await this.prisma.exercise.findMany({
-      where: { id: { in: citations.map((citation) => citation.exerciseId) } },
-      include: EXERCISE_DETAIL_INCLUDE,
-    });
-    const byId = new Map(sources.map((source) => [source.id, source]));
     // Lu AVANT la transaction (piège n°9) : le catalogue d'un Coach ne se lit pas sous le scope d'un
     // autre.
     const catalog = (await this.metrics.catalogOf([userId]))(userId);
     const at = new Date();
     await runAsCoach(this.cls, userId, () =>
       this.db.$transaction(async (tx) => {
-        for (const { exerciseId, coachId } of citations) {
-          const source = byId.get(exerciseId);
-          if (source != null) await this.copies.freezeFor(tx, { ...source, catalog }, coachId, at);
+        for (const { exercise, coachId } of citations) {
+          // Une métrique homonyme prendrait sinon le nom de qui part, chez un Coach qui reste.
+          const coach = { ...exercise.coach, name: ERASED_OWNER_LABEL };
+          await this.copies.freezeFor(tx, { ...exercise, coach, catalog }, coachId, at);
         }
       }, ERASURE_TRANSACTION),
     );
@@ -158,8 +167,16 @@ export class AccountErasureService {
     const footprint = await readErasureFootprint(tx, userId, user.email);
 
     // Sans clé étrangère vers leur entité : aucune cascade ne les emporterait.
-    await tx.notification.deleteMany({ where: { OR: footprint.noticeTargets } });
-    await tx.reminder.deleteMany({ where: { OR: footprint.reminderTargets } });
+    for (const entityType of Object.values(NotificationEntityType)) {
+      for (const ids of chunked(footprint.notices[entityType])) {
+        await tx.notification.deleteMany({ where: { entityType, entityId: { in: ids } } });
+      }
+    }
+    for (const entityType of Object.values(ReminderEntityType)) {
+      for (const ids of chunked(footprint.reminders[entityType])) {
+        await tx.reminder.deleteMany({ where: { entityType, entityId: { in: ids } } });
+      }
+    }
 
     await tx.invoice.updateMany({
       where: { id: { in: footprint.retainedInvoiceIds } },
@@ -179,8 +196,10 @@ export class AccountErasureService {
     if (count === 0) throw new NotFoundException("Compte introuvable");
     await this.resetGroupActivity(tx, footprint.groupConversationIds);
 
-    const keys = await this.orphanedKeys(tx, footprint.objectKeys);
-    if (keys.length > 0) {
+    // Comptées APRÈS les suppressions : seules restent les citations des autres comptes.
+    const cited = await citedStorageKeys(tx, footprint.objectKeys);
+    const orphaned = footprint.objectKeys.filter((key) => !cited.has(key));
+    for (const keys of chunked(orphaned)) {
       await tx.pendingObjectDeletion.createMany({
         data: keys.map((key) => ({ key })),
         skipDuplicates: true,
@@ -203,36 +222,6 @@ export class AccountErasureService {
         where: { id },
         data: { lastMessageAt: last?.createdAt ?? null },
       });
-    }
-  }
-
-  /**
-   * Une clé peut rester citée ailleurs : une séance planifiée d'un autre Coach ou une copie figée
-   * partagent celle du document d'origine (#609). Comptées APRÈS les suppressions, chez tous.
-   */
-  private async orphanedKeys(
-    tx: Prisma.TransactionClient,
-    candidates: readonly string[],
-  ): Promise<string[]> {
-    const where = { storagePath: { in: [...candidates] } };
-    const select = { storagePath: true } as const;
-    const [originals, copies] = [
-      await tx.exerciseDocument.findMany({ where, select }),
-      await tx.scheduledSessionExerciseDocument.findMany({ where, select }),
-    ];
-    const stillCited = new Set([...originals, ...copies].map((row) => row.storagePath));
-    return candidates.filter((key) => !stillCited.has(key));
-  }
-
-  /**
-   * Le compte est parti : une panne ici ne doit pas le faire croire au titulaire. La file reste, et
-   * le tick reprend.
-   */
-  private async drainQuietly(userId: string): Promise<void> {
-    try {
-      await this.purge.drain();
-    } catch (err) {
-      this.logger.warn({ err, userId }, "account.erased : purge reportée au prochain tick");
     }
   }
 }
