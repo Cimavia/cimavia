@@ -22,6 +22,6 @@ import { ExerciseDocumentService } from "./service/exercise-document.service";
   ],
   // `loadAccessibleOrThrow` : la seule garde « ces exercices sont-ils citables ? », que séances et
   // planifications consomment au lieu de la réécrire (#353).
-  exports: [ExerciseService],
+  exports: [ExerciseService, ExerciseCopyService],
 })
 export class ExerciseModule {}
