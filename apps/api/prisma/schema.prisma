@@ -89,8 +89,8 @@ model User {
   notificationEmailPreferences NotificationEmailPreference[]
 
   // Métier — facturation (P6) : émises par le coach, lues par l'athlète.
-  coachInvoices   Invoice[] @relation("CoachInvoices")
-  athleteInvoices Invoice[] @relation("AthleteInvoices")
+  // Côté athlète, `Invoice.athleteId` n'a pas de relation : une facture survit au compte (#256).
+  coachInvoices Invoice[] @relation("CoachInvoices")
 
   // Rappels (#44) : outil PRIVÉ du coach — aucune relation côté athlète, il n'en voit jamais aucun.
   coachReminders Reminder[] @relation("CoachReminders")
@@ -1095,8 +1095,13 @@ model Invoice {
   id                String        @id @default(cuid())
   coachId           String // émetteur
   coach             User          @relation("CoachInvoices", fields: [coachId], references: [id], onDelete: Cascade)
-  athleteId         String // destinataire (lecture)
-  athlete           User          @relation("AthleteInvoices", fields: [athleteId], references: [id], onDelete: Cascade)
+  // Destinataire (lecture). PAS de clé étrangère (#256) : une facture émise reste au coach quand
+  // l'athlète supprime son compte, et cet identifiant, désormais sans ligne, regroupe encore ses
+  // factures. Aucun autre chemin ne supprime un compte : `AccountErasureService` tranche.
+  athleteId         String
+  // Le nom de l'athlète au moment où il a supprimé son compte ; `null` tant que le compte existe.
+  // C'est aussi ce qui dit qu'il n'y a plus personne à relancer.
+  erasedAthleteName String?
   // Cycle facturé (1:1) — @unique garantit une seule facture par cycle. Nullable pour rester
   // ouvert à une facture hors-cycle (v1.0) ; en MVP toujours renseigné. Cascade : supprimer le
   // cycle supprime sa facture (elle n'a de sens que rattachée).
@@ -1122,6 +1127,18 @@ model Invoice {
   @@index([coachId, status]) // tuile « Factures en attente » + liste coach
   @@index([athleteId, status]) // liste athlète
   @@map("invoice")
+}
+
+/// Un objet à retirer du stockage (#256). La file s'écrit dans la transaction qui supprime les lignes,
+/// et se vide après : une panne du stockage ne fait ni échouer ni oublier un effacement. Hors du scope
+/// tenant — une clé d'objet n'appartient plus à personne, le compte n'existe plus.
+model PendingObjectDeletion {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("pending_object_deletion")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
