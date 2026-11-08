@@ -1309,6 +1309,8 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | AV-1 | **Un compte pris avec l'adresse d'un autre n'est pas tout à fait neutralisé** : depuis #270, il ne sert à rien sans le lien — pas de connexion, et il compte comme « pas de compte » pour les invitations —, et une seconde inscription sur l'adresse en efface le mot de passe. Restent deux cas. (1) **Personne ne conteste** : le tiers peut faire envoyer le lien à l'adresse (connexion refusée, renvoi public) ; si son propriétaire l'ouvre sans avoir rien demandé, le compte du tiers est confirmé — l'e-mail dit d'ignorer un lien non sollicité, c'est la seule parade. (2) **Le propriétaire reprend le compte** par « mot de passe oublié » et retrouve le nom et les capacités choisis par le tiers — une entreprise à la place d'un athlète, que rien ne défait. Rien n'efface un compte jamais confirmé. | 🟢 | — *(déclencheur : un premier compte usurpé signalé, ou l'ouverture des inscriptions au public ; une purge des comptes non confirmés après la durée du lien fermerait le cas 1 hors de cette fenêtre, et le cas 2 entièrement)* |
+| AV-2 | **L'inscription trahit encore une adresse prise par sa durée** : la réponse est la même pour une adresse neuve et une adresse prise, mais pas le temps qu'elle met — la neuve hache un mot de passe et crée le compte, la prise efface un mot de passe ou ne fait rien. Un écart de quelques dizaines de millisecondes, mesurable en répétant la requête, sous le plafond par IP de Better Auth. | 🟢 | — *(déclencheur : ouverture des inscriptions au public ; égaliser exigerait un hachage factice sur la branche « adresse prise », que Better Auth n'offre pas)* |
+| AV-3 | **Le plafond des avis « tu as déjà un compte » vit en mémoire** (`EmailVerificationMailer`) : une instance, une table. Plusieurs instances d'API multiplient le plafond, un redémarrage le remet à zéro. | 🟢 | — *(déclencheur : plus d'une instance d'API ; le déplacer alors en base ou dans le stockage secondaire de Better Auth)* |
 
 > **Tranché en #270** (une adresse se prouve avant toute connexion) : P7-9 laissait qui connaissait
 > l'adresse d'un Athlete invité créer le compte à sa place. Better Auth porte la vérification
@@ -1321,9 +1323,11 @@ liste des domaines vivent dans l'index.
 > - **Les comptes existants sont marqués vérifiés par migration** : ils ont été créés sur invitation
 >   ou sur liste (#263), par des personnes que l'éditeur connaît. Leur imposer un lien les aurait
 >   déconnectés sans gain.
-> - **La porte d'inscription passe AVANT la route** (`hooks.before`), plus dans `create.before` : avec
->   la vérification active, Better Auth transforme une erreur levée à la création en succès
->   générique — le `403 inscription fermée` serait devenu un faux « e-mail envoyé ».
+> - **La porte d'inscription passe AVANT la route** (`hooks.before`) : avec la vérification active,
+>   Better Auth transforme une erreur levée à la création en succès générique — le `403 inscription
+>   fermée` serait devenu un faux « e-mail envoyé ». `create.before` la rejoue quand même
+>   (`assertMayCreate`, constat de revue) : une création qui ne passe pas par `/sign-up/email` ne doit
+>   pas l'éviter, et un succès générique y vaut mieux qu'un compte créé.
 > - **Une adresse déjà inscrite répond comme une neuve** : plus de `422`, qui disait à n'importe qui
 >   qu'un compte existe. Son propriétaire reçoit un e-mail « tu as déjà un compte »
 >   (`onExistingUserSignUp`) — le seul qui sache quoi en faire. Les écrans disent donc « ouvre
@@ -1346,5 +1350,13 @@ liste des domaines vivent dans l'index.
 > - **Non vérifié = absent pour le canal d'invitation** (#146) : `accountByEmail` et
 >   `athleteIdByEmail` ne voient que les adresses vérifiées. Sinon l'invitation partirait en
 >   notification vers le compte du squatteur, et le vrai destinataire ne recevrait rien.
-> - **La page de retour ne recopie pas le code d'erreur** : `?error=` se réduit à un booléen, un seul
->   message pour un lien expiré ou forgé — se connecter renvoie un lien neuf dans les deux cas.
+> - **Un lien ouvert sur un compte sans mot de passe ne confirme rien** (constat de revue) : le lien
+>   envoyé au tiers AVANT l'effacement reste valide, et l'ouvrir rendrait le compte vérifié sans
+>   personne pour s'y connecter. `beforeEmailVerification` le refuse et renvoie la page avec
+>   `?error=PASSWORD_REQUIRED` : choisir un mot de passe, qui confirme l'adresse au passage.
+> - **L'avis « tu as déjà un compte » part au plus une fois par heure et par adresse** (constat de
+>   revue) : sans plafond, répéter l'inscription inondait la boîte du propriétaire, sous le seul
+>   plafond par IP. En mémoire — dette AV-3.
+> - **La page de retour ne recopie pas le code d'erreur** : `?error=` se réduit à trois issues —
+>   confirmée, lien invalide (expiré ou forgé : se connecter renvoie un lien neuf), compte sans mot
+>   de passe (mène à « mot de passe oublié »).
