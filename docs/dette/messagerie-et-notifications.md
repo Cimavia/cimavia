@@ -49,7 +49,7 @@ liste des domaines vivent dans l'index.
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
-| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
@@ -203,7 +203,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
-| R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts. | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts ; l'effacement d'un compte, lui, purge les siens (#256). | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | [#107](https://github.com/Cimavia/cimavia/issues/107) |
 
 *Résolues, à l'[archive](archive.md) : R-1, R-3.*
