@@ -150,7 +150,7 @@ liste des domaines vivent dans l'index.
 > - **Le miroir des médias reflète les suppressions** (`mc mirror --remove`). L'inverse aurait fait
 >   survivre indéfiniment tout média effacé, ce qu'un droit à l'effacement
 >   ([#285](https://github.com/Cimavia/cimavia/issues/285)) ne peut pas accepter. L'historique long,
->   ce sont les copies manuelles.
+>   ce sont les copies manuelles — bornées elles aussi à 60 jours depuis #256.
 > - **La rétention compte les dumps, elle ne regarde pas leur âge** : sept fichiers gardés. Une
 >   rétention par âge laisserait un NAS éteint trois semaines se réveiller sans aucune sauvegarde.
 > - **Le manifeste existe pour qu'on vérifie sans restaurer** : nombre d'objets, tailles, empreinte

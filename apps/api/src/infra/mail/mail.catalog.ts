@@ -108,6 +108,14 @@ export type MailStrings = {
     cta: string;
     ignore: string;
   };
+  /** La confirmation d'une suppression de compte (#256), aussi l'alerte si ce n'était pas lui. */
+  accountErased: {
+    subject: string;
+    heading: string;
+    intro: string;
+    backups: string;
+    notYou: string;
+  };
   /**
    * Même déclencheur, sur une adresse dont le compte n'a JAMAIS été confirmé (#270). Son mot de
    * passe vient d'être effacé : rien ne prouve que celui qui l'a choisi possède l'adresse, et le
@@ -219,6 +227,7 @@ export type MailCatalog = {
   notification(type: EmailableNotificationType, params: NotificationMailInput): MailTemplate;
   invitation(params: InvitationMailInput): MailTemplate;
   organizationInvitation(params: OrganizationInvitationMailInput): MailTemplate;
+  accountErased(): MailTemplate;
 };
 
 // `Record<Locale, …>` et non un objet libre : ajouter une valeur à `Locale` sans écrire son
@@ -262,6 +271,15 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
     });
   }
   return {
+    accountErased: () =>
+      render(strings.accountErased.subject, {
+        heading: strings.accountErased.heading,
+        paragraphs: [
+          strings.accountErased.intro,
+          strings.accountErased.backups,
+          strings.accountErased.notYou,
+        ],
+      }),
     resetPassword: ({ url, expiresInHours }) =>
       render(strings.resetPassword.subject, {
         heading: strings.resetPassword.heading,

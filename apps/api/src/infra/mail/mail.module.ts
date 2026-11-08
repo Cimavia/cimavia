@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AccountErasedMailer } from "./account-erased.mailer";
 import { EmailVerificationMailer } from "./email-verification.mailer";
 import { InvitationMailer } from "./invitation.mailer";
 import { MailService } from "./mail.service";
@@ -10,6 +11,7 @@ import { PasswordResetMailer } from "./password-reset.mailer";
 @Module({
   providers: [
     MailService,
+    AccountErasedMailer,
     PasswordResetMailer,
     EmailVerificationMailer,
     NotificationMailer,
@@ -17,6 +19,7 @@ import { PasswordResetMailer } from "./password-reset.mailer";
   ],
   exports: [
     MailService,
+    AccountErasedMailer,
     PasswordResetMailer,
     EmailVerificationMailer,
     NotificationMailer,

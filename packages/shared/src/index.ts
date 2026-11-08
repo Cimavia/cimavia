@@ -116,6 +116,8 @@ export {
   myAccessSchema,
   organizationAccessLevelSchema,
 } from "./dto/access.schema";
+export type { EraseAccountInput } from "./dto/account-erasure.schema";
+export { eraseAccountSchema } from "./dto/account-erasure.schema";
 export type { AthleteSheetDto, UpdateAthleteSheetInput } from "./dto/athlete-sheet.schema";
 export {
   ATHLETE_SHEET_CONTENT_MAX_LENGTH,

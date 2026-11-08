@@ -19,11 +19,12 @@ export async function toInvoiceDto(
   myAccess: MyAccess | null,
   storage: StorageService,
 ): Promise<InvoiceDto> {
-  // Les deux sont garantis par des FK : une absence signale une incohérence de données, pas un
+  // Le coach est garanti par une FK. L'athlète, lui, a pu supprimer son compte (#256) : son nom
+  // est alors figé sur la facture. Sinon, une absence signale une incohérence de données, pas un
   // cas métier — on lève plutôt que d'afficher un trou (règle nullable).
   const missing = `[invoice] facture ${invoice.id} sans coach ou athlète résolu`;
   const coachName = required(names.get(invoice.coachId), missing);
-  const athleteName = required(names.get(invoice.athleteId), missing);
+  const athleteName = required(invoice.erasedAthleteName ?? names.get(invoice.athleteId), missing);
   return {
     id: invoice.id,
     coachId: invoice.coachId,
@@ -32,7 +33,8 @@ export async function toInvoiceDto(
     athleteId: invoice.athleteId,
     athleteName,
     planId: invoice.planId,
-    // null si hors-cycle (v1.0) ; le cycle étant en cascade, un planId présent a toujours son titre.
+    // null hors cycle : celui d'un athlète parti (#256), ou plus tard une facture isolée (v1.0).
+    // Le cycle étant en cascade, un planId présent a toujours son titre.
     planTitle: invoice.planId == null ? null : (planTitles.get(invoice.planId) ?? null),
     period: invoice.period,
     amountCents: invoice.amountCents,

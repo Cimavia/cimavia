@@ -639,11 +639,10 @@ liste des domaines vivent dans l'index.
 | MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 | MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
-| MC-17 | **Effacer un compte bute sur les séances des autres Coachs** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : `User → Exercise` est en `Cascade`, mais `SessionExercise.exerciseId` en `Restrict` — effacer C, dont un exercice est cité par une séance de M, échouerait. L'effacement devra d'abord passer par `ExerciseCopyService.freezeFor` pour chaque Coach citant, comme la suppression d'un exercice. Les copies déjà gardées survivent, elles : `frozenFromCoachId` passe à `NULL` et le badge dit « Copie figée » seul. | 🟢 | [#285](https://github.com/Cimavia/cimavia/issues/285) |
-| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant : la conversation reste aux autres, et un fil `DIRECT` n'a plus qu'un participant. Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. | 🟢 | [#213](https://github.com/Cimavia/cimavia/issues/213) · [#285](https://github.com/Cimavia/cimavia/issues/285) — *à leur livraison, décider si la conversation se ferme, se quitte ou reste en lecture* |
+| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. | 🟢 | [#213](https://github.com/Cimavia/cimavia/issues/213) · [#285](https://github.com/Cimavia/cimavia/issues/285) — *à leur livraison, décider si la conversation se ferme, se quitte ou reste en lecture* |
 | MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
 
-*Résolues, à l'[archive](archive.md) : MC-1, MC-8, MC-13.*
+*Résolues, à l'[archive](archive.md) : MC-1, MC-8, MC-13, MC-17.*
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -1360,3 +1359,43 @@ liste des domaines vivent dans l'index.
 > - **La page de retour ne recopie pas le code d'erreur** : `?error=` se réduit à trois issues —
 >   confirmée, lien invalide (expiré ou forgé : se connecter renvoie un lien neuf), compte sans mot
 >   de passe (mène à « mot de passe oublié »).
+
+## Suppression de compte ([#256](https://github.com/Cimavia/cimavia/issues/256))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| SC-1 | **Effacer une entreprise ne fige rien pour ses Coachs** : un Coach dont la séance cite l'exercice d'un autre Coach, ouvert à l'entreprise, perd ce droit et garde la citation. MC-16 montre que la séance reste lisible, mais il ne pourrait plus la réenregistrer telle quelle. | 🟢 | — *(déclencheur : le premier départ d'une entreprise qui a des Coachs actifs)* |
+| SC-2 | **Le plafond des mots de passe faux vit en mémoire** (`ErasureAttemptsService`) : une instance, une table, comme AV-3. Plusieurs instances d'API multiplient le plafond. | 🟢 | — *(déclencheur : plus d'une instance d'API)* |
+| SC-4 | **Le journal qui rejoue les suppressions n'est pas durable sur le NAS** : `account.erased` part dans les logs, qui ne quittent le conteneur que si Axiom est branché (`AXIOM_TOKEN` vide par défaut), et les logs Docker ne survivent pas à un déploiement. Une suppression faite par `erase-account.cli`, elle, n'écrit son identifiant que dans le terminal de l'opérateur. Sans ces traces, une restauration fait revenir des comptes supprimés depuis la copie. | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé sur le NAS, ou le choix de l'hébergement de production)* |
+| SC-5 | **Un objet sans ligne survit à l'effacement** : envoi jamais rattaché (P2-1, U-5), ou ligne créée pendant les quelques secondes de l'effacement — la clé n'est lue que depuis les lignes. Un préfixe les atteindrait pour les médias d'athlète, mais pas sans risque pour les clés partagées. | 🟢 | — *(déclencheur : un balayage des objets orphelins)* |
+| SC-6 | **La purge retire ses objets un par un**, 200 par tick horaire : un compte de plusieurs milliers de fichiers met un jour à se vider. `DeleteObjects` en traite 1 000 par appel, au prix d'une gestion des échecs partiels. | 🟢 | — *(déclencheur : une file qui ne se vide pas en une journée)* |
+| SC-3 | **Une conversation de groupe survit vide** quand son dernier participant part : la ligne ne porte que des identifiants, plus aucun nom ni message. | 🟢 | — *(déclencheur : une purge générale des conversations)* |
+
+> **Tranché en #256** (décisions de Kylian du 2026-11-08) :
+>
+> - **Tout part, des deux côtés.** Un Coach perd les plans, débriefs et messages de l'athlète qui s'en
+>   va, et inversement : conserver la moitié d'un fil garderait la parole de quelqu'un qui a demandé
+>   à partir. Seule exception, ses **factures émises restent chez le Coach**, pièce comptable, nom
+>   figé dans `erasedAthleteName` et cycle détaché ; une facture d'un Coach qui part part avec lui.
+> - **Route à nous, mot de passe obligatoire.** `/delete-user` de Better Auth retire session et mot
+>   de passe avant la ligne, sans transaction, et laisse passer une session récente sans mot de
+>   passe : il reste fermé. La commande `erase-account.cli` est le seul chemin sans mot de passe.
+> - **`Invoice.athleteId` perd sa clé étrangère sans devenir nullable** : le DTO, le regroupement
+>   par athlète et les écrans ne bougent pas. L'identifiant restant ne désigne plus personne.
+> - **Les objets se retirent après le commit, depuis une file** (`PendingObjectDeletion`), vidée à la
+>   fin de l'effacement puis à chaque tick : un stockage en panne n'annule pas un effacement, et une
+>   clé n'y entre que si plus aucune ligne ne la cite. Lues depuis les lignes, jamais par préfixe.
+> - **Les sauvegardes s'effacent par rotation** : toutes bornées dans le temps, durée écrite dans
+>   la politique, et une restauration rejoue les suppressions postérieures (`deploy/preview/README.md`).
+>   Le journal `account.erased` ne porte que l'identifiant : c'est lui qui permet ce rejeu.
+> - **Les copies figées s'écrivent avant la transaction principale**, dans le scope de chaque Coach
+>   qui les garde : si l'effacement échoue ensuite, la séance de l'autre Coach garde sa copie. Sans
+>   gravité (le contenu est le même) et rejouable, là où une transaction unique aurait dû mêler le
+>   client de base et le client tenant.
+> - **Les notifications d'un groupe qu'on quitte partent pour tout le monde**, y compris celles d'un
+>   autre expéditeur : le modèle n'a que `actorName`, qui confond les homonymes et rate un compte
+>   renommé. Un aperçu perdu ne coûte rien (le fil et le compteur de non-lus n'en dépendent pas), un
+>   nom resté contredirait la décision.
+> - **Une copie figée ne porte pas le nom de qui part** : une métrique homonyme s'appelle « Cotation
+>   (copie) », et non « Cotation (Camille) ».
+> - **Le survivant n'est pas prévenu** : une notification conserverait le nom de qui est parti.

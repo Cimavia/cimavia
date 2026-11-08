@@ -1,6 +1,8 @@
+import type { ReminderTickResultDto } from "@cmv/shared";
 import { Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { ReminderTickGuard } from "../guard/reminder-tick.guard";
 import { ReminderTickService } from "../service/reminder-tick.service";
 
@@ -26,7 +28,10 @@ import { ReminderTickService } from "../service/reminder-tick.service";
 @AllowAnonymous()
 @UseGuards(ReminderTickGuard)
 export class ReminderTickController {
-  constructor(private readonly tick: ReminderTickService) {}
+  constructor(
+    private readonly tick: ReminderTickService,
+    private readonly purge: ObjectPurgeService,
+  ) {}
 
   /**
    * 200 et non 201 : un tick ne crée pas une ressource à une adresse, il rapporte ce qu'il a fait.
@@ -35,10 +40,16 @@ export class ReminderTickController {
    *
    * `now` vient du contrôleur, pas du service : celui-ci reste testable sans horloge, même
    * convention que `ReminderService.summary` et `NotificationFeedService`.
+   *
+   * La file des objets à retirer se vide au même passage (#256) : c'est le seul déclencheur qu'a
+   * l'API, et un second cron n'apporterait qu'une chose de plus à configurer sur chaque hébergeur.
+   * Avant les rappels, et sans pouvoir échouer : un rappel qui lève à chaque passage ne doit pas
+   * bloquer indéfiniment le retrait des fichiers d'un compte supprimé.
    */
   @Post("tick")
   @HttpCode(HttpStatus.OK)
-  run() {
-    return this.tick.run(new Date());
+  async run(): Promise<ReminderTickResultDto> {
+    const purgedObjects = await this.purge.drainSafely();
+    return { ...(await this.tick.run(new Date())), purgedObjects };
   }
 }

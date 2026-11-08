@@ -15,6 +15,7 @@ import { SignupPolicy } from "./auth/signup.policy";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
+import { ErasureModule } from "./erasure/erasure.module";
 import { ExerciseModule } from "./exercise/exercise.module";
 import { FeedbackModule } from "./feedback/feedback.module";
 import { HealthModule } from "./health/health.module";
@@ -81,6 +82,7 @@ import { VersionModule } from "./version/version.module";
     TenancyModule,
     NotificationModule,
     AccountModule,
+    ErasureModule,
     OrganizationModule,
     AccessModule,
     ExerciseModule,

@@ -419,10 +419,25 @@ gestionnaire de mots de passe : **sans elle, l'archive ne vaut rien**. Pour la r
 openssl enc -d -aes-256-cbc -pbkdf2 -in cimavia-<date>.tar.enc | tar -xf -
 ```
 
+**Garde les deux dernières copies mensuelles, et rien au-delà de 60 jours** : efface les plus
+anciennes en en posant une nouvelle. Une copie qu'on garde sans limite garderait aussi, sans
+limite, les comptes que leurs titulaires ont supprimés (#256).
+
 ### Restaurer, et le vérifier
 
 Une sauvegarde jamais restaurée n'en est pas une. **À refaire après chaque modification du script.**
 Tout se passe sur le poste de développement, **à côté** de la base de dev, sans rien écraser.
+
+> **Restauration réelle** (pas cet exercice) : les comptes supprimés depuis la copie reviennent avec
+> elle. Avant de rouvrir le service, **rejoue chaque suppression postérieure à la copie**, dont les
+> identifiants se lisent dans les logs de l'événement `account.erased` — sur Axiom si `AXIOM_TOKEN`
+> est posé ; sinon dans `docker logs` de l'API, qu'un déploiement efface (dette SC-4) :
+> `node dist/erasure/erase-account.cli <userId> --no-mail` dans le conteneur de l'API. `--no-mail` :
+> la personne a déjà été prévenue.
+>
+> Une suppression lancée à la main par cette commande (demande reçue par e-mail) n'apparaît que
+> dans ton terminal, ni dans Axiom ni dans `docker logs` de l'API : **garde son identifiant** avec
+> la demande, il faudra le rejouer aussi.
 
 ```bash
 # 1. Récupérer le dump et les médias de la nuit depuis le NAS (scp, File Station…)

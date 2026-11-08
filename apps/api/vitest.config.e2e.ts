@@ -56,6 +56,7 @@ export default defineConfig({
         // lignes ne sont pas « non testées », elles sont hors d'atteinte de ce harnais — les
         // compter ferait mentir le chiffre autant que de les ignorer à tort.
         "src/main.ts",
+        "src/erasure/erase-account.cli.ts",
         "src/instrument.ts",
       ],
       // Répertoire distinct de `coverage/` (tests unitaires) : Vitest nettoie son

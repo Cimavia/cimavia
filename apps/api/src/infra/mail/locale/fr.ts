@@ -43,6 +43,14 @@ export const fr = {
     ignore:
       "Si ce n'était pas toi, ignore cet e-mail : ton compte et ton mot de passe restent inchangés.",
   },
+  accountErased: {
+    subject: "Ton compte Cimavia a été supprimé",
+    heading: "Ton compte est supprimé",
+    intro: "Ton compte Cimavia et les données qui lui sont attachées viennent d'être supprimés.",
+    backups:
+      "Les sauvegardes qui en gardent une copie s'effacent d'elles-mêmes à mesure qu'elles sont renouvelées.",
+    notYou: "Si ce n'était pas toi, écris-nous tout de suite à contact@cimavia.fr.",
+  },
   pendingAccount: {
     subject: "Choisis ton mot de passe Cimavia",
     heading: "Un compte attend ta confirmation",
