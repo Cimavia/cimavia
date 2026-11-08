@@ -434,6 +434,10 @@ Tout se passe sur le poste de développement, **à côté** de la base de dev, s
 > est posé ; sinon dans `docker logs` de l'API, qu'un déploiement efface (dette SC-4) :
 > `node dist/erasure/erase-account.cli <userId> --no-mail` dans le conteneur de l'API. `--no-mail` :
 > la personne a déjà été prévenue.
+>
+> Une suppression lancée à la main par cette commande (demande reçue par e-mail) n'apparaît que
+> dans ton terminal, ni dans Axiom ni dans `docker logs` de l'API : **garde son identifiant** avec
+> la demande, il faudra le rejouer aussi.
 
 ```bash
 # 1. Récupérer le dump et les médias de la nuit depuis le NAS (scp, File Station…)

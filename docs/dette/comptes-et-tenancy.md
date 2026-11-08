@@ -1366,8 +1366,9 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | SC-1 | **Effacer une entreprise ne fige rien pour ses Coachs** : un Coach dont la séance cite l'exercice d'un autre Coach, ouvert à l'entreprise, perd ce droit et garde la citation. MC-16 montre que la séance reste lisible, mais il ne pourrait plus la réenregistrer telle quelle. | 🟢 | — *(déclencheur : le premier départ d'une entreprise qui a des Coachs actifs)* |
 | SC-2 | **Le plafond des mots de passe faux vit en mémoire** (`ErasureAttemptsService`) : une instance, une table, comme AV-3. Plusieurs instances d'API multiplient le plafond. | 🟢 | — *(déclencheur : plus d'une instance d'API)* |
-| SC-4 | **Le journal qui rejoue les suppressions n'est pas durable sur le NAS** : `account.erased` part dans les logs, qui ne quittent le conteneur que si Axiom est branché (`AXIOM_TOKEN` vide par défaut), et les logs Docker ne survivent pas à un déploiement. Sans lui, une restauration fait revenir des comptes supprimés depuis la copie. | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé sur le NAS, ou le choix de l'hébergement de production)* |
+| SC-4 | **Le journal qui rejoue les suppressions n'est pas durable sur le NAS** : `account.erased` part dans les logs, qui ne quittent le conteneur que si Axiom est branché (`AXIOM_TOKEN` vide par défaut), et les logs Docker ne survivent pas à un déploiement. Une suppression faite par `erase-account.cli`, elle, n'écrit son identifiant que dans le terminal de l'opérateur. Sans ces traces, une restauration fait revenir des comptes supprimés depuis la copie. | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé sur le NAS, ou le choix de l'hébergement de production)* |
 | SC-5 | **Un objet sans ligne survit à l'effacement** : envoi jamais rattaché (P2-1, U-5), ou ligne créée pendant les quelques secondes de l'effacement — la clé n'est lue que depuis les lignes. Un préfixe les atteindrait pour les médias d'athlète, mais pas sans risque pour les clés partagées. | 🟢 | — *(déclencheur : un balayage des objets orphelins)* |
+| SC-6 | **La purge retire ses objets un par un**, 200 par tick horaire : un compte de plusieurs milliers de fichiers met un jour à se vider. `DeleteObjects` en traite 1 000 par appel, au prix d'une gestion des échecs partiels. | 🟢 | — *(déclencheur : une file qui ne se vide pas en une journée)* |
 | SC-3 | **Une conversation de groupe survit vide** quand son dernier participant part : la ligne ne porte que des identifiants, plus aucun nom ni message. | 🟢 | — *(déclencheur : une purge générale des conversations)* |
 
 > **Tranché en #256** (décisions de Kylian du 2026-11-08) :
@@ -1391,4 +1392,10 @@ liste des domaines vivent dans l'index.
 >   qui les garde : si l'effacement échoue ensuite, la séance de l'autre Coach garde sa copie. Sans
 >   gravité (le contenu est le même) et rejouable, là où une transaction unique aurait dû mêler le
 >   client de base et le client tenant.
+> - **Les notifications d'un groupe qu'on quitte partent pour tout le monde**, y compris celles d'un
+>   autre expéditeur : le modèle n'a que `actorName`, qui confond les homonymes et rate un compte
+>   renommé. Un aperçu perdu ne coûte rien (le fil et le compteur de non-lus n'en dépendent pas), un
+>   nom resté contredirait la décision.
+> - **Une copie figée ne porte pas le nom de qui part** : une métrique homonyme s'appelle « Cotation
+>   (copie) », et non « Cotation (Camille) ».
 > - **Le survivant n'est pas prévenu** : une notification conserverait le nom de qui est parti.
