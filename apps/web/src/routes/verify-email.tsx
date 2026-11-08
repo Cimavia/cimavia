@@ -1,21 +1,29 @@
+import { VERIFY_EMAIL_PASSWORD_REQUIRED } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { VerifyEmailScreen } from "@/feature/auth";
 
 /**
- * `?error=…` — posé par la redirection de Better Auth quand le jeton n'a pas servi
- * (`TOKEN_EXPIRED`, `INVALID_TOKEN`, `USER_NOT_FOUND`…). Son absence veut dire que l'adresse est
- * vérifiée : l'API ne redirige ici qu'APRÈS avoir écrit `emailVerified`.
+ * `?error=…` — posé par la redirection de l'API quand le lien n'a pas confirmé l'adresse. Son
+ * absence veut dire que l'adresse est vérifiée : l'API ne redirige ici qu'APRÈS avoir écrit
+ * `emailVerified`.
  *
- * Réduit à un booléen : l'écran dit la même chose pour toutes les erreurs, et un code recopié de
- * l'URL dans la page serait un texte que n'importe qui peut forger.
+ * Réduit à trois issues, sans recopier le code : un texte tiré de l'URL serait forgeable.
+ * - `passwordRequired` : le compte n'a plus de mot de passe — une seconde inscription l'a effacé
+ *   (#270). Le lien a bien été refusé, mais la suite n'est pas « se connecter » : il faut en choisir
+ *   un, et la réinitialisation confirme l'adresse au passage.
+ * - `failed` : expiré, falsifié… (`TOKEN_EXPIRED`, `INVALID_TOKEN`) — se connecter renvoie un lien neuf.
  *
  * ⚠️ Cette route est nommée par l'API (`EmailVerificationMailer`) : la renommer casse le lien de
  * l'e-mail en silence (dette I-2).
  */
-export type VerifyEmailSearch = { failed: boolean };
+export type VerifyEmailOutcome = "verified" | "failed" | "passwordRequired";
+export type VerifyEmailSearch = { outcome: VerifyEmailOutcome };
 
 export function parseVerifyEmailSearch(search: Record<string, unknown>): VerifyEmailSearch {
-  return { failed: search.error != null && search.error !== "" };
+  const { error } = search;
+  if (error === VERIFY_EMAIL_PASSWORD_REQUIRED) return { outcome: "passwordRequired" };
+  if (error != null && error !== "") return { outcome: "failed" };
+  return { outcome: "verified" };
 }
 
 export const Route = createFileRoute("/verify-email")({
