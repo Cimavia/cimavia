@@ -27,6 +27,8 @@ export const ProblemType = {
   ACTIVE_COACH: "urn:cimavia:problem:active-coach",
   /** 409 : le Coach a déjà une structure de ce nom, sans tenir compte des majuscules (#717). */
   STRUCTURE_NAME_TAKEN: "urn:cimavia:problem:structure-name-taken",
+  /** 403 : le mot de passe qui confirme la suppression du compte n'est pas le bon (#256). */
+  ERASURE_PASSWORD_REJECTED: "urn:cimavia:problem:erasure-password-rejected",
 } as const;
 
 export type ProblemType = (typeof ProblemType)[keyof typeof ProblemType];
