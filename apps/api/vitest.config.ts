@@ -29,6 +29,7 @@ export default defineConfig({
       exclude: [
         "src/**/*.test.ts",
         "src/main.ts",
+        "src/erasure/erase-account.cli.ts",
         "src/**/*.module.ts",
         "src/**/*.dto.ts",
         "src/generated/**",
