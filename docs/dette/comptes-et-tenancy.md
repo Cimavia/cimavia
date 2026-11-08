@@ -1399,3 +1399,23 @@ liste des domaines vivent dans l'index.
 > - **Une copie figée ne porte pas le nom de qui part** : une métrique homonyme s'appelle « Cotation
 >   (copie) », et non « Cotation (Camille) ».
 > - **Le survivant n'est pas prévenu** : une notification conserverait le nom de qui est parti.
+
+> **Tranché en [#795](https://github.com/Cimavia/cimavia/issues/795)** (suppression du compte sur le
+> web, décisions de Kylian du 2026-11-08) :
+>
+> - **L'Entreprise a une page Compte, comme les autres comptes.** Revient sur #600, où son nom restait
+>   un simple texte : la suppression doit lui être accessible. Capacités et notifications lui restent
+>   masquées : elle ne peut pas en prendre, et ne reçoit aucun de ces e-mails.
+> - **Une réponse perdue n'est pas un échec** : le compte part au COMMIT. Sur une erreur sans refus
+>   reconnu, le web relit la session, et part sur la confirmation si l'API répond qu'elle n'existe
+>   plus. Un 401 n'est pas relu : la session était déjà perdue avant le geste.
+> - **Une page statique pour Google Play**, `/legal/<langue>/account-deletion` : Google veut une
+>   adresse qui nomme l'app, donne les étapes et ce qui est conservé, sans renvoyer vers l'app, et ne
+>   dit pas si une connexion préalable est admise. Déconnecté, `/account/delete` part sur `/login`
+>   sans rien montrer de tout ça. L'exception Access `/legal` la couvre déjà. Le lien vers
+>   `/account/delete` est le seul lien interne d'un texte légal hors documents ; en preview il bute
+>   sur Access, l'e-mail de contact reste la voie publique.
+> - **La confirmation est hors de `CmvRoleGate`, atteinte par un rechargement complet** : la session
+>   gardée en mémoire ouvrirait sinon la fenêtre de reconnexion sur un compte disparu.
+> - **Aucune durée de sauvegarde sur ces pages**, comme l'e-mail de confirmation : `privacy.html`
+>   annonce encore 7 jours, à corriger en #796.
