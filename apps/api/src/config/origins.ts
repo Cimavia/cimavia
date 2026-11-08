@@ -1,5 +1,6 @@
 import type { EnvSchema } from "@cmv/shared";
 import type { ConfigService } from "@nestjs/config";
+import { webUrlOf } from "./web-url";
 
 // Schemes de l'app mobile (Expo) — origines de confiance pour Better Auth (flux natif
 // @better-auth/expo). Un scheme par variante de build (apps/mobile/app.config.ts) : les builds
@@ -19,7 +20,7 @@ export const MOBILE_SCHEMES = ["cimavia://", "cimavia-dev://", "cimavia-preview:
  */
 export function browserOrigins(config: ConfigService<EnvSchema, true>): string[] {
   const authUrl = config.get("BETTER_AUTH_URL", { infer: true });
-  const webUrl = config.get("WEB_URL", { infer: true });
+  const webUrl = webUrlOf(config);
   const raw = config.get("CORS_ORIGINS", { infer: true });
   const extra = raw
     ? raw
@@ -27,8 +28,6 @@ export function browserOrigins(config: ConfigService<EnvSchema, true>): string[]
         .map((origin) => origin.trim())
         .filter(Boolean)
     : [];
-  // `!webUrl` et non `== null` : vide dans l'environnement, `ConfigService` rend la chaîne brute
-  // de `process.env` plutôt que l'`undefined` validé — et `new URL("")` lève au démarrage.
-  const web = webUrl ? [new URL(webUrl).origin] : [];
+  const web = webUrl == null ? [] : [new URL(webUrl).origin];
   return [...new Set([authUrl, ...web, ...extra])];
 }
