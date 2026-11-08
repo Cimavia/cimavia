@@ -1,5 +1,11 @@
 /** Les écrans d'où revenir après connexion n'aurait aucun sens : on y retournerait se connecter. */
-const AUTH_PATHS = new Set(["/login", "/register", "/forgot-password", "/reset-password"]);
+const AUTH_PATHS = new Set([
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+]);
 
 /**
  * La cible où ramener l'utilisateur après connexion, ou `null` si `value` n'en est pas une sûre

@@ -407,7 +407,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | I-1 | **L'e-mail d'invitation part en français**, quelle que soit la langue du destinataire. Il n'y a pas de `User.locale` à lire pour une adresse SANS compte, et `mailStringsFor(null)` replie sur le français. Seule une invitation portant elle-même une langue fermerait l'écart. | 🟢 | — *(déclencheur : un coach qui invite un athlète anglophone — l'anglais est déjà écrit au catalogue, il manque seulement de quoi le choisir)* |
-| I-2 | **Les deux mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`) et `/register` (`InvitationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer `account.tsx` ou `register.tsx` casse le lien **en silence**. Le nom du fichier est cité dans un commentaire à côté de chaque URL — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
+| I-2 | **Les mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`), `/register` (`InvitationMailer`), et depuis [#270](https://github.com/Cimavia/cimavia/issues/270) `/verify-email`, `/login` et `/forgot-password` (`EmailVerificationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer l'un de ces fichiers de route casse le lien **en silence**. Tous passent par `webPage` (`infra/mail/web-page.ts`), et le nom du fichier est cité à côté de chaque appel — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
 | I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
 
 *Résolues, à l'[archive](archive.md) : I-3.*
@@ -1301,3 +1301,62 @@ liste des domaines vivent dans l'index.
 > de consentement — d'où RG-3. Les mineurs s'inscrivent avec l'accord déclaré d'un parent, sans
 > vérification dans l'app. `<Trans i18nKey>` entre au dépôt pour cette phrase à liens :
 > `check:i18n` lit désormais l'attribut, sans quoi une clé absente serait passée inaperçue.
+
+---
+
+## Vérification d'adresse à l'inscription ([#270](https://github.com/Cimavia/cimavia/issues/270))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| AV-1 | **Un compte pris avec l'adresse d'un autre n'est pas tout à fait neutralisé** : depuis #270, il ne sert à rien sans le lien — pas de connexion, et il compte comme « pas de compte » pour les invitations —, et une seconde inscription sur l'adresse en efface le mot de passe. Restent deux cas. (1) **Personne ne conteste** : le tiers peut faire envoyer le lien à l'adresse (connexion refusée, renvoi public) ; si son propriétaire l'ouvre sans avoir rien demandé, le compte du tiers est confirmé — l'e-mail dit d'ignorer un lien non sollicité, c'est la seule parade. (2) **Le propriétaire reprend le compte** par « mot de passe oublié » et retrouve le nom et les capacités choisis par le tiers — une entreprise à la place d'un athlète, que rien ne défait. Rien n'efface un compte jamais confirmé. | 🟢 | — *(déclencheur : un premier compte usurpé signalé, ou l'ouverture des inscriptions au public ; une purge des comptes non confirmés après la durée du lien fermerait le cas 1 hors de cette fenêtre, et le cas 2 entièrement)* |
+| AV-2 | **L'inscription trahit encore une adresse prise par sa durée** : la réponse est la même pour une adresse neuve et une adresse prise, mais pas le temps qu'elle met — la neuve hache un mot de passe et crée le compte, la prise efface un mot de passe ou ne fait rien. Un écart de quelques dizaines de millisecondes, mesurable en répétant la requête, sous le plafond par IP de Better Auth. | 🟢 | — *(déclencheur : ouverture des inscriptions au public ; égaliser exigerait un hachage factice sur la branche « adresse prise », que Better Auth n'offre pas)* |
+| AV-3 | **Le plafond des avis « tu as déjà un compte » vit en mémoire** (`EmailVerificationMailer`) : une instance, une table. Plusieurs instances d'API multiplient le plafond, un redémarrage le remet à zéro. | 🟢 | — *(déclencheur : plus d'une instance d'API ; le déplacer alors en base ou dans le stockage secondaire de Better Auth)* |
+
+> **Tranché en #270** (une adresse se prouve avant toute connexion) : P7-9 laissait qui connaissait
+> l'adresse d'un Athlete invité créer le compte à sa place. Better Auth porte la vérification
+> (`requireEmailVerification`) ; ce qui suit est ce que la configuration ne dit pas seule.
+>
+> - **Toute la connexion est fermée, pas seulement les invitations** : un compte non vérifié reçoit
+>   `403 EMAIL_NOT_VERIFIED` à la connexion, et l'API renvoie le lien au passage (`sendOnSignIn`).
+>   Ne fermer que l'acceptation d'invitation aurait laissé un compte usurpé utilisable — et chaque
+>   futur geste sensible à garder un par un.
+> - **Les comptes existants sont marqués vérifiés par migration** : ils ont été créés sur invitation
+>   ou sur liste (#263), par des personnes que l'éditeur connaît. Leur imposer un lien les aurait
+>   déconnectés sans gain.
+> - **La porte d'inscription passe AVANT la route** (`hooks.before`) : avec la vérification active,
+>   Better Auth transforme une erreur levée à la création en succès générique — le `403 inscription
+>   fermée` serait devenu un faux « e-mail envoyé ». `create.before` la rejoue quand même
+>   (`assertMayCreate`, constat de revue) : une création qui ne passe pas par `/sign-up/email` ne doit
+>   pas l'éviter, et un succès générique y vaut mieux qu'un compte créé.
+> - **Une adresse déjà inscrite répond comme une neuve** : plus de `422`, qui disait à n'importe qui
+>   qu'un compte existe. Son propriétaire reçoit un e-mail « tu as déjà un compte »
+>   (`onExistingUserSignUp`) — le seul qui sache quoi en faire. Les écrans disent donc « ouvre
+>   l'e-mail », jamais « compte créé ». Les capacités se refusent pour la même raison AVANT la route :
+>   levé à la création, leur `400` n'aurait touché que les adresses neuves.
+> - **Une seconde inscription sur un compte jamais confirmé en EFFACE le mot de passe** (constat de
+>   revue) : le jeton du lien ne porte que l'adresse, et confirme le compte qui la détient. Le
+>   propriétaire qui s'inscrit après un tiers attend un lien ; s'il ouvrait celui du tiers, le mot de
+>   passe du tiers deviendrait bon. Effacé, il ne reste rien à personne, et l'avis au propriétaire
+>   (« un compte attend ta confirmation ») le mène à « mot de passe oublié » — **qui confirme
+>   l'adresse** (`onPasswordReset`) : le lien est arrivé dans sa boîte, la preuve est la même.
+>   Remplacer le compte plutôt que l'effacer a été écarté : un tiers qui le remplacerait à son tour
+>   ferait confirmer le sien par le lien que le propriétaire attend. Le prix, assumé : qui a
+>   seulement oublié son inscription choisit lui aussi un mot de passe.
+> - **Le lien est construit par l'API** : `EmailVerificationMailer` remplace le `callbackURL` par
+>   `${WEB_URL}/verify-email`, et le client n'en envoie aucun au renvoi. Ce retour est une page WEB,
+>   pas un deep link : le lien s'ouvre souvent sur un autre appareil. Better Auth refuse en 403 tout
+>   `callbackURL` hors de ses origines de confiance : l'origine de `WEB_URL` y entre donc d'office
+>   (`browserOrigins`), au lieu de dépendre d'un `CORS_ORIGINS` complet.
+> - **Non vérifié = absent pour le canal d'invitation** (#146) : `accountByEmail` et
+>   `athleteIdByEmail` ne voient que les adresses vérifiées. Sinon l'invitation partirait en
+>   notification vers le compte du squatteur, et le vrai destinataire ne recevrait rien.
+> - **Un lien ouvert sur un compte sans mot de passe ne confirme rien** (constat de revue) : le lien
+>   envoyé au tiers AVANT l'effacement reste valide, et l'ouvrir rendrait le compte vérifié sans
+>   personne pour s'y connecter. `beforeEmailVerification` le refuse et renvoie la page avec
+>   `?error=PASSWORD_REQUIRED` : choisir un mot de passe, qui confirme l'adresse au passage.
+> - **L'avis « tu as déjà un compte » part au plus une fois par heure et par adresse** (constat de
+>   revue) : sans plafond, répéter l'inscription inondait la boîte du propriétaire, sous le seul
+>   plafond par IP. En mémoire — dette AV-3.
+> - **La page de retour ne recopie pas le code d'erreur** : `?error=` se réduit à trois issues —
+>   confirmée, lien invalide (expiré ou forgé : se connecter renvoie un lien neuf), compte sans mot
+>   de passe (mène à « mot de passe oublié »).

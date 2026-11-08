@@ -31,10 +31,19 @@ export class UserDirectoryService {
    * Comparaison INSENSIBLE à la casse : l'adresse vient du coach, le compte a été créé par
    * l'athlète, et deux personnes n'écrivent pas forcément pareil (cf. `normalizeEmail`, dans
    * `@cmv/shared`).
+   *
+   * `emailVerified` filtre aussi (#270) : un compte jamais vérifié n'a prouvé posséder rien. C'est
+   * peut-être celui d'un tiers qui s'est inscrit avec l'adresse de l'invité — la notification
+   * partirait vers un compte qui ne se connecte pas, et le vrai propriétaire, faute d'e-mail, ne
+   * saurait jamais qu'on l'attend. Pour le canal, ce compte n'existe pas.
    */
   async athleteIdByEmail(email: string): Promise<string | null> {
     const user = await this.prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" }, isAthlete: true },
+      where: {
+        email: { equals: email, mode: "insensitive" },
+        isAthlete: true,
+        emailVerified: true,
+      },
       select: { id: true },
     });
     return user?.id ?? null;
@@ -47,13 +56,16 @@ export class UserDirectoryService {
    * la porte pas.
    *
    * Même justification que `athleteIdByEmail`, et même condition : l'appelant ne fait AUCUNE
-   * différence visible entre les trois issues, la création répond à l'identique.
+   * différence visible entre les trois issues, la création répond à l'identique. Même filtre
+   * `emailVerified` aussi (#270) : un compte jamais vérifié compte pour « pas de compte », et
+   * l'adresse reçoit l'e-mail — sans quoi un compte non vérifié sans la bonne capacité ferait
+   * tomber l'invitation dans la branche « rien du tout ».
    */
   accountByEmail(
     email: string,
   ): Promise<{ id: string; isCoach: boolean; isAthlete: boolean } | null> {
     return this.prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
+      where: { email: { equals: email, mode: "insensitive" }, emailVerified: true },
       select: { id: true, isCoach: true, isAthlete: true },
     });
   }

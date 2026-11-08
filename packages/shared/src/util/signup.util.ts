@@ -74,12 +74,62 @@ export function isEmailAllowed(email: string, allowed: readonly string[]): boole
  *
  * - **403** : l'environnement n'accepte pas d'inscription (#263). La saisie n'y est pour rien, et
  *   faire recommencer un formulaire juste serait la pire réponse possible.
- * - **422** : le SEUL code que Better Auth réserve à l'e-mail déjà utilisé au sign-up ; les autres
- *   validations sont des 400, qu'un message « e-mail déjà pris » ferait mentir.
  * - le reste, y compris une panne réseau qui ne porte aucun code : le message générique.
+ *
+ * Plus de 422 depuis #270 : avec la vérification d'adresse, une adresse déjà inscrite reçoit la
+ * même réponse qu'une adresse neuve — c'est ce qui empêche de deviner qui a un compte — et c'est
+ * son propriétaire qui l'apprend, par e-mail. Le formulaire n'a plus rien à en dire.
  */
 export function signUpErrorKey(status: number | undefined): string {
   if (status === 403) return "auth.errors.signupClosed";
-  if (status === 422) return "auth.errors.emailInUse";
   return "auth.errors.generic";
+}
+
+/**
+ * La clé i18n qui dit pourquoi une connexion est refusée, d'après l'erreur que rend le client Better
+ * Auth. Partagée pour la même raison que `signUpErrorKey`.
+ *
+ * - **`EMAIL_NOT_VERIFIED`** : l'adresse n'est pas encore vérifiée (#270). Le mot de passe était le
+ *   bon, et l'API vient de renvoyer le lien : « identifiants incorrects » ferait chercher l'erreur
+ *   au mauvais endroit. Le CODE et non le seul 403 : Better Auth rend aussi 403 sur une origine
+ *   refusée, où aucun lien n'est parti — l'annoncer ferait attendre un e-mail qui ne viendra pas.
+ * - **401** : adresse ou mot de passe faux — Better Auth ne dit pas lequel, et le message non plus.
+ * - **400** : la saisie que Better Auth refuse avant de chercher le compte — une adresse mal formée
+ *   (`kylian@gmail`), que le champ mobile ne valide pas. « Identifiants incorrects » fait corriger
+ *   la saisie ; le générique la ferait renvoyer à l'identique.
+ * - **429** : trop de tentatives — il faut attendre, pas réessayer tout de suite.
+ * - le reste, panne réseau comprise : le générique. Annoncer des identifiants faux sur une panne
+ *   ferait retaper un mot de passe juste.
+ */
+export function signInErrorKey(error: {
+  status?: number | undefined;
+  code?: string | undefined;
+}): string {
+  if (error.status === 403 && error.code === "EMAIL_NOT_VERIFIED") {
+    return "auth.errors.emailNotVerified";
+  }
+  if (error.status === 401 || error.status === 400) return "auth.errors.invalidCredentials";
+  if (error.status === 429) return "auth.errors.tooManyAttempts";
+  return "auth.errors.generic";
+}
+
+/** Où en est le renvoi du lien de vérification, sur l'écran « vérifie ta boîte » (#270). */
+export type ResendState = "idle" | "sending" | "sent" | "failed";
+
+/**
+ * L'issue d'un renvoi du lien de vérification : `send` est l'appel au client Better Auth.
+ *
+ * Le client REND son erreur au lieu de lever : sans cette lecture, un refus — la limite de débit,
+ * par exemple — s'afficherait « c'est reparti ». Et le réseau, lui, lève : sans le `catch`, l'écran
+ * resterait sur « envoi… ».
+ */
+export async function resendOutcome(
+  send: () => Promise<{ error: unknown }>,
+): Promise<Extract<ResendState, "sent" | "failed">> {
+  try {
+    const { error } = await send();
+    return error == null ? "sent" : "failed";
+  } catch {
+    return "failed";
+  }
 }

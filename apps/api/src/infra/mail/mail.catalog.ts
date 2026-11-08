@@ -72,13 +72,55 @@ export type MailStrings = {
     linkFallback: string;
     /** Pied de page. Omis quand `WEB_URL` n'est pas configurée — le message part quand même. */
     manageNotifications: string;
+    /** Durée de validité d'un lien à usage unique : réinitialisation et vérification d'adresse. */
+    linkExpiry: (hours: number) => string;
   };
   resetPassword: {
     subject: string;
     heading: string;
     intro: string;
     cta: string;
-    expiry: (hours: number) => string;
+    ignore: string;
+  };
+  /**
+   * Vérification de l'adresse, juste après l'inscription (#270). Sans elle, le compte ne se
+   * connecte pas : c'est ce qui prouve que l'inscrit possède l'adresse sur laquelle reposent les
+   * invitations.
+   */
+  verifyEmail: {
+    subject: string;
+    heading: string;
+    intro: string;
+    cta: string;
+    ignore: string;
+  };
+  /**
+   * Quelqu'un a voulu s'inscrire avec une adresse qui a DÉJÀ un compte (#270). L'inscription lui a
+   * répondu comme à une adresse neuve — c'est ce qui empêche de deviner quelles adresses sont
+   * inscrites —, c'est donc ici, dans la boîte du propriétaire, que l'information arrive. Deux
+   * lecteurs possibles : celui qui a oublié son compte, et celui dont on vient d'essayer l'adresse.
+   */
+  existingAccount: {
+    subject: string;
+    heading: string;
+    intro: string;
+    hint: string;
+    cta: string;
+    ignore: string;
+  };
+  /**
+   * Même déclencheur, sur une adresse dont le compte n'a JAMAIS été confirmé (#270). Son mot de
+   * passe vient d'être effacé : rien ne prouve que celui qui l'a choisi possède l'adresse, et le
+   * garder laisserait un lien de confirmation ouvert par le vrai propriétaire valider le compte
+   * d'un autre. Le propriétaire choisit donc le sien — et la réinitialisation, qui passe par sa
+   * boîte, confirme l'adresse au passage.
+   */
+  pendingAccount: {
+    subject: string;
+    heading: string;
+    intro: string;
+    hint: string;
+    cta: string;
     ignore: string;
   };
   /**
@@ -138,6 +180,16 @@ export type ResetPasswordParams = {
   expiresInHours: number;
 };
 
+export type ExistingAccountMailInput = {
+  /** Lien vers la connexion. `null` quand `WEB_URL` n'est pas configurée — la consigne reste. */
+  loginUrl: string | null;
+};
+
+export type PendingAccountMailInput = {
+  /** Lien vers « mot de passe oublié ». `null` sans `WEB_URL` — la consigne reste. */
+  forgotPasswordUrl: string | null;
+};
+
 export type NotificationMailInput = NotificationMailParams & {
   /** Lien « gérer mes notifications ». `null` quand `WEB_URL` n'est pas configurée. */
   settingsUrl: string | null;
@@ -160,6 +212,10 @@ export type OrganizationInvitationMailInput = {
 
 export type MailCatalog = {
   resetPassword(params: ResetPasswordParams): MailTemplate;
+  /** Même forme que la réinitialisation : un lien à usage unique et sa durée réelle. */
+  verifyEmail(params: ResetPasswordParams): MailTemplate;
+  existingAccount(params: ExistingAccountMailInput): MailTemplate;
+  pendingAccount(params: PendingAccountMailInput): MailTemplate;
   notification(type: EmailableNotificationType, params: NotificationMailInput): MailTemplate;
   invitation(params: InvitationMailInput): MailTemplate;
   organizationInvitation(params: OrganizationInvitationMailInput): MailTemplate;
@@ -194,24 +250,43 @@ export function mailCatalog(locale: string | null | undefined): MailCatalog {
   function render(subject: string, body: MailBody): MailTemplate {
     return { subject, text: renderText(body, strings), html: renderHtml(body, strings) };
   }
+  /**
+   * Les deux avis d'inscription sur une adresse déjà prise (#270) : la consigne AVANT le lien, pour
+   * qu'elle reste seule debout quand `WEB_URL` manque.
+   */
+  function accountNotice(notice: MailStrings["existingAccount"], url: string | null) {
+    return render(notice.subject, {
+      heading: notice.heading,
+      paragraphs: [notice.intro, notice.hint, notice.ignore],
+      ...(url != null && { cta: notice.cta, url }),
+    });
+  }
   return {
-    resetPassword: ({ url, expiresInHours }) => {
-      const body = {
+    resetPassword: ({ url, expiresInHours }) =>
+      render(strings.resetPassword.subject, {
         heading: strings.resetPassword.heading,
         paragraphs: [
           strings.resetPassword.intro,
-          strings.resetPassword.expiry(expiresInHours),
+          strings.common.linkExpiry(expiresInHours),
           strings.resetPassword.ignore,
         ],
         cta: strings.resetPassword.cta,
         url,
-      };
-      return {
-        subject: strings.resetPassword.subject,
-        text: renderText(body, strings),
-        html: renderHtml(body, strings),
-      };
-    },
+      }),
+    verifyEmail: ({ url, expiresInHours }) =>
+      render(strings.verifyEmail.subject, {
+        heading: strings.verifyEmail.heading,
+        paragraphs: [
+          strings.verifyEmail.intro,
+          strings.common.linkExpiry(expiresInHours),
+          strings.verifyEmail.ignore,
+        ],
+        cta: strings.verifyEmail.cta,
+        url,
+      }),
+    existingAccount: ({ loginUrl }) => accountNotice(strings.existingAccount, loginUrl),
+    pendingAccount: ({ forgotPasswordUrl }) =>
+      accountNotice(strings.pendingAccount, forgotPasswordUrl),
     invitation: ({ registerUrl, coachName, expiresInDays }) => {
       const body = {
         heading: strings.invitation.heading,

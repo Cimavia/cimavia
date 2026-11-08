@@ -2,7 +2,14 @@ import { Role } from "@cmv/shared";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { fr } from "../../src/infra/mail/locale/fr";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
-import { type Agent, inviteFor, required, signUp, signUpWith } from "../support/actors";
+import {
+  type Agent,
+  inviteFor,
+  required,
+  signUp,
+  signUpUnverified,
+  signUpWith,
+} from "../support/actors";
 import { app, sentMails } from "../support/app";
 
 /**
@@ -362,6 +369,25 @@ describe("E-mail d'invitation vers une adresse sans compte (#146)", () => {
     );
 
     expect(sentMails).toEqual([]);
+  });
+
+  /**
+   * Un compte jamais vérifié n'a rien prouvé (#270) : peut-être celui d'un tiers qui a pris
+   * l'adresse de l'invité. Le notifier priverait le vrai propriétaire de l'e-mail, seul canal qui
+   * l'atteigne : pour le canal, ce compte n'existe pas.
+   */
+  it("écrit à une adresse dont le compte athlète n'a jamais été vérifié", async () => {
+    const created = await signUpUnverified("mi-non-verifie@cmv.test");
+    expect(created.status).toBe(200);
+    sentMails.length = 0;
+
+    expect(
+      (await coach.post("/invitations").send({ email: "mi-non-verifie@cmv.test" })).status,
+    ).toBe(201);
+
+    const mail = required(sentMails[0], "e-mail d'invitation");
+    expect(mail).toMatchObject({ to: "mi-non-verifie@cmv.test", subject: expect.any(String) });
+    expect(mail.text).toContain(fr.invitation.addressLine);
   });
 
   /**

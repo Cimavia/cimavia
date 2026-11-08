@@ -62,10 +62,13 @@ export {
 export type { ReminderApi } from "./api/reminder.api";
 export { createReminderApi, reminderKeys } from "./api/reminder.api";
 export {
+  EMAIL_VERIFICATION_TOKEN_TTL_HOURS,
+  EMAIL_VERIFICATION_TOKEN_TTL_SECONDS,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   RESET_PASSWORD_TOKEN_TTL_HOURS,
   RESET_PASSWORD_TOKEN_TTL_SECONDS,
+  VERIFY_EMAIL_PASSWORD_REQUIRED,
 } from "./auth";
 export type {
   AccountType,
@@ -1230,12 +1233,14 @@ export {
   stabilizeFeedbackUrls,
   stabilizeMessageUrls,
 } from "./util/signed-url-keeper.util";
-export type { SignupMode } from "./util/signup.util";
+export type { ResendState, SignupMode } from "./util/signup.util";
 export {
   isEmailAllowed,
   normalizeEmail,
   parseEmailList,
+  resendOutcome,
   SIGNUP_MODES,
+  signInErrorKey,
   signUpErrorKey,
 } from "./util/signup.util";
 export type {

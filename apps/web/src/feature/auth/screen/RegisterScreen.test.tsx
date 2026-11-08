@@ -1,16 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  clearPlanClipboard,
-  type PlanWeekClipboard,
-  usePlanClipboard,
-} from "@/feature/plan/hook/usePlanClipboard";
 import { renderInRoute } from "../../../../test/render";
 import { RegisterScreen } from "./RegisterScreen";
 
-const { useSessionMock, signUpMock } = vi.hoisted(() => ({
+const { useSessionMock, signUpMock, sendVerificationEmailMock } = vi.hoisted(() => ({
   useSessionMock: vi.fn(),
   signUpMock: vi.fn(),
+  sendVerificationEmailMock: vi.fn(),
 }));
 
 // Better Auth est coupé : il porte le réseau et les cookies, deux choses que cet écran délègue.
@@ -19,6 +15,7 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: {
     useSession: () => useSessionMock(),
     signUp: { email: signUpMock },
+    sendVerificationEmail: sendVerificationEmailMock,
   },
 }));
 
@@ -57,16 +54,8 @@ async function fillIdentity(view: View, nameLabel = NAME) {
   await view.user.type(view.getByLabelText(PASSWORD), "motdepasse1");
 }
 
-/** Arme le presse-papier comme le ferait un coach du compte précédent, dans le même onglet. */
-function copyWeekOutsideComponent(entry: PlanWeekClipboard) {
-  const { result, unmount } = renderHook(() => usePlanClipboard());
-  act(() => result.current.copyWeek(entry));
-  unmount();
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  clearPlanClipboard();
   useSessionMock.mockReturnValue({ data: null, isPending: false });
   signUpMock.mockResolvedValue({ error: null });
 });
@@ -173,57 +162,31 @@ describe("RegisterScreen", () => {
     expect(view.queryByText("auth.errors.noCapability")).not.toBeInTheDocument();
   });
 
-  it("efface tout ce qui reste du compte précédent AVANT de naviguer", async () => {
-    const view = await setup();
-    // `gcTime` infini pour CETTE clé : le harnais collecte à 0 ms ce que rien n'observe, et une
-    // donnée évanouie d'elle-même ferait passer l'assertion de purge sans rien prouver.
-    view.queryClient.setQueryDefaults(["athletes"], { gcTime: Number.POSITIVE_INFINITY });
-    view.queryClient.setQueryData(["athletes"], [{ id: "a-du-compte-precedent" }]);
-    copyWeekOutsideComponent({
-      planWeekId: "w-1",
-      planId: "plan-1",
-      planTitle: "Bloc force — Léa",
-      weekNumber: 2,
-    });
-    // Ce que l'écran d'arrivée trouverait en montant : relevé à l'instant où la navigation part.
-    const seenAtNavigation: { cache: unknown; clipboard: string | null }[] = [];
-    view.router.subscribe("onBeforeNavigate", () => {
-      seenAtNavigation.push({
-        cache: view.queryClient.getQueryData(["athletes"]),
-        clipboard: sessionStorage.getItem("cmv.planClipboard"),
-      });
-    });
-
-    await submitRegistration(view);
-
-    // Le seul passage OBLIGÉ d'un changement de compte : une session perdue ramène ici sans
-    // qu'aucune déconnexion soit passée. Purger APRÈS la navigation servirait à l'écran d'arrivée
-    // les Athletes, débriefs et factures du précédent (#373), et son presse-papier (#341).
-    await waitFor(() => expect(seenAtNavigation).not.toHaveLength(0));
-    expect(seenAtNavigation[0]).toEqual({ cache: undefined, clipboard: null });
-  });
-
-  it("emmène à l'accueil une fois le compte créé", async () => {
+  /**
+   * L'inscription n'ouvre plus de session (#270) : l'écran reste, et dit qu'un e-mail est à ouvrir.
+   * Sans ce changement d'état, l'inscription réussie laisserait l'utilisateur devant le formulaire
+   * qu'il vient de soumettre — indiscernable d'un échec silencieux.
+   */
+  it("annonce l'e-mail à ouvrir une fois l'inscription envoyée, sans quitter la page", async () => {
     const view = await setup();
 
     await submitRegistration(view);
 
-    // Sans cette navigation, l'inscription réussie laisserait l'utilisateur sur le formulaire
-    // qu'il vient de soumettre — indiscernable d'un échec silencieux.
-    await waitFor(() => expect(view.router.state.location.pathname).toBe("/"));
+    expect(await view.findByText("auth.verificationSent.title")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "auth.verificationSent.resend" })).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: SUBMIT })).not.toBeInTheDocument();
+    expect(view.router.state.location.pathname).toBe("/register");
   });
 
   describe("ce que dit l'échec", () => {
     /**
      * Le message n'est pas cosmétique. « Une erreur est survenue, réessaie » ferait recommencer
-     * une saisie juste : sur un environnement fermé (403, #263) aucune tentative ne passera, et
-     * une adresse déjà prise ne se corrige pas non plus en réessayant. 422 est le SEUL code que
-     * Better Auth réserve à l'e-mail déjà utilisé au sign-up — les autres validations sont des
-     * 400, qu'un message « e-mail déjà pris » ferait mentir.
+     * une saisie juste : sur un environnement fermé (403, #263) aucune tentative ne passera. Une
+     * adresse déjà prise, elle, ne se dit plus (#270) : l'API répond comme à une adresse neuve, et
+     * c'est son propriétaire qu'elle prévient.
      */
     it.each([
       [403, "auth.errors.signupClosed"],
-      [422, "auth.errors.emailInUse"],
       [400, "auth.errors.generic"],
     ])("traduit le refus %s en %s", async (status, message) => {
       signUpMock.mockResolvedValue({ error: { status } });

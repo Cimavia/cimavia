@@ -1,6 +1,6 @@
 import { envSchema } from "@cmv/shared";
 import { defineConfig, devices } from "@playwright/test";
-import { API_PORT, API_URL, DATABASE_URL, WEB_PORT, WEB_URL } from "./e2e/support/env";
+import { API_PORT, API_URL, AUTH_SECRET, DATABASE_URL, WEB_PORT, WEB_URL } from "./e2e/support/env";
 
 const CI = process.env.CI != null;
 
@@ -22,7 +22,7 @@ const API_ENV: Record<string, string> = {
   APP_ENV: "development",
   PORT: String(API_PORT),
   DATABASE_URL,
-  BETTER_AUTH_SECRET: "test-secret-not-for-production-0123456789abcdef",
+  BETTER_AUTH_SECRET: AUTH_SECRET,
   BETTER_AUTH_URL: API_URL,
   CORS_ORIGINS: WEB_URL,
   // Les parcours inscrivent leurs comptes sans invitation, comme la suite d'isolation. Sans storage

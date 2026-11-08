@@ -17,9 +17,9 @@ import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvText } from "@/shared/component/CmvText";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { landingTab } from "@/shared/lib/tabs";
+import { VerificationSent } from "../component/VerificationSent";
 
 const TYPE_ICONS: Record<AccountType, ComponentProps<typeof Ionicons>["name"]> = {
   training: "person-outline",
@@ -45,6 +45,12 @@ export function RegisterScreen() {
   const [noCapability, setNoCapability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * L'adresse à laquelle le lien est parti (#270). L'inscription n'ouvre plus de session : la garde
+   * ci-dessous n'a rien à aiguiller, et rien du compte précédent n'est à purger — c'est la
+   * connexion, plus tard, qui le fera.
+   */
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   if (!isPending && session != null) {
     // Destination DÉRIVÉE de la capacité, comme sur l'écran d'entrée : `/planning` en dur
@@ -76,20 +82,23 @@ export function RegisterScreen() {
         setError(t(signUpErrorKey(signUpError.status)));
         return;
       }
-      // Le seul point de passage OBLIGÉ d'un changement de compte : une session expirée ramène
-      // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
-      await resetAccountData();
-      // AUCUNE navigation ici : c'est la garde de session en tête de ce composant qui aiguille,
-      // une fois la session RÉSOLUE, vers l'onglet que la capacité autorise. Un `replace` en dur
-      // partait avant elle et sur une route athlète — un compte dont la session n'avait pas encore
-      // repris se voyait alors refuser `/planning` par `redirectForPath`, qui le déposait sur le
-      // premier onglet sans capacité (Messages) avec une barre amputée de la moitié de ses
-      // entrées. Le commentaire de la garde disait déjà pourquoi `/planning` en dur est faux.
+      setSentTo(email);
     } catch {
       setError(t("auth.errors.generic"));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (sentTo != null) {
+    return (
+      <View className="flex-1 justify-center gap-4 bg-cmv-bg-0 p-6">
+        <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
+          {t("auth.verificationSent.title")}
+        </CmvText>
+        <VerificationSent email={sentTo} />
+      </View>
+    );
   }
 
   const capabilityBoxes = (
