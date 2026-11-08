@@ -7,6 +7,8 @@ export {
   invitationKeys,
 } from "./api/account.api";
 export { acceptInvitationMutation } from "./api/account.cache";
+export type { AccountErasureApi, ErasureFailure } from "./api/account-erasure.api";
+export { createAccountErasureApi, erasureFailureOf } from "./api/account-erasure.api";
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";
@@ -79,6 +81,7 @@ export type {
 } from "./capability";
 export {
   ACCOUNT_TYPES,
+  CAPABILITY_NAMES,
   capabilitiesOf,
   hasCapability,
   SELECTABLE_CAPABILITIES,
@@ -732,6 +735,8 @@ export {
   panelCoachAccess,
   panelCoaches,
 } from "./util/access-panel.util";
+export type { ErasureNotices } from "./util/account-erasure.util";
+export { erasureNotices } from "./util/account-erasure.util";
 export type { AppTier } from "./util/app-version.util";
 export { formatAppVersion, isAppTier } from "./util/app-version.util";
 export type { AthleteLabelHooks } from "./util/athlete-label.util";

@@ -27,6 +27,16 @@ export type Capabilities = {
 export type CapabilityName = "coach" | "athlete" | "company";
 
 /**
+ * Toutes les capacités : ce qu'exige une route qui vaut pour n'importe quel compte, comme la page
+ * Compte et la suppression (#795).
+ */
+export const CAPABILITY_NAMES = [
+  "coach",
+  "athlete",
+  "company",
+] as const satisfies readonly CapabilityName[];
+
+/**
  * Les deux capacités d'ENTRAÎNEMENT — celles qui se cumulent, se cochent à l'inscription, et qu'un
  * compte à double capacité précise par `?as=` sur les routes servies aux deux (#10).
  *
