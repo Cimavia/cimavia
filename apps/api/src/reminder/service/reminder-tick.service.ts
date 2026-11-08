@@ -90,7 +90,7 @@ export class ReminderTickService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async run(now: Date): Promise<ReminderTickResultDto> {
+  async run(now: Date): Promise<Omit<ReminderTickResultDto, "purgedObjects">> {
     // `isCoach` et non `role` : depuis #9, un compte peut coacher SANS avoir COACH pour persona
     // (il porte les deux capacités et atterrit côté athlète). Filtrer sur le rôle l'aurait laissé
     // hors du balayage — pas d'erreur, juste des rappels qui n'arrivent plus.
@@ -297,7 +297,8 @@ export class ReminderTickService {
    */
   private async invoiceOverdueRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     const invoices = await this.db.invoice.findMany({
-      where: { ...ownedBy(coachId), status: InvoiceStatus.PENDING },
+      // Un athlète qui a supprimé son compte ne se relance plus (#256) : le statut reste au coach.
+      where: { ...ownedBy(coachId), status: InvoiceStatus.PENDING, erasedAthleteName: null },
       select: { id: true, dueDate: true },
     });
 
