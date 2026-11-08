@@ -7,14 +7,19 @@ import { DocumentCleanupService } from "./document-cleanup.service";
 const FILE = { id: "doc-1", type: DocumentType.FILE, storagePath: "coach/c/exercises/e/a.jpg" };
 
 function cleanupWith(counts: { copies: number; siblings: number }) {
-  const exerciseDocumentCount = vi.fn().mockResolvedValue(counts.siblings);
+  const cited = (count: number) => Array(count).fill({ storagePath: FILE.storagePath });
+  const exerciseDocumentFindMany = vi.fn().mockResolvedValue(cited(counts.siblings));
   const db = {
-    scheduledSessionExerciseDocument: { count: vi.fn().mockResolvedValue(counts.copies) },
-    exerciseDocument: { count: exerciseDocumentCount },
+    scheduledSessionExerciseDocument: { findMany: vi.fn().mockResolvedValue(cited(counts.copies)) },
+    exerciseDocument: { findMany: exerciseDocumentFindMany },
   } as unknown as PrismaService;
   const deleteObject = vi.fn().mockResolvedValue(undefined);
   const storage = { deleteObject } as unknown as StorageService;
-  return { cleanup: new DocumentCleanupService(db, storage), deleteObject, exerciseDocumentCount };
+  return {
+    cleanup: new DocumentCleanupService(db, storage),
+    deleteObject,
+    exerciseDocumentFindMany,
+  };
 }
 
 /**
@@ -38,10 +43,11 @@ describe("DocumentCleanupService.deleteObjectIfUnreferenced", () => {
   });
 
   it("ne compte pas le document supprimé parmi ceux qui retiennent la clé", async () => {
-    const { cleanup, exerciseDocumentCount } = cleanupWith({ copies: 0, siblings: 0 });
+    const { cleanup, exerciseDocumentFindMany } = cleanupWith({ copies: 0, siblings: 0 });
     await cleanup.deleteObjectIfUnreferenced(FILE);
-    expect(exerciseDocumentCount).toHaveBeenCalledWith({
-      where: { storagePath: FILE.storagePath, id: { not: FILE.id } },
+    expect(exerciseDocumentFindMany.mock.calls[0]?.[0].where).toEqual({
+      storagePath: { in: [FILE.storagePath] },
+      id: { not: FILE.id },
     });
   });
 

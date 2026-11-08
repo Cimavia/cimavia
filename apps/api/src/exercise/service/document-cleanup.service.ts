@@ -2,6 +2,7 @@ import { DocumentType } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import type { DocumentRow } from "../../infra/storage/document.mapper";
+import { citedStorageKeys } from "../../infra/storage/object-citations";
 import { StorageService } from "../../infra/storage/storage.service";
 
 /**
@@ -37,15 +38,8 @@ export class DocumentCleanupService {
   ): Promise<void> {
     if (doc.type !== DocumentType.FILE || doc.storagePath == null) return;
 
-    const [copies, siblings] = await Promise.all([
-      this.prisma.scheduledSessionExerciseDocument.count({
-        where: { storagePath: doc.storagePath },
-      }),
-      this.prisma.exerciseDocument.count({
-        where: { storagePath: doc.storagePath, id: { not: doc.id } },
-      }),
-    ]);
-    if (copies + siblings > 0) return;
+    const cited = await citedStorageKeys(this.prisma, [doc.storagePath], doc.id);
+    if (cited.size > 0) return;
 
     await this.storage.deleteObject(doc.storagePath);
   }
