@@ -257,6 +257,162 @@ describe("Supprimer son compte : ni ligne ni objet restant, et personne d'autre 
     expect(await prisma.invitation.count({ where: { id: other.id } })).toBe(1);
   });
 
+  it("ne laisse pas le nom de qui part dans le catalogue du Coach qui reste", async () => {
+    const company = await signUpWith("erasure-g@cmv.test", {
+      isCoach: false,
+      isAthlete: false,
+      isCompany: true,
+    });
+    const leaving = await signUp("erasure-coach-n@cmv.test", Role.COACH);
+    const staying = await signUp("erasure-coach-o@cmv.test", Role.COACH);
+    await joinOrganization(company, leaving);
+    await joinOrganization(company, staying);
+    const metric = { label: "Cotation", unit: null, scale: null };
+    const theirs = await leaving
+      .post("/custom-metrics")
+      .send({ ...metric, valueType: "SCALE", scale: ["6a", "6b"] });
+    const mine = await staying.post("/custom-metrics").send({ ...metric, valueType: "NUMBER" });
+    expect([theirs.status, mine.status]).toEqual([201, 201]);
+    const exercise = await leaving.post("/exercises").send({
+      title: "Bloc coté",
+      suggestedMetrics: [{ source: "CUSTOM", customMetricId: theirs.body.id }],
+    });
+    expect(exercise.status).toBe(201);
+    await prisma.accessGrant.create({
+      data: {
+        ownerId: await idOf(leaving),
+        exerciseId: exercise.body.id,
+        organizationId: await idOf(company),
+        level: "READ",
+      },
+    });
+    await sessionCiting(staying, exercise.body.id);
+    const { name } = await prisma.user.findUniqueOrThrow({
+      where: { id: await idOf(leaving) },
+      select: { name: true },
+    });
+
+    expect((await eraseAs(leaving)).status).toBe(204);
+
+    const labels = (
+      await prisma.customMetric.findMany({
+        where: { coachId: await idOf(staying) },
+        select: { label: true },
+      })
+    ).map((row) => row.label);
+    expect(labels).toContain("Cotation (copie)");
+    expect(labels.join(" ")).not.toContain(name);
+  });
+
+  it("un groupe survit à qui part, sans ses messages, ni son nom, ni sa date d'activité", async () => {
+    const leaving = await signUp("erasure-group-a@cmv.test", Role.COACH);
+    const staying = await signUp("erasure-group-b@cmv.test", Role.COACH);
+    const [leavingId, stayingId] = [await idOf(leaving), await idOf(staying)];
+    const group = await prisma.conversation.create({
+      data: {
+        kind: "GROUP",
+        participantKey: `erasure-group-${Date.now()}`,
+        lastMessageAt: new Date("2026-02-01T10:00:00Z"),
+        participants: {
+          create: [
+            { userId: leavingId, capability: "COACH" },
+            { userId: stayingId, capability: "COACH" },
+          ],
+        },
+      },
+    });
+    const keptAt = new Date("2026-01-01T10:00:00Z");
+    await prisma.message.create({
+      data: {
+        conversationId: group.id,
+        senderId: stayingId,
+        type: "TEXT",
+        content: "reste",
+        createdAt: keptAt,
+      },
+    });
+    const storagePath = `conversation/${group.id}/audio.m4a`;
+    await prisma.message.create({
+      data: {
+        conversationId: group.id,
+        senderId: leavingId,
+        type: "AUDIO",
+        storagePath,
+        createdAt: new Date("2026-02-01T10:00:00Z"),
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        recipientId: stayingId,
+        type: "MESSAGE_RECEIVED",
+        entityType: "CONVERSATION",
+        entityId: group.id,
+        actorName: "Quelqu'un",
+      },
+    });
+
+    expect((await eraseAs(leaving)).status).toBe(204);
+
+    const survivor = await prisma.conversation.findUniqueOrThrow({
+      where: { id: group.id },
+      include: { participants: true, messages: true },
+    });
+    expect(survivor.lastMessageAt).toEqual(keptAt);
+    expect(survivor.participants.map((row) => row.userId)).toEqual([stayingId]);
+    expect(survivor.messages.map((row) => row.content)).toEqual(["reste"]);
+    expect(await prisma.notification.count({ where: { entityId: group.id } })).toBe(0);
+    await vi.waitFor(
+      async () =>
+        expect(await prisma.pendingObjectDeletion.count({ where: { key: storagePath } })).toBe(0),
+      { timeout: 5_000 },
+    );
+  });
+
+  it("une conversation de groupe sans autre message n'affiche plus d'activité", async () => {
+    const leaving = await signUp("erasure-group-c@cmv.test", Role.COACH);
+    const staying = await signUp("erasure-group-d@cmv.test", Role.COACH);
+    const [leavingId, stayingId] = [await idOf(leaving), await idOf(staying)];
+    const group = await prisma.conversation.create({
+      data: {
+        kind: "GROUP",
+        participantKey: `erasure-group-empty-${Date.now()}`,
+        lastMessageAt: new Date(),
+        participants: {
+          create: [
+            { userId: leavingId, capability: "COACH" },
+            { userId: stayingId, capability: "COACH" },
+          ],
+        },
+        messages: { create: [{ senderId: leavingId, type: "TEXT", content: "seul" }] },
+      },
+    });
+
+    expect((await eraseAs(leaving)).status).toBe(204);
+
+    const survivor = await prisma.conversation.findUniqueOrThrow({ where: { id: group.id } });
+    expect(survivor.lastMessageAt).toBeNull();
+  });
+
+  it("le coach parti : ses factures partent avec lui, justificatif compris", async () => {
+    const coach = await signUp("erasure-coach-p@cmv.test", Role.COACH);
+    const athlete = await signUp("erasure-athlete-p@cmv.test", Role.ATHLETE);
+    const { athleteId } = await linkRelation(coach, athlete);
+    const planId = await publishedPlanFor(coach, athleteId);
+    await coach.put(`/plans/${planId}/billing`).send({ amountCents: 5000, dueDate: "2026-01-05" });
+    const documentPath = await attachInvoiceDocument(coach, planId);
+    expect((await billAndPublish(coach, planId)).status).toBe(200);
+    const invoice = await prisma.invoice.findFirstOrThrow({ where: { planId } });
+
+    expect((await eraseAs(coach)).status).toBe(204);
+
+    expect(await prisma.invoice.count({ where: { id: invoice.id } })).toBe(0);
+    expect(await prisma.user.count({ where: { id: athleteId } })).toBe(1);
+    expect((await athlete.get("/invoices")).body).toHaveLength(0);
+    await vi.waitFor(async () => expect(await objectStatus(documentPath)).toBe(404), {
+      timeout: 5_000,
+    });
+  });
+
   it("n'efface que son propre compte : le coach lié garde tout le reste", async () => {
     const coach = await signUp("erasure-coach-g@cmv.test", Role.COACH);
     const leaving = await signUp("erasure-athlete-g@cmv.test", Role.ATHLETE);
