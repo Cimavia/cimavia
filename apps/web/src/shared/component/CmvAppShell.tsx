@@ -136,7 +136,6 @@ export function CmvAppShell({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
-  const { isCompany } = useCapabilities();
   const queryClient = useQueryClient();
   /**
    * Pas de garde sur `isPending` ici : ce composant n'est monté que par un écran, lui-même monté
@@ -207,22 +206,14 @@ export function CmvAppShell({
           {/* Le compte vit HORS des deux espaces — ce n'est ni du coach ni de l'athlète — d'où sa
               place dans le pied plutôt que dans la table de nav. Équivalent web de l'onglet Profil
               du mobile (#13). */}
-          {/* Un compte Entreprise n'a pas de page Compte : elle ne règle que des capacités qu'il ne
-              peut pas prendre (#600). Son nom reste, en simple texte. */}
-          {isCompany ? (
-            <span className="truncate px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid">
-              {authSession?.user.name ?? "—"}
-            </span>
-          ) : (
-            <Link
-              to="/account"
-              className="flex items-center gap-cmv-sm truncate rounded-cmv-md px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
-              activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
-            >
-              <IoSettingsOutline aria-hidden className="shrink-0" />
-              <span className="truncate">{authSession?.user.name ?? "—"}</span>
-            </Link>
-          )}
+          <Link
+            to="/account"
+            className="flex items-center gap-cmv-sm truncate rounded-cmv-md px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:bg-cmv-surface hover:text-cmv-text-hi"
+            activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
+          >
+            <IoSettingsOutline aria-hidden className="shrink-0" />
+            <span className="truncate">{authSession?.user.name ?? "—"}</span>
+          </Link>
           <CmvButton variant="ghost" onClick={onLogout}>
             {t("common.logout")}
           </CmvButton>

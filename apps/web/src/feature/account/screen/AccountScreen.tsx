@@ -1,128 +1,64 @@
-import { capabilitiesOf, type TrainingCapability } from "@cmv/shared";
-import { useState } from "react";
+import { capabilitiesOf } from "@cmv/shared";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { IoWarningOutline } from "react-icons/io5";
-import { useCapabilityUpdate } from "@/feature/account/hook/useCapabilityUpdate";
+import { CapabilitySection } from "@/feature/account/component/CapabilitySection";
 import { LegalLinks } from "@/feature/legal";
 import { NotificationEmailSection } from "@/feature/notification";
-import { CmvAppShell, CmvButton } from "@/shared/component";
+import { CmvAppShell } from "@/shared/component";
 import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
-// i18n-values account.capabilities.option: coach, athlete
-// i18n-values account.capabilities.hint: coach, athlete
-const OPTIONS: readonly TrainingCapability[] = ["coach", "athlete"];
-
 /**
- * Le compte : identité, et les capacités qu'on peut ajouter ou retirer après coup (#13).
+ * Le compte : identité, capacités, notifications, informations légales, suppression.
  *
- * Hors des deux espaces de navigation, comme l'onglet Profil du mobile : ce n'est ni du coach ni
- * de l'athlète, c'est le compte. D'où son entrée dans le pied de la barre latérale, visible quel
- * que soit l'espace actif.
+ * Hors des espaces de navigation, comme l'onglet Profil du mobile : ce n'est ni du coach ni de
+ * l'athlète, c'est le compte. D'où son entrée dans le pied de la barre latérale, visible quel que
+ * soit l'espace actif. L'Entreprise y vient aussi (#795), sans les capacités qu'elle ne peut pas
+ * prendre (#600) ni les notifications qui ne la concernent pas.
  */
 export function AccountScreen() {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
-  const current = capabilitiesOf(session?.user);
-  const [selected, setSelected] = useState<Set<TrainingCapability>>(
-    new Set(OPTIONS.filter((name) => (name === "coach" ? current.isCoach : current.isAthlete))),
-  );
-  const update = useCapabilityUpdate();
+  const { isCompany } = capabilitiesOf(session?.user);
   const version = appVersionLabel();
-
-  const isCoach = selected.has("coach");
-  const isAthlete = selected.has("athlete");
-  const unchanged = isCoach === current.isCoach && isAthlete === current.isAthlete;
-
-  function toggle(name: TrainingCapability) {
-    const next = new Set(selected);
-    if (!next.delete(name)) next.add(name);
-    setSelected(next);
-  }
 
   return (
     <CmvAppShell title={t("account.title")}>
-      <section className="flex max-w-xl flex-col gap-cmv-md">
-        <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("account.capabilities.title")}</h2>
-        <p className="text-cmv-caption text-cmv-text-mid">
-          {t("account.capabilities.description")}
+      <div className="flex flex-col gap-cmv-xl">
+        {/* Les notifications sont un réglage DU COMPTE, comme les casquettes : elles valent pour les
+            deux espaces, et un compte à double capacité n'a qu'une seule boîte mail. Une Entreprise
+            ne prend aucune casquette et ne reçoit aucun de ces événements. */}
+        {!isCompany && (
+          <>
+            <CapabilitySection />
+            <NotificationEmailSection />
+          </>
+        )}
+
+        {/* Depuis l'app, et pas seulement avant l'inscription : les stores l'exigent (App Store,
+            règle 5.1.1), et c'est ici qu'on revient chercher ses droits une fois inscrit (#778). */}
+        <section className="flex max-w-xl flex-col gap-cmv-md">
+          <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("legal.title")}</h2>
+          <p className="text-cmv-caption text-cmv-text-mid">{t("account.legal.description")}</p>
+          <LegalLinks />
+        </section>
+
+        <section className="flex max-w-xl flex-col gap-cmv-md">
+          <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("account.delete.title")}</h2>
+          <p className="text-cmv-caption text-cmv-text-mid">{t("account.delete.entry")}</p>
+          <Link to="/account/delete" className="text-cmv-caption text-cmv-error hover:underline">
+            {t("account.delete.title")}
+          </Link>
+        </section>
+
+        {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), sous le dernier bloc : c'est la
+            seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison mobile est un
+            build de store et un Athlete peut rester des semaines sur un binaire ancien sans le
+            savoir. Discrète à dessein — on la cherche, on ne la subit pas. */}
+        <p className="text-cmv-caption text-cmv-text-lo">
+          {version == null ? t("account.about.unknown") : t("account.about.version", { version })}
         </p>
-
-        <div className="flex flex-col gap-cmv-sm">
-          {OPTIONS.map((name) => {
-            const checked = selected.has(name);
-            return (
-              <label
-                key={name}
-                className={
-                  checked
-                    ? "flex cursor-pointer flex-col gap-cmv-xs rounded-cmv-md border border-cmv-accent bg-cmv-accent-soft p-cmv-md focus-within:ring-2 focus-within:ring-cmv-accent"
-                    : "flex cursor-pointer flex-col gap-cmv-xs rounded-cmv-md border border-cmv-border bg-cmv-surface p-cmv-md focus-within:ring-2 focus-within:ring-cmv-accent"
-                }
-              >
-                <span className="flex items-center gap-cmv-sm text-cmv-body text-cmv-text-hi">
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    onChange={() => toggle(name)}
-                  />
-                  {t(`account.capabilities.option.${name}`)}
-                </span>
-                <span className="text-cmv-caption text-cmv-text-mid">
-                  {t(`account.capabilities.hint.${name}`)}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-
-        {/* L'avertissement ne s'affiche QUE sur un retrait effectif : rappeler ce qu'on garde
-            n'a de sens qu'au moment où l'on s'apprête à le perdre de vue. */}
-        {current.isCoach && !isCoach && (
-          // Couleurs d'avertissement du design system, mêmes tokens que le variant `warning` de
-          // `CmvBadge` : ce n'est pas une note d'information, c'est ce qu'on s'apprête à perdre
-          // de vue.
-          <p className="flex items-center gap-cmv-sm rounded-cmv-md border border-cmv-warning-line bg-cmv-warning-soft p-cmv-md text-cmv-caption text-cmv-warning-on">
-            <IoWarningOutline aria-hidden className="shrink-0 text-cmv-body" />
-            <span>{t("account.capabilities.warnCoach")}</span>
-          </p>
-        )}
-        {!isCoach && !isAthlete && (
-          <p className="text-cmv-caption text-cmv-error">{t("account.capabilities.atLeastOne")}</p>
-        )}
-
-        <div>
-          <CmvButton
-            onClick={() => update.mutate({ isCoach, isAthlete })}
-            disabled={unchanged || (!isCoach && !isAthlete) || update.isPending}
-          >
-            {update.isPending ? t("common.saving") : t("common.save")}
-          </CmvButton>
-        </div>
-      </section>
-
-      {/* Les notifications sont un réglage DU COMPTE, comme les casquettes : elles valent pour les
-          deux espaces, et un compte à double capacité n'a qu'une seule boîte mail. */}
-      <div className="mt-cmv-xl">
-        <NotificationEmailSection />
       </div>
-
-      {/* Depuis l'app, et pas seulement avant l'inscription : les stores l'exigent (App Store,
-          règle 5.1.1), et c'est ici qu'on revient chercher ses droits une fois inscrit (#778). */}
-      <section className="mt-cmv-xl flex max-w-xl flex-col gap-cmv-md">
-        <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("legal.title")}</h2>
-        <p className="text-cmv-caption text-cmv-text-mid">{t("account.legal.description")}</p>
-        <LegalLinks />
-      </section>
-
-      {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), sous le dernier bloc : c'est la
-          seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison mobile est un
-          build de store et un Athlete peut rester des semaines sur un binaire ancien sans le
-          savoir. Discrète à dessein — on la cherche, on ne la subit pas. */}
-      <p className="mt-cmv-xl text-cmv-caption text-cmv-text-lo">
-        {version == null ? t("account.about.unknown") : t("account.about.version", { version })}
-      </p>
     </CmvAppShell>
   );
 }

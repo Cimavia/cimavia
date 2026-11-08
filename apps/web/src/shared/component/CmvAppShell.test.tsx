@@ -197,12 +197,11 @@ describe("CmvAppShell — un compte Entreprise (#600)", () => {
     expect(queryByRole("tablist")).toBeNull();
   });
 
-  // `/account` lui est fermé : un lien vers elle le renverrait aussitôt d'où il vient.
-  it("montre son nom sans lien vers la page Compte", async () => {
-    const { getByText, queryByRole } = await openCompany();
+  // C'est là qu'il trouve la suppression de son compte (#795).
+  it("mène de son nom à la page Compte", async () => {
+    const { getByRole } = await openCompany();
 
-    expect(getByText("Altitude Club")).toBeInTheDocument();
-    expect(queryByRole("link", { name: "Altitude Club" })).toBeNull();
+    expect(getByRole("link", { name: "Altitude Club" })).toHaveAttribute("href", "/account");
   });
 });
 
