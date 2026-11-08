@@ -8,7 +8,11 @@ export {
 } from "./api/account.api";
 export { acceptInvitationMutation } from "./api/account.cache";
 export type { AccountErasureApi, ErasureFailure } from "./api/account-erasure.api";
-export { createAccountErasureApi, erasureFailureOf } from "./api/account-erasure.api";
+export {
+  createAccountErasureApi,
+  erasureFailureOf,
+  erasureOutcomeUnknown,
+} from "./api/account-erasure.api";
 export { AS_CAPABILITY_PARAM, asKey, asQuery } from "./api/as-capability";
 export type { AthleteFeedbackApi } from "./api/athlete-feedback.api";
 export { createAthleteFeedbackApi, myFeedbackKeys } from "./api/athlete-feedback.api";

@@ -1,5 +1,5 @@
 import type { EraseAccountInput } from "../dto/account-erasure.schema";
-import { type ApiClient, ApiError } from "./client";
+import { type ApiClient, ApiError, isUnauthorizedError } from "./client";
 import { ProblemType } from "./problem";
 
 /** Supprimer son propre compte (#256), partagé web ↔ mobile : une seule route, la cible est l'acteur. */
@@ -30,4 +30,14 @@ export function erasureFailureOf(error: unknown): ErasureFailure | null {
   if (error.status === 429) return "tooManyAttempts";
   if (error.status === 409) return "busy";
   return null;
+}
+
+/**
+ * `true` quand l'échec ne dit pas si le compte est parti : aucune réponse de l'API (coupure, proxy)
+ * ou une panne de sa part (le compte part au COMMIT, l'API répond après). Toute autre réponse
+ * qu'elle a écrite prouve qu'elle a refusé, et que rien n'a été supprimé.
+ */
+export function erasureOutcomeUnknown(error: unknown): boolean {
+  if (erasureFailureOf(error) != null || isUnauthorizedError(error)) return false;
+  return !(error instanceof ApiError) || !error.fromApi || error.status >= 500;
 }

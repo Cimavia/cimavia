@@ -25,7 +25,8 @@ import { authClient } from "@/shared/lib/auth";
 export function DeleteAccountScreen() {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
-  const notices = erasureNotices(capabilitiesOf(session?.user));
+  // Figé au montage : la session peut tomber sous la fenêtre de reconnexion, l'écran reste monté.
+  const [notices] = useState(() => erasureNotices(capabilitiesOf(session?.user)));
   const [password, setPassword] = useState("");
   const erase = useAccountErasure();
   const failure = erasureFailureOf(erase.error);

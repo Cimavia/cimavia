@@ -1,9 +1,11 @@
 import { ApiError, ProblemType } from "@cmv/shared";
+import { onlineManager } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { accountErasureApi } from "@/feature/account/api";
 import { DeleteAccountScreen } from "@/feature/account/screen/DeleteAccountScreen";
 import { resetAccountData } from "@/shared/lib/account-reset";
+import { holdSessionRecheck, releaseSessionRecheck } from "@/shared/lib/auth";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/account/api", async (importOriginal) => {
@@ -23,7 +25,9 @@ const session = vi.hoisted(() => ({
 }));
 const getSession = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: session.user } }), getSession },
+  authClient: { useSession: () => ({ data: session.user && { user: session.user } }), getSession },
+  holdSessionRecheck: vi.fn(),
+  releaseSessionRecheck: vi.fn(),
 }));
 
 const SUBMIT = "account.delete.submit";
@@ -88,6 +92,16 @@ describe("DeleteAccountScreen — ce qui est annoncé", () => {
     expect(screen.getByText("account.delete.warning")).toBeInTheDocument();
     expect(screen.getByText("account.delete.backups")).toBeInTheDocument();
   });
+
+  // La garde garde l'écran monté quand la session tombe : les listes ne doivent pas se vider.
+  it("garde ses listes quand la session tombe sous l'écran", async () => {
+    const view = await open();
+
+    session.user = null as never;
+    await view.user.type(screen.getByLabelText(PASSWORD), "s");
+
+    expect(screen.getByText("account.delete.gone.athlete")).toBeInTheDocument();
+  });
 });
 
 describe("DeleteAccountScreen — le geste", () => {
@@ -117,6 +131,35 @@ describe("DeleteAccountScreen — le geste", () => {
     await submit("secret");
 
     expect(await screen.findByRole("button", { name: "account.delete.submitting" })).toBeDisabled();
+  });
+
+  // Le compte part avant la réponse : un 401 de la page ouvrirait la reconnexion sur un compte disparu.
+  it("suspend la relecture de session jusqu'au départ, sans la relâcher après", async () => {
+    await submit("secret");
+
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(holdSessionRecheck).toHaveBeenCalledOnce();
+    expect(releaseSessionRecheck).not.toHaveBeenCalled();
+  });
+
+  // En attente hors ligne, le geste irréversible partirait tout seul au retour du réseau.
+  it("n'attend pas le réseau pour tenter la suppression", async () => {
+    onlineManager.setOnline(false);
+    try {
+      await submit("secret");
+
+      await waitFor(() => expect(accountErasureApi.erase).toHaveBeenCalled());
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it("relâche la relecture de session sur un échec", async () => {
+    vi.mocked(accountErasureApi.erase).mockRejectedValue(new ApiError(409, "Réessaie", null));
+
+    await submit("secret");
+
+    await waitFor(() => expect(releaseSessionRecheck).toHaveBeenCalledOnce());
   });
 });
 
@@ -163,6 +206,65 @@ describe("DeleteAccountScreen — la réponse perdue", () => {
     expect(resetAccountData).toHaveBeenCalled();
   });
 
+  // Le compte est peut-être parti : le prochain 401 du sondage ouvrirait la reconnexion dessus.
+  it("garde la relecture suspendue après une issue inconnue, jusqu'à quitter l'écran", async () => {
+    vi.mocked(accountErasureApi.erase).mockRejectedValue(lost);
+    const view = await open();
+    await view.user.type(screen.getByLabelText(PASSWORD), "secret");
+    await view.user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await screen.findByText("common.error");
+    expect(releaseSessionRecheck).not.toHaveBeenCalled();
+
+    view.unmount();
+    expect(releaseSessionRecheck).toHaveBeenCalledOnce();
+  });
+
+  // Le navigateur met du temps à charger la confirmation : ni bouton rallumé, ni erreur d'ici là.
+  it("ne dit aucun échec pendant qu'elle quitte la page", async () => {
+    vi.mocked(accountErasureApi.erase).mockRejectedValue(lost);
+    getSession.mockResolvedValue({ data: null, error: null });
+
+    await submit("secret");
+
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(await screen.findByRole("button", { name: "account.delete.submitting" })).toBeDisabled();
+    expect(screen.queryByText("common.error")).toBeNull();
+    expect(releaseSessionRecheck).not.toHaveBeenCalled();
+  });
+
+  // Juste après la coupure, `/get-session` peut ne jamais répondre : le formulaire doit rendre la main.
+  it("borne la relecture dans le temps", async () => {
+    vi.mocked(accountErasureApi.erase).mockRejectedValue(lost);
+
+    await submit("secret");
+
+    await waitFor(() =>
+      expect(getSession).toHaveBeenCalledWith({
+        fetchOptions: { signal: expect.any(AbortSignal) },
+      }),
+    );
+  });
+
+  // La relecture a échoué avec la même panne, ou le COMMIT n'était pas encore passé : le compte est
+  // parti entre-temps, et demander le mot de passe d'un compte disparu serait absurde.
+  it("part sur la confirmation si un nouvel essai reçoit un 401 après une issue inconnue", async () => {
+    vi.mocked(accountErasureApi.erase).mockRejectedValueOnce(lost);
+    getSession.mockResolvedValue({ data: null, error: { status: 502 } });
+    const view = await open();
+    await view.user.type(screen.getByLabelText(PASSWORD), "secret");
+    await view.user.click(screen.getByRole("button", { name: SUBMIT }));
+    await screen.findByText("common.error");
+
+    vi.mocked(accountErasureApi.erase).mockRejectedValueOnce(
+      new ApiError(401, "Unauthorized", null),
+    );
+    await view.user.click(screen.getByRole("button", { name: SUBMIT }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/account/deleted"));
+    expect(getSession).toHaveBeenCalledOnce();
+  });
+
   // API injoignable : l'absence de réponse ne prouve rien, annoncer la suppression serait faux.
   it.each([
     ["la relecture échoue", { data: null, error: { status: 502 } }],
@@ -195,12 +297,14 @@ describe("DeleteAccountScreen — la réponse perdue", () => {
       new ApiError(403, "Refus", null, true, ProblemType.ERASURE_PASSWORD_REJECTED),
     ],
     ["une session déjà perdue", new ApiError(401, "Unauthorized", null)],
+    ["un refus de l'API", new ApiError(400, "Invalide", null)],
   ])("ne relit pas la session après %s", async (_case, failure) => {
     vi.mocked(accountErasureApi.erase).mockRejectedValue(failure);
 
     await submit("secret");
 
-    await waitFor(() => expect(accountErasureApi.erase).toHaveBeenCalled());
+    await waitFor(() => expect(releaseSessionRecheck).toHaveBeenCalled());
     expect(getSession).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 });

@@ -34,5 +34,28 @@ export const authClient = createAuthClient({
  * après une connexion : tous les `useSession()` montés se mettent à jour d'un coup.
  */
 export function recheckSession(): void {
+  if (recheckHeld) {
+    recheckMissed = true;
+    return;
+  }
   authClient.$store.notify("$sessionSignal");
+}
+
+let recheckHeld = false;
+let recheckMissed = false;
+
+/**
+ * Suspend `recheckSession` : pendant la suppression du compte (#795), la session tombe au COMMIT,
+ * avant la réponse. Un 401 de la page ouvrirait alors la fenêtre de reconnexion sur un compte disparu.
+ */
+export function holdSessionRecheck(): void {
+  recheckHeld = true;
+}
+
+/** Lève la suspension, et rattrape la relecture demandée entre-temps : la session a pu vraiment tomber. */
+export function releaseSessionRecheck(): void {
+  recheckHeld = false;
+  if (!recheckMissed) return;
+  recheckMissed = false;
+  recheckSession();
 }
