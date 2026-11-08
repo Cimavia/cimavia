@@ -43,11 +43,13 @@ export class ReminderTickController {
    *
    * La file des objets à retirer se vide au même passage (#256) : c'est le seul déclencheur qu'a
    * l'API, et un second cron n'apporterait qu'une chose de plus à configurer sur chaque hébergeur.
+   * Avant les rappels, et sans pouvoir échouer : un rappel qui lève à chaque passage ne doit pas
+   * bloquer indéfiniment le retrait des fichiers d'un compte supprimé.
    */
   @Post("tick")
   @HttpCode(HttpStatus.OK)
   async run(): Promise<ReminderTickResultDto> {
-    const result = await this.tick.run(new Date());
-    return { ...result, purgedObjects: await this.purge.drain() };
+    const purgedObjects = await this.purge.drainSafely();
+    return { ...(await this.tick.run(new Date())), purgedObjects };
   }
 }

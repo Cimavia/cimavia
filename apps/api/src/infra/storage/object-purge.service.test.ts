@@ -55,6 +55,18 @@ describe("ObjectPurgeService.drain", () => {
     expect(deleteObject).not.toHaveBeenCalled();
   });
 
+  it("drainSafely rend zéro quand la base ne répond plus, sans lever", async () => {
+    const { service, queue, logger } = purgeWith([]);
+    queue.findMany.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.drainSafely()).resolves.toBe(0);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("drainSafely rend le nombre retiré quand tout va bien", async () => {
+    const { service } = purgeWith([{ id: "1", key: "a" }]);
+    await expect(service.drainSafely()).resolves.toBe(1);
+  });
+
   it("passe d'abord les objets les moins tentés, par lots bornés", async () => {
     const { service, queue } = purgeWith([]);
     await expect(service.drain(5)).resolves.toBe(0);

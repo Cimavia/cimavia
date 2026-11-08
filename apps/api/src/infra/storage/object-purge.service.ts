@@ -45,6 +45,16 @@ export class ObjectPurgeService {
     return purged;
   }
 
+  /** Pour qui n'a pas à échouer si la purge échoue : la file reste, le tick suivant reprend. */
+  async drainSafely(): Promise<number> {
+    try {
+      return await this.drain();
+    } catch (err) {
+      this.logger.warn({ err }, "objets à retirer : passage abandonné, repris au prochain tick");
+      return 0;
+    }
+  }
+
   private async purgeOne({ id, key }: { id: string; key: string }): Promise<boolean> {
     try {
       await this.storage.deleteObject(key);
