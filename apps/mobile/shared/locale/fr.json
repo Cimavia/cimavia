@@ -76,7 +76,8 @@
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
       "noCapability": "Coche au moins une case : « Je coache », « Je m'entraîne » ou les deux.",
       "signupClosed": "Les inscriptions sont fermées sur cet environnement. Il faut une invitation.",
-      "emailNotVerified": "Ton adresse n'est pas encore confirmée. On vient de te renvoyer le lien : ouvre-le, puis reconnecte-toi."
+      "emailNotVerified": "Ton adresse n'est pas encore confirmée. On vient de te renvoyer le lien : ouvre-le, puis reconnecte-toi.",
+      "tooManyAttempts": "Trop de tentatives. Patiente une minute, puis réessaie."
     },
     "verificationSent": {
       "title": "Vérifie ta boîte",

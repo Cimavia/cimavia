@@ -94,6 +94,10 @@ export function signUpErrorKey(status: number | undefined): string {
  *   au mauvais endroit. Le CODE et non le seul 403 : Better Auth rend aussi 403 sur une origine
  *   refusée, où aucun lien n'est parti — l'annoncer ferait attendre un e-mail qui ne viendra pas.
  * - **401** : adresse ou mot de passe faux — Better Auth ne dit pas lequel, et le message non plus.
+ * - **400** : la saisie que Better Auth refuse avant de chercher le compte — une adresse mal formée
+ *   (`kylian@gmail`), que le champ mobile ne valide pas. « Identifiants incorrects » fait corriger
+ *   la saisie ; le générique la ferait renvoyer à l'identique.
+ * - **429** : trop de tentatives — il faut attendre, pas réessayer tout de suite.
  * - le reste, panne réseau comprise : le générique. Annoncer des identifiants faux sur une panne
  *   ferait retaper un mot de passe juste.
  */
@@ -104,7 +108,8 @@ export function signInErrorKey(error: {
   if (error.status === 403 && error.code === "EMAIL_NOT_VERIFIED") {
     return "auth.errors.emailNotVerified";
   }
-  if (error.status === 401) return "auth.errors.invalidCredentials";
+  if (error.status === 401 || error.status === 400) return "auth.errors.invalidCredentials";
+  if (error.status === 429) return "auth.errors.tooManyAttempts";
   return "auth.errors.generic";
 }
 

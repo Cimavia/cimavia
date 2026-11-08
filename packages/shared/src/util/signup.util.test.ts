@@ -96,13 +96,24 @@ describe("signInErrorKey", () => {
     );
   });
 
+  // Une adresse mal formée se corrige : le générique la ferait renvoyer telle quelle.
+  it("prend une saisie refusée pour des identifiants à corriger", () => {
+    expect(signInErrorKey({ status: 400, code: "INVALID_EMAIL" })).toBe(
+      "auth.errors.invalidCredentials",
+    );
+  });
+
+  it("dit d'attendre après trop de tentatives", () => {
+    expect(signInErrorKey({ status: 429 })).toBe("auth.errors.tooManyAttempts");
+  });
+
   // Une origine refusée est aussi un 403 : aucun lien n'est parti, rien à annoncer.
   it("ne prend pas un autre 403 pour une adresse à confirmer", () => {
     expect(signInErrorKey({ status: 403, code: "INVALID_ORIGIN" })).toBe("auth.errors.generic");
   });
 
   // Une panne n'est pas un mot de passe faux : la dire telle quelle évite de retaper le bon.
-  it.each([400, 429, 500, undefined])("retombe sur le générique pour %s", (status) => {
+  it.each([500, 503, undefined])("retombe sur le générique pour %s", (status) => {
     expect(signInErrorKey({ status })).toBe("auth.errors.generic");
   });
 });
