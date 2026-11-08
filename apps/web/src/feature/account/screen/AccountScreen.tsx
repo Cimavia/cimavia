@@ -1,5 +1,6 @@
 import { capabilitiesOf } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CapabilitySection } from "@/feature/account/component/CapabilitySection";
 import { LegalLinks } from "@/feature/legal";
@@ -19,7 +20,8 @@ import { authClient } from "@/shared/lib/auth";
 export function AccountScreen() {
   const { t } = useTranslation();
   const { data: session } = authClient.useSession();
-  const { isCompany } = capabilitiesOf(session?.user);
+  // Figé au montage : la session peut tomber sous la fenêtre de reconnexion, l'écran reste monté.
+  const [isCompany] = useState(() => capabilitiesOf(session?.user).isCompany);
   const version = appVersionLabel();
 
   return (

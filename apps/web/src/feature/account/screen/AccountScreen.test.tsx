@@ -1,5 +1,6 @@
 import { ApiError, ProblemType } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { capabilityApi } from "@/feature/account/api";
 import { AccountScreen } from "@/feature/account/screen/AccountScreen";
@@ -28,7 +29,7 @@ const session = vi.hoisted(() => ({
   user: { id: "u-1", name: "Léa", isCoach: false, isAthlete: true },
 }));
 vi.mock("@/shared/lib/auth", () => ({
-  authClient: { useSession: () => ({ data: { user: session.user } }) },
+  authClient: { useSession: () => ({ data: session.user && { user: session.user } }) },
 }));
 
 const { appVersionLabel } = await import("@/shared/lib/app-version");
@@ -131,6 +132,25 @@ describe("AccountScreen — la suppression du compte (#795)", () => {
     await open();
 
     expect(screen.queryByText("account.capabilities.title")).toBeNull();
+    expect(screen.queryByTestId("notification-section")).toBeNull();
+    expect(screen.getByRole("heading", { name: "legal.title" })).toBeInTheDocument();
+  });
+
+  // La garde garde l'écran monté sous la fenêtre de reconnexion : la session absente n'en fait pas
+  // un compte « sans Entreprise », dont les réglages partiraient interroger l'API.
+  it("reste une entreprise quand la session tombe sous l'écran", async () => {
+    session.user = { id: "u-f", name: "Altitude", isCompany: true, role: "COMPANY" } as never;
+    let refresh = () => {};
+    function Host() {
+      const [, setTick] = useState(0);
+      refresh = () => setTick((tick) => tick + 1);
+      return <AccountScreen />;
+    }
+    await renderInRoute(<Host />, { path: "/account", links: ["/login", "/account/delete"] });
+
+    session.user = null as never;
+    act(() => refresh());
+
     expect(screen.queryByTestId("notification-section")).toBeNull();
     expect(screen.getByRole("heading", { name: "legal.title" })).toBeInTheDocument();
   });
