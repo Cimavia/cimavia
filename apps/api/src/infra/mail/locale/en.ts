@@ -40,6 +40,13 @@ export const en = {
     cta: "Sign in",
     ignore: "If it was not you, ignore this email: your account and password stay unchanged.",
   },
+  accountErased: {
+    subject: "Your Cimavia account has been deleted",
+    heading: "Your account is deleted",
+    intro: "Your Cimavia account and the data attached to it have just been deleted.",
+    backups: "Backups that still hold a copy clear themselves as they are renewed.",
+    notYou: "If this wasn't you, write to us right away at contact@cimavia.fr.",
+  },
   pendingAccount: {
     subject: "Choose your Cimavia password",
     heading: "An account is waiting for your confirmation",
