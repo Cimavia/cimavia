@@ -13,6 +13,7 @@ export { CmvDurationField } from "./CmvDurationField";
 export { CmvEmptyState } from "./CmvEmptyState";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvFormError } from "./CmvFormError";
+export { CmvFullPageLoading } from "./CmvFullPageLoading";
 export { CmvLeaveDialog } from "./CmvLeaveDialog";
 export { CmvMediaPlayer } from "./CmvMediaPlayer";
 export type { CmvMenuItem } from "./CmvMenu";

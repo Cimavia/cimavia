@@ -1,6 +1,7 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AuthLayout } from "@/feature/auth";
+import { CmvFullPageLoading } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -12,13 +13,7 @@ export function AccountDeletedScreen() {
   const { t } = useTranslation();
   const { data: session, isPending } = authClient.useSession();
 
-  if (isPending) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-        {t("common.loading")}
-      </main>
-    );
-  }
+  if (isPending) return <CmvFullPageLoading />;
 
   if (session) {
     return (
@@ -28,9 +23,7 @@ export function AccountDeletedScreen() {
 
   return (
     <AuthLayout title={t("account.deleted.title")}>
-      <p role="status" className="text-cmv-text-mid text-sm">
-        {t("account.deleted.message")}
-      </p>
+      <output className="block text-cmv-text-mid text-sm">{t("account.deleted.message")}</output>
       <Link to="/login" className="mt-4 block text-cmv-accent text-sm hover:text-cmv-accent-hi">
         {t("account.deleted.toLogin")}
       </Link>

@@ -1,10 +1,10 @@
 import { type CapabilityName, hasCapability } from "@cmv/shared";
 import { Navigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { ReauthOverlay } from "@/feature/auth";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
+import { CmvFullPageLoading } from "./CmvFullPageLoading";
 
 type CmvRoleGateProps = {
   /**
@@ -48,7 +48,6 @@ type CmvRoleGateProps = {
  * c'est ce qui permet à la navigation de rester en phase avec ce qui est réellement accessible.
  */
 export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRoleGateProps>) {
-  const { t } = useTranslation();
   const { isPending, isAuthenticated, ...capabilities } = useCapabilities();
   const { data: session } = authClient.useSession();
   /**
@@ -80,13 +79,7 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
     // temps d'un aller-retour, sur chaque chargement de page. Jamais consulté une fois l'écran
     // perdu : la relecture de session au retour sur l'onglet repasse par `isPending`, et la
     // respecter démonterait l'écran qu'on cherche justement à garder.
-    if (isPending) {
-      return (
-        <main className="flex min-h-screen items-center justify-center bg-cmv-bg-0 text-cmv-text-mid">
-          {t("common.loading")}
-        </main>
-      );
-    }
+    if (isPending) return <CmvFullPageLoading />;
 
     // Pas connecté : directement la connexion. Les gardes recopiées renvoyaient vers `/`, qui
     // renvoyait à son tour vers `/login` — deux sauts pour la même destination.
