@@ -27,3 +27,11 @@ export const RESET_PASSWORD_TOKEN_TTL_SECONDS = RESET_PASSWORD_TOKEN_TTL_HOURS *
 export const EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24;
 export const EMAIL_VERIFICATION_TOKEN_TTL_SECONDS =
   EMAIL_VERIFICATION_TOKEN_TTL_HOURS * SECONDS_PER_HOUR;
+
+/**
+ * Le `?error=` que l'API pose sur la page de retour du lien de vérification quand le compte n'a
+ * plus de mot de passe (#270) : une seconde inscription sur l'adresse l'a effacé. L'adresse n'est
+ * pas confirmée par ce lien — « mot de passe oublié » le fera. Partagé : l'API l'écrit, le web le
+ * lit, et un renommage d'un seul côté ferait retomber l'écran sur « lien invalide ».
+ */
+export const VERIFY_EMAIL_PASSWORD_REQUIRED = "PASSWORD_REQUIRED";

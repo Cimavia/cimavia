@@ -141,6 +141,40 @@ describe("createAuth — vérification d'adresse (#270)", () => {
     });
   });
 
+  describe("lien ouvert sur un compte sans mot de passe", () => {
+    function hookWith(credential: { id: string } | null) {
+      const findFirst = vi.fn(() => Promise.resolve(credential));
+      const prisma = { account: { findFirst } } as unknown as PrismaClient;
+      return authWith({}, prisma).options.emailVerification?.beforeEmailVerification;
+    }
+    const USER = { id: "u1", email: "a@cmv.test" } as never;
+
+    it("laisse confirmer un compte qui a son mot de passe", async () => {
+      await expect(hookWith({ id: "c1" })?.(USER, undefined)).resolves.toBeUndefined();
+    });
+
+    // Confirmer puis dire « connecte-toi » mènerait à une 401 sans issue.
+    it("renvoie vers la page de retour, qui dira de choisir un mot de passe", async () => {
+      const request = new Request(
+        "http://localhost:3001/api/auth/verify-email?token=t&callbackURL=http%3A%2F%2Flocalhost%3A5173%2Fverify-email",
+      );
+
+      const refusal = await hookWith(null)?.(USER, request).catch((error: unknown) => error);
+
+      expect(refusal).toMatchObject({ statusCode: 302 });
+      expect((refusal as { headers: Headers }).headers.get("location")).toBe(
+        "http://localhost:5173/verify-email?error=PASSWORD_REQUIRED",
+      );
+    });
+
+    it("refuse en 403 nommé quand aucune page de retour n'est donnée", async () => {
+      await expect(hookWith(null)?.(USER, undefined)).rejects.toMatchObject({
+        statusCode: 403,
+        body: { code: "PASSWORD_REQUIRED" },
+      });
+    });
+  });
+
   describe("réinitialisation du mot de passe", () => {
     function setup() {
       const update = vi.fn(() => Promise.resolve({}));
@@ -202,6 +236,20 @@ describe("createAuth — type de compte à l'inscription (#600)", () => {
 
   it("refuse un compte sans aucun type", async () => {
     await expect(before({})).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  /**
+   * La porte de #263 tient aussi à la création, pour tout chemin qui ne passerait pas par
+   * `/sign-up/email` : sans elle, un plugin qui crée des comptes contournerait l'invitation.
+   */
+  it("refuse la création sur un environnement fermé, avec le type demandé", async () => {
+    const mayCreateAccount = vi.fn<AuthConfig["mayCreateAccount"]>(() => Promise.resolve(false));
+    const hook = authWith({ mayCreateAccount }).options.databaseHooks?.user?.create?.before;
+
+    await expect(
+      hook?.({ email: "f@cmv.test", name: "F", isCompany: true } as never),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mayCreateAccount).toHaveBeenCalledExactlyOnceWith("f@cmv.test", { isCompany: true });
   });
 });
 

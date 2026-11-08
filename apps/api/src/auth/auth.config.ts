@@ -6,6 +6,7 @@ import {
   PASSWORD_MIN_LENGTH,
   RESET_PASSWORD_TOKEN_TTL_SECONDS,
   Role,
+  VERIFY_EMAIL_PASSWORD_REQUIRED,
 } from "@cmv/shared";
 import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
@@ -123,11 +124,12 @@ const SIGN_UP_PATH = "/sign-up/email";
 /**
  * La porte d'un environnement fermé (#263), posée AVANT la route d'inscription.
  *
- * Elle vivait dans `databaseHooks.user.create.before`, et c'est la vérification d'adresse (#270)
- * qui l'en a chassée : avec `requireEmailVerification`, Better Auth convertit tout 403 levé pendant
- * la création du compte en SUCCÈS générique — sa réponse anti-énumération au doublon d'adresse. Le
- * refus d'un environnement fermé serait parti en « vérifie ta boîte », sans compte créé ni e-mail
- * envoyé. Un hook `before` lève hors de la route : son 403 atteint le client tel quel.
+ * Elle vivait seule dans `databaseHooks.user.create.before`, et c'est la vérification d'adresse
+ * (#270) qui l'a fait passer devant : avec `requireEmailVerification`, Better Auth convertit tout
+ * 403 levé pendant la création du compte en SUCCÈS générique — sa réponse anti-énumération au
+ * doublon d'adresse. Le refus d'un environnement fermé serait parti en « vérifie ta boîte », sans
+ * compte créé ni e-mail envoyé. Un hook `before` lève hors de la route : son 403 atteint le client
+ * tel quel. `create.before` la repose (`assertMayCreate`) pour les autres chemins de création.
  *
  * Le corps n'est pas encore validé par la route à ce stade. Une adresse qui n'est pas une chaîne
  * est refusée ici plutôt que laissée à la route : la porte ne s'ouvre pas sur ce qu'elle ne sait
@@ -147,16 +149,50 @@ function signUpGate(mayCreateAccount: AuthConfig["mayCreateAccount"]) {
     if (typeof email !== "string") {
       throw new APIError("BAD_REQUEST", { message: "adresse e-mail requise" });
     }
-    // Lue, pas encore validée : la porte dépend du type de compte demandé (une invitation n'ouvre
-    // jamais une entreprise, #601). Le cumul interdit est refusé plus loin, à la création.
-    if (!(await mayCreateAccount(email, { isCompany: flagOf(body, "isCompany") }))) {
-      // 403 et non 400 — la demande n'a rien de fautif, c'est l'environnement qui refuse ; les
-      // deux clients s'appuient sur ce code pour dire « passe par ton coach » plutôt que « corrige
-      // ta saisie ».
-      throw new APIError("FORBIDDEN", { message: "inscription fermée sur cet environnement" });
-    }
-    assertCapabilities(requestedCapabilities(body));
+    await assertMayCreate(mayCreateAccount, email, requestedCapabilities(body));
   });
+}
+
+/**
+ * Les deux refus d'une création de compte : l'environnement (403), puis les capacités (400).
+ *
+ * Appelés avant la route d'inscription (`signUpGate`) ET à la création (`create.before`) : le
+ * premier pour que la réponse ne dépende pas de l'existence de l'adresse, le second pour que
+ * l'invariant de #263 — aucun compte sans invitation ni liste sur un environnement fermé — tienne
+ * aussi pour un chemin de création qu'ouvrirait un jour un plugin.
+ */
+async function assertMayCreate(
+  mayCreateAccount: AuthConfig["mayCreateAccount"],
+  email: string,
+  capabilities: Capabilities,
+): Promise<void> {
+  // La porte dépend du type de compte demandé : une invitation n'ouvre jamais une entreprise (#601).
+  if (!(await mayCreateAccount(email, { isCompany: capabilities.isCompany }))) {
+    // 403 et non 400 — la demande n'a rien de fautif, c'est l'environnement qui refuse ; les deux
+    // clients s'appuient sur ce code pour dire « passe par ton coach » plutôt que « corrige ta
+    // saisie ».
+    throw new APIError("FORBIDDEN", { message: "inscription fermée sur cet environnement" });
+  }
+  assertCapabilities(capabilities);
+}
+
+/**
+ * Le refus d'un lien de vérification ouvert sur un compte SANS mot de passe (#270), en redirection
+ * vers la page de retour avec `?error=PASSWORD_REQUIRED` — comme Better Auth le fait pour un jeton
+ * expiré. Le `callbackURL` est déjà passé par la vérification d'origine de la route : rediriger
+ * vers lui n'ouvre rien. Sans lui, un 403 nommé.
+ */
+function passwordRequired(request: Request | undefined, baseURL: string): APIError {
+  const callbackURL = request == null ? null : new URL(request.url).searchParams.get("callbackURL");
+  if (!callbackURL) {
+    return APIError.from("FORBIDDEN", {
+      code: VERIFY_EMAIL_PASSWORD_REQUIRED,
+      message: "ce compte n'a pas de mot de passe : passer par « mot de passe oublié »",
+    });
+  }
+  const target = new URL(callbackURL, baseURL);
+  target.searchParams.set("error", VERIFY_EMAIL_PASSWORD_REQUIRED);
+  return new APIError("FOUND", undefined, new Headers({ location: target.toString() }));
 }
 
 /**
@@ -270,6 +306,20 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       sendVerificationEmail: async ({ user, url }) => {
         await config.sendVerificationEmail({ to: user.email, locale: localeOf(user), url });
       },
+      /**
+       * Un lien ouvert sur un compte dont le mot de passe a été effacé (`onExistingUserSignUp`) :
+       * un lien parti avant l'effacement, ou un renvoi demandé depuis « vérifie ta boîte ».
+       * Confirmer l'adresse puis dire « connecte-toi » mènerait à un « identifiants incorrects »
+       * sans issue. Rien n'est écrit : la page de retour dit de choisir un mot de passe, et la
+       * réinitialisation confirmera l'adresse (`onPasswordReset`).
+       */
+      beforeEmailVerification: async (user, request) => {
+        const credential = await prisma.account.findFirst({
+          where: { userId: user.id, providerId: "credential" },
+          select: { id: true },
+        });
+        if (credential == null) throw passwordRequired(request, config.baseURL);
+      },
     },
     user: {
       additionalFields: {
@@ -307,18 +357,15 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     databaseHooks: {
       user: {
         create: {
-          // Sans `async` : rien n'y est attendu depuis que la porte d'inscription est passée
-          // avant la route (`signUpGate`, #270). Les refus partent par `throw`.
-          before: (user) => {
+          before: async (user) => {
             const capabilities = requestedCapabilities(user);
-            // Déjà refusé avant la route (`signUpGate`) ; reposé ici pour tout autre chemin de
-            // création qu'ouvrirait un jour un plugin.
-            assertCapabilities(capabilities);
+            // Déjà vérifié avant la route d'inscription (`signUpGate`) ; reposé ici pour tout autre
+            // chemin de création. Sur l'inscription, un refus levé ICI serait changé en succès
+            // générique par Better Auth (#270) — c'est pourquoi il n'y est pas le premier.
+            await assertMayCreate(config.mayCreateAccount, user.email, capabilities);
             // `role` est DÉDUIT, jamais reçu (#12) : il ne dit plus ce qu'on a le droit de faire,
             // seulement où l'on atterrit.
-            return Promise.resolve({
-              data: { ...user, ...capabilities, role: personaOf(capabilities) },
-            });
+            return { data: { ...user, ...capabilities, role: personaOf(capabilities) } };
           },
           /**
            * L'entreprise qu'ouvre un compte Entreprise (#600), du même id.
@@ -329,8 +376,9 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
            * - un upsert, et non un create : rejoué, il ne casse rien ;
            * - en cas d'échec, le compte tout juste créé est SUPPRIMÉ avant de rendre l'erreur. Sans
            *   ça, l'inscription échouait en laissant un compte Entreprise sans entreprise, que la
-           *   personne ne pouvait plus recréer (« adresse déjà utilisée ») et auquel #601 n'aurait
-           *   jamais pu ajouter de Coach. Le hook passe avant la création des identifiants et de la
+           *   personne ne pouvait plus recréer — une nouvelle inscription sur l'adresse ne fait que
+           *   prévenir son propriétaire (#270) — et auquel #601 n'aurait jamais pu ajouter de
+           *   Coach. Le hook passe avant la création des identifiants et de la
            *   session : supprimer le compte suffit à tout défaire.
            */
           after: async (user) => {

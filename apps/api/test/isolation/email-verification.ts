@@ -170,11 +170,17 @@ describe("Vérification d'adresse : l'inscription sur une adresse déjà prise (
     expect((await signIn(request.agent(baseURL), OWNER, "autre-mot-de-passe")).status).toBe(401);
   });
 
-  it("prévient le propriétaire, et n'envoie aucun lien de vérification", async () => {
-    await signUpUnverified(OWNER, { password: "autre-mot-de-passe" });
+  // Une adresse à elle : l'avis est plafonné par adresse, le test précédent a pris celui d'OWNER.
+  it("prévient le propriétaire une fois, et n'envoie aucun lien de vérification", async () => {
+    const owner = "verif-proprietaire-avise@cmv.test";
+    await signUpWith(owner, { isCoach: false, isAthlete: true });
+    sentMails.length = 0;
+
+    await signUpUnverified(owner, { password: "autre-mot-de-passe" });
+    await signUpUnverified(owner, { password: "encore-un-autre" });
 
     expect(sentMails).toHaveLength(1);
-    expect(sentMails[0]).toMatchObject({ to: OWNER, subject: fr.existingAccount.subject });
+    expect(sentMails[0]).toMatchObject({ to: owner, subject: fr.existingAccount.subject });
   });
 
   /**
@@ -199,6 +205,8 @@ describe("Vérification d'adresse : l'inscription sur une adresse déjà prise (
  */
 describe("Vérification d'adresse : une seconde inscription sur un compte jamais confirmé (#270)", () => {
   const SQUATTER_PASSWORD = "mot-de-passe-du-tiers";
+  // Une origine de confiance de la suite (`CORS_ORIGINS`) : Better Auth refuse les autres en 403.
+  const WEB_PAGE = "http://localhost:5173/verify-email";
   const OWNER_PASSWORD = "mot-de-passe-du-vrai";
 
   /** Le tiers, puis le propriétaire. Rend le lien parti à l'inscription du tiers. */
@@ -229,16 +237,23 @@ describe("Vérification d'adresse : une seconde inscription sur un compte jamais
     expect(sentMails).toEqual([]);
   });
 
-  it("ne rend pas la main au tiers quand le propriétaire ouvre son lien", async () => {
-    const squatterToken = await contest("verif-lien-du-tiers@cmv.test");
+  /**
+   * Le lien parti avant l'effacement ne confirme rien : « adresse confirmée, connecte-toi » mènerait
+   * à une 401 sans issue. La page de retour apprend qu'il faut choisir un mot de passe.
+   */
+  it("renvoie le lien d'avant l'effacement vers le choix d'un mot de passe", async () => {
+    const address = "verif-lien-du-tiers@cmv.test";
+    const squatterToken = await contest(address);
 
-    const opened = await request(baseURL).get(`/api/auth/verify-email?token=${squatterToken}`);
+    const opened = await request(baseURL).get(
+      `/api/auth/verify-email?token=${squatterToken}&callbackURL=${encodeURIComponent(WEB_PAGE)}`,
+    );
 
-    expect(opened.status).toBe(200);
-    expect(
-      (await signIn(request.agent(baseURL), "verif-lien-du-tiers@cmv.test", SQUATTER_PASSWORD))
-        .status,
-    ).toBe(401);
+    expect(opened.status).toBe(302);
+    expect(opened.headers.location).toBe(`${WEB_PAGE}?error=PASSWORD_REQUIRED`);
+    const user = await app.get(PrismaService).user.findUnique({ where: { email: address } });
+    expect(user?.emailVerified).toBe(false);
+    expect((await signIn(request.agent(baseURL), address, SQUATTER_PASSWORD)).status).toBe(401);
   });
 
   // Le geste que l'avis propose : « mot de passe oublié », qui confirme l'adresse au passage.
