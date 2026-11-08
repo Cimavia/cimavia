@@ -2,7 +2,8 @@ import { Locale } from "../locale";
 import { trimTrailingSlashes } from "./url.util";
 
 /**
- * Les trois documents légaux (#778), dans l'ordre où les apps les listent.
+ * Les documents légaux (#778), dans l'ordre où les apps les listent. Le quatrième (#795) dit comment
+ * supprimer son compte : Google Play veut une adresse lisible sans l'app.
  *
  * Ce sont des pages STATIQUES servies par le web sous `/legal/<langue>/<document>`, et non des
  * routes de la SPA : `app-preview` est derrière Cloudflare Access (#263), et une route de la SPA
@@ -15,6 +16,7 @@ export const LEGAL_DOCUMENTS = [
   { document: "privacy", labelKey: "legal.privacy" },
   { document: "legal-notice", labelKey: "legal.legalNotice" },
   { document: "terms", labelKey: "legal.terms" },
+  { document: "account-deletion", labelKey: "legal.accountDeletion" },
 ] as const;
 
 export type LegalDocument = (typeof LEGAL_DOCUMENTS)[number]["document"];

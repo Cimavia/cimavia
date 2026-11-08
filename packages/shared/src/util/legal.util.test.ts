@@ -4,11 +4,12 @@ import { LEGAL_DOCUMENTS, LEGAL_LOCALES, legalDocumentUrl } from "./legal.util";
 describe("LEGAL_DOCUMENTS", () => {
   // Ces chemins sont publiés : déclarés aux stores, servis par nginx, ouverts par Access. En
   // renommer un casserait un lien que l'app ne contrôle plus.
-  it("liste les trois documents sous leur chemin publié", () => {
+  it("liste les documents sous leur chemin publié", () => {
     expect(LEGAL_DOCUMENTS.map(({ document }) => document)).toEqual([
       "privacy",
       "legal-notice",
       "terms",
+      "account-deletion",
     ]);
   });
 

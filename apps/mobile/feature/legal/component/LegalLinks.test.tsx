@@ -21,6 +21,7 @@ describe("LegalLinks", () => {
     ["legal.privacy", "privacy"],
     ["legal.legalNotice", "legal-notice"],
     ["legal.terms", "terms"],
+    ["legal.accountDeletion", "account-deletion"],
   ])("ouvre %s dans le navigateur, sur le web", (label, document) => {
     const { getByText } = renderRn(<LegalLinks />);
 
