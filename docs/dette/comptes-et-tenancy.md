@@ -1374,6 +1374,7 @@ liste des domaines vivent dans l'index.
 | SC-6 | **La purge retire ses objets un par un**, 200 par tick horaire : un compte de plusieurs milliers de fichiers met un jour à se vider. `DeleteObjects` en traite 1 000 par appel, au prix d'une gestion des échecs partiels. | 🟢 | — *(déclencheur : une file qui ne se vide pas en une journée)* |
 | SC-3 | **Une conversation de groupe survit vide** quand son dernier participant part : la ligne ne porte que des identifiants, plus aucun nom ni message. | 🟢 | — *(déclencheur : une purge générale des conversations)* |
 | SC-7 | **Un autre téléphone garde le cache et les documents du compte parti** jusqu'à la prochaine connexion : seul l'appareil du geste est purgé. Le cache persisté ne s'ouvre qu'une fois connecté, et l'effacement de ce qui traîne sur une session perdue est le sujet de #439. Le suivi local (`cimavia-block-tracking:*`) n'y est pas rattrapé, même là : il reste sur le disque, et le compte suivant ne peut pas ouvrir ces séances. | 🟢 | [#439](https://github.com/Cimavia/cimavia/issues/439) |
+| SC-8 | **Le suivi local n'a pas de propriétaire** : les clés sont `cimavia-block-tracking:<séance>`. Sur un téléphone partagé, un compte qui se supprime emporte aussi les coches qu'un autre compte, déconnecté, n'avait pas encore débriefées. Elles se recochent. Des clés portant l'identifiant du compte le régleraient, au prix d'une reprise des entrées déjà écrites. | 🟢 | — *(déclencheur : un retour d'un téléphone partagé entre deux comptes)* |
 
 > **Tranché en #256** (décisions de Kylian du 2026-11-08) :
 >
@@ -1454,3 +1455,7 @@ liste des domaines vivent dans l'index.
 >   mobile n'a pas de reconnexion sur place, donc un 401 sans issue inconnue se dit à l'écran. L'écart
 >   assumé en #795 vaut ici : une session absente reste la seule preuve d'un départ, et sur le mobile
 >   ce faux positif effacerait aussi le suivi local.
+> - **Le bouton s'éteint hors ligne, et l'envoi est borné à 30 s.** Constaté sur émulateur : posée sur
+>   une connexion déjà ouverte, la requête n'échoue pas, elle attend, et le compte part au retour du
+>   réseau. Une sonde qui se trompe (VPN, portail) prive du geste dans l'app, pas du geste : la page
+>   web et l'e-mail restent ouverts. Le délai passé, c'est une issue inconnue ordinaire.
