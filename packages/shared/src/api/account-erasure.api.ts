@@ -86,8 +86,9 @@ export function createConfirmedErasure(
 
   async function erasedDespite(error: unknown): Promise<boolean> {
     if (isUnauthorizedError(error)) return unknown;
-    if (!erasureOutcomeUnknown(error)) return false;
-    unknown = true;
+    // Un refus écrit par l'API vient d'un compte qui existe : l'essai d'avant ne l'a pas emporté.
+    unknown = erasureOutcomeUnknown(error);
+    if (!unknown) return false;
     return sessionIsGone(readSession);
   }
 

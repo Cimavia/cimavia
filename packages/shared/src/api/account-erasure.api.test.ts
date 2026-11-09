@@ -149,6 +149,21 @@ describe("createConfirmedErasure", () => {
     await expect(erasure().erase(input)).rejects.toBe(unauthorized);
   });
 
+  // Essai 2 refusé : le compte existait. Un 401 ensuite vient d'une session perdue, pas d'un départ.
+  it("oublie l'issue inconnue dès qu'un refus écrit par l'API prouve que le compte existe", async () => {
+    erase
+      .mockRejectedValueOnce(lost)
+      .mockRejectedValueOnce(new ApiError(429, "Trop d'essais", null))
+      .mockRejectedValueOnce(unauthorized);
+    const confirmed = erasure();
+
+    await expect(confirmed.erase(input)).rejects.toBe(lost);
+    expect(confirmed.outcomeWasUnknown()).toBe(true);
+    await expect(confirmed.erase(input)).rejects.toBeInstanceOf(ApiError);
+    expect(confirmed.outcomeWasUnknown()).toBe(false);
+    await expect(confirmed.erase(input)).rejects.toBe(unauthorized);
+  });
+
   it("réussit sur le 401 d'un essai qui suit une issue inconnue", async () => {
     erase.mockRejectedValueOnce(lost).mockRejectedValueOnce(unauthorized);
     const confirmed = erasure();
