@@ -1,6 +1,6 @@
 import { signInErrorKey } from "@cmv/shared";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvButton } from "@/shared/component/CmvButton";
@@ -24,9 +24,14 @@ export function LoginScreen() {
   // Le serveur a répondu qu'il n'y a personne, panne réseau exclue : ce que l'appareil garde du
   // compte précédent n'a plus de raison d'attendre la prochaine connexion (SC-7). Un échec se
   // rattrape à cette connexion, qui repurge.
-  const noSessionConfirmed = !isPending && session == null && sessionError == null;
+  const refused = sessionError == null || sessionError.status === 401;
+  const noSessionConfirmed = !isPending && session == null && refused;
+  // Une seule fois : chaque relecture de la session (`isPending`) rouvrirait la condition.
+  const purged = useRef(false);
   useEffect(() => {
-    if (noSessionConfirmed) resetAccountData().catch(() => {});
+    if (!noSessionConfirmed || purged.current) return;
+    purged.current = true;
+    resetAccountData().catch(() => {});
   }, [noSessionConfirmed]);
 
   if (!isPending && session != null) {

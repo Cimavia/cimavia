@@ -138,4 +138,26 @@ describe("ReauthOverlay", () => {
     await waitFor(() => expect(steps).toEqual(["purge", "login", "oubli"]));
     expect(signIn).not.toHaveBeenCalled();
   });
+
+  // Reconnecté pendant la purge, on repartirait quand même vers `/login` : l'écran serait perdu.
+  it("ne laisse plus se reconnecter une fois le départ lancé", async () => {
+    let finishPurge = () => {};
+    vi.mocked(resetAccountData).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishPurge = resolve;
+        }),
+    );
+    const { container } = setup();
+
+    press(screen.getByText("auth.reauth.switchAccount"));
+    await waitFor(() => expect(resetAccountData).toHaveBeenCalledTimes(1));
+    submit(container);
+    press(screen.getByText("auth.reauth.switchAccount"));
+
+    expect(signIn).not.toHaveBeenCalled();
+    expect(resetAccountData).toHaveBeenCalledTimes(1);
+    finishPurge();
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  });
 });

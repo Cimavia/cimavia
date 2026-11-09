@@ -73,6 +73,28 @@ describe("LoginScreen — ce qui traîne d'un compte parti", () => {
     expect(resetAccount).toHaveBeenCalledTimes(1);
   });
 
+  it("purge aussi sur un 401, que le client traite comme une perte", () => {
+    noSession({ error: Object.assign(new Error("refus"), { status: 401 }) });
+
+    renderRn(<LoginScreen />);
+
+    expect(resetAccount).toHaveBeenCalledTimes(1);
+  });
+
+  // Chaque retour au premier plan relit la session, et `isPending` repasse à vrai sur une vide.
+  it("ne repurge pas à chaque relecture de la session", () => {
+    noSession({});
+    const { rerender } = renderRn(<LoginScreen />);
+    resetAccount.mockClear();
+
+    noSession({ isPending: true });
+    rerender(<LoginScreen />);
+    noSession({});
+    rerender(<LoginScreen />);
+
+    expect(resetAccount).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["sur une session en cours de résolution", { isPending: true }],
     ["sur une panne réseau, qui ne dit rien de la session", { error: new TypeError("réseau") }],

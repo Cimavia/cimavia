@@ -14,7 +14,7 @@ import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 
 /**
- * La reconnexion SUR PLACE (#439), posée par `CmvSessionGuard` quand la session tombe sous un écran
+ * La reconnexion SUR PLACE (#439), posée par `SessionGuard` quand la session tombe sous un écran
  * ouvert : pendant mobile de celle du web (#336).
  *
  * Elle recouvre l'écran sans le démonter : renvoyer vers `/login` jetterait le Feedback en cours,
@@ -33,6 +33,8 @@ export function ReauthOverlay({ owner }: Readonly<{ owner: SessionOwner }>) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const busy = submitting || leaving;
 
   // Retour sortirait de l'écran que le voile est là pour garder.
   useHardwareBackLock(true);
@@ -40,6 +42,8 @@ export function ReauthOverlay({ owner }: Readonly<{ owner: SessionOwner }>) {
   useEffect(() => Keyboard.dismiss(), []);
 
   async function leaveForLogin() {
+    // Une reconnexion lancée pendant la purge rentrerait dans un cache vide, puis repartirait.
+    setLeaving(true);
     // Une purge qui résiste ne doit pas enfermer sous le voile : la connexion repurgera.
     await resetAccountData().catch(() => {});
     router.replace("/login");
@@ -96,9 +100,9 @@ export function ReauthOverlay({ owner }: Readonly<{ owner: SessionOwner }>) {
           <CmvButton
             label={submitting ? t("auth.login.submitting") : t("auth.reauth.submit")}
             onPress={onSubmit}
-            disabled={submitting}
+            disabled={busy}
           />
-          <Pressable onPress={leaveForLogin} disabled={submitting}>
+          <Pressable onPress={leaveForLogin} disabled={busy}>
             <CmvText className="text-center text-cmv-text-mid">
               {t("auth.reauth.switchAccount")}
             </CmvText>
