@@ -131,6 +131,15 @@ describe("ProfileScreen", () => {
     expect(router.push).toHaveBeenCalledWith("/join");
   });
 
+  // Apple exige que la suppression commence dans l'app : cette entrée est ce qu'elle regarde.
+  it("mène à la suppression du compte", () => {
+    renderRn(<ProfileScreen />);
+
+    pressButton(document.body, "account.delete.title");
+
+    expect(router.push).toHaveBeenCalledWith("/delete-account");
+  });
+
   // La route est gardée par capacité : la proposer à un coach seul le mènerait à un refus.
   it("ne propose pas « Mes coachs » à un coach seul", () => {
     signedIn({ isCoach: true });

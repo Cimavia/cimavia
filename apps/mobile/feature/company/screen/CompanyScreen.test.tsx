@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { Linking } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLogout } from "@/feature/account/hook/useLogout";
@@ -35,6 +36,15 @@ describe("CompanyScreen", () => {
     press(getByText("legal.privacy"));
 
     expect(open).toHaveBeenCalledWith(`${WEB_URL}/legal/fr/privacy`);
+  });
+
+  // Elle n'a pas de Profil : sans cette entrée, un compte créé dans l'app ne s'y supprimerait pas.
+  it("mène à la suppression du compte", () => {
+    const { container } = renderRn(<CompanyScreen />);
+
+    pressButton(container, "account.delete.title");
+
+    expect(router.push).toHaveBeenCalledWith("/delete-account");
   });
 
   it("laisse se déconnecter", () => {
