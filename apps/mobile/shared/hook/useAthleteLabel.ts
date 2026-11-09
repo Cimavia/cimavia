@@ -1,6 +1,6 @@
 import { createAthleteLabelHooks } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
-import { authClient } from "@/shared/lib/auth";
+import { useAccountUser } from "@/shared/hook/useSessionGuard";
 
 /**
  * Nommer un athlète dans une liste de coach — « (moi) » quand c'est le compte courant (#14) — et
@@ -11,7 +11,7 @@ import { authClient } from "@/shared/lib/auth";
  */
 export const { useAthleteLabel, useIsSelfAthlete } = createAthleteLabelHooks(
   function useSelfId() {
-    return authClient.useSession().data?.user.id;
+    return useAccountUser()?.id;
   },
   function useTranslate() {
     return useTranslation().t;

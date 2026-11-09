@@ -28,16 +28,13 @@ export default function AppTabsLayout() {
    * `href: null` masque l'onglet mais ne choisit pas la route INITIALE du navigateur : sans cette
    * garde, un coach atterrit sur `/planning` (premier écran déclaré) avec une barre d'onglets
    * pourtant correcte. Tant que la session n'est pas résolue, on ne redirige pas — sinon toute
-   * capacité paraîtrait absente le temps d'un aller-retour.
+   * capacité paraîtrait absente le temps d'un aller-retour. Sans session, c'est la connexion : une
+   * session perdue sous un écran ouvert reste, elle, « présente » (`useCapabilities`, #439).
    */
-  /**
-   * Tant que la session n'est pas résolue ET présente, on ne redirige pas : `capabilitiesOf` rend
-   * « aucune capacité » sur une session absente comme sur une session inconnue, et rediriger
-   * là-dessus déposerait l'utilisateur sur le premier onglet sans capacité au lieu du sien.
-   * `isPending` ne suffisait pas — une session tout juste quittée est résolue et vide.
-   */
-  const sessionKnown = !capabilities.isPending && capabilities.isAuthenticated;
-  const redirect = sessionKnown ? redirectForPath(pathname, capabilities, counterparts) : null;
+  if (!capabilities.isPending && !capabilities.isAuthenticated) return <Redirect href="/login" />;
+  const redirect = capabilities.isPending
+    ? null
+    : redirectForPath(pathname, capabilities, counterparts);
   if (redirect != null) return <Redirect href={redirect} />;
 
   return (

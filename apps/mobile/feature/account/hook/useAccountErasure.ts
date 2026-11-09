@@ -1,9 +1,10 @@
-import { type AccountErasureApi, createConfirmedErasure } from "@cmv/shared";
+import { type AccountErasureApi, createConfirmedErasure, erasureOutcomeUnknown } from "@cmv/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { accountErasureApi } from "@/feature/account/api";
 import { blockTrackingStore } from "@/feature/plan/lib/local-tracking-store";
+import { useSessionDeparture } from "@/shared/hook/useSessionGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 
@@ -50,7 +51,6 @@ type RootStack = {
  * `revokeCurrentPushToken` n'y est pas : le token est parti en cascade avec le compte. `signOut`
  * y est, malgré la session morte : le plugin Expo vide le cookie et la session AVANT d'appeler le
  * réseau, et c'est la seule porte publique vers ce stockage (`auth.sign-out.test.ts` le garde).
- * En dernier : la session effacée, `(app)` et `CmvCapabilityGate` ne savent plus qui est là.
  */
 async function purgeDevice(): Promise<void> {
   await Promise.allSettled([blockTrackingStore.purge(), resetAccountData()]);
@@ -61,11 +61,15 @@ async function purgeDevice(): Promise<void> {
  * Supprime le compte connecté, purge l'appareil, puis ouvre la connexion avec sa confirmation (#796).
  *
  * `reset` et non `replace` : la pile entière part d'un seul geste. Un `replace` laisserait les onglets
- * sous `/login`, et Retour ramènerait sur un compte disparu ; un `dismissAll` d'abord redonnerait le
- * focus à l'écran du dessous, dont la garde redirigerait faute de session.
+ * sous `/login`, et Retour ramènerait sur un compte disparu.
+ *
+ * Le départ est annoncé dès l'envoi : la session tombe au COMMIT, avant la réponse, et la moindre
+ * relecture ouvrirait la fenêtre de reconnexion sur un compte disparu (#439).
  */
 export function useAccountErasure() {
   const navigation = useNavigation<RootStack>();
+  const departure = useSessionDeparture();
+  useEffect(() => departure.cancel, [departure]);
   const [erasure] = useState(() =>
     createConfirmedErasure(withTimeLimit(accountErasureApi), (options) =>
       authClient.getSession(options),
@@ -77,9 +81,16 @@ export function useAccountErasure() {
     // du réseau, bien après que la personne a cessé d'y penser. Ici, il échoue tout de suite.
     networkMode: "always",
     mutationFn: erasure.erase,
+    onMutate: departure.begin,
+    // Issue inconnue : le compte est peut-être parti, le départ reste annoncé pour le nouvel essai,
+    // qui saura le confirmer. Quitter l'écran l'annule (plus haut).
+    onError: (error) => {
+      if (!erasureOutcomeUnknown(error)) departure.cancel();
+    },
     onSuccess: async () => {
       await purgeDevice();
       navigation.reset({ index: 0, routes: [{ name: "login", params: { erased: "1" } }] });
+      departure.complete();
     },
   });
 }
