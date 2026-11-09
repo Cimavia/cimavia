@@ -15,6 +15,7 @@ describe("LegalLinks", () => {
       "/legal/fr/privacy",
       "/legal/fr/legal-notice",
       "/legal/fr/terms",
+      "/legal/fr/account-deletion",
     ]);
     for (const link of links) {
       expect(link).toHaveAttribute("target", "_blank");

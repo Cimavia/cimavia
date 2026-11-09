@@ -23,6 +23,8 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RemindersRouteImport } from './routes/reminders'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as AccountDeleteRouteImport } from './routes/account_.delete'
+import { Route as AccountDeletedRouteImport } from './routes/account_.deleted'
 import { Route as CompanyAthletesRouteImport } from './routes/company.athletes'
 import { Route as CompanyCoachesRouteImport } from './routes/company.coaches'
 import { Route as LibraryIndexRouteImport } from './routes/library.index'
@@ -108,6 +110,16 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountDeleteRoute = AccountDeleteRouteImport.update({
+  id: '/account_/delete',
+  path: '/account/delete',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccountDeletedRoute = AccountDeletedRouteImport.update({
+  id: '/account_/deleted',
+  path: '/account/deleted',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanyAthletesRoute = CompanyAthletesRouteImport.update({
@@ -210,6 +222,8 @@ export interface FileRoutesByFullPath {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/account/delete': typeof AccountDeleteRoute
+  '/account/deleted': typeof AccountDeletedRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -242,6 +256,8 @@ export interface FileRoutesByTo {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/account/delete': typeof AccountDeleteRoute
+  '/account/deleted': typeof AccountDeletedRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -274,6 +290,8 @@ export interface FileRoutesById {
   '/reminders': typeof RemindersRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/account_/delete': typeof AccountDeleteRoute
+  '/account_/deleted': typeof AccountDeletedRoute
   '/company/athletes': typeof CompanyAthletesRoute
   '/company/coaches': typeof CompanyCoachesRoute
   '/plans/$planId': typeof PlansPlanIdRoute
@@ -308,6 +326,8 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/verify-email'
+    | '/account/delete'
+    | '/account/deleted'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -340,6 +360,8 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/verify-email'
+    | '/account/delete'
+    | '/account/deleted'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -371,6 +393,8 @@ export interface FileRouteTypes {
     | '/reminders'
     | '/reset-password'
     | '/verify-email'
+    | '/account_/delete'
+    | '/account_/deleted'
     | '/company/athletes'
     | '/company/coaches'
     | '/plans/$planId'
@@ -404,6 +428,8 @@ export interface RootRouteChildren {
   RemindersRoute: typeof RemindersRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  AccountDeleteRoute: typeof AccountDeleteRoute
+  AccountDeletedRoute: typeof AccountDeletedRoute
   CompanyAthletesRoute: typeof CompanyAthletesRoute
   CompanyCoachesRoute: typeof CompanyCoachesRoute
   PlansPlanIdRoute: typeof PlansPlanIdRoute
@@ -518,6 +544,20 @@ declare module '@tanstack/react-router' {
       path: '/verify-email'
       fullPath: '/verify-email'
       preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account_/delete': {
+      id: '/account_/delete'
+      path: '/account/delete'
+      fullPath: '/account/delete'
+      preLoaderRoute: typeof AccountDeleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/account_/deleted': {
+      id: '/account_/deleted'
+      path: '/account/deleted'
+      fullPath: '/account/deleted'
+      preLoaderRoute: typeof AccountDeletedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/company/athletes': {
@@ -663,6 +703,8 @@ const rootRouteChildren: RootRouteChildren = {
   RemindersRoute: RemindersRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  AccountDeleteRoute: AccountDeleteRoute,
+  AccountDeletedRoute: AccountDeletedRoute,
   CompanyAthletesRoute: CompanyAthletesRoute,
   CompanyCoachesRoute: CompanyCoachesRoute,
   PlansPlanIdRoute: PlansPlanIdRoute,

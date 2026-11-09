@@ -1,4 +1,4 @@
-import type { CapabilityName } from "@cmv/shared";
+import { CAPABILITY_NAMES, type CapabilityName } from "@cmv/shared";
 import { QueryClient } from "@tanstack/react-query";
 import {
   type AnyRoute,
@@ -33,6 +33,10 @@ vi.mock("@/shared/hook/useSentryUser", () => ({ useSentryUser: vi.fn() }));
 
 const BOTH: readonly CapabilityName[] = ["athlete", "coach"];
 
+/** Le compte n'est d'aucun espace, et vaut pour tous : l'Entreprise doit pouvoir partir (#795). */
+const ANY_ACCOUNT = new Set(["/account", "/account/delete"]);
+const ALL_CAPABILITIES: readonly CapabilityName[] = [...CAPABILITY_NAMES].sort();
+
 /**
  * Les routes volontairement SANS garde, chacune avec sa raison. Toute route absente d'ici doit
  * être gardée, par elle-même ou par un layout parent.
@@ -45,6 +49,8 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "/reset-password": "idem : le jeton du lien fait office d'accès",
   "/verify-email": "idem : ouverte depuis l'e-mail, souvent sur un autre appareil (#270)",
   "/athletes": "redirection pure vers `/` (#113), qui porte la garde — aucun écran monté",
+  "/account_/deleted":
+    "le compte vient de disparaître : aucune session ne peut plus l'ouvrir (#795)",
 };
 
 function routerAt(url: string) {
@@ -100,8 +106,13 @@ describe("gardes des routes", () => {
     "%s est gardée pour la capacité de son espace",
     async (fullPath) => {
       const space = spaceOfPath(fullPath);
+      const expected = ANY_ACCOUNT.has(fullPath)
+        ? ALL_CAPABILITIES
+        : space == null
+          ? BOTH
+          : [space];
 
-      expect(await gateAt(urlOf(fullPath))).toEqual(space == null ? BOTH : [space]);
+      expect(await gateAt(urlOf(fullPath))).toEqual(expected);
     },
   );
 

@@ -9,7 +9,7 @@ import palette from "../../packages/tokens/src/palette.json";
 
 /**
  * Les documents légaux (#778) : politique de confidentialité, mentions légales, conditions
- * d'utilisation. Des pages STATIQUES, hors de la SPA — l'encadré « Tranché en #778 » du journal dit
+ * d'utilisation, suppression du compte (#795). Des pages STATIQUES, hors de la SPA — l'encadré « Tranché en #778 » du journal dit
  * pourquoi : `app-preview` est derrière Cloudflare Access, et seule une page qui ne charge pas l'app
  * peut en être exemptée sans rouvrir l'app entière.
  *

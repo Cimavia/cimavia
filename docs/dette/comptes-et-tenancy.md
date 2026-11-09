@@ -1267,8 +1267,11 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | RG-1 | **Textes rédigés sans juriste** : politique de confidentialité, mentions légales et conditions d'utilisation (`apps/web/legal/fr/`) partent d'un brouillon relu par l'éditeur seul. Les rôles RGPD y sont simplifiés : l'éditeur est posé seul responsable, alors que le Coach décide lui-même d'une partie de ce qu'il fait des données de ses athlètes. | 🔴 | — *(déclencheur : la mise en production — une relecture juridique, pas une issue de code)* |
-| RG-2 | **Prestataires et durées nommés sans inventaire vérifié** : la politique cite Sentry, Axiom, Scaleway, Expo, Cloudflare et le NAS tels que le code les montre, sans région ni DPA confirmés, et des durées de conservation « du prestataire ». À amender à la clôture de #783 et de #259, et quand #256 rendra la suppression du compte possible depuis l'app (la politique dit « en préparation »). | 🔴 | [#783](https://github.com/Cimavia/cimavia/issues/783) *(et [#259](https://github.com/Cimavia/cimavia/issues/259), [#256](https://github.com/Cimavia/cimavia/issues/256))* |
+| RG-2 | **Prestataires et durées nommés sans inventaire vérifié** : la politique cite Sentry, Axiom, Scaleway, Expo, Cloudflare et le NAS tels que le code les montre, sans région ni DPA confirmés, et annonce « 90 jours au plus » pour les rapports et journaux, une hypothèse (Sentry 30 à 90 jours selon le type d'événement, Axiom 30 jours en offre Personal) à confirmer dans les deux consoles. À amender à la clôture de #783 et de #259. | 🔴 | [#783](https://github.com/Cimavia/cimavia/issues/783) *(et [#259](https://github.com/Cimavia/cimavia/issues/259))* |
 | RG-3 | **Mention, et non case, à l'inscription** : juste tant que la base du traitement est le contrat. Si #259 qualifie les débriefs de données de santé (RGPD art. 9), il faut un consentement explicite : une case, et la date et la version acceptées en base. | 🔴 | [#259](https://github.com/Cimavia/cimavia/issues/259) |
+| RG-4 | **Aucune purge des données périmées** : les invitations expirées, les comptes jamais confirmés et les sessions expirées restent en base (RGPD art. 5-1-e). La politique le dit pour les invitations ; pour les sessions, elle annonce une expiration, pas un effacement. | 🔴 | — *(déclencheur : la mise en production)* |
+| RG-5 | **L'e-mail d'invitation ne renvoie pas à la politique** : la personne invitée n'a pas fourni elle-même son adresse, et RGPD art. 14 veut qu'elle soit informée dès le premier contact. Laissé hors de la relecture des textes : c'est un changement de gabarit d'e-mail. | 🔴 | — *(déclencheur : la mise en production)* |
+| RG-6 | **Identité de l'éditeur non renseignée** : « prenom nom », « adresse postale » et « telephone » sont publiés tels quels par `legal-notice`, `privacy` et `terms`. `0b63cc7e` a retiré les `&lt;…&gt;`, et le test « n'a plus de champ à remplir » ne voit plus rien. Tant que le NAS héberge, l'éditeur est aussi l'hébergeur : LCEN art. 1-1 exige nom, adresse et téléphone, sans anonymat possible. | 🔴 | — *(déclencheur : l'ouverture publique de `/legal`, avant l'URL en Play Console)* |
 
 > **Tranché en #778** (des pages statiques, hors de la SPA) : l'issue demandait « une route publique
 > du web ». Elle ne survivrait pas à Cloudflare Access, qui garde tout `app-preview` (#263). Ouvrir
@@ -1399,3 +1402,34 @@ liste des domaines vivent dans l'index.
 > - **Une copie figée ne porte pas le nom de qui part** : une métrique homonyme s'appelle « Cotation
 >   (copie) », et non « Cotation (Camille) ».
 > - **Le survivant n'est pas prévenu** : une notification conserverait le nom de qui est parti.
+
+> **Tranché en [#795](https://github.com/Cimavia/cimavia/issues/795)** (suppression du compte sur le
+> web, décisions de Kylian du 2026-11-08) :
+>
+> - **L'Entreprise a une page Compte, comme les autres comptes.** Revient sur #600, où son nom restait
+>   un simple texte : la suppression doit lui être accessible. Capacités et notifications lui restent
+>   masquées : elle ne peut pas en prendre, et ne reçoit aucun de ces e-mails.
+> - **Une réponse perdue n'est pas un échec** : le compte part au COMMIT. Sans réponse écrite par
+>   l'API (coupure, proxy) ou sur un 5xx, le web relit la session, et part sur la confirmation si
+>   l'API répond qu'elle n'existe plus. Un 401 ne vaut départ qu'après une telle issue inconnue ;
+>   sans elle, la session était perdue avant le geste. Pas de relectures répétées : elles feraient
+>   attendre chaque panne, et le nouvel essai de la personne tranche déjà.
+> - **La relecture de session sur 401 est suspendue pendant la suppression** : l'API envoie l'e-mail
+>   après le COMMIT, une lecture de la page recevrait un 401 et ouvrirait la fenêtre de reconnexion.
+>   Elle le reste après une issue inconnue, jusqu'à quitter l'écran. Écart assumé : Better Auth relit
+>   aussi la session au retour sur l'onglet, sans passer par là ; sur le chemin normal, le `204` ramène
+>   sur la confirmation. Et une session absente reste la seule preuve d'un départ : une session
+>   expirée pile pendant une coupure annoncerait à tort la suppression, un cas trop étroit pour
+>   mériter une route d'API.
+> - **Une page statique pour Google Play**, `/legal/<langue>/account-deletion` : Google veut une
+>   adresse qui nomme l'app, donne les étapes et ce qui est conservé, sans renvoyer vers l'app, et ne
+>   dit pas si une connexion préalable est admise. Déconnecté, `/account/delete` part sur `/login`
+>   sans rien montrer de tout ça. L'exception Access `/legal` la couvre déjà. Le lien vers
+>   `/account/delete` est le seul lien interne d'un texte légal hors documents ; en preview il bute
+>   sur Access, l'e-mail de contact reste la voie publique.
+> - **La confirmation est hors de `CmvRoleGate`, atteinte par un rechargement complet** : la session
+>   gardée en mémoire ouvrirait sinon la fenêtre de reconnexion sur un compte disparu.
+> - **Les durées sont écrites sur la page publique** : Google demande toute durée de conservation
+>   supplémentaire. 60 jours au plus pour les sauvegardes, la durée de `deploy/preview/README.md` ;
+>   tant que le compte du Coach existe pour ses factures et ses copies d'exercices. `privacy.html` et
+>   `terms.html` sont corrigés ici plutôt qu'en #796 : livré sans elles, le web les contredirait.

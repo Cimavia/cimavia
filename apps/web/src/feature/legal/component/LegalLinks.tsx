@@ -31,7 +31,7 @@ function LegalAnchor({ document, className, children }: Readonly<LegalAnchorProp
 }
 
 /**
- * Les trois documents, en ligne : pied des pages d'authentification et section de l'écran Compte.
+ * Les documents, en ligne : pied des pages d'authentification et section de l'écran Compte.
  * Lisibles sans compte — c'est tout leur intérêt avant l'inscription.
  */
 export function LegalLinks({ className }: Readonly<{ className?: string }>) {

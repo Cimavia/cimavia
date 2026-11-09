@@ -37,7 +37,7 @@ function LegalLink({ document, className, children }: Readonly<LegalLinkProps>) 
   );
 }
 
-/** Les trois documents, l'un sous l'autre : écran Profil et écran Entreprise. */
+/** Les documents, l'un sous l'autre : écran Profil et écran Entreprise. */
 export function LegalLinks() {
   const { t } = useTranslation();
   return (

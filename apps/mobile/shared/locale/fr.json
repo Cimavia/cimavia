@@ -61,7 +61,7 @@
         "company": "Entreprise",
         "companyHint": "Une entreprise ne coache pas et ne s'entraîne pas : elle ajoute ses coachs et invite des athlètes."
       },
-      "consent": "En créant ton compte, tu acceptes les <terms>conditions d'utilisation</terms> et la <privacy>politique de confidentialité</privacy>."
+      "consent": "En créant ton compte, tu acceptes les <terms>conditions d'utilisation</terms>. Ce que Cimavia fait de tes données est décrit dans la <privacy>politique de confidentialité</privacy>."
     },
     "forgot": {
       "title": "Mot de passe oublié",
@@ -857,6 +857,7 @@
     "title": "Informations légales",
     "privacy": "Politique de confidentialité",
     "legalNotice": "Mentions légales",
-    "terms": "Conditions d'utilisation"
+    "terms": "Conditions d'utilisation",
+    "accountDeletion": "Suppression du compte"
   }
 }
