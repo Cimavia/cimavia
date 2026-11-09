@@ -43,3 +43,14 @@ export const authClient = createAuthClient({
     }),
   ],
 });
+
+/**
+ * Fait relire la session à Better Auth, depuis n'importe où — y compris hors de React, là où
+ * `useSession().refetch` n'est pas joignable. Tous les `useSession()` montés se mettent à jour
+ * d'un coup, et `CmvSessionGuard` décide de la suite (#439).
+ */
+export function recheckSession(): void {
+  // Déjà vide : la perte est connue, et chaque sondage sous le voile relancerait une lecture.
+  if (authClient.$store.atoms.session?.get().data == null) return;
+  authClient.$store.notify("$sessionSignal");
+}

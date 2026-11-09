@@ -1,5 +1,6 @@
 import {
   coachFeedbackKeys,
+  isUnauthorizedError,
   messageKeys,
   myFeedbackKeys,
   shouldReportQueryError,
@@ -19,6 +20,7 @@ import { addNetworkStateListener } from "expo-network";
 import type { ReactNode } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import { currentAppVersion } from "@/shared/lib/app-version";
+import { recheckSession } from "@/shared/lib/auth";
 
 // Le cache survit à la fermeture de l'app pendant une semaine : l'athlète qui ouvre cimavia en
 // salle, sans réseau, doit retrouver ses séances — c'est tout l'objet de la lecture hors-ligne.
@@ -27,25 +29,34 @@ const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Les données restent « fraîches » 5 min : pas de rafale de requêtes en changeant d'onglet.
 const STALE_TIME_MS = 5 * 60 * 1000;
 
+/** Un seul nouvel essai sur une lecture qui échoue — une coupure brève n'affiche pas d'erreur. */
+const QUERY_RETRY_COUNT = 1;
+
 /**
+ * L'écoute globale des échecs, posée sur les CACHES pour que l'`onError` d'un écran ne la remplace
+ * pas.
+ *
+ * Un 401 fait relire la session (#439) : ni redirection ni message ici, `CmvSessionGuard` décide.
  * Ce que l'API n'a pas pu voir part chez Sentry (#699) : une réponse illisible, un bug du client.
- * Hors-ligne, l'échec est le cas d'usage — l'athlète en salle sans réseau — et ne part pas. Posé
- * sur les CACHES, pour que l'`onError` d'un écran ne le remplace pas.
+ * Hors-ligne, l'échec est le cas d'usage — l'athlète en salle sans réseau — et ne part pas.
  */
-function reportToSentry(error: unknown): void {
+function onCacheError(error: unknown): void {
+  if (isUnauthorizedError(error)) recheckSession();
   if (shouldReportQueryError(error, onlineManager.isOnline())) Sentry.captureException(error);
 }
 
 const queryClient = new QueryClient({
-  queryCache: new QueryCache({ onError: reportToSentry }),
-  mutationCache: new MutationCache({ onError: reportToSentry }),
+  queryCache: new QueryCache({ onError: onCacheError }),
+  mutationCache: new MutationCache({ onError: onCacheError }),
   defaultOptions: {
     queries: {
       staleTime: STALE_TIME_MS,
       // `gcTime` doit couvrir `maxAge` : une entrée collectée en mémoire ne serait jamais
       // réécrite sur le disque, et le cache persisté se viderait à la première ouverture.
       gcTime: CACHE_MAX_AGE_MS,
-      retry: 1,
+      // Pas de nouvel essai sur un 401 : la même session serait refusée de la même façon.
+      retry: (failureCount, error) =>
+        !isUnauthorizedError(error) && failureCount < QUERY_RETRY_COUNT,
     },
   },
 });
