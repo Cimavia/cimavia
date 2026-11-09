@@ -1373,6 +1373,7 @@ liste des domaines vivent dans l'index.
 | SC-5 | **Un objet sans ligne survit à l'effacement** : envoi jamais rattaché (P2-1, U-5), ou ligne créée pendant les quelques secondes de l'effacement — la clé n'est lue que depuis les lignes. Un préfixe les atteindrait pour les médias d'athlète, mais pas sans risque pour les clés partagées. | 🟢 | — *(déclencheur : un balayage des objets orphelins)* |
 | SC-6 | **La purge retire ses objets un par un**, 200 par tick horaire : un compte de plusieurs milliers de fichiers met un jour à se vider. `DeleteObjects` en traite 1 000 par appel, au prix d'une gestion des échecs partiels. | 🟢 | — *(déclencheur : une file qui ne se vide pas en une journée)* |
 | SC-3 | **Une conversation de groupe survit vide** quand son dernier participant part : la ligne ne porte que des identifiants, plus aucun nom ni message. | 🟢 | — *(déclencheur : une purge générale des conversations)* |
+| SC-7 | **Un autre téléphone garde le cache et les documents du compte parti** jusqu'à la prochaine connexion : seul l'appareil du geste est purgé. Le cache persisté ne s'ouvre qu'une fois connecté, et l'effacement de ce qui traîne sur une session perdue est le sujet de #439. Le suivi local (`cimavia-block-tracking:*`) n'y est pas rattrapé, même là : il reste sur le disque, et le compte suivant ne peut pas ouvrir ces séances. | 🟢 | [#439](https://github.com/Cimavia/cimavia/issues/439) |
 
 > **Tranché en #256** (décisions de Kylian du 2026-11-08) :
 >
@@ -1433,3 +1434,23 @@ liste des domaines vivent dans l'index.
 >   supplémentaire. 60 jours au plus pour les sauvegardes, la durée de `deploy/preview/README.md` ;
 >   tant que le compte du Coach existe pour ses factures et ses copies d'exercices. `privacy.html` et
 >   `terms.html` sont corrigés ici plutôt qu'en #796 : livré sans elles, le web les contredirait.
+
+> **Tranché en [#796](https://github.com/Cimavia/cimavia/issues/796)** (suppression du compte sur le
+> mobile, 2026-11-09) :
+>
+> - **`signOut` est la porte de la purge, sur une session déjà morte.** Le plugin Expo vide cookie et
+>   session AVANT d'appeler le réseau, et n'expose aucune autre façon de le faire ; la réponse est
+>   ignorée. `auth.sign-out.test.ts` tient ce contrat contre une montée de Better Auth.
+> - **Pas de révocation du token push** : il part en cascade avec le compte, et l'appel échouerait
+>   en 401.
+> - **`navigation.reset` plutôt que `replace` ou `dismissAll`** : un seul geste vide la pile. Avec
+>   `replace`, Retour ramènerait sur les onglets d'un compte disparu ; avec `dismissAll`, l'écran du
+>   dessous reprendrait le focus et sa garde redirigerait, faute de session.
+> - **Le suivi local n'est purgé qu'à la suppression.** Une déconnexion le garde : ces coches
+>   attendent leur débrief, et le compte suivant ne peut pas ouvrir ces séances.
+> - **L'Entreprise a son entrée, sur son propre écran** : elle peut s'inscrire depuis l'app et n'a
+>   pas de Profil, or la suppression doit pouvoir commencer dans l'app qui a créé le compte.
+> - **L'issue inconnue est la même que sur le web** (`createConfirmedErasure`, `@cmv/shared`). Le
+>   mobile n'a pas de reconnexion sur place, donc un 401 sans issue inconnue se dit à l'écran. L'écart
+>   assumé en #795 vaut ici : une session absente reste la seule preuve d'un départ, et sur le mobile
+>   ce faux positif effacerait aussi le suivi local.
