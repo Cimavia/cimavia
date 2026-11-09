@@ -65,3 +65,27 @@ describe("recheckSession", () => {
     expect(await withSession(null)).not.toHaveBeenCalled();
   });
 });
+
+/** Le client exporté, et non un client de test : c'est son branchement que ce cas protège. */
+describe("authClient — réponse illisible de get-session", () => {
+  it("n'en fait pas une session, et le signale", async () => {
+    vi.resetModules();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response("<html></html>", { headers: { "content-type": "text/html" } }),
+      ),
+    );
+    const Sentry = await import("@sentry/react-native");
+    const report = vi.spyOn(Sentry, "captureMessage");
+    const { authClient } = await import("./auth");
+    const session = authClient.$store.atoms.session;
+
+    await session?.get().refetch();
+
+    expect(session?.get().data).toBeNull();
+    expect(session?.get().error?.status).toBe(502);
+    expect(report).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});

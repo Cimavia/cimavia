@@ -1,4 +1,6 @@
 import { expoClient } from "@better-auth/expo/client";
+import { refuseUnreadableSession } from "@cmv/shared";
+import * as Sentry from "@sentry/react-native";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import Constants from "expo-constants";
@@ -14,8 +16,11 @@ const configuredScheme = Constants.expoConfig?.scheme;
 const scheme =
   (Array.isArray(configuredScheme) ? configuredScheme[0] : configuredScheme) ?? "cimavia";
 
+const reportUnreadableSession = () => Sentry.captureMessage("get-session : réponse illisible");
+
 export const authClient = createAuthClient({
   baseURL,
+  fetchOptions: { onResponse: refuseUnreadableSession(Response, reportUnreadableSession) },
   plugins: [
     expoClient({
       scheme,
@@ -47,7 +52,7 @@ export const authClient = createAuthClient({
 /**
  * Fait relire la session à Better Auth, depuis n'importe où — y compris hors de React, là où
  * `useSession().refetch` n'est pas joignable. Tous les `useSession()` montés se mettent à jour
- * d'un coup, et `CmvSessionGuard` décide de la suite (#439).
+ * d'un coup, et `SessionGuard` décide de la suite (#439).
  */
 export function recheckSession(): void {
   // Déjà vide : la perte est connue, et chaque sondage sous le voile relancerait une lecture.

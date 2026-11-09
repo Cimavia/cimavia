@@ -624,12 +624,13 @@ liste des domaines vivent dans l'index.
 > **Tranché en [#439](https://github.com/Cimavia/cimavia/issues/439)** (reconnexion sur place côté
 > mobile aussi) : un renvoi vers `/login` ferait perdre un Feedback en cours, texte et médias.
 >
-> - **Une seule garde, à la racine** (`CmvSessionGuard`), et non une par route comme le web : elle
+> - **Une seule garde, à la racine** (`SessionGuard`), et non une par route comme le web : elle
 >   retient le compte vu en dernier, et `useCapabilities` répond pour lui pendant la perte. Ni les
 >   onglets ni `CmvCapabilityGate` n'ont à savoir qu'elle a lieu : sans ça, la garde redirigeait
 >   et démontait le Feedback. Sans compte retenu (lien profond), c'est `/login`.
 > - **Seule une réponse du serveur vaut perte.** Hors ligne, Better Auth garde la session ; une
->   réponse illisible (portail captif) n'est pas une perte non plus (`isSessionLost`).
+>   réponse illisible (portail captif, corps vide) est refusée à l'entrée du client d'auth
+>   (`refuseUnreadableSession`, web et mobile) : elle suit le chemin d'une panne, et part chez Sentry.
 > - **Un départ voulu s'annonce** (`useSessionDeparture`) : déconnexion et suppression du compte.
 >   Le plugin Expo vide la session avant le réseau, et la suppression la fait tomber au COMMIT :
 >   sans l'annonce, la fenêtre s'ouvrirait pendant le geste. Un refus l'annule ; une issue inconnue

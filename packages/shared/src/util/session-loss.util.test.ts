@@ -23,13 +23,4 @@ describe("isSessionLost", () => {
   it("voit une perte quand un autre compte a pris la session", () => {
     expect(isSessionLost(OWNER, { user: { id: "tom" } })).toBe(true);
   });
-
-  // Le portail captif d'une salle répond en 200 : Better Auth en fait une « session ».
-  it.each([
-    ["une page HTML", "<html></html>" as never],
-    ["un objet sans utilisateur", {}],
-    ["un utilisateur sans identifiant", { user: {} }],
-  ])("ne prend pas %s pour une perte", (_, session) => {
-    expect(isSessionLost(OWNER, session)).toBe(false);
-  });
 });
