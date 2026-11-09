@@ -35,6 +35,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
   "login.tsx": "on y arrive précisément sans session",
   "register.tsx": "idem — et seule une inscription invitée passe l'API (#263)",
   "forgot-password.tsx": "idem",
+  "delete-account.tsx": "toute capacité y a droit, et l'écran n'appelle rien sans session (#796)",
 };
 
 /**

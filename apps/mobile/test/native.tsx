@@ -89,9 +89,11 @@ vi.mock("expo-router", () => {
     dismissAll: vi.fn(),
     setParams: vi.fn(),
   };
+  const navigation = { reset: vi.fn(), setOptions: vi.fn() };
   return {
     router,
     useRouter: () => router,
+    useNavigation: () => navigation,
     useLocalSearchParams: vi.fn(() => ({}) as Record<string, string>),
     usePathname: () => "/",
     // Le vrai déclenche à la prise de focus ; dans un test l'écran monté EST l'écran au premier

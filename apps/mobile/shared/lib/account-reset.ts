@@ -18,6 +18,9 @@ import { purgeVideoThumbnails } from "@/shared/lib/video-thumbnail";
  * Les fichiers d'abord : les purges du disque ne lèvent jamais (elles avalent leurs propres
  * échecs), là où `resetQueryCache` touche AsyncStorage. L'ordre garantit que documents, fichiers et
  * vignettes partent même si le cache de requêtes, lui, résiste.
+ *
+ * Le suivi local des séances n'y est pas, volontairement : une simple déconnexion doit le garder.
+ * Seule la suppression du compte le purge (`useAccountErasure`, SC-8).
  */
 export async function resetAccountData(): Promise<void> {
   purgeAllDocuments();

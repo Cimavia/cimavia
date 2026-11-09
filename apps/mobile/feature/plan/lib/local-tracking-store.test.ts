@@ -17,4 +17,27 @@ describe("local-tracking-store", () => {
     expect(JSON.parse(storedItems.get(KEY) ?? "null")).toEqual(TRACKING);
     expect(blockTrackingStore.read("s-1")).toBeNull();
   });
+
+  // Le préfixe est la frontière : le stockage porte aussi ce qui n'appartient pas au compte parti.
+  it("purge tout le magasin, et rien d'autre", async () => {
+    blockTrackingStore.write("s-1", TRACKING);
+    blockTrackingStore.write("s-2", TRACKING);
+    storedItems.set("cimavia-block-tracking-autre:s-1", "garde");
+    storedItems.set("cimavia-theme", "garde");
+
+    await blockTrackingStore.purge();
+
+    expect([...storedItems.keys()].sort()).toEqual([
+      "cimavia-block-tracking-autre:s-1",
+      "cimavia-theme",
+    ]);
+  });
+
+  it("ne touche à rien quand le magasin est vide", async () => {
+    storedItems.set("cimavia-theme", "garde");
+
+    await blockTrackingStore.purge();
+
+    expect(storedItems.get("cimavia-theme")).toBe("garde");
+  });
 });

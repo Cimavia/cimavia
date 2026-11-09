@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, View } from "react-native";
+import { DeleteAccountLink } from "@/feature/account/component/DeleteAccountLink";
 import {
   capabilityErrorKey,
   useCapabilityUpdate,
@@ -12,7 +13,7 @@ import {
 import { useLogout } from "@/feature/account/hook/useLogout";
 import { LegalLinks } from "@/feature/legal";
 import { NotificationEmailSection } from "@/feature/notification";
-import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
+import { CmvButton, CmvScreen, CmvText, CmvWarningNotice } from "@/shared/component";
 import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
@@ -120,15 +121,7 @@ export function ProfileScreen() {
           {/* L'avertissement ne s'affiche QUE sur un retrait effectif : rappeler ce qu'on garde
               n'a de sens qu'au moment où l'on s'apprête à le perdre de vue. */}
           {current.isCoach && !isCoach && (
-            // Couleurs d'avertissement du design system (mêmes tokens que le variant `warning` de
-            // CmvBadge) : ce n'est pas une note d'information, c'est ce qu'on s'apprête à perdre
-            // de vue.
-            <View className="flex-row items-center gap-2 rounded-lg border border-cmv-warning-line bg-cmv-warning-soft p-3">
-              <Ionicons name="warning-outline" size={18} color={cmvColors.warning.on} />
-              <CmvText className="flex-1 text-cmv-warning-on text-sm">
-                {t("account.capabilities.warnCoach")}
-              </CmvText>
-            </View>
+            <CmvWarningNotice>{t("account.capabilities.warnCoach")}</CmvWarningNotice>
           )}
           {!isCoach && !isAthlete && (
             <CmvText className="text-cmv-error text-sm">
@@ -159,6 +152,8 @@ export function ProfileScreen() {
         </View>
 
         <CmvButton label={t("common.logout")} onPress={logout} />
+
+        <DeleteAccountLink />
 
         {/* Ligne de pied de la maquette (`athlete_profile.dc.html`), SOUS la déconnexion : c'est la
             seule réponse à « tu es sur quelle version ? ». Sans OTA, chaque livraison est un build

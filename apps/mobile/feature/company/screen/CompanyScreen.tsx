@@ -2,6 +2,7 @@ import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, View } from "react-native";
+import { DeleteAccountLink } from "@/feature/account/component/DeleteAccountLink";
 import { useLogout } from "@/feature/account/hook/useLogout";
 import { LegalLinks } from "@/feature/legal";
 import { CmvButton, CmvScreen, CmvText } from "@/shared/component";
@@ -33,6 +34,8 @@ export function CompanyScreen() {
           <CmvText className="font-cmv-mono text-cmv-accent">{address}</CmvText>
         </Pressable>
         <CmvButton label={t("common.logout")} onPress={logout} />
+        {/* Elle peut s'inscrire depuis l'app et n'a pas de Profil : la règle Apple vaut ici (#796). */}
+        <DeleteAccountLink />
         {/* L'Entreprise n'a pas d'écran Profil sur le téléphone : c'est ici que les documents
             légaux restent joignables depuis l'app (#778), sous le même titre qu'au Profil. */}
         <View className="items-center gap-2">

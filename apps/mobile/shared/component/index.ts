@@ -15,4 +15,5 @@ export { CmvScreen } from "./CmvScreen";
 export { CmvText } from "./CmvText";
 export { CmvToggleChip } from "./CmvToggleChip";
 export { CmvVideoPlayer } from "./CmvVideoPlayer";
+export { CmvWarningNotice } from "./CmvWarningNotice";
 export { OfflineBanner } from "./OfflineBanner";
