@@ -2,7 +2,8 @@ import { ProblemType } from "@cmv/shared";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { type NetworkState, useNetworkState } from "expo-network";
 import { router, useNavigation } from "expo-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BackHandler } from "react-native";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { accountErasureApi } from "@/feature/account/api";
 import { DeleteAccountScreen } from "@/feature/account/screen/DeleteAccountScreen";
 import { blockTrackingStore } from "@/feature/plan/lib/local-tracking-store";
@@ -85,6 +86,10 @@ beforeEach(() => {
   reset.mockImplementation(() => {
     journal.push("navigate");
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("DeleteAccountScreen — ce qui est annoncé", () => {
@@ -212,6 +217,36 @@ describe("DeleteAccountScreen — le geste", () => {
     await leftForLogin();
   });
 
+  // Le chevron éteint ne suffit pas : Android et iOS ont chacun leur retour hors de l'écran.
+  it("bloque le retour système le temps de l'envoi, puis le rend", async () => {
+    const remove = vi.fn();
+    const addListener = vi
+      .spyOn(BackHandler, "addEventListener")
+      .mockReturnValue({ remove } as never);
+    const setOptions = vi.mocked(useNavigation().setOptions);
+    let refuse: () => void = () => undefined;
+    erase.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        refuse = () => reject(new ApiError(429, "Non", null));
+      }),
+    );
+
+    submit();
+
+    await screen.findByText("account.delete.submitting");
+    const [event, handler] = addListener.mock.calls[0] as [string, () => boolean];
+    expect(event).toBe("hardwareBackPress");
+    expect(handler()).toBe(true);
+    expect(setOptions).toHaveBeenLastCalledWith({ gestureEnabled: false });
+    expect(remove).not.toHaveBeenCalled();
+
+    refuse();
+
+    await screen.findByText("account.delete.failure.tooManyAttempts");
+    expect(remove).toHaveBeenCalledOnce();
+    expect(setOptions).toHaveBeenLastCalledWith({ gestureEnabled: true });
+  });
+
   // Le compte n'existe plus : annoncer un échec, ou rester sur l'écran, serait faux.
   it.each([
     [
@@ -262,6 +297,16 @@ describe("DeleteAccountScreen — les refus", () => {
     expect(passwordField().value).toBe("secret");
   });
 
+  // Un refus certain : le texte de l'issue inconnue enverrait vérifier un réseau sans rapport.
+  it.each([400, 404])("dit le refus sur un %i", async (status) => {
+    erase.mockRejectedValue(new ApiError(status, "Non", null, true));
+
+    submit();
+
+    expect(await screen.findByText("account.delete.failure.refused")).toBeTruthy();
+    expect(reset).not.toHaveBeenCalled();
+  });
+
   it("dit que la session est perdue sur un 401, sans purger", async () => {
     erase.mockRejectedValue(new ApiError(401, "Unauthorized", null));
 
@@ -274,12 +319,11 @@ describe("DeleteAccountScreen — les refus", () => {
 });
 
 describe("DeleteAccountScreen — le réseau", () => {
+  // Parti hors ligne, l'envoi attendrait le réseau et supprimerait le compte bien plus tard.
   it("dit qu'il faut du réseau, et éteint le geste", () => {
     networkIs({ isConnected: false, isInternetReachable: false });
-    const { container } = renderRn(<DeleteAccountScreen />);
 
-    fireEvent.change(passwordField(), { target: { value: "secret" } });
-    pressButton(container, SUBMIT);
+    submit();
 
     expect(screen.getByText("account.delete.offline")).toBeTruthy();
     expect(erase).not.toHaveBeenCalled();
@@ -293,6 +337,18 @@ describe("DeleteAccountScreen — le réseau", () => {
 
     await leftForLogin();
     expect(screen.queryByText("account.delete.offline")).toBeNull();
+  });
+
+  // Une coupure en plein envoi le laisse pendu, et le retour système est bloqué : l'écran serait figé.
+  it("rend la main quand l'envoi n'aboutit jamais", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    erase.mockReturnValue(new Promise(() => undefined));
+
+    submit();
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await screen.findByText("account.delete.failure.generic")).toBeTruthy();
+    expect(reset).not.toHaveBeenCalled();
   });
 
   // Le compte part au COMMIT : sans la relecture, la personne lirait un échec sur un compte disparu.

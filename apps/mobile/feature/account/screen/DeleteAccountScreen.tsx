@@ -5,16 +5,17 @@ import {
   eraseAccountSchema,
   erasureFailureOf,
   erasureNotices,
+  erasureOutcomeUnknown,
   isUnauthorizedError,
   PASSWORD_MAX_LENGTH,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useNetworkState } from "expo-network";
-import { Redirect, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { Redirect, useNavigation, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useAccountErasure } from "@/feature/account/hook/useAccountErasure";
 import { CmvButton, CmvScreen, CmvText, CmvWarningNotice } from "@/shared/component";
@@ -23,14 +24,28 @@ import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.delete.gone: coach, athlete, company
 // i18n-values account.delete.kept: coach, athlete
-// i18n-values account.delete.failure: wrongPassword, tooManyAttempts, busy, sessionLost, generic
+// i18n-values account.delete.failure: wrongPassword, tooManyAttempts, busy, sessionLost, refused, generic
 
-type DeleteFailure = ErasureFailure | "sessionLost" | "generic";
+type DeleteFailure = ErasureFailure | "sessionLost" | "refused" | "generic";
 
 /** Le mobile n'a pas de reconnexion sur place (#439) : un 401 doit se dire ici. */
 function failureOf(error: unknown): DeleteFailure | null {
   if (error == null) return null;
-  return erasureFailureOf(error) ?? (isUnauthorizedError(error) ? "sessionLost" : "generic");
+  const known = erasureFailureOf(error);
+  if (known != null) return known;
+  if (isUnauthorizedError(error)) return "sessionLost";
+  return erasureOutcomeUnknown(error) ? "generic" : "refused";
+}
+
+/** Partir pendant l'envoi ferait croire à une annulation : le POST, lui, continue. */
+function useBackLock(locked: boolean): void {
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !locked });
+    if (!locked) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => subscription.remove();
+  }, [locked, navigation]);
 }
 
 function NoticeSection({ title, items }: Readonly<{ title: string; items: readonly string[] }>) {
@@ -63,6 +78,9 @@ export function DeleteAccountScreen() {
   // `busy` vient du rendu : un double appui le devance, et le second POST prendrait la main sur le
   // premier, jusqu'à afficher un refus sur un compte déjà parti.
   const submitted = useRef(false);
+  // Reste éteint après le succès : l'écran est en train d'être quitté.
+  const busy = erase.isPending || erase.isSuccess;
+  useBackLock(busy);
 
   // Retenues dès la première session vue, tant que l'écran vit : la purge efface la session avant
   // la navigation, et ni le texte ni la garde ci-dessous ne doivent le remarquer.
@@ -82,10 +100,10 @@ export function DeleteAccountScreen() {
   }
 
   const failure = failureOf(erase.error);
-  // Reste éteint après le succès : l'écran est en train d'être quitté.
-  const busy = erase.isPending || erase.isSuccess;
   const valid = eraseAccountSchema.safeParse({ password }).success;
-  // Indéterminé au premier rendu : on ne bloque le geste que sur une absence certaine de réseau.
+  // Indéterminé au premier rendu : on n'éteint le geste que sur une absence certaine de réseau.
+  // Un envoi hors ligne n'échouerait pas : posé sur une connexion ouverte, il attend le retour du
+  // réseau et supprime le compte à ce moment-là (constaté sur émulateur).
   const offline = network.isInternetReachable === false;
 
   function onSubmit() {

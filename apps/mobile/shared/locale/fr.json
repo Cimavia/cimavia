@@ -739,6 +739,7 @@
         "tooManyAttempts": "Trop d'essais. Réessaie plus tard.",
         "busy": "Ton compte vient d'être utilisé ailleurs. Réessaie dans un instant.",
         "sessionLost": "Ta session a expiré. Reconnecte-toi, puis recommence.",
+        "refused": "La suppression a été refusée. Réessaie plus tard.",
         "generic": "Impossible de confirmer la suppression. Vérifie ta connexion, puis réessaie."
       },
       "offline": "Il te faut une connexion pour supprimer ton compte."

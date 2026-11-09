@@ -1,4 +1,4 @@
-import { createConfirmedErasure } from "@cmv/shared";
+import { type AccountErasureApi, createConfirmedErasure } from "@cmv/shared";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigation } from "expo-router";
 import { useState } from "react";
@@ -9,6 +9,30 @@ import { authClient } from "@/shared/lib/auth";
 
 /** Sa réponse ne sert à rien : le geste ne doit pas attendre un réseau qui vient de tomber. */
 const SIGN_OUT_TIMEOUT_MS = 3_000;
+
+/** Large : l'effacement d'un gros compte prend du temps, et n'est borné que pour rendre la main. */
+const ERASE_TIME_LIMIT_MS = 30_000;
+
+/**
+ * Une coupure en plein envoi ne fait pas échouer la requête : elle reste pendue sur sa connexion, et
+ * le retour système est bloqué pendant l'envoi. Passé le délai, c'est une issue inconnue comme une
+ * autre : l'envoi peut encore aboutir, et `createConfirmedErasure` sait lire ce cas au prochain essai.
+ */
+function withTimeLimit(api: AccountErasureApi): AccountErasureApi {
+  return {
+    erase: (input) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("La suppression n'a pas répondu à temps")),
+          ERASE_TIME_LIMIT_MS,
+        );
+        api
+          .erase(input)
+          .then(resolve, reject)
+          .finally(() => clearTimeout(timer));
+      }),
+  };
+}
 
 /** La pile racine : expo-router ne type pas ses noms de route pour `reset`. */
 type RootStack = {
@@ -43,7 +67,9 @@ async function purgeDevice(): Promise<void> {
 export function useAccountErasure() {
   const navigation = useNavigation<RootStack>();
   const [erasure] = useState(() =>
-    createConfirmedErasure(accountErasureApi, (options) => authClient.getSession(options)),
+    createConfirmedErasure(withTimeLimit(accountErasureApi), (options) =>
+      authClient.getSession(options),
+    ),
   );
 
   return useMutation({

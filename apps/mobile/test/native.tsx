@@ -89,7 +89,7 @@ vi.mock("expo-router", () => {
     dismissAll: vi.fn(),
     setParams: vi.fn(),
   };
-  const navigation = { reset: vi.fn() };
+  const navigation = { reset: vi.fn(), setOptions: vi.fn() };
   return {
     router,
     useRouter: () => router,
