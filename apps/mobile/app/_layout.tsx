@@ -9,7 +9,7 @@ import { ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { CmvSessionGuard } from "@/shared/component/CmvSessionGuard";
+import { SessionGuard } from "@/feature/auth";
 import { ExercisedCapabilityProvider } from "@/shared/hook/useExercisedCapability";
 import { useSentryUser } from "@/shared/hook/useSentryUser";
 import { QueryProvider } from "@/shared/lib/query";
@@ -40,9 +40,9 @@ export default function RootLayout() {
           <KeyboardProvider>
             {/* Sans ce thème, le fond des écrans natifs reste BLANC sous nos vues sombres. */}
             <ThemeProvider value={navigationTheme}>
-              <CmvSessionGuard>
+              <SessionGuard>
                 <Stack screenOptions={{ headerShown: false }} />
-              </CmvSessionGuard>
+              </SessionGuard>
             </ThemeProvider>
           </KeyboardProvider>
         </SafeAreaProvider>

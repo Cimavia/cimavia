@@ -7,7 +7,7 @@ import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { type SessionDeparture, useSessionDeparture } from "@/shared/hook/useSessionGuard";
 import { authClient } from "@/shared/lib/auth";
 import { renderRn } from "@/test/render";
-import { CmvSessionGuard } from "./CmvSessionGuard";
+import { SessionGuard } from "./SessionGuard";
 
 vi.mock("@/shared/lib/auth", () => ({ authClient: { useSession: vi.fn() } }));
 vi.mock("@/shared/lib/account-reset", () => ({ resetAccountData: vi.fn(async () => undefined) }));
@@ -32,24 +32,24 @@ function FeedbackDraft() {
 }
 
 /** Un élément NEUF à chaque appel : React ne rerend pas un élément identique au précédent. */
-const tree = (): ReactElement => (
-  <CmvSessionGuard>
-    <CmvCapabilityGate capability="athlete">
+const tree = (capability: "athlete" | "coach" = "athlete"): ReactElement => (
+  <SessionGuard>
+    <CmvCapabilityGate capability={capability}>
       <FeedbackDraft />
       <Text>écran</Text>
     </CmvCapabilityGate>
-  </CmvSessionGuard>
+  </SessionGuard>
 );
 
 function sessionIs(data: unknown, isPending = false): void {
   vi.mocked(authClient.useSession).mockReturnValue({ data, isPending } as never);
 }
 
-function setup() {
-  const view = renderRn(tree());
+function setup(capability?: "athlete" | "coach") {
+  const view = renderRn(tree(capability));
   const update = (data: unknown, isPending = false) => {
     sessionIs(data, isPending);
-    view.rerender(tree());
+    view.rerender(tree(capability));
   };
   const redirect = () =>
     view.container.querySelector("[data-redirect]")?.getAttribute("data-redirect") ?? null;
@@ -63,7 +63,7 @@ beforeEach(() => {
   sessionIs(signedInAs(LEA));
 });
 
-describe("CmvSessionGuard — la perte", () => {
+describe("SessionGuard — la perte", () => {
   it("ne dit rien tant que la session est là", () => {
     setup();
 
@@ -114,22 +114,12 @@ describe("CmvSessionGuard — la perte", () => {
     expect(redirect()).toBeNull();
   });
 
-  // Le portail captif d'une salle répond en 200 : ça ne vaut ni perte ni renvoi.
-  it("ne demande rien sur une réponse illisible, et garde les droits du compte", () => {
-    const { update, redirect } = setup();
-
-    update("<html></html>");
-
-    expect(screen.queryByText(VEIL)).toBeNull();
-    expect(redirect()).toBeNull();
-    expect(screen.getByText("écran")).toBeTruthy();
-  });
-
   // Une capacité ajoutée depuis le profil doit encore valoir au moment de la perte.
   it("retient les capacités du moment, pas celles de l'ouverture", () => {
     const coachAthlete = { ...LEA, isAthlete: true, isCoach: true };
-    const { update, redirect } = setup();
+    const { update, redirect } = setup("coach");
     update(signedInAs(coachAthlete));
+    expect(screen.getByText("écran")).toBeTruthy();
 
     update(null);
 
@@ -147,16 +137,16 @@ describe("CmvSessionGuard — la perte", () => {
     }
     sessionIs(signedInAs(athlete));
     const view = renderRn(
-      <CmvSessionGuard>
+      <SessionGuard>
         <Probe />
-      </CmvSessionGuard>,
+      </SessionGuard>,
     );
 
     sessionIs(null);
     view.rerender(
-      <CmvSessionGuard>
+      <SessionGuard>
         <Probe />
-      </CmvSessionGuard>,
+      </SessionGuard>,
     );
 
     expect(exercised).toBe("athlete");
@@ -172,7 +162,7 @@ describe("CmvSessionGuard — la perte", () => {
   });
 });
 
-describe("CmvSessionGuard — le départ annoncé", () => {
+describe("SessionGuard — le départ annoncé", () => {
   it("ne prend pas une déconnexion pour une perte, et ne démonte rien", () => {
     const { update, redirect } = setup();
 

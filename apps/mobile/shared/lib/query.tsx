@@ -36,7 +36,7 @@ const QUERY_RETRY_COUNT = 1;
  * L'écoute globale des échecs, posée sur les CACHES pour que l'`onError` d'un écran ne la remplace
  * pas.
  *
- * Un 401 fait relire la session (#439) : ni redirection ni message ici, `CmvSessionGuard` décide.
+ * Un 401 fait relire la session (#439) : ni redirection ni message ici, `SessionGuard` décide.
  * Ce que l'API n'a pas pu voir part chez Sentry (#699) : une réponse illisible, un bug du client.
  * Hors-ligne, l'échec est le cas d'usage — l'athlète en salle sans réseau — et ne part pas.
  */

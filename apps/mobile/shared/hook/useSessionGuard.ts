@@ -20,7 +20,7 @@ type SessionGuard = { retained: SessionOwner | null; departure: SessionDeparture
 
 const noop = () => {};
 
-/** Hors de `CmvSessionGuard` (tests d'écran) : personne à retenir, aucun départ à suivre. */
+/** Hors de `SessionGuard` (tests d'écran) : personne à retenir, aucun départ à suivre. */
 export const SessionGuardContext = createContext<SessionGuard>({
   retained: null,
   departure: { begin: noop, complete: noop, cancel: noop },

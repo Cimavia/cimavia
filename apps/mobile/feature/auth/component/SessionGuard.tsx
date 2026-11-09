@@ -1,9 +1,9 @@
 import { isSessionLost } from "@cmv/shared";
 import { type ReactNode, useMemo, useState } from "react";
 import { View } from "react-native";
-import { ReauthOverlay } from "@/feature/auth";
 import { SessionGuardContext, type SessionOwner } from "@/shared/hook/useSessionGuard";
 import { authClient } from "@/shared/lib/auth";
+import { ReauthOverlay } from "./ReauthOverlay";
 
 /**
  * Surveille la session sur TOUTES les routes (#439) : posée à la racine, elle n'a à décider qu'une
@@ -16,12 +16,11 @@ import { authClient } from "@/shared/lib/auth";
  *
  * Toujours la même `View` autour de l'écran, perdu ou non : un autre parent le remonterait.
  */
-export function CmvSessionGuard({ children }: Readonly<{ children: ReactNode }>) {
+export function SessionGuard({ children }: Readonly<{ children: ReactNode }>) {
   const { data: session } = authClient.useSession();
   const [owner, setOwner] = useState<SessionOwner | null>(null);
   const [departing, setDeparting] = useState(false);
 
-  // `?.` sur `user` : une réponse illisible n'en a pas, quoi qu'en disent les types.
   const user = session?.user;
   const sameAccount = owner == null || user?.id === owner.id;
   // Tenu à jour : ce sont les capacités du MOMENT que l'écran doit garder pendant la perte. Better
@@ -29,7 +28,7 @@ export function CmvSessionGuard({ children }: Readonly<{ children: ReactNode }>)
   if (!departing && user != null && sameAccount && user !== owner) setOwner(user);
 
   const lost = !departing && isSessionLost(owner, session);
-  const retained = owner != null && user?.id !== owner.id ? owner : null;
+  const retained = sameAccount ? null : owner;
 
   // Stable : un hook la range dans ses dépendances, et le compte retenu change sans elle.
   const departure = useMemo(

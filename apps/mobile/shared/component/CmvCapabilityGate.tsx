@@ -37,7 +37,7 @@ export function CmvCapabilityGate({ capability, children }: Readonly<CmvCapabili
   }
 
   // Aucun écran ouvert à garder (lien profond, démarrage à froid) : une perte sous un écran ouvert,
-  // elle, n'arrive pas ici — `CmvSessionGuard` retient son compte.
+  // elle, n'arrive pas ici — `SessionGuard` retient son compte.
   if (!capabilities.isAuthenticated) return <Redirect href="/login" />;
 
   if (!hasCapability(capabilities, capability)) {
