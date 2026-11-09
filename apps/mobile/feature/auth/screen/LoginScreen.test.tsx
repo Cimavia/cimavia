@@ -60,6 +60,40 @@ describe("LoginScreen — après une suppression de compte", () => {
   });
 });
 
+/** Un compte supprimé depuis un autre téléphone ne doit pas attendre la prochaine connexion (SC-7). */
+describe("LoginScreen — ce qui traîne d'un compte parti", () => {
+  const noSession = (state: { isPending?: boolean; error?: Error | null }) =>
+    useSession.mockReturnValue({ data: null, isPending: false, error: null, ...state } as never);
+
+  it("purge dès que le serveur confirme qu'il n'y a personne", () => {
+    noSession({});
+
+    renderRn(<LoginScreen />);
+
+    expect(resetAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["sur une session en cours de résolution", { isPending: true }],
+    ["sur une panne réseau, qui ne dit rien de la session", { error: new TypeError("réseau") }],
+  ])("ne purge pas %s", (_, state) => {
+    noSession(state);
+
+    renderRn(<LoginScreen />);
+
+    expect(resetAccount).not.toHaveBeenCalled();
+  });
+
+  it("ne se plaint pas d'une purge qui résiste : la connexion repurgera", async () => {
+    noSession({});
+    resetAccount.mockRejectedValueOnce(new Error("disque"));
+
+    const { findByText } = renderRn(<LoginScreen />);
+
+    expect(await findByText(SUBMIT)).toBeTruthy();
+  });
+});
+
 describe("LoginScreen — la garde de session", () => {
   /**
    * La destination DÉRIVE de la capacité : un `/planning` en dur envoyait un coach sur
@@ -133,6 +167,7 @@ describe("LoginScreen — la connexion", () => {
   it("dit que les identifiants sont faux quand l'API les refuse, sans rien purger", async () => {
     signIn.mockResolvedValue({ error: { status: 401 } } as never);
     const { container, queryByText } = renderRn(<LoginScreen />);
+    resetAccount.mockClear();
     fillCredentials(container);
 
     pressButton(container, SUBMIT);
@@ -149,6 +184,7 @@ describe("LoginScreen — la connexion", () => {
   it("dit que l'adresse reste à confirmer quand l'API répond EMAIL_NOT_VERIFIED", async () => {
     signIn.mockResolvedValue({ error: { status: 403, code: "EMAIL_NOT_VERIFIED" } } as never);
     const { container, queryByText } = renderRn(<LoginScreen />);
+    resetAccount.mockClear();
     fillCredentials(container);
 
     pressButton(container, SUBMIT);
