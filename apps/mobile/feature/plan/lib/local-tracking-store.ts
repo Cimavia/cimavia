@@ -95,7 +95,17 @@ function localStore<T>(prefix: string) {
     else void AsyncStorage.setItem(key(sessionId), JSON.stringify(next));
   }
 
-  return { subscribe, read, write };
+  /**
+   * Tout le magasin part du disque (#796) : réservé au compte supprimé. Une déconnexion le garde,
+   * ces coches attendent leur débrief et le compte suivant ne peut pas ouvrir ces séances.
+   */
+  async function purge(): Promise<void> {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter((stored) => stored.startsWith(`${prefix}:`));
+    if (mine.length > 0) await AsyncStorage.multiRemove(mine);
+  }
+
+  return { subscribe, read, write, purge };
 }
 
 export type LocalStore<T> = ReturnType<typeof localStore<T>>;
