@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { removeStoredKeys } from "@/shared/lib/stored-keys";
 
 /** Le suivi par exercice, une entrée par séance, et le drapeau de son astuce — partis en #723. */
 const LEGACY_PREFIX = "cimavia-tracking:";
@@ -14,9 +14,7 @@ const LEGACY_HINT = "cimavia-tracking-hint-seen";
  * filtre ne touche pas.
  */
 export async function purgeLegacyTracking(): Promise<void> {
-  const keys = await AsyncStorage.getAllKeys();
-  const legacy = keys.filter((key) => key.startsWith(LEGACY_PREFIX) || key === LEGACY_HINT);
-  if (legacy.length > 0) await AsyncStorage.multiRemove(legacy);
+  await removeStoredKeys((key) => key.startsWith(LEGACY_PREFIX) || key === LEGACY_HINT);
 }
 
 purgeLegacyTracking().catch(() => {

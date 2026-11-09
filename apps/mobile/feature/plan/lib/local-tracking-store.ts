@@ -1,5 +1,6 @@
 import type { BlockSessionTracking } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { removeStoredKeys } from "@/shared/lib/stored-keys";
 
 /**
  * Le suivi local d'UNE séance, bloc par bloc (#722), tel que tous ses lecteurs le voient. L'ancien
@@ -97,12 +98,12 @@ function localStore<T>(prefix: string) {
 
   /**
    * Tout le magasin part du disque (#796) : réservé au compte supprimé. Une déconnexion le garde,
-   * ces coches attendent leur débrief et le compte suivant ne peut pas ouvrir ces séances.
+   * ces coches attendent leur débrief et le compte suivant ne peut pas ouvrir ces séances. Les clés
+   * ne portent pas de propriétaire : sur un téléphone partagé, celles d'un autre compte partent
+   * aussi (SC-8).
    */
   async function purge(): Promise<void> {
-    const keys = await AsyncStorage.getAllKeys();
-    const mine = keys.filter((stored) => stored.startsWith(`${prefix}:`));
-    if (mine.length > 0) await AsyncStorage.multiRemove(mine);
+    await removeStoredKeys((stored) => stored.startsWith(`${prefix}:`));
   }
 
   return { subscribe, read, write, purge };
