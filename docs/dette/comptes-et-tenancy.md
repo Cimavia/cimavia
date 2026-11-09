@@ -584,7 +584,8 @@ liste des domaines vivent dans l'index.
 >
 > Conséquence pour [#327](https://github.com/Cimavia/cimavia/issues/327) (garde « modifications
 > non enregistrées ») : aucune navigation ne part sur un 401, le `useBlocker` n'a donc pas
-> d'exception à prévoir pour ce cas. Le mobile a le même trou, suivi à part.
+> d'exception à prévoir pour ce cas. Le mobile avait le même trou, traité en
+> [#439](https://github.com/Cimavia/cimavia/issues/439).
 >
 > Découvert en chemin : lire l'adresse par `useLocation()` dans la garde la faisait boucler
 > (« Maximum update depth ») — l'abonnement la re-rend pendant sa propre redirection, et
@@ -619,6 +620,33 @@ liste des domaines vivent dans l'index.
 > - **« Annuler » à une seconde demande oublie la première** : le coach reste sur son compte.
 > - **Reconnexion sur un AUTRE compte** : part sans rien enregistrer, comme avant — le travail du
 >   premier ne s'écrit pas sous l'identité du second.
+
+> **Tranché en [#439](https://github.com/Cimavia/cimavia/issues/439)** (reconnexion sur place côté
+> mobile aussi) : un renvoi vers `/login` ferait perdre un Feedback en cours, texte et médias.
+>
+> - **Une seule garde, à la racine** (`CmvSessionGuard`), et non une par route comme le web : elle
+>   retient le compte vu en dernier, et `useCapabilities` répond pour lui pendant la perte. Ni les
+>   onglets ni `CmvCapabilityGate` n'ont à savoir qu'elle a lieu : sans ça, la garde redirigeait
+>   et démontait le Feedback. Sans compte retenu (lien profond), c'est `/login`.
+> - **Seule une réponse du serveur vaut perte.** Hors ligne, Better Auth garde la session ; une
+>   réponse illisible (portail captif) n'est pas une perte non plus (`isSessionLost`).
+> - **Un départ voulu s'annonce** (`useSessionDeparture`) : déconnexion et suppression du compte.
+>   Le plugin Expo vide la session avant le réseau, et la suppression la fait tomber au COMMIT :
+>   sans l'annonce, la fenêtre s'ouvrirait pendant le geste. Un refus l'annule ; une issue inconnue
+>   la maintient jusqu'à ce qu'on quitte l'écran, le nouvel essai saura confirmer. Ça remplace la
+>   suspension de la relecture du web.
+> - **Pas de `Modal` RN** : iOS présente mal une modale sur une autre. Le voile est une vue plein
+>   écran, qui bloque le retour Android. Une `Modal` déjà ouverte (visionneuse, facture, rappel)
+>   reste au-dessus jusqu'à sa fermeture : son action échoue avec son message, puis la fenêtre
+>   apparaît en la fermant.
+> - **Un écran de saisie ne bascule en erreur que s'il n'a rien à montrer**
+>   (`isError && data === undefined`) : une relecture en 401 passe la requête en erreur malgré ses
+>   données, et démontait le Feedback, la réponse du Coach et le brouillon du fil.
+> - **Aucun message d'échec à faire taire** : le voile les cache, et celui qui reste après la
+>   reconnexion dit vrai, l'envoi n'est pas parti. D'où l'absence de helper de toast.
+> - **Au démarrage à froid**, une session révoquée ouvre aussi la fenêtre : le plugin Expo
+>   restitue la session en cache avant la réponse. Une session expirée, elle, n'est pas restituée :
+>   c'est `/login`, qui purge dès que le serveur confirme qu'il n'y a personne (SC-7).
 
 ---
 
@@ -1373,7 +1401,7 @@ liste des domaines vivent dans l'index.
 | SC-5 | **Un objet sans ligne survit à l'effacement** : envoi jamais rattaché (P2-1, U-5), ou ligne créée pendant les quelques secondes de l'effacement — la clé n'est lue que depuis les lignes. Un préfixe les atteindrait pour les médias d'athlète, mais pas sans risque pour les clés partagées. | 🟢 | — *(déclencheur : un balayage des objets orphelins)* |
 | SC-6 | **La purge retire ses objets un par un**, 200 par tick horaire : un compte de plusieurs milliers de fichiers met un jour à se vider. `DeleteObjects` en traite 1 000 par appel, au prix d'une gestion des échecs partiels. | 🟢 | — *(déclencheur : une file qui ne se vide pas en une journée)* |
 | SC-3 | **Une conversation de groupe survit vide** quand son dernier participant part : la ligne ne porte que des identifiants, plus aucun nom ni message. | 🟢 | — *(déclencheur : une purge générale des conversations)* |
-| SC-7 | **Un autre téléphone garde le cache et les documents du compte parti** jusqu'à la prochaine connexion : seul l'appareil du geste est purgé. Le cache persisté ne s'ouvre qu'une fois connecté, et l'effacement de ce qui traîne sur une session perdue est le sujet de #439. Le suivi local (`cimavia-block-tracking:*`) n'y est pas rattrapé, même là : il reste sur le disque, et le compte suivant ne peut pas ouvrir ces séances. | 🟢 | [#439](https://github.com/Cimavia/cimavia/issues/439) |
+| SC-7 | **Un autre téléphone garde le suivi local du compte parti** : seul l'appareil du geste le purge. Cache et documents, eux, partent à l'écran de connexion dès que le serveur confirme qu'il n'y a personne, ou par « Changer de compte » depuis la fenêtre de reconnexion ([#439](https://github.com/Cimavia/cimavia/issues/439)). Le suivi (`cimavia-block-tracking:*`) n'a pas de propriétaire connu : il reste sur le disque, et le compte suivant ne peut pas ouvrir ces séances. | 🟢 | — *(déclencheur : une demande d'effacement sur tous les appareils ; la sortie serait de préfixer ces clés par l'identifiant du compte)* |
 | SC-8 | **Le suivi local n'a pas de propriétaire** : les clés sont `cimavia-block-tracking:<séance>`. Sur un téléphone partagé, un compte qui se supprime emporte aussi les coches qu'un autre compte, déconnecté, n'avait pas encore débriefées. Elles se recochent. Des clés portant l'identifiant du compte le régleraient, au prix d'une reprise des entrées déjà écrites. | 🟢 | — *(déclencheur : un retour d'un téléphone partagé entre deux comptes)* |
 
 > **Tranché en #256** (décisions de Kylian du 2026-11-08) :
@@ -1451,9 +1479,9 @@ liste des domaines vivent dans l'index.
 >   attendent leur débrief, et le compte suivant ne peut pas ouvrir ces séances.
 > - **L'Entreprise a son entrée, sur son propre écran** : elle peut s'inscrire depuis l'app et n'a
 >   pas de Profil, or la suppression doit pouvoir commencer dans l'app qui a créé le compte.
-> - **L'issue inconnue est la même que sur le web** (`createConfirmedErasure`, `@cmv/shared`). Le
->   mobile n'a pas de reconnexion sur place, donc un 401 sans issue inconnue se dit à l'écran. L'écart
->   assumé en #795 vaut ici : une session absente reste la seule preuve d'un départ, et sur le mobile
+> - **L'issue inconnue est la même que sur le web** (`createConfirmedErasure`, `@cmv/shared`). Un
+>   401 sans issue inconnue s'y dit comme un refus, la fenêtre de reconnexion en donnant la cause
+>   ([#439](https://github.com/Cimavia/cimavia/issues/439)). L'écart assumé en #795 vaut ici : une session absente reste la seule preuve d'un départ, et sur le mobile
 >   ce faux positif effacerait aussi le suivi local.
 > - **Le bouton s'éteint hors ligne, et l'envoi est borné à 30 s.** Constaté sur émulateur : posée sur
 >   une connexion déjà ouverte, la requête n'échoue pas, elle attend, et le compte part au retour du
