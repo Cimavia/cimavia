@@ -1,5 +1,5 @@
 import { signInErrorKey } from "@cmv/shared";
-import { Redirect, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
@@ -15,6 +15,8 @@ export function LoginScreen() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const capabilities = useCapabilities();
+  // Posé par la suppression du compte (#796) : on arrive ici sans rien d'autre pour le confirmer.
+  const { erased } = useLocalSearchParams<{ erased?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,9 @@ export function LoginScreen() {
       <CmvText className="mb-2 font-cmv-display text-cmv-title text-cmv-text-hi">
         {t("auth.login.title")}
       </CmvText>
+      {erased != null && (
+        <CmvText className="text-cmv-text-mid">{t("account.deleted.message")}</CmvText>
+      )}
       <CmvTextField
         label={t("common.email")}
         value={email}

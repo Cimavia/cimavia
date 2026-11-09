@@ -1,0 +1,318 @@
+import { ProblemType } from "@cmv/shared";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { type NetworkState, useNetworkState } from "expo-network";
+import { router, useNavigation } from "expo-router";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { accountErasureApi } from "@/feature/account/api";
+import { DeleteAccountScreen } from "@/feature/account/screen/DeleteAccountScreen";
+import { blockTrackingStore } from "@/feature/plan/lib/local-tracking-store";
+import { resetAccountData } from "@/shared/lib/account-reset";
+import { ApiError } from "@/shared/lib/api";
+import { authClient } from "@/shared/lib/auth";
+import { press, pressButton, renderRn } from "@/test/render";
+
+/** Les gestes qui suivent le départ écrivent dans UN journal : c'est leur ORDRE qui compte. */
+const { journal } = vi.hoisted(() => ({ journal: [] as string[] }));
+
+vi.mock("@/feature/account/api", () => ({ accountErasureApi: { erase: vi.fn() } }));
+
+vi.mock("@/feature/plan/lib/local-tracking-store", () => ({
+  blockTrackingStore: {
+    purge: vi.fn(async () => {
+      journal.push("tracking");
+    }),
+  },
+}));
+
+vi.mock("@/shared/lib/account-reset", () => ({
+  resetAccountData: vi.fn(async () => {
+    journal.push("reset");
+  }),
+}));
+
+vi.mock("@/shared/lib/auth", () => ({
+  authClient: {
+    useSession: vi.fn(),
+    getSession: vi.fn(),
+    signOut: vi.fn(async () => {
+      journal.push("signOut");
+    }),
+  },
+}));
+
+vi.mock("expo-network", () => ({ useNetworkState: vi.fn() }));
+
+const SUBMIT = "account.delete.submit";
+const erase = vi.mocked(accountErasureApi.erase);
+const getSession = vi.mocked(authClient.getSession);
+const signOut = vi.mocked(authClient.signOut);
+const reset = vi.mocked(useNavigation().reset);
+
+function session(user: Record<string, boolean> | null, isPending = false): void {
+  vi.mocked(authClient.useSession).mockReturnValue({
+    data: user == null ? null : { user: { id: "me", ...user } },
+    isPending,
+  } as never);
+}
+
+function networkIs(state: NetworkState): void {
+  vi.mocked(useNetworkState).mockReturnValue(state);
+}
+
+const passwordField = () => document.querySelector("input") as HTMLInputElement;
+
+function submit(password = "secret"): HTMLElement {
+  const { container } = renderRn(<DeleteAccountScreen />);
+  fireEvent.change(passwordField(), { target: { value: password } });
+  pressButton(container, SUBMIT);
+  return container;
+}
+
+const leftForLogin = () =>
+  waitFor(() =>
+    expect(reset).toHaveBeenCalledExactlyOnceWith({
+      index: 0,
+      routes: [{ name: "login", params: { erased: "1" } }],
+    }),
+  );
+
+beforeEach(() => {
+  journal.length = 0;
+  session({ isAthlete: true });
+  networkIs({ isConnected: true, isInternetReachable: true });
+  erase.mockResolvedValue(undefined);
+  getSession.mockResolvedValue({ data: { user: { id: "me" } }, error: null } as never);
+  reset.mockImplementation(() => {
+    journal.push("navigate");
+  });
+});
+
+describe("DeleteAccountScreen — ce qui est annoncé", () => {
+  it("dit à un athlète ce qui part et ce qui reste", () => {
+    renderRn(<DeleteAccountScreen />);
+
+    expect(screen.getByText("account.delete.warning")).toBeTruthy();
+    expect(screen.getByText("account.delete.gone.athlete")).toBeTruthy();
+    expect(screen.getByText("account.delete.kept.athlete")).toBeTruthy();
+    expect(screen.getByText("account.delete.backups")).toBeTruthy();
+    expect(screen.queryByText("account.delete.gone.coach")).toBeNull();
+  });
+
+  // Une double capacité perd les deux côtés d'un coup : elle doit lire les deux.
+  it("annonce les deux côtés d'un compte à double capacité", () => {
+    session({ isCoach: true, isAthlete: true });
+
+    renderRn(<DeleteAccountScreen />);
+
+    expect(screen.getByText("account.delete.gone.coach")).toBeTruthy();
+    expect(screen.getByText("account.delete.gone.athlete")).toBeTruthy();
+    expect(screen.getByText("account.delete.kept.coach")).toBeTruthy();
+  });
+
+  it("n'annonce à l'Entreprise aucune facture conservée", () => {
+    session({ isCompany: true });
+
+    renderRn(<DeleteAccountScreen />);
+
+    expect(screen.getByText("account.delete.gone.company")).toBeTruthy();
+    expect(screen.queryByText("account.delete.kept.athlete")).toBeNull();
+    expect(screen.getByText("account.delete.backups")).toBeTruthy();
+  });
+
+  it("garde le texte quand la session tombe sous l'écran", () => {
+    const { rerender } = renderRn(<DeleteAccountScreen />);
+
+    session(null);
+    rerender(<DeleteAccountScreen />);
+
+    expect(screen.getByText("account.delete.gone.athlete")).toBeTruthy();
+    expect(document.querySelector("[data-redirect]")).toBeNull();
+  });
+
+  it("revient en arrière sans rien supprimer", () => {
+    const { container } = renderRn(<DeleteAccountScreen />);
+
+    press(container.querySelector('[data-icon="chevron-back"]') as Element);
+
+    expect(router.back).toHaveBeenCalledOnce();
+    expect(erase).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeleteAccountScreen — sans session", () => {
+  it("renvoie vers la connexion un lien profond ouvert déconnecté", () => {
+    session(null);
+
+    const { container } = renderRn(<DeleteAccountScreen />);
+
+    expect(container.querySelector("[data-redirect]")?.getAttribute("data-redirect")).toBe(
+      "/login",
+    );
+  });
+
+  it("ne décide rien tant que la session n'est pas résolue", () => {
+    session(null, true);
+
+    const { container } = renderRn(<DeleteAccountScreen />);
+
+    expect(container.querySelector("[data-redirect]")).toBeNull();
+    expect(screen.queryByText(SUBMIT)).toBeNull();
+  });
+});
+
+describe("DeleteAccountScreen — le geste", () => {
+  it("n'envoie rien sans mot de passe", () => {
+    const { container } = renderRn(<DeleteAccountScreen />);
+
+    pressButton(container, SUBMIT);
+
+    expect(erase).not.toHaveBeenCalled();
+  });
+
+  /**
+   * L'ordre est le contrat : la navigation vient après la purge, et l'effacement de la session passe
+   * en dernier. Sans session, les gardes des écrans du dessous se mettraient à rediriger.
+   */
+  it("purge l'appareil, efface la session, puis ouvre la connexion", async () => {
+    submit();
+
+    await leftForLogin();
+
+    expect(erase).toHaveBeenCalledExactlyOnceWith({ password: "secret" });
+    expect(journal.slice(0, 2).sort()).toEqual(["reset", "tracking"]);
+    expect(journal.slice(2)).toEqual(["signOut", "navigate"]);
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({
+      fetchOptions: { timeout: expect.any(Number) },
+    });
+  });
+
+  it("n'envoie qu'une fois sur un double appui", async () => {
+    const container = submit();
+    pressButton(container, SUBMIT);
+
+    await leftForLogin();
+
+    expect(erase).toHaveBeenCalledOnce();
+  });
+
+  it("reste éteint pendant le départ", async () => {
+    let finish: () => void = () => undefined;
+    erase.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve();
+      }),
+    );
+
+    const container = submit();
+
+    expect(await screen.findByText("account.delete.submitting")).toBeTruthy();
+    press(container.querySelector('[data-icon="chevron-back"]') as Element);
+    expect(router.back).not.toHaveBeenCalled();
+    finish();
+    await leftForLogin();
+  });
+
+  // Le compte n'existe plus : annoncer un échec, ou rester sur l'écran, serait faux.
+  it.each([
+    [
+      "signOut échoue, faute de réseau",
+      () => signOut.mockRejectedValueOnce(new TypeError("réseau")),
+    ],
+    [
+      "la purge résiste",
+      () => vi.mocked(resetAccountData).mockRejectedValueOnce(new Error("AsyncStorage")),
+    ],
+    [
+      "le suivi local résiste",
+      () => vi.mocked(blockTrackingStore.purge).mockRejectedValueOnce(new Error("AsyncStorage")),
+    ],
+  ])("quitte l'écran même quand %s", async (_case, arrange) => {
+    arrange();
+
+    submit();
+
+    await leftForLogin();
+    expect(screen.queryByText("account.delete.failure.generic")).toBeNull();
+  });
+});
+
+describe("DeleteAccountScreen — les refus", () => {
+  const rejected = new ApiError(403, "Refus", null, true, ProblemType.ERASURE_PASSWORD_REJECTED);
+
+  it("vide le champ sur un mot de passe refusé", async () => {
+    erase.mockRejectedValue(rejected);
+
+    submit();
+
+    expect(await screen.findByText("account.delete.failure.wrongPassword")).toBeTruthy();
+    expect(passwordField().value).toBe("");
+    expect(reset).not.toHaveBeenCalled();
+  });
+
+  // Le mot de passe est bon : le faire retaper ne servirait à rien.
+  it.each([
+    [409, "account.delete.failure.busy"],
+    [429, "account.delete.failure.tooManyAttempts"],
+  ])("garde la saisie sur un %i", async (status, message) => {
+    erase.mockRejectedValue(new ApiError(status, "Non", null));
+
+    submit();
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(passwordField().value).toBe("secret");
+  });
+
+  it("dit que la session est perdue sur un 401, sans purger", async () => {
+    erase.mockRejectedValue(new ApiError(401, "Unauthorized", null));
+
+    submit();
+
+    expect(await screen.findByText("account.delete.failure.sessionLost")).toBeTruthy();
+    expect(resetAccountData).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeleteAccountScreen — le réseau", () => {
+  it("dit qu'il faut du réseau, et éteint le geste", () => {
+    networkIs({ isConnected: false, isInternetReachable: false });
+    const { container } = renderRn(<DeleteAccountScreen />);
+
+    fireEvent.change(passwordField(), { target: { value: "secret" } });
+    pressButton(container, SUBMIT);
+
+    expect(screen.getByText("account.delete.offline")).toBeTruthy();
+    expect(erase).not.toHaveBeenCalled();
+  });
+
+  // La sonde n'a pas abouti : bloquer sur un « je ne sais pas » priverait du geste sans raison.
+  it("laisse le geste tant que le réseau est indéterminé", async () => {
+    networkIs({});
+
+    submit();
+
+    await leftForLogin();
+    expect(screen.queryByText("account.delete.offline")).toBeNull();
+  });
+
+  // Le compte part au COMMIT : sans la relecture, la personne lirait un échec sur un compte disparu.
+  it("part sur la connexion quand la réponse se perd et que la session n'existe plus", async () => {
+    erase.mockRejectedValue(new TypeError("Network request failed"));
+    getSession.mockResolvedValue({ data: null, error: null } as never);
+
+    submit();
+
+    await leftForLogin();
+    expect(journal).toContain("reset");
+  });
+
+  it("dit l'échec quand la réponse se perd et que la session existe encore", async () => {
+    erase.mockRejectedValue(new TypeError("Network request failed"));
+
+    submit();
+
+    expect(await screen.findByText("account.delete.failure.generic")).toBeTruthy();
+    expect(passwordField().value).toBe("secret");
+    expect(reset).not.toHaveBeenCalled();
+  });
+});

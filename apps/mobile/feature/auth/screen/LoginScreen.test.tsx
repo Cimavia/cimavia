@@ -1,5 +1,5 @@
 import { act, fireEvent, waitFor } from "@testing-library/react";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginScreen } from "@/feature/auth/screen/LoginScreen";
 import { resetAccountData } from "@/shared/lib/account-reset";
@@ -42,6 +42,22 @@ const redirectOf = (container: HTMLElement) =>
 beforeEach(() => {
   session(null);
   signIn.mockResolvedValue({ error: null } as never);
+});
+
+describe("LoginScreen — après une suppression de compte", () => {
+  it("confirme la suppression", () => {
+    vi.mocked(useLocalSearchParams).mockReturnValueOnce({ erased: "1" });
+
+    const { getByText } = renderRn(<LoginScreen />);
+
+    expect(getByText("account.deleted.message")).toBeTruthy();
+  });
+
+  it("n'en dit rien sur une arrivée ordinaire", () => {
+    const { queryByText } = renderRn(<LoginScreen />);
+
+    expect(queryByText("account.deleted.message")).toBeNull();
+  });
 });
 
 describe("LoginScreen — la garde de session", () => {

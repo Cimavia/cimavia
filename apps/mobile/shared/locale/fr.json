@@ -716,6 +716,35 @@
     "coaches": {
       "title": "Mes coachs",
       "hint": "Ceux qui te suivent, et les invitations qui t'attendent."
+    },
+    "delete": {
+      "title": "Supprimer mon compte",
+      "warning": "La suppression est immédiate et définitive : tu ne pourras pas récupérer ton compte.",
+      "goneTitle": "Ce qui part",
+      "gone": {
+        "coach": "Tes cycles, exercices, séances, messages et toutes tes factures. Tes athlètes les perdent aussi, avec leurs débriefs.",
+        "athlete": "Tes cycles, séances, débriefs, médias et messages. Tes Coachs les perdent aussi.",
+        "company": "Ton entreprise, ses invitations et les accès qu'elle partageait. Tes Coachs et leurs athlètes gardent leur compte, et leurs liens continuent en direct."
+      },
+      "keptTitle": "Ce qui reste",
+      "kept": {
+        "coach": "Les Coachs dont une séance cite un de tes exercices en gardent une copie, sans ton nom.",
+        "athlete": "Les factures déjà émises restent chez ton Coach, avec ton nom : ce sont des pièces comptables."
+      },
+      "backups": "Les sauvegardes qui en gardent une copie s'effacent d'elles-mêmes à mesure qu'elles sont renouvelées.",
+      "submit": "Supprimer définitivement",
+      "submitting": "Suppression…",
+      "failure": {
+        "wrongPassword": "Mot de passe incorrect.",
+        "tooManyAttempts": "Trop d'essais. Réessaie plus tard.",
+        "busy": "Ton compte vient d'être utilisé ailleurs. Réessaie dans un instant.",
+        "sessionLost": "Ta session a expiré. Reconnecte-toi, puis recommence.",
+        "generic": "Impossible de confirmer la suppression. Vérifie ta connexion, puis réessaie."
+      },
+      "offline": "Il te faut une connexion pour supprimer ton compte."
+    },
+    "deleted": {
+      "message": "Ton compte et les données qui lui sont attachées ont été supprimés."
     }
   },
   "permission": {
