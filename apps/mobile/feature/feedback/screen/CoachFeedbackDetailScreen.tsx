@@ -51,6 +51,8 @@ export function CoachFeedbackDetailScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
 
   const { data: feedback, isPending, isError, refetch } = useCoachFeedbackDetail(sessionId);
+  // Une relecture ratée, 401 compris (#439), ne doit pas démonter la réponse en cours de saisie.
+  const failed = isError && feedback === undefined;
   // Le résumé porte le nom de l'athlète et l'état lu ; le détail ne les a pas. La liste est déjà en
   // cache (on en vient), donc c'est gratuit.
   const { data: summaries } = useCoachFeedbacks();
@@ -72,7 +74,7 @@ export function CoachFeedbackDetailScreen() {
     <CmvScreen>
       <OfflineBanner />
 
-      {isPending || isError ? (
+      {isPending || failed ? (
         <View className="flex-1 items-center justify-center p-4">
           {isPending ? <ActivityIndicator /> : <CmvErrorState onRetry={() => refetch()} />}
         </View>

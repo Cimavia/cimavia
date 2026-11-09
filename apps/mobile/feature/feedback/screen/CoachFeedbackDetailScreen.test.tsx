@@ -350,6 +350,14 @@ describe("CoachFeedbackDetailScreen — ce qui manque", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  // Sous la fenêtre de reconnexion (#439), la réponse en cours doit rester montée.
+  it("garde le débrief ouvert quand une relecture échoue", () => {
+    mockDetail({ isError: true });
+    const { queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("common.retry")).toBeNull();
+  });
+
   /** Arrivé par une notification, la liste n'est pas en cache : « — », et rien à marquer lu. */
   it("marque l'absence de l'athlète et de la séance tant que le résumé manque", () => {
     vi.mocked(useCoachFeedbacks).mockReturnValue({ data: undefined } as unknown as ReturnType<

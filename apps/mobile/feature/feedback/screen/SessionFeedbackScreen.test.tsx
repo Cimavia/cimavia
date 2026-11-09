@@ -166,6 +166,22 @@ describe("SessionFeedbackScreen", () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
+  // Sous la fenêtre de reconnexion (#439), le texte en cours doit rester monté.
+  it("garde le débrief ouvert quand une relecture échoue", () => {
+    mockFeedback({ data: detail({}), isError: true });
+    const { queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(queryByText("feedback.title")).not.toBeNull();
+    expect(queryByText("common.retry")).toBeNull();
+  });
+
+  it("garde le débrief vierge ouvert quand une relecture échoue", () => {
+    mockFeedback({ data: null, isError: true });
+    const { queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(queryByText("feedback.title")).not.toBeNull();
+  });
+
   it.each([
     ["sans la séance", null],
     ["séance chargée", SESSION],

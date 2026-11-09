@@ -40,6 +40,9 @@ export function SessionFeedbackScreen() {
   const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
   const session = useScheduledSession(id);
   const { data: user } = authClient.useSession();
+  // `undefined` et non `null`, qui veut dire « pas encore de débrief » : une relecture ratée, 401
+  // compris (#439), ne doit pas démonter le texte en cours de saisie.
+  const failed = isError && feedback === undefined;
 
   const queryClient = useQueryClient();
   // Les hooks partent inconditionnellement : c'est un coach inconnu et `feedbackId: null` qui
@@ -66,9 +69,9 @@ export function SessionFeedbackScreen() {
         <ScrollView contentContainerClassName="gap-6 p-4">
           {isPending ? <ActivityIndicator /> : null}
 
-          {isError ? <CmvErrorState onRetry={() => refetch()} /> : null}
+          {failed ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
-          {isPending || isError ? null : (
+          {isPending || failed ? null : (
             <>
               <View className="gap-1">
                 <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
