@@ -241,7 +241,7 @@ describe("DeleteAccountScreen — la réponse perdue", () => {
 
     await waitFor(() =>
       expect(getSession).toHaveBeenCalledWith({
-        fetchOptions: { signal: expect.any(AbortSignal) },
+        fetchOptions: { timeout: expect.any(Number) },
       }),
     );
   });

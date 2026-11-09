@@ -7,9 +7,15 @@ export {
   invitationKeys,
 } from "./api/account.api";
 export { acceptInvitationMutation } from "./api/account.cache";
-export type { AccountErasureApi, ErasureFailure } from "./api/account-erasure.api";
+export type {
+  AccountErasureApi,
+  ConfirmedErasure,
+  ErasureFailure,
+  SessionReader,
+} from "./api/account-erasure.api";
 export {
   createAccountErasureApi,
+  createConfirmedErasure,
   erasureFailureOf,
   erasureOutcomeUnknown,
 } from "./api/account-erasure.api";

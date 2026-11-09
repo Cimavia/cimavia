@@ -41,3 +41,64 @@ export function erasureOutcomeUnknown(error: unknown): boolean {
   if (erasureFailureOf(error) != null || isUnauthorizedError(error)) return false;
   return !(error instanceof ApiError) || !error.fromApi || error.status >= 500;
 }
+
+/** Juste après une coupure, `/get-session` peut ne jamais répondre : le formulaire doit rendre la main. */
+const SESSION_READ_TIMEOUT_MS = 5_000;
+
+/**
+ * `authClient.getSession`, réduit à ce que la relecture en attend : chaque app a son client. Par
+ * `timeout` et non `AbortSignal.timeout`, absent de React Native.
+ */
+export type SessionReader = (options: {
+  fetchOptions: { timeout: number };
+}) => Promise<{ data: unknown; error: unknown }>;
+
+/** `false` quand on ne sait pas : seule une réponse claire de l'API vaut preuve d'un départ. */
+async function sessionIsGone(readSession: SessionReader): Promise<boolean> {
+  try {
+    const { data, error } = await readSession({
+      fetchOptions: { timeout: SESSION_READ_TIMEOUT_MS },
+    });
+    return error == null && data == null;
+  } catch {
+    return false;
+  }
+}
+
+export type ConfirmedErasure = {
+  erase: (input: EraseAccountInput) => Promise<void>;
+  outcomeWasUnknown: () => boolean;
+};
+
+/**
+ * La suppression, telle qu'un écran la vit (#795, #796) : une instance par écran, parce que
+ * l'issue d'un essai éclaire le suivant.
+ *
+ * Une réponse perdue en route (coupure, 502 du tunnel) ne dit pas si le compte est parti : la session
+ * est relue, et si elle n'existe plus, l'appel RÉUSSIT. Le 401 d'un nouvel essai a le même sens,
+ * mais seulement après une issue inconnue ; sans elle, la session était perdue avant le geste.
+ */
+export function createConfirmedErasure(
+  api: AccountErasureApi,
+  readSession: SessionReader,
+): ConfirmedErasure {
+  let unknown = false;
+
+  async function erasedDespite(error: unknown): Promise<boolean> {
+    if (isUnauthorizedError(error)) return unknown;
+    if (!erasureOutcomeUnknown(error)) return false;
+    unknown = true;
+    return sessionIsGone(readSession);
+  }
+
+  return {
+    erase: async (input) => {
+      try {
+        await api.erase(input);
+      } catch (error) {
+        if (!(await erasedDespite(error))) throw error;
+      }
+    },
+    outcomeWasUnknown: () => unknown,
+  };
+}
