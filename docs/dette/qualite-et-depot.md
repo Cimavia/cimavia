@@ -820,9 +820,10 @@ liste des domaines vivent dans l'index.
 > titre une route l'exerce. `CapabilitiesGuard` n'en est pas : elle répond 403, elle ne scope rien.
 >
 > Le **juge de la tenancy est la suite e2e**, pas un mock : un filtre tenant ne se vérifie que
-> contre une vraie base. D'où une passe longue (~30 min, `concurrency: 1` sur un seul port et une
-> seule base) et un `timeoutMS` de 60 s — Stryker compte un timeout comme un mutant tué, et la
-> marge par défaut aurait gonflé le score sur un simple boot lent de Nest. Elle tourne **chaque
+> contre une vraie base. D'où une passe longue (un worker à l'origine, sur un seul port et une seule
+> base ; trois depuis #677, chacun sur les siens) et un `timeoutMS` de 60 s — Stryker compte un
+> timeout comme un mutant tué, et la marge par défaut aurait gonflé le score sur un simple boot
+> lent de Nest. Elle tourne **chaque
 > lundi et à la demande**, et sur une PR seulement quand sa propre configuration change ; shared,
 > sur **chaque PR qui le touche**, en mode incrémental, et aussi sur `main` — à chaque merge qui le
 > touche depuis #647, le lundi et à la demande : ce sont ces runs qui alimentent le fichier d'état
@@ -915,6 +916,43 @@ liste des domaines vivent dans l'index.
 > - **un groupe de concurrence par événement.** GitHub ne garde qu'un run en attente par groupe :
 >   dans un groupe commun, un merge aurait annulé un run du lundi ou à la demande qui attendait son
 >   tour, tenancy comprise, ou attendu 90 min derrière elle. La tenancy ne tourne pas au merge.
+
+> **Tranché en [#677](https://github.com/Cimavia/cimavia/issues/677)** (la tenancy ne tenait plus
+> son délai) : du 19/10 au 9/11, quatre runs du lundi ont été tués à 90 min sans laisser une ligne.
+> La passe suit le code muté — 200 mutants le 12/10, 538 le 11/11 avec l'épic entreprise (#593) — et
+> la suite qui la juge, passée à 1 113 tests.
+>
+> **Ce que Stryker appelle « statique » n'est pas ce qu'on croyait.** Son runner Vitest ne rattache
+> une ligne à un test qu'entre `beforeEach` et `afterEach` ; tout ce qui tourne dans un `beforeAll`
+> compte comme couvert hors test. Or la suite pose ses fixtures dans 132 `beforeAll` (11
+> `beforeEach`) : 91 % des mutants sont « statiques » parce qu'un filtre tenant sert à monter les
+> données, pas parce qu'ils vivent au chargement d'un module. Chacun rejoue toute la suite. D'où
+> **`ignoreStatic` écarté** : un mutant que seules les fixtures touchent ne serait plus jugé du tout,
+> les autres par les seuls tests qui le touchent dans leur corps — sur le juge d'une règle dure.
+>
+> **Trois workers, chacun sur sa base et ses ports**, plutôt qu'une matrice de jobs : la matrice
+> repaie l'installation et la passe à blanc par job, et son découpage de `mutate` est à rééquilibrer
+> quand le code bouge. Stryker numérote ses process (`STRYKER_MUTATOR_WORKER`) ; `@cmv/e2e` en
+> dérive `cimavia_db_mut<n>_e2e` (après le worktree s'il y en a un) et deux ports. Sous Stryker, **un
+> partage ne se voit pas** : le `beforeAll` qui tombe sur un port pris ou une base vidée par un
+> voisin emporte ses tests, et chacun compte comme un mutant tué. D'où trois règles :
+> - **les ports suivent aussi le worktree**, contrairement aux e2e où un port pris échoue en le
+>   disant : 100 numéros par rang, de 10001 à 20000, loin des ports de dev et sous les éphémères ;
+> - **le numéro n'est pas borné par la `concurrency`** : un process relancé après un mutant en
+>   timeout prend le suivant, et migre une base neuve. Au-delà de 99, la suite refuse de démarrer
+>   plutôt que de déborder sur le rang voisin. Les bases des numéros passés restent dans le volume
+>   e2e local ; la CI repart d'un conteneur neuf ;
+> - **un environnement décalé pour un autre worker fait refuser le démarrage**, au lieu de garder
+>   la base et le port d'avant.
+>
+> Le bucket SILO reste commun, ses clés étant uniques. Le job tourne sur une PR qui touche ce
+> harnais (`vitest.config.e2e.ts`, `@cmv/e2e`) : cassé, il fausserait le score sans rien dire.
+>
+> **Le gain est ×1,9, pas ×3** : ~19 s par mutant à trois workers contre ~35 s en série, en local.
+> La passe prend ~2 h 30 en local ; son délai est porté à **300 min**, sous le plafond de 360 d'un
+> runner hébergé. Un job hebdomadaire, non requis, sur les minutes gratuites d'un dépôt public :
+> sa durée compte moins que le fait qu'il finisse. Turbo l'écrit en `--log-order=stream`, qui
+> regroupait sinon sa sortie jusqu'à la fin : un job tué au timeout perdait toute sa progression.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
 > dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et
@@ -1066,8 +1104,10 @@ liste des domaines vivent dans l'index.
 > échoue en le disant, jamais une base vidée sous une autre suite. Un hash du chemin aurait évité
 > le glissement, au prix de collisions muettes dans une plage aussi courte. Une base qui ne finit
 > pas par `_e2e` n'est pas réécrite : lui donner le suffixe ferait taire la garde qui la refuse.
-> La réécriture ne se fait qu'une fois par environnement (`CMV_E2E_WORKTREE`) : le mode watch et
-> les process enfants de Stryker réévaluent la config sur un environnement déjà décalé.
+> La réécriture ne se fait qu'une fois par environnement (`CMV_E2E_WORKTREE`, et `CMV_E2E_WORKER`
+> depuis #677) : le mode watch et les process enfants de Stryker réévaluent la config sur un
+> environnement déjà décalé. Les workers de Stryker suivent la même règle, dans leur plage à eux
+> (« Tranché en #677 »).
 >
 > **Un paquet à part, `@cmv/e2e`, et non un fichier d'`apps/api` que le web importerait.** Ce fut
 > la première version : l'image web est tombée, son `tsc` vérifiant `e2e/` sur un arbre élagué par

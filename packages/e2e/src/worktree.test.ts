@@ -7,7 +7,10 @@ import {
   currentWorktree,
   linkedWorktree,
   MAX_RANK,
+  MAX_WORKER,
+  strykerWorker,
   type Worktree,
+  workerPort,
   worktreeDatabaseUrl,
   worktreePort,
 } from "./index";
@@ -127,6 +130,86 @@ describe("worktreeDatabaseUrl", () => {
 
   it("nomme par empreinte un worktree sans caractère utilisable", () => {
     expect(worktreeDatabase("---")).toMatch(/^cimavia_db_wt_[0-9a-f]{6}_e2e$/);
+  });
+
+  it("donne sa base à chaque worker de stryker, dans le dépôt principal", () => {
+    const url = new URL(worktreeDatabaseUrl(`${E2E_URL}?schema=public`, null, 2));
+
+    expect(url.pathname).toBe("/cimavia_db_mut2_e2e");
+    expect(url.host).toBe("localhost:5434");
+    expect(url.search).toBe("?schema=public");
+    expect(databaseOf(worktreeDatabaseUrl(E2E_URL, null, 0))).toBe("cimavia_db_mut0_e2e");
+  });
+
+  it("ajoute le worker au nom du worktree, sans que deux workers ni deux worktrees se croisent", () => {
+    const of = (name: string, worker: number) =>
+      databaseOf(worktreeDatabaseUrl(E2E_URL, { name, rank: 1 }, worker));
+
+    expect(of("cimavia-bis", 1)).toMatch(/^cimavia_db_wt_cimavia_bis_[0-9a-f]{6}_mut1_e2e$/);
+    expect(of("cimavia-bis", 1)).not.toBe(of("cimavia-bis", 2));
+    expect(of("cimavia-bis", 1)).not.toBe(of("cimavia-ter", 1));
+  });
+
+  it("tient le worker dans un identifiant postgres quand le nom du worktree est trop long", () => {
+    const database = databaseOf(
+      worktreeDatabaseUrl(E2E_URL, { name: "a".repeat(80), rank: 1 }, MAX_WORKER),
+    );
+
+    expect(database.length).toBeLessThanOrEqual(63);
+    expect(database).toMatch(new RegExp(`_mut${MAX_WORKER}_e2e$`));
+  });
+
+  it("laisse inchangée, worker compris, une base qui ne s'annonce pas jetable", () => {
+    const dev = "postgresql://cimavia:secret@localhost:5432/cimavia_db";
+
+    expect(worktreeDatabaseUrl(dev, null, 1)).toBe(dev);
+    expect(worktreeDatabaseUrl(dev, BIS, 1)).toBe(dev);
+  });
+});
+
+describe("strykerWorker", () => {
+  it("vaut null hors de stryker", () => {
+    expect(strykerWorker(undefined)).toBeNull();
+  });
+
+  it("lit le numéro que stryker donne à son process", () => {
+    expect(strykerWorker("0")).toBe(0);
+    expect(strykerWorker("12")).toBe(12);
+    expect(strykerWorker(String(MAX_WORKER))).toBe(MAX_WORKER);
+  });
+
+  it("refuse une valeur illisible plutôt que de retomber sur la base partagée", () => {
+    expect(() => strykerWorker("")).toThrow(/illisible/);
+    expect(() => strykerWorker("-1")).toThrow(/illisible/);
+    expect(() => strykerWorker("1.5")).toThrow(/illisible/);
+    expect(() => strykerWorker("deux")).toThrow(/illisible/);
+  });
+
+  it("refuse un numéro dont les ports sortiraient de leur plage", () => {
+    expect(() => strykerWorker(String(MAX_WORKER + 1))).toThrow(/timeout/);
+  });
+});
+
+describe("workerPort", () => {
+  it("part de 10001 dans le dépôt principal, et décale du numéro fois la largeur de la suite", () => {
+    expect(workerPort(null, 0, 2)).toBe(10_001);
+    expect(workerPort(null, 3, 2)).toBe(10_007);
+    expect(workerPort(null, 3)).toBe(10_004);
+  });
+
+  it("donne à chaque worktree sa plage, sans recouvrir celle du voisin", () => {
+    const first = { name: "x", rank: 1 };
+    const second = { name: "y", rank: 2 };
+
+    expect(workerPort(null, MAX_WORKER, 2) + 1).toBeLessThan(workerPort(first, 0, 2));
+    expect(workerPort(first, MAX_WORKER, 2) + 1).toBeLessThan(workerPort(second, 0, 2));
+  });
+
+  it("reste sous les ports éphémères de linux, au dernier numéro du dernier rang", () => {
+    const last = { name: "x", rank: MAX_RANK };
+
+    expect(workerPort(null, 0, 2)).toBeGreaterThan(5173);
+    expect(workerPort(last, MAX_WORKER, 2) + 1).toBeLessThan(32_768);
   });
 });
 
