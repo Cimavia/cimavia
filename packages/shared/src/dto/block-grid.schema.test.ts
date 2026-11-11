@@ -9,7 +9,12 @@ import {
   storedBlockGridSchema,
 } from "./block-grid.schema";
 import { CLIENT_KEY_MAX_LENGTH } from "./client-key.schema";
-import { MetricKey, MetricUnit, MetricValueType } from "./exercise-metric.schema";
+import {
+  METRIC_TEXT_VALUE_MAX_LENGTH,
+  MetricKey,
+  MetricUnit,
+  MetricValueType,
+} from "./exercise-metric.schema";
 import { customMetricIdsIn, MetricSource } from "./metric-reference.schema";
 
 const suggestedReps = {
@@ -76,6 +81,21 @@ describe("blockGridSchema", () => {
   it("relit une grille stockée dont les identifiants dépassent la borne", () => {
     const tooLong = "k".repeat(CLIENT_KEY_MAX_LENGTH + 1);
     const stored = { metrics: [{ ...reps, id: tooLong }], rows: [{ id: tooLong, values: {} }] };
+    expect(storedBlockGridSchema.safeParse(stored).success).toBe(true);
+  });
+
+  // Une colonne maison orpheline échappe au croisement : seule cette borne la tient (#323).
+  it("borne à l'entrée le texte d'une cellule, quelle que soit sa colonne", () => {
+    const atLimit = gridOf([custom], ["x".repeat(METRIC_TEXT_VALUE_MAX_LENGTH)]);
+    const tooLong = gridOf([custom], ["x".repeat(METRIC_TEXT_VALUE_MAX_LENGTH + 1)]);
+    expect(blockGridSchema.safeParse(atLimit).success).toBe(true);
+    expect(
+      blockGridSchema.safeParse(tooLong).error?.issues.map((issue) => issue.path.join(".")),
+    ).toEqual([`rows.0.values.${custom.id}`]);
+  });
+
+  it("relit une grille stockée dont un texte dépasse la borne", () => {
+    const stored = gridOf([custom], ["x".repeat(METRIC_TEXT_VALUE_MAX_LENGTH + 1)]);
     expect(storedBlockGridSchema.safeParse(stored).success).toBe(true);
   });
 

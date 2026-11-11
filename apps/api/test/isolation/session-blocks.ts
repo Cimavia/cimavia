@@ -1,4 +1,10 @@
-import { ProblemType, Role, STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
+import {
+  METRIC_TEXT_VALUE_MAX_LENGTH,
+  ProblemType,
+  Role,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
+} from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import {
@@ -11,7 +17,16 @@ import {
   signUpWith,
 } from "../support/actors";
 import { app } from "../support/app";
-import { REPS, SERIES, seriesBlock } from "../support/blocks";
+import {
+  cellsGrid,
+  type GridInput,
+  REFUSED_CELLS,
+  REPS,
+  SERIES,
+  seriesBlock,
+  textOf,
+  VALID_CELLS,
+} from "../support/blocks";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import {
   ANY_VERSION,
@@ -546,6 +561,53 @@ describe("Séances composées par blocs (#716)", () => {
         .send({ content: null, blockTracking: { [blockId]: { checked: [] } } });
       expect(sent.status).toBe(200);
     });
+  });
+});
+
+describe("Les cellules d'une séance-type à l'entrée de l'API (#323)", () => {
+  let coach: Agent;
+  let exerciseId: string;
+  let sessionId: string;
+
+  const saved = (grid: GridInput) =>
+    putAtLatest(coach, `/sessions/${sessionId}`, {
+      title: "Cellules",
+      blocks: [seriesBlock([{ key: "a1", exerciseId, grid }])],
+    });
+
+  beforeAll(async () => {
+    coach = await signUp("cellules-coach@cmv.test", Role.COACH);
+    exerciseId = (await coach.post("/exercises").send({ title: "Cellules" })).body.id;
+    const created = await coach.post("/sessions").send({
+      title: "Cellules",
+      blocks: [seriesBlock([{ key: "a1", exerciseId, grid: cellsGrid(VALID_CELLS) }])],
+    });
+    expect(created.status).toBe(201);
+    sessionId = created.body.id;
+  });
+
+  it.each(REFUSED_CELLS)("refuse %s, sans rien écrire", async (_case, values) => {
+    expect((await saved(cellsGrid(values))).status).toBe(400);
+    const session = await coach.get(`/sessions/${sessionId}`);
+    expect(session.body.blocks[0].exercises[0].grid.rows[0].values).toEqual(VALID_CELLS);
+  });
+
+  // En dernier : ce test remplace la grille que les précédents relisent.
+  it("borne une colonne orpheline, sans bloquer un enregistrement valide (EX-2)", async () => {
+    const metric = await coach
+      .post("/custom-metrics")
+      .send({ label: "Éphémère", unit: null, valueType: "TEXT", scale: null });
+    const orphanGrid = (text: string): GridInput => ({
+      metrics: [
+        { id: "col_orphan", source: "CUSTOM", customMetricId: metric.body.id, label: null },
+      ],
+      rows: [{ id: "r1", values: { col_orphan: text } }],
+    });
+    expect((await saved(orphanGrid("avant"))).status).toBe(200);
+    expect((await coach.delete(`/custom-metrics/${metric.body.id}`)).status).toBe(204);
+
+    expect((await saved(orphanGrid(textOf(METRIC_TEXT_VALUE_MAX_LENGTH)))).status).toBe(200);
+    expect((await saved(orphanGrid(textOf(METRIC_TEXT_VALUE_MAX_LENGTH + 1)))).status).toBe(400);
   });
 });
 

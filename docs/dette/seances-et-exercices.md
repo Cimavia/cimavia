@@ -38,10 +38,17 @@ liste des domaines vivent dans l'index.
 > changé d'objet. Les blocs sont devenus des **tables** depuis #716 (`SessionBlock`,
 > `ScheduledSessionBlock`) : un bloc a une identité, une structure source, un suivi, et la séance
 > planifiée les compte un par un. Ce qui reste en JSON, c'est la **grille** de chaque exercice
-> dans son bloc (`grid`, tenue par `blockGridSchema`), les **réglages** de structure, la
-> **référence** d'un bloc planifié (`baseline`) et les **métriques suggérées** d'un exercice. Les
-> raisons sont les mêmes : aucune cellule n'est interrogée, et la valeur reste polymorphe.
-> `Exercise.blocks` et `exerciseBlocksSchema` sont partis avec l'ancien modèle.
+> dans son bloc (`grid`, tenue par `blockGridSchema` et `gridValueIssues`), les **réglages** de
+> structure, la **référence** d'un bloc planifié (`baseline`) et les **métriques suggérées** d'un
+> exercice. Les raisons sont les mêmes : aucune cellule n'est interrogée, et la valeur reste
+> polymorphe. `Exercise.blocks` et `exerciseBlocksSchema` sont partis avec l'ancien modèle.
+>
+> **Tranché en #323** (ce qui tient une cellule à l'entrée) : deux routes reçoivent une grille du
+> client, la séance-type et Dosage. `blockGridSchema` borne la forme, `gridValueIssues` croise
+> chaque cellule avec le type de sa colonne. Une colonne maison orpheline (EX-2) sort du croisement,
+> faute de type connu : seule la longueur de son texte se vérifie, à l'entrée et pas à la relecture
+> (*Tranché en #297*). Une durée s'arrête à 24 h comme le formulaire, progression comprise. Un
+> nombre reste sans plafond ni plancher : `-2,5` est une assistance, voulue.
 >
 > **Tranché — aucun rattrapage des descriptions.** `description → instructions` touche tous les
 > exercices existants. La base en contient 7, dont 4 avec description, d'une longueur moyenne de
