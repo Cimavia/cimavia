@@ -590,9 +590,9 @@
           <dl class="kv">
             <dt>Tags</dt><dd>Même règle que l'API : <code>sha-xxxxxxx</code> au build, <code>X.Y.Z</code> par retag du digest au bump, après le smoke test.</dd>
             <dt>Build</dt><dd><code>apps/web/Dockerfile</code> (nginx). Seul ce qui dépend de la version est figé : <code>VITE_APP_VERSION</code>, release Sentry <code>X.Y.Z+sha</code>. Cache GHA de scope <code>web</code>.</dd>
-            <dt>Config du tier</dt><dd>URL de l'API, DSN Sentry et nom du tier sont lus au démarrage du conteneur (<code>CMV_API_URL</code>, <code>CMV_SENTRY_DSN</code>, <code>CMV_APP_ENV</code>) et servis en <code>/config.js</code>.</dd>
+            <dt>Config du tier</dt><dd>URL de l'API, DSN Sentry et nom du tier sont lus au démarrage du conteneur (<code>CMV_API_URL</code>, <code>CMV_SENTRY_DSN</code>, <code>CMV_APP_ENV</code>) et servis en <code>/config.js</code>. L'origine des médias (<code>CMV_MEDIA_URL</code>) ne sert que la CSP (#780).</dd>
             <dt>Sourcemaps</dt><dd>Au bump seulement : <code>SENTRY_AUTH_TOKEN</code> passe par un secret BuildKit, jamais un build-arg. Un jeton sans <code>SENTRY_ORG</code> ou <code>SENTRY_PROJECT_WEB</code> fait échouer le job, et un téléversement raté fait échouer le build (#474).</dd>
-            <dt>Smoke test</dt><dd>Sonde <code>healthy</code> en moins de 60 s ; <code>/config.js</code> exact, en <code>no-cache</code> et en JavaScript ; une route profonde rend un <code>index.html</code> qui le charge ; sans <code>CMV_SENTRY_DSN</code>, le conteneur refuse de démarrer.</dd>
+            <dt>Smoke test</dt><dd>Sonde <code>healthy</code> en moins de 60 s ; <code>/config.js</code> exact, en <code>no-cache</code> et en JavaScript ; une route profonde rend un <code>index.html</code> qui le charge ; les en-têtes de sécurité sur chaque sorte de réponse, 404 compris, la CSP observée comparée en entier, sans rapport sur <code>/reset-password</code> ni sans DSN (#780) ; sans l'une des quatre variables <code>CMV_*</code>, le conteneur refuse de démarrer.</dd>
             <dt>Trivy</dt><dd>Job <code>scan</code> à part, en lecture seule, catégorie <code>trivy-web</code>. Il remplace celui que faisait la promotion.</dd>
           </dl>
         </div>

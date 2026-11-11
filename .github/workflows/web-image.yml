@@ -132,15 +132,18 @@ jobs:
       # `sha-*` qui ne démarre pas est aussi un signal.
       #
       # Les valeurs sont factices : aucune n'est appelée, seule compte la façon dont elles sont
-      # servies. `--health-interval` raccourcit l'intervalle de la sonde de l'image sans en changer
-      # la commande.
+      # servies. Le DSN a la forme d'un vrai : nginx en tire l'origine et l'adresse des rapports de
+      # la CSP (#780). `--health-interval` raccourcit l'intervalle de la sonde de l'image sans en
+      # changer la commande.
       - name: Démarre l'image publiée
         id: smoke
         env:
           IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
         run: |
           docker run -d --name cimavia-web-smoke -p 8080:8080 --health-interval 3s \
-            -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview -e CMV_SENTRY_DSN= \
+            -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview \
+            -e CMV_SENTRY_DSN=https://cle@o1.ingest.example.invalid/2 \
+            -e CMV_MEDIA_URL=https://s3.example.invalid \
             "$IMAGE"
 
       - name: Attend que le web soit sain
@@ -167,7 +170,7 @@ jobs:
       # route profonde qui rend un index.html chargeant bien `config.js` avant le bundle.
       - name: config.js servi depuis l'environnement
         run: |
-          expected='window.__CMV_CONFIG__ = {"apiUrl":"https://api.example.invalid","sentryDsn":"","tier":"preview"};'
+          expected='window.__CMV_CONFIG__ = {"apiUrl":"https://api.example.invalid","sentryDsn":"https://cle@o1.ingest.example.invalid/2","tier":"preview"};'
           config="$(curl -fsS --max-time 10 -D "$RUNNER_TEMP/headers" http://127.0.0.1:8080/config.js)"
           if [ "$config" != "$expected" ]; then
             echo "::error::/config.js inattendu : ${config}"
@@ -184,22 +187,83 @@ jobs:
             exit 1
           fi
 
+      # Les en-têtes de sécurité (#780), sur CHAQUE sorte de réponse : une route de l'app, un asset,
+      # `/config.js` et un document légal — chacun dans une `location` qui pose son propre
+      # `Cache-Control`, ce qui effaçait ceux du `server` avant `add_header_inherit` — et le 404 de
+      # la garde `/legal`, qui ne les porte qu'avec `always`. La CSP observée est comparée EN ENTIER :
+      # elle prouve que l'origine des médias est substituée et que le DSN est bien lu. Puis les deux
+      # cas où elle part SANS rapport : la page qui porte un jeton, et un conteneur sans DSN — le
+      # « pas de Sentry » que le `.env` du NAS permet.
+      - name: En-têtes de sécurité sur chaque réponse
+        env:
+          IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
+        run: |
+          set -o pipefail
+          policy="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: https://s3.example.invalid; media-src 'self' blob: https://s3.example.invalid; connect-src 'self' https://api.example.invalid https://s3.example.invalid"
+          tail="font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+          sentry=" https://o1.ingest.example.invalid; ${tail}"
+          report="; report-uri https://o1.ingest.example.invalid/api/2/security/?sentry_key=cle&sentry_environment=preview"
+
+          # check <port> <chemin> <CSP observée attendue>
+          check() {
+            curl -sS --max-time 10 --path-as-is -o /dev/null -D - "http://127.0.0.1:$1$2" \
+              | tr -d '\r' >"$RUNNER_TEMP/recus"
+            for header in \
+              "content-security-policy: frame-ancestors 'none'; object-src 'none'; base-uri 'none'" \
+              "content-security-policy-report-only: $3" \
+              "x-content-type-options: nosniff" \
+              "referrer-policy: strict-origin-when-cross-origin" \
+              "permissions-policy: camera=(), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()"
+            do
+              if ! grep -qixF -- "$header" "$RUNNER_TEMP/recus"; then
+                cat "$RUNNER_TEMP/recus"
+                echo "::error::$2 (port $1) sans l'en-tête attendu : ${header}"
+                exit 1
+              fi
+            done
+          }
+
+          asset="$(curl -fsS --max-time 10 http://127.0.0.1:8080/ | grep -o '/assets/index-[^"]*\.js' | head -n1)"
+          if [ -z "$asset" ]; then
+            echo "::error::index.html ne référence aucun bundle /assets/index-*.js."
+            exit 1
+          fi
+          for path in /athletes "$asset" /config.js /legal/fr/terms /legal/..%2Findex.html; do
+            check 8080 "$path" "${policy}${sentry}${report}"
+          done
+          check 8080 "/reset-password?token=jeton" "${policy}${sentry}"
+
+          docker run -d --name cimavia-web-smoke-sans-dsn -p 8081:8080 \
+            -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview -e CMV_SENTRY_DSN= \
+            -e CMV_MEDIA_URL=https://s3.example.invalid "$IMAGE" >/dev/null
+          curl -fsS --max-time 10 --retry 10 --retry-connrefused --retry-delay 1 -o /dev/null http://127.0.0.1:8081/
+          check 8081 /athletes "${policy} ; ${tail}"
+
       # L'autre moitié du contrat : une variable ABSENTE fait refuser le démarrage, plutôt que de
-      # servir `${CMV_SENTRY_DSN}` tel quel. C'est ce qui rend l'oubli visible sur le NAS.
+      # servir `${CMV_…}` tel quel. C'est ce qui rend l'oubli visible sur le NAS. Chacune des quatre :
+      # `CMV_MEDIA_URL` n'est lue que par la CSP, une ligne qu'on pourrait déplacer sans y penser.
       - name: Refuse de démarrer sans sa config
         env:
           IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
         run: |
-          if timeout 30 docker run --rm -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview \
-            "$IMAGE" >"$RUNNER_TEMP/refus" 2>&1; then
-            echo "::error::Le web a démarré sans CMV_SENTRY_DSN."
-            exit 1
-          fi
-          if ! grep -q 'unknown "cmv_sentry_dsn" variable' "$RUNNER_TEMP/refus"; then
-            cat "$RUNNER_TEMP/refus"
-            echo "::error::Le web n'a pas refusé de démarrer pour la raison attendue."
-            exit 1
-          fi
+          config=(CMV_API_URL=https://api.example.invalid CMV_APP_ENV=preview CMV_SENTRY_DSN= CMV_MEDIA_URL=https://s3.example.invalid)
+          for missing in CMV_API_URL CMV_APP_ENV CMV_SENTRY_DSN CMV_MEDIA_URL; do
+            args=()
+            for pair in "${config[@]}"; do
+              if [ "${pair%%=*}" != "$missing" ]; then
+                args+=(-e "$pair")
+              fi
+            done
+            if timeout 30 docker run --rm "${args[@]}" "$IMAGE" >"$RUNNER_TEMP/refus" 2>&1; then
+              echo "::error::Le web a démarré sans ${missing}."
+              exit 1
+            fi
+            if ! grep -qF "unknown \"${missing,,}\" variable" "$RUNNER_TEMP/refus"; then
+              cat "$RUNNER_TEMP/refus"
+              echo "::error::Sans ${missing}, le web n'a pas refusé de démarrer pour la raison attendue."
+              exit 1
+            fi
+          done
 
       # SEULEMENT maintenant, et sur le commit de bump seulement : le numéro sur le digest qui vient
       # de démarrer. Un retag, jamais un rebuild (#186).
