@@ -152,7 +152,8 @@ planifiée → Script défini par l'utilisateur* :
 | `PREVIEW_PUBLIC_API_URL` | `https://api-preview.<domaine>` — sondée par la promotion, appelée par `reminder-tick.yml` |
 
 Le web, lui, ne prend plus rien dans GitHub : son URL d'API, son tier et son DSN Sentry lui
-viennent du `.env` au démarrage (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`, #417).
+viennent du `.env` au démarrage (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`, #417), comme
+l'origine des médias que sa CSP laisse charger (`PUBLIC_S3_URL`, #780).
 
 ### Le script ne se met pas à jour tout seul
 
@@ -168,7 +169,9 @@ pas. Depuis #357, sur ce tier :
 - `BETTER_AUTH_SECRET` fait **32 caractères au moins**, et `REMINDER_TICK_SECRET` aussi s'il est posé ;
 - `PUBLIC_API_URL` est en **https** ;
 - `EXPO_ACCESS_TOKEN` est posé ;
-- la ligne `SENTRY_DSN_WEB=` existe, même vide (#417) : absente, le compose est refusé.
+- la ligne `SENTRY_DSN_WEB=` existe, même vide (#417) : absente, le compose est refusé ;
+- `PUBLIC_S3_URL` est posée et **non vide** (#780) : le web en tire l'origine des médias de sa CSP,
+  et le compose refuse une valeur vide.
 
 Dans le dossier du `.env`, ce contrôle n'affiche que des **longueurs**, jamais les valeurs :
 
@@ -176,6 +179,7 @@ Dans le dossier du `.env`, ce contrôle n'affiche que des **longueurs**, jamais 
 for v in BETTER_AUTH_SECRET REMINDER_TICK_SECRET EXPO_ACCESS_TOKEN; do awk -F= -v k=$v '$1==k{print k" : "length(substr($0,index($0,"=")+1))" caractères"}' .env; done
 grep -o '^PUBLIC_API_URL=https\?' .env                 # doit afficher PUBLIC_API_URL=https
 grep -c '^SENTRY_DSN_WEB=' .env                        # doit afficher 1
+grep -c '^PUBLIC_S3_URL=.' .env                        # doit afficher 1
 ```
 
 Attendu : 32 ou plus pour les deux secrets, une longueur non nulle pour le jeton Expo.

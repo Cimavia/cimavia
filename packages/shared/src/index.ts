@@ -1,3 +1,7 @@
+// AVANT toute définition de schéma : Zod fige son mode à la définition (cf. zod-config.ts). Un
+// import nu, que Biome ne retrie pas.
+import "./zod-config";
+
 export type { AccountApi } from "./api/account.api";
 export {
   athleteKeys,

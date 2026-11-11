@@ -176,13 +176,18 @@ services:
     # chaque tier, retaguée et jamais reconstruite. Tout ceci part chez chaque visiteur — aucun
     # secret, et l'image ne laisse de toute façon passer que les `CMV_*`.
     #
-    # Les trois DOIVENT être définies : absente du conteneur, nginx refuserait de démarrer. `?` et
+    # Les quatre DOIVENT être définies : absente du conteneur, nginx refuserait de démarrer. `?` et
     # non `:?` pour le DSN, parce que vide est permis (pas de Sentry web) ; absent du `.env`, il est
     # refusé par `compose config`, avant qu'aucun conteneur ne soit remplacé.
+    #
+    # `CMV_MEDIA_URL` ne part pas dans `/config.js` : c'est l'origine des URLs signées, que la CSP
+    # laisse charger (#780). En path-style (SILO, `S3_FORCE_PATH_STYLE=true` ci-dessus), c'est
+    # l'endpoint même que l'API signe, `PUBLIC_S3_URL` — rien à ajouter au `.env`.
     environment:
       CMV_API_URL: ${PUBLIC_API_URL:?URL publique de l'API attendue dans le .env}
       CMV_APP_ENV: ${APP_ENV:?tier de deploiement attendu dans le .env, ex. preview}
       CMV_SENTRY_DSN: ${SENTRY_DSN_WEB?DSN Sentry du web attendu dans le .env, vide permis}
+      CMV_MEDIA_URL: ${PUBLIC_S3_URL:?URL publique du stockage attendue dans le .env}
 
   # Sortie vers Cloudflare : établit le tunnel et route les hostnames publics vers les services.
   # Le routage hostname → service est configuré côté dashboard Cloudflare (Zero Trust), pas ici :

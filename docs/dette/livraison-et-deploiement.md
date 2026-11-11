@@ -14,6 +14,7 @@ liste des domaines vivent dans l'index.
 | P7-5 | **Le profil EAS `production` ne déclare ni `EXPO_PUBLIC_API_URL` ni `EXPO_PUBLIC_WEB_URL`** : Metro les inline au build, le `.env` du poste n'est pas envoyé à EAS, et `api.ts`, `auth.ts` et `ForgotPasswordScreen` se replient alors sur `localhost`. Le build réussit, l'app ne joint jamais l'API. Jamais vue parce qu'aucun build `production` n'est parti. **Jamais inscrite ici** — découverte en #134 en préparant la sortie store. Le web porte le même repli, tenu par le seul workflow de déploiement. **Périmètre réduit en #287** : `app.config.ts` refuse désormais toute variante hors `development` sans les deux URL — le build `production` échoue au lieu de produire un binaire muet, et un update aussi. Les variables vivent dans les environnements EAS, plus dans `eas.json`. Reste l'URL elle-même. | 🟡 | [#255](https://github.com/Cimavia/cimavia/issues/255) — garde posée en [#287](https://github.com/Cimavia/cimavia/issues/287) |
 | P7-7 | **Les sauvegardes du NAS ne sortent pas du NAS** : depuis [#268](https://github.com/Cimavia/cimavia/issues/268), `backup.sh` écrit chaque nuit un `pg_dump` relu et un miroir du bucket dans `backup/`, à côté du `.env` — mais sur le même disque que les données qu'il protège. Ça couvre le `down -v`, le bug qui efface, la migration fautive et la suppression par erreur, c'est-à-dire les pannes les plus probables. Ça ne couvre ni la panne de disque, ni le rançongiciel, ni le vol ou l'incendie. Le hors-site est **manuel** (archive chiffrée, `deploy/preview/README.md`), donc oubliable. **Jamais inscrite ici avant #268** : le NAS n'a longtemps porté que des données synthétiques. | 🟡 | — *(déclencheur : preview qui dure, un second Coach, ou une copie manuelle qui date de plus d'un mois)* |
 | P7-10 | **Les médias de la preview ne sortent du cache Cloudflare que par un réglage du dashboard** : depuis [#649](https://github.com/Cimavia/cimavia/issues/649), l'API appelle SILO par `S3_INTERNAL_ENDPOINT` (`http://silo:9000`) et ne traverse plus Cloudflare, qui envoyait ses `HEAD` en `GET` vers un `.pdf` ou un `.jpg` — signature cassée, 403, chaque pièce jointe en 500. Mais les URLs signées, elles, passent toujours par `s3-preview`, et c'est la règle **Bypass cache** posée à la main sur ce hostname qui garde des médias privés hors du cache. Rien dans le dépôt ne la décrit ni ne vérifie qu'elle tient. | 🟢 | [#411](https://github.com/Cimavia/cimavia/issues/411) — Cloudflare décrit en code |
+| P7-11 | **La CSP du web n'est qu'observée** : depuis [#780](https://github.com/Cimavia/cimavia/issues/780), nginx envoie la politique complète en `Content-Security-Policy-Report-Only` — un script injecté s'exécute encore, seul un rapport part chez Sentry. Seuls `frame-ancestors`, `object-src` et `base-uri` bloquent (encadré « Tranché en #780 »). Les seize parcours Playwright, joués derrière nginx, n'ont levé aucune violation ; les médias, que les e2e n'exercent pas, restent à éprouver sur la preview. | 🔴 | [#816](https://github.com/Cimavia/cimavia/issues/816) — après un cycle de preview |
 
 *Résolues, à l'[archive](archive.md) : P7-3, P7-4, P7-6, P7-8, P7-9.*
 
@@ -957,3 +958,55 @@ liste des domaines vivent dans l'index.
 > promotion** (README du preview) — sinon `pull-preview.sh` remplace l'API par une qui refuse de
 > démarrer, et le preview tombe. Le smoke de `api-image.yml` démarre l'image en `preview` : ses
 > valeurs factices suivent les mêmes règles.
+
+---
+
+## Post-MVP — En-têtes de sécurité du web ([#780](https://github.com/Cimavia/cimavia/issues/780))
+
+> **Tranché en #780** (la CSP part en deux en-têtes, et ce qu'elle laisse passer) : l'issue
+> demandait toute la politique en `Report-Only` le temps d'un cycle de preview. Mais les navigateurs
+> **ignorent `frame-ancestors`** dans un en-tête `Report-Only` : la protection contre l'encadrement
+> n'aurait pas existé pendant l'observation. D'où deux en-têtes dans `apps/web/nginx.conf` :
+> - **bloquant**, ce que l'app ne peut pas utiliser : `frame-ancestors 'none'; object-src 'none';
+>   base-uri 'none'` ;
+> - **observé**, la politique complète, jusqu'à [#816](https://github.com/Cimavia/cimavia/issues/816)
+>   (P7-11). `script-src 'self'` sans `'unsafe-inline'` — c'est lui qui neutralise un lien
+>   `javascript:` (#324) ; `'unsafe-inline'` pour les styles seulement (le `<style>` de TipTap, celui
+>   des pages légales) ; `blob:` pour l'aperçu local d'un média.
+>
+> Les hôtes viennent de l'environnement du conteneur, comme `/config.js` (#417). L'API par
+> `CMV_API_URL`. **Sentry se lit dans le DSN** (`map` nginx) — origine d'ingestion et `report-uri` —
+> plutôt qu'une variable de plus qui pourrait le contredire ; un DSN vide donne une politique sans
+> rapport. **Les médias** demandent une variable, `CMV_MEDIA_URL` : le web ne connaît pas l'origine
+> des URLs signées. Le compose du NAS la remplit avec `PUBLIC_S3_URL`, déjà dans son `.env` — vrai
+> en path-style seulement : en virtual-hosted (Scaleway), l'origine appelée est `<bucket>.<hôte>`.
+>
+> **`/reset-password` n'envoie aucun rapport** : le navigateur les poste directement à Sentry, sans
+> passer par le `beforeSend` du SDK, et chacun porte l'URL complète du document — donc le jeton que
+> #335 a retiré de partout ailleurs. La politique s'y applique quand même, sans `report-uri`.
+>
+> Le piège d'nginx que nommait l'issue — un `add_header` dans une `location` efface ceux du
+> `server` — se règle par **`add_header_inherit merge`** (nginx ≥ 1.29.3, l'image est en 1.30)
+> plutôt que par un `include` répété dans chaque bloc, qu'une `location` ajoutée oublierait.
+> `always` pose les en-têtes sur les 404 aussi. Le smoke test de `web-image.yml` les vérifie sur
+> chaque sorte de réponse, la CSP observée en entier.
+>
+> **Zod ne compile plus de code, dans les trois couches** (`packages/shared/src/zod-config.ts`) :
+> Zod 4 compile ses schémas d'objets par `new Function`. Sous une CSP bloquante il retombe de lui-même
+> sur l'interprétation, mais en `Report-Only` chaque sonde et chaque compilation partaient chez
+> Sentry — 89 rapports sur les seize parcours Playwright, de quoi noyer le cycle d'observation. Le
+> réglage vit au **premier module du barrel `@cmv/shared`**, pas dans le web : Zod fige son mode à la
+> *définition* d'un schéma, et le bundler range Zod et `@cmv/shared` dans un chunk commun évalué avant
+> le chunk d'entrée — un réglage posé par l'app arrivait après (mesuré). Pour l'API et le mobile, la
+> compilation ne faisait rien gagner sur des charges de quelques champs.
+>
+> **La CSP n'est pas éprouvée par les e2e** : Playwright joue le bundle sur `vite preview`, qui ne
+> l'envoie pas. La mesure de #780 a été faite une fois, à la main (même suite, derrière le nginx de
+> l'image, rapports vers un collecteur local). Après, ce sont les rapports Sentry de la preview qui
+> signalent une régression — une politique recopiée dans `vite preview` aurait été une seconde source
+> à tenir.
+>
+> `Referrer-Policy: strict-origin-when-cross-origin` est le défaut des navigateurs actuels : l'en-tête
+> le rend explicite, il ne colmate pas de fuite. Le jeton de `/reset-password` s'écrit en revanche
+> dans les logs d'accès d'nginx, ce que cet en-tête ne change pas :
+> [#817](https://github.com/Cimavia/cimavia/issues/817).
