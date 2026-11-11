@@ -11,7 +11,9 @@ name: Promotion — preview
 #   2. publier    — `preview` sur l'image de l'API et sur celle du web, sans les reconstruire (#186,
 #                   et pour le web depuis #417 : il lit sa config de tier au démarrage), puis la
 #                   branche `preview` avancée jusqu'au tag ;
-#   3. confirmer  — l'API du NAS a redémarré et répond.
+#   3. confirmer  — l'API du NAS a redémarré et répond ;
+#   4. builds     — SUR DEMANDE (case du formulaire) : les binaires dev Android, preview Android et
+#                   TestFlight iOS, construits par EAS depuis le commit promu.
 #
 # Si seule la confirmation échoue (NAS éteint, jeton GHCR expiré…), « Re-run failed jobs » la
 # relance sans rien republier : relancer tout le workflow serait refusé, la version étant déjà celle
@@ -24,6 +26,13 @@ on:
         description: "Version publiée à envoyer sur preview, sans « v » (ex. 1.2.2)"
         required: true
         type: string
+      # Décochée par défaut : une promotion ne coûte rien, trois builds entament le quota EAS du plan
+      # gratuit (30 par mois, dont 15 iOS). C'est au développeur de juger si la version les justifie.
+      builds:
+        description: "Lancer aussi les builds mobiles (dev Android, preview Android, TestFlight iOS)"
+        required: false
+        type: boolean
+        default: false
 
 # Une promotion à la fois : deux retags croisés laisseraient l'API d'une version et le web de l'autre.
 concurrency:
@@ -159,6 +168,18 @@ jobs:
             exit 1
           fi
 
+      # Vérifié AVANT de promouvoir : sans jeton, la version partirait sur le NAS et les builds
+      # échoueraient vingt minutes plus tard, une fois la promotion faite.
+      - name: Vérifier EXPO_TOKEN
+        if: inputs.builds
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Secret EXPO_TOKEN vide — les builds mobiles ne peuvent pas partir. Promouvoir sans la case, ou poser le secret."
+            exit 1
+          fi
+
   publish:
     name: Publier sur preview
     needs: verify
@@ -267,3 +288,75 @@ jobs:
           done
           echo "::error::Le NAS n'a pas redémarré sur v${VERSION} en 20 minutes. À regarder sur le NAS : la tâche planifiée, pull-preview/pull-preview.log (jeton GHCR, .env, migration), puis « Re-run failed jobs »."
           exit 1
+
+  # Les binaires partent APRÈS `confirm` : ils parlent à l'API du NAS, qui tourne alors la même
+  # version — le « même tag » de #186, appliqué au mobile comme l'update OTA de #287.
+  #
+  # EAS construit sur ses propres machines, macOS compris : ce job ne fait que LANCER le build, sur
+  # un runner Linux. `--no-wait` : la file du plan gratuit est moins prioritaire, et attendre ici
+  # garderait le verrou `promote-preview`, bloquant la promotion suivante. L'issue d'un build se lit
+  # sur expo.dev, par le lien du résumé ; un build qui n'a pas pu PARTIR fait échouer son job, que
+  # « Re-run failed jobs » relance seul.
+  builds:
+    name: Build ${{ matrix.name }}
+    needs: [verify, confirm]
+    if: inputs.builds
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      # Trois builds indépendants : l'échec de l'un n'a aucune raison d'annuler les autres.
+      fail-fast: false
+      matrix:
+        include:
+          - name: dev Android
+            profile: development
+            platform: android
+            submit: false
+          - name: preview Android
+            profile: preview
+            platform: android
+            submit: false
+          # `--auto-submit` et pas un `eas submit` séparé : lancé seul, il viserait l'app `.dev`
+          # (encadré « Découvert en #134 »). Sans interaction, il exige l'`ascAppId` du profil
+          # d'envoi et une clé API App Store Connect déposée chez Expo.
+          - name: TestFlight iOS
+            profile: testflight
+            platform: ios
+            submit: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+          persist-credentials: false
+
+      # `eas build` évalue `app.config.ts`, qui importe `expo/config` : il lui faut les dépendances.
+      - name: Setup
+        uses: $/.github/actions/setup
+
+      # `eas-cli` est épinglé ici et non déclaré par `@cmv/mobile` : en dépendance, il ajoutait
+      # 3 000 lignes au lockfile et six alertes `pnpm audit`, pour un outil que seul ce job lance.
+      # Revers consigné en IOS-7 : ses dépendances échappent au lockfile. `--silent` : stdout ne
+      # porte que le JSON d'`eas`, que lit `jq`.
+      # Les variables du build (URL d'API, `APP_VARIANT`, jeton Sentry) viennent de l'environnement
+      # EAS que nomme le profil (#287), pas de GitHub.
+      - name: Lancer le build
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          NAME: ${{ matrix.name }}
+          PROFILE: ${{ matrix.profile }}
+          PLATFORM: ${{ matrix.platform }}
+          SUBMIT: ${{ matrix.submit }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          args=(build --profile "$PROFILE" --platform "$PLATFORM" --non-interactive --no-wait --json)
+          if [ "$SUBMIT" = "true" ]; then
+            args+=(--auto-submit)
+          fi
+          started="$(pnpm --silent dlx eas-cli@27.7.2 "${args[@]}")"
+          url="$(jq -r '.[0] | "https://expo.dev/accounts/\(.app.ownerAccount.name)/projects/\(.app.slug)/builds/\(.id)"' <<<"$started")"
+          echo "::notice::${NAME} de v${VERSION} lancé : ${url}"
+          echo "- **${NAME}** (v${VERSION}) : ${url}" >> "$GITHUB_STEP_SUMMARY"

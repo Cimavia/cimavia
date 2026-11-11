@@ -369,6 +369,7 @@ docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurit
 - `SONAR_TOKEN` — SonarCloud. Posé **aussi** en secret Dependabot (Settings → Secrets and variables → *Dependabot*) : une PR ouverte par Dependabot ne lit que ceux-là, et sans lui le job Sonar de chaque PR Dependabot échoue.
 - `REMINDER_TICK_SECRET` — authentifie le tick des rappels auprès de l'API (`reminder-tick.yml`).
 - `RELEASE_APP_CLIENT_ID` / `RELEASE_APP_PRIVATE_KEY` — l'App GitHub qui ouvre la PR de release (#185), et qui avance la branche `preview` à chaque promotion (#266) : elle est la seule exception au ruleset « Production ». Une App et non le `GITHUB_TOKEN` par défaut, dont les PR **ne déclenchent pas** les workflows : les checks requis ne seraient jamais rapportés. Le Client ID, pas l'App ID numérique — `app-id` est déprécié dans l'action.
+- `EXPO_TOKEN` — jeton d'un **robot** Expo (expo.dev → Account settings → Robot users, rôle *Developer*), lu par le job `builds` de la promotion quand sa case est cochée. Un robot plutôt que ton jeton personnel : il ne lance que des builds, et se révoque sans toucher à ta session. La promotion le vérifie avant de publier quoi que ce soit.
 - `SENTRY_AUTH_TOKEN` — téléversement des sourcemaps web (#181), au build web du **commit de bump** seulement (`web-image.yml`, #417). C'est un jeton d'**organisation** : un seul suffit pour les trois projets Sentry, et c'est le **même** qui sert au mobile, posé là-bas en variable d'environnement EAS. Le seul secret Sentry du dépôt — il n'est jamais embarqué dans un artefact.
 
 **Variables** (onglet *Variables*), pas des secrets — elles sont publiques ou ne sont que des noms, les protéger donnerait l'illusion d'une protection qui n'existe pas :
@@ -377,12 +378,14 @@ docker run --rm ghcr.io/sigstore/cosign/cosign:v3.0.2 verify ghcr.io/aquasecurit
 - `SENTRY_ORG` — le slug de l'organisation Sentry.
 - `SENTRY_PROJECT_WEB` — `cimavia-web`.
 
-**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` — ni, depuis #417, la config du web (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`), qu'il lit au démarrage. Ce sont des variables d'**exécution** de l'API et du web, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), les builds EAS partant du poste de développement et non d'un workflow.
+**Ce qui n'est PAS ici**, contrairement à ce que cette section a longtemps affirmé : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` — ni, depuis #417, la config du web (`PUBLIC_API_URL`, `APP_ENV`, `SENTRY_DSN_WEB`), qu'il lit au démarrage. Ce sont des variables d'**exécution** de l'API et du web, interpolées par `deploy/preview/docker-compose.yml` depuis le `.env` qui vit sur le NAS — GitHub Actions ne les voit jamais. Le jeton GHCR du NAS non plus : il vit dans la configuration Docker du NAS (`deploy/preview/README.md`). Le DSN du mobile non plus : il vit dans les environnements EAS (#287), que lit le build sur les machines d'Expo — y compris quand c'est la promotion qui le lance.
 
 ## Identifiants de build mobile
 
-**Aucun ne passe par GitHub Actions** : les builds EAS partent du poste de développement, pas d'un
-workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fichier est versionné.
+**Aucun ne passe par GitHub Actions** : un build EAS se construit chez Expo, qu'il parte du poste
+ou de la promotion (case « Lancer aussi les builds mobiles »), et la CI ne tient que `EXPO_TOKEN`
+pour le lancer. Les identifiants vivent donc chez Apple, chez Google ou chez Expo — et un seul
+fichier est versionné.
 
 | Identifiant | Où il vit | Qui le crée |
 |---|---|---|
@@ -394,6 +397,7 @@ workflow. Ils vivent donc chez Apple, chez Google ou chez Expo — et un seul fi
 | Certificat de distribution et profils de provisionnement | portail Apple, copie chez Expo | `eas build` |
 | Clé APNs (`.p8`) | portail Apple, déposée chez Expo | `eas build` |
 | Fiche App Store Connect de `fr.cimavia.app.preview` | App Store Connect | le premier `pnpm build:testflight:ios` |
+| Clé API App Store Connect (`.p8`, rôle *App Manager*) | App Store Connect → Utilisateurs et accès → Intégrations, déposée chez Expo | toi, puis `eas credentials -p ios` — sans elle, l'envoi TestFlight de la promotion échoue |
 | Testeurs TestFlight internes | App Store Connect → Utilisateurs et accès | toi, à la main |
 | UDID des iPhones du dev client | expo.dev → Credentials → iOS | `eas device:create` |
 

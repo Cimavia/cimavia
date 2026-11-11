@@ -222,6 +222,14 @@ l'identifiant iOS dans `app.config.ts` sans `APP_VARIANT`, retombe sur la varian
 vise `fr.cimavia.app.dev`. `--auto-submit` reprend celui du build qui vient de sortir. Le premier
 envoi crée la fiche App Store Connect de `.preview`, distincte de la future app de production.
 
+**Depuis la promotion** — la case « Lancer aussi les builds mobiles » du workflow *Promotion —
+preview* lance, une fois le NAS confirmé, trois builds depuis le commit promu : `development` et
+`preview` Android, `testflight` iOS avec `--auto-submit`. Le run ne les attend pas : les liens
+expo.dev sont dans son résumé. Décochée par défaut, le plan EAS gratuit ne permettant que 30 builds
+par mois, dont 15 sur iOS. L'envoi TestFlight y est non interactif : il lui faut l'`ascAppId` de
+`eas.json` et une clé API App Store Connect déposée chez Expo (`CONTRIBUTING.md`, *Identifiants de
+build mobile*), là où le poste demande les identifiants Apple.
+
 **Ajouter un testeur** — interne uniquement, dans App Store Connect :
 
 1. *Utilisateurs et accès* → inviter son adresse Apple ;
