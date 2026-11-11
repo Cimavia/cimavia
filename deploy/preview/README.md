@@ -513,6 +513,10 @@ cd apps/mobile
 eas build --profile preview --platform android   # APK standalone (distribution interne)
 ```
 
+Ou, sans rien lancer au poste, cocher « Lancer aussi les builds mobiles » en promouvant : l'APK
+preview part du commit promu, avec les builds dev Android et TestFlight iOS (README racine, *Builds
+iOS*).
+
 EAS renvoie un lien de téléchargement de l'APK à installer sur le téléphone. Comme l'API passe par
 le tunnel Cloudflare, l'app fonctionne **hors du réseau maison** — plus besoin d'IP LAN ni de
 port-proxy WSL2 (cf. README racine §WSL2, qui ne concerne plus que le dev local avec Metro).

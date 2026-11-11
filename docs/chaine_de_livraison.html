@@ -331,7 +331,7 @@
     ["local", 1, 20, "Commit", "Husky : biome · commitlint"],
     ["local", 2, 20, "Porte qualité locale", "biome ci · turbo · i18n"],
     ["local", 3, 20, "Compose local", "PG · SILO · Mailpit"],
-    ["local", 6, 20, "EAS Build · Update", "manuel · ota:preview au tag"],
+    ["local", 6, 20, "EAS Build · Update", "poste ou promotion · ota au tag"],
     ["gh", 1, 110, "PR → main", "branche de travail"],
     ["gh", 1, 170, "Dependabot", "4 écosystèmes · hebdo"],
     ["gh", 1, 230, "zizmor · CodeQL", "alertes · non requis"],
@@ -601,8 +601,8 @@
       <details class="wf">
         <summary>
           <span class="name">promote-preview.yml · Promotion — preview</span><span class="chev">›</span>
-          <span class="role">Le seul chemin vers le Coach bêta : vérifie la version, retague les deux images sans rien construire et attend que le NAS redémarre.</span>
-          <span class="triggers"><span class="chip manual">workflow_dispatch · version X.Y.Z</span><span class="chip">une promotion à la fois</span><span class="chip out">→ :preview · branche preview</span></span>
+          <span class="role">Le seul chemin vers le Coach bêta : vérifie la version, retague les deux images sans rien construire et attend que le NAS redémarre. Sur demande, lance ensuite les builds mobiles chez EAS.</span>
+          <span class="triggers"><span class="chip manual">workflow_dispatch · version X.Y.Z · case builds</span><span class="chip">une promotion à la fois</span><span class="chip out">→ :preview · branche preview</span></span>
         </summary>
         <div class="wf-body">
           <div class="jobs">
@@ -615,6 +615,7 @@
                 <li>3 checks <code>success</code> sur ce SHA : Lint + Typecheck + Test, E2E, SonarCloud ; Builds de production ne tourne que sur PR</li>
                 <li><code>cimavia-api:X.Y.Z</code> et <code>cimavia-web:X.Y.Z</code> présentes sur GHCR</li>
                 <li><code>PREVIEW_PUBLIC_API_URL</code> renseignée, pour la sonde de <code>confirm</code></li>
+                <li>case cochée : <code>EXPO_TOKEN</code> renseigné, avant de promouvoir quoi que ce soit</li>
               </ul>
             </div>
             <div class="job">
@@ -632,6 +633,15 @@
                 <li>interroge <code>/health</code> toutes les 20 s</li>
                 <li>succès si <code>uptime</code> est inférieur au temps écoulé depuis la promotion (l'API a redémarré) et si <code>/health/ready</code> répond</li>
                 <li>rouge après 20 min, avec les endroits à regarder sur le NAS</li>
+              </ul>
+            </div>
+            <div class="job">
+              <h4>Build dev Android · preview Android · TestFlight iOS</h4>
+              <span class="needs">needs: verify, confirm · si la case est cochée</span>
+              <ul>
+                <li>trois jobs indépendants, depuis le SHA promu : <code>eas build --non-interactive --no-wait</code>, <code>eas-cli</code> épinglé</li>
+                <li>TestFlight avec <code>--auto-submit</code> : <code>ascAppId</code> d'<code>eas.json</code> et clé API App Store Connect chez Expo</li>
+                <li>ne les attend pas : un lien expo.dev par build dans le résumé du run</li>
               </ul>
             </div>
           </div>
@@ -915,6 +925,7 @@
           <tr><td>SONAR_TOKEN</td><td><span class="kind s">secret</span></td><td>ci.yml</td><td>Scan SonarCloud et attente du quality gate</td></tr>
           <tr><td>RELEASE_APP_CLIENT_ID · _PRIVATE_KEY</td><td><span class="kind s">secret</span></td><td>release.yml, promote-preview.yml</td><td>Jeton de GitHub App : PR de release, push de la branche <code>preview</code></td></tr>
           <tr><td>SENTRY_AUTH_TOKEN</td><td><span class="kind s">secret</span></td><td>web-image.yml</td><td>Upload des sourcemaps web, au bump seulement ; facultatif</td></tr>
+          <tr><td>EXPO_TOKEN</td><td><span class="kind s">secret</span></td><td>promote-preview.yml</td><td>Robot Expo qui lance les builds mobiles, case cochée seulement</td></tr>
           <tr><td>REMINDER_TICK_SECRET</td><td><span class="kind s">secret</span></td><td>reminder-tick.yml</td><td>En-tête partagé avec l'API du NAS</td></tr>
           <tr><td>GITHUB_TOKEN</td><td><span class="kind s">auto</span></td><td>tous</td><td>GHCR (lecture/écriture), check-runs, issues, Code scanning</td></tr>
           <tr><td>PREVIEW_PUBLIC_API_URL</td><td><span class="kind v">var</span></td><td>promote-preview.yml, reminder-tick.yml</td><td>Sondée par <code>confirm</code>, cible du tick. Le web ne la lit plus : son URL d'API vient du <code>.env</code> du NAS (#417)</td></tr>

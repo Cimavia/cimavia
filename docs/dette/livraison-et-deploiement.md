@@ -668,11 +668,11 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| IOS-2 | **Pas de build iOS en CI**, comme pour Android : les builds partent du poste de développement. | 🟢 | — *(déclencheur : un rythme de livraison qui justifierait un runner macOS payant)* |
 | IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
 | IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos`, `playsInSilentMode`, l'enregistrement écran verrouillé (#619), HEIC → JPEG, `video/quicktime`, le plafond des 64 notifications programmées. Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. | 🟡 | [#134](https://github.com/Cimavia/cimavia/issues/134) |
+| IOS-7 | **`eas-cli` est épinglé à la main dans `promote-preview.yml`** (`pnpm dlx eas-cli@X.Y.Z`), hors lockfile : Dependabot ne le monte pas, et ses dépendances transitives se résolvent au lancement, dans un job qui tient `EXPO_TOKEN`. Le déclarer par `@cmv/mobile` coûtait 3 000 lignes de lockfile et six alertes `pnpm audit` (encadré « Tranché le 2026-11-11 »). Le jeton est celui d'un robot qui ne fait que lancer des builds. | 🟢 | — *(déclencheur : une alerte de sécurité sur `eas-cli`, un build qui casse sur une version trop ancienne, ou un `eas-cli` dont l'arbre ne rouvre aucune alerte)* |
 
-*Résolues, à l'[archive](archive.md) : IOS-1, IOS-3, IOS-6.*
+*Résolues, à l'[archive](archive.md) : IOS-1, IOS-2, IOS-3, IOS-6.*
 
 > **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
 > la bêta passait d'abord par la distribution `internal`, qui signe le binaire pour une liste
@@ -691,6 +691,31 @@ liste des domaines vivent dans l'index.
 > ayant besoin pour se brancher sur Metro. `submit.production` reste sans identifiants tant que
 > rien ne part vers l'App Store ; les deux profils d'envoi fixent seulement la langue de la fiche
 > à `fr-FR`, qu'`eas-cli` mettrait sinon à `en-US`.
+
+> **Tranché le 2026-11-11** (les builds mobiles partent de la promotion, sur demande) : IOS-2
+> attendait « un runner macOS payant ». La prémisse était fausse : `eas build` construit sur les
+> machines d'Expo, macOS compris, et la CI ne fait que le LANCER, depuis un runner Linux.
+> `promote-preview.yml` porte donc une case « Lancer aussi les builds mobiles » : cochée, un job
+> `builds` lance dev Android, preview Android et TestFlight iOS depuis le commit promu.
+>
+> - **Une case, décochée par défaut.** Le plan EAS gratuit plafonne à 30 builds par mois, dont 15
+>   iOS, et la promotion tourne plusieurs fois par semaine : c'est au développeur de juger si une
+>   version mérite ses binaires. Une case plutôt qu'un second workflow qui appellerait la promotion :
+>   les deux porteraient le même groupe de `concurrency`, et un appelé qui attend son appelant ne
+>   démarre jamais.
+> - **Après `confirm`.** Le binaire parle à l'API du NAS : il ne part que quand elle tourne la même
+>   version — le « même tag » de #186, qu'applique déjà l'update OTA de #287.
+> - **`--no-wait`.** Attendre la fin d'un build garderait le verrou de la promotion pendant la file
+>   du plan gratuit, et bloquerait la suivante. Un build qui n'a pas pu partir fait échouer son
+>   job ; un build parti puis raté se lit sur expo.dev, par le lien du résumé du run.
+> - **`eas-cli` épinglé dans le workflow** (`pnpm dlx eas-cli@X.Y.Z`), pas en devDependency de
+>   `@cmv/mobile` : déclaré, il ajoutait 3 000 lignes au lockfile et six alertes `pnpm audit` pour
+>   un outil que seul ce job lance. Revers consigné en **IOS-7** : hors lockfile, hors Dependabot.
+> - **TestFlight sans saisie** exige deux choses que le poste n'exigeait pas : l'`ascAppId` dans
+>   `submit.testflight.ios` d'`eas.json` — non interactif, `eas submit` refuse de le chercher — et
+>   une clé API App Store Connect déposée chez Expo, qui remplace les identifiants Apple tapés au
+>   poste. Ajouter l'`ascAppId` change l'empreinte native (#287) : les binaires installés ne
+>   reçoivent plus d'update OTA jusqu'au premier build qui suit.
 
 > **Découvert en #134** (`eas submit` lancé seul vise la mauvaise app) : pour trouver l'identifiant
 > iOS, `eas submit` prend dans l'ordre une surcharge, le `bundleIdentifier` du profil d'envoi, puis
