@@ -24,6 +24,7 @@ import {
 } from "./planned-dosage.util";
 import { sameJson } from "./same-json.util";
 import { SettingValue } from "./structure-settings.util";
+import { TRAINING_DURATION_MAX_SECONDS } from "./training-duration.util";
 
 // « Progression… » dans Dosage (#724, maquette `coach_planification_blocs` frame 3 bis) : un pas
 // appliqué d'une semaine d'entraînement à la suivante, sur une ligne. Le pas n'est pas enregistré :
@@ -49,7 +50,7 @@ export type ProgressionMeasure =
       min: number | null;
       max: number | null;
     }
-  | { kind: typeof ProgressionMeasureKind.DURATION; min: number; max: number | null }
+  | { kind: typeof ProgressionMeasureKind.DURATION; min: number; max: number }
   | { kind: typeof ProgressionMeasureKind.SCALE; scale: OrderedScale };
 
 /** Une valeur du bloc : des tours se comptent, tout le reste est une durée de réglage. */
@@ -82,7 +83,7 @@ export function metricProgressionMeasure(
     return { kind: ProgressionMeasureKind.NUMBER, integer: false, min: null, max: null };
   }
   if (valueType === MetricValueType.DURATION) {
-    return { kind: ProgressionMeasureKind.DURATION, min: 0, max: null };
+    return { kind: ProgressionMeasureKind.DURATION, min: 0, max: TRAINING_DURATION_MAX_SECONDS };
   }
   const scale = valueType === MetricValueType.SCALE ? scaleFor(metric, customMetrics) : null;
   return scale === null ? null : { kind: ProgressionMeasureKind.SCALE, scale };
