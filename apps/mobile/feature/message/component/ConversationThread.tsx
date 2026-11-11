@@ -26,6 +26,7 @@ import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
 import { mediaErrorMessage } from "@/shared/util/media.util";
 
@@ -177,7 +178,9 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
         )}
 
         {send.isError ? (
-          <CmvText className="px-4 pb-1 text-cmv-error text-sm">{t("messages.sendError")}</CmvText>
+          <CmvText className="px-4 pb-1 text-cmv-error text-sm">
+            {apiErrorMessage(send.error) ?? t("messages.sendError")}
+          </CmvText>
         ) : null}
 
         {mediaError != null ? (

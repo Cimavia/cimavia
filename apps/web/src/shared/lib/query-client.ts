@@ -1,10 +1,7 @@
-import { shouldReportQueryError } from "@cmv/shared";
+import { shouldReportQueryError, shouldRetryQuery } from "@cmv/shared";
 import * as Sentry from "@sentry/react";
 import { MutationCache, onlineManager, QueryCache, QueryClient } from "@tanstack/react-query";
 import { isUnauthorizedError } from "@/shared/lib/api";
-
-/** Un seul nouvel essai sur une lecture qui échoue — une coupure brève n'affiche pas d'erreur. */
-const QUERY_RETRY_COUNT = 1;
 
 /**
  * Le client de requêtes du web, avec son écoute GLOBALE des sessions perdues (#336).
@@ -39,10 +36,9 @@ export function createQueryClient(onUnauthorized: () => void): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 60_000,
-        // Pas de nouvel essai sur un 401 : la même session sera refusée de la même façon, et
-        // l'essai ne ferait que retarder la fenêtre de reconnexion.
-        retry: (failureCount, error) =>
-          !isUnauthorizedError(error) && failureCount < QUERY_RETRY_COUNT,
+        // Un seul nouvel essai — une coupure brève n'affiche pas d'erreur —, sauf sur un 401 ou
+        // un 429, que l'essai ne ferait que répéter.
+        retry: shouldRetryQuery,
       },
     },
   });

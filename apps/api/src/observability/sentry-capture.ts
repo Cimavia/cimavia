@@ -1,4 +1,5 @@
 import { HttpStatus } from "@nestjs/common";
+import { ThrottlerException } from "@nestjs/throttler";
 import * as Sentry from "@sentry/nestjs";
 
 /** Ce que la capture lit de la requête Fastify, sans dépendre de `fastify`. */
@@ -16,13 +17,18 @@ const HEALTH_ROUTE = /^\/health(?:\/|$)/;
  * `null` pour ce qui ne dit rien du code :
  * - le 401 : sur les routes des apps il veut dire « session perdue », l'état normal au bout de sept
  *   jours (`isUnauthorizedError`) ;
- * - le 503 de la sonde de santé, qu'elle répète en boucle : la panne se lit par elle.
+ * - le 503 de la sonde de santé, qu'elle répète en boucle : la panne se lit par elle ;
+ * - le 429 de la limite de débit (#782) : un script qui insiste en produirait autant que de
+ *   requêtes, et viderait le quota. Il reste dans la ligne de journal de la requête. Les autres 429
+ *   — un mot de passe faux de trop sur la suppression du compte — disent une tentative, et partent.
  */
 export function sentryLevelOf(
   status: number,
   route: string | undefined,
+  exception?: unknown,
 ): "error" | "warning" | null {
   if (status === HttpStatus.UNAUTHORIZED) return null;
+  if (exception instanceof ThrottlerException) return null;
   if (status === HttpStatus.SERVICE_UNAVAILABLE && route && HEALTH_ROUTE.test(route)) return null;
   return status >= HttpStatus.INTERNAL_SERVER_ERROR ? "error" : "warning";
 }
@@ -42,7 +48,7 @@ export function captureHttpException(
   // Le motif déclaré (`/sessions/:id`), pas l'URL : elle porte des identifiants et, sur la
   // révocation d'un appareil, un jeton. Absent pour une route inconnue (404).
   const route = request?.routeOptions?.url;
-  const level = sentryLevelOf(status, route);
+  const level = sentryLevelOf(status, route, exception);
   if (!level) return;
 
   Sentry.withScope((scope) => {

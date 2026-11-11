@@ -735,6 +735,8 @@ liste des domaines vivent dans l'index.
 | GF-1 | **Un `findUnique` regroupé pourrait rendre la ligne d'un tenant à l'autre, dans un cas que rien n'atteint** (#626). Prisma rattache chaque ligne d'un lot à sa requête par les champs du `where`, dans leur ordre. Un appelant du client tenant qui écrirait lui-même la colonne tenant AVANT une clé composée qui la contient (`coachId_athleteId` de `CoachAthlete`, `AthleteSheet`) ferait comparer la valeur de la clé composée, pas celle du filtre : lu dans le même tick que la lecture légitime de l'autre coach, il recevrait sa ligne. Constaté sur le plan compilé, jamais en vrai : aucun `findUnique` ne passe aujourd'hui par le client tenant. La parade est dans `scopeWhere` — retirer du `where` les clés du filtre avant de les reposer en dernier —, avec un e2e concurrent sur clé composée pour la tenir. | 🟢 | — *(déclencheur : le premier `findUnique` sur le client tenant d'un modèle à clé composée tenant)* |
 | GF-2 | **Les règles de verrou de squawk sont exclues** (#628) : `lock_timeout`, `statement_timeout`, index non `CONCURRENTLY`, contrainte ou clé étrangère validée d'emblée. Une migration peut donc bloquer une table le temps qu'elle dure, sans signal. Sur les volumes du Coach bêta (des milliers de lignes), ce temps se compte en millisecondes, et l'API est arrêtée pendant qu'elle migre. | 🟢 | — *(déclencheur : une table qui dépasse le million de lignes, ou une prod où l'API sert pendant la migration — #84 ; retirer alors ces règles de `excluded_rules`)* |
 | GF-3 | **Des mutants survivent encore dans `@cmv/shared`** (#635) : le cliquet est à 92, pas à 100. Le lot `util/` et motifs est livré ; restent les schémas de réponse qu'aucun test de shared ne parse, les bornes `.min`/`.max` jamais testées à leur valeur exacte, la lecture d'horloge de `date.util` et les documents riches. Chaque lot remonte le cliquet du score qu'il gagne. | 🟢 | [#635](https://github.com/Cimavia/cimavia/issues/635) |
+| GF-4 | **La tenancy n'est plus à 100 % de mutants tués** (#677) : 96,81 % au premier job qui a fini depuis le passage à trois workers, et donc rouge chaque lundi. Onze survivants sont des filtres ou des contrôles de l'extension que rien ne tient (composition `scopeWhere`, `membershipFrozenOrThrow`, refus d'un parent introuvable), les autres sont des équivalents probables à déclarer à leur ligne. La liste varie d'une passe à l'autre : 17 en CI, 14 en local, quatre mutants de `tenant-scope.ts` survivant d'un côté et sortant en erreur de l'autre. | 🟡 | [#814](https://github.com/Cimavia/cimavia/issues/814) |
+| GF-5 | **91 % des mutants de la tenancy rejouent toute la suite** (#677) : leurs fixtures vivent dans des `beforeAll`, dont Stryker ne rattache la couverture à aucun test. Chacun coûte les 1 113 tests, d'où 2 h 49 en CI à trois workers. | 🟢 | [#815](https://github.com/Cimavia/cimavia/issues/815) *(déclencheur : le job tenancy dépasse à nouveau ses 300 min)* |
 
 > **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
 > vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
@@ -948,10 +950,11 @@ liste des domaines vivent dans l'index.
 > Le bucket SILO reste commun, ses clés étant uniques. Le job tourne sur une PR qui touche ce
 > harnais (`vitest.config.e2e.ts`, `@cmv/e2e`) : cassé, il fausserait le score sans rien dire.
 >
-> **Le gain est ×1,9, pas ×3** : ~19 s par mutant à trois workers contre ~35 s en série, en local.
-> La passe prend ~2 h 30 en local ; son délai est porté à **300 min**, sous le plafond de 360 d'un
-> runner hébergé. Un job hebdomadaire, non requis, sur les minutes gratuites d'un dépôt public :
-> sa durée compte moins que le fait qu'il finisse. Turbo l'écrit en `--log-order=stream`, qui
+> La passe prend **1 h 24 en local, 2 h 49 sur un runner hébergé** (job de la PR, 2026-11-11). Son
+> délai est porté à **300 min** : ~1,8× la mesure, et non ~3× comme le veut la règle de #413 — ce
+> serait au-delà du plafond de 360 d'un runner hébergé. Un job hebdomadaire, non requis, sur les
+> minutes gratuites d'un dépôt public : sa durée compte moins que le fait qu'il finisse. Le
+> dépasser à nouveau déclenche GF-5. Turbo l'écrit en `--log-order=stream`, qui
 > regroupait sinon sa sortie jusqu'à la fin : un job tué au timeout perdait toute sa progression.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach

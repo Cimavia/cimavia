@@ -5,6 +5,7 @@
     "password": "Mot de passe",
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessaie.",
+    "rateLimited": "Trop de demandes d'affilée. Patiente un instant, puis réessaie.",
     "cancel": "Annuler",
     "and": "et",
     "requiredLegend": "* champs obligatoires",

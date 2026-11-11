@@ -375,6 +375,19 @@ describe("ConversationThread — autour du fil", () => {
 
     expect(queryByText("messages.sendError")).not.toBeNull();
   });
+
+  it("dit le refus de l'API plutôt que l'échec générique", () => {
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new ApiError(409, "Conversation fermée", null),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const { queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByText("Conversation fermée")).not.toBeNull();
+    expect(queryByText("messages.sendError")).toBeNull();
+  });
 });
 
 describe("ConversationThread — en-tête (#612)", () => {

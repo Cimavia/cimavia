@@ -3,6 +3,7 @@ import { Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/commo
 import { ApiTags } from "@nestjs/swagger";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
+import { NoRateLimit } from "../../rate-limit/rate-limit.policy";
 import { ReminderTickGuard } from "../guard/reminder-tick.guard";
 import { ReminderTickService } from "../service/reminder-tick.service";
 
@@ -26,6 +27,9 @@ import { ReminderTickService } from "../service/reminder-tick.service";
 @ApiTags("reminders")
 @Controller("internal/reminders")
 @AllowAnonymous()
+// Sans acteur, il serait compté sur l'IP, que le cron partage avec tout le monde derrière Cloudflare
+// (#781) ; le secret de la garde suffit à le fermer (#782).
+@NoRateLimit()
 @UseGuards(ReminderTickGuard)
 export class ReminderTickController {
   constructor(

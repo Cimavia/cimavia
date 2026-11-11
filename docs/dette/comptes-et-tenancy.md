@@ -1489,3 +1489,50 @@ liste des domaines vivent dans l'index.
 >   une connexion déjà ouverte, la requête n'échoue pas, elle attend, et le compte part au retour du
 >   réseau. Une sonde qui se trompe (VPN, portail) prive du geste dans l'app, pas du geste : la page
 >   web et l'e-mail restent ouverts. Le délai passé, c'est une issue inconnue ordinaire.
+
+## Limite de débit des routes métier ([#782](https://github.com/Cimavia/cimavia/issues/782))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| RL-1 | **Les compteurs de débit vivent en mémoire** (`ThrottlerStorageService` de `@nestjs/throttler`) : une instance, une table, comme AV-3 et SC-2. Plusieurs instances d'API multiplient chaque borne, un redémarrage les remet à zéro. | 🟢 | — *(déclencheur : plus d'une instance d'API ; un stockage partagé alors, Redis ou Postgres)* |
+| RL-2 | **Les bornes ne sont pas mesurées** : Axiom n'a jamais reçu de journaux, et la ligne de journal d'une requête ne porte pas l'id de l'utilisateur. Elles sont déduites du code (`RATE_LIMITS`). | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé, et l'id de l'acteur dans `requestLogProps` ; relire alors les 429 par route)* |
+| RL-3 | **Une lecture refusée par le plafond global dit « erreur de chargement »**, pas « attends » : les états d'erreur des écrans ne reçoivent pas l'erreur, seulement leur texte. Le plafond (300 / min) est taillé pour qu'un usage normal ne l'atteigne pas, et le blocage ne dure qu'une minute sans s'allonger aux essais. | 🟢 | — *(déclencheur : un 429 sur une lecture vu dans les journaux, une fois RL-2 levée)* |
+
+> **Tranché en [#782](https://github.com/Cimavia/cimavia/issues/782)** (2026-11-11 ; les bornes et
+> le sort des 429 chez Sentry sont des choix de Kylian) :
+>
+> - **La clé est l'acteur, pas l'IP.** La garde passe après l'AuthGuard de Better Auth et après
+>   `CapabilitiesGuard` (`RateLimitModule`, importé après `CapabilityModule`) : une requête sans
+>   session a déjà pris son 401, un 403 ne coûte rien. L'IP ne reste qu'en repli, pour une route
+>   publique future — et derrière Cloudflare elle ne vaut rien tant que #781 n'est pas fait.
+> - **`/health` et le tick des rappels ne sont pas comptés** (`NoRateLimit`, qui saute TOUS les
+>   compteurs, politique du contrôleur comprise) : un 429 ferait déclarer l'API morte par la sonde,
+>   et le tick est déjà fermé par son secret.
+> - **Chaque compteur est par acteur, toutes routes confondues** (`actorKey`) : la clé par défaut
+>   de la librairie inclut la route, ce qui aurait fait du plafond global 300 par route, et multiplié
+>   par quatre la borne d'upload — le coût de stockage qu'elle protège est celui de l'acteur, pas
+>   d'une route. Global 300 / min ; upload 40 / min et 200 / h pour les quatre URL ensemble ; envoi
+>   de message 30 / min ; les deux invitations (Coach et Entreprise) 30 / h. Les autres e-mails
+>   vont à des comptes déjà liés : le plafond global suffit.
+> - **Les valeurs sont déduites, pas mesurées** (RL-2) : ≈ 16 requêtes par minute et par onglet de
+>   polling ; un débrief part en un lot de 30 médias au plus (20 photos, 10 vidéos), une URL chacun,
+>   d'où 40 et non les 20 d'abord proposés, tirés du seul lot de messages (10).
+> - **Un refus compte** : la garde passe avant la validation, un corps invalide consomme la borne
+>   comme un succès. Sinon un script n'aurait qu'à envoyer n'importe quoi.
+> - **Le 429 du limiteur ne part pas chez Sentry** — un script qui insiste en viderait le quota. Il
+>   reste dans la ligne de journal. Le 429 du mot de passe faux sur la suppression du compte, lui,
+>   part : il dit une tentative.
+> - **Les clients traduisent le statut** (`common.rateLimited`), sans lire le corps, et ne relancent
+>   pas une lecture refusée (`shouldRetryQuery`) : l'essai consommerait la borne à vider. Seule
+>   `createApiErrorMessage` sort de `@cmv/shared` : la version brute tairait le 429. Les écritures
+>   le disent ; une LECTURE refusée garde l'erreur de chargement générique (RL-3).
+> - **Un 429 écrit par un proxy part chez Sentry**, comme toute réponse que l'API n'a pas écrite
+>   (#699) : aucun proxy n'en rend aujourd'hui, et le jour où une règle Cloudflare en produirait,
+>   les voir est le but.
+> - **Un seul en-tête, le `Retry-After` standard, sur le seul 429** (`RateLimitGuard`). Ceux de la
+>   librairie portent le nom du compteur (`Retry-After-upload-minute`, `X-RateLimit-*-global`),
+>   qu'aucun client ni proxy ne lit.
+> - **Les e2e remettent les compteurs à zéro avant et après chaque cas**
+>   (`ResettableThrottlerStorage`) : la suite d'isolation partage ses acteurs, et un athlète y
+>   demande bien plus de 40 URL d'upload par minute. Après aussi, parce que le `beforeAll` d'un
+>   domaine passe avant le premier `beforeEach`. Chaque cas garde les vraies bornes.

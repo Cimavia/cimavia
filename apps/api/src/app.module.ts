@@ -31,6 +31,7 @@ import { loggerOptions } from "./observability/logger.config";
 import { OrganizationModule } from "./organization/organization.module";
 import { PlanModule } from "./plan/plan.module";
 import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
+import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { StructureModule } from "./structure/structure.module";
@@ -79,6 +80,8 @@ import { VersionModule } from "./version/version.module";
     }),
     // APRÈS BetterAuthModule, et l'ordre compte : voir CapabilityModule.
     CapabilityModule,
+    // APRÈS CapabilityModule : la clé du compteur est l'acteur que l'AuthGuard pose (#782).
+    RateLimitModule,
     TenancyModule,
     NotificationModule,
     AccountModule,

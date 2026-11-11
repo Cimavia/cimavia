@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { AttachInvoiceDocumentDto } from "../dto/attach-invoice-document.dto";
 import { PlanBillingDto } from "../dto/plan-billing.dto";
 import { RequestInvoiceDocumentUploadUrlDto } from "../dto/request-invoice-document-upload-url.dto";
@@ -33,6 +34,7 @@ export class PlanBillingController {
 
   // Étape 1 : URL PUT signée (le PDF part directement vers le storage, jamais via l'API).
   @Post("document/upload-url")
+  @RateLimit(RateLimitPolicy.UPLOAD)
   requestDocumentUploadUrl(
     @Param("planId") planId: string,
     @Body() dto: RequestInvoiceDocumentUploadUrlDto,
