@@ -29,7 +29,8 @@
   "submit": {
     "testflight": {
       "ios": {
-        "language": "fr-FR"
+        "language": "fr-FR",
+        "ascAppId": "6811674289"
       }
     },
     "production": {
