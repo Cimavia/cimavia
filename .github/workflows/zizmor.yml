@@ -52,4 +52,4 @@ jobs:
       # Version de zizmor non épinglée (`latest`) : c'est précisément pour recevoir les nouveaux
       # audits que ce workflow tourne chaque lundi. L'action, elle, est épinglée par SHA.
       - name: Analyse
-        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
