@@ -12,8 +12,11 @@ name: Mutation testing (Stryker)
 #     `main` mesure à chaque merge qui touche shared, et pas seulement le lundi : c'est son cache
 #     que relit la PR suivante, et il doit être celui du `main` courant (#647) ;
 #   - la tenancy de l'API, chaque semaine et à la demande. Son juge est la suite e2e, sur une vraie
-#     base (« Tranché en #506 ») : ~30 min, un mutant à la fois. Son seuil est 100 % — un survivant
-#     y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
+#     base (« Tranché en #506 ») : trois workers, chacun sur sa base et ses ports (#677). Son seuil
+#     est 100 % — un survivant y est un filtre qu'on pourrait retirer sans qu'aucun test ne le voie.
+#
+# Turbo lance les deux en `--log-order=stream` : en CI, il regroupe sinon la sortie d'une tâche et
+# ne l'écrit qu'à la fin, et un job tué par son timeout perdait toute sa progression (#677).
 #
 # Une PR qui modifie ce workflow ou la configuration d'une cible la fait tourner aussi : c'est la
 # seule façon de voir un job tourner avant le merge, `workflow_dispatch` n'existant qu'une fois sur
@@ -28,6 +31,10 @@ on:
       - "packages/shared/**"
       - "apps/api/stryker.config.mjs"
       - "apps/api/vitest.config.mutation.ts"
+      # Ce qui donne à chaque worker sa base et ses ports (#677) : cassé, les workers partageraient
+      # une base, et chaque test cassé par un voisin compterait comme un mutant tué.
+      - "apps/api/vitest.config.e2e.ts"
+      - "packages/e2e/src/index.ts"
       - ".github/workflows/mutation.yml"
   # Le merge qui touche shared réécrit le cache que les PR relisent. Sans lui, une PR mesurait sur
   # le run du lundi précédent, en retard de plusieurs merges, voire sur rien : un cache inutilisé
@@ -119,9 +126,9 @@ jobs:
           FORCE: ${{ steps.changes.outputs.force }}
         run: |
           if [[ "$FORCE" == true ]]; then
-            pnpm turbo test:mutation --filter=@cmv/shared -- --force
+            pnpm turbo test:mutation --filter=@cmv/shared --log-order=stream -- --force
           else
-            pnpm turbo test:mutation --filter=@cmv/shared
+            pnpm turbo test:mutation --filter=@cmv/shared --log-order=stream
           fi
 
       # Seul `main` écrit, et même sous le cliquet : une mesure complète reste juste quand le score
@@ -147,7 +154,9 @@ jobs:
     # Pas à chaque merge dans shared, qui ne le touche pas : il garde son rythme du lundi (#647).
     if: github.event_name != 'push'
     runs-on: ubuntu-26.04
-    timeout-minutes: 90 # ~30 min en local
+    # ~2 h 30 en local à trois workers, 538 mutants (#677) ; un runner hébergé a moins de cœurs. Le
+    # plafond d'un runner hébergé est 360.
+    timeout-minutes: 300
     permissions:
       contents: read
     steps:
@@ -157,8 +166,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # Jamais pour une PR de code (« Tranché en #626 ») : 30 min par PR, pour un code qui bouge
-      # peu. Seulement quand sa propre configuration change.
+      # Jamais pour une PR de code (« Tranché en #626 ») : une passe par PR, pour un code qui bouge
+      # peu. Seulement quand sa propre configuration change, harnais des workers compris (#677).
       - name: Ce que la PR touche
         id: changes
         env:
@@ -169,7 +178,7 @@ jobs:
           if [[ "$EVENT" != pull_request ]]; then
             echo "run=true" | tee -a "$GITHUB_OUTPUT"
           elif git diff --name-only "${BASE_SHA}...${HEAD_SHA}" \
-            | grep -qE '^(apps/api/(stryker\.config\.mjs|vitest\.config\.mutation\.ts)|\.github/workflows/mutation\.yml)$'; then
+            | grep -qE '^(apps/api/(stryker\.config\.mjs|vitest\.config\.(mutation|e2e)\.ts)|packages/e2e/src/index\.ts|\.github/workflows/mutation\.yml)$'; then
             echo "run=true" | tee -a "$GITHUB_OUTPUT"
           else
             echo "run=false" | tee -a "$GITHUB_OUTPUT"
@@ -195,7 +204,7 @@ jobs:
 
       - name: Mutation testing
         if: steps.changes.outputs.run == 'true'
-        run: pnpm turbo test:mutation --filter=@cmv/api
+        run: pnpm turbo test:mutation --filter=@cmv/api --log-order=stream
 
       - name: Rapport
         if: steps.changes.outputs.run == 'true' && !cancelled()

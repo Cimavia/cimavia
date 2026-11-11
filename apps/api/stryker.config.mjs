@@ -7,10 +7,11 @@ import { fileURLToPath } from "node:url";
  * test ne le voie. La garde des capacités (`CapabilitiesGuard`) n'en est pas : elle répond 403, elle
  * ne scope rien.
  *
- * Le juge est la suite e2e (`vitest.config.mutation.ts`) : une base Postgres et un SILO réels, un
- * seul port. D'où `concurrency: 1`, et une durée (~30 min) qui la tient hors des PR. Elle tourne
- * dans le fuseau de la machine, comme le job `E2E` de la CI : le runner Vitest de Stryker impose
- * des threads, et un `TZ` posé ici changerait le fuseau de toute la suite, pas seulement le sien.
+ * Le juge est la suite e2e (`vitest.config.mutation.ts`) : une base Postgres et un SILO réels.
+ * Chaque worker a sa base et ses ports (`vitest.config.e2e.ts`, #677), et une passe dure encore
+ * assez pour rester hors des PR (« Tranché en #677 »). Elle tourne dans le fuseau de la machine,
+ * comme le job `E2E` de la CI : le runner Vitest de Stryker impose des threads, et un `TZ` posé ici
+ * changerait le fuseau de toute la suite, pas seulement le sien.
  */
 
 /** @type {import("@stryker-mutator/api/core").PartialStrykerOptions} */
@@ -27,8 +28,11 @@ export default {
     "src/auth/decorator/require-capability.decorator.ts",
   ],
   coverageAnalysis: "perTest",
-  // Une base, un SILO, un port 3001 : deux workers se marcheraient dessus.
-  concurrency: 1,
+  // Un runner hébergé a 4 vCPU : un pour Stryker, Postgres et SILO, trois pour les suites. Chaque
+  // worker a sa base et ses ports (#677) ; le bucket SILO reste commun, ses clés étant uniques.
+  // 91 % des mutants sont « statiques » — touchés par les fixtures d'un `beforeAll` — et rejouent
+  // toute la suite : sans parallélisme, la passe ne tenait plus dans son délai.
+  concurrency: 3,
   // Chaque passe reboote Nest et la connexion Prisma avant le premier test. Stryker compte un
   // Timeout comme un mutant TUÉ : avec la marge par défaut (5 s), une passe lente gonflerait le
   // score sans qu'aucune assertion n'ait rien vu.
