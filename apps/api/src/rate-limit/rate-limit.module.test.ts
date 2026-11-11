@@ -82,6 +82,12 @@ class ClassLevelController {
   invite() {
     return {};
   }
+
+  @Get("sonde")
+  @NoRateLimit()
+  sonde() {
+    return {};
+  }
 }
 
 let app: NestFastifyApplication;
@@ -126,11 +132,13 @@ describe("RateLimitModule — une borne par acteur, après l'authentification (#
     expect(await hit("POST", "/upload-url", "coach-b")).toEqual([201]);
   });
 
-  it("compte chaque route d'upload à part", async () => {
-    const { limit } = RATE_LIMITS.uploadPerMinute;
-    await hit("POST", "/upload-url", "coach-a", limit);
+  it("partage la borne d'upload entre toutes les routes d'upload d'un acteur", async () => {
+    const half = RATE_LIMITS.uploadPerMinute.limit / 2;
+    await hit("POST", "/upload-url", "coach-a", half);
+    await hit("POST", "/autre-upload-url", "coach-a", half);
 
-    expect(await hit("POST", "/autre-upload-url", "coach-a")).toEqual([201]);
+    expect(await hit("POST", "/autre-upload-url", "coach-a")).toEqual([429]);
+    expect(await hit("POST", "/upload-url", "coach-b")).toEqual([201]);
   });
 
   it("borne l'envoi de messages", async () => {
@@ -171,6 +179,12 @@ describe("RateLimitModule — une borne par acteur, après l'authentification (#
 
   it("ne compte jamais une route NoRateLimit", async () => {
     expect(ok(await hit("GET", "/sonde", "sonde", RATE_LIMITS.global.limit + 1))).toBe(true);
+  });
+
+  it("sort une route NoRateLimit de la politique posée sur son contrôleur", async () => {
+    const { limit } = RATE_LIMITS.invitation;
+
+    expect(ok(await hit("GET", "/organisation/sonde", "company", limit + 1))).toBe(true);
   });
 
   it("annonce quand réessayer", async () => {

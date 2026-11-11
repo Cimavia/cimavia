@@ -47,16 +47,31 @@ const RATE_LIMIT_POLICY_KEY = "cmv:rate-limit-policy";
 
 /**
  * Soumet la route — ou toutes celles d'un contrôleur — à une borne serrée, EN PLUS du plafond
- * global. La borne se compte par route : les quatre routes d'URL d'upload ont chacune la leur.
+ * global. La borne se compte par acteur, toutes routes de la politique confondues : les quatre URL
+ * d'upload partagent la leur, sans quoi le coût qu'elle protège serait multiplié par quatre.
  */
 export const RateLimit = (policy: RateLimitPolicy) => SetMetadata(RATE_LIMIT_POLICY_KEY, policy);
 
+/** Les compteurs des bornes serrées, dans l'ordre où la garde les passe. */
+const POLICY_THROTTLERS = {
+  uploadPerMinute: "upload-minute",
+  uploadPerHour: "upload-hour",
+  message: "message",
+  invitation: "invitation",
+} as const;
+
 /**
- * Sort la route de tout compteur. Réservé aux routes sans acteur qu'une machine appelle en boucle :
- * la sonde de santé, qu'un 429 ferait déclarer l'API morte, et le tick des rappels, gardé par son
- * propre secret.
+ * Sort la route de tout compteur — le global ET ceux des politiques, qu'un `RateLimit` posé sur
+ * son contrôleur lui appliquerait sinon. Réservé aux routes sans acteur qu'une machine appelle en
+ * boucle : la sonde de santé, qu'un 429 ferait déclarer l'API morte, et le tick des rappels, gardé
+ * par son propre secret.
  */
-export const NoRateLimit = () => SkipThrottle({ [GLOBAL_THROTTLER]: true });
+export const NoRateLimit = () =>
+  SkipThrottle(
+    Object.fromEntries(
+      [GLOBAL_THROTTLER, ...Object.values(POLICY_THROTTLERS)].map((name) => [name, true]),
+    ),
+  );
 
 /**
  * Qui l'on compte : l'acteur courant, posé par l'AuthGuard de Better Auth — la garde passe après
@@ -68,8 +83,11 @@ export function actorTracker(request: { user?: { id?: unknown } | null; ip?: str
   return typeof id === "string" ? `user:${id}` : `ip:${request.ip ?? "unknown"}`;
 }
 
-/** Un seul compteur par acteur pour toutes les routes — sans quoi « global » vaudrait par route. */
-export function globalKey(_context: ExecutionContext, tracker: string, name: string): string {
+/**
+ * Un compteur par acteur et par politique, quelle que soit la route — la clé par défaut de la
+ * librairie inclut la route, et « global » vaudrait alors 300 par route.
+ */
+export function actorKey(_context: ExecutionContext, tracker: string, name: string): string {
   return `${name}:${tracker}`;
 }
 
@@ -91,7 +109,7 @@ function policyThrottler(
   policy: RateLimitPolicy,
   limit: { ttl: number; limit: number },
 ): ThrottlerOptions {
-  return { name, ...limit, skipIf: outsidePolicy(policy) };
+  return { name, ...limit, generateKey: actorKey, skipIf: outsidePolicy(policy) };
 }
 
 export function rateLimitOptions(): ThrottlerModuleOptions {
@@ -103,11 +121,23 @@ export function rateLimitOptions(): ThrottlerModuleOptions {
     // Le corps du 429 n'est jamais montré : chaque client traduit le statut (#782).
     errorMessage: "Trop de requêtes : réessaie dans un instant",
     throttlers: [
-      { name: GLOBAL_THROTTLER, ...RATE_LIMITS.global, generateKey: globalKey },
-      policyThrottler("upload-minute", RateLimitPolicy.UPLOAD, RATE_LIMITS.uploadPerMinute),
-      policyThrottler("upload-hour", RateLimitPolicy.UPLOAD, RATE_LIMITS.uploadPerHour),
-      policyThrottler("message", RateLimitPolicy.MESSAGE, RATE_LIMITS.message),
-      policyThrottler("invitation", RateLimitPolicy.INVITATION, RATE_LIMITS.invitation),
+      { name: GLOBAL_THROTTLER, ...RATE_LIMITS.global, generateKey: actorKey },
+      policyThrottler(
+        POLICY_THROTTLERS.uploadPerMinute,
+        RateLimitPolicy.UPLOAD,
+        RATE_LIMITS.uploadPerMinute,
+      ),
+      policyThrottler(
+        POLICY_THROTTLERS.uploadPerHour,
+        RateLimitPolicy.UPLOAD,
+        RATE_LIMITS.uploadPerHour,
+      ),
+      policyThrottler(POLICY_THROTTLERS.message, RateLimitPolicy.MESSAGE, RATE_LIMITS.message),
+      policyThrottler(
+        POLICY_THROTTLERS.invitation,
+        RateLimitPolicy.INVITATION,
+        RATE_LIMITS.invitation,
+      ),
     ],
   };
 }

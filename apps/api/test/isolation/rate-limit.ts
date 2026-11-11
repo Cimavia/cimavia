@@ -40,7 +40,7 @@ describe("Limite de débit : au-delà de la borne 429, et un autre acteur n'est 
     expect((await other.post("/invitations").send({})).status).toBe(400);
   });
 
-  it("borne les URL d'upload signées, sans toucher une autre route d'upload", async () => {
+  it("borne les URL d'upload signées, toutes routes d'upload confondues", async () => {
     const { limit } = RATE_LIMITS.uploadPerMinute;
     const messageUpload = "/conversations/inconnue/messages/upload-url";
 
@@ -49,6 +49,8 @@ describe("Limite de débit : au-delà de la borne 429, et un autre acteur n'est 
     expect((await coach.post(messageUpload).send({})).status).toBe(429);
 
     expect((await other.post(messageUpload).send({})).status).not.toBe(429);
-    expect((await coach.post("/exercises/inconnu/documents/upload-url").send({})).status).toBe(400);
+    const exerciseUpload = "/exercises/inconnu/documents/upload-url";
+    expect((await coach.post(exerciseUpload).send({})).status).toBe(429);
+    expect((await other.post(exerciseUpload).send({})).status).toBe(400);
   });
 });
