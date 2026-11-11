@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
 import {
   createCustomMetricSchema,
   customMetricSchema,
@@ -141,6 +142,14 @@ describe("metricValueSchemaFor", () => {
     expect(schema.safeParse(150).success).toBe(true);
     expect(schema.safeParse(1.5).success).toBe(false);
     expect(schema.safeParse(-1).success).toBe(false);
+  });
+
+  it("plafonne une durée comme le formulaire de saisie", () => {
+    const schema = metricValueSchemaFor(MetricValueType.DURATION);
+    expect(schema.safeParse(TRAINING_DURATION_MAX_SECONDS).success).toBe(true);
+    expect(schema.safeParse(TRAINING_DURATION_MAX_SECONDS + 1).error?.issues[0]?.message).toBe(
+      "Une durée ne peut pas dépasser 24 h.",
+    );
   });
 
   it("n'accepte qu'un palier de l'échelle fournie", () => {

@@ -4,6 +4,7 @@ import { clientKeySchema } from "./client-key.schema";
 import {
   type CustomMetric,
   type MetricValue,
+  metricValueEntrySchema,
   metricValueSchema,
   metricValueSchemaFor,
 } from "./exercise-metric.schema";
@@ -50,8 +51,12 @@ const distinctRowIds: GridRefinement<{ rows: readonly { id: string }[] }> = [
  *
  * Toutes les valeurs sont facultatives : une cellule vide se lit « — », et la séance s'enregistre
  * quand même. Une grille sans colonne est permise — une routine de mobilité n'a rien à mesurer.
+ *
+ * La longueur d'un texte suit la même règle que les identifiants (#323). Le type d'une cellule se
+ * vérifie à part (`gridValueIssues`), mais pas celui d'une colonne maison orpheline (dette EX-2) :
+ * sa longueur n'est tenue qu'ici.
  */
-function gridSchemasOf(id: z.ZodString) {
+function gridSchemasOf(id: z.ZodString, value: z.ZodType<MetricValue>) {
   /** `label` remplace l'en-tête par défaut quand le Coach le renseigne (« Voie » plutôt que « Libellé »). */
   const metricBase = {
     id,
@@ -65,7 +70,7 @@ function gridSchemasOf(id: z.ZodString) {
     z.object({ ...metricBase, ...customMetricShape }).strict(),
   ]);
   /** Les valeurs sont indexées par l'`id` de la colonne : réordonner les colonnes ne les déplace pas. */
-  const row = z.object({ id, values: z.record(z.string(), metricValueSchema) }).strict();
+  const row = z.object({ id, values: z.record(z.string(), value) }).strict();
   const grid = z
     .object({
       metrics: z.array(metric).max(GRID_MAX_METRICS),
@@ -91,7 +96,7 @@ function gridSchemasOf(id: z.ZodString) {
   return { metric, row, grid };
 }
 
-const entryGrid = gridSchemasOf(clientKeySchema);
+const entryGrid = gridSchemasOf(clientKeySchema, metricValueEntrySchema);
 
 export const gridMetricSchema = entryGrid.metric;
 export type GridMetric = z.infer<typeof gridMetricSchema>;
@@ -100,8 +105,8 @@ export type GridRow = z.infer<typeof gridRowSchema>;
 export const blockGridSchema = entryGrid.grid;
 export type BlockGrid = z.infer<typeof blockGridSchema>;
 
-/** La grille relue depuis la base : la même, sans borne sur ses identifiants. */
-export const storedBlockGridSchema = gridSchemasOf(z.string().min(1)).grid;
+/** La grille relue depuis la base : la même, sans borne sur ses identifiants ni sur ses textes. */
+export const storedBlockGridSchema = gridSchemasOf(z.string().min(1), metricValueSchema).grid;
 
 /**
  * La même colonne : même identifiant, même libellé, même mesure. Changer l'UNITÉ change ce que
