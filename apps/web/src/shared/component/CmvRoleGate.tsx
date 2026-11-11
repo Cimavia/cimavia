@@ -1,4 +1,4 @@
-import { type CapabilityName, hasCapability } from "@cmv/shared";
+import { type CapabilityName, hasCapability, isSessionLost } from "@cmv/shared";
 import { Navigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { ReauthOverlay } from "@/feature/auth";
@@ -72,7 +72,7 @@ export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRole
   const [owner, setOwner] = useState<{ id: string; email: string } | null>(null);
   // Perdue aussi quand un AUTRE compte a pris la session — reconnecté dans un autre onglet :
   // l'écran, son brouillon et son cache sont ceux du premier, le second ne doit pas en hériter.
-  const lost = owner != null && session?.user.id !== owner.id;
+  const lost = isSessionLost(owner, session);
 
   if (!lost) {
     // Session non résolue : on n'accorde ni ne refuse. Décider ici afficherait l'écran de refus le

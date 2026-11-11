@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { accountErasureApi } from "@/feature/account/api";
 import { DeleteAccountScreen } from "@/feature/account/screen/DeleteAccountScreen";
 import { blockTrackingStore } from "@/feature/plan/lib/local-tracking-store";
+import { SessionGuardContext } from "@/shared/hook/useSessionGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { ApiError } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
@@ -176,7 +177,7 @@ describe("DeleteAccountScreen — le geste", () => {
 
   /**
    * L'ordre est le contrat : la navigation vient après la purge, et l'effacement de la session passe
-   * en dernier. Sans session, les gardes des écrans du dessous se mettraient à rediriger.
+   * en dernier.
    */
   it("purge l'appareil, efface la session, puis ouvre la connexion", async () => {
     submit();
@@ -307,14 +308,69 @@ describe("DeleteAccountScreen — les refus", () => {
     expect(reset).not.toHaveBeenCalled();
   });
 
-  it("dit que la session est perdue sur un 401, sans purger", async () => {
+  // La fenêtre de reconnexion en dit la cause : ici, seulement que rien n'a été supprimé.
+  it("traite un 401 comme un refus, sans purger", async () => {
     erase.mockRejectedValue(new ApiError(401, "Unauthorized", null));
 
     submit();
 
-    expect(await screen.findByText("account.delete.failure.sessionLost")).toBeTruthy();
+    expect(await screen.findByText("account.delete.failure.refused")).toBeTruthy();
     expect(resetAccountData).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("DeleteAccountScreen — le départ annoncé (#439)", () => {
+  const departure = { begin: vi.fn(), complete: vi.fn(), cancel: vi.fn() };
+
+  function submitGuarded() {
+    const view = renderRn(
+      <SessionGuardContext.Provider value={{ retained: null, departure }}>
+        <DeleteAccountScreen />
+      </SessionGuardContext.Provider>,
+    );
+    fireEvent.change(passwordField(), { target: { value: "secret" } });
+    pressButton(view.container, SUBMIT);
+    return view;
+  }
+
+  beforeEach(() => {
+    departure.begin.mockClear();
+    departure.complete.mockClear();
+    departure.cancel.mockClear();
+  });
+
+  // La session tombe au COMMIT, avant la réponse : annoncé après, le voile s'ouvrirait sur un compte disparu.
+  it("l'annonce avant l'envoi, et le termine une fois sur la connexion", async () => {
+    erase.mockImplementationOnce(async () => {
+      expect(departure.begin).toHaveBeenCalledTimes(1);
+    });
+
+    submitGuarded();
+
+    await waitFor(() => expect(departure.complete).toHaveBeenCalledTimes(1));
+    expect(departure.cancel).not.toHaveBeenCalled();
+  });
+
+  // Le compte est peut-être parti : la fenêtre s'ouvrirait, et bloquerait l'essai qui le confirme.
+  it("le maintient sur une issue inconnue, jusqu'à ce qu'on quitte l'écran", async () => {
+    erase.mockRejectedValue(new TypeError("réseau"));
+    const { unmount } = submitGuarded();
+
+    expect(await screen.findByText("account.delete.failure.generic")).toBeTruthy();
+    expect(departure.cancel).not.toHaveBeenCalled();
+
+    unmount();
+    expect(departure.cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("l'annule sur un refus : le compte est toujours là", async () => {
+    erase.mockRejectedValue(new ApiError(400, "Non", null, true));
+
+    submitGuarded();
+
+    await waitFor(() => expect(departure.cancel).toHaveBeenCalledTimes(1));
+    expect(departure.complete).not.toHaveBeenCalled();
   });
 });
 

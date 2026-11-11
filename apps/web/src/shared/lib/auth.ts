@@ -1,10 +1,15 @@
+import { refuseUnreadableSession } from "@cmv/shared";
+import * as Sentry from "@sentry/react";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { requireApiUrl } from "./runtime-config";
 
+const reportUnreadableSession = () => Sentry.captureMessage("get-session : réponse illisible");
+
 // baseURL = origine de l'API ; Better Auth y ajoute /api/auth. Cookies cross-origin → CORS credentials côté API.
 export const authClient = createAuthClient({
   baseURL: requireApiUrl(),
+  fetchOptions: { onResponse: refuseUnreadableSession(Response, reportUnreadableSession) },
   plugins: [
     /**
      * Ces déclarations sont ce qui fait exister les champs dans `useSession().data.user` : Better

@@ -1,6 +1,6 @@
 import { capabilitiesOf, Role, required, type TrainingCapability } from "@cmv/shared";
 import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
-import { authClient } from "@/shared/lib/auth";
+import { useAccountUser } from "@/shared/hook/useSessionGuard";
 
 /**
  * Le titre auquel les écrans partagés (Factures, Messagerie) lisent — `null` quand la question ne
@@ -38,13 +38,13 @@ export function ExercisedCapabilityProvider({ children }: Readonly<{ children: R
  * elle, lit les capacités.
  */
 export function useExercisedCapability(): TrainingCapability | null {
-  const { data } = authClient.useSession();
+  const user = useAccountUser();
   const context = useContext(ExercisedCapabilityContext);
-  const { isCoach, isAthlete } = capabilitiesOf(data?.user);
+  const { isCoach, isAthlete } = capabilitiesOf(user);
 
   if (!isCoach || !isAthlete) return null;
   if (context?.override != null) return context.override;
-  return data?.user.role === Role.ATHLETE ? "athlete" : "coach";
+  return user?.role === Role.ATHLETE ? "athlete" : "coach";
 }
 
 /**
@@ -80,6 +80,6 @@ export function useCapabilitySwitch(): {
  */
 export function useActingCapability(): TrainingCapability {
   const exercised = useExercisedCapability();
-  const { isCoach } = capabilitiesOf(authClient.useSession().data?.user);
+  const { isCoach } = capabilitiesOf(useAccountUser());
   return exercised ?? (isCoach ? "coach" : "athlete");
 }

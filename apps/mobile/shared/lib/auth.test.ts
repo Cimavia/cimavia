@@ -38,3 +38,54 @@ describe("authClient — scheme de la variante de build", () => {
     expect(await schemeFor(undefined)).toBe("cimavia");
   });
 });
+
+/**
+ * Le signal que Better Auth émet lui-même après une connexion : tous les `useSession()` suivent. Le
+ * module est rechargé par `schemeFor` : chaque cas relit donc le client qu'il vient d'importer.
+ */
+describe("recheckSession", () => {
+  async function withSession(data: unknown) {
+    vi.resetModules();
+    const { authClient, recheckSession } = await import("./auth");
+    const session = authClient.$store.atoms.session;
+    session?.set({ ...session.get(), data });
+    const signalled = vi.fn();
+    const stop = authClient.$store.atoms.$sessionSignal?.listen(signalled);
+    recheckSession();
+    stop?.();
+    return signalled;
+  }
+
+  it("demande une relecture tant qu'une session est connue", async () => {
+    expect(await withSession({ user: { id: "lea" } })).toHaveBeenCalledTimes(1);
+  });
+
+  // Sous le voile, les sondages continuent de prendre des 401 : la perte est déjà connue.
+  it("ne relit plus rien une fois la session vide", async () => {
+    expect(await withSession(null)).not.toHaveBeenCalled();
+  });
+});
+
+/** Le client exporté, et non un client de test : c'est son branchement que ce cas protège. */
+describe("authClient — réponse illisible de get-session", () => {
+  it("n'en fait pas une session, et le signale", async () => {
+    vi.resetModules();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response("<html></html>", { headers: { "content-type": "text/html" } }),
+      ),
+    );
+    const Sentry = await import("@sentry/react-native");
+    const report = vi.spyOn(Sentry, "captureMessage");
+    const { authClient } = await import("./auth");
+    const session = authClient.$store.atoms.session;
+
+    await session?.get().refetch();
+
+    expect(session?.get().data).toBeNull();
+    expect(session?.get().error?.status).toBe(502);
+    expect(report).toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});

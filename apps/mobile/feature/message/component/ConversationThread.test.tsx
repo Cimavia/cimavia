@@ -133,8 +133,17 @@ describe("ConversationThread", () => {
     expect(markRead).not.toHaveBeenCalled();
   });
 
-  it("propose de recharger les messages en échec", () => {
+  // Sous la fenêtre de reconnexion (#439), le brouillon en cours doit rester monté.
+  it("garde le fil ouvert quand un sondage échoue, messages en cache", () => {
     mockMessages({ isError: true });
+
+    const { queryByText } = renderRn(<ConversationThread conversation={conversation()} />);
+
+    expect(queryByText("common.retry")).toBeNull();
+  });
+
+  it("propose de recharger les messages en échec", () => {
+    mockMessages({ data: undefined, isError: true });
     const { container } = renderRn(<ConversationThread {...base} />);
 
     pressRetry(container);

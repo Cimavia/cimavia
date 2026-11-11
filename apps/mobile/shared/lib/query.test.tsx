@@ -5,6 +5,7 @@ import { render } from "@testing-library/react";
 import type { NetworkState } from "expo-network";
 import { AppState, type AppStateStatus } from "react-native";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { recheckSession } from "@/shared/lib/auth";
 import { storedItems } from "@/test/setup";
 
 // `expo-network` est natif : le module de production s'y abonne au CHARGEMENT, donc l'import
@@ -18,6 +19,8 @@ vi.mock("expo-network", () => ({
     return { remove: vi.fn() };
   },
 }));
+
+vi.mock("@/shared/lib/auth", () => ({ recheckSession: vi.fn() }));
 
 const addAppStateListener = vi.spyOn(AppState, "addEventListener");
 
@@ -85,6 +88,56 @@ describe("resetQueryCache", () => {
 
   it("ne se plaint pas quand il n'y a rien à effacer", async () => {
     await expect(resetQueryCache()).resolves.toBeUndefined();
+  });
+});
+
+/** La session perdue se traite une fois, ici, et pas écran par écran (#439). */
+describe("réaction à un 401", () => {
+  const unauthorized = new ApiError(401, "Unauthorized", null, true);
+  const failingWith = (error: unknown) => () => Promise.reject(error);
+
+  it("fait relire la session, sur une lecture", async () => {
+    await mountedClient()
+      .fetchQuery({ queryKey: ["401", "read"], queryFn: failingWith(unauthorized), retry: false })
+      .catch(() => {});
+
+    expect(recheckSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("fait relire la session, sur un enregistrement", async () => {
+    const client = mountedClient();
+
+    await client
+      .getMutationCache()
+      .build(client, { mutationFn: failingWith(unauthorized) })
+      .execute(undefined)
+      .catch(() => {});
+
+    expect(recheckSession).toHaveBeenCalledTimes(1);
+  });
+
+  // Hors-ligne en salle : confondre ça avec une session perdue demanderait un mot de passe pour rien.
+  it("ne touche pas à la session sur une panne réseau", async () => {
+    await mountedClient()
+      .fetchQuery({
+        queryKey: ["401", "network"],
+        queryFn: failingWith(new TypeError("Network request failed")),
+        retry: false,
+      })
+      .catch(() => {});
+
+    expect(recheckSession).not.toHaveBeenCalled();
+  });
+
+  it("ne rejoue pas une lecture refusée en 401, mais reprend une panne une fois", () => {
+    const retry = mountedClient().getDefaultOptions().queries?.retry as (
+      failureCount: number,
+      error: Error,
+    ) => boolean;
+
+    expect(retry(0, unauthorized)).toBe(false);
+    expect(retry(0, new TypeError("réseau"))).toBe(true);
+    expect(retry(1, new TypeError("réseau"))).toBe(false);
   });
 });
 

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { capabilityApi } from "@/feature/account/api";
 import { revokeCurrentPushToken } from "@/feature/notification";
 import { ProfileScreen } from "@/feature/profile/screen/ProfileScreen";
+import { SessionGuardContext } from "@/shared/hook/useSessionGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { ApiError } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
@@ -185,6 +186,53 @@ describe("ProfileScreen — la déconnexion (#345)", () => {
     expect(journal).toEqual(["revoke", "signOut", "reset", "replace:/login"]);
     expect(revokeCurrentPushToken).toHaveBeenCalledTimes(1);
     expect(resetAccountData).toHaveBeenCalledTimes(1);
+  });
+
+  describe("annonce le départ à la garde de session (#439)", () => {
+    const departure = { begin: vi.fn(), complete: vi.fn(), cancel: vi.fn() };
+    const logOut = () =>
+      pressButton(
+        renderRn(
+          <SessionGuardContext.Provider value={{ retained: null, departure }}>
+            <ProfileScreen />
+          </SessionGuardContext.Provider>,
+        ).container,
+        "common.logout",
+      );
+
+    beforeEach(() => vi.clearAllMocks());
+
+    // Le plugin Expo vide la session AVANT le réseau : annoncé après, le voile s'afficherait.
+    it("avant de fermer la session, et le termine une fois parti", async () => {
+      vi.mocked(authClient.signOut).mockImplementationOnce((async () => {
+        expect(departure.begin).toHaveBeenCalledTimes(1);
+      }) as never);
+
+      logOut();
+
+      await waitFor(() => expect(departure.complete).toHaveBeenCalledTimes(1));
+      expect(departure.cancel).not.toHaveBeenCalled();
+    });
+
+    // Le plugin vide la session locale puis rejette faute de réseau : le geste doit aboutir.
+    it("va au bout hors ligne", async () => {
+      vi.mocked(authClient.signOut).mockRejectedValueOnce(new Error("réseau"));
+
+      logOut();
+
+      await waitFor(() => expect(departure.complete).toHaveBeenCalledTimes(1));
+      expect(resetAccountData).toHaveBeenCalledTimes(1);
+      expect(router.replace).toHaveBeenCalledExactlyOnceWith("/login");
+    });
+
+    it("va au bout quand la purge résiste", async () => {
+      vi.mocked(resetAccountData).mockRejectedValueOnce(new Error("disque"));
+
+      logOut();
+
+      await waitFor(() => expect(departure.complete).toHaveBeenCalledTimes(1));
+      expect(router.replace).toHaveBeenCalledExactlyOnceWith("/login");
+    });
   });
 });
 

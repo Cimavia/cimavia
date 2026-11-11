@@ -1,6 +1,6 @@
 import { signInErrorKey } from "@cmv/shared";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvButton } from "@/shared/component/CmvButton";
@@ -13,7 +13,7 @@ import { landingTab } from "@/shared/lib/tabs";
 export function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending, error: sessionError } = authClient.useSession();
   const capabilities = useCapabilities();
   // Posé par la suppression du compte (#796) : on arrive ici sans rien d'autre pour le confirmer.
   const { erased } = useLocalSearchParams<{ erased?: string }>();
@@ -21,6 +21,18 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Le serveur a répondu qu'il n'y a personne, panne réseau exclue : ce que l'appareil garde du
+  // compte précédent n'a plus de raison d'attendre la prochaine connexion (SC-7). Un échec se
+  // rattrape à cette connexion, qui repurge.
+  const refused = sessionError == null || sessionError.status === 401;
+  const noSessionConfirmed = !isPending && session == null && refused;
+  // Une seule fois : chaque relecture de la session (`isPending`) rouvrirait la condition.
+  const purged = useRef(false);
+  useEffect(() => {
+    if (!noSessionConfirmed || purged.current) return;
+    purged.current = true;
+    resetAccountData().catch(() => {});
+  }, [noSessionConfirmed]);
 
   if (!isPending && session != null) {
     // Destination DÉRIVÉE de la capacité, comme sur l'écran d'entrée : `/planning` en dur

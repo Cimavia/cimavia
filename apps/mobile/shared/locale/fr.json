@@ -71,6 +71,13 @@
       "sent": "Si un compte existe, un lien de réinitialisation vient d'être envoyé.",
       "back": "Retour à la connexion"
     },
+    "reauth": {
+      "title": "Ta session a pris fin",
+      "body": "Reconnecte-toi pour reprendre là où tu en étais : ce que tu as saisi est toujours là.",
+      "account": "Compte :",
+      "submit": "Me reconnecter",
+      "switchAccount": "Changer de compte"
+    },
     "errors": {
       "generic": "Une erreur est survenue. Réessaie.",
       "invalidCredentials": "E-mail ou mot de passe incorrect.",
@@ -738,7 +745,6 @@
         "wrongPassword": "Mot de passe incorrect.",
         "tooManyAttempts": "Trop d'essais. Réessaie plus tard.",
         "busy": "Ton compte vient d'être utilisé ailleurs. Réessaie dans un instant.",
-        "sessionLost": "Ta session a expiré. Reconnecte-toi, puis recommence.",
         "refused": "La suppression a été refusée. Réessaie plus tard.",
         "generic": "Impossible de confirmer la suppression. Vérifie ta connexion, puis réessaie."
       },

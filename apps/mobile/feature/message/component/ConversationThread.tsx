@@ -123,7 +123,8 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
     markRead(undefined, { onError: () => readMarker.release(unreadTarget) });
   }, [conversationId, unreadTarget, readMarker, markRead, messages.dataUpdatedAt]);
 
-  if (messages.isError) {
+  // Avec des messages en cache, un sondage raté, 401 compris (#439), ne jette pas le brouillon.
+  if (messages.isError && messages.data === undefined) {
     return (
       <CmvScreen>
         <ThreadHeader conversation={conversation} />

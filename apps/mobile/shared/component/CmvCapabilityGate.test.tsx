@@ -59,13 +59,12 @@ describe("CmvCapabilityGate", () => {
     expect(queryByText(SCREEN)).toBeNull();
   });
 
-  it("ne monte pas l'écran sans session", () => {
+  // Lien profond ou démarrage à froid : aucun écran ouvert à garder (#439). `landingTab` trouvant
+  // toujours un onglet commun, le renvoi par capacité l'aurait déposé sur la messagerie.
+  it("renvoie vers la connexion sans session, sans monter l'écran", () => {
     const { container, queryByText } = setup({});
 
     expect(queryByText(SCREEN)).toBeNull();
-    // Renvoyé, mais pas vers la connexion : `landingTab` trouve toujours un onglet commun
-    // (`tabs.test.ts`), si bien que le repli `/login` de la garde est inatteignable. Ce qu'un
-    // déconnecté devrait voir relève de la session perdue sur mobile (#439), pas de cette garde.
-    expect(redirectOf(container)).not.toBeNull();
+    expect(redirectOf(container)).toBe("/login");
   });
 });

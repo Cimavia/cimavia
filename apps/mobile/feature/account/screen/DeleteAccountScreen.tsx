@@ -6,7 +6,6 @@ import {
   erasureFailureOf,
   erasureNotices,
   erasureOutcomeUnknown,
-  isUnauthorizedError,
   PASSWORD_MAX_LENGTH,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
@@ -15,25 +14,25 @@ import { useNetworkState } from "expo-network";
 import { Redirect, useNavigation, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ActivityIndicator, BackHandler, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useAccountErasure } from "@/feature/account/hook/useAccountErasure";
 import { CmvButton, CmvScreen, CmvText, CmvWarningNotice } from "@/shared/component";
 import { CmvTextField } from "@/shared/component/CmvTextField";
+import { useHardwareBackLock } from "@/shared/hook/useHardwareBackLock";
 import { authClient } from "@/shared/lib/auth";
 
 // i18n-values account.delete.gone: coach, athlete, company
 // i18n-values account.delete.kept: coach, athlete
-// i18n-values account.delete.failure: wrongPassword, tooManyAttempts, busy, sessionLost, refused, generic
+// i18n-values account.delete.failure: wrongPassword, tooManyAttempts, busy, refused, generic
 
-type DeleteFailure = ErasureFailure | "sessionLost" | "refused" | "generic";
+type DeleteFailure = ErasureFailure | "refused" | "generic";
 
-/** Le mobile n'a pas de reconnexion sur place (#439) : un 401 doit se dire ici. */
+/** Un 401 est un refus : la fenêtre de reconnexion dit la cause, et rien n'a été supprimé (#439). */
 function failureOf(error: unknown): DeleteFailure | null {
   if (error == null) return null;
   const known = erasureFailureOf(error);
   if (known != null) return known;
-  if (isUnauthorizedError(error)) return "sessionLost";
   return erasureOutcomeUnknown(error) ? "generic" : "refused";
 }
 
@@ -42,10 +41,8 @@ function useBackLock(locked: boolean): void {
   const navigation = useNavigation();
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: !locked });
-    if (!locked) return;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => true);
-    return () => subscription.remove();
   }, [locked, navigation]);
+  useHardwareBackLock(locked);
 }
 
 function NoticeSection({ title, items }: Readonly<{ title: string; items: readonly string[] }>) {

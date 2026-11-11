@@ -1236,6 +1236,8 @@ export {
   withoutExercise,
   withStructure,
 } from "./util/session-composition.util";
+export { isSessionLost } from "./util/session-loss.util";
+export { refuseUnreadableSession } from "./util/session-response.util";
 export type { SignedUrlReceipt } from "./util/signed-url.util";
 export {
   isSignedUrlUsable,

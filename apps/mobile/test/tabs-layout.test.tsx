@@ -256,17 +256,18 @@ describe("barre d'onglets — la route initiale", () => {
     expect(redirectOf(container)).toBeNull();
   });
 
-  /**
-   * Tant que la session n'est pas résolue ET présente, « aucune capacité » ne veut rien dire : une
-   * redirection déposerait l'utilisateur ailleurs que sur son onglet.
-   */
-  it.each([
-    ["en cours de résolution", COACH, true],
-    ["tout juste quittée", null, false],
-  ])("ne redirige pas sur une session %s", (_, session, isPending) => {
-    const { container } = setup({ session, isPending, pathname: "/planning" });
+  // Tant que la session n'est pas résolue, « aucune capacité » ne veut rien dire : une redirection
+  // déposerait l'utilisateur ailleurs que sur son onglet.
+  it("ne redirige pas sur une session en cours de résolution", () => {
+    const { container } = setup({ session: COACH, isPending: true, pathname: "/planning" });
 
     expect(redirectOf(container)).toBeNull();
+  });
+
+  it("renvoie vers la connexion quand aucune session n'existe", () => {
+    const { container } = setup({ session: null, pathname: "/planning" });
+
+    expect(redirectOf(container)).toBe("/login");
   });
 });
 
