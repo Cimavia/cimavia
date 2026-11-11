@@ -4,6 +4,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
+  HttpStatus,
   NotFoundException,
   Param,
   Post,
@@ -13,6 +15,7 @@ import {
 import { APP_FILTER } from "@nestjs/core";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
+import { ThrottlerException } from "@nestjs/throttler";
 import * as Sentry from "@sentry/nestjs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -72,6 +75,16 @@ class FailingController {
   @Get("jeton/:token")
   jeton(): never {
     throw new NotFoundException("Appareil introuvable");
+  }
+
+  @Get("debit")
+  debit(): never {
+    throw new ThrottlerException();
+  }
+
+  @Get("essais")
+  essais(): never {
+    throw new HttpException("Trop d'essais", HttpStatus.TOO_MANY_REQUESTS);
   }
 
   @Get("health/ready")
@@ -189,6 +202,21 @@ describe("ProblemExceptionFilter — ce que Sentry reçoit vraiment", () => {
 
     expect(response.statusCode).toBe(503);
     expect(sent).toEqual([]);
+  });
+
+  it("n'envoie rien pour le 429 de la limite de débit, qu'un script répéterait sans fin", async () => {
+    const response = await get("/debit");
+
+    expect(response.statusCode).toBe(429);
+    expect(sent).toEqual([]);
+  });
+
+  it("envoie un autre 429, qui dit une tentative et non un débit", async () => {
+    const response = await get("/essais");
+
+    expect(response.statusCode).toBe(429);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: "warning" });
   });
 
   it("dépose la vraie exception sur la réponse, pour la ligne de journal de la requête", async () => {
@@ -360,6 +388,11 @@ describe("sentryLevelOf", () => {
     [503, "/healthcheck", "error"],
   ] as const)("%i sur %s → %s", (status, route, expected) => {
     expect(sentryLevelOf(status, route)).toBe(expected);
+  });
+
+  it("écarte le 429 de la limite de débit, pas un autre 429", () => {
+    expect(sentryLevelOf(429, "/x", new ThrottlerException())).toBeNull();
+    expect(sentryLevelOf(429, "/x", new HttpException("Trop d'essais", 429))).toBe("warning");
   });
 });
 

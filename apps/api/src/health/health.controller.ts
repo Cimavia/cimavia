@@ -1,10 +1,13 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiOkResponse, ApiServiceUnavailableResponse, ApiTags } from "@nestjs/swagger";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
+import { NoRateLimit } from "../rate-limit/rate-limit.policy";
 import { HealthService } from "./health.service";
 
-// Health = sondes liveness/readiness (hébergeur) → publiques malgré l'AuthGuard global.
+// Health = sondes liveness/readiness (hébergeur) → publiques malgré l'AuthGuard global, et hors
+// limite de débit : un 429 ferait déclarer l'API morte (#782).
 @AllowAnonymous()
+@NoRateLimit()
 @ApiTags("health")
 @Controller("health")
 export class HealthController {
