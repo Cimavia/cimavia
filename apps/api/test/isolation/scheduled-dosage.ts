@@ -1,6 +1,7 @@
 import { ProblemType, Role, STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, billAndPublish, inviteFor, signUp } from "../support/actors";
+import { cellsGrid, REFUSED_CELLS, seriesBlock, VALID_CELLS } from "../support/blocks";
 import { mondayOfCurrentWeek } from "../support/fixtures";
 import { ANY_VERSION, atWeekVersion } from "../support/version";
 
@@ -50,18 +51,19 @@ describe("Dosage d'une séance planifiée, semaine par semaine (#721)", () => {
 
   const monday = mondayOfCurrentWeek();
 
-  async function copies(): Promise<Copy[]> {
-    const res = await coach.get(`/scheduled-sessions/${anchorId}/copies`);
+  async function copies(anchor: string = anchorId): Promise<Copy[]> {
+    const res = await coach.get(`/scheduled-sessions/${anchor}/copies`);
     expect(res.status).toBe(200);
     return res.body;
   }
 
-  const save = (sessions: unknown[], agent: Agent = coach) =>
-    agent.post(`/scheduled-sessions/${anchorId}/values`).send({ sessions });
+  const save = (sessions: unknown[], agent: Agent = coach, anchor: string = anchorId) =>
+    agent.post(`/scheduled-sessions/${anchor}/values`).send({ sessions });
 
   /** Un Plan de deux semaines, la séance-type posée en S1 et recopiée en S2. */
   async function planOf(
     title: string,
+    sourceSessionId: string = templateId,
   ): Promise<{ id: string; anchorId: string; weekIds: string[] }> {
     const plan = await coach.post("/plans").send({
       athleteId,
@@ -72,7 +74,7 @@ describe("Dosage d'une séance planifiée, semaine par semaine (#721)", () => {
     const weekIds: string[] = plan.body.weeks.map((week: { id: string }) => week.id);
     const anchor = await coach
       .post(`/plan-weeks/${weekIds[0]}/sessions`)
-      .send({ sourceSessionId: templateId, scheduledDate: monday });
+      .send({ sourceSessionId, scheduledDate: monday });
     expect(anchor.status).toBe(201);
     const copied = await coach.post(`/plan-weeks/${weekIds[1]}/copy-from`).send(
       await atWeekVersion(coach, plan.body.id, weekIds[1] as string, {
@@ -195,6 +197,31 @@ describe("Dosage d'une séance planifiée, semaine par semaine (#721)", () => {
     expect((await save([dosed(w1, gridAt(1))], otherCoach)).status).toBe(404);
     expect((await save([dosed(w1, gridAt(1))], athlete)).status).toBe(403);
     expect(loadOf((await copies())[0] as Copy)).toBe(70);
+  });
+
+  describe("une cellule invalide (#323)", () => {
+    let anchor: string;
+
+    beforeAll(async () => {
+      const exerciseId = (await coach.post("/exercises").send({ title: "Cellules" })).body.id;
+      const template = await coach.post("/sessions").send({
+        title: "Cellules",
+        blocks: [seriesBlock([{ key: "a1", exerciseId, grid: cellsGrid({ col_effort: 60 }) }])],
+      });
+      expect(template.status).toBe(201);
+      anchor = (await planOf("Cellules", template.body.id)).anchorId;
+    });
+
+    it("accepte les mêmes colonnes, chaque type à sa limite", async () => {
+      const [w1] = (await copies(anchor)) as [Copy];
+      expect((await save([dosed(w1, cellsGrid(VALID_CELLS))], coach, anchor)).status).toBe(200);
+    });
+
+    it.each(REFUSED_CELLS)("refuse %s, sans rien écrire", async (_case, values) => {
+      const [w1] = (await copies(anchor)) as [Copy];
+      expect((await save([dosed(w1, cellsGrid(values))], coach, anchor)).status).toBe(400);
+      expect((await copies(anchor))[0]?.updatedAt).toBe(w1.updatedAt);
+    });
   });
 
   // En dernier : diffuser le Plan et débriefer la S2 changent l'état que les tests d'avant lisent.
