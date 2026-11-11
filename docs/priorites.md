@@ -16,8 +16,8 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #354 | Des textes persistés n'ont aucune longueur maximale | 🟠 | ✅ |
 | #677 | La mutation de la tenancy dépasse son délai et n'est plus mesurée | 🟠 | ✅ |
 | #323 | `validateBlockValues` ne tourne que dans le navigateur | 🟡 | ✅ |
-| #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | |
-| #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | |
+| #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | ✅ |
+| #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | ✅ |
 | #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | |
 | #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | |
 | #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | |
