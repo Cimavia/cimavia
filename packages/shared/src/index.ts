@@ -41,6 +41,7 @@ export {
   isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
+  RATE_LIMITED,
   shouldRetryQuery,
 } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";

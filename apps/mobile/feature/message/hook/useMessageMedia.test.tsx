@@ -280,9 +280,9 @@ describe("useSendMessageMedia", () => {
     expect(recap[0]?.fileName).toBe("b.jpg");
   });
 
-  it("dit d'attendre quand la limite de débit refuse l'URL d'envoi (#782)", async () => {
+  it("garde le message d'un refus de l'API, plutôt que la panne générique", async () => {
     launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("a.jpg")] });
-    requestUrlMock.mockRejectedValue(new ApiError(429, "Trop de requêtes", null));
+    requestUrlMock.mockRejectedValue(new ApiError(409, "Conversation fermée", null));
     const { result } = setup();
 
     let recap: MediaRecapLine[] = [];
@@ -291,7 +291,7 @@ describe("useSendMessageMedia", () => {
     });
 
     expect(recap).toEqual([
-      expect.objectContaining({ reason: expect.objectContaining({ key: "common.rateLimited" }) }),
+      expect.objectContaining({ reason: { message: "Conversation fermée" } }),
     ]);
   });
 

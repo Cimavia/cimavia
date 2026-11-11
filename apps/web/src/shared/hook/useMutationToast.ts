@@ -1,3 +1,4 @@
+import { RATE_LIMITED } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
 import { apiErrorMessage, isRateLimitedError, isUnauthorizedError } from "@/shared/lib/api";
@@ -30,7 +31,7 @@ export function useMutationToast() {
     // Sauf le 429 (#782) : le message du geste ferait réessayer tout de suite, il faut attendre.
     onFailure: (key: string, error: unknown) => {
       if (isUnauthorizedError(error)) return;
-      toast.error(isRateLimitedError(error) ? t("common.rateLimited") : t(key));
+      toast.error(t(isRateLimitedError(error) ? RATE_LIMITED.messageKey : key));
     },
   };
 }

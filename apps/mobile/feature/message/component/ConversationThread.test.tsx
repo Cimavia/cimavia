@@ -376,16 +376,16 @@ describe("ConversationThread — autour du fil", () => {
     expect(queryByText("messages.sendError")).not.toBeNull();
   });
 
-  it("dit d'attendre quand la limite de débit refuse l'envoi (#782)", () => {
+  it("dit le refus de l'API plutôt que l'échec générique", () => {
     vi.mocked(useSendMessage).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
       isError: true,
-      error: new ApiError(429, "Trop de requêtes", null),
+      error: new ApiError(409, "Conversation fermée", null),
     } as unknown as ReturnType<typeof useSendMessage>);
     const { queryByText } = renderRn(<ConversationThread {...base} />);
 
-    expect(queryByText("common.rateLimited")).not.toBeNull();
+    expect(queryByText("Conversation fermée")).not.toBeNull();
     expect(queryByText("messages.sendError")).toBeNull();
   });
 });

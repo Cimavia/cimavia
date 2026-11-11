@@ -78,7 +78,7 @@ export function isRateLimitedError(error: unknown): boolean {
  * La clé que chaque app traduit pour un 429, faute d'un message de l'API à montrer. En `messageKey:`
  * pour que `check:i18n` la vérifie dans les deux catalogues.
  */
-const RATE_LIMITED = { messageKey: "common.rateLimited" } as const;
+export const RATE_LIMITED = { messageKey: "common.rateLimited" } as const;
 
 /**
  * `apiErrorMessage`, plus le 429 traduit par l'app : c'est ce que les écrans appellent, et la seule

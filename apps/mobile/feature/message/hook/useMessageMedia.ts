@@ -12,7 +12,6 @@ import type {
 } from "@cmv/shared";
 import {
   checkMessageFile,
-  isRateLimitedError,
   MAX_MESSAGE_MEDIA_BATCH,
   MESSAGE_FILE_MIME_TYPES,
   MESSAGE_MEDIA_BATCH_SLOTS,
@@ -31,6 +30,7 @@ import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { apiErrorMessage } from "@/shared/lib/api";
 import { discardPickedFile } from "@/shared/lib/message-file";
 import {
   StorageUploadError,
@@ -225,12 +225,14 @@ function prepareMessageFile(file: DocumentPicker.DocumentPickerAsset): PreparedM
   };
 }
 
-/** Un refus métier porte sa clé i18n ; tout autre échec, le message générique de l'envoi. */
+/**
+ * Un refus métier porte sa clé i18n ; un refus de l'API garde son message, 429 compris (#782) ;
+ * une panne (réseau, 5xx) retombe sur le message générique de l'envoi.
+ */
 function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
-  // Le 429 (#782) se dit à part : « vérifie ta connexion » ferait réessayer tout de suite.
-  if (isRateLimitedError(error)) return { key: "common.rateLimited", params: {} };
-  return { key: "messages.media.uploadError", params: {} };
+  const message = apiErrorMessage(error);
+  return message == null ? { key: "messages.media.uploadError", params: {} } : { message };
 }
 
 /**
