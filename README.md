@@ -78,7 +78,7 @@ pnpm --filter @cmv/web exec playwright install chromium   # une fois, puis à ch
 pnpm --filter @cmv/web test:e2e:web             # lance lui-même une API (3101) et le web (4310), décalés dans un worktree
 # Mutation testing (Stryker) — rapport HTML dans <paquet>/reports/mutation/mutation.html
 pnpm turbo test:mutation --filter=@cmv/shared   # ~4 min, puis incrémental : seul ce qui a changé repasse
-pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, 3 workers, ~2 h 30
+pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, 3 workers, ~1 h 30
 ```
 
 > Le **mutation testing** altère le code (une borne, un opérateur, une condition) et compte les

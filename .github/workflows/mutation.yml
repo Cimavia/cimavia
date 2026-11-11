@@ -154,8 +154,8 @@ jobs:
     # Pas à chaque merge dans shared, qui ne le touche pas : il garde son rythme du lundi (#647).
     if: github.event_name != 'push'
     runs-on: ubuntu-26.04
-    # ~2 h 30 en local à trois workers, 538 mutants (#677) ; un runner hébergé a moins de cœurs. Le
-    # plafond d'un runner hébergé est 360.
+    # 2 h 49 sur un runner hébergé à trois workers, 538 mutants (1 h 24 en local, #677). Pas ~3× :
+    # le plafond d'un runner hébergé est 360. Dépasser 300 est le déclencheur de #815.
     timeout-minutes: 300
     permissions:
       contents: read
