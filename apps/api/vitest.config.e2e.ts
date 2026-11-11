@@ -1,4 +1,10 @@
-import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "@cmv/e2e";
+import {
+  currentWorktree,
+  strykerWorker,
+  workerPort,
+  worktreeDatabaseUrl,
+  worktreePort,
+} from "@cmv/e2e";
 import { defineConfig } from "vitest/config";
 
 // Charge .env.test dans le process principal (Node ≥22). loadEnvFile n'écrase PAS les vars
@@ -11,23 +17,46 @@ process.loadEnvFile(".env.test");
  * `globalSetup` tourne dans CE process et migre la base qu'il y lit. Deux ports par suite :
  * `signup-mode.e2e-spec.ts` monte sa propre app sur `PORT + 1`.
  *
+ * Un worker de Stryker prend aussi les siens (#677) : la mutation de la tenancy fait tourner
+ * plusieurs suites à la fois, une par process enfant (`STRYKER_MUTATOR_WORKER`), sur des ports
+ * pris dans la plage de son worktree et une base qui porte les deux noms.
+ *
  * Une seule fois par environnement : la config se réévalue (mode watch, process enfants de Stryker,
  * qui héritent de l'environnement déjà décalé), et un second passage décalerait le port encore et
- * renommerait la base `…_wt_x_wt_x_e2e`. `CMV_E2E_WORKTREE` dit que c'est fait.
+ * renommerait la base `…_wt_x_wt_x_e2e`. `CMV_E2E_WORKTREE` et `CMV_E2E_WORKER` disent que c'est
+ * fait.
  */
 const worktree = currentWorktree();
-if (worktree != null && process.env.CMV_E2E_WORKTREE == null) {
-  process.env.CMV_E2E_WORKTREE = worktree.name;
-  const port = worktreePort(Number(process.env.PORT ?? 3001), worktree, 2);
+const worker = strykerWorker(process.env.STRYKER_MUTATOR_WORKER);
+const shifted = process.env.CMV_E2E_WORKTREE != null || process.env.CMV_E2E_WORKER != null;
+// Décalé pour le worktree, mais pas pour CE worker : les workers partageraient alors le port et la
+// base, et chaque test cassé par un voisin compterait comme un mutant tué. Mieux vaut ne pas partir.
+if (shifted && worker != null && process.env.CMV_E2E_WORKER !== String(worker)) {
+  throw new Error(
+    `Worker Stryker n°${worker} dans un environnement déjà décalé pour un autre ` +
+      `(CMV_E2E_WORKER=${process.env.CMV_E2E_WORKER ?? "absent"}) : il n'aurait ni sa base ni ses ports.`,
+  );
+}
+if ((worktree != null || worker != null) && !shifted) {
+  if (worktree != null) process.env.CMV_E2E_WORKTREE = worktree.name;
+  if (worker != null) process.env.CMV_E2E_WORKER = String(worker);
+  const port =
+    worker == null
+      ? worktreePort(Number(process.env.PORT ?? 3001), worktree, 2)
+      : workerPort(worktree, worker, 2);
   process.env.PORT = String(port);
   // Même origine que la `baseURL` du harnais (`test/support/app.ts`).
   process.env.BETTER_AUTH_URL = `http://localhost:${port}`;
   // Absent, il le reste : `globalSetup` refuse alors de démarrer, en disant quel fichier copier.
   const databaseUrl =
-    process.env.DATABASE_URL && worktreeDatabaseUrl(process.env.DATABASE_URL, worktree);
+    process.env.DATABASE_URL && worktreeDatabaseUrl(process.env.DATABASE_URL, worktree, worker);
   if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
   const database = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : "absente";
-  console.info(`e2e du worktree « ${worktree.name} » : port ${port}, base ${database}`);
+  const who = [
+    worktree && `du worktree « ${worktree.name} »`,
+    worker != null && `du worker Stryker n°${worker}`,
+  ].filter(Boolean);
+  console.info(`e2e ${who.join(", ")} : port ${port}, base ${database}`);
 }
 
 export default defineConfig({

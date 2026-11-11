@@ -31,6 +31,21 @@ export type Worktree = { name: string; rank: number };
  */
 export const MAX_RANK = 49;
 
+/**
+ * Les workers de Stryker (#677) : la mutation de la tenancy fait tourner plusieurs suites e2e de
+ * l'API côte à côte, chacune sur sa base et ses ports. Stryker numérote ses process enfants à partir
+ * de 0 (`STRYKER_MUTATOR_WORKER`), et un process relancé — après un mutant en timeout — prend le
+ * numéro SUIVANT : le numéro croît au fil de la passe, il n'est pas borné par la `concurrency`.
+ *
+ * Leurs ports suivent AUSSI le worktree : deux passes lancées depuis deux worktrees écouteraient
+ * sinon sur les mêmes, et sous Stryker un port pris ne se voit pas — le `beforeAll` échoue, et
+ * chaque test qu'il emporte compte comme un mutant tué. Il faut donc une plage par rang, d'où une
+ * plage à part, loin des ports de dev et des e2e (3000-3150, 4310-4359, 5173), et sous les ports
+ * éphémères de Linux (32768) : 100 numéros par rang, deux ports chacun, de 10001 à 20000.
+ */
+export const WORKER_PORT_BASE = 10_001;
+export const MAX_WORKER = 99;
+
 /** Le suffixe d'une base que les e2e ont le droit de vider — la garde le vérifie avant tout. */
 export const DISPOSABLE_SUFFIX = "_e2e";
 /**
@@ -38,6 +53,8 @@ export const DISPOSABLE_SUFFIX = "_e2e";
  * viserait `cimavia_db_web_e2e` — la base des e2e web du dépôt principal.
  */
 const WORKTREE_MARK = "_wt_";
+/** Ce qui précède le numéro d'un worker de Stryker : `cimavia_db_mut2_e2e`. */
+const WORKER_MARK = "_mut";
 /** La longueur maximale d'un identifiant Postgres, en octets — au-delà, il est tronqué en silence. */
 const PG_MAX_IDENTIFIER = 63;
 const HASH_LENGTH = 6;
@@ -99,22 +116,65 @@ export function worktreePort(base: number, worktree: Worktree | null, width = 1)
 }
 
 /**
+ * Le worker de Stryker qui exécute ce process, lu dans `STRYKER_MUTATOR_WORKER` : `null` hors de
+ * Stryker. Une valeur illisible ou hors plage LÈVE plutôt que de retomber sur la base et le port
+ * partagés — deux workers s'y videraient la base l'un sous l'autre, et chaque test cassé par l'autre
+ * compterait comme un mutant tué.
+ */
+export function strykerWorker(value: string | undefined): number | null {
+  if (value === undefined) return null;
+  if (!/^\d+$/.test(value)) {
+    throw new Error(`STRYKER_MUTATOR_WORKER illisible : « ${value} », un entier était attendu.`);
+  }
+  const worker = Number(value);
+  if (worker > MAX_WORKER) {
+    throw new Error(
+      `Worker Stryker n°${worker} : au-delà de ${MAX_WORKER}, ses ports e2e sortiraient de leur ` +
+        "plage. Chaque mutant en timeout relance un worker sous un nouveau numéro : trop de " +
+        "timeouts dans la passe, ou une concurrency trop haute.",
+    );
+  }
+  return worker;
+}
+
+/**
+ * Le port d'un worker de Stryker, dans la plage de son worktree (le dépôt principal au rang 0) ;
+ * `width` est le nombre de ports que sa suite prend.
+ */
+export function workerPort(worktree: Worktree | null, worker: number, width = 1): number {
+  const slot = (worktree?.rank ?? 0) * (MAX_WORKER + 1) + worker;
+  return WORKER_PORT_BASE + slot * width;
+}
+
+/**
  * L'URL de la base du worktree : `cimavia_db_e2e` devient `cimavia_db_wt_<nom>_<empreinte>_e2e`.
  * L'empreinte du nom brut départage ce que le passage en identifiant confond (`tech-630` et
- * `tech_630`, deux worktrees distincts pour git). Une base qui ne
+ * `tech_630`, deux worktrees distincts pour git). Un worker de Stryker ajoute son numéro avant le
+ * suffixe : `cimavia_db_mut2_e2e`, `cimavia_db_wt_<nom>_<empreinte>_mut2_e2e`. Une base qui ne
  * finit pas par `_e2e` revient INCHANGÉE : la réécrire lui donnerait le suffixe, et ferait taire la
  * garde qui refuse de vider une base qui ne s'annonce pas jetable.
  */
-export function worktreeDatabaseUrl(url: string, worktree: Worktree | null): string {
-  if (worktree == null) return url;
+export function worktreeDatabaseUrl(
+  url: string,
+  worktree: Worktree | null,
+  worker: number | null = null,
+): string {
+  if (worktree == null && worker == null) return url;
 
   const parsed = new URL(url);
   const database = parsed.pathname.slice(1);
   if (!database.endsWith(DISPOSABLE_SUFFIX)) return url;
 
-  const prefix = `${database.slice(0, -DISPOSABLE_SUFFIX.length)}${WORKTREE_MARK}`;
-  const room = PG_MAX_IDENTIFIER - prefix.length - DISPOSABLE_SUFFIX.length;
-  parsed.pathname = `/${prefix}${identifierOf(worktree.name, room)}${DISPOSABLE_SUFFIX}`;
+  const head = database.slice(0, -DISPOSABLE_SUFFIX.length);
+  const tail = `${worker == null ? "" : `${WORKER_MARK}${worker}`}${DISPOSABLE_SUFFIX}`;
+  if (worktree == null) {
+    parsed.pathname = `/${head}${tail}`;
+    return parsed.toString();
+  }
+
+  const prefix = `${head}${WORKTREE_MARK}`;
+  const room = PG_MAX_IDENTIFIER - prefix.length - tail.length;
+  parsed.pathname = `/${prefix}${identifierOf(worktree.name, room)}${tail}`;
   return parsed.toString();
 }
 
