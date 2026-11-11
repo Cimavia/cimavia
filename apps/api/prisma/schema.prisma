@@ -417,7 +417,7 @@ model ExerciseTag {
 /// ordonnée ses paliers du plus faible au plus fort. Vit au niveau du COACH et non de l'exercice :
 /// une cotation maison sert dans toute la bibliothèque. Les blocs la référencent par
 /// `customMetricId` ; la référence n'est pas une clé étrangère puisqu'elle vit dans du JSON, donc
-/// une métrique supprimée laisse une colonne orpheline — `validateBlockValues` la signale.
+/// une métrique supprimée laisse une colonne orpheline (dette EX-2).
 model CustomMetric {
   id        String          @id @default(cuid())
   coachId   String
