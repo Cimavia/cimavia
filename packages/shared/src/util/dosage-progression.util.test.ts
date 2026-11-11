@@ -37,6 +37,7 @@ import {
   DosageOff,
 } from "./planned-dosage.util";
 import { SettingValue } from "./structure-settings.util";
+import { TRAINING_DURATION_MAX_SECONDS } from "./training-duration.util";
 
 const KG: ProgressionMeasure = {
   kind: ProgressionMeasureKind.NUMBER,
@@ -44,7 +45,11 @@ const KG: ProgressionMeasure = {
   min: null,
   max: null,
 };
-const SECONDS: ProgressionMeasure = { kind: ProgressionMeasureKind.DURATION, min: 0, max: null };
+const SECONDS: ProgressionMeasure = {
+  kind: ProgressionMeasureKind.DURATION,
+  min: 0,
+  max: TRAINING_DURATION_MAX_SECONDS,
+};
 const GRADES: ProgressionMeasure = {
   kind: ProgressionMeasureKind.SCALE,
   scale: [...FRENCH_CLIMBING_SCALE],
@@ -256,6 +261,10 @@ describe("steppedValue", () => {
       STRUCTURE_MAX_DURATION_SECONDS,
     );
     expect(steppedValue(10, SECONDS, remove(30))).toBe(0);
+    // Au-delà, l'API refuserait la cellule (#323).
+    expect(steppedValue(TRAINING_DURATION_MAX_SECONDS, SECONDS, add(1))).toBe(
+      TRAINING_DURATION_MAX_SECONDS,
+    );
   });
 
   it("laisse passer sous zéro un nombre sans borne : un lest négatif est une assistance", () => {

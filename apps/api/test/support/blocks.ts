@@ -1,4 +1,9 @@
-import { STRUCTURE_PRESETS, StructurePresetKey } from "@cmv/shared";
+import {
+  METRIC_TEXT_VALUE_MAX_LENGTH,
+  STRUCTURE_PRESETS,
+  StructurePresetKey,
+  TRAINING_DURATION_MAX_SECONDS,
+} from "@cmv/shared";
 
 /**
  * La composition par blocs telle que l'éditeur l'envoie (#716) : depuis #723, une séance-type ne se
@@ -32,6 +37,42 @@ export const repsGrid = (key: string, reps = 6): GridInput => ({
   metrics: [REPS],
   rows: [{ id: `r_${key}`, values: { col_reps: reps } }],
 });
+
+export const textOf = (length: number) => "x".repeat(length);
+
+const singleUnitColumn = (id: string, key: string) => ({
+  id,
+  source: "CATALOG",
+  key,
+  unit: "NONE",
+  label: null,
+});
+
+/** Une ligne d'une grille à durée, cotation et texte : les types qu'une cellule peut enfreindre. */
+export const cellsGrid = (values: Record<string, unknown>): GridInput => ({
+  metrics: [
+    singleUnitColumn("col_effort", "EFFORT_DURATION"),
+    singleUnitColumn("col_grade", "GRADE"),
+    singleUnitColumn("col_pace", "PACE"),
+  ],
+  rows: [{ id: "r1", values }],
+});
+
+/** Chaque type à sa limite : sans ce témoin, un refus des colonnes passerait pour celui des valeurs. */
+export const VALID_CELLS = {
+  col_effort: TRAINING_DURATION_MAX_SECONDS,
+  col_grade: "6a",
+  col_pace: textOf(METRIC_TEXT_VALUE_MAX_LENGTH),
+};
+
+/** Ce que l'API refuse dans une cellule, sur toute route qui reçoit une grille (#323). */
+export const REFUSED_CELLS: [string, Record<string, unknown>][] = [
+  ["une durée négative", { col_effort: -5 }],
+  ["une durée au-delà de 24 h", { col_effort: TRAINING_DURATION_MAX_SECONDS + 1 }],
+  ["un palier hors de l'échelle", { col_grade: "palier-fantome" }],
+  ["un texte trop long", { col_pace: textOf(METRIC_TEXT_VALUE_MAX_LENGTH + 1) }],
+  ["une valeur sans colonne", { col_gone: 6 }],
+];
 
 /** Un bloc « Séries », réglages copiés de la structure prête. */
 export function seriesBlock(

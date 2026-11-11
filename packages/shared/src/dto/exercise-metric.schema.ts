@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { TypesValuesOf } from "../type/generics.type";
+import { TRAINING_DURATION_MAX_SECONDS } from "../util/training-duration.util";
 
 // Vocabulaire des métriques d'un exercice structuré (refonte #162).
 //
@@ -367,6 +368,15 @@ export const metricValueSchema = z.union([z.number(), z.string()]).nullable();
 export type MetricValue = z.infer<typeof metricValueSchema>;
 
 /**
+ * La même à l'entrée de l'API : son texte est borné quelle que soit sa colonne (#323). La relecture
+ * garde `metricValueSchema`, pour qu'un texte stocké plus long ne fasse pas échouer en 500 la lecture
+ * de toute la séance (#297).
+ */
+export const metricValueEntrySchema = z
+  .union([z.number(), z.string().max(METRIC_TEXT_VALUE_MAX_LENGTH)])
+  .nullable();
+
+/**
  * Le schéma d'une cellule POUR un type de valeur donné. Sert à valider une grille contre ses
  * colonnes : sans ce croisement, rien n'empêcherait d'écrire « lourd » dans une colonne de charge.
  */
@@ -378,7 +388,12 @@ export function metricValueSchemaFor(
     case MetricValueType.NUMBER:
       return z.number().nullable();
     case MetricValueType.DURATION:
-      return z.number().int().min(0).nullable();
+      return z
+        .number()
+        .int()
+        .min(0)
+        .max(TRAINING_DURATION_MAX_SECONDS, "Une durée ne peut pas dépasser 24 h.")
+        .nullable();
     case MetricValueType.TEXT:
       return z.string().max(METRIC_TEXT_VALUE_MAX_LENGTH).nullable();
     case MetricValueType.SCALE:
