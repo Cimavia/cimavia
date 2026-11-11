@@ -36,10 +36,12 @@ export { capabilityBlockerOf, capabilityKeys, createCapabilityApi } from "./api/
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export {
   ApiError,
-  apiErrorMessage,
   createApiClient,
+  createApiErrorMessage,
+  isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
+  shouldRetryQuery,
 } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
 export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";

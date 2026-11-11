@@ -11,6 +11,7 @@
     "errorTitle": "Chargement impossible",
     "errorDescription": "Tes séances n'ont pas pu être récupérées. Vérifie ta connexion, puis réessaie.",
     "retry": "Réessayer",
+    "rateLimited": "Trop de demandes d'affilée. Patiente un instant, puis réessaie.",
     "staleReload": "Recharger",
     "cancel": "Annuler",
     "crash": {

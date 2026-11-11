@@ -4,8 +4,11 @@ import {
   type ApiFetch,
   apiErrorMessage,
   createApiClient,
+  createApiErrorMessage,
+  isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
+  shouldRetryQuery,
 } from "./client";
 import { ABOUT_BLANK, PROBLEM_CONTENT_TYPE, ProblemType } from "./problem";
 
@@ -132,6 +135,69 @@ describe("apiErrorMessage", () => {
   it.each([500, 502, 503])("tait le message d'un %s, écrit pour les logs", async (status) => {
     expect(apiErrorMessage(await errorOf(status))).toBeNull();
   });
+
+  it("tait le message d'un 429, que chaque app traduit d'après le statut", async () => {
+    expect(apiErrorMessage(await errorOf(429))).toBeNull();
+  });
+});
+
+describe("createApiErrorMessage", () => {
+  const message = createApiErrorMessage((key) => `traduit:${key}`);
+
+  it("traduit le 429, d'où qu'il vienne (#782)", async () => {
+    expect(message(await errorOf(429))).toBe("traduit:common.rateLimited");
+    expect(message(new ApiError(429, "Erreur 429", null, false))).toBe(
+      "traduit:common.rateLimited",
+    );
+  });
+
+  it("rend le message de l'API sur un autre refus", () => {
+    expect(message(new ApiError(400, "La date ne tombe pas dans la semaine 2", null))).toBe(
+      "La date ne tombe pas dans la semaine 2",
+    );
+  });
+
+  it("n'a rien à dire d'une panne réseau", () => {
+    expect(message(new TypeError("Failed to fetch"))).toBeNull();
+  });
+});
+
+describe("isRateLimitedError", () => {
+  it("reconnaît le 429 de la limite de débit (#782)", async () => {
+    expect(isRateLimitedError(await errorOf(429))).toBe(true);
+  });
+
+  it("reconnaît aussi celui d'un proxy, que l'API n'a pas écrit", () => {
+    expect(isRateLimitedError(new ApiError(429, "Erreur 429", null, false))).toBe(true);
+  });
+
+  it.each([400, 401, 409, 503])("ne prend pas un %s pour une limite de débit", async (status) => {
+    expect(isRateLimitedError(await errorOf(status))).toBe(false);
+  });
+
+  it("ne prend pas une panne réseau pour une limite de débit", () => {
+    expect(isRateLimitedError(new TypeError("Failed to fetch"))).toBe(false);
+  });
+});
+
+describe("shouldRetryQuery", () => {
+  it("relance une fois une lecture tombée en panne", async () => {
+    const error = await errorOf(503);
+
+    expect(shouldRetryQuery(0, error)).toBe(true);
+    expect(shouldRetryQuery(1, error)).toBe(false);
+  });
+
+  it("relance une coupure réseau", () => {
+    expect(shouldRetryQuery(0, new TypeError("Failed to fetch"))).toBe(true);
+  });
+
+  it.each([401, 429])(
+    "ne relance pas un %s, qui serait refusé de la même façon",
+    async (status) => {
+      expect(shouldRetryQuery(0, await errorOf(status))).toBe(false);
+    },
+  );
 });
 
 type Call = { url: string; init: Parameters<ApiFetch>[1] };

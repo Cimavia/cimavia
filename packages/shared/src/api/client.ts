@@ -56,11 +56,53 @@ export class ApiError extends Error {
  * `null` sur tout 5xx : NestJS lui donne un corps JSON, mais son message s'adresse aux logs — le
  * « Internal server error » d'une exception non rattrapée, en anglais, ou le « Object storage non
  * configuré… » d'un déploiement incomplet. Le Coach n'en peut rien faire (#649).
+ *
+ * `null` sur un 429 : c'est le statut qui dit quoi faire — patienter —, et chaque app le traduit
+ * (`isRateLimitedError`, #782).
  */
 export function apiErrorMessage(error: unknown): string | null {
   if (!(error instanceof ApiError) || error.status === 401 || !error.fromApi) return null;
-  if (error.status >= 500) return null;
+  if (error.status >= 500 || isRateLimitedError(error)) return null;
   return error.message;
+}
+
+/**
+ * Trop de requêtes d'affilée (#782) : la limite de débit de l'API, ou celle d'un proxy devant elle.
+ * `fromApi` n'y change rien, le geste est le même : patienter, puis réessayer.
+ */
+export function isRateLimitedError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 429;
+}
+
+/**
+ * La clé que chaque app traduit pour un 429, faute d'un message de l'API à montrer. En `messageKey:`
+ * pour que `check:i18n` la vérifie dans les deux catalogues.
+ */
+const RATE_LIMITED = { messageKey: "common.rateLimited" } as const;
+
+/**
+ * `apiErrorMessage`, plus le 429 traduit par l'app : c'est ce que les écrans appellent, et la seule
+ * des deux que `@cmv/shared` exporte — l'autre, appelée seule, tairait le 429. `translate` est le
+ * `t` d'i18next de l'app, lu à l'appel : la langue a pu changer depuis le démarrage.
+ */
+export function createApiErrorMessage(
+  translate: (key: string) => string,
+): (error: unknown) => string | null {
+  return (error) =>
+    isRateLimitedError(error) ? translate(RATE_LIMITED.messageKey) : apiErrorMessage(error);
+}
+
+const QUERY_RETRY_COUNT = 1;
+
+/**
+ * Faut-il relancer une lecture qui a échoué ? Une fois, sauf quand l'essai serait refusé de la même
+ * façon :
+ * - un 401 : la même session serait refusée, et l'essai retarderait la fenêtre de reconnexion ;
+ * - un 429 : relancer tout de suite consomme la borne qu'il faut justement laisser se vider (#782).
+ */
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (isUnauthorizedError(error) || isRateLimitedError(error)) return false;
+  return failureCount < QUERY_RETRY_COUNT;
 }
 
 /**
