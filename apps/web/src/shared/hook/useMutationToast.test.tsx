@@ -76,6 +76,19 @@ describe("useMutationToast — onFailure", () => {
 
     expect(screen.queryByText("library.builder.saveFailed")).not.toBeInTheDocument();
   });
+
+  it("dit d'attendre sur un 429, plutôt que l'échec du geste (#782)", () => {
+    const toast = setup();
+
+    act(() =>
+      toast.current.onFailure(
+        "library.builder.saveFailed",
+        new ApiError(429, "Trop de requêtes", null),
+      ),
+    );
+
+    expect(screen.getByText("common.rateLimited")).toBeInTheDocument();
+  });
 });
 
 describe("useMutationToast — onSuccess et onInfo", () => {

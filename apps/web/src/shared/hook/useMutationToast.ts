@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/shared/component";
-import { apiErrorMessage, isUnauthorizedError } from "@/shared/lib/api";
+import { apiErrorMessage, isRateLimitedError, isUnauthorizedError } from "@/shared/lib/api";
 
 /**
  * Colle entre TanStack Query et les toasts : chaque mutation confirme son effet, et toute erreur
@@ -27,9 +27,10 @@ export function useMutationToast() {
     },
     // Pour un geste qui compose plusieurs appels (l'enregistrement d'un constructeur) : son échec
     // se dit par un message à lui, pas par celui du dernier appel tombé. Même silence sur un 401.
+    // Sauf le 429 (#782) : le message du geste ferait réessayer tout de suite, il faut attendre.
     onFailure: (key: string, error: unknown) => {
       if (isUnauthorizedError(error)) return;
-      toast.error(t(key));
+      toast.error(isRateLimitedError(error) ? t("common.rateLimited") : t(key));
     },
   };
 }
