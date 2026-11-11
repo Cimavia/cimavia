@@ -15,9 +15,10 @@
 #     --build-arg SENTRY_RELEASE=1.2.0+3f2a1c \
 #     --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN .
 #
-# Et au démarrage, les trois variables, TOUTES définies (même vides, cf. nginx.conf) :
+# Et au démarrage, les quatre variables, TOUTES définies (même vides, cf. nginx.conf) — la
+# dernière, l'origine des URLs signées des médias, ne sert que la CSP (#780) :
 #   docker run -e CMV_API_URL=https://api-preview.example -e CMV_APP_ENV=preview \
-#     -e CMV_SENTRY_DSN= …
+#     -e CMV_SENTRY_DSN= -e CMV_MEDIA_URL=https://s3-preview.example …
 #
 # Sans le secret, le build aboutit quand même : les sourcemaps ne sont simplement pas publiées.
 
