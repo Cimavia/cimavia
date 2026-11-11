@@ -12,6 +12,7 @@ import type {
 } from "@cmv/shared";
 import {
   checkMessageFile,
+  isRateLimitedError,
   MAX_MESSAGE_MEDIA_BATCH,
   MESSAGE_FILE_MIME_TYPES,
   MESSAGE_MEDIA_BATCH_SLOTS,
@@ -227,6 +228,8 @@ function prepareMessageFile(file: DocumentPicker.DocumentPickerAsset): PreparedM
 /** Un refus métier porte sa clé i18n ; tout autre échec, le message générique de l'envoi. */
 function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
+  // Le 429 (#782) se dit à part : « vérifie ta connexion » ferait réessayer tout de suite.
+  if (isRateLimitedError(error)) return { key: "common.rateLimited", params: {} };
   return { key: "messages.media.uploadError", params: {} };
 }
 

@@ -4,6 +4,7 @@ import {
   conversationTitle,
   createReadMarker,
   emptyThreadText,
+  isRateLimitedError,
   lastUnreadIncomingId,
   type MediaRecapLine,
   mediaRecapText,
@@ -177,7 +178,9 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
         )}
 
         {send.isError ? (
-          <CmvText className="px-4 pb-1 text-cmv-error text-sm">{t("messages.sendError")}</CmvText>
+          <CmvText className="px-4 pb-1 text-cmv-error text-sm">
+            {isRateLimitedError(send.error) ? t("common.rateLimited") : t("messages.sendError")}
+          </CmvText>
         ) : null}
 
         {mediaError != null ? (

@@ -375,6 +375,19 @@ describe("ConversationThread — autour du fil", () => {
 
     expect(queryByText("messages.sendError")).not.toBeNull();
   });
+
+  it("dit d'attendre quand la limite de débit refuse l'envoi (#782)", () => {
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new ApiError(429, "Trop de requêtes", null),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const { queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByText("common.rateLimited")).not.toBeNull();
+    expect(queryByText("messages.sendError")).toBeNull();
+  });
 });
 
 describe("ConversationThread — en-tête (#612)", () => {

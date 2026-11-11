@@ -1,4 +1,5 @@
 import {
+  ApiError,
   MAX_MESSAGE_MEDIA_BATCH,
   type MediaRecapLine,
   MessageType,
@@ -277,6 +278,21 @@ describe("useSendMessageMedia", () => {
     expect(sendMessageMock).toHaveBeenCalledTimes(2);
     expect(recap).toHaveLength(1);
     expect(recap[0]?.fileName).toBe("b.jpg");
+  });
+
+  it("dit d'attendre quand la limite de débit refuse l'URL d'envoi (#782)", async () => {
+    launchLibraryMock.mockResolvedValue({ canceled: false, assets: [asset("a.jpg")] });
+    requestUrlMock.mockRejectedValue(new ApiError(429, "Trop de requêtes", null));
+    const { result } = setup();
+
+    let recap: MediaRecapLine[] = [];
+    await act(async () => {
+      recap = await result.current.pickAndSend(onPickError, "media");
+    });
+
+    expect(recap).toEqual([
+      expect.objectContaining({ reason: expect.objectContaining({ key: "common.rateLimited" }) }),
+    ]);
   });
 
   /**
