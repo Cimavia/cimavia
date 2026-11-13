@@ -32,7 +32,7 @@ import {
 } from "../../access/access.mapper";
 import { AccessService } from "../../access/service/access.service";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
-import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
+import { buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -276,12 +276,16 @@ export class InvoiceService {
    */
   async attachDocument(planId: string, input: AttachInvoiceDocumentInput): Promise<InvoiceDto> {
     const plan = await this.getDraftablePlanOrThrow(planId);
-    // La clé vient du client : elle doit désigner un PDF de CE cycle (#293), sans quoi remplacer
-    // puis retirer le justificatif purgerait l'objet d'un autre tenant.
-    assertKeyUnder(invoiceDocumentKeyPrefix(plan.athleteId, planId), input.storagePath);
-    // Et l'objet doit être celui que le ticket a signé : la taille affichée est celle reçue (#468).
-    await this.storage.assertUploadedAsDeclared(input.storagePath, input);
+    // Le brouillon d'abord : sans termes de facturation, la réponse est l'erreur du coach (400), pas
+    // celle du storage. Puis la clé vient du client : elle doit désigner un PDF de CE cycle (#293),
+    // sans quoi remplacer puis retirer le justificatif purgerait l'objet d'un autre tenant ; et
+    // l'objet doit être celui que le ticket a signé (#468).
     const draft = await this.getDraftInvoiceOrThrow(planId);
+    await this.storage.assertAttachable(
+      invoiceDocumentKeyPrefix(plan.athleteId, planId),
+      input.storagePath,
+      input,
+    );
 
     const previousPath = draft.documentPath;
     const updated = await this.db.invoice.update({
@@ -293,7 +297,7 @@ export class InvoiceService {
         documentSizeBytes: input.size,
       },
     });
-    // L'ancien objet n'est plus référencé : on le purge (sa clé n'appartient qu'à cette facture).
+    // L'ancien objet n'est plus référencé : on le purge (sa clé est sous le préfixe de cette facture ; rattachée deux fois, elle serait purgée sous l'autre : S-2).
     if (previousPath != null && previousPath !== input.storagePath) {
       await this.storage.deleteObject(previousPath);
     }

@@ -107,13 +107,13 @@ function build(setup: Setup = {}) {
   } as unknown as TenantPrisma;
   const notifyMessageReceived = vi.fn().mockResolvedValue(undefined);
   const getJoinedOrThrow = vi.fn().mockResolvedValue(conversation);
-  const assertUploadedAsDeclared = vi.fn().mockResolvedValue(undefined);
+  const assertAttachable = vi.fn().mockResolvedValue(undefined);
 
   const service = new MessageService(
     db,
     {
       createDownloadUrl: vi.fn().mockResolvedValue("https://signed"),
-      assertUploadedAsDeclared,
+      assertAttachable,
     } as unknown as StorageService,
     { getJoinedOrThrow } as unknown as ConversationService,
     { notifyMessageReceived } as unknown as NotificationService,
@@ -131,7 +131,7 @@ function build(setup: Setup = {}) {
     updateMany,
     notifyMessageReceived,
     getJoinedOrThrow,
-    assertUploadedAsDeclared,
+    assertAttachable,
   };
 }
 
@@ -295,11 +295,11 @@ describe("MessageService.send — canaux de notification", () => {
 describe("MessageService.send — fichier joint (#771)", () => {
   // Ce que le ticket a signé est relu au storage : un fichier déclaré PDF de 2 Ko doit l'être.
   it("confronte l'objet reçu à ce que le message déclare", async () => {
-    const { service, assertUploadedAsDeclared } = build();
+    const { service, assertAttachable } = build();
 
     await service.send("conv1", PDF);
 
-    expect(assertUploadedAsDeclared).toHaveBeenCalledWith(PDF.storagePath, PDF);
+    expect(assertAttachable).toHaveBeenCalledWith("conversation/conv1/", PDF.storagePath, PDF);
   });
 
   it("écrit le fichier sans durée", async () => {
@@ -320,8 +320,8 @@ describe("MessageService.send — fichier joint (#771)", () => {
 
   // L'objet ne correspond pas au ticket : rien ne s'écrit, personne n'est prévenu.
   it("n'écrit rien quand le storage dément la déclaration", async () => {
-    const { service, create, notifyMessageReceived, assertUploadedAsDeclared } = build();
-    assertUploadedAsDeclared.mockRejectedValueOnce(new Error("409"));
+    const { service, create, notifyMessageReceived, assertAttachable } = build();
+    assertAttachable.mockRejectedValueOnce(new Error("409"));
 
     await expect(service.send("conv1", PDF)).rejects.toThrow("409");
 
@@ -354,16 +354,16 @@ describe("MessageService.send — médias (#468)", () => {
     ["la photo", PHOTO],
     ["la vidéo", VIDEO],
   ])("confronte %s à l'objet reçu", async (_name, input) => {
-    const { service, assertUploadedAsDeclared } = build();
+    const { service, assertAttachable } = build();
 
     await service.send("conv1", input);
 
-    expect(assertUploadedAsDeclared).toHaveBeenCalledWith(input.storagePath, input);
+    expect(assertAttachable).toHaveBeenCalledWith("conversation/conv1/", input.storagePath, input);
   });
 
   it("n'écrit rien quand le storage dément une photo", async () => {
-    const { service, create, notifyMessageReceived, assertUploadedAsDeclared } = build();
-    assertUploadedAsDeclared.mockRejectedValueOnce(new Error("409"));
+    const { service, create, notifyMessageReceived, assertAttachable } = build();
+    assertAttachable.mockRejectedValueOnce(new Error("409"));
 
     await expect(service.send("conv1", PHOTO)).rejects.toThrow("409");
 
@@ -372,11 +372,11 @@ describe("MessageService.send — médias (#468)", () => {
   });
 
   it("ne relit pas le storage pour un texte", async () => {
-    const { service, assertUploadedAsDeclared } = build();
+    const { service, assertAttachable } = build();
 
     await service.send("conv1", { type: MessageType.TEXT, content: "Salut" });
 
-    expect(assertUploadedAsDeclared).not.toHaveBeenCalled();
+    expect(assertAttachable).not.toHaveBeenCalled();
   });
 });
 

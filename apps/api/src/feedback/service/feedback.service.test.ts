@@ -118,7 +118,7 @@ describe("FeedbackMediaService.attach", () => {
   function build() {
     const markSent = vi.fn().mockResolvedValue(undefined);
     const getOrCreateWritable = vi.fn().mockResolvedValue(writable(false));
-    const assertUploadedAsDeclared = vi.fn().mockResolvedValue(undefined);
+    const assertAttachable = vi.fn().mockResolvedValue(undefined);
     const create = vi.fn().mockResolvedValue({
       id: "m1",
       type: MediaType.IMAGE,
@@ -135,14 +135,14 @@ describe("FeedbackMediaService.attach", () => {
       } as unknown as TenantPrisma,
       {
         createDownloadUrl: vi.fn().mockResolvedValue("https://signed"),
-        assertUploadedAsDeclared,
+        assertAttachable,
       } as unknown as StorageService,
       { getOrCreateWritable, markSent } as unknown as FeedbackService,
       {
         getPublishedSessionOrThrow: vi.fn().mockResolvedValue({ athleteId: "a1" }),
       } as unknown as AthletePlanService,
     );
-    return { service, markSent, getOrCreateWritable, assertUploadedAsDeclared, create };
+    return { service, markSent, getOrCreateWritable, assertAttachable, create };
   }
 
   it("transmet la suite d'un lot à l'envoi du débrief", async () => {
@@ -156,17 +156,21 @@ describe("FeedbackMediaService.attach", () => {
   // Ce que le ticket a signé est relu au storage : le type et la taille du rattachement ne sont
   // crus que s'ils sont ceux de l'objet (#468).
   it("confronte l'objet reçu à ce que le rattachement déclare", async () => {
-    const { service, assertUploadedAsDeclared } = build();
+    const { service, assertAttachable } = build();
 
     await service.attach("ss1", INPUT);
 
-    expect(assertUploadedAsDeclared).toHaveBeenCalledExactlyOnceWith(INPUT.storagePath, INPUT);
+    expect(assertAttachable).toHaveBeenCalledExactlyOnceWith(
+      "athlete/a1/feedback/ss1/",
+      INPUT.storagePath,
+      INPUT,
+    );
   });
 
   // Un rattachement refusé ne crée pas le débrief : la séance ne passe pas en DONE pour rien.
   it("ne crée ni débrief ni média quand le storage dément la déclaration", async () => {
-    const { service, assertUploadedAsDeclared, getOrCreateWritable, create, markSent } = build();
-    assertUploadedAsDeclared.mockRejectedValueOnce(new Error("409"));
+    const { service, assertAttachable, getOrCreateWritable, create, markSent } = build();
+    assertAttachable.mockRejectedValueOnce(new Error("409"));
 
     await expect(service.attach("ss1", INPUT)).rejects.toThrow("409");
 

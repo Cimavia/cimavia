@@ -4,7 +4,6 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { ConversationParticipant, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { PrismaService } from "../../infra/prisma/prisma.service";
-import { assertKeyUnder } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -70,8 +69,11 @@ export class MessageService {
     // La clé du média vient du client : elle doit désigner un objet de CE fil (#293), puis cet
     // objet doit être celui que le ticket a signé — type et taille relus au storage (#317, #468).
     if (input.type !== MessageType.TEXT) {
-      assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
-      await this.storage.assertUploadedAsDeclared(input.storagePath, input);
+      await this.storage.assertAttachable(
+        messageMediaKeyPrefix(conversation.id),
+        input.storagePath,
+        input,
+      );
     }
 
     // Le message ouvre-t-il une SÉRIE chez ce destinataire ? Oui s'il a lu mon dernier message —
