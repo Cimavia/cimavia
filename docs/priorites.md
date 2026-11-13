@@ -18,9 +18,9 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #323 | `validateBlockValues` ne tourne que dans le navigateur | 🟡 | ✅ |
 | #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | ✅ |
 | #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | ✅ |
-| #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | |
+| #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | ✅ |
 | #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | ✅ |
-| #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | |
+| #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | ✅ |
 | #466 | Les routes d'auth n'apparaissent jamais dans les journaux Pino | 🟡 | |
 | #81 | Inspection serveur des durées (ffprobe) | ⚪ | |
 
@@ -44,7 +44,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #731 | Notes vocales en erreur en preview : établir la cause, puis corriger | 🟠 | ✅ |
 | #439 | Un 401 n'est traité nulle part sur mobile | 🟠 | ✅ |
 | #340 | Quitter pendant un enregistrement envoie la capture tronquée | 🟠 | |
-| #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | |
+| #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | ✅ |
 | #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | |
 | #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | |
 | #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | |
