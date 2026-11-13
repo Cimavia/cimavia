@@ -1,4 +1,4 @@
-import { LibraryScope } from "@cmv/shared";
+import { EXERCISE_TITLE_MAX_LENGTH, LibraryScope } from "@cmv/shared";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { tagFilterOptions, toggledTags } from "@/feature/library/util/tag-filter.util";
@@ -49,6 +49,9 @@ export function LibraryFilterBar({
           name={name}
           type="search"
           value={search}
+          // Aucun titre de la bibliothèque n'est plus long, et l'API refuse un `?search=` qui
+          // l'est (#352) : un texte collé trop long se coupe ici au lieu de finir en erreur.
+          maxLength={EXERCISE_TITLE_MAX_LENGTH}
           onChange={(event) => onSearch(event.target.value)}
           placeholder={searchPlaceholder}
         />
