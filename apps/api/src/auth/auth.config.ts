@@ -32,6 +32,12 @@ export type AuthConfig = {
   secret: string;
   baseURL: string;
   trustedOrigins: string[];
+  /**
+   * L'en-tête qui porte l'IP du client (`clientIpHeaderOf`, #781) — `null` en local, où il n'y a
+   * pas de proxy. Une clé obligatoire, même nulle : l'oublier dans `app.module.ts` remettrait le
+   * défaut de Better Auth sans qu'aucun test ne le voie.
+   */
+  clientIpHeader: string | null;
   sendResetPassword: SendAuthLink;
   /** Le lien qui prouve que l'inscrit possède son adresse (#270). */
   sendVerificationEmail: SendAuthLink;
@@ -196,6 +202,16 @@ function passwordRequired(request: Request | undefined, baseURL: string): APIErr
 }
 
 /**
+ * Où Better Auth lit l'IP du client (#781) : elle sépare les compteurs de sa limite de débit — 3
+ * tentatives par 10 s sur `/sign-in` et `/sign-up`, active en production — et il l'inscrit sur la
+ * session. Sans en-tête, son défaut (`x-forwarded-for`) : pourquoi il ne tient pas derrière un
+ * proxy, voir `CLIENT_IP_HEADER` dans `envSchema`.
+ */
+function clientIpOptions(header: string | null) {
+  return header === null ? undefined : { ipAddressHeaders: [header] };
+}
+
+/**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
  * Le profil (capacités, role, locale) vit sur `user` via additionalFields — validés côté app :
  * `role` ∈ Role, `locale` ∈ Locale. ADMIN n'est pas auto-assignable à l'inscription.
@@ -216,6 +232,7 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []),
     ],
     database: prismaAdapter(prisma, { provider: "postgresql" }),
+    advanced: { ipAddress: clientIpOptions(config.clientIpHeader) },
     // Le modèle Prisma de session auth est renommé `AuthSession` pour libérer le nom `Session`
     // au profit de l'entité métier séance (P2). La table reste `session` (via @@map) — pas de
     // migration de données. Better Auth résout le délégué Prisma via ce `modelName`.
