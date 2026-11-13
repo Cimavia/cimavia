@@ -720,9 +720,7 @@ liste des domaines vivent dans l'index.
 
 ## Post-MVP — Clé objet venue du client ([#293](https://github.com/Cimavia/cimavia/issues/293))
 
-| # | Dette | Statut | Suivi |
-|---|---|---|---|
-| S-1 | **Le rattachement croit le `type`, le mime et la taille déclarés**, pas ceux de l'objet envoyé : une vidéo d'1 Go rattachée en `IMAGE` échappe au plafond de 10 vidéos par débrief. La clé, elle, est vérifiée depuis #293. Pas besoin de mémoriser le ticket comme #293 l'annonçait : le storage garde le type et la taille signés, un `HeadObject` au rattachement suffit. **Périmètre réduit en [#317](https://github.com/Cimavia/cimavia/issues/317)** : le document d'exercice en sort, confronté par `StorageService.assertUploadedAsDeclared` ; restent le débrief, la messagerie et le justificatif de facture, qui n'ont qu'à l'appeler. **Nouvelle branche sans écart en [#771](https://github.com/Cimavia/cimavia/issues/771)** : le fichier joint d'un message est confronté dès son arrivée ; dans la messagerie, ne restent que l'audio, la photo et la vidéo. | 🟢 | [#468](https://github.com/Cimavia/cimavia/issues/468) |
+*Résolues, à l'[archive](archive.md) : S-1.*
 
 > **Tranché en [#293](https://github.com/Cimavia/cimavia/issues/293)** (la forme exacte, et 403) :
 > `assertKeyUnder` (`infra/storage/object-key.ts`) exige `<préfixe><uuid>-<nom assaini>`, la forme
@@ -733,6 +731,16 @@ liste des domaines vivent dans l'index.
 > découpé, testée en e2e, et la ressource visée existe bien — c'est la clé qui n'est pas à
 > l'appelant. Dans `FeedbackMediaService.attach`, la garde passe AVANT `getOrCreateWritable` : un
 > refus ne crée pas de débrief et ne passe pas la séance en DONE.
+
+> **Tranché en [#468](https://github.com/Cimavia/cimavia/issues/468)** (un `HeadObject` au
+> rattachement, pas de ticket mémorisé) : #293 annonçait qu'il faudrait garder le ticket émis pour
+> le comparer au rattachement. Le storage le garde déjà — il a reçu le type et la taille que l'URL
+> signait — et `StorageService.assertUploadedAsDeclared` (#317) les relit. Pas de table, pas d'état
+> côté API. Le coût est un aller-retour vers le storage par rattachement. Elle s'appelle APRÈS
+> `assertKeyUnder` (un refus de clé ne coûte aucun appel) et, pour le débrief, AVANT
+> `getOrCreateWritable` : un rattachement refusé ne crée pas de débrief. Dans la messagerie, elle
+> couvre désormais tout ce qui n'est pas du texte, et non plus seulement le fichier joint. La durée
+> reste déclarative : c'est #81.
 
 > **Tranché en [#354](https://github.com/Cimavia/cimavia/issues/354)** (le nom est raccourci à
 > l'entrée, ni refusé ni tronqué dans la clé) : les dix-huit `fileName` reçus passent par
