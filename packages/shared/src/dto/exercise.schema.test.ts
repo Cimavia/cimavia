@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { expectRefusal } from "../../test/expect-refusal";
+import { LibraryScope } from "./access.schema";
 import {
   attachDocumentSchema,
   createExerciseSchema,
@@ -9,10 +10,12 @@ import {
   EXERCISE_MAX_TAGS,
   EXERCISE_TAG_FILTER_MAX,
   EXERCISE_TAG_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
   exerciseTagFilterSchema,
   exerciseTagsSchema,
   isAllowedDocumentMime,
   isInstructionImageMime,
+  listExercisesQuerySchema,
   MAX_DOCUMENT_SIZE_BYTES,
   updateExerciseSchema,
 } from "./exercise.schema";
@@ -75,6 +78,46 @@ describe("exerciseTagFilterSchema", () => {
     expect(exerciseTagFilterSchema.safeParse(tags(EXERCISE_TAG_FILTER_MAX + 1)).success).toBe(
       false,
     );
+  });
+});
+
+describe("listExercisesQuerySchema", () => {
+  it("vide : toute la bibliothèque, sans tag ni recherche", () => {
+    expect(listExercisesQuerySchema.parse({})).toEqual({
+      scope: LibraryScope.ALL,
+      tag: [],
+      search: undefined,
+    });
+  });
+
+  it("coupe la recherche, et une recherche faite d'espaces ne cherche rien", () => {
+    expect(listExercisesQuerySchema.parse({ search: "  dévers " }).search).toBe("dévers");
+    expect(listExercisesQuerySchema.parse({ search: "   " }).search).toBeUndefined();
+  });
+
+  it("refuse une clé répétée, au lieu de la laisser arriver en tableau", () => {
+    expect(listExercisesQuerySchema.safeParse({ search: ["a", "b"] }).success).toBe(false);
+    expect(
+      listExercisesQuerySchema.safeParse({ scope: [LibraryScope.MINE, LibraryScope.SHARED] })
+        .success,
+    ).toBe(false);
+  });
+
+  it("refuse une recherche plus longue qu'aucun titre, coupée d'abord", () => {
+    const longest = "x".repeat(EXERCISE_TITLE_MAX_LENGTH);
+    expect(listExercisesQuerySchema.parse({ search: ` ${longest} ` }).search).toBe(longest);
+    expect(listExercisesQuerySchema.safeParse({ search: `${longest}x` }).success).toBe(false);
+  });
+
+  it("mesure la recherche recomposée : un accent collé décomposé compte pour un", () => {
+    const decomposed = "e\u0301".repeat(EXERCISE_TITLE_MAX_LENGTH);
+    expect(listExercisesQuerySchema.parse({ search: decomposed }).search).toBe(
+      "é".repeat(EXERCISE_TITLE_MAX_LENGTH),
+    );
+  });
+
+  it("refuse une clé inconnue : le client croirait filtrer", () => {
+    expect(listExercisesQuerySchema.safeParse({ athleteId: "ath_1" }).success).toBe(false);
   });
 });
 

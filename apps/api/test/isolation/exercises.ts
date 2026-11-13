@@ -1,4 +1,10 @@
-import { EXERCISE_TAG_FILTER_MAX, EXERCISE_TAG_MAX_LENGTH, ProblemType, Role } from "@cmv/shared";
+import {
+  EXERCISE_TAG_FILTER_MAX,
+  EXERCISE_TAG_MAX_LENGTH,
+  EXERCISE_TITLE_MAX_LENGTH,
+  ProblemType,
+  Role,
+} from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, required, signUp } from "../support/actors";
 import { blocksOf } from "../support/blocks";
@@ -91,6 +97,33 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     const atLimit = await coachA.get(`/exercises?${query(EXERCISE_TAG_FILTER_MAX)}`);
     expect(atLimit.body.map((row: { id: string }) => row.id)).toEqual([exerciseAId]);
     expect((await coachA.get(`/exercises?${query(EXERCISE_TAG_FILTER_MAX + 1)}`)).status).toBe(400);
+  });
+
+  /**
+   * Fastify rend un tableau quand une clé est répétée. Lue brute, `?search=` le portait jusqu'au
+   * `.trim()` du contrôleur : un 500 et une alerte Sentry (#352). La requête entière passe
+   * désormais par Zod, et chaque refus dit quelle clé est en cause.
+   */
+  it.each([
+    ["une recherche répétée", "search=a&search=b", "#/search"],
+    ["un scope répété", "scope=mine&scope=shared", "#/scope"],
+    [
+      "une recherche plus longue qu'aucun titre",
+      `search=${"x".repeat(EXERCISE_TITLE_MAX_LENGTH + 1)}`,
+      "#/search",
+    ],
+    ["une clé inconnue", "athleteId=ath_1", "#"],
+  ])("refuse %s (400), jamais en 500", async (_label, query, pointer) => {
+    const res = await coachA.get(`/exercises?${query}`);
+    expect(res.status).toBe(400);
+    expect(res.body.errors).toEqual([expect.objectContaining({ pointer })]);
+  });
+
+  it("une recherche faite d'espaces ne cherche rien : toute la liste", async () => {
+    const all = await coachA.get("/exercises");
+    const blank = await coachA.get("/exercises").query({ search: "   " });
+    expect(blank.status).toBe(200);
+    expect(blank.body).toEqual(all.body);
   });
 
   it("un coach ne liste que SES exercices", async () => {
