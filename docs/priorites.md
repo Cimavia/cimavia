@@ -35,7 +35,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #796 | Supprimer son compte depuis l'app mobile *(enfant de #256)* | 🔴 | ✅ |
 | #285 | Effacer un compte et ses médias | 🔴 | ✅ |
 | #783 | Cadrage : quelles données personnelles partent chez Sentry, Axiom, Scaleway, Expo et Cloudflare ? | 🟡 | |
-| #74 | Rupture d'une relation : purger objets et notifications | 🟡 | |
+| #74 | Rupture d'une relation : purger objets et notifications *(absorbe #102, après #213)* | 🟡 | |
 
 ## Bugs
 
@@ -174,7 +174,6 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | Issue | Nom | Prio | Fermée |
 |---|---|---|---|
 | #72 | Tâche de purge des objets sans ligne en base | 🟡 | |
-| #102 | Nettoyer les notifications d'une relation supprimée *(avec #213)* | 🟡 | |
 | #108 | Purger les rappels d'une cible disparue *(avec #213)* | 🟡 | |
 | #73 | Purger le PDF à la suppression d'un cycle brouillon | ⚪ | |
 | #75 | Suppression d'un document : rollback si la ligne ne part pas | ⚪ | |

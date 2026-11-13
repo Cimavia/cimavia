@@ -469,7 +469,7 @@ liste des domaines vivent dans l'index.
 >   révocation de la même milliseconde — n'est pas gardé : `accept` écrit sans condition depuis
 >   #146, et la fenêtre ne justifie pas de le reprendre ici.
 > - Une invitation **expirée** reste révocable : l'expiration est une date, pas un statut. Ce qui
->   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#102), et
+>   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#74), et
 >   aucune notification n'annonce le retrait. Cette transition ouvre la seconde option de #314
 >   sans trancher entre les deux — c'est fait depuis, encadré suivant.
 
