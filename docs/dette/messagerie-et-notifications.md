@@ -577,6 +577,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | NV-1 | **La notification Android de l'enregistrement est en anglais** (règle dure n°6) : « Recording audio » / « Tap to return to app », et le canal « Audio Recording » visible dans Réglages › Notifications. `AudioRecordingService.kt` les écrit en dur, sans ressource Android à surcharger : la voie d'IOS-1 (`expo.locales`) ne s'applique pas. Seule issue aujourd'hui, un `pnpm patch` du service, écarté : à rejouer à chaque montée d'`expo-audio`. Même famille que [#348](https://github.com/Cimavia/cimavia/issues/348). | 🟢 | — *(déclencheur : une option de configuration côté `expo-audio`, ou un retour d'utilisateur qui s'en plaint)* |
 | NV-2 | **Le service de premier plan `microphone` n'est déclaré nulle part côté store** : la Play Console exige une justification et une vidéo pour chaque type de service de premier plan du manifeste. | 🟡 | — *(déclencheur : la première publication sur le Play Store ; Android n'est distribué qu'en interne, `eas.json` n'a pas de `submit` Android)* |
+| NV-3 | **Le mobile ne borne pas la capture vocale** : `CmvAudioRecorder` enregistre sans plafond, et une note de plus de cinq minutes n'est refusée — en entier — qu'à l'envoi. Le web s'arrête au plafond du profil en gardant la capture (#340). | 🟡 | — *(issue à créer)* |
 
 > **Tranché en #619** (la note vocale continue écran verrouillé) : le Coach bêta perdait tout ce
 > qu'il disait une fois l'iPhone en veille. expo-audio met l'enregistreur en pause dès que l'app
