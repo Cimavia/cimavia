@@ -1,5 +1,6 @@
 import { RequestMethod, type Type } from "@nestjs/common";
-import { METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
+import { METHOD_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from "@nestjs/common/constants";
+import { RouteParamtypes } from "@nestjs/common/enums/route-paramtypes.enum";
 import { DiscoveryModule, DiscoveryService, MetadataScanner, Reflector } from "@nestjs/core";
 import { Test, type TestingModule } from "@nestjs/testing";
 import { AllowAnonymous, OptionalAuth } from "@thallesp/nestjs-better-auth";
@@ -9,6 +10,8 @@ import {
   NO_CAPABILITY,
   routeDeclarationOf,
 } from "../src/auth/decorator/require-capability.decorator";
+import { hasSchema } from "../src/zod/zod.util";
+import { ZodSchemaPipe } from "../src/zod/zod-schema.pipe";
 
 /**
  * Chaque route montée déclare son scope (#622) : la capacité qu'elle exerce
@@ -49,7 +52,13 @@ type Route = {
   declared: boolean;
   requiresCapability: boolean;
   anonymous: boolean;
+  queries: Query[];
 };
+
+/** Un argument `@Query` du handler : `?search`, ou `?*` pour la requête entière. */
+type Query = { name: string; validated: boolean };
+
+type RouteArg = { index: number; data?: unknown; pipes?: unknown[] };
 
 let moduleRef: TestingModule;
 let routes: Route[];
@@ -58,6 +67,32 @@ let routes: Route[];
 function joinPath(...parts: (string | undefined)[]): string {
   const segments = parts.flatMap((part) => (part ?? "").split("/")).filter(Boolean);
   return `/${segments.join("/")}`;
+}
+
+/**
+ * Les arguments `@Query` d'un handler, et s'ils passent par Zod (#352) : un `ZodSchemaPipe`
+ * posé sur l'argument, ou un type DTO qui porte son schéma, que le pipe global applique. Une
+ * clé brute (`@Query("search") search?: string`) n'a ni l'un ni l'autre : une clé répétée y
+ * arrive en tableau, et le premier `.trim()` venu fait un 500.
+ */
+function queriesOf(controller: Type, name: string): Query[] {
+  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, name) ?? {}) as Record<
+    string,
+    RouteArg
+  >;
+  const types = (Reflect.getMetadata("design:paramtypes", controller.prototype, name) ??
+    []) as unknown[];
+  return (
+    Object.entries(args)
+      // Clé `<type>:<index>` — `4:1` pour un `@Query` en 2e position.
+      .filter(([key]) => key.startsWith(`${RouteParamtypes.QUERY}:`))
+      .map(([, arg]) => ({
+        name: `?${typeof arg.data === "string" ? arg.data : "*"}`,
+        validated:
+          (arg.pipes ?? []).some((pipe) => pipe instanceof ZodSchemaPipe) ||
+          hasSchema(types[arg.index]),
+      }))
+  );
 }
 
 function mountedRoutes(module: TestingModule): Route[] {
@@ -87,6 +122,7 @@ function mountedRoutes(module: TestingModule): Route[] {
             (key) =>
               reflector.getAllAndOverride<boolean>(key as string, [handler, controller]) === true,
           ),
+          queries: queriesOf(controller, name),
         },
       ];
     });
@@ -130,5 +166,23 @@ describe("déclaration de scope des routes (#622)", () => {
     const anonymous = routes.filter((r) => r.anonymous).map((r) => withoutHandler(r.label));
     expect(new Set(anonymous)).toEqual(new Set(ANONYMOUS_ROUTES));
     expect(anonymous).toHaveLength(ANONYMOUS_ROUTES.length);
+  });
+});
+
+describe("validation des paramètres de requête (#352)", () => {
+  it("trouve les paramètres de requête, sous pipe comme sous DTO", () => {
+    // Même garde contre la vacuité : sans arguments `@Query` énumérés, tout passerait.
+    const validated = routes.flatMap((r) =>
+      r.queries.filter((q) => q.validated).map((q) => `${withoutHandler(r.label)} ${q.name}`),
+    );
+    expect(validated).toContain("DELETE /exercises/:id ?*");
+    expect(validated).toContain("GET /me/notifications ?*");
+  });
+
+  it("aucun paramètre de requête n'échappe à Zod", () => {
+    const unvalidated = routes.flatMap((r) =>
+      r.queries.filter((q) => !q.validated).map((q) => `${r.label} ${q.name}`),
+    );
+    expect(unvalidated).toEqual([]);
   });
 });

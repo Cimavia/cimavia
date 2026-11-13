@@ -248,6 +248,34 @@ describe("Messagerie : médias (P5)", () => {
     expect(list.body.at(-1).id).toBe(sent.body.id);
   });
 
+  // #468 : le `type` pilote le lecteur à l'affichage. Une note vocale rattachée en image, ou une
+  // taille qui ment, ne passe pas : l'objet est relu au storage.
+  it("refuse un média dont la déclaration dément l'objet reçu (409)", async () => {
+    const sentAsAudio = await upload(coachA, audio("deguisee.m4a"));
+    const asImage = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ ...image("deguisee.m4a"), storagePath: sentAsAudio });
+    expect(asImage.status).toBe(409);
+
+    const sentAsImage = await upload(coachA, image("menteuse.jpg"));
+    const wrongSize = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ ...image("menteuse.jpg"), size: 1_000, storagePath: sentAsImage });
+    expect(wrongSize.status).toBe(409);
+  });
+
+  it("refuse un média jamais envoyé au storage (404)", async () => {
+    const signed = await coachA
+      .post(`/conversations/${conversationId}/messages/upload-url`)
+      .send(audio("fantome.m4a"));
+    expect(signed.status).toBe(201);
+
+    const sent = await coachA
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ ...audio("fantome.m4a"), storagePath: signed.body.storagePath });
+    expect(sent.status).toBe(404);
+  });
+
   it("envoie une image : pas de durée, clé segmentée par conversation", async () => {
     const storagePath = await upload(athleteA1, image());
     expect(storagePath).toContain(`conversation/${conversationId}/`);

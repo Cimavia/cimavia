@@ -4,7 +4,6 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { ConversationParticipant, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
 import { PrismaService } from "../../infra/prisma/prisma.service";
-import { assertKeyUnder } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import { NotificationService } from "../../notification/notification.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
@@ -67,14 +66,14 @@ export class MessageService {
   async send(conversationId: string, input: SendMessageInput): Promise<MessageDto> {
     const conversation = await this.conversations.getJoinedOrThrow(conversationId);
     const actor = currentActor(this.cls);
-    // La clé du média vient du client : elle doit désigner un objet de CE fil (#293).
+    // La clé du média vient du client : elle doit désigner un objet de CE fil (#293), puis cet
+    // objet doit être celui que le ticket a signé — type et taille relus au storage (#317, #468).
     if (input.type !== MessageType.TEXT) {
-      assertKeyUnder(messageMediaKeyPrefix(conversation.id), input.storagePath);
-    }
-    // Puis l'objet doit être celui que le ticket a signé (#317). Le fichier joint seul pour
-    // l'instant : une branche neuve n'agrandit pas la dette S-1, les médias l'attendent en #468.
-    if (input.type === MessageType.FILE) {
-      await this.storage.assertUploadedAsDeclared(input.storagePath, input);
+      await this.storage.assertAttachable(
+        messageMediaKeyPrefix(conversation.id),
+        input.storagePath,
+        input,
+      );
     }
 
     // Le message ouvre-t-il une SÉRIE chez ce destinataire ? Oui s'il a lu mon dernier message —
