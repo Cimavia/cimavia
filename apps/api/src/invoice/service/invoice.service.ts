@@ -279,6 +279,8 @@ export class InvoiceService {
     // La clé vient du client : elle doit désigner un PDF de CE cycle (#293), sans quoi remplacer
     // puis retirer le justificatif purgerait l'objet d'un autre tenant.
     assertKeyUnder(invoiceDocumentKeyPrefix(plan.athleteId, planId), input.storagePath);
+    // Et l'objet doit être celui que le ticket a signé : la taille affichée est celle reçue (#468).
+    await this.storage.assertUploadedAsDeclared(input.storagePath, input);
     const draft = await this.getDraftInvoiceOrThrow(planId);
 
     const previousPath = draft.documentPath;
