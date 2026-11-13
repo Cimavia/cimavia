@@ -287,6 +287,23 @@ describe("Médias de débrief (P4)", () => {
     expect(tooBig.ok).toBe(false);
   });
 
+  // Le paquet qui signe les URLs retire `content-type` de la signature d'office : sans le remettre,
+  // le storage accepte n'importe quel type, et la relecture au rattachement ne ferait que relire ce
+  // que le client a lui-même déclaré (#468).
+  it("le storage refuse un envoi d'un autre type que celui signé", async () => {
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("camouflee.jpg"));
+    expect(signed.status).toBe(201);
+
+    const wrongType = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(120_000, 1),
+      headers: { "content-type": "video/mp4" },
+    });
+    expect(wrongType.ok).toBe(false);
+  });
+
   it("plafonne les vidéos d'un débrief (409 sur celle de trop)", async () => {
     // Le plafond vient de la CONSTANTE, jamais d'un chiffre écrit ici : relevé en #156, il aurait
     // rendu ce test rouge sans qu'aucune règle n'ait changé.
