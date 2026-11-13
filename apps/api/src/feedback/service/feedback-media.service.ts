@@ -101,6 +101,9 @@ export class FeedbackMediaService {
   ): Promise<FeedbackMediaDto> {
     // AVANT de créer le débrief : un rattachement refusé ne doit pas passer la séance en DONE.
     await this.assertOwnedKey(scheduledSessionId, input.storagePath);
+    // L'objet reçu doit être celui que le ticket a signé : sans cette relecture, une vidéo d'1 Go
+    // rattachée en `IMAGE` échapperait au plafond par type (#468).
+    await this.storage.assertUploadedAsDeclared(input.storagePath, input);
     const writable = await this.feedback.getOrCreateWritable(scheduledSessionId);
     const { feedback } = writable;
     // Revérifié après l'upload : entre la demande d'URL et le rattachement, l'athlète a pu en
