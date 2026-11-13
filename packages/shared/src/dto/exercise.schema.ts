@@ -4,6 +4,7 @@ import {
   accessGrantDtoSchema,
   accessOwnerSchema,
   coachGrantDtoSchema,
+  libraryScopeSchema,
   myAccessSchema,
 } from "./access.schema";
 import { customMetricSchema } from "./exercise-metric.schema";
@@ -67,6 +68,32 @@ export const exerciseTagFilterSchema = z
   )
   .pipe(z.array(exerciseTagSchema).max(EXERCISE_TAG_FILTER_MAX))
   .transform((tags) => [...new Set(tags)].sort((a, b) => a.localeCompare(b)));
+
+/**
+ * La requête ENTIÈRE de `GET /exercises` (#352), et non une clé à la fois : une clé lue brute
+ * échappait à Zod, et un `?search=a&search=b` arrivait en tableau jusqu'au `.trim()` du
+ * contrôleur — un 500, déclenchable par n'importe quel Coach. Strict, comme toute requête que
+ * l'API lit : une clé inconnue est une erreur d'appel.
+ *
+ * `search` coupé, puis vide = pas de recherche, comme un champ effacé. Borné au titre : aucun
+ * titre ne peut contenir une recherche plus longue que lui, et la refuser dit au client que le
+ * filtre n'a pas de sens, là où une liste vide le laisserait croire qu'il n'y a rien. Mesuré en
+ * NFC : un « é » collé décomposé (macOS) compterait sinon pour deux.
+ */
+export const listExercisesQuerySchema = z
+  .object({
+    scope: libraryScopeSchema,
+    tag: exerciseTagFilterSchema,
+    search: z
+      .string()
+      .trim()
+      .normalize("NFC")
+      .max(EXERCISE_TITLE_MAX_LENGTH)
+      .optional()
+      .transform((search) => search || undefined),
+  })
+  .strict();
+export type ListExercisesQuery = z.infer<typeof listExercisesQuerySchema>;
 
 export const DocumentType = {
   FILE: "FILE",
