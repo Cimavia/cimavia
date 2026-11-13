@@ -1,6 +1,6 @@
 import { redactUrlSecrets } from "@cmv/shared";
-import type { TransportTargetOptions } from "pino";
-import type { Options } from "pino-http";
+import type { Logger, TransportTargetOptions } from "pino";
+import { type HttpLogger, type Options, pinoHttp } from "pino-http";
 
 /**
  * Cibles de transport pino :
@@ -40,10 +40,9 @@ export function buildLogTargets(): TransportTargetOptions[] {
  * rappels. Un `redact` sur ces chemins aurait laissé passer le prochain en-tête sensible, et il ne
  * sait pas réécrire une partie de l'URL — or le jeton d'un appareil est DANS le chemin.
  *
- * Les routes `/api/auth/*` n'arrivent JAMAIS ici : Better Auth est branché directement sur
- * Fastify (`httpAdapter.use`), avant les middlewares de Nest, et répond sans passer la main. Ni la
- * connexion, ni le lien de réinitialisation, ni leurs `set-cookie` et `location` n'ont donc été
- * journalisés. La liste blanche les couvrirait le jour où ils le seraient.
+ * Elle couvre aussi les routes `/api/auth/*`, par `authRequestLogger` (#466) : elles ne passent pas
+ * par le middleware de Nest, mais leurs lignes sortent des mêmes sérialiseurs — ni le cookie de la
+ * requête, ni le `set-cookie` de la connexion, ni le `location` de la réinitialisation.
  *
  * Partent aussi : l'adresse et le port distants, donnée personnelle qu'aucun diagnostic n'a
  * demandée ; `query` et `params`, qui répètent l'URL AVANT blanchiment — `params.token` sur la
@@ -92,13 +91,45 @@ export function requestLogProps(_req: unknown, res: object): { problemType?: str
   return problemType === undefined ? {} : { problemType };
 }
 
-export function loggerOptions(): Options {
+/**
+ * Ce que dit la ligne d'une requête — liste blanche, niveau, cause — sans le logger qui l'écrit :
+ * partagé par le middleware de Nest (`loggerOptions`) et par celui des routes d'auth
+ * (`authRequestLogger`). Une seule définition, sans quoi les deux lignes divergeraient.
+ */
+function requestLogOptions(): Options {
   return {
-    level: process.env.NODE_ENV === "production" ? "info" : "debug",
-    transport: { targets: buildLogTargets() },
     autoLogging: true,
     customLogLevel: requestLogLevel,
     customProps: requestLogProps,
     serializers,
   };
+}
+
+export function loggerOptions(): Options {
+  return {
+    level: process.env.NODE_ENV === "production" ? "info" : "debug",
+    transport: { targets: buildLogTargets() },
+    ...requestLogOptions(),
+  };
+}
+
+/**
+ * La ligne de journal des routes `/api/auth/*` (#466), à passer en `middleware` du module Better
+ * Auth : il l'appelle sur ces routes seules, juste avant de leur répondre.
+ *
+ * Il en faut un à part parce que `@thallesp/nestjs-better-auth` branche Better Auth par
+ * `httpAdapter.use` PENDANT son `configure()`, et que Nest n'enregistre les middlewares déclarés
+ * (celui de `nestjs-pino` compris) qu'APRÈS tous les `configure()`. Better Auth répond donc avant
+ * eux, sans passer la main : aucun ordre d'import n'y change rien.
+ *
+ * `logger` est le logger racine de `nestjs-pino` : `pino-http` en tire un enfant, qui écrit dans le
+ * même transport — pas de second worker vers Axiom. Même message (`request completed`, que le
+ * filtre de Sentry reconnaît), même identifiant de requête (celui de Fastify, que middie recopie
+ * sur la requête brute), même liste blanche. Better Auth ne rendant jamais la main, une requête
+ * produit UNE ligne. Un preflight `OPTIONS` venu d'une origine de confiance n'en produit aucune :
+ * le CORS du module y répond avant d'appeler ce middleware. Celui d'une autre origine, ou sans
+ * origine, passe par lui et se journalise.
+ */
+export function authRequestLogger(logger: Logger): HttpLogger {
+  return pinoHttp({ ...requestLogOptions(), logger });
 }
