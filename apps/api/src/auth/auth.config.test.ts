@@ -17,6 +17,7 @@ function authWith(overrides: Partial<AuthConfig> = {}, prisma = {} as PrismaClie
     sendVerificationEmail: () => Promise.resolve(),
     notifyExistingAccount: () => Promise.resolve(),
     mayCreateAccount: () => Promise.resolve(true),
+    logging: { log: () => undefined, onError: () => undefined },
     ...overrides,
   });
 }
@@ -42,6 +43,21 @@ describe("createAuth — origines de confiance", () => {
     vi.stubEnv("BETTER_AUTH_TRUSTED_ORIGINS", undefined);
 
     expect(authWith().options.trustedOrigins).toEqual(["http://localhost:5173"]);
+  });
+});
+
+describe("createAuth — journaux (#466)", () => {
+  it("confie ses journaux et ses erreurs de route au branchement reçu, pas à la console", async () => {
+    const logging = { log: vi.fn(), onError: vi.fn() };
+    const { options } = authWith({ logging });
+    const error = new Error("panne");
+
+    options.logger?.log?.("error", "message", error);
+    await options.onAPIError?.onError?.(error);
+
+    expect(logging.log).toHaveBeenCalledWith("error", "message", error);
+    expect(logging.onError).toHaveBeenCalledWith(error);
+    expect(options.logger?.level).toBe("warn");
   });
 });
 

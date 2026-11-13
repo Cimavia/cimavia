@@ -5,7 +5,7 @@ import { APP_FILTER } from "@nestjs/core";
 import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
 import { ClsModule } from "nestjs-cls";
-import { LoggerModule } from "nestjs-pino";
+import { LoggerModule, PinoLogger } from "nestjs-pino";
 import { AccessModule } from "./access/access.module";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
@@ -27,7 +27,8 @@ import { PrismaService } from "./infra/prisma/prisma.service";
 import { InvoiceModule } from "./invoice/invoice.module";
 import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
-import { loggerOptions } from "./observability/logger.config";
+import { betterAuthLogging } from "./observability/better-auth-log";
+import { authRequestLogger, loggerOptions } from "./observability/logger.config";
 import { OrganizationModule } from "./organization/organization.module";
 import { PlanModule } from "./plan/plan.module";
 import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
@@ -59,6 +60,9 @@ import { VersionModule } from "./version/version.module";
         PasswordResetMailer,
         EmailVerificationMailer,
         SignupPolicy,
+        // Global (LoggerModule). Hors requête, `logger` rend la racine de nestjs-pino : celle qui
+        // écrit dans le transport vers Axiom (#466).
+        PinoLogger,
       ],
       useFactory: (
         prisma: PrismaService,
@@ -66,7 +70,11 @@ import { VersionModule } from "./version/version.module";
         passwordReset: PasswordResetMailer,
         emailVerification: EmailVerificationMailer,
         signup: SignupPolicy,
+        pino: PinoLogger,
       ) => ({
+        // Better Auth répond avant le middleware de nestjs-pino : sans celui-ci, ses routes ne
+        // laissent aucune ligne de journal (#466, voir `authRequestLogger`).
+        middleware: authRequestLogger(pino.logger),
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
@@ -75,6 +83,7 @@ import { VersionModule } from "./version/version.module";
           sendVerificationEmail: (params) => emailVerification.sendVerification(params),
           notifyExistingAccount: (params) => emailVerification.sendExistingAccount(params),
           mayCreateAccount: (email, account) => signup.mayCreateAccount(email, account),
+          logging: betterAuthLogging(pino.logger),
         }),
       }),
     }),

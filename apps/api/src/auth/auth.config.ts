@@ -12,6 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import type { BetterAuthLogging } from "../observability/better-auth-log";
 import { personaOf } from "./persona";
 
 /**
@@ -56,6 +57,11 @@ export type AuthConfig = {
    * `SignupPolicy` porte la décision, celle-ci ne fait qu'en appliquer le verdict.
    */
   mayCreateAccount: (email: string, account: { isCompany: boolean }) => Promise<boolean>;
+  /**
+   * Où vont les journaux et les erreurs de la bibliothèque (#466) : Pino, donc Axiom et Sentry,
+   * plutôt que la console. Injecté pour la même raison que les callbacks ci-dessus.
+   */
+  logging: BetterAuthLogging;
 };
 
 /**
@@ -223,6 +229,10 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     // Plugin serveur Expo : gère l'origine (scheme cimavia://) et les cookies natifs du client mobile.
     plugins: [expo()],
     hooks: { before: signUpGate(config.mayCreateAccount) },
+    // `warn`, le défaut de la bibliothèque, mais ÉCRIT : c'est ce que `betterAuthLogging` reçoit
+    // (#466). Laissé implicite, une mise à jour le changerait et ferait entrer ses `info` dans Axiom.
+    logger: { level: "warn", log: config.logging.log },
+    onAPIError: { onError: (error) => config.logging.onError(error) },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,
