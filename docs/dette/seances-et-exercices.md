@@ -1159,6 +1159,13 @@ liste des domaines vivent dans l'index.
 > - **Copier une semaine copie aussi le bloc retiré**, sans code de plus : la copie reprend les
 >   blocs tels qu'ils sont.
 
+> **Tranché en [#519](https://github.com/Cimavia/cimavia/issues/519)** (les pastilles de chrono) :
+> **une durée isolée ne se lance plus d'un tap.** La règle « toute durée affichée est lançable,
+> le chiffre EST le bouton » (`docs/maquettes/README.md`, volet exécution, point 1) est
+> remplacée : un bloc se lance en entier, par « Lancer le chrono » (#722). Ses pastilles
+> répétaient la phrase et la grille, et annonçaient l'effort de la première ligne comme celui du
+> bloc. Le code avait déjà disparu avec `ExerciseCard` (#723) : #519 ne corrige que la règle écrite.
+
 ## Post-MVP — Protocole d'un lien joint ([#324](https://github.com/Cimavia/cimavia/issues/324))
 
 > **Tranché en [#324](https://github.com/Cimavia/cimavia/issues/324)** (le protocole se garde à

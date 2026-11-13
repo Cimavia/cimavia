@@ -651,7 +651,8 @@ liste des domaines vivent dans l'index.
 >   `react-native-web` jette `onRefresh` : sans lui, le tirer-pour-rafraîchir des huit écrans qui
 >   l'offrent était inatteignable.
 > - **Écart nommé : `BlockTimerChips` et `DurationChip`** (`ExerciseCard`) ne sont pas couverts ; ils
->   suivent dans [#519](https://github.com/Cimavia/cimavia/issues/519).
+>   suivent dans [#519](https://github.com/Cimavia/cimavia/issues/519). Ils ont été supprimés
+>   en [#723](https://github.com/Cimavia/cimavia/issues/723), avec tout `ExerciseCard`.
 > - **Trois limites du harnais, contournées sans rien masquer.**
 >   - NativeWind ne pose pas de `className` dans le DOM : `CmvBadge` est doublé en
 >     `<span data-variant>` là où la variante est l'affirmation ; la couleur d'une tuile du tableau

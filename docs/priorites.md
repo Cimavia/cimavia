@@ -46,7 +46,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #340 | Quitter pendant un enregistrement envoie la capture tronquée | 🟠 | |
 | #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | ✅ |
 | #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | |
-| #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | |
+| #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | ✅ |
 | #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | |
 | #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | |
 | #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | |
