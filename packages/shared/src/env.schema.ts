@@ -71,8 +71,14 @@ const envShape = z.object({
    * l'atteindrait en direct poserait l'en-tête lui-même et choisirait son compteur.
    *
    * Obligatoire sur un tier déployé (`superRefine`) : la production n'est pas choisie (#259), et
-   * un défaut y vaudrait un pari sur son proxy. Absente en local, Better Auth compte tout le monde
-   * comme `127.0.0.1` — il n'y a qu'un client. En minuscules : Fastify range ainsi les en-têtes.
+   * un défaut y vaudrait un pari sur son proxy. Absente, Better Auth compte tout le monde comme
+   * `127.0.0.1` quand `NODE_ENV` vaut `development` ou `test` — sa limite y est éteinte. Sous
+   * `NODE_ENV=production` sans elle, il retombe sur le compteur commun : l'image ne tourne sans la
+   * variable qu'au prix de ce compteur, d'où l'obligation sur les tiers qui la font tourner.
+   * En minuscules : Fastify range ainsi les en-têtes.
+   *
+   * Seul exposé complet du choix, avec « Tranché en #781 » (`docs/dette/comptes-et-tenancy.md`) :
+   * le compose, les `.env.example` et les lecteurs y renvoient.
    */
   CLIENT_IP_HEADER: z.preprocess(
     emptyAsUndefined,
