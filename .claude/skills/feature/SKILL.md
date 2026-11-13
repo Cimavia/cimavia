@@ -16,8 +16,27 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
    contradiction avec ce fichier, les docs gagnent** — et c'est un résultat à signaler.
 2. **Ce qui cloche se signale, ne se répare pas en douce.** Test cassé, doc fausse, dette mal
    suivie : le dire. Le corriger seulement si c'est le sujet de la PR, ou après accord.
-3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (GitHub, Scaleway,
-   Neon, SonarCloud, secrets, branch protection). Je les liste, Kylian les fait.
+3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (Scaleway, Neon,
+   SonarCloud, NAS, secrets, branch protection). Je les liste, Kylian les fait.
+4. **Les retouches GitHub sans enjeu, je les propose puis je les fais moi-même** — pas de liste
+   à recopier dans l'interface. Sans enjeu = sans effet sur le code ni sur la gouvernance du dépôt,
+   et réversible :
+   - titre et **description** (corps) d'une issue ou d'une PR ;
+   - **labels**, jalon ;
+   - board « Cimavia — Roadmap » : statut, phase, ajout d'une issue ;
+   - relations : sous-issue, blocage ;
+   - commentaire sur une issue ou une PR (réponse à une revue, précision).
+
+   Je les regroupe en **une seule proposition** (dans le rapport du §3, le plan du §4 ou le bilan
+   d'un incrément), chacune avec l'avant → l'après, et j'attends le « ok ». Ensuite je les applique
+   par `gh api` (mécanique et IDs du board : skill `issue`, section *Mécanique `gh`*), **je relis
+   l'état après coup** — `gh api` peut échouer sans bruit — et je rends le résultat. Un corps
+   d'issue réécrit passe par un fichier du scratchpad (`-F body=@<fichier>`), jamais par un script
+   à faire lancer.
+
+   **Restent à Kylian** : créer, merger ou fermer une PR, fermer ou rouvrir une issue, supprimer
+   quoi que ce soit, releases et tags, secrets, branch protection, réglages du dépôt. Créer une
+   issue suit le skill `issue` (proposée, puis créée après validation).
 
 ## 1. Situer
 
@@ -125,8 +144,11 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
   doit rester vert.
 - Une **décision que le code ne justifie pas seul** se consigne en encadré « Tranché en #N ».
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
-- Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.
-- Mettre le statut "en cours" sur les issues correspondant au développement demandé
+- Toute anomalie de GitHub — statut de board, titre ou description désynchronisés du travail réel,
+  label `area:` qui ne couvre pas ce qui est touché (question 3), relation manquante — se
+  **propose à la correction** et se corrige moi-même après accord (règle d'or 4).
+- Le passage à **Status = En cours** des issues traitées se propose dès le premier retour (§1),
+  avec le nom de branche, et je l'applique au « ok ».
 
 ## 8. Test
 - Préparer un plan de test à la fin de chaque issue pour que le développeur test
