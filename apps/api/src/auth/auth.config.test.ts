@@ -13,6 +13,7 @@ function authWith(overrides: Partial<AuthConfig> = {}, prisma = {} as PrismaClie
     secret: "s".repeat(32),
     baseURL: "http://localhost:3001",
     trustedOrigins: ["http://localhost:5173"],
+    clientIpHeader: null,
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve(),
     notifyExistingAccount: () => Promise.resolve(),
@@ -58,6 +59,23 @@ describe("createAuth — journaux (#466)", () => {
     expect(logging.log).toHaveBeenCalledWith("error", "message", error);
     expect(logging.onError).toHaveBeenCalledWith(error);
     expect(options.logger?.level).toBe("warn");
+  });
+});
+
+/**
+ * L'IP qui sépare les compteurs de la limite de débit (#781). Les e2e tournent en `test`, où
+ * Better Auth n'active pas sa limite : seule la configuration dit ce qu'il lira en production.
+ */
+describe("createAuth — en-tête de l'IP du client (#781)", () => {
+  it("lit l'IP dans le seul en-tête configuré", () => {
+    expect(authWith({ clientIpHeader: "cf-connecting-ip" }).options.advanced?.ipAddress).toEqual({
+      ipAddressHeaders: ["cf-connecting-ip"],
+    });
+  });
+
+  // Local et e2e : pas de proxy, le défaut de la bibliothèque — rien d'inventé à sa place.
+  it("laisse le défaut de Better Auth sans en-tête configuré", () => {
+    expect(authWith().options.advanced?.ipAddress).toBeUndefined();
   });
 });
 

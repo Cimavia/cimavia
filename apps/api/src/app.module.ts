@@ -12,6 +12,7 @@ import { createAuth } from "./auth/auth.config";
 import { CapabilityModule } from "./auth/capability.module";
 import { SignupModule } from "./auth/signup.module";
 import { SignupPolicy } from "./auth/signup.policy";
+import { clientIpHeaderOf } from "./config/client-ip-header";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
@@ -79,6 +80,7 @@ import { VersionModule } from "./version/version.module";
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
+          clientIpHeader: clientIpHeaderOf(config),
           sendResetPassword: (params) => passwordReset.send(params),
           sendVerificationEmail: (params) => emailVerification.sendVerification(params),
           notifyExistingAccount: (params) => emailVerification.sendExistingAccount(params),
