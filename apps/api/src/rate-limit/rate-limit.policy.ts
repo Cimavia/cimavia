@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { type ExecutionContext, SetMetadata } from "@nestjs/common";
 import {
   SkipThrottle,
@@ -73,14 +74,43 @@ export const NoRateLimit = () =>
     ),
   );
 
+/** Ce que le compteur lit de la requête Fastify. */
+type TrackedRequest = {
+  user?: { id?: unknown } | null;
+  ip?: string;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+/**
+ * L'IP du client, `null` si on ne la connaît pas (#781).
+ *
+ * Avec un en-tête configuré, lui seul : `request.ip` y serait l'adresse du proxy — `cloudflared`
+ * sur le NAS —, la même pour tout le monde. Et seulement une adresse valide : Node joint un en-tête
+ * répété en `a, b`, et une valeur libre laisserait un client changer de compteur à chaque requête.
+ * Sinon, `null` — jamais l'adresse du proxy. Sans en-tête configuré (local), la connexion.
+ *
+ * L'adresse n'est pas normalisée comme le fait Better Auth : une IPv6 n'est pas regroupée par
+ * `/64`, et un client qui en change dans son préfixe change de compteur (RL-4).
+ */
+function clientIp(request: TrackedRequest, clientIpHeader: string | null): string | null {
+  if (clientIpHeader === null) return request.ip ?? null;
+  const value = request.headers?.[clientIpHeader];
+  if (typeof value !== "string") return null;
+  const ip = value.trim();
+  return isIP(ip) === 0 ? null : ip.toLowerCase();
+}
+
 /**
  * Qui l'on compte : l'acteur courant, posé par l'AuthGuard de Better Auth — la garde passe après
- * lui. L'IP ne sert que de repli, pour une route publique qui ne serait pas `NoRateLimit` ; derrière
- * Cloudflare elle n'est pas fiable (#781), d'où ce rang de repli et pas plus.
+ * lui. L'IP du client ne sert que de repli, pour une route publique qui ne serait pas
+ * `NoRateLimit` ; inconnue, tous ces clients partagent `ip:unknown` — un compteur commun plutôt
+ * que pas de compteur.
  */
-export function actorTracker(request: { user?: { id?: unknown } | null; ip?: string }): string {
+export function actorTracker(request: TrackedRequest, clientIpHeader: string | null): string {
   const id = request.user?.id;
-  return typeof id === "string" ? `user:${id}` : `ip:${request.ip ?? "unknown"}`;
+  return typeof id === "string"
+    ? `user:${id}`
+    : `ip:${clientIp(request, clientIpHeader) ?? "unknown"}`;
 }
 
 /**
@@ -112,9 +142,10 @@ function policyThrottler(
   return { name, ...limit, generateKey: actorKey, skipIf: outsidePolicy(policy) };
 }
 
-export function rateLimitOptions(): ThrottlerModuleOptions {
+/** `clientIpHeader` : l'en-tête que le proxy devant l'API écrit (`clientIpHeaderOf`, #781). */
+export function rateLimitOptions(clientIpHeader: string | null): ThrottlerModuleOptions {
   return {
-    getTracker: actorTracker,
+    getTracker: (request) => actorTracker(request, clientIpHeader),
     // Les en-têtes de la librairie portent le nom du compteur (`Retry-After-global`), qu'aucun
     // client ne connaît : `RateLimitGuard` pose le `Retry-After` standard, sur le seul 429.
     setHeaders: false,

@@ -1,6 +1,9 @@
+import type { EnvSchema } from "@cmv/shared";
 import { Module } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { clientIpHeaderOf } from "../config/client-ip-header";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { rateLimitOptions } from "./rate-limit.policy";
 
@@ -14,7 +17,13 @@ import { rateLimitOptions } from "./rate-limit.policy";
  * Compteurs en mémoire : une seule instance tourne (RL-1 dans `docs/dette/comptes-et-tenancy.md`).
  */
 @Module({
-  imports: [ThrottlerModule.forRoot(rateLimitOptions())],
+  imports: [
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvSchema, true>) =>
+        rateLimitOptions(clientIpHeaderOf(config)),
+    }),
+  ],
   providers: [{ provide: APP_GUARD, useClass: RateLimitGuard }],
 })
 export class RateLimitModule {}

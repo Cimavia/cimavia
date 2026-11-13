@@ -27,8 +27,8 @@ import { ReminderTickService } from "../service/reminder-tick.service";
 @ApiTags("reminders")
 @Controller("internal/reminders")
 @AllowAnonymous()
-// Sans acteur, il serait compté sur l'IP, que le cron partage avec tout le monde derrière Cloudflare
-// (#781) ; le secret de la garde suffit à le fermer (#782).
+// Sans acteur, il serait compté sur l'IP du cron — celle d'un runner GitHub, partagée avec d'autres
+// et qui change d'un passage à l'autre (#781) ; le secret de la garde suffit à le fermer (#782).
 @NoRateLimit()
 @UseGuards(ReminderTickGuard)
 export class ReminderTickController {

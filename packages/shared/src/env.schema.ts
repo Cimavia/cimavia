@@ -22,6 +22,13 @@ const SECRET_TOO_SHORT = `au moins ${SECRET_MIN_LENGTH} caractères — génére
  */
 const DEPLOYED_TIERS = ["preview", "production"] as const;
 
+/**
+ * Les en-têtes où chaque proxy AJOUTE une adresse à celles reçues du client (#781) : la valeur y
+ * est une liste dès que le client en envoie un, et c'est elle qui faisait compter tout le monde
+ * ensemble. `CLIENT_IP_HEADER` les refuse — `x-forwarded-for` est le défaut même qu'il remplace.
+ */
+const LIST_IP_HEADERS: readonly string[] = ["x-forwarded-for", "forwarded"];
+
 const envShape = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.enum(["development", "preview", "production"]).default("development"),
@@ -51,6 +58,39 @@ const envShape = z.object({
   // Origines navigateur autorisées (CORS + trustedOrigins), séparées par des virgules.
   // Ex. : "http://localhost:5173". Le scheme mobile (cimavia://) est ajouté côté code.
   CORS_ORIGINS: z.preprocess(emptyAsUndefined, z.string().optional()),
+  /**
+   * L'en-tête qui porte l'IP du client (#781), celle que comptent les limites de débit — Better
+   * Auth sur la connexion et l'inscription, `RateLimitModule` sur une route publique.
+   *
+   * Il dépend de ce qui se tient DEVANT l'API, pas de l'API : derrière Cloudflare, c'est
+   * `cf-connecting-ip`, que Cloudflare écrit lui-même et écrase s'il arrive du client. Le défaut de
+   * Better Auth, `x-forwarded-for`, y vaut une liste dès que le client en envoie un : il renonce
+   * alors à l'IP, et tout le monde partage un compteur — qu'un seul script suffit à vider.
+   *
+   * Un en-tête n'est fiable que si l'API n'est joignable QUE par ce proxy : un client qui
+   * l'atteindrait en direct poserait l'en-tête lui-même et choisirait son compteur.
+   *
+   * Obligatoire sur un tier déployé (`superRefine`) : la production n'est pas choisie (#259), et
+   * un défaut y vaudrait un pari sur son proxy. Absente, Better Auth compte tout le monde comme
+   * `127.0.0.1` quand `NODE_ENV` vaut `development` ou `test` — sa limite y est éteinte. Sous
+   * `NODE_ENV=production` sans elle, il retombe sur le compteur commun : l'image ne tourne sans la
+   * variable qu'au prix de ce compteur, d'où l'obligation sur les tiers qui la font tourner.
+   * En minuscules : Fastify range ainsi les en-têtes.
+   *
+   * Seul exposé complet du choix, avec « Tranché en #781 » (`docs/dette/comptes-et-tenancy.md`) :
+   * le compose, les `.env.example` et les lecteurs y renvoient.
+   */
+  CLIENT_IP_HEADER: z.preprocess(
+    emptyAsUndefined,
+    z
+      .string()
+      .regex(/^[a-z0-9-]+$/, "un nom d'en-tête en minuscules, ex. cf-connecting-ip")
+      .refine(
+        (header) => !LIST_IP_HEADERS.includes(header),
+        "un en-tête qui porte UNE adresse, écrite par le proxy — pas une liste que le client allonge",
+      )
+      .optional(),
+  ),
   /**
    * Qui a le droit de créer un compte (#263).
    *
@@ -178,6 +218,13 @@ export const envSchema = envShape.superRefine((env, ctx) => {
       code: "custom",
       path: ["EXPO_ACCESS_TOKEN"],
       message: `obligatoire en ${env.APP_ENV} — sans lui, Expo refuse tous les push`,
+    });
+  }
+  if (env.CLIENT_IP_HEADER === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["CLIENT_IP_HEADER"],
+      message: `obligatoire en ${env.APP_ENV} — sans lui, les limites de débit peuvent compter tous les clients comme un seul (#781)`,
     });
   }
 });
