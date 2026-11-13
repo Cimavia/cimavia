@@ -118,6 +118,13 @@ services:
       # liste. Sans elle, le lien est refusé et l'écran n'affiche qu'une erreur générique — une
       # redirection 301 n'y change rien, la vérification porte sur la chaîne, pas sur la requête.
       BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+      # L'en-tête de l'IP du client, que comptent les limites de débit (#781). En dur et pas dans
+      # le `.env` : il tient au trajet que décrit CE fichier — `cloudflared`, seul service qui sort,
+      # et aucun port publié. Cloudflare l'écrit lui-même et écrase celui d'un client, ce qui ne
+      # vaut que tant que l'API n'est joignable QUE par le tunnel. Le défaut, `x-forwarded-for`,
+      # devient une liste dès qu'un client en envoie un, et Better Auth compte alors tout le monde
+      # dans un même compteur.
+      CLIENT_IP_HEADER: cf-connecting-ip
       # Qui peut créer un compte (#263). Défaut `invitation` posé ICI, et c'est le point : ce
       # tier est joignable publiquement — son URL est figée dans l'APK et dans chaque e-mail — et
       # il porte de vraies données. Un `.env` qui oublierait la ligne doit laisser la porte
