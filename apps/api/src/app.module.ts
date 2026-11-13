@@ -71,6 +71,7 @@ import { VersionModule } from "./version/version.module";
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
+          clientIpHeader: config.get("CLIENT_IP_HEADER", { infer: true }),
           sendResetPassword: (params) => passwordReset.send(params),
           sendVerificationEmail: (params) => emailVerification.sendVerification(params),
           notifyExistingAccount: (params) => emailVerification.sendExistingAccount(params),
