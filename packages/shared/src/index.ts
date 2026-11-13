@@ -217,6 +217,8 @@ export {
   INSTRUCTION_IMAGE_MIME_TYPES,
   isAllowedDocumentMime,
   isInstructionImageMime,
+  type ListExercisesQuery,
+  listExercisesQuerySchema,
   MAX_DOCUMENT_SIZE_BYTES,
   requestUploadUrlSchema,
   updateExerciseSchema,

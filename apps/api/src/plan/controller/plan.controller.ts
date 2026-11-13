@@ -8,7 +8,7 @@ import { AddPlanWeekDto } from "../dto/add-plan-week.dto";
 import { CreatePlanDto } from "../dto/create-plan.dto";
 import { PublishPlanDto } from "../dto/publish-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
-import { type ListPlansFilters, PlanService } from "../service/plan.service";
+import { PlanService } from "../service/plan.service";
 import { PlanAccessService } from "../service/plan-access.service";
 
 @ApiTags("plans")
@@ -26,10 +26,8 @@ export class PlanController {
   }
 
   @Get()
-  list(@Query("athleteId") athleteId?: string) {
-    const filters: ListPlansFilters = {};
-    if (athleteId) filters.athleteId = athleteId;
-    return this.plans.list(filters);
+  list() {
+    return this.plans.list();
   }
 
   @Get(":id")

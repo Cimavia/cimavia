@@ -1,10 +1,4 @@
-import {
-  exerciseTagFilterSchema,
-  type LibraryScope,
-  libraryScopeSchema,
-  type VersionQuery,
-  versionQuerySchema,
-} from "@cmv/shared";
+import { type VersionQuery, versionQuerySchema } from "@cmv/shared";
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { ChangeAccessDto } from "../../access/dto/change-access.dto";
@@ -12,8 +6,8 @@ import { RequireCapability } from "../../auth/decorator/require-capability.decor
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateExerciseDto } from "../dto/create-exercise.dto";
 import { DuplicateExerciseDto } from "../dto/duplicate-exercise.dto";
+import { ListExercisesQueryDto } from "../dto/list-exercises-query.dto";
 import { UpdateExerciseDto } from "../dto/update-exercise.dto";
-import type { ListExercisesFilters } from "../exercise.where";
 import { ExerciseService } from "../service/exercise.service";
 
 @ApiTags("exercises")
@@ -27,17 +21,10 @@ export class ExerciseController {
     return this.exercises.create(dto);
   }
 
+  // `?tag=a&tag=b`, normalisés comme à l'écriture : un filtre « Renfo » retrouve le tag « renfo ».
   @Get()
-  list(
-    @Query("scope", new ZodSchemaPipe(libraryScopeSchema)) scope: LibraryScope,
-    // `?tag=a&tag=b`, normalisés comme à l'écriture : un filtre « Renfo » retrouve le tag « renfo ».
-    @Query("tag", new ZodSchemaPipe(exerciseTagFilterSchema)) tags: string[],
-    @Query("search") search?: string,
-  ) {
-    const filters: ListExercisesFilters = { tags };
-    const trimmed = search?.trim();
-    if (trimmed) filters.search = trimmed;
-    return this.exercises.list(filters, scope);
+  list(@Query() { scope, tag, search }: ListExercisesQueryDto) {
+    return this.exercises.list({ tags: tag, search }, scope);
   }
 
   // Avant `:id`, sinon « tags » serait pris pour un identifiant d'exercice.
