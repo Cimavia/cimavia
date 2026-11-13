@@ -328,12 +328,53 @@ describe("MessageService.send — fichier joint (#771)", () => {
     expect(create).not.toHaveBeenCalled();
     expect(notifyMessageReceived).not.toHaveBeenCalled();
   });
+});
 
-  // S-1 reste ouverte pour les médias (#468) : la branche neuve ne l'agrandit pas, sans la traiter.
-  it("ne relit pas encore le storage pour une photo", async () => {
+describe("MessageService.send — médias (#468)", () => {
+  const AUDIO: SendMessageInput = {
+    type: MessageType.AUDIO,
+    storagePath: "conversation/conv1/0b6f3c2e-8d1a-4c5e-9f7b-2a4d6e8c0f13-note.m4a",
+    fileName: "note.m4a",
+    mimeType: "audio/m4a",
+    size: 4096,
+    durationSeconds: 12,
+  };
+  const VIDEO: SendMessageInput = {
+    type: MessageType.VIDEO,
+    storagePath: "conversation/conv1/0b6f3c2e-8d1a-4c5e-9f7b-2a4d6e8c0f13-geste.mp4",
+    fileName: "geste.mp4",
+    mimeType: "video/mp4",
+    size: 8192,
+    durationSeconds: 20,
+  };
+
+  // Le `type` pilote le lecteur à l'affichage : une vidéo déclarée photo en choisirait un mauvais.
+  it.each([
+    ["l'audio", AUDIO],
+    ["la photo", PHOTO],
+    ["la vidéo", VIDEO],
+  ])("confronte %s à l'objet reçu", async (_name, input) => {
     const { service, assertUploadedAsDeclared } = build();
 
-    await service.send("conv1", PHOTO);
+    await service.send("conv1", input);
+
+    expect(assertUploadedAsDeclared).toHaveBeenCalledWith(input.storagePath, input);
+  });
+
+  it("n'écrit rien quand le storage dément une photo", async () => {
+    const { service, create, notifyMessageReceived, assertUploadedAsDeclared } = build();
+    assertUploadedAsDeclared.mockRejectedValueOnce(new Error("409"));
+
+    await expect(service.send("conv1", PHOTO)).rejects.toThrow("409");
+
+    expect(create).not.toHaveBeenCalled();
+    expect(notifyMessageReceived).not.toHaveBeenCalled();
+  });
+
+  it("ne relit pas le storage pour un texte", async () => {
+    const { service, assertUploadedAsDeclared } = build();
+
+    await service.send("conv1", { type: MessageType.TEXT, content: "Salut" });
 
     expect(assertUploadedAsDeclared).not.toHaveBeenCalled();
   });
