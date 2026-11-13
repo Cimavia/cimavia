@@ -339,7 +339,7 @@ liste des domaines vivent dans l'index.
 > Hors de cette PR, comme l'issue le prévoyait : les cas dormants jusqu'à la v1.0
 > (`invoice.mapper`, `planId` nul ; `invoice.service`), `joinedAt ?? null` de
 > `coach-athlete.mapper`, vivant sur une invitation `PENDING`, `LibraryPicker` et sa route (#303),
-> les chips de minuteur mobile (#519).
+> les chips de minuteur mobile (#519, supprimées depuis en #723).
 
 ---
 
