@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException } from "@nestjs/common";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
 import type { AccessService } from "../../access/service/access.service";
@@ -17,46 +17,97 @@ const DOCUMENT = {
   size: 2_000,
 } as const;
 
-/** Les gardes privées de lecture du cycle sont hors sujet ici : on les remplace, le rattachement reste réel. */
-function build(previousPath: string | null = null) {
-  const assertUploadedAsDeclared = vi.fn().mockResolvedValue(undefined);
+/** Un cycle diffusable à l'athlète `a1`, géré par un autre coach que lui. */
+const PLAN = { id: PLAN_ID, status: "DRAFT", coachId: "c1", athleteId: ATHLETE_ID };
+
+/** Hors cycle : la lecture du DTO n'a pas à relire le cycle, et ce n'est pas le sujet ici. */
+const INVOICE = {
+  id: "i1",
+  planId: null,
+  athleteId: ATHLETE_ID,
+  coachId: "c1",
+  status: "DRAFT",
+  amountCents: 4_000,
+  dueDate: new Date("2026-11-01"),
+  documentPath: null,
+  documentFileName: null,
+  documentMimeType: null,
+  documentSizeBytes: null,
+  erasedAthleteName: null,
+  period: null,
+  currency: "EUR",
+  issuedAt: null,
+  paidAt: null,
+  note: null,
+  createdAt: new Date("2026-10-01"),
+  updatedAt: new Date("2026-10-01"),
+};
+
+function build(setup: { draft?: { documentPath: string | null } | null } = {}) {
+  const draft = setup.draft === undefined ? { documentPath: null } : setup.draft;
+  const assertAttachable = vi.fn().mockResolvedValue(undefined);
   const deleteObject = vi.fn().mockResolvedValue(undefined);
-  const update = vi.fn().mockResolvedValue({ id: "i1" });
+  const update = vi.fn().mockResolvedValue(INVOICE);
+  const db = {
+    plan: { findFirst: vi.fn().mockResolvedValue(PLAN) },
+    invoice: {
+      findFirst: vi.fn().mockResolvedValue(draft == null ? null : { id: "i1", ...draft }),
+      update,
+    },
+  } as unknown as TenantPrisma;
+  // Le droit d'écriture est hors sujet : l'accès rend la ligne chargée, comme s'il l'accordait.
+  const access = {
+    loadFor: async (load: Promise<unknown>) => ({ row: await load, context: {} }),
+    context: async () => ({}),
+  } as unknown as AccessService;
   const service = new InvoiceService(
-    { invoice: { update } } as unknown as TenantPrisma,
-    {} as UserDirectoryService,
-    { assertUploadedAsDeclared, deleteObject } as unknown as StorageService,
+    db,
+    {
+      namesByIds: vi.fn().mockResolvedValue(
+        new Map([
+          ["c1", "Camille"],
+          [ATHLETE_ID, "Alex"],
+        ]),
+      ),
+    } as unknown as UserDirectoryService,
+    { assertAttachable, deleteObject } as unknown as StorageService,
     {} as ReminderService,
-    {} as AccessService,
-    {} as ClsService,
+    access,
+    { get: () => ({ userId: "c1", exercised: "coach" }) } as unknown as ClsService,
   );
-  const guards = service as unknown as Record<string, unknown>;
-  guards.getDraftablePlanOrThrow = vi.fn().mockResolvedValue({ athleteId: ATHLETE_ID });
-  guards.getDraftInvoiceOrThrow = vi
-    .fn()
-    .mockResolvedValue({ id: "i1", documentPath: previousPath });
-  guards.toDto = vi.fn().mockResolvedValue({ id: "i1" });
-  return { service, assertUploadedAsDeclared, deleteObject, update };
+  return { service, assertAttachable, deleteObject, update };
 }
 
 describe("InvoiceService.attachDocument", () => {
   // La taille et le type enregistrés sont ceux de l'objet reçu, pas ceux que le client annonce (#468).
-  it("confronte l'objet reçu à ce que le rattachement déclare", async () => {
-    const { service, assertUploadedAsDeclared, update } = build();
+  it("confronte la clé et l'objet reçu au préfixe du cycle", async () => {
+    const { service, assertAttachable, update } = build();
 
     await service.attachDocument(PLAN_ID, DOCUMENT);
 
-    expect(assertUploadedAsDeclared).toHaveBeenCalledExactlyOnceWith(
+    expect(assertAttachable).toHaveBeenCalledExactlyOnceWith(
+      `athlete/${ATHLETE_ID}/invoice/${PLAN_ID}/`,
       DOCUMENT.storagePath,
       DOCUMENT,
     );
     expect(update).toHaveBeenCalledTimes(1);
   });
 
+  // Sans termes de facturation, le coach lit la bonne erreur — pas celle du storage.
+  it("refuse sans facture en brouillon, avant d'interroger le storage (400)", async () => {
+    const { service, assertAttachable } = build({ draft: null });
+
+    await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toThrow(BadRequestException);
+
+    expect(assertAttachable).not.toHaveBeenCalled();
+  });
+
   // Un rattachement refusé laisse le justificatif précédent en place, objet compris.
-  it("n'écrit ni ne purge rien quand le storage dément la déclaration", async () => {
-    const { service, assertUploadedAsDeclared, update, deleteObject } = build("ancien.pdf");
-    assertUploadedAsDeclared.mockRejectedValueOnce(new ConflictException());
+  it("n'écrit ni ne purge rien quand le storage refuse", async () => {
+    const { service, assertAttachable, update, deleteObject } = build({
+      draft: { documentPath: "ancien.pdf" },
+    });
+    assertAttachable.mockRejectedValueOnce(new ConflictException());
 
     await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toThrow(ConflictException);
 
@@ -64,22 +115,17 @@ describe("InvoiceService.attachDocument", () => {
     expect(deleteObject).not.toHaveBeenCalled();
   });
 
-  // La clé d'un autre cycle est refusée avant tout appel au storage.
-  it("ne relit pas le storage pour une clé hors du cycle", async () => {
-    const { service, assertUploadedAsDeclared } = build();
+  it("n'écrit rien pour une clé hors du cycle (403)", async () => {
+    const { service, assertAttachable, update } = build();
+    assertAttachable.mockRejectedValueOnce(new ForbiddenException());
 
-    await expect(
-      service.attachDocument(PLAN_ID, {
-        ...DOCUMENT,
-        storagePath: "athlete/autre/invoice/x/f.pdf",
-      }),
-    ).rejects.toThrow(ForbiddenException);
+    await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toThrow(ForbiddenException);
 
-    expect(assertUploadedAsDeclared).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("purge l'ancien objet une fois le nouveau confronté", async () => {
-    const { service, deleteObject } = build("ancien.pdf");
+    const { service, deleteObject } = build({ draft: { documentPath: "ancien.pdf" } });
 
     await service.attachDocument(PLAN_ID, DOCUMENT);
 
