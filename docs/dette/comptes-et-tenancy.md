@@ -1497,6 +1497,7 @@ liste des domaines vivent dans l'index.
 | RL-1 | **Les compteurs de débit vivent en mémoire** (`ThrottlerStorageService` de `@nestjs/throttler`) : une instance, une table, comme AV-3 et SC-2. Plusieurs instances d'API multiplient chaque borne, un redémarrage les remet à zéro. | 🟢 | — *(déclencheur : plus d'une instance d'API ; un stockage partagé alors, Redis ou Postgres)* |
 | RL-2 | **Les bornes ne sont pas mesurées** : Axiom n'a jamais reçu de journaux, et la ligne de journal d'une requête ne porte pas l'id de l'utilisateur. Elles sont déduites du code (`RATE_LIMITS`). | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé, et l'id de l'acteur dans `requestLogProps` ; relire alors les 429 par route)* |
 | RL-3 | **Une lecture refusée par le plafond global dit « erreur de chargement »**, pas « attends » : les états d'erreur des écrans ne reçoivent pas l'erreur, seulement leur texte. Le plafond (300 / min) est taillé pour qu'un usage normal ne l'atteigne pas, et le blocage ne dure qu'une minute sans s'allonger aux essais. | 🟢 | — *(déclencheur : un 429 sur une lecture vu dans les journaux, une fois RL-2 levée)* |
+| RL-4 | **Le repli IP du limiteur Nest ne regroupe pas une IPv6 par `/64`**, comme Better Auth le fait pour les siens : un client IPv6 qui change d'adresse dans son préfixe change de compteur. Sans effet aujourd'hui — aucune route publique n'est comptée, `/health` et le tick sont `NoRateLimit`. | 🟢 | — *(déclencheur : une première route publique comptée ; normaliser alors l'IP comme `normalizeIP` de Better Auth)* |
 
 > **Tranché en [#782](https://github.com/Cimavia/cimavia/issues/782)** (2026-11-11 ; les bornes et
 > le sort des 429 chez Sentry sont des choix de Kylian) :
@@ -1504,7 +1505,7 @@ liste des domaines vivent dans l'index.
 > - **La clé est l'acteur, pas l'IP.** La garde passe après l'AuthGuard de Better Auth et après
 >   `CapabilitiesGuard` (`RateLimitModule`, importé après `CapabilityModule`) : une requête sans
 >   session a déjà pris son 401, un 403 ne coûte rien. L'IP ne reste qu'en repli, pour une route
->   publique future — et derrière Cloudflare elle ne vaut rien tant que #781 n'est pas fait.
+>   publique future — lue dans l'en-tête du proxy depuis #781, voir ci-dessous.
 > - **`/health` et le tick des rappels ne sont pas comptés** (`NoRateLimit`, qui saute TOUS les
 >   compteurs, politique du contrôleur comprise) : un 429 ferait déclarer l'API morte par la sonde,
 >   et le tick est déjà fermé par son secret.
@@ -1536,3 +1537,29 @@ liste des domaines vivent dans l'index.
 >   (`ResettableThrottlerStorage`) : la suite d'isolation partage ses acteurs, et un athlète y
 >   demande bien plus de 40 URL d'upload par minute. Après aussi, parce que le `beforeAll` d'un
 >   domaine passe avant le premier `beforeEach`. Chaque cas garde les vraies bornes.
+
+> **Tranché en [#781](https://github.com/Cimavia/cimavia/issues/781)** (2026-11-13 ; la variable
+> et l'alignement du limiteur Nest sont des choix de Kylian) :
+>
+> - **L'IP du client se lit dans un seul en-tête, `CLIENT_IP_HEADER`**, et non dans
+>   `x-forwarded-for`. Cloudflare AJOUTE l'IP du client à celui qu'il reçoit : un client qui en
+>   envoie un en produit deux, et Better Auth, qui renonce alors à l'IP, le comptait dans un
+>   compteur unique par route — `/sign-in` à 3 tentatives par 10 s pour tous ceux dans son cas.
+>   Derrière Cloudflare, c'est `cf-connecting-ip`, qu'il écrit lui-même et écrase s'il arrive du
+>   client.
+> - **Une variable, et non une constante** : l'en-tête tient au proxy devant l'API, et la production
+>   n'est pas choisie (#259). **Obligatoire sur un tier déployé** (`envSchema`) : un oubli empêche
+>   le démarrage au lieu de remettre le compteur commun. Le compose du NAS la pose **en dur**, à
+>   côté de `cloudflared` — elle décrit le trajet de ce fichier, pas un réglage de l'exploitant.
+> - **L'en-tête n'est fiable que si l'API n'est joignable QUE par le proxy** : aucun port publié
+>   sur le NAS. Une production joignable en direct devra fermer cet accès, ou choisir un autre
+>   en-tête, avant de poser la variable.
+> - **Le limiteur Nest lit le même en-tête** pour son repli sans acteur (`actorTracker`) :
+>   `request.ip` y était l'adresse de `cloudflared`, la même pour tous. Il n'en croit qu'une
+>   adresse valide, comme Better Auth : absent, répété ou libre, l'en-tête envoie le client dans
+>   `ip:unknown` — jamais sur l'adresse du proxy, que rien ne distingue, ni sur une valeur qu'un
+>   client changerait à chaque requête.
+> - **`x-forwarded-for` et `forwarded` sont refusés** comme valeur de la variable : ce sont des
+>   listes que chaque proxy allonge, le défaut même qu'elle remplace.
+> - **Sans la variable** (local, e2e), rien ne change : Better Auth compte `127.0.0.1` en
+>   développement et en test, où sa limite est de toute façon éteinte ; Nest compte la connexion.
