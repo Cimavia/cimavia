@@ -13,6 +13,13 @@ export type WebAudioRecorderOptions = {
   errorKeys: { permission: string; unsupported: string };
   onRecorded: (audio: RecordedWebAudio) => void;
   onError: (reasonKey: string) => void;
+  /**
+   * Le plafond de durée du profil (secondes). Atteint, la capture s'arrête TOUTE SEULE et part
+   * comme sur un clic « envoyer » : ce qui a été dit n'est pas perdu (#340).
+   */
+  maxDurationSeconds?: number;
+  /** Appelé après l'arrêt au plafond, pour le dire à l'écran. */
+  onLimitReached?: () => void;
 };
 
 /**
@@ -31,14 +38,14 @@ export function useWebAudioRecorder({
   errorKeys,
   onRecorded,
   onError,
+  maxDurationSeconds,
+  onLimitReached,
 }: WebAudioRecorderOptions) {
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
-  const startedAtRef = useRef(0);
   const intervalRef = useRef<number | null>(null);
 
   /**
@@ -51,6 +58,17 @@ export function useWebAudioRecorder({
     if (intervalRef.current != null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    // AVANT de couper les pistes : un flux terminé fait émettre `stop` à l'enregistreur, et sans
+    // cette neutralisation `onstop` livrerait au démontage une capture que personne n'a envoyée
+    // (#340). Un arrêt voulu passe par `stop()`, qui lit ses rappels avant d'arriver ici.
+    const recorder = recorderRef.current;
+    if (recorder != null) {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      // Sans cet arrêt, un navigateur qui n'émet pas `stop` à la fin du flux laisserait
+      // l'enregistreur actif, et ses morceaux avec lui.
+      if (recorder.state !== "inactive") recorder.stop();
     }
     for (const track of streamRef.current?.getTracks() ?? []) {
       track.stop();
@@ -76,24 +94,46 @@ export function useWebAudioRecorder({
         return;
       }
       const recorder = new MediaRecorder(stream, { mimeType });
-      chunksRef.current = [];
+      // Propres à CET enregistreur : un nouveau `start()` lancé avant l'événement `stop` de
+      // l'ancien ne doit ni lui voler ses morceaux ni lui couper le micro.
+      const chunks: Blob[] = [];
+      const startedAt = Date.now();
 
       recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
+        if (event.data.size > 0) chunks.push(event.data);
       };
       recorder.onstop = () => {
-        const durationSeconds = Math.round((Date.now() - startedAtRef.current) / 1000);
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
-        cleanup();
+        const measured = Math.round((Date.now() - startedAt) / 1000);
+        // L'arrêt au plafond tombe à quelques millisecondes près : sans ce bornage, 300,6 s
+        // arrondies à 301 feraient refuser à l'envoi la note qu'on vient de sauver.
+        const durationSeconds =
+          maxDurationSeconds == null ? measured : Math.min(measured, maxDurationSeconds);
+        const blob = new Blob(chunks, { type: recorder.mimeType });
+        if (recorderRef.current === recorder) {
+          cleanup();
+        } else {
+          for (const track of stream.getTracks()) track.stop();
+        }
         if (durationSeconds > 0) onRecorded({ blob, durationSeconds });
       };
 
       recorder.start();
       recorderRef.current = recorder;
-      startedAtRef.current = Date.now();
       setSeconds(0);
       setIsRecording(true);
-      intervalRef.current = window.setInterval(() => setSeconds((value) => value + 1), 1000);
+      let limitHit = false;
+      intervalRef.current = window.setInterval(() => {
+        if (limitHit) return;
+        // L'horloge, pas le nombre de ticks : un onglet ralenti en retarde, et la capture
+        // dépasserait le plafond avant que le compte n'y arrive.
+        const elapsedMs = Date.now() - startedAt;
+        setSeconds(Math.floor(elapsedMs / 1000));
+        if (maxDurationSeconds != null && elapsedMs >= maxDurationSeconds * 1000) {
+          limitHit = true;
+          stop(true);
+          onLimitReached?.();
+        }
+      }, 1000);
     } catch {
       cleanup();
       onError(errorKeys.permission);
