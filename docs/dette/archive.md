@@ -108,6 +108,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~O-1~~ | ~~**Sentry ne couvre que l'API**~~, malgré trois documents qui annonçaient « les 3 couches ». Le web et le mobile n'avaient ni SDK ni Error Boundary : un crash de rendu donnait un écran blanc côté web, fermait l'app côté mobile, sans aucune trace. | ✅ | résolu en **[#181](https://github.com/Cimavia/cimavia/issues/181)** (web) et **[#182](https://github.com/Cimavia/cimavia/issues/182)** (mobile) — les trois documents redeviennent vrais par le code, pas par réécriture |
+| ~~O-3~~ | ~~**Les routes `/api/auth/*` ne laissaient aucune ligne dans les journaux Pino**~~ : Better Auth est branché sur Fastify avant les middlewares de Nest, et le logger HTTP de `nestjs-pino` en est un. Connexion, inscription, réinitialisation : ni statut ni durée dans Axiom. Découvert au test de #433. | ✅ | résolue en **[#466](https://github.com/Cimavia/cimavia/issues/466)** — une ligne par requête par l'option `middleware` du module, et les erreurs de Better Auth chez Pino et Sentry |
 
 ### Post-MVP — Build et distribution iOS ([#134](https://github.com/Cimavia/cimavia/issues/134))
 
