@@ -58,6 +58,12 @@ l'[index](../dette-technique.md).
 | ~~U-1~~ | ~~**Aucune reprise d'un envoi interrompu**~~ : toute erreur abandonnait l'upload entier. | ✅ | résolue en [#152](https://github.com/Cimavia/cimavia/issues/152) — une part qui tombe est **réessayée** (1 s puis 3 s), et l'upload n'est abandonné que sur échec définitif. Ce qui reste, c'est **U-5** |
 | ~~U-2~~ | ~~**`sendInParts` écrit quatre fois**~~ (débrief ↔ messagerie × web ↔ mobile). | ✅ | résolue en [#152](https://github.com/Cimavia/cimavia/issues/152) — la boucle vit dans `runMultipartUpload` (`@cmv/shared`), les apps n'y branchent que le transport et les deux appels d'API. Le suivi pointait [#96](https://github.com/Cimavia/cimavia/issues/96), qui portait sur la **préparation** média mobile et n'a jamais touché `sendInParts` : lien faux, corrigé ici |
 
+### Post-MVP — Clé objet venue du client ([#293](https://github.com/Cimavia/cimavia/issues/293))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~S-1~~ | ~~**Le rattachement croit le `type`, le mime et la taille déclarés**, pas ceux de l'objet envoyé~~ : une vidéo d'1 Go rattachée en `IMAGE` échappait au plafond de 10 vidéos par débrief. | ✅ | résolue en **#468** — `StorageService.assertUploadedAsDeclared` (posée en #317 pour le document d'exercice, en #771 pour le fichier joint) est appelée au rattachement du débrief, de tout média de message et du justificatif de facture. |
+
 ### Post-MVP — Lecture vidéo sur mobile ([#151](https://github.com/Cimavia/cimavia/issues/151))
 
 | # | Dette | Statut | Suivi |

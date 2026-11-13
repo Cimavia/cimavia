@@ -112,6 +112,46 @@ describe("Médias de débrief (P4)", () => {
   });
 
   /**
+   * LE test de #468 : le ticket est honnête, le mensonge ne peut tenir que dans l'écart entre lui
+   * et le rattachement. Une vidéo réellement envoyée, rattachée en `IMAGE`, échapperait au
+   * plafond des vidéos — l'objet est relu au storage, et le rattachement refusé.
+   */
+  it("refuse une vidéo rattachée en photo, et une taille qui dément l'objet (409)", async () => {
+    const url = `/me/scheduled-sessions/${sessionId}/feedback/media`;
+    const before = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+
+    const sentAsVideo = await upload(athleteA1, video("deguisee.mp4"));
+    expect((await athleteA1.post(url).send({ ...photo(), storagePath: sentAsVideo })).status).toBe(
+      409,
+    );
+
+    const sentAsPhoto = await upload(athleteA1, photo("menteuse.jpg"));
+    expect(
+      (
+        await athleteA1
+          .post(url)
+          .send({ ...photo("menteuse.jpg"), size: 1_000, storagePath: sentAsPhoto })
+      ).status,
+    ).toBe(409);
+
+    // Rien n'a été écrit : ni média, ni place prise dans les quotas.
+    const after = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
+    expect(after.body.media).toHaveLength(before.body.media.length);
+  });
+
+  it("refuse un rattachement dont l'objet n'a jamais été envoyé (404)", async () => {
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("fantome.jpg"));
+    expect(signed.status).toBe(201);
+
+    const attached = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media`)
+      .send({ ...photo("fantome.jpg"), storagePath: signed.body.storagePath });
+    expect(attached.status).toBe(404);
+  });
+
+  /**
    * #313 : la suppression partait en cascade — débrief, médias en base, suivi — et laissait les
    * objets dans le bucket, sans que l'athlète en sache rien. Elle est refusée, et ce test vérifie
    * que RIEN n'a bougé : la séance, le débrief, la ligne du média ET l'objet lui-même.
@@ -245,6 +285,23 @@ describe("Médias de débrief (P4)", () => {
       headers: { "content-type": "image/jpeg" },
     });
     expect(tooBig.ok).toBe(false);
+  });
+
+  // Le paquet qui signe les URLs retire `content-type` de la signature d'office : sans le remettre,
+  // le storage accepte n'importe quel type, et la relecture au rattachement ne ferait que relire ce
+  // que le client a lui-même déclaré (#468).
+  it("le storage refuse un envoi d'un autre type que celui signé", async () => {
+    const signed = await athleteA1
+      .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)
+      .send(photo("camouflee.jpg"));
+    expect(signed.status).toBe(201);
+
+    const wrongType = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(120_000, 1),
+      headers: { "content-type": "video/mp4" },
+    });
+    expect(wrongType.ok).toBe(false);
   });
 
   it("plafonne les vidéos d'un débrief (409 sur celle de trop)", async () => {

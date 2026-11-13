@@ -19,7 +19,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | ✅ |
 | #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | ✅ |
 | #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | |
-| #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | |
+| #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | ✅ |
 | #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | |
 | #466 | Les routes d'auth n'apparaissent jamais dans les journaux Pino | 🟡 | |
 | #81 | Inspection serveur des durées (ffprobe) | ⚪ | |
