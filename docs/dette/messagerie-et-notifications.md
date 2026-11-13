@@ -12,7 +12,7 @@ liste des domaines vivent dans l'index.
 | P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` ne cascade **rien** (aucune clé étrangère n’y mène : `Conversation`, `Plan`, `Invoice`… portent `coachId`/`athleteId` vers `User`), et les objets S3 de ce suivi seraient **orphelins en masse**. Bloquée par le flux de rupture ([#213](https://github.com/Cimavia/cimavia/issues/213)). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 *Résolues, à l'[archive](archive.md) : P5-4, P5-5.*
 
@@ -49,7 +49,7 @@ liste des domaines vivent dans l'index.
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
-| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256) ; la suppression d'une relation, non, et attend le flux de rupture (#213). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
