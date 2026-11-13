@@ -6,6 +6,7 @@ import {
   Injectable,
   Post,
 } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
@@ -92,38 +93,63 @@ class ClassLevelController {
 
 let app: NestFastifyApplication;
 
-// Une app par cas : les compteurs vivent dans le module, et un cas ne doit pas hériter des
-// requêtes du précédent.
-beforeEach(async () => {
+/**
+ * Le module tel qu'`AppModule` le monte, avec `CLIENT_IP_HEADER` pour seule configuration — les
+ * variables du shell ignorées (`skipProcessEnv`) : un `.env` local ne doit pas changer le banc.
+ */
+async function buildApp(clientIpHeader?: string) {
   const module = await Test.createTestingModule({
     // Le garde d'authentification dans le module RACINE : ses `APP_GUARD` passent avant ceux des
     // modules importés — l'ordre même d'`AppModule`, que ce banc reproduit.
-    imports: [RateLimitModule],
+    imports: [
+      ConfigModule.forRoot({
+        isGlobal: true,
+        ignoreEnvFile: true,
+        skipProcessEnv: true,
+        load: [() => ({ CLIENT_IP_HEADER: clientIpHeader })],
+      }),
+      RateLimitModule,
+    ],
     controllers: [RoutesController, ClassLevelController],
     providers: [{ provide: APP_GUARD, useClass: FakeAuthGuard }],
   }).compile();
   app = module.createNestApplication<NestFastifyApplication>(createHttpAdapter());
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
-});
+}
 
 afterEach(async () => {
   await app?.close();
 });
 
-/** Envoie `count` requêtes à la suite et rend leurs statuts. */
-async function hit(method: "GET" | "POST", url: string, user: string, count = 1) {
+/** Envoie `count` requêtes à la suite, avec ces en-têtes, et rend leurs statuts. */
+async function send(
+  method: "GET" | "POST",
+  url: string,
+  headers: Record<string, string>,
+  count = 1,
+) {
   const statuses: number[] = [];
   for (let i = 0; i < count; i++) {
-    const response = await app.inject({ method, url, headers: { "x-user": user } });
+    const response = await app.inject({ method, url, headers });
     statuses.push(response.statusCode);
   }
   return statuses;
 }
 
+/** Envoie `count` requêtes au nom de l'acteur `user`. */
+const hit = (method: "GET" | "POST", url: string, user: string, count = 1) =>
+  send(method, url, { "x-user": user }, count);
+
 const ok = (statuses: number[]) => statuses.every((status) => status < 400);
 
 describe("RateLimitModule — une borne par acteur, après l'authentification (#782)", () => {
+  // Une app par cas : les compteurs vivent dans le module, et un cas ne doit pas hériter des
+  // requêtes du précédent.
+  beforeEach(async () => {
+    await buildApp();
+  });
+
   it("rend 429 au-delà de la borne d'upload, et seulement à cet acteur", async () => {
     const { limit } = RATE_LIMITS.uploadPerMinute;
 
@@ -204,18 +230,67 @@ describe("RateLimitModule — une borne par acteur, après l'authentification (#
   });
 });
 
-describe("actorTracker", () => {
-  it("compte l'acteur authentifié, quelle que soit son adresse", () => {
-    expect(actorTracker({ user: { id: "u1" }, ip: "10.0.0.1" })).toBe("user:u1");
-    expect(actorTracker({ user: { id: "u1" }, ip: "10.0.0.2" })).toBe("user:u1");
+/**
+ * Derrière un proxy (#781) : sans acteur, chaque client a son compteur — et non celui du proxy,
+ * l'adresse que Fastify voit pour tout le monde.
+ */
+describe("RateLimitModule — derrière un proxy (#781)", () => {
+  const HEADER = "cf-connecting-ip";
+
+  /** Des requêtes anonymes, toutes depuis la même connexion, au nom du client `ip`. */
+  const hitAs = (ip: string, count = 1) => send("GET", "/liste", { [HEADER]: ip }, count);
+
+  beforeEach(async () => {
+    await buildApp(HEADER);
   });
 
-  it("retombe sur l'IP sans acteur — une route publique", () => {
-    expect(actorTracker({ user: null, ip: "10.0.0.1" })).toBe("ip:10.0.0.1");
-    expect(actorTracker({ ip: "10.0.0.1" })).toBe("ip:10.0.0.1");
+  it("compte chaque client à part, pas le proxy par lequel ils passent tous", async () => {
+    expect(ok(await hitAs("203.0.113.1", RATE_LIMITS.global.limit))).toBe(true);
+
+    expect(await hitAs("203.0.113.1")).toEqual([429]);
+    expect(await hitAs("203.0.113.2")).toEqual([200]);
+  });
+});
+
+describe("actorTracker", () => {
+  const HEADER = "cf-connecting-ip";
+
+  it("compte l'acteur authentifié, quelle que soit son adresse", () => {
+    expect(actorTracker({ user: { id: "u1" }, ip: "10.0.0.1" }, undefined)).toBe("user:u1");
+    expect(actorTracker({ user: { id: "u1" }, headers: { [HEADER]: "203.0.113.9" } }, HEADER)).toBe(
+      "user:u1",
+    );
+  });
+
+  it("retombe sur l'IP de la connexion sans acteur ni en-tête configuré — le local", () => {
+    expect(actorTracker({ user: null, ip: "10.0.0.1" }, undefined)).toBe("ip:10.0.0.1");
+    expect(actorTracker({ ip: "10.0.0.1" }, undefined)).toBe("ip:10.0.0.1");
+  });
+
+  it("lit l'IP dans l'en-tête configuré, jamais dans la connexion du proxy", () => {
+    expect(actorTracker({ ip: "172.18.0.5", headers: { [HEADER]: " 203.0.113.9 " } }, HEADER)).toBe(
+      "ip:203.0.113.9",
+    );
+  });
+
+  it("garde la même clé pour une IPv6 écrite en capitales ou en minuscules", () => {
+    expect(actorTracker({ headers: { [HEADER]: "2001:DB8::1" } }, HEADER)).toBe("ip:2001:db8::1");
+  });
+
+  // Rien qu'on puisse croire : l'IP de la connexion est celle du proxy, pas celle du client. Une
+  // valeur libre, elle, offrirait un compteur neuf à chaque requête.
+  it.each([
+    ["absent", {}],
+    ["vide", { [HEADER]: " " }],
+    // Node joint un en-tête répété ainsi ; Fastify ne rend un tableau que pour quelques en-têtes.
+    ["répété, joint par Node", { [HEADER]: "203.0.113.9, 198.51.100.1" }],
+    ["répété, en tableau", { [HEADER]: ["203.0.113.9", "198.51.100.1"] }],
+    ["qui n'est pas une IP", { [HEADER]: "client-42" }],
+  ])("ne retombe pas sur la connexion quand l'en-tête est %s", (_, headers) => {
+    expect(actorTracker({ ip: "172.18.0.5", headers }, HEADER)).toBe("ip:unknown");
   });
 
   it("ne confond pas une IP absente avec un acteur", () => {
-    expect(actorTracker({})).toBe("ip:unknown");
+    expect(actorTracker({}, undefined)).toBe("ip:unknown");
   });
 });
