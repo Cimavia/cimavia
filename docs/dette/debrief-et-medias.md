@@ -720,6 +720,10 @@ liste des domaines vivent dans l'index.
 
 ## Post-MVP — Clé objet venue du client ([#293](https://github.com/Cimavia/cimavia/issues/293))
 
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| S-2 | **Un même objet se rattache deux fois, et un rattachement refusé laisse son objet au bucket.** (a) Rien n'interdit de rattacher la clé d'un média déjà rattaché : deux lignes pour un objet, et retirer l'une le purge sous l'autre. Le trou précède #468 (la relecture du storage ne le crée pas) ; il est borné au périmètre de la clé (séance, fil, cycle). (b) Un 409 ou un 404 au rattachement laisse l'objet envoyé, orphelin de plus à côté de ceux de #72. Le supprimer au refus a été écarté en #468 : sans (a) résolu, rejouer la clé d'un média VIVANT avec une taille fausse ferait purger ce média — par l'autre participant d'un fil, par exemple. | 🟢 | — *(déclencheur : un média qui disparaît après un rattachement refusé, ou un bucket dont les orphelins pèsent ; la sortie est une clé unique par rattachement, puis la purge au refus)* |
+
 *Résolues, à l'[archive](archive.md) : S-1.*
 
 > **Tranché en [#293](https://github.com/Cimavia/cimavia/issues/293)** (la forme exacte, et 403) :
@@ -741,6 +745,16 @@ liste des domaines vivent dans l'index.
 > `getOrCreateWritable` : un rattachement refusé ne crée pas de débrief. Dans la messagerie, elle
 > couvre désormais tout ce qui n'est pas du texte, et non plus seulement le fichier joint. La durée
 > reste déclarative : c'est #81.
+>
+> **Ce que la revue de la PR a fait dire de plus.** La relecture ne vaut que si le storage a fait
+> la même signature que le client la voit : `getSignedUrl` retire `content-type` des en-têtes
+> signés d'office (`unsignableHeaders`), et `createUploadUrl` ne le remettait pas. Le type que le
+> storage rendait était donc celui que le CLIENT avait posé à l'envoi : une vidéo envoyée en
+> `image/jpeg`, puis rattachée en `IMAGE`, passait. `signableHeaders: ["content-type"]` l'y remet,
+> et l'e2e « un autre type que celui signé » le garde. La clé et l'objet se vérifient en un seul
+> appel, `StorageService.assertAttachable(prefix, key, declared)` : c'est l'oubli de la seconde
+> garde qui avait fait S-1. Sur la facture, le brouillon se lit AVANT le storage : sans termes de
+> facturation, le coach lit la bonne erreur.
 
 > **Tranché en [#354](https://github.com/Cimavia/cimavia/issues/354)** (le nom est raccourci à
 > l'entrée, ni refusé ni tronqué dans la clé) : les dix-huit `fileName` reçus passent par
