@@ -33,11 +33,11 @@ export type AuthConfig = {
   baseURL: string;
   trustedOrigins: string[];
   /**
-   * L'en-tête qui porte l'IP du client (`CLIENT_IP_HEADER`, #781) — `undefined` en local, où il
-   * n'y a pas de proxy. Une clé obligatoire, même vide : l'oublier dans `app.module.ts` remettrait
-   * le défaut de Better Auth sans qu'aucun test ne le voie.
+   * L'en-tête qui porte l'IP du client (`clientIpHeaderOf`, #781) — `null` en local, où il n'y a
+   * pas de proxy. Une clé obligatoire, même nulle : l'oublier dans `app.module.ts` remettrait le
+   * défaut de Better Auth sans qu'aucun test ne le voie.
    */
-  clientIpHeader: string | undefined;
+  clientIpHeader: string | null;
   sendResetPassword: SendAuthLink;
   /** Le lien qui prouve que l'inscrit possède son adresse (#270). */
   sendVerificationEmail: SendAuthLink;
@@ -202,18 +202,13 @@ function passwordRequired(request: Request | undefined, baseURL: string): APIErr
 }
 
 /**
- * Où Better Auth lit l'IP du client (#781) : c'est elle qui sépare les compteurs de sa limite de
- * débit — 3 tentatives par 10 s sur `/sign-in` et `/sign-up`, active en production — et qu'il
- * inscrit sur la session.
- *
- * Sans en-tête configuré, son défaut : `x-forwarded-for`, qu'il abandonne dès qu'il porte plus
- * d'une adresse. Derrière Cloudflare, qui AJOUTE l'IP du client à celui qu'il reçoit, un client
- * qui en envoie un tombait dans un compteur unique par route, partagé par tous ceux dans son cas —
- * de quoi leur fermer la connexion d'un seul script. En local, l'en-tête manque et Better Auth
- * compte `127.0.0.1` : il n'y a qu'un client.
+ * Où Better Auth lit l'IP du client (#781) : elle sépare les compteurs de sa limite de débit — 3
+ * tentatives par 10 s sur `/sign-in` et `/sign-up`, active en production — et il l'inscrit sur la
+ * session. Sans en-tête, son défaut (`x-forwarded-for`) : pourquoi il ne tient pas derrière un
+ * proxy, voir `CLIENT_IP_HEADER` dans `envSchema`.
  */
-function clientIpOptions(header: string | undefined) {
-  return header === undefined ? undefined : { ipAddressHeaders: [header] };
+function clientIpOptions(header: string | null) {
+  return header === null ? undefined : { ipAddressHeaders: [header] };
 }
 
 /**

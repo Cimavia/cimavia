@@ -85,13 +85,15 @@ type TrackedRequest = {
  * L'IP du client, `null` si on ne la connaît pas (#781).
  *
  * Avec un en-tête configuré, lui seul : `request.ip` y serait l'adresse du proxy — `cloudflared`
- * sur le NAS —, la même pour tout le monde. Et une seule adresse valide : Node joint un en-tête
- * répété en `a, b`, et une valeur libre laisserait un client changer de compteur à chaque requête
- * — Better Auth refuse les mêmes. Sinon, l'en-tête ne dit rien qu'on puisse croire, et l'on ne se
- * rabat pas sur le proxy pour autant. Sans en-tête configuré (local), la connexion elle-même.
+ * sur le NAS —, la même pour tout le monde. Et seulement une adresse valide : Node joint un en-tête
+ * répété en `a, b`, et une valeur libre laisserait un client changer de compteur à chaque requête.
+ * Sinon, `null` — jamais l'adresse du proxy. Sans en-tête configuré (local), la connexion.
+ *
+ * L'adresse n'est pas normalisée comme le fait Better Auth : une IPv6 n'est pas regroupée par
+ * `/64`, et un client qui en change dans son préfixe change de compteur (RL-4).
  */
-function clientIp(request: TrackedRequest, clientIpHeader: string | undefined): string | null {
-  if (clientIpHeader === undefined) return request.ip ?? null;
+function clientIp(request: TrackedRequest, clientIpHeader: string | null): string | null {
+  if (clientIpHeader === null) return request.ip ?? null;
   const value = request.headers?.[clientIpHeader];
   if (typeof value !== "string") return null;
   const ip = value.trim();
@@ -104,7 +106,7 @@ function clientIp(request: TrackedRequest, clientIpHeader: string | undefined): 
  * `NoRateLimit` ; inconnue, tous ces clients partagent `ip:unknown` — un compteur commun plutôt
  * que pas de compteur.
  */
-export function actorTracker(request: TrackedRequest, clientIpHeader: string | undefined): string {
+export function actorTracker(request: TrackedRequest, clientIpHeader: string | null): string {
   const id = request.user?.id;
   return typeof id === "string"
     ? `user:${id}`
@@ -140,8 +142,8 @@ function policyThrottler(
   return { name, ...limit, generateKey: actorKey, skipIf: outsidePolicy(policy) };
 }
 
-/** `clientIpHeader` : `CLIENT_IP_HEADER`, l'en-tête que le proxy devant l'API écrit (#781). */
-export function rateLimitOptions(clientIpHeader: string | undefined): ThrottlerModuleOptions {
+/** `clientIpHeader` : l'en-tête que le proxy devant l'API écrit (`clientIpHeaderOf`, #781). */
+export function rateLimitOptions(clientIpHeader: string | null): ThrottlerModuleOptions {
   return {
     getTracker: (request) => actorTracker(request, clientIpHeader),
     // Les en-têtes de la librairie portent le nom du compteur (`Retry-After-global`), qu'aucun

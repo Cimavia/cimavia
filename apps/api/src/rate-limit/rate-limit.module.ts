@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule } from "@nestjs/throttler";
+import { clientIpHeaderOf } from "../config/client-ip-header";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { rateLimitOptions } from "./rate-limit.policy";
 
@@ -20,7 +21,7 @@ import { rateLimitOptions } from "./rate-limit.policy";
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvSchema, true>) =>
-        rateLimitOptions(config.get("CLIENT_IP_HEADER", { infer: true })),
+        rateLimitOptions(clientIpHeaderOf(config)),
     }),
   ],
   providers: [{ provide: APP_GUARD, useClass: RateLimitGuard }],

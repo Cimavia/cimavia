@@ -13,7 +13,7 @@ function authWith(overrides: Partial<AuthConfig> = {}, prisma = {} as PrismaClie
     secret: "s".repeat(32),
     baseURL: "http://localhost:3001",
     trustedOrigins: ["http://localhost:5173"],
-    clientIpHeader: undefined,
+    clientIpHeader: null,
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve(),
     notifyExistingAccount: () => Promise.resolve(),

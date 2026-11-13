@@ -256,15 +256,15 @@ describe("actorTracker", () => {
   const HEADER = "cf-connecting-ip";
 
   it("compte l'acteur authentifié, quelle que soit son adresse", () => {
-    expect(actorTracker({ user: { id: "u1" }, ip: "10.0.0.1" }, undefined)).toBe("user:u1");
+    expect(actorTracker({ user: { id: "u1" }, ip: "10.0.0.1" }, null)).toBe("user:u1");
     expect(actorTracker({ user: { id: "u1" }, headers: { [HEADER]: "203.0.113.9" } }, HEADER)).toBe(
       "user:u1",
     );
   });
 
   it("retombe sur l'IP de la connexion sans acteur ni en-tête configuré — le local", () => {
-    expect(actorTracker({ user: null, ip: "10.0.0.1" }, undefined)).toBe("ip:10.0.0.1");
-    expect(actorTracker({ ip: "10.0.0.1" }, undefined)).toBe("ip:10.0.0.1");
+    expect(actorTracker({ user: null, ip: "10.0.0.1" }, null)).toBe("ip:10.0.0.1");
+    expect(actorTracker({ ip: "10.0.0.1" }, null)).toBe("ip:10.0.0.1");
   });
 
   it("lit l'IP dans l'en-tête configuré, jamais dans la connexion du proxy", () => {
@@ -291,6 +291,6 @@ describe("actorTracker", () => {
   });
 
   it("ne confond pas une IP absente avec un acteur", () => {
-    expect(actorTracker({}, undefined)).toBe("ip:unknown");
+    expect(actorTracker({}, null)).toBe("ip:unknown");
   });
 });
