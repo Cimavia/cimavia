@@ -1,5 +1,5 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
-import { draftAfterSend, MESSAGE_TEXT_MAX_LENGTH, required } from "@cmv/shared";
+import { draftAfterSend, MESSAGE_TEXT_MAX_LENGTH, minutesOf, required } from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -53,6 +53,13 @@ export function Composer({
     },
     onRecorded: onRecordedAudio,
     onError: (key) => toast.error(t(key)),
+    maxDurationSeconds: MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds,
+    onLimitReached: () =>
+      toast.info(
+        t("messages.audio.limitReached", {
+          max: minutesOf(MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds),
+        }),
+      ),
   });
 
   const trimmed = text.trim();

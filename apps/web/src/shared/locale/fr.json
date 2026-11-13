@@ -1203,7 +1203,8 @@
     },
     "audio": {
       "permission": "Autorise l'accès au micro pour enregistrer un message vocal.",
-      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté."
+      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté.",
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté."
     },
     "empty": {
       "title": "Aucun message",
@@ -1421,6 +1422,7 @@
       "addFile": "Ajouter des photos ou des vidéos",
       "addAudio": "Note vocale",
       "stopRecording": "Arrêter ({{seconds}} s)",
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté.",
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
       "openFull": "Ouvrir en grand",
