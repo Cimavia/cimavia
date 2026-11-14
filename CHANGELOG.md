@@ -1,5 +1,66 @@
 # Changelog
 
+## [1.19.0](https://github.com/Cimavia/cimavia/compare/v1.18.0...v1.19.0) (2026-11-14)
+
+
+### Fonctionnalités
+
+* **api:** bornes serrées sur les url d'upload, l'envoi de message et les invitations ([6d2c379](https://github.com/Cimavia/cimavia/commit/6d2c3790895c96ec48bef214031eb7dcd3d2cf35))
+* **api:** plafond de débit par acteur sur toute route, hors sonde et tick, et hors sentry ([4fbce73](https://github.com/Cimavia/cimavia/commit/4fbce73e7e81d011c56d4f85d4d559b875ca91fc))
+* **mobile:** la messagerie dit d'attendre sur un 429 au lieu d'accuser la connexion ([96a320e](https://github.com/Cimavia/cimavia/commit/96a320ed9b179a32094d336d358f94ed05f6785f))
+* **shared:** compter les entrants arrivés après le dernier message vu au bas du fil ([4d54cdb](https://github.com/Cimavia/cimavia/commit/4d54cdb891621c0bca30d37e599629c820f848a9))
+* **shared:** le 429 se traduit côté client et une lecture refusée ne se relance pas ([76882da](https://github.com/Cimavia/cimavia/commit/76882da3cec8be2e5ec05a810d6a0f19f09ec73c))
+* **shared:** une notification s'ouvre sous le titre de son type, pas sous le titre exercé ([9fd4350](https://github.com/Cimavia/cimavia/commit/9fd43506a6a7556167720c4fd8ccb823974f404e))
+* **web:** en-têtes de sécurité, csp observée vers sentry et frame-ancestors bloquant ([e07d356](https://github.com/Cimavia/cimavia/commit/e07d356ff9eedbce6bb469b8424c58e3c46992f8))
+* **web:** un fil qui reste collé au bas tant que le lecteur y est, médias chargés compris ([8507b5e](https://github.com/Cimavia/cimavia/commit/8507b5e84013be1b58c4bb886e33b9d5dbc3195b))
+* **web:** un geste composé refusé par la limite de débit dit d'attendre ([dcd863f](https://github.com/Cimavia/cimavia/commit/dcd863fbc0a918b762b6d4919a6196ac2ef0c265))
+
+
+### Corrections
+
+* **api:** better auth suit la politique sentry de nest, ses lignes liées à leur requête ([521dc2a](https://github.com/Cimavia/cimavia/commit/521dc2ad93f01d1a693702f8179d2d1a4482838c))
+* **api:** borne serrée par acteur sur toutes ses routes, et nulle sur une route exemptée ([5ba359f](https://github.com/Cimavia/cimavia/commit/5ba359f7706269a17ddc8478462b79118b505f20))
+* **api:** compter les connexions par client, pas en compteur commun derrière cloudflare ([d80e9d0](https://github.com/Cimavia/cimavia/commit/d80e9d0838805ba805509ae18373cb1ca83916ce))
+* **api:** compter une route publique par ip du client, pas par l'adresse du tunnel ([ede74d9](https://github.com/Cimavia/cimavia/commit/ede74d95041e516217a309c8b2b64f1d33bc58af))
+* **api:** confronter le justificatif de facture à l'objet reçu avant de l'écrire ([9651b78](https://github.com/Cimavia/cimavia/commit/9651b78a01ea4d87e48564f6e9289029c2d8435f))
+* **api:** confronter le média de débrief au type et à la taille de l'objet reçu ([616a176](https://github.com/Cimavia/cimavia/commit/616a1765da0113eb32e3d8a2b2e1246b4e35262b))
+* **api:** confronter tout média de message à l'objet reçu, pas seulement le fichier ([73cb5e4](https://github.com/Cimavia/cimavia/commit/73cb5e4942e152494902f9d521ebc6fb02530ce1))
+* **api:** exiger sur un tier déployé l'en-tête qui porte l'ip du client ([f8788a7](https://github.com/Cimavia/cimavia/commit/f8788a700608c9b93dee0e4b544a79dedc308269))
+* **api:** journaliser les routes d'auth et les erreurs de better auth, servies avant nest ([101f5a5](https://github.com/Cimavia/cimavia/commit/101f5a5f878017917b804bc50fb3e76906741537))
+* **api:** ligne de journal des routes d'auth, sur la racine pino et sa liste blanche ([3cf4f52](https://github.com/Cimavia/cimavia/commit/3cf4f52409df4170f2ae4e9bb8c1134318ee4e53))
+* **api:** lire un client_ip_header vide comme absent, sans quoi aucun… ([d2ee7bc](https://github.com/Cimavia/cimavia/commit/d2ee7bc9d8407c198bf64b4d6de118d163524914))
+* **api:** lire un client_ip_header vide comme absent, sans quoi aucune connexion ne passe ([6ac0e2d](https://github.com/Cimavia/cimavia/commit/6ac0e2dabe50fd4d878b77bf6ddf4e1ba436d820))
+* **api:** lire un client_ip_header vide comme absent, sans quoi aucune connexion ne passe ([fb22077](https://github.com/Cimavia/cimavia/commit/fb2207770705929e5ae5942245529634e1817bdd))
+* **api:** ne pas envoyer deux fois à sentry une panne déjà partie par sa ligne de journal ([45e12d1](https://github.com/Cimavia/cimavia/commit/45e12d1bb05d5c036a8b02d55161ee613d643db7))
+* **api:** ne plus recopier en séance ni en copie figée une image non citée ([851146f](https://github.com/Cimavia/cimavia/commit/851146f66e70d9922087fc0cab81f3a1e7b5f296))
+* **api:** retirer le filtre athleteid des cycles, qu'aucun client n'appelle ([f92dbb8](https://github.com/Cimavia/cimavia/commit/f92dbb8b28cabe62dcb7bfa45a04e8320bb1acf5))
+* **api:** signer le content-type de l'url d'envoi, le storage refuse un autre type ([b0d52cd](https://github.com/Cimavia/cimavia/commit/b0d52cdc1513650ade7459e8e69466be44c86d26))
+* **api:** supprimer les images que la consigne réécrite ne cite plus, ligne et objet ([197bef5](https://github.com/Cimavia/cimavia/commit/197bef50eaa5043456c1f37b825becb068ec87d2))
+* **api:** valider toute la requête de la liste d'exercices, une clé répétée rendait 500 ([9651666](https://github.com/Cimavia/cimavia/commit/965166663f548afe09d725571721751b9fdc987d))
+* **mobile:** cloche et push ouvrent une notification de son côté et y basculent le titre ([fae8b9b](https://github.com/Cimavia/cimavia/commit/fae8b9b15fd6e6c62d4ebe6b5757893073c59435))
+* **mobile:** le chrono n'avertit que d'un refus, ni en pause ni pendant la programmation ([73cba85](https://github.com/Cimavia/cimavia/commit/73cba858e764575d02bc385d8d28d286e1ff0b5f))
+* refus de l'api et 429 passent par un seul message, dont la clé vit dans shared ([628d729](https://github.com/Cimavia/cimavia/commit/628d7291aa00488157f381c75d65fa256e7e7537))
+* **shared:** zod ne compile plus ses schémas, sinon la csp report-only noie sentry ([37d2b0a](https://github.com/Cimavia/cimavia/commit/37d2b0a1d601db09a95d3f7b8677692c7243ec0f))
+* **web:** borner aux capacités du compte pour que la nav ne montre plus l'espace d'un autre titre ([42631bd](https://github.com/Cimavia/cimavia/commit/42631bde1441c30673215fb084e1a9096ed8bedc))
+* **web:** borner la recherche de la bibliothèque à ce que l'api accepte ([a2ebebb](https://github.com/Cimavia/cimavia/commit/a2ebebb2656a11d5aa6f55a6adc66357ec16feef))
+* **web:** l'éditeur de consigne ne crée seul que des liens http(s), visibles à la saisie ([36e9d4e](https://github.com/Cimavia/cimavia/commit/36e9d4eba044c78add935cb0270da3bbba1bb40d))
+* **web:** la cloche ouvre une notification de son côté et pose son titre dans as ([5847830](https://github.com/Cimavia/cimavia/commit/58478303fb944e0c2846b6123c1bca9d7a3cdfaf))
+* **web:** la consigne n'offre plus sous-liste ni saut de ligne, perdus à l'enregistrement ([f1a8f60](https://github.com/Cimavia/cimavia/commit/f1a8f60232724c0e238cba83a81c50e17a240f3c))
+* **web:** la conversion jette un lien hors http(s), un mailto ne bloque plus l'exercice ([616f010](https://github.com/Cimavia/cimavia/commit/616f010c71acabe80bc57464993419c714715190))
+* **web:** le fil ne recolle plus un lecteur qui remonte et signale les messages arrivés ([c66c026](https://github.com/Cimavia/cimavia/commit/c66c0268a205d7fecb198aa22dda7b6990745b4b))
+* **web:** n'envoyer que les images citées, et renvoyer celle qu'un ctrl+z remet ([f2c0246](https://github.com/Cimavia/cimavia/commit/f2c0246101e70c4bd1ede8dad8838936ab1dfac8))
+* **web:** ne plus envoyer la capture quittée en route, et l'arrêter au plafond de durée ([dbf17f3](https://github.com/Cimavia/cimavia/commit/dbf17f3c3f92ae7ead97be2c6160d7b18875c5ce))
+* **web:** passer le plafond du profil à l'enregistreur et dire son arrêt à l'écran ([9763716](https://github.com/Cimavia/cimavia/commit/9763716b9460d605e8b8a56b972894d1ab46f2c6))
+
+
+### Technique
+
+* **api:** muter la tenancy sur trois workers, avec des logs qui survivent au timeout ([bd34765](https://github.com/Cimavia/cimavia/commit/bd3476550abfc423125cfd074ba35483c33f8437))
+* **api:** un seul appel pour la clé et l'objet reçu, la facture lit son brouillon avant ([40a730a](https://github.com/Cimavia/cimavia/commit/40a730ad4c5b67248c36bf091acbfe124c66ad0d))
+* lancer sur demande les builds mobiles eas après la promotion, une fois le nas confirmé ([1a10e22](https://github.com/Cimavia/cimavia/commit/1a10e2228bc328bc3609d968990c3f596b90c37a))
+* **mobile:** poser l'ascappid testflight, sans lequel l'envoi depuis la ci échoue ([3d60a24](https://github.com/Cimavia/cimavia/commit/3d60a24250b7b416b9a2e4af874da563bf24db17))
+* **web:** le smoke vérifie les en-têtes de sécurité et chaque variable obligatoire ([ea68d35](https://github.com/Cimavia/cimavia/commit/ea68d35f9e8b075b00ac3ca049171d1574262416))
+
 ## [1.18.0](https://github.com/Cimavia/cimavia/compare/v1.17.0...v1.18.0) (2026-11-11)
 
 
