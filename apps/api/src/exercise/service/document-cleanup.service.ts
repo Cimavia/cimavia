@@ -1,5 +1,6 @@
 import { DocumentType } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
+import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import type { DocumentRow } from "../../infra/storage/document.mapper";
 import { citedStorageKeys } from "../../infra/storage/object-citations";
@@ -31,6 +32,7 @@ export class DocumentCleanupService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    @InjectPinoLogger(DocumentCleanupService.name) private readonly logger: PinoLogger,
   ) {}
 
   async deleteObjectIfUnreferenced(
@@ -42,5 +44,50 @@ export class DocumentCleanupService {
     if (cited.size > 0) return;
 
     await this.storage.deleteObject(doc.storagePath);
+  }
+
+  /**
+   * Les objets de documents dont les lignes viennent de partir (#330), purgés s'ils ne servent plus
+   * — sans faire échouer l'appelant : son écriture est faite. Un échec se journalise et laisse
+   * l'objet orphelin, la dette P2-1.
+   *
+   * Un seul décompte pour toutes les clés, les suppressions en parallèle : la réponse les attend.
+   * Aucun document à excepter du décompte, leurs lignes sont déjà supprimées.
+   */
+  async purgeUnreferencedObjectsSafely(
+    docs: readonly Pick<DocumentRow, "id" | "type" | "storagePath">[],
+  ): Promise<void> {
+    const files = docs.flatMap((doc) =>
+      doc.type === DocumentType.FILE && doc.storagePath != null
+        ? [{ id: doc.id, key: doc.storagePath }]
+        : [],
+    );
+    if (files.length === 0) return;
+    try {
+      const cited = await citedStorageKeys(
+        this.prisma,
+        files.map((file) => file.key),
+      );
+      const purged = files.filter((file) => !cited.has(file.key));
+      const results = await Promise.allSettled(
+        purged.map((file) => this.storage.deleteObject(file.key)),
+      );
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") return;
+        this.warn(result.reason, { documentId: purged[index]?.id });
+      });
+    } catch (err) {
+      this.warn(err, { documentIds: files.map((file) => file.id) });
+    }
+  }
+
+  /**
+   * Le nom de l'erreur, jamais l'erreur entière : le SDK S3 recopie sur l'exception les champs de la
+   * réponse — `Key`, `Resource` —, et une clé porte le nom du fichier, qui n'a rien à faire dans les
+   * logs.
+   */
+  private warn(err: unknown, context: Record<string, unknown>): void {
+    const reason = err instanceof Error ? err.name : typeof err;
+    this.logger.warn({ ...context, reason }, "document retiré : objet laissé en storage");
   }
 }

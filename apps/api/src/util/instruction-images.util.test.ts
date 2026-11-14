@@ -10,7 +10,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertInstructionImagesOwned,
   instructionImageIds,
+  uncitedInstructionImages,
   withCopiedImages,
+  withoutUncitedImages,
 } from "./instruction-images.util";
 
 const paragraph: RichBlock = {
@@ -31,6 +33,51 @@ describe("instructionImageIds", () => {
       { id: "lien", type: DocumentType.LINK, usage: DocumentUsage.ATTACHMENT },
     ]);
     expect([...ids]).toEqual(["consigne"]);
+  });
+});
+
+describe("uncitedInstructionImages", () => {
+  const kept = { id: "gardee", type: DocumentType.FILE, usage: DocumentUsage.INSTRUCTION };
+  const replaced = { id: "remplacee", type: DocumentType.FILE, usage: DocumentUsage.INSTRUCTION };
+  const attachment = {
+    id: "piece-jointe",
+    type: DocumentType.FILE,
+    usage: DocumentUsage.ATTACHMENT,
+  };
+  const link = { id: "lien", type: DocumentType.LINK, usage: DocumentUsage.ATTACHMENT };
+  const documents = [kept, replaced, attachment, link];
+
+  it("rend l'image que la consigne ne cite plus, pas celle qu'elle garde", () => {
+    expect(uncitedInstructionImages([paragraph, image("gardee")], documents)).toEqual([replaced]);
+  });
+
+  it("rend toutes les images d'une consigne effacée, et aucune pièce jointe ni lien", () => {
+    expect(uncitedInstructionImages(null, documents)).toEqual([kept, replaced]);
+  });
+
+  it("ne rend rien quand la consigne cite toutes ses images", () => {
+    expect(uncitedInstructionImages([image("remplacee"), image("gardee")], documents)).toEqual([]);
+  });
+});
+
+describe("withoutUncitedImages", () => {
+  const cited = { id: "citee", type: DocumentType.FILE, usage: DocumentUsage.INSTRUCTION };
+  const orphan = { id: "orpheline", type: DocumentType.FILE, usage: DocumentUsage.INSTRUCTION };
+  const attachment = {
+    id: "piece-jointe",
+    type: DocumentType.FILE,
+    usage: DocumentUsage.ATTACHMENT,
+  };
+
+  it("reprend pièces jointes et images citées, pas l'image orpheline, dans l'ordre", () => {
+    expect(withoutUncitedImages([image("citee")], [attachment, orphan, cited])).toEqual([
+      attachment,
+      cited,
+    ]);
+  });
+
+  it("ne reprend aucune image d'une ligne sans consigne", () => {
+    expect(withoutUncitedImages(null, [orphan, attachment])).toEqual([attachment]);
   });
 });
 
