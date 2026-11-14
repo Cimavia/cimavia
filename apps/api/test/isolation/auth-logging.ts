@@ -1,6 +1,5 @@
 import { Role } from "@cmv/shared";
 import { PinoLogger } from "nestjs-pino";
-import { pino } from "pino";
 import request from "supertest";
 import {
   afterEach,
@@ -18,7 +17,8 @@ import { baseURL, sentMails } from "../support/app";
 type LogLine = {
   msg?: string;
   level?: number;
-  req?: { url?: string };
+  context?: string;
+  req?: { id?: unknown; url?: string };
   res?: { statusCode?: number };
 };
 
@@ -26,10 +26,16 @@ type LogLine = {
  * Le flux du logger racine de nestjs-pino : celui du transport vers Axiom, que partagent tous ses
  * enfants — dont celui des routes d'auth. L'écouter, c'est lire ce qui part VRAIMENT, sans
  * remplacer aucun logger de l'app.
+ *
+ * Trouvé par la description de son symbole, pas par `pino.symbols` : celui-ci n'est pas de l'API
+ * publique, et une autre copie de pino que celle de nestjs-pino aurait des symboles distincts.
  */
 function rootStream(): { write: (chunk: string) => boolean } {
   const root = PinoLogger.root as unknown as Record<symbol, { write: (chunk: string) => boolean }>;
-  return required(root[pino.symbols.streamSym], "flux du logger racine");
+  const streamSym = Object.getOwnPropertySymbols(root).find(
+    (symbol) => symbol.description === "pino.stream",
+  );
+  return required(streamSym && root[streamSym], "flux du logger racine");
 }
 
 /**
@@ -55,12 +61,12 @@ describe("Journaux des routes d'auth : une ligne par requête, sans secret (#466
 
   const written = (): string => write.mock.calls.map(([chunk]) => String(chunk)).join("");
 
+  const allLines = (): LogLine[] =>
+    write.mock.calls.map(([chunk]) => JSON.parse(String(chunk)) as LogLine);
+
   /** La ligne s'écrit à la fermeture de la réponse, qui peut suivre sa réception par le client. */
   async function requestLines(url: string): Promise<LogLine[]> {
-    const lines = () =>
-      write.mock.calls
-        .map(([chunk]) => JSON.parse(String(chunk)) as LogLine)
-        .filter((line) => line.req?.url === url && line.res);
+    const lines = () => allLines().filter((line) => line.req?.url === url && line.res);
     await vi.waitFor(() => expect(lines()).not.toEqual([]));
     return lines();
   }
@@ -91,6 +97,25 @@ describe("Journaux des routes d'auth : une ligne par requête, sans secret (#466
     const lines = await requestLines("/api/auth/sign-in/email");
     expect(lines).toEqual([expect.objectContaining({ level: 40, res: { statusCode: 401 } })]);
     expect(written()).not.toContain("mauvais-mot-de-passe");
+  });
+
+  it("rattache ce que Better Auth journalise à sa requête, par son identifiant", async () => {
+    expect((await signIn("mauvais-mot-de-passe")).status).toBe(401);
+
+    const [request] = await requestLines("/api/auth/sign-in/email");
+    const id = required(request?.req?.id, "identifiant de la requête");
+    // Filtrées par identifiant : le flux est celui de toute l'app, qu'une autre ligne de Better
+    // Auth (une tâche de fond) peut traverser pendant le test.
+    const ownLines = allLines().filter(
+      (line) => line.context === "BetterAuth" && line.req?.id === id,
+    );
+    expect(ownLines).toEqual([
+      expect.objectContaining({
+        msg: "Invalid password",
+        level: 40,
+        req: { id, method: "POST", url: "/api/auth/sign-in/email" },
+      }),
+    ]);
   });
 
   it("blanchit le jeton du lien de réinitialisation", async () => {
