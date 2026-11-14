@@ -26,11 +26,34 @@ beforeEach(() => {
 });
 
 describe("useTimerNotification", () => {
-  it("n'est pas armé quand il n'y a rien à annoncer", () => {
+  /** Rien à annoncer n'est pas un refus : `null`, pour que l'écran n'avertisse de rien (#374). */
+  it("ne dit rien quand il n'y a rien à annoncer", () => {
     const { result } = renderHook(() => useTimerNotification([]));
 
-    expect(result.current.armed).toBe(false);
+    expect(result.current.armed).toBeNull();
     expect(schedule).not.toHaveBeenCalled();
+  });
+
+  /** Une échéance à moins d'une seconde ne se programme pas — ce n'est pas un refus pour autant. */
+  it("ne dit rien quand la seule échéance est imminente, sans solliciter l'OS", async () => {
+    const { result } = renderHook(() => useTimerNotification([alertIn(0.2)]));
+    await act(async () => undefined);
+
+    expect(result.current.armed).toBeNull();
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  /** Tant que l'OS n'a pas répondu, rien n'est refusé : l'avertissement ne doit pas clignoter. */
+  it("ne dit rien tant que l'OS n'a pas répondu", async () => {
+    let grant: (id: string) => void = () => undefined;
+    schedule.mockImplementation(() => new Promise((resolve) => (grant = resolve)));
+
+    const { result } = renderHook(() => useTimerNotification([alertIn(60)]));
+    await waitFor(() => expect(schedule).toHaveBeenCalled());
+    expect(result.current.armed).toBeNull();
+
+    await act(async () => grant("notif-1"));
+    expect(result.current.armed).toBe(true);
   });
 
   /**
@@ -73,7 +96,7 @@ describe("useTimerNotification", () => {
     expect(cancel.mock.calls.map(([id]) => id)).toEqual(["notif-1", "notif-2"]);
   });
 
-  it("se désarme et annule tout quand il ne reste plus rien à annoncer", async () => {
+  it("annule tout et ne dit plus rien quand il ne reste rien à annoncer", async () => {
     const { result, rerender } = renderHook(({ alerts }) => useTimerNotification(alerts), {
       initialProps: { alerts: [alertIn(60)] },
     });
@@ -81,7 +104,7 @@ describe("useTimerNotification", () => {
 
     rerender({ alerts: [] });
 
-    await waitFor(() => expect(result.current.armed).toBe(false));
+    await waitFor(() => expect(result.current.armed).toBeNull());
     expect(cancel).toHaveBeenCalledWith("notif-1");
   });
 
