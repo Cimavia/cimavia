@@ -1,6 +1,6 @@
 import { ProblemType, Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
-import { type Agent, billAndPublish, inviteFor, link, signUp } from "../support/actors";
+import { type Agent, billAndPublish, inviteFor, link, required, signUp } from "../support/actors";
 import { blocksOf, repsGrid } from "../support/blocks";
 import { fromTemplate, mondayOfCurrentWeek, uploadInstructionImage } from "../support/fixtures";
 import { attemptPlanWrites, notFoundEverywhere, withoutSignatures } from "../support/intrusion";
@@ -8,6 +8,7 @@ import {
   ANY_VERSION,
   atWeekVersion,
   deleteAtLatest,
+  patchAtLatest,
   publishAtLatest,
   putAtLatest,
   versionOf,
@@ -271,6 +272,49 @@ describe("Planifications : diffusion & isolation (P3)", () => {
 
     await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
     await coachA.delete(`/exercises/${exerciseAId}/documents/${imageId}`);
+  });
+
+  // Rattachée mais pas citée — l'envoi d'un enregistrement en cours, ou un orphelin d'avant #330.
+  it("ne recopie pas une image de consigne que la consigne ne cite pas", async () => {
+    const orphan = await uploadInstructionImage(coachA, exerciseAId);
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const usages = diffused.body.exercises[0].documents.map(
+      (document: { usage: string }) => document.usage,
+    );
+    expect(usages).not.toContain("INSTRUCTION");
+
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
+    await coachA.delete(`/exercises/${exerciseAId}/documents/${orphan}`);
+  });
+
+  it("retirer une image de la consigne garde l'objet que la séance diffusée affiche", async () => {
+    const imageId = await uploadInstructionImage(coachA, exerciseAId);
+    const withImage = await patchAtLatest(coachA, `/exercises/${exerciseAId}`, {
+      instructions: [{ type: "IMAGE", mediaId: imageId }],
+    });
+    expect(withImage.status).toBe(200);
+    const diffused = await coachA
+      .post(`/plan-weeks/${week2Id}/sessions`)
+      .send({ sourceSessionId: templateId, scheduledDate: mondayOfWeek2Iso });
+    expect(diffused.status).toBe(201);
+
+    const removed = await patchAtLatest(coachA, `/exercises/${exerciseAId}`, {
+      instructions: null,
+    });
+
+    expect(removed.status).toBe(200);
+    const libraryIds = removed.body.documents.map((document: { id: string }) => document.id);
+    expect(libraryIds).not.toContain(imageId);
+    const copy = diffused.body.exercises[0].documents.find(
+      (document: { usage: string }) => document.usage === "INSTRUCTION",
+    );
+    expect((await fetch(required(copy, "image de la séance diffusée").url)).status).toBe(200);
+
+    await deleteAtLatest(coachA, `/scheduled-sessions/${diffused.body.id}`);
   });
 
   it("refuse une séance hors de la plage de sa semaine", async () => {
