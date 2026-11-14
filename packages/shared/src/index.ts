@@ -1051,6 +1051,7 @@ export {
   capabilityOfNotification,
   notificationCategoriesFor,
   notificationFilterChoices,
+  notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
 } from "./util/notification.util";
