@@ -5,7 +5,7 @@ import type {
   MessageDto,
 } from "@cmv/shared";
 import { type RenderResult, waitFor, within } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { messageApi } from "@/feature/message/api";
 import { MessagesScreen } from "@/feature/message/screen/MessagesScreen";
 import { renderInRoute } from "../../../../test/render";
@@ -133,11 +133,6 @@ async function open(
   await waitFor(() => expect(view.queryByText("common.loading")).toBeNull());
   return view;
 }
-
-beforeAll(() => {
-  // jsdom ne défile pas : le fil colle au dernier message à chaque arrivée.
-  Element.prototype.scrollIntoView = vi.fn();
-});
 
 beforeEach(() => {
   vi.clearAllMocks();

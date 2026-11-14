@@ -1008,7 +1008,11 @@ export {
 export { draftAfterSend } from "./util/message-draft.util";
 export { checkMessageFile, type MessageFileCheck } from "./util/message-file.util";
 export type { ReadMarker } from "./util/message-read.util";
-export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export {
+  createReadMarker,
+  incomingCountAfter,
+  lastUnreadIncomingId,
+} from "./util/message-read.util";
 export { type MessageUploadSource, messageUploadInput } from "./util/message-upload.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export {
