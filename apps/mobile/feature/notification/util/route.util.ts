@@ -3,15 +3,20 @@ import {
   type NotificationDto,
   NotificationEntityType,
   NotificationType,
+  notificationOpeningCapability,
+  type TrainingCapability,
 } from "@cmv/shared";
-import type { Href } from "expo-router";
+import { type Href, router } from "expo-router";
 
 /**
  * Où mène une notification. Une seule table de destinations pour les DEUX portes d'entrée :
  * ouvrir le push (payload Expo) et toucher une ligne du centre (#50). Les faire diverger, c'est
  * garantir qu'un jour l'une navigue et l'autre non.
  *
- * **La destination dépend de la CAPACITÉ**, et pas seulement du type — comme côté web (#25). Les
+ * **La destination dépend du TITRE sous lequel on l'ouvre** (#344), et pas seulement de la cible —
+ * comme côté web (#25). Ce titre est celui de la notification (`notificationOpeningCapability`),
+ * pas celui qu'on exerce ni toutes les capacités qu'on possède : un compte coach et athlète reçoit
+ * un cycle EN athlète et un débrief EN coach, quel que soit le côté qu'il regarde. Les
  * quatre destinations d'ici sont des écrans ATHLÈTE : `/planning`, `/session/:id` et `/messages`
  * appellent des routes `@Roles([ATHLETE])`. Y envoyer un coach ne l'égare pas, ça lui donne un
  * **403**. Tant que l'écran coach correspondant n'existe pas sur mobile, la bonne réponse est
@@ -37,14 +42,14 @@ function conversationTarget(entityId: string | undefined): Href {
 function targetFor(
   entityType: string,
   entityId: string | undefined,
-  capabilities: Capabilities,
+  capability: TrainingCapability,
 ): Href | null {
   /**
    * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part : `INVOICE` (#32),
    * `SCHEDULED_SESSION` (#33) et `CONVERSATION` (#34). `PLAN` reste `null` définitivement — le
    * builder est web-only (#20), il n'y a pas d'écran mobile à viser.
    */
-  if (capabilities.isCoach) {
+  if (capability === "coach") {
     if (entityType === NotificationEntityType.INVOICE) return "/invoices";
     // Une invitation à laquelle on a répondu ramène le coach à son tableau de bord : c'est là que
     // le nouvel athlète apparaît, et c'est ce qu'on vient de lui annoncer (#146).
@@ -75,6 +80,41 @@ function targetFor(
 }
 
 /**
+ * Où mène une notification, ET sous quel titre l'y ouvrir. Les deux voyagent ensemble : sur un
+ * compte coach et athlète, Factures et Messagerie montrent le côté du sélecteur de titre (#129), et
+ * une facture émise ouverte en titre coach y atterrirait sur les factures du coach. L'appelant
+ * bascule donc le sélecteur sur `capability` avant de naviguer.
+ */
+export type NotificationDestination = { href: Href; capability: TrainingCapability };
+
+/**
+ * Ouvre une destination : bascule le sélecteur de titre, PUIS navigue — dans cet ordre, sinon
+ * l'écran d'arrivée se rendrait une fois sous l'ancien titre. Le sélecteur n'est visible que pour
+ * un compte qui cumule ; pour les autres, la question du titre ne se pose pas.
+ *
+ * Écrit une fois pour les deux portes d'entrée (la cloche et le push) : la table leur donne déjà
+ * la même destination, ceci leur donne le même geste.
+ */
+export function openDestination(
+  target: NotificationDestination | null,
+  capabilitySwitch: Readonly<{
+    visible: boolean;
+    select: (capability: TrainingCapability) => void;
+  }>,
+): void {
+  if (target == null) return;
+  if (capabilitySwitch.visible) capabilitySwitch.select(target.capability);
+  router.push(target.href);
+}
+
+function destination(
+  href: Href | null,
+  capability: TrainingCapability,
+): NotificationDestination | null {
+  return href == null ? null : { href, capability };
+}
+
+/**
  * Le REPLI des rappels dus (#46). `REMINDER_DUE` est le seul type du centre dont la cible a une
  * seconde maison : l'écran « Mes rappels », où vivent les gestes (fait, abandonné, repoussé).
  *
@@ -85,16 +125,21 @@ function targetFor(
  * ne plus laisser passer.
  *
  * Écrit comme un repli et non comme un branchement sur le type : le jour où `ReminderEntityType`
- * gagne une valeur sans écran mobile, elle tombe ici plutôt que dans le vide.
+ * gagne une valeur sans écran mobile, elle tombe ici plutôt que dans le vide. Aucune garde de
+ * capacité à poser : un rappel se reçoit en coach, et `notificationOpeningCapability` a déjà rendu
+ * `null` au compte qui ne l'est plus.
  *
  * Côté WEB, rien d'équivalent n'est nécessaire : les deux cibles y résolvent déjà pour un coach
  * (`PLAN` → le builder, `INVOICE` → le suivi). Y ajouter ce repli serait du code mort, et y brancher
  * le type ferait perdre l'accès direct au builder — une régression, pas un alignement.
+ *
+ * `acting` est le titre exercé : il ne départage que ce que le type ne tranche pas (un message).
  */
 export function routeForNotification(
   notification: NotificationDto,
   capabilities: Capabilities,
-): Href | null {
+  acting: TrainingCapability,
+): NotificationDestination | null {
   /**
    * Une invitation REFUSÉE ne mène nulle part, et c'est décidé AVANT la table — le seul type dont
    * la destination est SUPPRIMÉE plutôt que déduite.
@@ -106,11 +151,12 @@ export function routeForNotification(
    */
   if (notification.type === NotificationType.INVITATION_DECLINED) return null;
 
-  const target = targetFor(notification.entityType, notification.entityId, capabilities);
-  if (target != null) return target;
+  const capability = notificationOpeningCapability(notification.type, capabilities, acting);
+  if (capability == null) return null;
 
+  const target = targetFor(notification.entityType, notification.entityId, capability);
   const isDueReminder = notification.type === NotificationType.REMINDER_DUE;
-  return isDueReminder && capabilities.isCoach ? "/reminders" : null;
+  return destination(target ?? (isDueReminder ? "/reminders" : null), capability);
 }
 
 /**
@@ -119,9 +165,13 @@ export function routeForNotification(
  * on ne les renomme pas. D'où cette traduction vers la table commune plutôt qu'un second switch
  * de destinations.
  */
-export function routeForPushPayload(data: unknown, capabilities: Capabilities): Href | null {
+export function routeForPushPayload(
+  data: unknown,
+  capabilities: Capabilities,
+  acting: TrainingCapability,
+): NotificationDestination | null {
   const payload = data as {
-    type?: string;
+    type?: NotificationType;
     planId?: string;
     scheduledSessionId?: string;
     conversationId?: string;
@@ -129,33 +179,37 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     reminderId?: string;
     invitationId?: string;
   } | null;
+  if (payload?.type == null) return null;
 
-  switch (payload?.type) {
+  // Le même titre que la ligne du centre : c'est le TYPE qui le donne, et la charge utile le porte.
+  const capability = notificationOpeningCapability(payload.type, capabilities, acting);
+  if (capability == null) return null;
+  const open = (entityType: NotificationEntityType, entityId: string | undefined) =>
+    destination(targetFor(entityType, entityId, capability), capability);
+
+  switch (payload.type) {
     /**
      * Un rappel dû (#47) ne passe PAS par `targetFor` : sa charge utile porte un `reminderId`, pas
      * l'id de sa cible — le push est émis sans lire le cycle ni la facture visés. Il mène donc
      * directement à « Mes rappels », qui est de toute façon le repli du centre pour ce type.
      *
-     * Coach seul : l'écran est gardé par capacité, et un athlète n'a aucun rappel.
+     * Coach seul, et c'est déjà tenu : un rappel se reçoit en coach, le compte qui ne l'est plus
+     * s'est arrêté plus haut.
      */
     case NotificationType.REMINDER_DUE:
-      return capabilities.isCoach ? "/reminders" : null;
+      return destination("/reminders", capability);
     case NotificationType.PLAN_PUBLISHED:
     case NotificationType.PLAN_UPDATED:
     case NotificationType.PLAN_SESSION_ADDED:
     case NotificationType.PLAN_SESSION_REMOVED:
     case NotificationType.PLAN_SESSIONS_REORDERED:
-      return targetFor(NotificationEntityType.PLAN, payload.planId, capabilities);
+      return open(NotificationEntityType.PLAN, payload.planId);
     case NotificationType.FEEDBACK_RECEIVED:
-      return targetFor(
-        NotificationEntityType.SCHEDULED_SESSION,
-        payload.scheduledSessionId,
-        capabilities,
-      );
+      return open(NotificationEntityType.SCHEDULED_SESSION, payload.scheduledSessionId);
     case NotificationType.MESSAGE_RECEIVED:
-      return targetFor(NotificationEntityType.CONVERSATION, payload.conversationId, capabilities);
+      return open(NotificationEntityType.CONVERSATION, payload.conversationId);
     case NotificationType.INVOICE_ISSUED:
-      return targetFor(NotificationEntityType.INVOICE, payload.invoiceId, capabilities);
+      return open(NotificationEntityType.INVOICE, payload.invoiceId);
     /**
      * Les trois temps d'une invitation (#146). Leur clé d'id est `invitationId` — le typecheck ne
      * l'aurait PAS réclamée : cette fonction lit une charge utile `unknown`, et un type oublié
@@ -172,10 +226,9 @@ export function routeForPushPayload(data: unknown, capabilities: Capabilities): 
     case NotificationType.ORGANIZATION_INVITATION_RECEIVED:
     // Le Coach qui rejoint une entreprise (#602) : l'athlète le retrouve dans « Mes coachs ».
     case NotificationType.ORGANIZATION_COACH_JOINED:
-      return targetFor(NotificationEntityType.INVITATION, payload.invitationId, capabilities);
-    case NotificationType.INVITATION_DECLINED:
-      return null;
+      return open(NotificationEntityType.INVITATION, payload.invitationId);
     default:
+      // `INVITATION_DECLINED` compris : sa destination est supprimée, comme dans la cloche.
       return null;
   }
 }

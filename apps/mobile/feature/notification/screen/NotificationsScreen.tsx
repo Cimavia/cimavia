@@ -7,7 +7,7 @@ import {
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { useQueryClient } from "@tanstack/react-query";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
@@ -18,10 +18,11 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/feature/notification/hook/useNotifications";
-import { routeForNotification } from "@/feature/notification/util/route.util";
+import { openDestination, routeForNotification } from "@/feature/notification/util/route.util";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability, useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 import { formatFullDay, formatRelativeTime } from "@/shared/util/date.util";
 
 /**
@@ -31,8 +32,11 @@ import { formatFullDay, formatRelativeTime } from "@/shared/util/date.util";
 export function NotificationsScreen() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  // Les destinations dépendent des écrans dont ce rôle dispose, pas seulement du type de la cible.
+  // Les destinations dépendent du titre sous lequel on ouvre la notification (#344) : celui de son
+  // type, que le compte doit posséder ; le titre exercé ne départage que ce que le type laisse ouvert.
   const capabilities = useCapabilities();
+  const acting = useActingCapability();
+  const capabilitySwitch = useCapabilitySwitch();
   // Le filtre du centre (#694), `null` = « Toutes ».
   const [category, setCategory] = useState<NotificationCategoryType | null>(null);
   const {
@@ -86,12 +90,14 @@ export function NotificationsScreen() {
    * Le cache mobile est PERSISTÉ et frais 5 min : sans cette invalidation, on atterrirait sur un
    * planning ou un fil affichant précisément la version d'avant l'événement qu'on vient
    * d'annoncer.
+   *
+   * Le sélecteur de titre bascule AVANT la navigation, sur un compte qui cumule : une facture émise
+   * se lit en athlète, et Factures montrerait sinon celles du coach (#344).
    */
   function onSelect(notification: NotificationDto) {
     if (notification.readAt == null) markRead.mutate(notification.id);
     queryClient.invalidateQueries();
-    const target = routeForNotification(notification, capabilities);
-    if (target != null) router.push(target);
+    openDestination(routeForNotification(notification, capabilities, acting), capabilitySwitch);
   }
 
   return (
