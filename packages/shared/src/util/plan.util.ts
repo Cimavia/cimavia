@@ -211,7 +211,7 @@ const isOngoing = <T extends PlanPeriod>(entry: DatedPlan<T>, today: string): bo
 
 /**
  * Le cycle qui RÉSUME un athlète en une ligne, parmi ses cycles diffusés :
- * en cours > à venir (le plus proche) > terminé (le plus récent) > `null`.
+ * en cours > à venir (le plus proche) > terminé (celui qui a fini le dernier, #356) > `null`.
  *
  * ⚠️ Ce n'est PAS ce que l'athlète voit — `selectVisiblePlans` l'est depuis #172. Les cycles
  * diffusés s'accumulent chez lui ; celui-ci n'en désigne qu'un, parce qu'une COLONNE n'en contient
@@ -259,7 +259,7 @@ export function selectCurrentPlan<T extends PlanPeriod & { id: string }>(
  * l'athlète a le droit de savoir ce qui l'attend. Ils ne l'étaient pas avant, faute de place dans
  * une réponse à un seul cycle.
  *
- * **Repli sur le dernier cycle terminé, seul**, quand plus rien ne court ni n'arrive. Ce n'est pas
+ * **Repli sur le dernier cycle terminé — celui dont la FIN est la plus tardive (#356) —, seul**, quand plus rien ne court ni n'arrive. Ce n'est pas
  * une complaisance mais l'état « hors cycle » que les deux clients affichent déjà : sans lui, un
  * athlète entre deux cycles verrait un écran vide au lieu du dernier cycle reçu.
  *
@@ -296,7 +296,7 @@ type StartDateOrder = keyof typeof START_DATE_DIRECTION;
 /**
  * Les cycles du plus tôt parti au plus tard (`earliest`), ou l'inverse (`latest`) ; à lundi égal,
  * le plus petit `id` quel que soit le sens — l'ordre doit être stable, pas dépendre de celui
- * d'arrivée. SEUL comparateur du fichier : la liste servie et le cycle courant ne peuvent pas
+ * d'arrivée. SEUL comparateur par date de DÉBUT du fichier : la liste servie et le cycle courant ne peuvent pas
  * diverger sur le départage.
  */
 function byStartDateThenId<T extends PlanPeriod & { id: string }>(
