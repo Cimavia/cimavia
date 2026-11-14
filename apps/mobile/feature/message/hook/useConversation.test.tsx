@@ -9,9 +9,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useFocusEffect } from "expo-router";
 import { type EffectCallback, type ReactNode, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import {
   useConversation,
   useConversationCandidates,
+  useConversations,
   useCreateConversation,
   useMarkRead,
   useMessages,
@@ -49,8 +51,10 @@ vi.mock("@/feature/message/api", async () => ({
   messageKeys: (await import("@cmv/shared")).messageKeys,
 }));
 
+// La règle de priorité (titre imposé, sélecteur, persona) se teste avec le hook ; ici, seulement
+// ce que chaque hook de données lui transmet.
 vi.mock("@/shared/hook/useExercisedCapability", () => ({
-  useExercisedCapability: () => exercised.as,
+  useExercisedCapability: vi.fn(() => exercised.as),
 }));
 
 // Le sondage au premier plan n'est pas le sujet : on rend l'écran « au premier plan » une fois.
@@ -203,6 +207,24 @@ function freshClient() {
   );
   return { queryClient, wrapper };
 }
+
+/** Un écran mono-titre lit et écrit au sien, quel que soit le sélecteur (#343). */
+describe("titre imposé par l'écran (#343)", () => {
+  it("transmet le titre imposé à la lecture des fils", () => {
+    listConversationsMock.mockResolvedValue([]);
+    const { wrapper } = freshClient();
+    renderHook(() => useConversations("coach"), { wrapper });
+
+    expect(useExercisedCapability).toHaveBeenLastCalledWith("coach");
+  });
+
+  it("transmet le titre imposé à l'envoi", () => {
+    const { wrapper } = freshClient();
+    renderHook(() => useSendMessage("c1", undefined, "coach"), { wrapper });
+
+    expect(useExercisedCapability).toHaveBeenLastCalledWith("coach");
+  });
+});
 
 describe("useConversation (#612)", () => {
   // `undefined` charge, `null` est chargé sans elle : l'écran attend l'un, dit la panne de l'autre.

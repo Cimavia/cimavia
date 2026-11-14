@@ -7,11 +7,11 @@ import {
   reminderBadgeState,
   reminderLabel,
 } from "@cmv/shared";
-import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
 import { CmvBadge, CmvText } from "@/shared/component";
+import { useOpenAs } from "@/shared/hook/useExercisedCapability";
 import { formatDateTime } from "@/shared/util/date.util";
 import { formatPeriod } from "@/shared/util/money.util";
 
@@ -113,6 +113,8 @@ export function ReminderCard({
  */
 function ReminderTarget({ reminder }: Readonly<{ reminder: ReminderDto }>) {
   const { t } = useTranslation();
+  // Un rappel se reçoit en coach : la facture visée est parmi les siennes, pas les reçues (#343).
+  const openAsCoach = useOpenAs("coach");
   const kind = t(REMINDER_TARGET_LABEL_KEY[reminder.entityType]);
 
   if (reminder.targetLabel == null) {
@@ -132,7 +134,7 @@ function ReminderTarget({ reminder }: Readonly<{ reminder: ReminderDto }>) {
   }
 
   return (
-    <Pressable onPress={() => router.push("/invoices")}>
+    <Pressable onPress={() => openAsCoach("/invoices")}>
       <CmvText className="text-cmv-accent text-xs">{line}</CmvText>
     </Pressable>
   );

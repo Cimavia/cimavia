@@ -1,4 +1,4 @@
-import type { InvoiceDto, UpdateInvoiceStatusInput } from "@cmv/shared";
+import type { InvoiceDto, TrainingCapability, UpdateInvoiceStatusInput } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceApi, invoiceKeys } from "@/feature/invoice/api";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
@@ -7,11 +7,13 @@ import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
  * Les factures ÉMISES de l'acteur courant — le coach celles qu'il a émises, l'athlète les
  * siennes. Une seule route (`GET /invoices`), scopée par le tenant : d'où un seul hook, et un nom
  * qui ne suppose plus un rôle.
+ *
+ * `pinned` : titre imposé par un écran mono-titre, voir `useExercisedCapability` (#343).
  */
-export function useInvoices() {
+export function useInvoices(pinned?: TrainingCapability) {
   // Le titre auquel on lit : `null` sauf pour un compte à double capacité, seul cas où « émises »
   // et « reçues » sont deux réponses différentes. Il fait partie de la clé.
-  const as = useExercisedCapability();
+  const as = useExercisedCapability(pinned);
   return useQuery<InvoiceDto[]>({
     queryKey: invoiceKeys.list(as),
     queryFn: () => invoiceApi.list(as),

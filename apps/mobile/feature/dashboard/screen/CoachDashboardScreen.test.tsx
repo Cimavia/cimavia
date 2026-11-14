@@ -5,9 +5,11 @@ import type {
   InvoiceDto,
   PendingOrganizationInvitationDto,
 } from "@cmv/shared";
+import { Role, type TrainingCapability } from "@cmv/shared";
 import { waitFor } from "@testing-library/react";
 import { router } from "expo-router";
 import { createInstance } from "i18next";
+import { useEffect } from "react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
@@ -17,6 +19,11 @@ import { coachFeedbackApi } from "@/feature/feedback/api";
 import { invoiceApi } from "@/feature/invoice/api";
 import { messageApi } from "@/feature/message/api";
 import { reminderApi } from "@/feature/reminder/api";
+import {
+  ExercisedCapabilityProvider,
+  useCapabilitySwitch,
+  useExercisedCapability,
+} from "@/shared/hook/useExercisedCapability";
 import { ApiError } from "@/shared/lib/api";
 import { press, pressButton, renderRn } from "@/test/render";
 
@@ -66,7 +73,7 @@ vi.mock("@/feature/reminder/api", async (importOriginal) => {
 const { session } = vi.hoisted(() => ({
   session: {
     current: { user: { id: "coach-1", name: "Kylian" } } as {
-      user: { id: string; name: string };
+      user: { id: string; name: string; isCoach?: boolean; isAthlete?: boolean; role?: string };
     } | null,
   },
 }));
@@ -170,6 +177,69 @@ describe("CoachDashboardScreen — les tuiles", () => {
     press(getByText(`dashboard.tiles.${tile}`));
 
     expect(router.push).toHaveBeenCalledWith(route);
+  });
+});
+
+/**
+ * Un compte double qui atterrit en athlète — persona, « Mes coachs » ou le sélecteur laissé sur
+ * Factures : le tableau de bord lit quand même au titre de coach (#343). Avant, il comptait ses
+ * factures REÇUES et l'invitait à relancer ce qu'il doit lui-même.
+ */
+describe("CoachDashboardScreen — le titre de lecture", () => {
+  const DUAL = { id: "coach-1", name: "Kylian", isCoach: true, isAthlete: true };
+
+  /** Le sélecteur tel que Factures ou Messages l'a laissé, posé après le premier rendu. */
+  function SelectorLeftOn({ capability }: Readonly<{ capability: TrainingCapability }>) {
+    const { select } = useCapabilitySwitch();
+    useEffect(() => select(capability), [select, capability]);
+    return null;
+  }
+
+  function ExercisedProbe() {
+    return <span data-testid="exercised">{useExercisedCapability() ?? "null"}</span>;
+  }
+
+  function withSelectorOn(capability: TrainingCapability) {
+    return (
+      <ExercisedCapabilityProvider>
+        <SelectorLeftOn capability={capability} />
+        <ExercisedProbe />
+        <CoachDashboardScreen />
+      </ExercisedCapabilityProvider>
+    );
+  }
+
+  it("lit factures et fils en coach quand le persona est athlète", async () => {
+    session.current = { user: { ...DUAL, role: Role.ATHLETE } };
+    const { container } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    expect(calls.invoices).toHaveBeenCalledWith("coach");
+    expect(calls.conversations).toHaveBeenCalledWith("coach");
+    expect(calls.invoices).not.toHaveBeenCalledWith("athlete");
+  });
+
+  it("lit factures et fils en coach quand le sélecteur est resté sur athlète", async () => {
+    session.current = { user: { ...DUAL, role: Role.COACH } };
+    const { container, getByTestId } = renderRn(withSelectorOn("athlete"));
+    await waitFor(() => expect(getByTestId("exercised").textContent).toBe("athlete"));
+    await loaded(container);
+
+    expect(calls.invoices).not.toHaveBeenCalledWith("athlete");
+    expect(calls.conversations).not.toHaveBeenCalledWith("athlete");
+  });
+
+  // La tuile compte les factures du coach : elle ouvre Factures à ce titre, pas aux reçues.
+  it("bascule le sélecteur en coach avant d'ouvrir les factures en retard", async () => {
+    session.current = { user: { ...DUAL, role: Role.COACH } };
+    const { container, getByTestId, getByText } = renderRn(withSelectorOn("athlete"));
+    await waitFor(() => expect(getByTestId("exercised").textContent).toBe("athlete"));
+    await loaded(container);
+
+    press(getByText("dashboard.tiles.overdueInvoices"));
+
+    expect(getByTestId("exercised").textContent).toBe("coach");
+    expect(router.push).toHaveBeenCalledWith("/invoices");
   });
 });
 

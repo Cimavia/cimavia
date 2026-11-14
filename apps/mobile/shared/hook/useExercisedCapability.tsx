@@ -1,4 +1,5 @@
 import { capabilitiesOf, Role, required, type TrainingCapability } from "@cmv/shared";
+import { type Href, router } from "expo-router";
 import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 import { useAccountUser } from "@/shared/hook/useSessionGuard";
 
@@ -36,13 +37,19 @@ export function ExercisedCapabilityProvider({ children }: Readonly<{ children: R
  * Pour un compte qui cumule : le choix du sélecteur s'il a été fait, sinon le **persona** (`role`)
  * — l'univers d'atterrissage que #9 lui a laissé. Ce n'est pas un droit dérivé du rôle : la garde,
  * elle, lit les capacités.
+ *
+ * `pinned` : le titre d'un écran qui n'en sert qu'un (#343) — le tableau de bord est coach, le
+ * débrief de séance est athlète. Il passe AVANT le sélecteur : celui-ci ne vit que sur les écrans
+ * servis aux deux, et rien ne le ramène quand on change d'onglet. Sans ça, un compte double revenu
+ * de ses factures « en tant qu'athlète » lisait ses factures reçues sur son tableau de bord.
  */
-export function useExercisedCapability(): TrainingCapability | null {
+export function useExercisedCapability(pinned?: TrainingCapability): TrainingCapability | null {
   const user = useAccountUser();
   const context = useContext(ExercisedCapabilityContext);
   const { isCoach, isAthlete } = capabilitiesOf(user);
 
   if (!isCoach || !isAthlete) return null;
+  if (pinned != null) return pinned;
   if (context?.override != null) return context.override;
   return user?.role === Role.ATHLETE ? "athlete" : "coach";
 }
@@ -82,4 +89,22 @@ export function useActingCapability(): TrainingCapability {
   const exercised = useExercisedCapability();
   const { isCoach } = capabilitiesOf(useAccountUser());
   return exercised ?? (isCoach ? "coach" : "athlete");
+}
+
+/**
+ * Ouvre un écran servi aux deux titres (Factures, Messages) sous celui de l'écran d'où l'on part
+ * (#343) : bascule le sélecteur, PUIS navigue — comme `openDestination` pour une notification.
+ * Sans ça, la tuile « factures en retard » du tableau de bord, qui compte celles du coach, menait
+ * un compte double resté sur « athlète » à ses factures REÇUES. Pour un compte mono-capacité, rien
+ * à basculer : il navigue.
+ */
+export function useOpenAs(capability: TrainingCapability): (href: Href) => void {
+  const context = useContext(ExercisedCapabilityContext);
+  const visible = useExercisedCapability() != null;
+  return (href) => {
+    if (visible) {
+      required(context, "useOpenAs hors de ExercisedCapabilityProvider").setOverride(capability);
+    }
+    router.push(href);
+  };
 }
