@@ -1,6 +1,7 @@
 import { type RichBlock, RichBlockType, type RichDocument } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
-import { hasPendingImages, withResolvedImages } from "./instruction-media.util";
+import type { PendingImage } from "@/feature/library/hook/useInstructionMedia";
+import { citedPendingImages, withResolvedImages } from "./instruction-media.util";
 
 const paragraph: RichBlock = {
   type: RichBlockType.PARAGRAPH,
@@ -15,10 +16,26 @@ const savedImage: RichBlock = {
 
 const document: RichDocument = [paragraph, pendingImage, savedImage];
 
-describe("hasPendingImages", () => {
-  it("distingue un document qui attend un envoi d'un document déjà complet", () => {
-    expect(hasPendingImages(document)).toBe(true);
-    expect(hasPendingImages([paragraph, savedImage])).toBe(false);
+const waiting = (mediaId: string): PendingImage => ({
+  mediaId,
+  file: new File(["x"], `${mediaId}.png`, { type: "image/png" }),
+  mimeType: "image/png",
+  objectUrl: `blob:${mediaId}`,
+});
+
+describe("citedPendingImages", () => {
+  it("garde l'image en attente que la consigne cite", () => {
+    const cited = waiting("pending:abc");
+    expect(citedPendingImages(document, [cited])).toEqual([cited]);
+  });
+
+  // Posée puis retirée (#330) : envoyée, elle serait rattachée sans que rien ne l'affiche.
+  it("écarte l'image retirée de la consigne depuis qu'elle a été posée", () => {
+    expect(citedPendingImages(document, [waiting("pending:retiree")])).toEqual([]);
+  });
+
+  it("n'a rien à envoyer pour une consigne sans image en attente", () => {
+    expect(citedPendingImages([paragraph, savedImage], [waiting("pending:abc")])).toEqual([]);
   });
 });
 

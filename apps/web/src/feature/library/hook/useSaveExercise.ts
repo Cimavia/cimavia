@@ -17,7 +17,7 @@ import {
 } from "@/feature/library/api";
 import type { PendingImage } from "@/feature/library/hook/useInstructionMedia";
 import {
-  hasPendingImages,
+  citedPendingImages,
   withResolvedImages,
 } from "@/feature/library/util/instruction-media.util";
 import { isUnauthorizedError } from "@/shared/lib/api";
@@ -186,13 +186,14 @@ export function useSaveExercise() {
         onLinkAttached?.(url);
       }
 
-      // Rien à envoyer : les images déjà envoyées ont été écrites résolues au temps 1.
-      if (instructions == null || pendingImages.length === 0 || !hasPendingImages(instructions)) {
-        return saved;
-      }
+      // Seules celles que la consigne cite encore : une image retirée ne part pas (#330). Rien à
+      // envoyer : les images déjà envoyées ont été écrites résolues au temps 1.
+      if (instructions == null) return saved;
+      const toSend = citedPendingImages(instructions, pendingImages);
+      if (toSend.length === 0) return saved;
 
       const idByPendingId = new Map(sentImages);
-      for (const image of pendingImages) {
+      for (const image of toSend) {
         const attached = await attachFile(saved.id, {
           file: image.file,
           mimeType: image.mimeType,
