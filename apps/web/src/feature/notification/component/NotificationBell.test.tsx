@@ -194,7 +194,8 @@ describe("NotificationBell — le panneau", () => {
 
 describe("NotificationBell — le clic", () => {
   // Marquée lue au CLIC, et tout le cache périmé : ce qui est affiché ne l'est plus.
-  it("marque lue, périme tout, et mène au cycle côté coach", async () => {
+  it("marque lue, périme tout, et mène à sa cible", async () => {
+    session.user = { id: "u_2", name: "Léa", isCoach: false, isAthlete: true };
     const view = await mount();
     await openBell(view);
     const invalidate = vi.spyOn(view.queryClient, "invalidateQueries");
@@ -203,7 +204,7 @@ describe("NotificationBell — le clic", () => {
 
     expect(notificationApi.markRead).toHaveBeenCalledWith("n_plan", expect.anything());
     expect(invalidate).toHaveBeenCalledWith();
-    await waitFor(() => expect(view.router.state.location.pathname).toBe("/plans/pln_1"));
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/planning"));
     expect(view.queryByText("notification.title")).toBeNull();
   });
 
@@ -217,9 +218,12 @@ describe("NotificationBell — le clic", () => {
     expect(notificationApi.markRead).not.toHaveBeenCalled();
   });
 
-  // La même notification de cycle mène au planning de l'athlète, pas au builder du coach.
-  it("mène au planning quand on n'est qu'athlète", async () => {
-    session.user = { id: "u_2", name: "Léa", isCoach: false, isAthlete: true };
+  /**
+   * Un cycle diffusé se lit en athlète (#344) : un compte qui cumule, cliquant depuis l'accueil du
+   * coach, va à son planning — pas au builder, où la capacité coach l'envoyait.
+   */
+  it("mène au planning un compte qui cumule, même depuis l'espace coach", async () => {
+    session.user = { id: "u_3", name: "Sam", isCoach: true, isAthlete: true };
     const view = await mount();
     await openBell(view);
 
@@ -415,13 +419,14 @@ describe("NotificationBell — le panneau réglable (#695)", () => {
   });
 
   it("se referme au clic sur une notification en panneau latéral", async () => {
+    session.user = { id: "u_2", name: "Léa", isCoach: false, isAthlete: true };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: "side" }));
     const view = await mount();
     await openBell(view);
 
     await view.user.click(await view.findByRole("button", { name: /planPublished/ }));
 
-    await waitFor(() => expect(view.router.state.location.pathname).toBe("/plans/pln_1"));
+    await waitFor(() => expect(view.router.state.location.pathname).toBe("/planning"));
     expect(sidePanel(view)).toBeNull();
   });
 
