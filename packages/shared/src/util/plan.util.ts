@@ -211,7 +211,7 @@ const isOngoing = <T extends PlanPeriod>(entry: DatedPlan<T>, today: string): bo
 
 /**
  * Le cycle qui RÉSUME un athlète en une ligne, parmi ses cycles diffusés :
- * en cours > à venir (le plus proche) > terminé (le plus récent) > `null`.
+ * en cours > à venir (le plus proche) > terminé (celui qui a fini le dernier, #356) > `null`.
  *
  * ⚠️ Ce n'est PAS ce que l'athlète voit — `selectVisiblePlans` l'est depuis #172. Les cycles
  * diffusés s'accumulent chez lui ; celui-ci n'en désigne qu'un, parce qu'une COLONNE n'en contient
@@ -243,7 +243,7 @@ export function selectCurrentPlan<T extends PlanPeriod & { id: string }>(
   if (upcoming.length > 0) return pickByStartDate(upcoming, "earliest");
 
   // Ni en cours ni à venir : tous ceux qui restent sont terminés.
-  return pickByStartDate(dated, "latest");
+  return pickLastEnded(dated);
 }
 
 /**
@@ -259,7 +259,7 @@ export function selectCurrentPlan<T extends PlanPeriod & { id: string }>(
  * l'athlète a le droit de savoir ce qui l'attend. Ils ne l'étaient pas avant, faute de place dans
  * une réponse à un seul cycle.
  *
- * **Repli sur le dernier cycle terminé, seul**, quand plus rien ne court ni n'arrive. Ce n'est pas
+ * **Repli sur le dernier cycle terminé — celui dont la FIN est la plus tardive (#356) —, seul**, quand plus rien ne court ni n'arrive. Ce n'est pas
  * une complaisance mais l'état « hors cycle » que les deux clients affichent déjà : sans lui, un
  * athlète entre deux cycles verrait un écran vide au lieu du dernier cycle reçu.
  *
@@ -285,7 +285,7 @@ export function selectVisiblePlans<T extends PlanPeriod & { id: string }>(
   }
 
   // Ni en cours ni à venir : tous ceux qui restent sont terminés.
-  const last = pickByStartDate(dated, "latest");
+  const last = pickLastEnded(dated);
   return last == null ? [] : [last];
 }
 
@@ -296,7 +296,7 @@ type StartDateOrder = keyof typeof START_DATE_DIRECTION;
 /**
  * Les cycles du plus tôt parti au plus tard (`earliest`), ou l'inverse (`latest`) ; à lundi égal,
  * le plus petit `id` quel que soit le sens — l'ordre doit être stable, pas dépendre de celui
- * d'arrivée. SEUL comparateur du fichier : la liste servie et le cycle courant ne peuvent pas
+ * d'arrivée. SEUL comparateur par date de DÉBUT du fichier : la liste servie et le cycle courant ne peuvent pas
  * diverger sur le départage.
  */
 function byStartDateThenId<T extends PlanPeriod & { id: string }>(
@@ -311,6 +311,26 @@ function byStartDateThenId<T extends PlanPeriod & { id: string }>(
         direction * left.startDate.localeCompare(right.startDate) ||
         left.id.localeCompare(right.id),
     );
+}
+
+/**
+ * Le cycle terminé le plus RÉCENT : celui dont la FIN est la plus tardive (#356). Départager par la
+ * date de début élirait, entre deux cycles imbriqués, un cycle fini depuis des semaines au
+ * détriment de celui qui vient de s'achever — les cycles se superposent depuis #172.
+ *
+ * À fin égale, le début le plus tardif, puis le plus petit `id` : l'ordre d'arrivée de l'API ne
+ * choisit jamais.
+ */
+function pickLastEnded<T extends PlanPeriod & { id: string }>(
+  entries: readonly DatedPlan<T>[],
+): T | null {
+  const [last] = [...entries].sort(
+    (left, right) =>
+      right.endDate.localeCompare(left.endDate) ||
+      right.plan.startDate.localeCompare(left.plan.startDate) ||
+      left.plan.id.localeCompare(right.plan.id),
+  );
+  return last?.plan ?? null;
 }
 
 function pickByStartDate<T extends PlanPeriod & { id: string }>(

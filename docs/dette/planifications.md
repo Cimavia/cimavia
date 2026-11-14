@@ -565,6 +565,11 @@ liste des domaines vivent dans l'index.
 > lui, un athlète entre deux cycles verrait un écran vide au lieu du dernier cycle reçu. Son
 > HISTORIQUE, lui, n'est pas servi : un seul cycle, le plus récent.
 
+> **Tranché en #356** (« le dernier cycle terminé » se juge sur sa FIN) : `selectCurrentPlan` et
+> `selectVisiblePlans` élisent le cycle terminé dont la `endDate` est la plus tardive, puis le début
+> le plus tardif, puis le plus petit `id`. La date de début désignait, entre deux cycles imbriqués,
+> celui qui avait fini des semaines plus tôt — un cas né de #172, où les cycles se superposent.
+
 > **Tranché en #172** (liste vide ≠ `null`) : `GET /me/plans` rend `[]` pour un athlète sans cycle
 > diffusé. La question a reçu une réponse ; le `null` reste réservé à la requête qui n'a pas abouti,
 > et les deux clients distinguent déjà les deux. Les confondre ferait attendre son coach à un athlète

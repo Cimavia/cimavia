@@ -11,6 +11,10 @@ import { InstructionsEditor } from "./InstructionsEditor";
 beforeAll(installProseMirrorLayout);
 
 const paragraph = (text: string) => ({ type: RichBlockType.PARAGRAPH, content: [{ text }] });
+const linked = (text: string, href: string) => ({
+  type: RichBlockType.PARAGRAPH,
+  content: [{ text, href }],
+});
 
 /** Le presse-papiers tel que ProseMirror le lit : jsdom n'a pas de `DataTransfer`. */
 function clipboard(entries: Record<string, string>) {
@@ -49,10 +53,28 @@ function setup(initialValue: RichDocument | null, media: InstructionMedia = fake
     surface.focus();
     await view.user.keyboard("{Control>}a{/Control}");
   };
+  /**
+   * Le curseur dans le texte `text`, à `offset` : jsdom ne place rien au clavier ni au clic, la
+   * sélection se pose dans le DOM et ProseMirror la relit à `selectionchange`.
+   */
+  const caretAt = (text: string, offset: number) => {
+    surface.focus();
+    const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node != null && node.textContent !== text) node = walker.nextNode();
+    if (node == null) throw new Error(`Texte absent de la consigne : ${text}`);
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.collapse(true);
+    const selection = document.getSelection() as Selection;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent(document, new Event("selectionchange"));
+  };
   const tool = (name: string) => view.getByRole("button", { name: `library.builder.tool.${name}` });
   const last = () => onChange.mock.lastCall?.[0] as RichDocument;
   const fileInput = () => view.container.querySelector("input[type=file]") as HTMLInputElement;
-  return { ...view, onChange, media, surface, selectAll, tool, last, fileInput };
+  return { ...view, onChange, media, surface, selectAll, caretAt, tool, last, fileInput };
 }
 
 /**
@@ -248,12 +270,7 @@ describe("InstructionsEditor — lien", () => {
     await view.user.type(field, "https://video.example/tuto");
     await apply(view);
 
-    expect(view.last()).toEqual([
-      {
-        type: RichBlockType.PARAGRAPH,
-        content: [{ text: "la vidéo", href: "https://video.example/tuto" }],
-      },
-    ]);
+    expect(view.last()).toEqual([linked("la vidéo", "https://video.example/tuto")]);
     expect(view.queryByRole("textbox", { name: LINK_URL })).not.toBeInTheDocument();
     expect(view.tool("link")).toHaveAttribute("aria-pressed", "true");
   });
@@ -294,18 +311,87 @@ describe("InstructionsEditor — lien", () => {
   });
 
   it("retire le lien de la sélection quand elle en porte un", async () => {
-    const view = setup([
-      {
-        type: RichBlockType.PARAGRAPH,
-        content: [{ text: "la vidéo", href: "https://video.example" }],
-      },
-    ]);
+    const view = setup([linked("la vidéo", "https://video.example")]);
 
     await view.selectAll();
     await view.user.click(view.tool("link"));
 
     expect(view.last()).toEqual([paragraph("la vidéo")]);
     expect(view.queryByRole("textbox", { name: LINK_URL })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * #329 : un lien que le serveur refuse faisait refuser TOUT l'exercice. Sans passer par le bouton,
+ * seul un http(s) écrit en entier devient un lien — une adresse e-mail reste du texte.
+ */
+describe("InstructionsEditor — lien posé sans le bouton", () => {
+  it("laisse en texte une adresse e-mail tapée", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.type(surface, "Questions : coach@club.fr fin");
+
+    expect(last()).toEqual([paragraph("Questions : coach@club.fr fin")]);
+  });
+
+  it("fait un lien d'une adresse http(s) tapée en entier", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.type(surface, "https://cimavia.fr ");
+
+    expect(last()).toEqual([
+      {
+        type: RichBlockType.PARAGRAPH,
+        content: [{ text: "https://cimavia.fr", href: "https://cimavia.fr" }, { text: " " }],
+      },
+    ]);
+  });
+
+  it.each(["Écrire à coach@club.fr", "Voir cimavia.fr"])(
+    "laisse en texte « %s » collé",
+    async (pasted) => {
+      const { user, surface, last } = setup(null);
+
+      surface.focus();
+      await user.paste(clipboard({ "text/plain": pasted }));
+
+      expect(last()).toEqual([paragraph(pasted)]);
+    },
+  );
+
+  // Le cas le plus courant en vrai : un lien `mailto:` copié depuis un mail ou une page web.
+  it("garde le texte mais pas le lien d'un mailto collé en html", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.paste(
+      clipboard({
+        "text/html": '<p>Écrire à <a href="mailto:coach@club.fr">coach@club.fr</a></p>',
+        "text/plain": "Écrire à coach@club.fr",
+      }),
+    );
+
+    expect(last()).toEqual([paragraph("Écrire à coach@club.fr")]);
+  });
+
+  it("ne pose pas de lien en collant une adresse e-mail sur une sélection", async () => {
+    const { user, selectAll, last } = setup([paragraph("le coach")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/plain": "coach@club.fr" }));
+
+    expect(last()).toEqual([paragraph("coach@club.fr")]);
+  });
+
+  it("pose le lien en collant une adresse http(s) sur une sélection", async () => {
+    const { user, selectAll, last } = setup([paragraph("la vidéo")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/plain": "https://video.example/tuto" }));
+
+    expect(last()).toEqual([linked("la vidéo", "https://video.example/tuto")]);
   });
 });
 
@@ -418,6 +504,110 @@ describe("InstructionsEditor — collage", () => {
 
     expect(last()).toEqual([paragraph("Voir")]);
     expect(media.register).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #328 : le modèle ne porte ni sous-liste ni saut de ligne. L'éditeur ne doit donc pas en
+ * produire — la conversion les jetait, et le coach voyait son texte disparaître à l'enregistrement.
+ */
+describe("InstructionsEditor — ce que le modèle ne porte pas (#328)", () => {
+  const list = (...items: string[]): RichDocument => [
+    { type: RichBlockType.LIST, ordered: false, items: items.map((text) => [{ text }]) },
+  ];
+
+  it("n'imbrique pas un élément de liste à Tab, et laisse Tab sortir du champ", async () => {
+    const { user, surface, caretAt, onChange } = setup(list("Échauffement", "10 min vélo"));
+
+    caretAt("10 min vélo", 3);
+    // La pose du curseur dans jsdom relit le DOM et peut notifier : seul Tab est éprouvé.
+    onChange.mockClear();
+    await user.keyboard("{Tab}");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(surface).not.toHaveFocus();
+  });
+
+  it("ne range pas à Tab le paragraphe qui suit une liste dans son dernier élément", async () => {
+    const initial = [...list("Échauffement"), paragraph("Retour au calme")];
+    const { user, caretAt, onChange } = setup(initial);
+
+    caretAt("Retour au calme", 0);
+    onChange.mockClear();
+    await user.keyboard("{Tab}");
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("coupe le paragraphe en deux à Maj+Entrée, au lieu d'y poser un saut de ligne", async () => {
+    const { user, caretAt, last } = setup([paragraph("Coudes serrés")]);
+
+    caretAt("Coudes serrés", 7);
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+
+    expect(last()).toEqual([paragraph("Coudes "), paragraph("serrés")]);
+  });
+
+  it("coupe l'élément de liste en deux à Maj+Entrée", async () => {
+    const { user, caretAt, last } = setup(list("Échauffement 10 min vélo"));
+
+    caretAt("Échauffement 10 min vélo", 13);
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+
+    expect(last()).toEqual(list("Échauffement ", "10 min vélo"));
+  });
+
+  // L'élément n'ayant plus qu'un paragraphe, ProseMirror enveloppait le bloc dans un NOUVEL élément
+  // — que Backspace ressortait aussitôt de la liste, sans fin.
+  it("joint au dernier élément, à Backspace, le paragraphe qui suit la liste", async () => {
+    const { user, caretAt, last } = setup([...list("Échauffement "), paragraph("10 min vélo")]);
+
+    caretAt("10 min vélo", 0);
+    await user.keyboard("{Backspace}");
+
+    expect(last()).toEqual(list("Échauffement 10 min vélo"));
+  });
+
+  it("joint au dernier élément, à Suppr, le paragraphe qui suit la liste", async () => {
+    const { user, caretAt, last } = setup([...list("Échauffement "), paragraph("10 min vélo")]);
+
+    caretAt("Échauffement ", "Échauffement ".length);
+    await user.keyboard("{Delete}");
+
+    expect(last()).toEqual(list("Échauffement 10 min vélo"));
+  });
+
+  it("laisse Suppr à la liste quand l'élément n'est pas le dernier", async () => {
+    const { user, caretAt, last } = setup([
+      ...list("Échauffement ", "10 min vélo"),
+      paragraph("x"),
+    ]);
+
+    caretAt("Échauffement ", "Échauffement ".length);
+    await user.keyboard("{Delete}");
+
+    expect(last()).toEqual([...list("Échauffement 10 min vélo"), paragraph("x")]);
+  });
+
+  it.each([
+    [
+      "une liste imbriquée, remise à plat",
+      "<ul><li>Échauffement<ul><li>10 min vélo</li></ul></li></ul>",
+      [...list("Échauffement"), ...list("10 min vélo")],
+    ],
+    [
+      "un élément à deux paragraphes, en deux éléments",
+      "<ul><li><p>Échauffement</p><p>10 min vélo</p></li></ul>",
+      list("Échauffement", "10 min vélo"),
+    ],
+    ["un saut de ligne, en espace", "<p>Coudes<br>serrés</p>", [paragraph("Coudes serrés")]],
+  ])("garde tout le texte collé : %s", async (_, html, expected) => {
+    const { user, selectAll, last } = setup([paragraph("x")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/html": html, "text/plain": "x" }));
+
+    expect(last()).toEqual(expected);
   });
 });
 

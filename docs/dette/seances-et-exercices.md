@@ -1189,3 +1189,34 @@ liste des domaines vivent dans l'index.
 > revérifient donc l'URL. Ce qui était en base avant le correctif a été contrôlé par une requête
 > sur la preview (`url !~* '^https?://'`, aucune ligne). Un nouvel écrivain de `exercise_document`
 > (import, migration de données) passe par le même schéma, ou rouvre la question.
+
+## Post-MVP — Lien posé sans le bouton dans la consigne ([#329](https://github.com/Cimavia/cimavia/issues/329))
+
+> **Tranché en [#329](https://github.com/Cimavia/cimavia/issues/329)** (seul un `http(s)://` écrit
+> en entier devient un lien de lui-même) : la saisie, le collage et le collage sur une sélection
+> posent un lien seulement si le texte reconnu passe `linkHrefSchema`. TipTap ne donne à ses filtres
+> (`isAllowedUri`, `shouldAutoLink`) que ce TEXTE, pas le `href` qu'il en déduit : une adresse
+> e-mail reste donc du texte, mais « cimavia.fr » ou « www.cimavia.fr » aussi, alors que le
+> `http://` qu'il y aurait ajouté passait le schéma. Les rattraper demanderait de refaire la
+> reconnaissance de linkify à côté de TipTap, pour un gain faible : le bouton « lien » reste là
+> pour eux. La conversion (`toInlineNode`) jette en plus tout `href` refusé, texte gardé — le
+> dernier rempart avant l'API, qui refuse sinon l'exercice entier.
+
+## Post-MVP — Sous-liste et saut de ligne dans la consigne ([#328](https://github.com/Cimavia/cimavia/issues/328))
+
+> **Tranché en [#328](https://github.com/Cimavia/cimavia/issues/328)** (neutralisés à la saisie,
+> pas portés dans le modèle) : l'éditeur laissait faire une sous-liste (Tab) et un saut de ligne
+> (Maj+Entrée) que `richDocumentSchema` ne porte pas — la conversion les jetait, le coach voyait
+> son texte disparaître ou se coller à l'enregistrement. Porter la sous-liste aurait défait une
+> décision du schéma (« les blocs ne s'imbriquent pas », rendu trivial web et mobile), pour un geste
+> que l'éditeur offrait par défaut, pas par choix.
+>
+> - **Un élément de liste = un paragraphe**, dans le schéma de l'éditeur (`ListItemExtension`) et
+>   non par le seul retrait du raccourci : Tab sous une liste et le collage passaient aussi. Tab
+>   sort donc du champ ; une liste imbriquée collée est remise à plat, en listes voisines.
+> - **Maj+Entrée vaut Entrée** plutôt que rien : nouveau paragraphe, nouvel élément, nouvel encadré.
+>   Un `<br>` collé devient une espace.
+> - **Effacer à la jonction d'une liste et du bloc suivant joint leurs textes** (`ListJoinExtension`) :
+>   sans ça, ProseMirror enveloppait le bloc dans un nouvel élément, que Backspace ressortait aussitôt.
+>
+> La sous-liste reste possible un jour : ce sera une issue produit, avec son rendu des deux côtés.
