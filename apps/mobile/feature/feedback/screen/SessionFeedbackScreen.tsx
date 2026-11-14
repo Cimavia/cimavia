@@ -49,13 +49,17 @@ export function SessionFeedbackScreen() {
   // disent l'attente.
   const { isSelf, conversation } = useSessionThread(session.data?.coachId);
   const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(id));
-  const reply = useFeedbackReply({
-    feedbackId: feedback?.id ?? null,
-    conversationId: conversation.data?.id,
-    isThreadError: conversation.isError,
-    // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
-    onSent: () => queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(id) }),
-  });
+  const reply = useFeedbackReply(
+    {
+      feedbackId: feedback?.id ?? null,
+      conversationId: conversation.data?.id,
+      isThreadError: conversation.isError,
+      // Son PROPRE débrief, pas la boîte du coach : c'est là que la réponse doit réapparaître.
+      onSent: () => queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(id) }),
+    },
+    // Son débrief, donc en athlète — quel que soit le sélecteur (#343).
+    "athlete",
+  );
 
   const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);
   const [recap, setRecap] = useState<readonly MediaRecapLine[]>([]);

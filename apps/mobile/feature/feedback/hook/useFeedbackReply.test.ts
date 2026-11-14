@@ -24,22 +24,24 @@ function setup(feedbackId: string | null, conversationId: string | undefined) {
   } as unknown as ReturnType<typeof useSendMessageMedia>);
 
   return renderHook(() =>
-    useFeedbackReply({ feedbackId, conversationId, isThreadError: false, onSent }),
+    useFeedbackReply({ feedbackId, conversationId, isThreadError: false, onSent }, "coach"),
   ).result.current;
 }
 
 describe("useFeedbackReply (mobile)", () => {
   /**
    * Le rattachement descend jusqu'aux DEUX mutations : sans lui sur celle des médias, une note
-   * vocale enregistrée depuis le débrief partirait nue dans le fil.
+   * vocale enregistrée depuis le débrief partirait nue dans le fil. Le titre de l'écran aussi :
+   * laissé au sélecteur, il faisait refuser la réponse par l'API (#343).
    */
-  it("rattache le débrief au texte comme aux médias", () => {
+  it("rattache le débrief et le titre de l'écran au texte comme aux médias", () => {
     setup("f-1", "c-1");
 
-    expect(useSendMessage).toHaveBeenCalledWith("c-1", { sessionFeedbackId: "f-1" });
+    expect(useSendMessage).toHaveBeenCalledWith("c-1", { sessionFeedbackId: "f-1" }, "coach");
     expect(useSendMessageMedia).toHaveBeenCalledWith("c-1", {
       attachment: { sessionFeedbackId: "f-1" },
       onSent,
+      pinned: "coach",
     });
   });
 

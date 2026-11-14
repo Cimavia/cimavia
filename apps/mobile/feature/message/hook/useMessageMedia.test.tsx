@@ -11,6 +11,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { useSendMessageMedia } from "./useMessageMedia";
 
 const {
@@ -85,7 +86,9 @@ vi.mock("@/shared/lib/upload", () => ({
   storageFileSize: fileSizeMock,
 }));
 
-vi.mock("@/shared/hook/useExercisedCapability", () => ({ useExercisedCapability: () => null }));
+vi.mock("@/shared/hook/useExercisedCapability", () => ({
+  useExercisedCapability: vi.fn(() => null),
+}));
 
 vi.mock("expo-image-picker", () => ({
   requestMediaLibraryPermissionsAsync: permissionMock,
@@ -383,6 +386,16 @@ describe("useSendMessageMedia", () => {
     await waitFor(() => expect(sendMessageMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
     expect(sendMessageMock.mock.calls[0]?.[1]).toMatchObject({ continuesBatch: false });
+  });
+
+  // Une note vocale enregistrée depuis un débrief part au titre de son écran, pas du sélecteur.
+  it("transmet le titre imposé par l'écran (#343)", () => {
+    renderHook(
+      () => useSendMessageMedia(CONVERSATION_ID, { attachment: undefined, pinned: "coach" }),
+      { wrapper },
+    );
+
+    expect(useExercisedCapability).toHaveBeenLastCalledWith("coach");
   });
 
   /** #309 : un média envoyé change l'aperçu du fil dans la liste du coach, comme un texte. */

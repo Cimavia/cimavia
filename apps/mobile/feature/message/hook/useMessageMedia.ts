@@ -80,11 +80,17 @@ export function useSendMessageMedia(
    * Les deux vont ensemble : répondre en vocal depuis un débrief doit rattacher le message ET
    * faire apparaître la note là où on l'a enregistrée. Invalider le seul fil laisserait l'écran
    * du débrief afficher l'état d'avant l'envoi.
+   *
+   * `pinned` : titre imposé par un écran mono-titre, voir `useExercisedCapability` (#343).
    */
-  options?: { attachment: { sessionFeedbackId: string } | undefined; onSent?: () => void },
+  options?: {
+    attachment: { sessionFeedbackId: string } | undefined;
+    onSent?: () => void;
+    pinned?: TrainingCapability;
+  },
 ) {
   const queryClient = useQueryClient();
-  const as = useExercisedCapability();
+  const as = useExercisedCapability(options?.pinned);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
 
   const attachment = options?.attachment;
