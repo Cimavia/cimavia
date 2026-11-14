@@ -4,12 +4,32 @@ import {
   CALLOUT_NODE,
   HEADING_LEVEL,
   IMAGE_NODE,
+  isAllowedLinkHref,
   toRichDocument,
   toTipTapDocument,
 } from "./tiptap-document.util";
 
 const doc = (...content: unknown[]) => ({ type: "doc", content }) as never;
 const text = (value: string, marks?: unknown[]) => ({ type: "text", text: value, marks });
+
+// La seule règle de lien de l'éditeur : elle reçoit le TEXTE reconnu à la saisie et au collage, le
+// `href` au bouton. Seul un http(s) écrit en entier passe dans les deux cas (#329).
+describe("isAllowedLinkHref", () => {
+  it.each(["https://cimavia.fr", "http://cimavia.fr/seance?id=1"])("accepte %s", (url) => {
+    expect(isAllowedLinkHref(url)).toBe(true);
+  });
+
+  it.each([
+    "coach@club.fr",
+    "mailto:coach@club.fr",
+    "cimavia.fr",
+    "www.cimavia.fr",
+    "javascript:alert(1)",
+    "",
+  ])("refuse « %s »", (url) => {
+    expect(isAllowedLinkHref(url)).toBe(false);
+  });
+});
 
 describe("toRichDocument", () => {
   it("traduit les quatre types de blocs", () => {
@@ -64,6 +84,30 @@ describe("toRichDocument", () => {
       ],
     });
   });
+
+  // #329 : une adresse tapée dans la consigne devient un `mailto:` que l'API refuse — recopié, il
+  // rendait l'exercice entier inenregistrable.
+  it.each(["mailto:coach@club.fr", "tel:+33600000000", "javascript:alert(1)"])(
+    "garde le texte mais jette un lien %s, que le serveur refuserait",
+    (href) => {
+      const blocks = toRichDocument(
+        doc({
+          type: "paragraph",
+          content: [
+            text("Questions : "),
+            text("coach@club.fr", [{ type: "bold" }, { type: "link", attrs: { href } }]),
+          ],
+        }),
+      );
+      expect(blocks).toEqual([
+        {
+          type: "PARAGRAPH",
+          content: [{ text: "Questions : " }, { text: "coach@club.fr", marks: ["BOLD"] }],
+        },
+      ]);
+      expect(richDocumentSchema.safeParse(blocks).success).toBe(true);
+    },
+  );
 
   it("jette un nœud que le modèle ne connaît pas", () => {
     expect(toRichDocument(doc({ type: "codeBlock", content: [text("npm i")] }))).toEqual([]);
