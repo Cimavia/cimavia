@@ -1047,6 +1047,20 @@ liste des domaines vivent dans l'index.
 > - **Les rangées « Série 1 », « Tour 2 » ont leur phrase pour clé React** (`phraseId`), jamais
 >   leur texte traduit, qui peut se répéter.
 
+> **Tranché en [#374](https://github.com/Cimavia/cimavia/issues/374)** (« autorise les
+> notifications » affiché à qui les a autorisées) : `useTimerNotification` rend `armed` sur trois
+> valeurs, et le chrono n'avertit que sur `false`.
+> - **`null` = rien à programmer** — pause, étape qui attend « J'ai fini », échéance à moins d'une
+>   seconde (`secondsUntil`) — **ou l'OS n'a pas encore répondu**. C'est ce dernier cas qui
+>   faisait clignoter l'avertissement à chaque repos enchaîné après une série : `armed` restait
+>   faux le temps de la programmation.
+> - **`false` couvre le refus ET la panne**, là où l'issue le réservait au refus :
+>   `scheduleTimerEnd` rend `null` dans les deux cas, et le minuteur ne sonnera pas plus dans l'un
+>   que dans l'autre. Les distinguer demanderait un second message, pour une panne qu'aucun retour
+>   n'a montrée.
+> - **Le masquage sur l'étape qui attend disparaît de l'écran** : il cachait le symptôme sans
+>   toucher la cause, et la pause y échappait.
+
 > **Tranché en [#723](https://github.com/Cimavia/cimavia/issues/723)** (retrait de l'ancien
 > modèle d'exercice structuré : la phase *contract* de l'épic) :
 > - **La migration garde, elle ne rejoue pas** (amende BL-1, qui annonçait un rejeu de la
