@@ -48,10 +48,10 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | ✅ |
 | #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | ✅ |
 | #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | ✅ |
-| #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | |
+| #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | ✅ |
 | #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | |
 | #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | |
-| #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | |
+| #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | ✅ |
 | #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
 | #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | |
 | #333 | « Dupliquer en variante » sans garde de double clic | 🟡 | ✅ |

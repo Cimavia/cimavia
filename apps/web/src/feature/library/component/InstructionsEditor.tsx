@@ -22,6 +22,9 @@ import {
 import { CalloutExtension } from "@/feature/library/component/CalloutExtension";
 import { ImageExtension } from "@/feature/library/component/ImageExtension";
 import { useInstructionMediaContext } from "@/feature/library/component/InstructionMediaContext";
+import { LineBreakExtension } from "@/feature/library/component/LineBreakExtension";
+import { ListItemExtension } from "@/feature/library/component/ListItemExtension";
+import { ListJoinExtension } from "@/feature/library/component/ListJoinExtension";
 import { INSTRUCTION_IMAGE_ACCEPT } from "@/feature/library/constant";
 import {
   CALLOUT_NODE,
@@ -71,6 +74,10 @@ export function InstructionsEditor({
         codeBlock: false,
         blockquote: false,
         horizontalRule: false,
+        // Même raison, au niveau en dessous (#328) : remplacés plutôt que retirés, voir
+        // `ListItemExtension` et `LineBreakExtension`.
+        hardBreak: false,
+        listItem: false,
         // Seul un lien que le serveur accepte peut naître ici (#329). Les deux filtres comptent :
         // `isAllowedUri` garde la saisie et les règles de collage, `shouldAutoLink` seul garde le
         // collage sur une sélection. À la saisie et au collage, ils reçoivent le TEXTE reconnu, pas
@@ -84,6 +91,9 @@ export function InstructionsEditor({
           shouldAutoLink: isAllowedLinkHref,
         },
       }),
+      ListItemExtension,
+      ListJoinExtension,
+      LineBreakExtension,
       CalloutExtension,
       ImageExtension,
     ],
