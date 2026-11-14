@@ -714,3 +714,29 @@ liste des domaines vivent dans l'index.
 > - **Le mobile ne bouge pas** : sa `FlatList` inversée reste au bas quand un média y grandit, et
 >   ne ramène pas au bas le lecteur qui remonte. Il n'a pas de pastille ; à ouvrir si la bêta la
 >   réclame.
+
+## Post-MVP — Destination d'une notification ([#344](https://github.com/Cimavia/cimavia/issues/344))
+
+> **Tranché en [#344](https://github.com/Cimavia/cimavia/issues/344)** (une notification s'ouvre
+> sous SON titre, pas sous celui qu'on exerce) : sur un compte coach et athlète, les deux tables de
+> routage — mobile (cloche et push) et web — branchaient sur `isCoach`, et la capacité coach gagnait
+> toujours. L'issue proposait de router au titre exercé ; c'eût été déplacer le bug. Le centre
+> n'est **pas filtré par espace** : il liste, mêlé, ce que le compte reçoit des deux côtés, et un
+> « débrief reçu » ouvert en titre athlète serait parti vers `/session/:id`, une route d'athlète
+> qui ne lit pas la séance de SON athlète.
+>
+> - **Le titre vient du type** (`notificationOpeningCapability`, `@cmv/shared`), par
+>   `capabilityOfNotification` (#176) : un cycle se lit en athlète, un débrief en coach.
+> - **Le titre exercé ne départage que le message**, que les deux côtés d'un fil reçoivent. Le
+>   mobile garde alors sa règle : le fil absent du titre courant laisse sur la liste, où la pastille
+>   du sélecteur signale l'autre côté. Le web pose l'espace parcouru dans `?as=` — avant, rien, et
+>   l'écran retombait sur le persona : un pari ni meilleur ni pire, mais qui ne fait pas changer
+>   d'espace sous les yeux.
+> - **Ne mènent nulle part** : un titre que le compte n'a plus (un Coach qui a cessé de coacher
+>   relit un vieux débrief) — plutôt qu'un 403 —, et un **type inconnu**, fail closed comme
+>   `capabilityOfNotification` : un client ne devine pas le titre d'un type que l'API a ajouté
+>   après lui. La cloche et le push s'accordent ainsi, le push ne sachant pas lire ses clés d'id.
+> - **Ouvrir une notification emporte son titre** : le mobile bascule le sélecteur avant de
+>   naviguer, le web le pose dans `?as=` de Factures et Messagerie — l'un et l'autre pour un compte
+>   qui cumule seulement, l'URL d'un compte mono-capacité restant nue (#129). Sans ça, une facture
+>   émise ouverte en titre coach montrait les factures du coach.
