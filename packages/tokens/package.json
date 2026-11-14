@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "tailwindcss": "^3.4.0"
