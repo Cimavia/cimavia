@@ -331,6 +331,11 @@ describe("Bibliothèque partagée : M compose avec ce que C ouvre à F", () => {
     expect([voie.status, dalle.status]).toEqual([201, 201]);
     [voieId, dalleId] = [voie.body.id, dalle.body.id];
     dalleImageId = await uploadInstructionImage(c, dalleId);
+    // Citée : une image que la consigne ne cite pas ne suit pas en séance planifiée (#330).
+    const illustrated = await patchAtLatest(c, `/exercises/${dalleId}`, {
+      instructions: [{ type: "IMAGE", mediaId: dalleImageId }],
+    });
+    expect(illustrated.status).toBe(200);
 
     const grimpe = await c.post("/sessions").send({
       title: "Grimpe",

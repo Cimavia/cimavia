@@ -14,6 +14,7 @@ import { toBlockContentData } from "../session/session-block.writer";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { toJsonInput } from "../util/block-json.util";
 import { toCustomMetricsInput, toInstructionsInput } from "../util/exercise-json.util";
+import { withoutUncitedImages } from "../util/instruction-images.util";
 
 /**
  * Écriture de la composition d'une séance planifiée — le pendant du `scheduled-session.mapper`,
@@ -333,8 +334,8 @@ async function insertTags(
 }
 
 /**
- * Recopie les documents d'un exercice et réaligne les images de sa consigne sur les nouvelles
- * copies.
+ * Recopie les documents d'un exercice — sauf les images que sa consigne ne cite pas (#330) — et
+ * réaligne les images de sa consigne sur les nouvelles copies.
  *
  * Extrait de la boucle d'écriture : mêlées, les deux responsabilités poussaient
  * `insertScheduledSessionExercises` au-delà du seuil de complexité de la porte qualité.
@@ -345,7 +346,8 @@ async function copyDocumentsAndRemapImages(
   athleteId: string | null,
   draft: ScheduledSessionExerciseDraft,
 ): Promise<void> {
-  if (draft.documents.length === 0) return;
+  const documents = withoutUncitedImages(draft.exercise.instructions, draft.documents);
+  if (documents.length === 0) return;
 
   /**
    * Créés UN PAR UN et non en `createMany` : il faut connaître l'identifiant de chaque copie pour
@@ -353,7 +355,7 @@ async function copyDocumentsAndRemapImages(
    * exercice — le coût est nul devant le bug qu'il évite.
    */
   const idByOldId = new Map<string, string>();
-  for (const document of draft.documents) {
+  for (const document of documents) {
     const copy = await tx.scheduledSessionExerciseDocument.create({
       data: {
         athleteId,

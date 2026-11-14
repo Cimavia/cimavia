@@ -48,6 +48,7 @@ import {
 import {
   assertInstructionImagesOwned,
   instructionImageIds,
+  uncitedInstructionImages,
 } from "../../util/instruction-images.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
@@ -337,6 +338,9 @@ export class ExerciseService {
    * second onglet qui les réécrirait sans le savoir effacerait ceux du premier. D'où `updatedAt`
    * posé à la main — l'écriture conditionnelle peut n'avoir aucun autre champ à écrire. Les tags
    * suivent dans la même transaction : une écriture refusée n'en laisse rien.
+   *
+   * Une consigne réécrite emporte les images qu'elle ne cite plus (#330) : leurs lignes dans la
+   * transaction, leurs objets après — refusée, l'écriture ne doit rien avoir purgé.
    */
   async update(id: string, input: UpdateExerciseInput): Promise<ExerciseDto> {
     const { exercise: current, context } = await this.getForOrThrow(id, "write");
@@ -366,15 +370,28 @@ export class ExerciseService {
       data.instructions = toInstructionsInput(input.instructions);
     if (input.suggestedMetrics !== undefined)
       data.suggestedMetrics = toSuggestedMetricsInput(input.suggestedMetrics);
+    // Consigne absente de la saisie : elle ne change pas, ses images non plus.
+    const dropped =
+      input.instructions === undefined
+        ? []
+        : uncitedInstructionImages(input.instructions, current.documents);
 
     const saved = await this.db.$transaction(async (tx) => {
       await writeAtVersion(tx.exercise, id, expected, data, EXERCISE_NOT_FOUND);
       if (input.tags !== undefined) await this.replaceTags(tx, id, input.tags);
+      if (dropped.length > 0) {
+        await tx.exerciseDocument.deleteMany({
+          where: { exerciseId: id, id: { in: dropped.map((doc) => doc.id) } },
+        });
+      }
       // Relu DANS la transaction : la ligne reste verrouillée par notre écriture, la réponse porte
       // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
       // builder, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
       return this.getReadableOrThrow(id, tx);
     });
+    // Sans faire échouer la réponse : l'écriture est faite, et un 500 ferait réessayer le builder
+    // sur une version périmée (409). Un objet laissé là relève de P2-1.
+    await this.cleanup.purgeUnreferencedObjectsSafely(dropped);
     return this.toDto(saved, context, catalogOf);
   }
 

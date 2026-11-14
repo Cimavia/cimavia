@@ -1,5 +1,6 @@
 import {
   type ExerciseDto,
+  imageMediaIds,
   type RichDocument,
   type SuggestedMetric,
   sameJson,
@@ -92,6 +93,8 @@ export function useExerciseDraft(exercise: ExerciseDto | null, initialTitle?: st
       onExerciseSaved: (saved) => {
         if (exercise == null) setCreated(saved);
         setEdited(saved);
+        // Cette écriture a supprimé côté serveur les images qu'elle ne cite plus (#330).
+        media.forgetUncitedSent(imageMediaIds(input.instructions ?? []));
       },
       onFileAttached: (pendingId) =>
         setPendingFiles((files) => files.filter((file) => file.id !== pendingId)),
