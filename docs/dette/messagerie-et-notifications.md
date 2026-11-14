@@ -679,3 +679,38 @@ liste des domaines vivent dans l'index.
 >   `FILE` en pastille vidéo muette jusqu'à leur mise à jour, et l'aperçu de la liste des
 >   conversations en clé brute (`messages.preview.FILE`, absente de leur catalogue) : c'est une
 >   `feat` avec un module natif neuf, pas d'OTA (#287).
+
+## Post-MVP — Défilement du fil web ([#367](https://github.com/Cimavia/cimavia/issues/367))
+
+> **Tranché en #367** (le fil suit le lecteur, pas l'arrivée des messages) : le web recolle au bas
+> quand le contenu du fil ou son cadre **change de taille** (`useStickToBottom`, un
+> `ResizeObserver`), et seulement si le lecteur était au bas, à 80 px près. Un `scrollIntoView` au
+> rendu tombait avant le chargement des images : la dernière photo restait coupée, et chaque
+> sondage ramenait au bas un lecteur qui remontait l'historique.
+>
+> - **Aucune place réservée aux images** : le DTO média ne porte pas leurs dimensions, et les
+>   relever à l'envoi demanderait une migration, l'API et les deux clients. L'observateur suffit
+>   à rester collé ; il couvre en prime la vidéo (300×150 avant ses métadonnées) et la barre
+>   d'envoi qui s'agrandit.
+> - **Se décrocher, c'est remonter**, pas « être à plus de 80 px du bas » : une photo qui charge
+>   entre l'écriture de `scrollTop` et l'événement `scroll` creuse l'écart sans que le lecteur ait
+>   bougé, et le fil se serait décroché tout seul.
+> - **Le geste d'envoi ramène au bas** — texte, fichiers, note vocale —, d'où qu'on écrive. Pas
+>   « le dernier message est de moi » : un entrant arrivé dans le même sondage le masquerait, et
+>   un message à mon nom posté d'ailleurs (le mobile, un avis de débrief) me tirerait vers le bas
+>   sans geste ici. Un message reçu, jamais.
+> - **Lu, c'est vu** : le fil ne marque plus lu qu'au bas. Il y ramenait le lecteur à chaque
+>   arrivée, ce qui rendait le marquage immédiat à peu près vrai ; parti dans l'historique, il
+>   n'a pas vu ce qui arrive, et l'expéditeur lirait « Lu par » à tort.
+> - **La pastille « N nouveaux messages »** dit au lecteur parti ce qu'il manque : les entrants
+>   arrivés après le dernier message qu'il avait vu au bas (`incomingCountAfter`, entrant au sens
+>   du marquage lu, avis compris). Repère introuvable ou session inconnue : elle se tait plutôt
+>   que d'inventer un nombre. Un clic descend en douceur ; elle disparaît au retour au bas, par ce
+>   clic ou à la main. Sa région est `aria-live` et toujours montée : un lecteur d'écran, que le
+>   fil ne déplace plus, est prévenu. Pas de maquette : elle reprend les tokens de surface et de
+>   bordure.
+> - **Pas de `flex-col-reverse`** : son ancrage diffère d'un navigateur à l'autre, et inverser
+>   l'ordre du DOM aurait fait lire le fil à rebours aux lecteurs d'écran.
+> - **Le mobile ne bouge pas** : sa `FlatList` inversée reste au bas quand un média y grandit, et
+>   ne ramène pas au bas le lecteur qui remonte. Il n'a pas de pastille ; à ouvrir si la bêta la
+>   réclame.
