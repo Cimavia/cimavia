@@ -219,6 +219,28 @@ describe("selectCurrentPlan", () => {
     expect(selectCurrentPlan([older, past], "2026-10-20")?.id).toBe("past");
   });
 
+  /**
+   * #356 : deux cycles terminés imbriqués. Le long (12 semaines, 1er juin → 23 août) a fini bien
+   * après le court (2 semaines, 6 juillet → 19 juillet) : c'est lui le dernier terminé, bien que le
+   * court ait COMMENCÉ plus tard.
+   */
+  it("parmi des cycles terminés imbriqués, montre celui qui a fini le dernier", () => {
+    const long = { id: "long", startDate: "2026-06-01", weekCount: 12 };
+    const short = { id: "short", startDate: "2026-07-06", weekCount: 2 };
+    expect(selectCurrentPlan([long, short], "2026-10-20")?.id).toBe("long");
+    expect(selectCurrentPlan([short, long], "2026-10-20")?.id).toBe("long");
+  });
+
+  it("à fin égale, préfère le début le plus tardif, puis le plus petit id", () => {
+    const early = { id: "a", startDate: "2026-07-06", weekCount: 4 };
+    const late = { id: "b", startDate: "2026-07-20", weekCount: 2 }; // même fin : 2026-08-02
+    expect(selectCurrentPlan([early, late], "2026-10-20")?.id).toBe("b");
+    expect(selectCurrentPlan([late, early], "2026-10-20")?.id).toBe("b");
+
+    const twins = ["c", "a", "b"].map((id) => ({ id, startDate: "2026-07-06", weekCount: 4 }));
+    expect(selectCurrentPlan(twins, "2026-10-20")?.id).toBe("a");
+  });
+
   // Bornes incluses, comme `planPhase` : le jour du départ et le dernier dimanche, il court.
   it("tient un cycle pour en cours le jour de son départ et celui de sa fin", () => {
     expect(selectCurrentPlan([ongoing], MONDAY)?.id).toBe("ongoing");
@@ -285,6 +307,14 @@ describe("selectVisiblePlans", () => {
   it("retombe sur le dernier cycle terminé, seul, quand plus rien ne court", () => {
     const older = { id: "older", startDate: "2026-08-03", weekCount: 2 };
     expect(idsAt([older, past], "2026-10-20")).toEqual(["past"]);
+  });
+
+  // #356 : le repli sert le cycle fini le dernier, pas celui qui a commencé le dernier.
+  it("sert, seul, le cycle terminé le dernier quand des cycles terminés s'imbriquent", () => {
+    const long = { id: "long", startDate: "2026-06-01", weekCount: 12 };
+    const short = { id: "short", startDate: "2026-07-06", weekCount: 2 };
+    expect(idsAt([long, short], "2026-10-20")).toEqual(["long"]);
+    expect(idsAt([short, long], "2026-10-20")).toEqual(["long"]);
   });
 
   it("rend une liste vide, jamais null, quand il n'y a aucun cycle exploitable", () => {
@@ -390,6 +420,17 @@ describe("planAudience", () => {
   // Le repli de `selectVisiblePlans` : sans suite, l'athlète voit encore son dernier cycle.
   it("un cycle terminé sans rien derrière reste vu de l'athlète", () => {
     expect(planAudience(ended, [ended], "2026-10-14")).toEqual({ kind: "ENDED_LAST" });
+  });
+
+  // #356 : ce n'est pas le cycle qui a commencé le dernier qui est « remplacé ».
+  it("de deux cycles terminés imbriqués, seul celui qui a fini avant est remplacé", () => {
+    const long = of("long", "2026-06-01", 12);
+    const short = of("short", "2026-07-06", 2);
+    expect(planAudience(long, [long, short], "2026-10-20")).toEqual({ kind: "ENDED_LAST" });
+    expect(planAudience(short, [long, short], "2026-10-20")).toEqual({
+      kind: "ENDED_SUPERSEDED",
+      insteadPlanIds: ["long"],
+    });
   });
 
   it("ignore les cycles d'un AUTRE athlète, même passés dans la même liste", () => {
