@@ -1,8 +1,15 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type RequestListener, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { pino } from "pino";
 import { pinoHttp } from "pino-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildLogTargets, loggerOptions, requestLogLevel, requestLogProps } from "./logger.config";
+import {
+  authRequestLogger,
+  buildLogTargets,
+  loggerOptions,
+  requestLogLevel,
+  requestLogProps,
+} from "./logger.config";
 
 /**
  * Les lignes que pino-http écrit VRAIMENT, pour une vraie requête HTTP. Seul le transport est
@@ -24,19 +31,32 @@ async function request(
 ) {
   const { transport: _stdoutWorker, ...options } = loggerOptions();
   const logger = pinoHttp(options, { write: (line: string) => lines.push(JSON.parse(line)) });
-  server = createServer((req, res) => {
-    logger(req, res);
-    if (init.onRequest === "log") req.log.info("pendant la requête");
-    res.setHeader("set-cookie", "better-auth.session_token=cookie-de-reponse; HttpOnly");
-    res.setHeader("location", "https://app.test/reset-password?token=jeton-de-redirection");
-    res.statusCode = init.status ?? 302;
-    if (init.err) Object.assign(res, { err: init.err });
-    if (init.problemType) Object.assign(res, { problemType: init.problemType });
-    res.end();
-  });
+  await serve(
+    (req, res) => {
+      logger(req, res);
+      if (init.onRequest === "log") req.log.info("pendant la requête");
+      res.setHeader("set-cookie", "better-auth.session_token=cookie-de-reponse; HttpOnly");
+      res.setHeader("location", "https://app.test/reset-password?token=jeton-de-redirection");
+      res.statusCode = init.status ?? 302;
+      if (init.err) Object.assign(res, { err: init.err });
+      if (init.problemType) Object.assign(res, { problemType: init.problemType });
+      res.end();
+    },
+    path,
+    { redirect: "manual", ...init },
+  );
+}
+
+/**
+ * Sert UNE requête, et attend sa ligne de fin : pino-http l'écrit à la fermeture de la réponse,
+ * qui peut suivre sa réception par le client.
+ */
+async function serve(handler: RequestListener, path: string, init: RequestInit) {
+  server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
-  await fetch(`http://127.0.0.1:${port}${path}`, { redirect: "manual", ...init });
+  await fetch(`http://127.0.0.1:${port}${path}`, init);
+  await vi.waitFor(() => expect(lines.some((line) => line.res)).toBe(true));
 }
 
 /** Les en-têtes qu'une requête authentifiée, ou le tick de rappels, envoie réellement. */
@@ -172,6 +192,56 @@ describe("loggerOptions", () => {
 
     vi.stubEnv("NODE_ENV", "development");
     expect(loggerOptions().level).toBe("debug");
+  });
+});
+
+/**
+ * Une connexion telle que Better Auth la sert : le middleware est appelé avec, pour `next`, le
+ * handler qui répond — la session en `set-cookie` et dans le corps. La racine est un vrai logger
+ * pino, comme celle de `nestjs-pino`, dont seul le flux est remplacé.
+ */
+async function signIn(status: number) {
+  const root = pino({ level: "info" }, { write: (line: string) => lines.push(JSON.parse(line)) });
+  const middleware = authRequestLogger(root);
+  await serve(
+    (req, res) => {
+      middleware(req, res, () => {
+        res.setHeader("set-cookie", "better-auth.session_token=session-de-reponse; HttpOnly");
+        res.statusCode = status;
+        res.end(JSON.stringify({ token: "session-de-reponse" }));
+      });
+    },
+    "/api/auth/sign-in/email",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: SECRET_HEADERS.cookie },
+      body: JSON.stringify({ email: "coach@cmv.test", password: "mot-de-passe-secret" }),
+    },
+  );
+}
+
+describe("authRequestLogger", () => {
+  it("écrit UNE ligne par connexion, sans mot de passe, ni adresse, ni session", async () => {
+    await signIn(200);
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      msg: "request completed",
+      level: 30,
+      req: { method: "POST", url: "/api/auth/sign-in/email" },
+      res: { statusCode: 200 },
+      responseTime: expect.any(Number),
+    });
+    expect(Object.keys(lines[0]?.req as object).sort()).toEqual(["id", "method", "url"]);
+    expect(JSON.stringify(lines)).not.toMatch(
+      /mot-de-passe-secret|coach@cmv\.test|cookie-de-session|session-de-reponse/,
+    );
+  });
+
+  it("écrit un mot de passe faux en warn : une rafale de 401 se voit dans Axiom", async () => {
+    await signIn(401);
+
+    expect(lines).toEqual([expect.objectContaining({ level: 40, res: { statusCode: 401 } })]);
   });
 });
 

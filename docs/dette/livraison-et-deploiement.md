@@ -204,9 +204,8 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | O-2 | **`@sentry/cli` déclaré en dépendance du mobile sans être importé** : il n'y sert qu'à exister au chemin `apps/mobile/node_modules/@sentry/cli`, que `sentry.gradle` construit en dur pour téléverser les sourcemaps. Son repli pnpm est inatteignable — il vit dans un `catch` que `execute()` ne déclenche jamais, `node --print require.resolve(…)` rendant une sortie vide plutôt qu'une exception quand la résolution échoue. Sans cette déclaration, le build EAS **release** échoue sur « a problem occurred starting process ». La version est épinglée sur celle qu'exige `@sentry/react-native` (2.58.4) : la laisser flotter installerait deux copies du binaire. | 🟢 | — *(bug amont ; déclencheur : une version de `@sentry/react-native` dont le `sentry.gradle` résout enfin pnpm — la dépendance pourra alors sauter)* |
-| O-3 | **Les routes `/api/auth/*` ne laissent aucune ligne dans les journaux Pino** : Better Auth est branché sur Fastify avant les middlewares de Nest, et le logger HTTP de `nestjs-pino` en est un. Connexion, inscription, réinitialisation : ni statut ni durée dans Axiom — Sentry, lui, les voit. Découvert au test de #433. | 🟡 | [#466](https://github.com/Cimavia/cimavia/issues/466) |
 
-*Résolues, à l'[archive](archive.md) : O-1.*
+*Résolues, à l'[archive](archive.md) : O-1, O-3.*
 
 > **Tranché en #183** (trois projets Sentry, pas un) : `cimavia-api`, `cimavia-web`,
 > `cimavia-mobile`. Releases et sourcemaps s'attachent **par projet** — mêler un bundle Vite et un
@@ -287,6 +286,8 @@ liste des domaines vivent dans l'index.
 >   middlewares de Nest, et répond sans passer la main (dette **O-3**, [#466](https://github.com/Cimavia/cimavia/issues/466)). Constaté au test de la PR : une demande de
 >   réinitialisation envoie son e-mail sans laisser de ligne `request completed`. Sentry, qui
 >   écoute sous Fastify, les voit bien : le blanchiment de `/reset-password/<jeton>` y sert.
+>   *Corrigé en #466* : ces routes sont journalisées, par les mêmes sérialiseurs — la liste blanche
+>   couvre désormais pour de bon `set-cookie` et `location` (encadré « Tranché en #466 »).
 > - **Une seule liste de secrets d'URL** (`redactUrlSecrets`, `@cmv/shared`), pour le web, les
 >   journaux et Sentry : les paramètres `token`, `code`, `X-Amz-Signature`, et les segments
 >   `/reset-password/<jeton>` (le lien de l'e-mail, qui arrive sur l'API) et
@@ -365,7 +366,8 @@ liste des domaines vivent dans l'index.
 > - **Les journaux disent le niveau et la vraie exception** : `customLogLevel` range un 4xx en
 >   `warn` et un 5xx en `error` ; le filtre pose l'exception sur `res.err`, que `pino-http` lit pour
 >   écrire `err` au lieu de « failed with status code 503 ». Les routes Better Auth (`/api/auth/*`)
->   restent hors du filtre et du logger (O-3, #466) : leur capture se décide avec #698 (voir plus bas).
+>   restent hors du filtre ; elles sont dans le logger depuis #466, et leurs erreurs partent chez
+>   Sentry par la même politique (encadré « Tranché en #466 »).
 
 > **Tranché en #698** (la forme des erreurs de l'API, épic [#696](https://github.com/Cimavia/cimavia/issues/696)) :
 > toute réponse d'erreur est un `application/problem+json` (RFC 9457) — `type`, `title`, `status`,
@@ -391,7 +393,7 @@ liste des domaines vivent dans l'index.
 >   lit son format à lui. Conséquence côté clients (#699) : une erreur Better Auth n'est PAS un
 >   `application/problem+json`, donc `fromApi` la dit « non écrite par l'API » — elle doit être
 >   traitée à part (écarter `/api/auth/*`) plutôt que de partir chez Sentry comme un message
->   fabriqué. Elle reste hors du filtre et du logger (O-3, #466).
+>   fabriqué. Elle reste hors du filtre ; sa ligne de journal existe depuis #466.
 >
 > Le filtre global (`ProblemExceptionFilter`, `apps/api/src/problem/`) remplace `SentryExceptionFilter`
 > et fait le rendu lui-même, sans `BaseExceptionFilter`. Les refus que Fastify prononce avant la
@@ -403,6 +405,63 @@ liste des domaines vivent dans l'index.
 > perd son corps `{ status: "degraded", database: "down" }` : les sondes ne lisent que le statut,
 > `detail` nomme la base.
 >
+> **Tranché en #466** (les routes `/api/auth/*` dans les journaux, et les erreurs de Better Auth
+> chez Pino et Sentry — dette O-3) : `@thallesp/nestjs-better-auth` branche Better Auth par
+> `httpAdapter.use` PENDANT son `configure()`, et Nest n'enregistre les middlewares déclarés —
+> celui de `nestjs-pino` compris — qu'APRÈS tous les `configure()`. Aucun ordre d'import n'y change
+> rien. Six décisions :
+> - **L'option `middleware` du module, pas un hook Fastify `onResponse`** (`authMiddleware`) : elle
+>   n'est appelée que sur `/api/auth/*`, juste avant que Better Auth réponde. Elle écrit la ligne
+>   de la requête par une instance `pino-http` **enfant du logger racine** de `nestjs-pino`
+>   (`authRequestLogger`) : même transport, mêmes sérialiseurs, même message `request completed`,
+>   même identifiant de requête (celui de Fastify, que middie recopie). Un hook `onResponse` aurait
+>   demandé de réécrire le format de la ligne, et Better Auth écrit sur la réponse brute, sans que
+>   Fastify l'envoie. Une requête = une ligne. Écarts assumés : un preflight `OPTIONS` d'une origine
+>   de confiance, auquel le CORS du module répond avant le middleware, n'en laisse aucune ; et cet
+>   enfant, créé au démarrage, garde le niveau qu'avait la racine — aucun code ne le change à chaud.
+> - **Better Auth tourne dans un contexte `nestjs-pino` lié à sa requête** (`runInContext`, `req`
+>   en binding, sérialisé par la même liste blanche) : ses lignes portent le `req.id` de la ligne
+>   de la requête, comme celles d'une route Nest. Le logger est relu à chaque ligne
+>   (`() => pino.logger`) — lu une fois au démarrage, c'était la racine, sans requête ni niveau
+>   courant (relevé en revue).
+> - **Le `logger.log` de Better Auth passe par Pino** (`betterAuthLogging`, `context: "BetterAuth"`,
+>   niveau `warn` écrit), en LISTE BLANCHE : le message blanchi par `redactUrlSecrets`, et l'erreur.
+>   Les autres arguments sont jetés — des objets que la bibliothèque choisit. Avant, ces lignes
+>   allaient sur la console : stdout du conteneur, jamais Axiom.
+> - **Une ligne `error` qui porte une panne reste en `error`, donc part chez Sentry** ; sans
+>   exception (« Invalid origin » face à un robot), ou avec un `APIError` 4xx, elle descend en
+>   `warn`. Un premier jet
+>   plafonnait tout à `warn` pour ne pas doubler les pannes relevées ensuite en 500 ; la revue a
+>   montré ce qu'il perdait : `sign-out` avale l'échec de suppression d'une session et répond 200,
+>   une tâche de fond n'a pas de réponse, et `revoke-sessions` ou `list-sessions` relèvent un 500
+>   SANS cause — seule la ligne la portait. Le doublon se règle à la source : l'erreur journalisée
+>   est marquée (`markSentByLog`), et `captureHttpException` — donc `onError` comme le filtre de
+>   Nest, pour le `getSession` de l'AuthGuard — ne renvoie pas une exception marquée, ni une dont
+>   une cause l'est. Un 500 sans cause sur une route d'auth est sauté si sa requête a déjà envoyé
+>   une panne ; écart assumé, un second 500 sans cause et sans lien n'a alors que sa ligne Axiom.
+> - **`onAPIError.onError` suit la politique des routes Nest** (`captureHttpException`, #696) : un
+>   refus en `warning` regroupé par statut et chemin blanchi (Better Auth n'a pas de motif de
+>   route), sauf le 401 et les refus de sa vérification d'origine (`INVALID_ORIGIN`,
+>   `INVALID_CALLBACK_URL`…), qu'un script obtient sans compte à chaque requête ; une panne en
+>   `error`. Une seconde politique propre à Better Auth aurait
+>   divergé à la prochaine règle (#782 a dû écarter le 429). Le 429 du limiteur de Better Auth n'y
+>   arrive pas : c'est une réponse qu'il rend, pas une erreur qu'il lève. Une panne écrit aussi sa
+>   ligne `error` pour Axiom, avec sa cause, que `sentry.config` écarte comme `request completed` —
+>   APRÈS la capture : l'intégration Dedupe retient aussi un événement que `beforeSend` écarte, et
+>   aurait jeté la capture venue ensuite.
+> - **L'erreur part en liste blanche dans Axiom** (`serializeAuthError`) : type, `code`, message et
+>   pile blanchis, cause. Le sérialiseur par défaut de pino recopiait toute propriété énumérable —
+>   `body` et `headers` d'un `APIError`, `meta` d'une erreur Prisma, `input` d'une URL invalide,
+>   `?token=` compris. La liste porte sur les PROPRIÉTÉS, pas sur le texte du message : celui
+>   d'une erreur de validation Prisma recopie les arguments de la requête. Sentry, lui, reçoit
+>   l'`Error` brute (`pinoIntegration` la lit avant sérialisation), passée par `sentry-scrub`, qui
+>   ne blanchit pas `exception.values[].value`. Les deux valent aussi pour les routes Nest : à
+>   traiter avec le reste en [#783](https://github.com/Cimavia/cimavia/issues/783).
+>
+> Reste sur la console, hors de portée : le `# SERVER_ERROR` que le routeur `better-call` écrit pour
+> une exception qui n'est pas un `APIError`. Il ne le saute que si son `onError` rend une réponse,
+> et Better Auth ne transmet pas celle de `onAPIError.onError`. La même erreur est dans Pino.
+
 > **Tranché en #699** (ce que le web et le mobile envoient à Sentry, épic
 > [#696](https://github.com/Cimavia/cimavia/issues/696)) :
 > - **Le client ne signale que ce que l'API n'a pas pu voir** : une `ApiError` dont `fromApi` est

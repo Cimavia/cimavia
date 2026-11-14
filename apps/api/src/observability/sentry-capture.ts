@@ -3,7 +3,10 @@ import { ThrottlerException } from "@nestjs/throttler";
 import * as Sentry from "@sentry/nestjs";
 
 /** Ce que la capture lit de la requête Fastify, sans dépendre de `fastify`. */
-export type CapturedRequest = { method?: string; routeOptions?: { url?: string } };
+export type CapturedRequest = {
+  method?: string | undefined;
+  routeOptions?: { url?: string | undefined };
+};
 
 /** Le motif de route que les sondes de l'hébergeur interrogent en boucle. */
 const HEALTH_ROUTE = /^\/health(?:\/|$)/;
@@ -49,7 +52,7 @@ export function captureHttpException(
   // révocation d'un appareil, un jeton. Absent pour une route inconnue (404).
   const route = request?.routeOptions?.url;
   const level = sentryLevelOf(status, route, exception);
-  if (!level) return;
+  if (!level || sentByLogLine(exception)) return;
 
   Sentry.withScope((scope) => {
     scope.setLevel(level);
@@ -62,4 +65,28 @@ export function captureHttpException(
     }
     Sentry.captureException(exception);
   });
+}
+
+/**
+ * Les erreurs déjà parties chez Sentry par une ligne de journal `error` (#466). Better Auth
+ * journalise une panne, puis la relève — telle quelle, ou en `APIError` 500 qui la porte en
+ * `cause` (`getSession`, qu'appelle l'AuthGuard) : la capturer encore, par le filtre de Nest ou
+ * par `onError`, ferait deux événements d'une panne. Un `WeakSet` : la marque part avec l'erreur.
+ */
+const sentByLog = new WeakSet<object>();
+
+/** Note qu'une ligne `error` vient d'envoyer cette erreur chez Sentry (`pinoIntegration`). */
+export function markSentByLog(error: object): void {
+  sentByLog.add(error);
+}
+
+/** Assez pour « APIError ← erreur Prisma ← erreur du pilote », sans suivre une boucle. */
+const MAX_CAUSE_DEPTH = 3;
+
+/** L'exception, ou l'une de ses causes, est déjà partie par une ligne de journal. */
+function sentByLogLine(exception: unknown, depth = 0): boolean {
+  if (typeof exception !== "object" || exception === null || depth > MAX_CAUSE_DEPTH) return false;
+  return (
+    sentByLog.has(exception) || sentByLogLine((exception as { cause?: unknown }).cause, depth + 1)
+  );
 }

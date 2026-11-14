@@ -17,11 +17,13 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { ThrottlerException } from "@nestjs/throttler";
 import * as Sentry from "@sentry/nestjs";
+import { APIError } from "better-auth/api";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { API_BODY_LIMIT_BYTES, createHttpAdapter } from "../app.setup";
+import { AUTH_ROUTE_ERROR_MESSAGE } from "../observability/log-messages";
 import { sentryOptions } from "../observability/sentry.config";
-import { sentryLevelOf } from "../observability/sentry-capture";
+import { markSentByLog, sentryLevelOf } from "../observability/sentry-capture";
 import { StaleWriteException } from "../util/stale-write.util";
 import { zodSafeParse } from "../zod/zod.util";
 import { ProblemExceptionFilter } from "./problem-exception.filter";
@@ -90,6 +92,27 @@ class FailingController {
   @Get("health/ready")
   ready(): never {
     throw new ServiceUnavailableException({ status: "degraded" });
+  }
+
+  @Get("session-illisible")
+  sessionIllisible(): never {
+    // Ce que fait `getSession` appelé depuis une garde : la panne journalisée (donc capturée),
+    // puis un 500 qui la porte (#466) — ici sous deux niveaux de cause.
+    const failure = new Error("connexion perdue");
+    markSentByLog(failure);
+    throw APIError.from(
+      "INTERNAL_SERVER_ERROR",
+      { code: "FAILED", message: "Failed to get session" },
+      { cause: new Error("Prisma", { cause: failure }) },
+    );
+  }
+
+  @Get("panne-relancee")
+  panneRelancee(): never {
+    // Journalisée, puis relancée telle quelle.
+    const failure = new Error("connexion perdue");
+    markSentByLog(failure);
+    throw failure;
   }
 }
 
@@ -210,6 +233,16 @@ describe("ProblemExceptionFilter — ce que Sentry reçoit vraiment", () => {
     expect(response.statusCode).toBe(429);
     expect(sent).toEqual([]);
   });
+
+  it.each(["/session-illisible", "/panne-relancee"])(
+    "n'envoie pas %s : la panne, ou sa cause, est déjà partie par sa ligne de journal",
+    async (url) => {
+      const response = await get(url);
+
+      expect(response.statusCode).toBe(500);
+      expect(sent).toEqual([]);
+    },
+  );
 
   it("envoie un autre 429, qui dit une tentative et non un débit", async () => {
     const response = await get("/essais");
@@ -435,15 +468,105 @@ describe("pinoIntegration — les erreurs avalées par un catch", () => {
     expect(logs).toEqual([]);
   });
 
-  it.each(["request errored", "request completed"])(
-    "n'envoie pas la ligne « %s » de pino-http : le filtre a déjà capturé la même panne",
+  it.each(["request errored", "request completed", AUTH_ROUTE_ERROR_MESSAGE])(
+    "n'envoie pas la ligne « %s » : la même panne est déjà capturée",
     async (message) => {
       const logger = await pinoLogger();
 
-      logger.error({ err: new Error("failed with status code 503") }, message);
+      // Un message par cas : la même erreur deux fois de suite, Dedupe l'écarterait d'office, et le
+      // test passerait sans l'exclusion qu'il vérifie.
+      logger.error({ err: new Error(`failed with status code 503 (${message})`) }, message);
       await Sentry.flush(2000);
 
       expect(sent).toEqual([]);
     },
   );
+});
+
+/**
+ * Better Auth (#466) : ses routes répondent hors de Nest, mais leurs erreurs suivent la même
+ * politique, et une panne n'y fait qu'UN événement — qu'elle arrive par sa ligne de journal, par
+ * `onError`, ou par les deux.
+ */
+describe("Better Auth — ce que Sentry reçoit vraiment", () => {
+  async function logging() {
+    // Chargés APRÈS `Sentry.init`, comme dans l'app : l'intégration instrumente `pino`.
+    const { default: pino } = await import("pino");
+    const { betterAuthLogging, runInAuthRequest } = await import(
+      "../observability/better-auth-log"
+    );
+    const root = pino({ level: "debug" }, { write: () => undefined });
+    return { logging: betterAuthLogging(() => root), runInAuthRequest };
+  }
+
+  const signIn = { method: "POST", url: "/api/auth/sign-in/email" };
+
+  it("envoie l'erreur que Better Auth avale, faute de quoi rien ne la montre", async () => {
+    const { logging: auth } = await logging();
+
+    auth.log("error", "Failed to delete session from database", new Error("connexion perdue"));
+    await Sentry.flush(2000);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: "error" });
+    expect(sent[0]?.exception?.values?.[0]?.value).toBe("connexion perdue");
+  });
+
+  it("n'envoie qu'un événement pour une cause journalisée puis relevée en 500", async () => {
+    const { logging: auth, runInAuthRequest } = await logging();
+    const cause = new Error("connexion perdue");
+
+    runInAuthRequest(signIn, () => {
+      auth.log("error", "INTERNAL_SERVER_ERROR", cause);
+      auth.onError(
+        APIError.from(
+          "INTERNAL_SERVER_ERROR",
+          { code: "FAILED", message: "Failed to get session" },
+          { cause },
+        ),
+      );
+    });
+    await Sentry.flush(2000);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.exception?.values?.at(-1)?.value).toBe("connexion perdue");
+  });
+
+  it("envoie une panne imprévue une fois, en error : sa ligne pour Axiom ne double pas", async () => {
+    const { logging: auth, runInAuthRequest } = await logging();
+
+    runInAuthRequest(signIn, () => auth.onError(new Error('relation "user" does not exist')));
+    await Sentry.flush(2000);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: "error" });
+  });
+
+  it("envoie un refus en warning, regroupé par statut et chemin", async () => {
+    const { logging: auth, runInAuthRequest } = await logging();
+
+    runInAuthRequest(signIn, () =>
+      auth.onError(new APIError("FORBIDDEN", { message: "Email not verified" })),
+    );
+    await Sentry.flush(2000);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ level: "warning" });
+    expect(sent[0]?.fingerprint).toEqual(["403", "POST /api/auth/sign-in/email"]);
+  });
+
+  it("n'envoie ni un mot de passe faux (401), ni une origine refusée", async () => {
+    const { logging: auth, runInAuthRequest } = await logging();
+
+    runInAuthRequest(signIn, () => {
+      auth.onError(new APIError("UNAUTHORIZED", { message: "Invalid email or password" }));
+      auth.log("error", "Invalid origin: https://robot.example");
+      auth.onError(
+        APIError.from("FORBIDDEN", { code: "INVALID_ORIGIN", message: "Invalid origin" }),
+      );
+    });
+    await Sentry.flush(2000);
+
+    expect(sent).toEqual([]);
+  });
 });
