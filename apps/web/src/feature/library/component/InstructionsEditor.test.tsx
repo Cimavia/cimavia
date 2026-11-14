@@ -11,6 +11,10 @@ import { InstructionsEditor } from "./InstructionsEditor";
 beforeAll(installProseMirrorLayout);
 
 const paragraph = (text: string) => ({ type: RichBlockType.PARAGRAPH, content: [{ text }] });
+const linked = (text: string, href: string) => ({
+  type: RichBlockType.PARAGRAPH,
+  content: [{ text, href }],
+});
 
 /** Le presse-papiers tel que ProseMirror le lit : jsdom n'a pas de `DataTransfer`. */
 function clipboard(entries: Record<string, string>) {
@@ -266,12 +270,7 @@ describe("InstructionsEditor — lien", () => {
     await view.user.type(field, "https://video.example/tuto");
     await apply(view);
 
-    expect(view.last()).toEqual([
-      {
-        type: RichBlockType.PARAGRAPH,
-        content: [{ text: "la vidéo", href: "https://video.example/tuto" }],
-      },
-    ]);
+    expect(view.last()).toEqual([linked("la vidéo", "https://video.example/tuto")]);
     expect(view.queryByRole("textbox", { name: LINK_URL })).not.toBeInTheDocument();
     expect(view.tool("link")).toHaveAttribute("aria-pressed", "true");
   });
@@ -312,18 +311,87 @@ describe("InstructionsEditor — lien", () => {
   });
 
   it("retire le lien de la sélection quand elle en porte un", async () => {
-    const view = setup([
-      {
-        type: RichBlockType.PARAGRAPH,
-        content: [{ text: "la vidéo", href: "https://video.example" }],
-      },
-    ]);
+    const view = setup([linked("la vidéo", "https://video.example")]);
 
     await view.selectAll();
     await view.user.click(view.tool("link"));
 
     expect(view.last()).toEqual([paragraph("la vidéo")]);
     expect(view.queryByRole("textbox", { name: LINK_URL })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * #329 : un lien que le serveur refuse faisait refuser TOUT l'exercice. Sans passer par le bouton,
+ * seul un http(s) écrit en entier devient un lien — une adresse e-mail reste du texte.
+ */
+describe("InstructionsEditor — lien posé sans le bouton", () => {
+  it("laisse en texte une adresse e-mail tapée", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.type(surface, "Questions : coach@club.fr fin");
+
+    expect(last()).toEqual([paragraph("Questions : coach@club.fr fin")]);
+  });
+
+  it("fait un lien d'une adresse http(s) tapée en entier", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.type(surface, "https://cimavia.fr ");
+
+    expect(last()).toEqual([
+      {
+        type: RichBlockType.PARAGRAPH,
+        content: [{ text: "https://cimavia.fr", href: "https://cimavia.fr" }, { text: " " }],
+      },
+    ]);
+  });
+
+  it.each(["Écrire à coach@club.fr", "Voir cimavia.fr"])(
+    "laisse en texte « %s » collé",
+    async (pasted) => {
+      const { user, surface, last } = setup(null);
+
+      surface.focus();
+      await user.paste(clipboard({ "text/plain": pasted }));
+
+      expect(last()).toEqual([paragraph(pasted)]);
+    },
+  );
+
+  // Le cas le plus courant en vrai : un lien `mailto:` copié depuis un mail ou une page web.
+  it("garde le texte mais pas le lien d'un mailto collé en html", async () => {
+    const { user, surface, last } = setup(null);
+
+    surface.focus();
+    await user.paste(
+      clipboard({
+        "text/html": '<p>Écrire à <a href="mailto:coach@club.fr">coach@club.fr</a></p>',
+        "text/plain": "Écrire à coach@club.fr",
+      }),
+    );
+
+    expect(last()).toEqual([paragraph("Écrire à coach@club.fr")]);
+  });
+
+  it("ne pose pas de lien en collant une adresse e-mail sur une sélection", async () => {
+    const { user, selectAll, last } = setup([paragraph("le coach")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/plain": "coach@club.fr" }));
+
+    expect(last()).toEqual([paragraph("coach@club.fr")]);
+  });
+
+  it("pose le lien en collant une adresse http(s) sur une sélection", async () => {
+    const { user, selectAll, last } = setup([paragraph("la vidéo")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/plain": "https://video.example/tuto" }));
+
+    expect(last()).toEqual([linked("la vidéo", "https://video.example/tuto")]);
   });
 });
 
