@@ -1,6 +1,6 @@
 import { NotificationType, PushPlatform } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
@@ -8,6 +8,10 @@ import type { ReactNode } from "react";
 import { Platform } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { revokeCurrentPushToken, usePushToken } from "@/feature/notification/hook/usePushToken";
+import {
+  ExercisedCapabilityProvider,
+  useExercisedCapability,
+} from "@/shared/hook/useExercisedCapability";
 
 const { registerMock, revokeMock } = vi.hoisted(() => ({
   registerMock: vi.fn(),
@@ -45,14 +49,28 @@ const DENIED = { status: "denied", granted: false, canAskAgain: true };
 
 let queryClient: QueryClient;
 
+// Le fournisseur du titre exercé, que `app/_layout.tsx` pose à la racine : le listener bascule le
+// sélecteur avant de naviguer (#344).
 function wrapper({ children }: Readonly<{ children: ReactNode }>) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ExercisedCapabilityProvider>{children}</ExercisedCapabilityProvider>
+    </QueryClientProvider>
+  );
 }
 
 function signedInAs(capabilities: Readonly<{ isCoach: boolean; isAthlete: boolean }>) {
   vi.mocked(authClient.useSession).mockReturnValue({
-    data: { user: capabilities },
+    data: { user: { id: "u-1", ...capabilities } },
     isPending: false,
+  } as ReturnType<typeof authClient.useSession>);
+}
+
+/** La session pas encore résolue : le démarrage à froid depuis un push. */
+function sessionPending() {
+  vi.mocked(authClient.useSession).mockReturnValue({
+    data: null,
+    isPending: true,
   } as ReturnType<typeof authClient.useSession>);
 }
 
@@ -119,6 +137,15 @@ describe("permission de notification", () => {
 });
 
 describe("enregistrement de l'appareil", () => {
+  // Un token ne vaut que rattaché à un compte : rien ne part tant que la session n'en dit aucun.
+  it("attend un compte pour enregistrer l'appareil", () => {
+    sessionPending();
+    renderHook(() => usePushToken(), { wrapper });
+
+    expect(getPermissions).not.toHaveBeenCalled();
+    expect(registerMock).not.toHaveBeenCalled();
+  });
+
   // Un émulateur n'a pas de service de notification : lui demander la permission afficherait un
   // refus à chaque démarrage de l'app en développement.
   it("ne demande rien sur un émulateur", async () => {
@@ -224,10 +251,15 @@ describe("enregistrement de l'appareil", () => {
 });
 
 describe("toucher une notification", () => {
+  // Dans `act` : le listener note le toucher, un effet l'ouvre au rendu suivant.
   function touchPush(data: unknown) {
     const handler = addResponseListener.mock.calls[0]?.[0];
     if (handler == null) throw new Error("aucun écouteur de réponse installé");
-    handler({ notification: { request: { content: { data } } } } as Parameters<typeof handler>[0]);
+    act(() => {
+      handler({ notification: { request: { content: { data } } } } as Parameters<
+        typeof handler
+      >[0]);
+    });
   }
 
   /**
@@ -245,9 +277,50 @@ describe("toucher une notification", () => {
   });
 
   /**
-   * Un cycle diffusé ne mène nulle part pour un coach — le builder est web-only (#20). Le cache se
+   * Un cycle diffusé ne mène nulle part pour un coach seul : il se lit en athlète (#344), et le
+   * builder est web-only (#20). Le cache se
    * rafraîchit quand même : il s'est bien passé quelque chose, on ne ment pas sur l'endroit.
    */
+  /**
+   * Même geste que la ligne du centre (#344) : un compte qui cumule, en titre coach, ouvre le push
+   * d'un cycle diffusé — le planning s'ouvre, et le sélecteur passe en athlète avant.
+   */
+  it("bascule le titre exercé sur celui de la notification avant de l'ouvrir", async () => {
+    signedInAs({ isCoach: true, isAthlete: true });
+    const { result } = renderHook(
+      () => {
+        usePushToken();
+        return useExercisedCapability();
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(getPermissions).toHaveBeenCalled());
+    expect(result.current).toBe("coach");
+
+    touchPush({ type: NotificationType.PLAN_PUBLISHED, planId: "plan-1" });
+
+    expect(router.push).toHaveBeenCalledWith("/planning");
+    expect(result.current).toBe("athlete");
+  });
+
+  /**
+   * Démarrage à froid depuis un push : le toucher arrive avant la session, aucune capacité n'est
+   * connue. Router là ne mènerait nulle part, et Expo ne rejoue pas la réponse — elle attend donc
+   * la session, puis s'ouvre.
+   */
+  it("attend la session pour ouvrir un push touché au démarrage", async () => {
+    sessionPending();
+    const { rerender } = renderHook(() => usePushToken(), { wrapper });
+
+    touchPush({ type: NotificationType.PLAN_PUBLISHED, planId: "plan-1" });
+    expect(router.push).not.toHaveBeenCalled();
+
+    signedInAs({ isCoach: false, isAthlete: true });
+    rerender();
+
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/planning"));
+  });
+
   it("rafraîchit sans naviguer quand la destination n'existe pas", async () => {
     signedInAs({ isCoach: true, isAthlete: false });
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");

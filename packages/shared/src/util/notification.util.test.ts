@@ -5,6 +5,7 @@ import {
   capabilityOfNotification,
   notificationCategoriesFor,
   notificationFilterChoices,
+  notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
 } from "./notification.util";
@@ -69,6 +70,49 @@ describe("capabilityOfNotification", () => {
   // que d'être compté du mauvais côté.
   it("ne range nulle part un type qu'elle ne connaît pas", () => {
     expect(capabilityOfNotification("SOMETHING_NEW" as NotificationType)).toBeNull();
+  });
+});
+
+describe("notificationOpeningCapability", () => {
+  const BOTH = { isCoach: true, isAthlete: true, isCompany: false };
+  const ATHLETE_ONLY = { isCoach: false, isAthlete: true, isCompany: false };
+
+  /**
+   * Le centre liste tout ce que le compte a reçu, des deux côtés : c'est le TYPE qui dit sous quel
+   * titre l'ouvrir, quel que soit celui qu'on exerce. Le contraire enverrait un débrief, ouvert en
+   * titre athlète, vers une route d'athlète.
+   */
+  it("ouvre sous le titre de la notification, pas sous celui qu'on exerce", () => {
+    expect(notificationOpeningCapability(NotificationType.PLAN_PUBLISHED, BOTH, "coach")).toBe(
+      "athlete",
+    );
+    expect(notificationOpeningCapability(NotificationType.FEEDBACK_RECEIVED, BOTH, "athlete")).toBe(
+      "coach",
+    );
+  });
+
+  // Les deux côtés d'un fil reçoivent un message : seul le titre exercé départage.
+  it("s'en remet au titre exercé pour un message", () => {
+    expect(notificationOpeningCapability(NotificationType.MESSAGE_RECEIVED, BOTH, "athlete")).toBe(
+      "athlete",
+    );
+    expect(notificationOpeningCapability(NotificationType.MESSAGE_RECEIVED, BOTH, "coach")).toBe(
+      "coach",
+    );
+  });
+
+  // Fail closed : un client ne devine pas le titre d'un type que l'API a ajouté après lui.
+  it("n'ouvre rien d'un type qu'elle ne connaît pas", () => {
+    expect(
+      notificationOpeningCapability("SOMETHING_NEW" as NotificationType, BOTH, "coach"),
+    ).toBeNull();
+  });
+
+  // Un Coach qui a cessé de coacher relit un vieux débrief : aucun de ses écrans ne le montre.
+  it("n'ouvre rien sous une capacité que le compte n'a plus", () => {
+    expect(
+      notificationOpeningCapability(NotificationType.FEEDBACK_RECEIVED, ATHLETE_ONLY, "athlete"),
+    ).toBeNull();
   });
 });
 
