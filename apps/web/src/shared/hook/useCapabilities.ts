@@ -64,7 +64,7 @@ export function useExercisedCapability(): TrainingCapability | null {
  *
  * Il se DÉDUIT de l'URL, sans état applicatif : le chemin dit déjà à quel univers on est
  * (`/library` est coach, `/planning` est athlète), et `?as=` tranche pour les deux routes servies
- * aux deux (#129). Un état séparé aurait pu diverger de la page affichée — on aurait vu le menu
+ * aux deux (#129) — borné aux capacités que le compte possède (#371). Un état séparé aurait pu diverger de la page affichée — on aurait vu le menu
  * coach au-dessus d'un écran d'athlète.
  *
  * Le **persona** (`role`) ne sert que de repli, pour les chemins hors nav : `/reset-password`, une
@@ -74,8 +74,14 @@ export function useActiveSpace(): CapabilityName {
   const { data } = authClient.useSession();
   const { pathname } = useLocation();
   const search = useSearch({ strict: false }) as { as?: unknown };
+  const { isCoach, isAthlete } = capabilitiesOf(data?.user);
 
-  if (search.as === "coach" || search.as === "athlete") return search.as;
+  // `?as=` est un choix d'URL, donc forgeable : un signet, un lien copié, un « Retour » après avoir
+  // retiré une capacité (#371). Il ne vaut que pour un titre que le compte POSSÈDE ; sinon on
+  // retombe sur le chemin, puis le persona, comme s'il était absent.
+  if ((search.as === "coach" && isCoach) || (search.as === "athlete" && isAthlete)) {
+    return search.as;
+  }
   const fromPath = spaceOfPath(pathname);
   if (fromPath != null) return fromPath;
   switch (data?.user.role) {
