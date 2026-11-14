@@ -24,7 +24,11 @@ type BlockTimerOverlayProps = {
   remaining: number;
   total: number;
   isPaused: boolean;
-  armed: boolean;
+  /**
+   * `false` seul avertit. `null` n'est pas un refus : rien n'est à programmer, ou l'OS n'a pas
+   * encore répondu (#374).
+   */
+  armed: boolean | null;
   onConfirm: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -86,9 +90,9 @@ export function BlockTimerOverlay({
           <CmvText className="text-cmv-text-mid text-sm">{text([counter])}</CmvText>
         )}
         <StepExercises read={read} step={step} />
-        {armed || awaiting ? null : (
+        {armed === false ? (
           <CmvText className="text-cmv-text-lo text-xs">{t("plan.timer.notArmed")}</CmvText>
-        )}
+        ) : null}
       </View>
 
       <View className="gap-3">
