@@ -630,6 +630,47 @@ liste des domaines vivent dans l'index.
 
 ---
 
+## Post-MVP — Images retirées de la consigne ([#330](https://github.com/Cimavia/cimavia/issues/330))
+
+> **Tranché en [#330](https://github.com/Cimavia/cimavia/issues/330)** (une image que la consigne
+> ne cite plus ne vit plus nulle part) : une image retirée ou remplacée restait rattachée, filtrée
+> des pièces jointes donc insupprimable, recopiée dans chaque séance planifiée — et téléchargée par
+> le téléphone de l'athlète pour le hors-ligne. Côté web, une image posée puis retirée partait même
+> à l'enregistrement.
+>
+> - **C'est la consigne qui dit ce qui part, pas le magasin.** Le builder ne retire rien de son
+>   magasin quand le Coach supprime une image : un Ctrl+Z la remet, elle doit pouvoir partir.
+>   `citedPendingImages` filtre au moment d'enregistrer. Et une image déjà envoyée que
+>   l'enregistrement ne cite plus redevient « en attente » (`forgetUncitedSent`) : remise par
+>   Ctrl+Z, elle repart, au lieu de citer un document supprimé et de prendre un 400.
+> - **Le serveur fait le ménage à chaque écriture de `instructions`** (`uncitedInstructionImages`) :
+>   les lignes dans la transaction, les objets après, par `DocumentCleanupService` — un objet
+>   qu'une séance planifiée ou une variante porte encore reste. `instructions` absent : rien ne
+>   bouge ; `null` : toutes les images partent, pièces jointes et liens jamais.
+> - **La purge des objets ne fait pas échouer la réponse.** L'écriture est faite : un 500 ferait
+>   réessayer le builder sur une version périmée, donc un 409. Un échec se journalise — le nom de
+>   l'erreur, jamais l'erreur S3 entière, qui porte la clé — et laisse l'objet orphelin, P2-1
+>   ([#72](https://github.com/Cimavia/cimavia/issues/72)). Un seul décompte des clés, les
+>   suppressions en parallèle : la réponse les attend.
+> - **Aucune copie ne reprend une image que sa consigne ne cite pas** (`withoutUncitedImages`) —
+>   séance planifiée, copie de semaine et copie figée (#609). Filet pour les orphelins d'avant
+>   #330, et pour l'image d'un enregistrement en cours.
+> - **Aucune reprise de données.** Les orphelins de la bibliothèque partent au prochain
+>   enregistrement de leur exercice (le builder renvoie toujours la consigne). Les copies déjà
+>   faites en séance planifiée restent ; elles se comptent avant de décider d'en faire plus.
+> - **Contreparties assumées** :
+>   - un rédacteur dont l'image vient d'être rattachée, quand le propriétaire enregistre avant la
+>     fin de son envoi, la perd — mais son enregistrement prend de toute façon un 409, et il
+>     recharge ;
+>   - une image **chargée avec l'exercice**, retirée, enregistrée puis remise par Ctrl+Z, s'affiche
+>     « introuvable » et l'enregistrement suivant prend un 400 : son fichier n'est plus sur le
+>     poste. Le Coach la retire et la repose ;
+>   - le décompte des références se fait après le commit, hors transaction : une diffusion qui
+>     valide sa copie dans les millisecondes qui suivent garde une clé déjà purgée. La même course
+>     existe déjà sur la suppression d'un document ou d'un exercice.
+
+---
+
 ## Post-MVP — Dosage ajusté pour un athlète ([#518](https://github.com/Cimavia/cimavia/issues/518))
 
 > **Tranché en [#518](https://github.com/Cimavia/cimavia/issues/518)** (une mécanique, paramétrée
