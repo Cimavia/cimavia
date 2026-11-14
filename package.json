@@ -31,13 +31,13 @@
     "prepare": "husky && node -e \"import('./scripts/worktree-env.mjs').catch((error) => { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; })\""
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.6",
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
     "husky": "9.1.7",
     "lint-staged": "17.6.0",
     "squawk-cli": "2.70.0",
-    "turbo": "2.11.9",
+    "turbo": "2.11.10",
     "typescript": "6.0.3"
   }
 }
