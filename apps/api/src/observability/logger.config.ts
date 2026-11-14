@@ -129,6 +129,11 @@ export function loggerOptions(): Options {
  * produit UNE ligne. Un preflight `OPTIONS` venu d'une origine de confiance n'en produit aucune :
  * le CORS du module y répond avant d'appeler ce middleware. Celui d'une autre origine, ou sans
  * origine, passe par lui et se journalise.
+ *
+ * Écart assumé : cet enfant, créé au démarrage, garde le niveau qu'avait la racine, quand les
+ * lignes de Better Auth (`betterAuthLogging`) suivent son niveau courant. Aucun code ne le change
+ * à chaud aujourd'hui ; le jour où ce sera le cas, la ligne de la requête restera au niveau du
+ * démarrage.
  */
 export function authRequestLogger(logger: Logger): HttpLogger {
   return pinoHttp({ ...requestLogOptions(), logger });

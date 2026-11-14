@@ -1,27 +1,44 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { APIError } from "better-auth/api";
-import { pino } from "pino";
-import { beforeEach, describe, expect, it } from "vitest";
-import { betterAuthLogging, serializeAuthError } from "./better-auth-log";
+import { type Logger, pino } from "pino";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  authMiddleware,
+  betterAuthLogging,
+  type ContextLogger,
+  runInAuthRequest,
+  serializeAuthError,
+} from "./better-auth-log";
+import { captureHttpException } from "./sentry-capture";
+
+vi.mock("./sentry-capture", async (original) => ({
+  ...(await original<typeof import("./sentry-capture")>()),
+  captureHttpException: vi.fn(),
+}));
 
 /** Les lignes réellement écrites par un vrai logger pino, dont seul le flux est remplacé. */
 let lines: Record<string, unknown>[];
+let root: Logger;
 let logging: ReturnType<typeof betterAuthLogging>;
 
 beforeEach(() => {
+  vi.mocked(captureHttpException).mockClear();
   lines = [];
-  const root = pino({ level: "debug" }, { write: (line: string) => lines.push(JSON.parse(line)) });
-  logging = betterAuthLogging(root);
+  root = pino({ level: "debug" }, { write: (line: string) => lines.push(JSON.parse(line)) });
+  logging = betterAuthLogging(() => root);
 });
 
+const signIn = { method: "POST", url: "/api/auth/sign-in/email" };
+
 describe("betterAuthLogging — log", () => {
-  it("garde une erreur et sa cause, en warn : la panne relevée part chez Sentry par ailleurs", () => {
-    logging.log("error", "INTERNAL_SERVER_ERROR", new Error("connexion perdue"));
+  it("garde en error une erreur portant son exception : souvent, Better Auth l'avale", () => {
+    logging.log("error", "Failed to delete session from database", new Error("connexion perdue"));
 
     expect(lines).toEqual([
       expect.objectContaining({
-        level: 40,
+        level: 50,
         context: "BetterAuth",
-        msg: "INTERNAL_SERVER_ERROR",
+        msg: "Failed to delete session from database",
         err: expect.objectContaining({ type: "Error", message: "connexion perdue" }),
       }),
     ]);
@@ -33,6 +50,18 @@ describe("betterAuthLogging — log", () => {
     expect(lines).toEqual([
       expect.objectContaining({ level: 40, msg: "Invalid origin: https://robot.example" }),
     ]);
+  });
+
+  it("écrit en warn une erreur dont l'exception est un refus (APIError 4xx)", () => {
+    logging.log("error", "Failed to verify", new APIError("BAD_REQUEST", { message: "refus" }));
+
+    expect(lines).toEqual([expect.objectContaining({ level: 40, err: expect.any(Object) })]);
+  });
+
+  it("garde le niveau d'un avertissement qui porte une exception", () => {
+    logging.log("warn", "Rate limit storage", new Error("lent"));
+
+    expect(lines).toEqual([expect.objectContaining({ level: 40, err: expect.any(Object) })]);
   });
 
   it("lit l'erreur passée à la place du message", () => {
@@ -59,26 +88,57 @@ describe("betterAuthLogging — log", () => {
     expect(lines).toEqual([expect.objectContaining({ level: 40, msg: "Invalid password" })]);
     expect(JSON.stringify(lines)).not.toMatch(/coach@cmv\.test|jeton-de-session/);
   });
+
+  it("relit le logger à chaque ligne : celui de la requête, au niveau courant", () => {
+    const loggers = [root.child({ req: { id: "r1" } }), root.child({ req: { id: "r2" } })];
+    const perRequest = betterAuthLogging(() => loggers.shift() ?? root);
+
+    perRequest.log("warn", "un");
+    perRequest.log("warn", "deux");
+    root.level = "error";
+    perRequest.log("warn", "trois");
+
+    expect(lines.map((line) => line.req)).toEqual([{ id: "r1" }, { id: "r2" }]);
+  });
 });
 
 describe("betterAuthLogging — onError", () => {
-  it("ignore un refus : la ligne de la requête le dit déjà", () => {
-    logging.onError(new APIError("UNAUTHORIZED", { message: "Invalid email or password" }));
+  it("passe un refus à la politique des routes Nest, sans ligne : celle de la requête suffit", () => {
+    const error = new APIError("FORBIDDEN", { message: "Email not verified" });
 
+    runInAuthRequest(signIn, () => logging.onError(error));
+
+    expect(captureHttpException).toHaveBeenCalledWith(error, 403, {
+      method: "POST",
+      routeOptions: { url: "/api/auth/sign-in/email" },
+    });
     expect(lines).toEqual([]);
   });
 
-  it("écrit un APIError 500 en error, avec sa cause", () => {
-    logging.onError(
-      APIError.from(
-        "INTERNAL_SERVER_ERROR",
-        { code: "FAILED", message: "Failed to get session" },
-        {
-          cause: new Error("connexion perdue"),
-        },
-      ),
+  it("nomme la route par son chemin blanchi, sans sa requête", () => {
+    const error = new APIError("BAD_REQUEST", { message: "Invalid token" });
+
+    runInAuthRequest(
+      { method: "GET", url: "/api/auth/reset-password/jeton?callbackURL=%2Fx" },
+      () => logging.onError(error),
     );
 
+    expect(captureHttpException).toHaveBeenCalledWith(error, 400, {
+      method: "GET",
+      routeOptions: { url: "/api/auth/reset-password/[Filtered]" },
+    });
+  });
+
+  it("capture une panne et l'écrit en error pour Axiom, avec sa cause", () => {
+    const error = APIError.from(
+      "INTERNAL_SERVER_ERROR",
+      { code: "FAILED", message: "Failed to get session" },
+      { cause: new Error("connexion perdue") },
+    );
+
+    logging.onError(error);
+
+    expect(captureHttpException).toHaveBeenCalledWith(error, 500, undefined);
     expect(lines).toEqual([
       expect.objectContaining({
         level: 50,
@@ -91,16 +151,118 @@ describe("betterAuthLogging — onError", () => {
     ]);
   });
 
-  it("écrit une exception imprévue en error", () => {
-    logging.onError(new Error('relation "user" does not exist'));
+  it("traite une exception imprévue en 500", () => {
+    const error = new Error('relation "user" does not exist');
 
-    expect(lines).toEqual([
-      expect.objectContaining({
-        level: 50,
-        context: "BetterAuth",
-        err: expect.objectContaining({ message: 'relation "user" does not exist' }),
-      }),
+    logging.onError(error);
+
+    expect(captureHttpException).toHaveBeenCalledWith(error, 500, undefined);
+    expect(lines).toEqual([expect.objectContaining({ level: 50, context: "BetterAuth" })]);
+  });
+
+  it("ne double pas un 500 sans cause quand sa requête a déjà envoyé la panne", () => {
+    runInAuthRequest(signIn, () => {
+      logging.log("error", "Failed to list sessions", new Error("connexion perdue"));
+      // Relevé SANS cause (`revoke-sessions`, `list-sessions`) : rien ne le relie à la ligne.
+      logging.onError(new APIError("INTERNAL_SERVER_ERROR"));
+    });
+
+    expect(captureHttpException).not.toHaveBeenCalled();
+    // Axiom garde la ligne du 500, Sentry n'a que la panne.
+    expect(lines.map((line) => line.msg)).toEqual([
+      "Failed to list sessions",
+      "Erreur d'une route Better Auth",
     ]);
+  });
+
+  it("passe un 500 dont la cause est une autre panne, même après une ligne envoyée", () => {
+    const error = APIError.from(
+      "INTERNAL_SERVER_ERROR",
+      { code: "FAILED", message: "Failed to create session" },
+      { cause: new Error("autre panne") },
+    );
+
+    runInAuthRequest(signIn, () => {
+      logging.log("error", "Failed to delete session from database", new Error("a"));
+      logging.onError(error);
+    });
+
+    expect(captureHttpException).toHaveBeenCalledWith(error, 500, expect.any(Object));
+  });
+
+  it("ne compte pas un refus journalisé comme une panne envoyée", () => {
+    runInAuthRequest(signIn, () => {
+      logging.log("error", "Failed to verify", new APIError("BAD_REQUEST"));
+      logging.onError(new APIError("INTERNAL_SERVER_ERROR"));
+    });
+
+    expect(captureHttpException).toHaveBeenCalledWith(
+      expect.any(APIError),
+      500,
+      expect.any(Object),
+    );
+  });
+
+  it.each([
+    "INVALID_ORIGIN",
+    "MISSING_OR_NULL_ORIGIN",
+    "INVALID_CALLBACK_URL",
+    "CROSS_SITE_NAVIGATION_LOGIN_BLOCKED",
+  ])("n'envoie pas le refus d'origine %s, qu'un script répète à volonté", (code) => {
+    runInAuthRequest(signIn, () =>
+      logging.onError(APIError.from("FORBIDDEN", { code, message: "refus" })),
+    );
+
+    expect(captureHttpException).not.toHaveBeenCalled();
+    expect(lines).toEqual([]);
+  });
+
+  it("ne confond pas deux requêtes : la panne de l'une ne fait pas taire l'autre", () => {
+    runInAuthRequest(signIn, () => logging.log("error", "INTERNAL_SERVER_ERROR", new Error("a")));
+    runInAuthRequest(signIn, () => logging.onError(new APIError("INTERNAL_SERVER_ERROR")));
+
+    expect(captureHttpException).toHaveBeenCalledOnce();
+  });
+
+  it("capture encore un refus après une panne journalisée dans la même requête", () => {
+    runInAuthRequest(signIn, () => {
+      logging.log("error", "INTERNAL_SERVER_ERROR", new Error("a"));
+      logging.onError(new APIError("FORBIDDEN"));
+    });
+
+    expect(captureHttpException).toHaveBeenCalledOnce();
+  });
+});
+
+describe("authMiddleware", () => {
+  it("écrit la ligne de la requête, et rattache ce qui suit à un contexte lié à la requête", async () => {
+    const contexts: unknown[] = [];
+    const pinoLogger: ContextLogger = {
+      logger: root,
+      runInContext: (fn, options) => {
+        contexts.push(options?.bindings);
+        return fn();
+      },
+    };
+    const req = Object.assign(new EventTarget(), {
+      id: "r1",
+      method: "POST",
+      url: "/api/auth/sign-in/email",
+      headers: {},
+      socket: {},
+    }) as unknown as IncomingMessage;
+    const res = { statusCode: 200, on: vi.fn(), setHeader: vi.fn(), getHeaders: () => ({}) };
+    const next = vi.fn(() => logging.onError(new APIError("FORBIDDEN")));
+
+    authMiddleware(pinoLogger)(req, res as unknown as ServerResponse, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(contexts).toEqual([{ req }]);
+    // `onError` y lit la requête d'auth en cours.
+    expect(captureHttpException).toHaveBeenCalledWith(expect.any(APIError), 403, {
+      method: "POST",
+      routeOptions: { url: "/api/auth/sign-in/email" },
+    });
   });
 });
 

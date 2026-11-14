@@ -1,6 +1,7 @@
 import { sentryDataCollection } from "@cmv/shared";
 import * as Sentry from "@sentry/nestjs";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
+import { AUTH_ROUTE_ERROR_MESSAGE } from "./log-messages";
 import { scrubEvent, scrubSpan } from "./sentry-scrub";
 
 type SentryEvent = Parameters<NonNullable<SentryOptions["beforeSend"]>>[0];
@@ -8,9 +9,15 @@ type SentryEvent = Parameters<NonNullable<SentryOptions["beforeSend"]>>[0];
 /**
  * Les lignes que `pino-http` écrit à la fin d'une requête. En `error` (une 5xx), `pinoIntegration`
  * en ferait un événement de plus : le filtre d'exception a déjà envoyé la même panne, avec sa vraie
- * pile et son regroupement. Les autres lignes `error` (un `catch` qui journalise) restent.
+ * pile et son regroupement. Même chose pour la ligne d'une route Better Auth. Les autres lignes
+ * `error` (un `catch` qui journalise) restent.
  */
-const REQUEST_LOG_MESSAGES = new Set(["request completed", "request errored", "request aborted"]);
+const REQUEST_LOG_MESSAGES = new Set([
+  "request completed",
+  "request errored",
+  "request aborted",
+  AUTH_ROUTE_ERROR_MESSAGE,
+]);
 
 function isRequestLogLine(event: SentryEvent): boolean {
   const message = (event.contexts?.pino as { msg?: unknown } | undefined)?.msg;

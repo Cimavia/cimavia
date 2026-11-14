@@ -249,7 +249,7 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     // `warn`, le défaut de la bibliothèque, mais ÉCRIT : c'est ce que `betterAuthLogging` reçoit
     // (#466). Laissé implicite, une mise à jour le changerait et ferait entrer ses `info` dans Axiom.
     logger: { level: "warn", log: config.logging.log },
-    onAPIError: { onError: (error) => config.logging.onError(error) },
+    onAPIError: { onError: config.logging.onError },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,
