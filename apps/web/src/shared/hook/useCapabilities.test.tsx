@@ -51,6 +51,21 @@ describe("useActiveSpace — un compte à double capacité", () => {
     expect(await read(useActiveSpace, "/invoices", { as: "athlete" })).toBe("athlete");
   });
 
+  it.each([
+    ["athlète", ATHLETE_ONLY, "coach", "athlete"],
+    ["coach", COACH_ONLY, "athlete", "coach"],
+  ])("ignore ?as= hors des capacités d'un compte %s seul (#371)", async (_, user, as, expected) => {
+    session.user = user;
+
+    expect(await read(useActiveSpace, "/invoices", { as })).toBe(expected);
+  });
+
+  it("ignore ?as= pour un compte Entreprise, qui n'a aucun des deux titres (#371)", async () => {
+    session.user = { isCoach: false, isAthlete: false, isCompany: true, role: Role.COMPANY };
+
+    expect(await read(useActiveSpace, "/account", { as: "coach" })).toBe("company");
+  });
+
   it("retombe sur le persona quand ni le chemin ni ?as= ne disent rien", async () => {
     session.user = { ...DUAL, role: Role.ATHLETE };
     expect(await read(useActiveSpace, "/invoices")).toBe("athlete");
