@@ -243,7 +243,7 @@ export function selectCurrentPlan<T extends PlanPeriod & { id: string }>(
   if (upcoming.length > 0) return pickByStartDate(upcoming, "earliest");
 
   // Ni en cours ni à venir : tous ceux qui restent sont terminés.
-  return pickByStartDate(dated, "latest");
+  return pickLastEnded(dated);
 }
 
 /**
@@ -285,7 +285,7 @@ export function selectVisiblePlans<T extends PlanPeriod & { id: string }>(
   }
 
   // Ni en cours ni à venir : tous ceux qui restent sont terminés.
-  const last = pickByStartDate(dated, "latest");
+  const last = pickLastEnded(dated);
   return last == null ? [] : [last];
 }
 
@@ -311,6 +311,26 @@ function byStartDateThenId<T extends PlanPeriod & { id: string }>(
         direction * left.startDate.localeCompare(right.startDate) ||
         left.id.localeCompare(right.id),
     );
+}
+
+/**
+ * Le cycle terminé le plus RÉCENT : celui dont la FIN est la plus tardive (#356). Départager par la
+ * date de début élirait, entre deux cycles imbriqués, un cycle fini depuis des semaines au
+ * détriment de celui qui vient de s'achever — les cycles se superposent depuis #172.
+ *
+ * À fin égale, le début le plus tardif, puis le plus petit `id` : l'ordre d'arrivée de l'API ne
+ * choisit jamais.
+ */
+function pickLastEnded<T extends PlanPeriod & { id: string }>(
+  entries: readonly DatedPlan<T>[],
+): T | null {
+  const [last] = [...entries].sort(
+    (left, right) =>
+      right.endDate.localeCompare(left.endDate) ||
+      right.plan.startDate.localeCompare(left.plan.startDate) ||
+      left.plan.id.localeCompare(right.plan.id),
+  );
+  return last?.plan ?? null;
 }
 
 function pickByStartDate<T extends PlanPeriod & { id: string }>(
