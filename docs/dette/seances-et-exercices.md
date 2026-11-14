@@ -1175,3 +1175,15 @@ liste des domaines vivent dans l'index.
 > revérifient donc l'URL. Ce qui était en base avant le correctif a été contrôlé par une requête
 > sur la preview (`url !~* '^https?://'`, aucune ligne). Un nouvel écrivain de `exercise_document`
 > (import, migration de données) passe par le même schéma, ou rouvre la question.
+
+## Post-MVP — Lien posé sans le bouton dans la consigne ([#329](https://github.com/Cimavia/cimavia/issues/329))
+
+> **Tranché en [#329](https://github.com/Cimavia/cimavia/issues/329)** (seul un `http(s)://` écrit
+> en entier devient un lien de lui-même) : la saisie, le collage et le collage sur une sélection
+> posent un lien seulement si le texte reconnu passe `linkHrefSchema`. TipTap ne donne à ses filtres
+> (`isAllowedUri`, `shouldAutoLink`) que ce TEXTE, pas le `href` qu'il en déduit : une adresse
+> e-mail reste donc du texte, mais « cimavia.fr » ou « www.cimavia.fr » aussi, alors que le
+> `http://` qu'il y aurait ajouté passait le schéma. Les rattraper demanderait de refaire la
+> reconnaissance de linkify à côté de TipTap, pour un gain faible : le bouton « lien » reste là
+> pour eux. La conversion (`toInlineNode`) jette en plus tout `href` refusé, texte gardé — le
+> dernier rempart avant l'API, qui refuse sinon l'exercice entier.
