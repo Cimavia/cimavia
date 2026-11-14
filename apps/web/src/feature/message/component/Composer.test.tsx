@@ -1,12 +1,14 @@
 import { MESSAGE_TEXT_MAX_LENGTH } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { renderWithProviders } from "../../../../test/render";
 import { Composer } from "./Composer";
 
-const { recorderMock, toastError } = vi.hoisted(() => ({
+const { recorderMock, toastError, toastInfo } = vi.hoisted(() => ({
   recorderMock: vi.fn(),
   toastError: vi.fn(),
+  toastInfo: vi.fn(),
 }));
 
 /**
@@ -20,7 +22,7 @@ vi.mock("@/shared/hook/useWebAudioRecorder", () => ({
 
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/shared/component")>()),
-  useToast: () => ({ error: toastError }),
+  useToast: () => ({ error: toastError, info: toastInfo }),
 }));
 
 const props = () => ({
@@ -249,6 +251,16 @@ describe("Composer", () => {
     recorderMock.mock.lastCall?.[0].onError("messages.audio.permission");
 
     expect(toastError).toHaveBeenCalledWith("messages.audio.permission");
+  });
+
+  it("passe le plafond du profil à l'enregistreur et dit l'arrêt qu'il décide (#340)", () => {
+    renderWithProviders(<Composer {...props()} />);
+
+    const options = recorderMock.mock.lastCall?.[0];
+    expect(options.maxDurationSeconds).toBe(MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds);
+    options.onLimitReached();
+
+    expect(toastInfo).toHaveBeenCalledWith("messages.audio.limitReached");
   });
 
   // Un réessai PREND la place du pourcentage : « 45 % » se lirait comme un envoi qui avance.
