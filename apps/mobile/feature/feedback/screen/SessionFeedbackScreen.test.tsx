@@ -212,6 +212,13 @@ describe("SessionFeedbackScreen", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail("s-1") });
   });
 
+  // SON débrief se répond en athlète, même sélecteur laissé sur « coach » (#343).
+  it("répond en athlète", () => {
+    renderRn(<SessionFeedbackScreen />);
+
+    expect(vi.mocked(useFeedbackReply).mock.lastCall?.[1]).toBe("athlete");
+  });
+
   /**
    * Le fil du coach DE CETTE SÉANCE (#599) : suivi par plusieurs coachs, l'athlète répond à celui
    * qui l'a programmée — et à personne tant que la séance ne l'a pas dit.
