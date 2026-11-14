@@ -23,6 +23,9 @@ import {
 import { CalloutExtension } from "@/feature/library/component/CalloutExtension";
 import { ImageExtension } from "@/feature/library/component/ImageExtension";
 import { useInstructionMediaContext } from "@/feature/library/component/InstructionMediaContext";
+import { LineBreakExtension } from "@/feature/library/component/LineBreakExtension";
+import { ListItemExtension } from "@/feature/library/component/ListItemExtension";
+import { ListJoinExtension } from "@/feature/library/component/ListJoinExtension";
 import { INSTRUCTION_IMAGE_ACCEPT } from "@/feature/library/constant";
 import {
   CALLOUT_NODE,
@@ -71,8 +74,15 @@ export function InstructionsEditor({
         codeBlock: false,
         blockquote: false,
         horizontalRule: false,
+        // Même raison, au niveau en dessous (#328) : remplacés plutôt que retirés, voir
+        // `ListItemExtension` et `LineBreakExtension`.
+        hardBreak: false,
+        listItem: false,
         link: { openOnClick: false, protocols: ["http", "https"] },
       }),
+      ListItemExtension,
+      ListJoinExtension,
+      LineBreakExtension,
       CalloutExtension,
       ImageExtension,
     ],

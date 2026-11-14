@@ -49,10 +49,28 @@ function setup(initialValue: RichDocument | null, media: InstructionMedia = fake
     surface.focus();
     await view.user.keyboard("{Control>}a{/Control}");
   };
+  /**
+   * Le curseur dans le texte `text`, à `offset` : jsdom ne place rien au clavier ni au clic, la
+   * sélection se pose dans le DOM et ProseMirror la relit à `selectionchange`.
+   */
+  const caretAt = (text: string, offset: number) => {
+    surface.focus();
+    const walker = document.createTreeWalker(surface, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node != null && node.textContent !== text) node = walker.nextNode();
+    if (node == null) throw new Error(`Texte absent de la consigne : ${text}`);
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.collapse(true);
+    const selection = document.getSelection() as Selection;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent(document, new Event("selectionchange"));
+  };
   const tool = (name: string) => view.getByRole("button", { name: `library.builder.tool.${name}` });
   const last = () => onChange.mock.lastCall?.[0] as RichDocument;
   const fileInput = () => view.container.querySelector("input[type=file]") as HTMLInputElement;
-  return { ...view, onChange, media, surface, selectAll, tool, last, fileInput };
+  return { ...view, onChange, media, surface, selectAll, caretAt, tool, last, fileInput };
 }
 
 /**
@@ -418,6 +436,110 @@ describe("InstructionsEditor — collage", () => {
 
     expect(last()).toEqual([paragraph("Voir")]);
     expect(media.register).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #328 : le modèle ne porte ni sous-liste ni saut de ligne. L'éditeur ne doit donc pas en
+ * produire — la conversion les jetait, et le coach voyait son texte disparaître à l'enregistrement.
+ */
+describe("InstructionsEditor — ce que le modèle ne porte pas (#328)", () => {
+  const list = (...items: string[]): RichDocument => [
+    { type: RichBlockType.LIST, ordered: false, items: items.map((text) => [{ text }]) },
+  ];
+
+  it("n'imbrique pas un élément de liste à Tab, et laisse Tab sortir du champ", async () => {
+    const { user, surface, caretAt, onChange } = setup(list("Échauffement", "10 min vélo"));
+
+    caretAt("10 min vélo", 3);
+    // La pose du curseur dans jsdom relit le DOM et peut notifier : seul Tab est éprouvé.
+    onChange.mockClear();
+    await user.keyboard("{Tab}");
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(surface).not.toHaveFocus();
+  });
+
+  it("ne range pas à Tab le paragraphe qui suit une liste dans son dernier élément", async () => {
+    const initial = [...list("Échauffement"), paragraph("Retour au calme")];
+    const { user, caretAt, onChange } = setup(initial);
+
+    caretAt("Retour au calme", 0);
+    onChange.mockClear();
+    await user.keyboard("{Tab}");
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("coupe le paragraphe en deux à Maj+Entrée, au lieu d'y poser un saut de ligne", async () => {
+    const { user, caretAt, last } = setup([paragraph("Coudes serrés")]);
+
+    caretAt("Coudes serrés", 7);
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+
+    expect(last()).toEqual([paragraph("Coudes "), paragraph("serrés")]);
+  });
+
+  it("coupe l'élément de liste en deux à Maj+Entrée", async () => {
+    const { user, caretAt, last } = setup(list("Échauffement 10 min vélo"));
+
+    caretAt("Échauffement 10 min vélo", 13);
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+
+    expect(last()).toEqual(list("Échauffement ", "10 min vélo"));
+  });
+
+  // L'élément n'ayant plus qu'un paragraphe, ProseMirror enveloppait le bloc dans un NOUVEL élément
+  // — que Backspace ressortait aussitôt de la liste, sans fin.
+  it("joint au dernier élément, à Backspace, le paragraphe qui suit la liste", async () => {
+    const { user, caretAt, last } = setup([...list("Échauffement "), paragraph("10 min vélo")]);
+
+    caretAt("10 min vélo", 0);
+    await user.keyboard("{Backspace}");
+
+    expect(last()).toEqual(list("Échauffement 10 min vélo"));
+  });
+
+  it("joint au dernier élément, à Suppr, le paragraphe qui suit la liste", async () => {
+    const { user, caretAt, last } = setup([...list("Échauffement "), paragraph("10 min vélo")]);
+
+    caretAt("Échauffement ", "Échauffement ".length);
+    await user.keyboard("{Delete}");
+
+    expect(last()).toEqual(list("Échauffement 10 min vélo"));
+  });
+
+  it("laisse Suppr à la liste quand l'élément n'est pas le dernier", async () => {
+    const { user, caretAt, last } = setup([
+      ...list("Échauffement ", "10 min vélo"),
+      paragraph("x"),
+    ]);
+
+    caretAt("Échauffement ", "Échauffement ".length);
+    await user.keyboard("{Delete}");
+
+    expect(last()).toEqual([...list("Échauffement 10 min vélo"), paragraph("x")]);
+  });
+
+  it.each([
+    [
+      "une liste imbriquée, remise à plat",
+      "<ul><li>Échauffement<ul><li>10 min vélo</li></ul></li></ul>",
+      [...list("Échauffement"), ...list("10 min vélo")],
+    ],
+    [
+      "un élément à deux paragraphes, en deux éléments",
+      "<ul><li><p>Échauffement</p><p>10 min vélo</p></li></ul>",
+      list("Échauffement", "10 min vélo"),
+    ],
+    ["un saut de ligne, en espace", "<p>Coudes<br>serrés</p>", [paragraph("Coudes serrés")]],
+  ])("garde tout le texte collé : %s", async (_, html, expected) => {
+    const { user, selectAll, last } = setup([paragraph("x")]);
+
+    await selectAll();
+    await user.paste(clipboard({ "text/html": html, "text/plain": "x" }));
+
+    expect(last()).toEqual(expected);
   });
 });
 
