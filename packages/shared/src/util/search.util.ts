@@ -13,13 +13,21 @@
  * NFD sépare la lettre de son signe diacritique, le bloc U+0300–U+036F retire les signes. Pas
  * d'échappement de propriété Unicode (`\p{Diacritic}`) : ce fichier est aussi compilé dans le
  * bundle mobile, où il se paierait au parsing du module et non à l'appel.
+ *
+ * NFD ne décompose pas « œ » ni « æ » : repliés à la main, après les minuscules pour que « Œ » et
+ * « Æ » y passent aussi (#358 — pourquoi elles seules : `docs/dette/seances-et-exercices.md`).
+ *
+ * ⚠️ Changer cette règle impose une migration de DONNÉES : `exercise.titleSearch` en garde le
+ * résultat figé à l'écriture, et une ligne restée à l'ancienne forme ne serait plus trouvée.
  */
 export function comparableText(value: string): string {
   return value
     .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase();
+    .toLocaleLowerCase()
+    .replaceAll("œ", "oe")
+    .replaceAll("æ", "ae");
 }
 
 /**

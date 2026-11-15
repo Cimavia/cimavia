@@ -17,6 +17,13 @@ import {
 } from "../support/fixtures";
 import { ANY_VERSION, deleteAtLatest, patchAtLatest, versionOf } from "../support/version";
 
+/** Les ids que `GET /exercises?search=` ramène à cet acteur — la requête doit réussir. */
+async function idsFound(agent: Agent, search: string): Promise<string[]> {
+  const res = await agent.get("/exercises").query({ search });
+  expect(res.status).toBe(200);
+  return res.body.map((exercise: { id: string }) => exercise.id);
+}
+
 describe("Isolation bibliothèque d'exercices (P2)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -148,12 +155,6 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(created.status).toBe(201);
     const id: string = created.body.id;
 
-    const idsFound = async (agent: Agent, search: string) => {
-      const res = await agent.get("/exercises").query({ search });
-      expect(res.status).toBe(200);
-      return res.body.map((exercise: { id: string }) => exercise.id);
-    };
-
     // Les quatre façons de le taper ramènent la même ligne — c'est le défaut de l'issue.
     for (const typed of ["echauffement", "Échauffement", "DEVERS", "dévers"]) {
       expect(await idsFound(coachA, typed)).toContain(id);
@@ -172,6 +173,22 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     // La forme comparable a suivi : l'ancien mot ne ramène plus rien, le nouveau ramène la ligne.
     expect(await idsFound(coachA, "echauffement")).toHaveLength(0);
     expect(await idsFound(coachA, "POSTURAL")).toContain(id);
+  });
+
+  /**
+   * NFD ne décompose pas « œ » (#358) : la ligature est repliée à l'ÉCRITURE de `titleSearch` comme
+   * à la LECTURE du terme. Si un seul des deux côtés la repliait, « nœud » tapé tel quel ne
+   * trouverait plus son propre titre — c'est ce que la reprise des lignes déjà en base évite aussi.
+   */
+  it("trouve un titre à ligature, qu'on la tape ou non", async () => {
+    const created = await coachA.post("/exercises").send({ title: "Nœud de huit" });
+    expect(created.status).toBe(201);
+    const id: string = created.body.id;
+
+    for (const typed of ["noeud", "nœud", "NŒUD"]) {
+      expect(await idsFound(coachA, typed)).toContain(id);
+    }
+    expect(await idsFound(coachB, "noeud")).toHaveLength(0);
   });
 
   /**
