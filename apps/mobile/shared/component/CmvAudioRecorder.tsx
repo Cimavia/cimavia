@@ -52,6 +52,23 @@ const otherSlot = (slot: Slot): Slot => (slot === 0 ? 1 : 0);
  */
 const CAP_TOLERANCE_MS = 1000;
 
+/** L'intervalle du relevé natif (`useAudioRecorderState`) : l'écart maximal du dernier relevé. */
+const POLL_INTERVAL_MS = 500;
+
+/**
+ * L'écart entre l'horloge et le dernier relevé au-delà duquel une capture au premier plan seul a
+ * été mise en pause. Large : un fil JS en retard d'une seconde ne doit pas passer pour une pause.
+ */
+const PAUSE_THRESHOLD_MS = 5000;
+
+/**
+ * Le preset de chaque préparation, et non du seul montage. Sans options, iOS réutilise son
+ * `AVAudioRecorder`, donc son FICHIER : préparer à nouveau l'enregistreur d'une note qui vient de
+ * partir écraserait le fichier en plein envoi. Avec elles, il en crée un neuf, au nom unique — ce
+ * qu'Android fait à chaque préparation.
+ */
+const PRESET = RecordingPresets.HIGH_QUALITY;
+
 /**
  * Le mode ENREGISTREMENT. Il passe EN ENTIER : le natif ne fusionne pas, il repart de ses défauts,
  * et ceux d'iOS posent `playsInSilentMode: false` (le type TS annonce `true`, qui est celui
@@ -106,13 +123,15 @@ async function releaseRecorder(recorder: { stop: () => Promise<void> }) {
 
 /**
  * Prépare l'enregistreur qui prendra la suite au plafond (#856), pour que la parole ne soit pas
- * coupée. Android le DÉMARRE puis le met en pause : son service de premier plan ne compte que les
- * enregistreurs démarrés et s'arrête avec le dernier, et Android 14 refuse de le relancer écran
- * verrouillé — la note suivante serait muette. iOS n'a pas de tel service : préparé suffit.
+ * coupée. Avec le service de premier plan, Android le DÉMARRE puis le met en pause : ce service ne
+ * compte que les enregistreurs démarrés et s'arrête avec le dernier, et Android 14 refuse de le
+ * relancer écran verrouillé — la note suivante serait muette. Sans le service, préparé suffit : un
+ * relais en pause, expo-audio le relancerait au retour de l'app au premier plan, par-dessus la note.
+ * iOS n'a pas de tel service.
  */
-async function arm(recorder: AudioRecorder) {
-  await recorder.prepareToRecordAsync();
-  if (Platform.OS === "android") {
+async function arm(recorder: AudioRecorder, withService: boolean) {
+  await recorder.prepareToRecordAsync(PRESET);
+  if (Platform.OS === "android" && withService) {
     recorder.record();
     recorder.pause();
   }
@@ -208,19 +227,19 @@ export function CmvAudioRecorder({
    * (`CmvVideoPlayer`).
    */
   const onNativeEndRef = useRef<(slot: Slot, status: RecordingStatus) => void>(() => undefined);
-  const first = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) =>
-    onNativeEndRef.current(0, status),
-  );
-  const second = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) =>
-    onNativeEndRef.current(1, status),
-  );
+  const first = useAudioRecorder(PRESET, (status) => onNativeEndRef.current(0, status));
+  const second = useAudioRecorder(PRESET, (status) => onNativeEndRef.current(1, status));
   const firstState = useAudioRecorderState(first);
   const secondState = useAudioRecorderState(second);
   const recorders = [first, second] as const;
-  // L'enregistreur qui capte ; l'autre est celui du relais.
-  const [active, setActive] = useState<Slot>(0);
-  const recorder = recorders[active];
-  const state = active === 0 ? firstState : secondState;
+  const stateOf = (slot: Slot) => (slot === 0 ? firstState : secondState);
+  /**
+   * L'enregistreur qui capte ; l'autre est celui du relais. Un `ref`, qui le dit DÈS le relais,
+   * avant le rendu qui suit : un tap « envoyer » ou une fin native arrivés dans l'intervalle visent
+   * le bon. Le rendu, lui, vient avec le compte des notes relayées.
+   */
+  const activeSlot = useRef<Slot>(0);
+  const state = stateOf(activeSlot.current);
   const [busy, setBusy] = useState(false);
   const [foregroundOnly, setForegroundOnly] = useState(false);
   // Le mode « record » est posé, et ni `finish` ni un échec ne l'ont encore retiré : c'est lui que
@@ -256,6 +275,20 @@ export function CmvAudioRecorder({
   // Les notes déjà parties au plafond, et ce qu'elles ont duré : le minuteur ne repart pas de zéro.
   const [relayed, setRelayed] = useState(0);
   const [relayedMillis, setRelayedMillis] = useState(0);
+  // La dernière préparation du relais lancée : la suivante l'attend, pour ne pas la croiser.
+  const arming = useRef<Promise<void>>(Promise.resolve());
+  /**
+   * Le dernier relevé natif de la note en cours, tant qu'elle capte. Au premier plan seul, la
+   * capture se met en pause écran verrouillé, et l'horloge compterait la pause.
+   */
+  const captured = useRef(0);
+  useEffect(() => {
+    if (state.isRecording) captured.current = state.durationMillis;
+  }, [state.isRecording, state.durationMillis]);
+  // La capture tient le service de premier plan : c'est lui que l'amorce du relais doit garder.
+  const withService = useRef(false);
+  // Une préparation en vol au démontage vise des enregistreurs libérés : rien à signaler.
+  const unmounted = useRef(false);
 
   const toIdle = () => {
     engaged.current = false;
@@ -273,6 +306,7 @@ export function CmvAudioRecorder({
   // mode « record » resterait posé et rendrait muettes les notes lues ensuite.
   useEffect(
     () => () => {
+      unmounted.current = true;
       if (capturing.current) void restorePlayback();
     },
     [],
@@ -283,14 +317,14 @@ export function CmvAudioRecorder({
    * ne les redemande pas ici : la demande appartient à `usePushToken`, et un refus déjà donné vaut
    * aussi pour la note. Rend `true` si la capture survit au verrouillage.
    */
-  const prepare = async (): Promise<boolean> => {
+  const prepare = async (recorder: AudioRecorder): Promise<boolean> => {
     try {
-      await recorder.prepareToRecordAsync();
+      await recorder.prepareToRecordAsync(PRESET);
       return true;
     } catch (error) {
       if (!isNotificationsRefused(error)) throw error;
       await setAudioModeAsync(recordMode(false));
-      await recorder.prepareToRecordAsync();
+      await recorder.prepareToRecordAsync(PRESET);
       return false;
     }
   };
@@ -298,21 +332,27 @@ export function CmvAudioRecorder({
   /**
    * Prépare le relais sur `slot`, s'il reste une note à produire après celle en cours. Un échec ne
    * coupe pas la capture : elle s'arrêtera au plafond, comme sans relais.
+   *
+   * Une préparation n'est prête que pour SA capture : close entre-temps, ou remplacée par une
+   * neuve, elle libère l'enregistreur. Les préparations passent une à une — celle d'Android attend
+   * jusqu'à 5 s son service, et deux sur le même enregistreur se croiseraient.
    */
-  const prepareRelay = async (slot: Slot) => {
-    if (remaining.current <= 1) return;
+  const prepareRelay = (slot: Slot) => {
     const capture = generation.current;
-    try {
-      await arm(recorders[slot]);
-      // Une capture neuve a pu reprendre cet enregistreur : il est à elle, on n'y touche plus.
-      if (capture !== generation.current) return;
-      // Close pendant la préparation : il n'y a plus de suite à prendre.
-      if (capturing.current) armed.current = true;
-      else await releaseRecorder(recorders[slot]);
-    } catch (error) {
-      captureRecorderError(error);
-      await releaseRecorder(recorders[slot]);
-    }
+    const run = arming.current.then(async () => {
+      if (capture !== generation.current || remaining.current <= 1 || unmounted.current) return;
+      try {
+        await arm(recorders[slot], withService.current);
+        if (capturing.current && capture === generation.current) armed.current = true;
+        else await releaseRecorder(recorders[slot]);
+      } catch (error) {
+        if (unmounted.current) return;
+        captureRecorderError(error);
+        await releaseRecorder(recorders[slot]);
+      }
+    });
+    arming.current = run;
+    return run;
   };
 
   /** Libère le relais s'il est prêt : rien ne prendra plus la suite. */
@@ -324,6 +364,7 @@ export function CmvAudioRecorder({
 
   const start = async () => {
     if (engaged.current) return;
+    const recorder = recorders[activeSlot.current];
     engaged.current = true;
     setPhase("preparing");
     try {
@@ -341,7 +382,8 @@ export function CmvAudioRecorder({
       setRelayed(0);
       setRelayedMillis(0);
       await setAudioModeAsync(recordMode(true));
-      const background = await prepare();
+      const background = await prepare(recorder);
+      withService.current = background;
       /**
        * Le plafond est tenu par le NATIF, et non par le relevé JS : Android suspend les timers JS
        * dès l'écran verrouillé (`JavaTimerManager.onHostPause`), quand la capture, elle, continue
@@ -349,8 +391,9 @@ export function CmvAudioRecorder({
        */
       recorder.record({ forDuration: maxDurationSeconds });
       startedAt.current = Date.now();
+      captured.current = 0;
       // APRÈS le départ de la note, que sa préparation ne retarde pas : le relais a cinq minutes.
-      void prepareRelay(otherSlot(active));
+      void prepareRelay(otherSlot(activeSlot.current));
       setPhase("recording");
       setForegroundOnly(!background);
       onRecordingChange?.(true);
@@ -360,7 +403,7 @@ export function CmvAudioRecorder({
       capturing.current = false;
       captureRecorderError(error);
       await releaseRecorder(recorder);
-      await disarm(otherSlot(active));
+      await disarm(otherSlot(activeSlot.current));
       await restorePlayback();
       // Le micro ne revient qu'une fois l'enregistreur libéré : un tap plus tôt le trouverait pris.
       toIdle();
@@ -383,6 +426,12 @@ export function CmvAudioRecorder({
     // Baissé AVANT l'arrêt : la fin que celui-ci annonce à son tour ne doit pas clore une 2ᵉ fois.
     capturing.current = false;
     const durationSeconds = toSeconds(durationMillis);
+    /**
+     * Le relais est libéré AVANT le mode lecture : celui-ci retire le service de premier plan aux
+     * enregistreurs d'Android (`useForegroundService`), et l'arrêt d'un relais amorcé ne l'en
+     * désinscrirait plus — le service et sa notification resteraient.
+     */
+    await disarm(otherSlot(activeSlot.current));
     try {
       const uri = await stop();
       await setAudioModeAsync(PLAYBACK_MODE);
@@ -397,18 +446,20 @@ export function CmvAudioRecorder({
       onRecordingChange?.(false);
       onError?.("messages.audio.recordError");
     } finally {
-      await disarm(otherSlot(active));
       toIdle();
       setBusy(false);
     }
   };
 
   // La durée est lue AVANT stop (après, l'état retombe à 0).
-  const finish = (keep: boolean) =>
-    close(keep, state.durationMillis, async () => {
+  const finish = (keep: boolean) => {
+    const slot = activeSlot.current;
+    const recorder = recorders[slot];
+    return close(keep, stateOf(slot).durationMillis, async () => {
       await recorder.stop();
       return recorder.uri;
     });
+  };
 
   /**
    * Au plafond, la parole continue sur le relais et la note close part. Rend `false` si rien ne
@@ -421,14 +472,18 @@ export function CmvAudioRecorder({
     const next = otherSlot(finished);
     try {
       recorders[next].record({ forDuration: maxDurationSeconds });
+      // iOS ne lève pas quand `AVAudioRecorder` refuse de démarrer : il rend `false`, qu'expo-audio
+      // ignore. Seul le natif lui-même dit s'il capte — sinon la note suivante serait vide.
+      if (!recorders[next].isRecording) throw new Error("relay recorder did not start");
     } catch (error) {
       captureRecorderError(error);
       return false;
     }
     armed.current = false;
     startedAt.current = Date.now();
+    captured.current = 0;
     remaining.current -= 1;
-    setActive(next);
+    activeSlot.current = next;
     setRelayed((count) => count + 1);
     setRelayedMillis((total) => total + durationMillis);
     onRecorded({ uri, durationSeconds: toSeconds(durationMillis) });
@@ -451,10 +506,20 @@ export function CmvAudioRecorder({
    * en retard sur une capture déjà close, est ignorée.
    */
   onNativeEndRef.current = (slot, status) => {
-    if (!status.isFinished || !capturing.current || phase !== "recording" || slot !== active) {
+    if (
+      !status.isFinished ||
+      !capturing.current ||
+      phase !== "recording" ||
+      slot !== activeSlot.current
+    ) {
       return;
     }
-    const durationMillis = Date.now() - startedAt.current;
+    const elapsed = Date.now() - startedAt.current;
+    // Au premier plan seul, le natif clôt au plafond de l'HORLOGE, pause écran verrouillé comprise :
+    // c'est le dernier relevé qui dit ce que la note a capté, à un relevé près.
+    const measured = captured.current + POLL_INTERVAL_MS;
+    const durationMillis =
+      foregroundOnly && elapsed - measured > PAUSE_THRESHOLD_MS ? measured : elapsed;
     const uri = status.hasError ? null : status.url;
     const atCap = durationMillis >= maxDurationSeconds * 1000 - CAP_TOLERANCE_MS;
     if (uri != null && atCap && relay(slot, uri, durationMillis)) return;

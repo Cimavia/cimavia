@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/react-native";
 import { act, waitFor } from "@testing-library/react";
 import {
+  RecordingPresets,
   type RecordingStatus,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
@@ -39,11 +40,18 @@ function fakeRecorder(uri = "file:///cache/note.m4a") {
   // Android refuse une seconde préparation tant que l'enregistreur n'est ni arrêté ni libéré (#700).
   let prepared = false;
   let binding: Promise<void> = Promise.resolve();
-  return {
-    record: vi.fn(),
-    pause: vi.fn(),
+  const fake = {
+    // Ce que le natif dit capter : iOS le lit sur `AVAudioRecorder`, Android le pose à `record()`.
+    isRecording: false,
+    record: vi.fn(() => {
+      fake.isRecording = true;
+    }),
+    pause: vi.fn(() => {
+      fake.isRecording = false;
+    }),
     stop: vi.fn(async () => {
       prepared = false;
+      fake.isRecording = false;
     }),
     prepareToRecordAsync: vi.fn(async () => {
       if (prepared) throw new Error("AudioRecorder has already been prepared");
@@ -60,6 +68,7 @@ function fakeRecorder(uri = "file:///cache/note.m4a") {
      */
     endNatively() {
       prepared = false;
+      fake.isRecording = false;
     },
     hold(): () => void {
       let release = () => {};
@@ -70,6 +79,7 @@ function fakeRecorder(uri = "file:///cache/note.m4a") {
     },
     uri: uri as string | null,
   };
+  return fake;
 }
 
 /**
@@ -946,7 +956,56 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     expect(view.onRecorded).not.toHaveBeenCalled();
   });
 
-  // Le débrief n'a plus qu'une place : rien ne prend la suite, la note part et la capture s'arrête.
+  // Le mode lecture retire le service de premier plan aux enregistreurs d'Android : un relais amorcé
+  // libéré APRÈS ne s'en désinscrirait plus, et le service resterait avec sa notification.
+  it("libère le relais avant de rendre le mode lecture", async () => {
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+
+    press(icon(view.container, "send"));
+
+    await waitFor(() => expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE));
+    const playback = vi
+      .mocked(setAudioModeAsync)
+      .mock.calls.findIndex(([mode]) => mode.allowsRecording === false);
+    expect(relay.stop.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(setAudioModeAsync).mock.invocationCallOrder[playback] ?? 0,
+    );
+  });
+
+  // Sans le service, expo-audio relance au premier plan tout enregistreur en pause : un relais amorcé
+  // capterait par-dessus la note dès le retour dans l'app.
+  it("n'amorce pas le relais d'une capture au premier plan seul sur Android", async () => {
+    Object.defineProperty(Platform, "OS", { value: "android", configurable: true });
+    notificationsGranted = false;
+    const view = setup();
+
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+
+    expect(relay.record).not.toHaveBeenCalled();
+    expect(relay.pause).not.toHaveBeenCalled();
+  });
+
+  it("ne signale pas l'échec d'une préparation du relais en vol au démontage", async () => {
+    let fail: (error: Error) => void = () => {};
+    relay.prepareToRecordAsync.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+
+    view.unmount();
+    await act(async () => fail(new Error("AudioRecorder has been released")));
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   // iOS clôt la note sur une interruption, et annonce cette fin comme une autre, fichier compris.
   it("garde une note close bien avant le plafond, sans relais ni avis de plafond", async () => {
     const view = setup();
@@ -971,6 +1030,8 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     const view = setup();
     await startCapture(view);
     vi.setSystemTime(MAX * 1000);
+    recording(MAX * 1000 - 400);
+    view.refresh();
 
     nativeEnd(0);
 
@@ -990,15 +1051,60 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     await startCapture(view);
     await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
     vi.setSystemTime(MAX * 1000);
+    recording(MAX * 1000 - 400);
+    view.refresh();
 
     nativeEnd(0);
 
     expect(relay.record).toHaveBeenCalledExactlyOnceWith({ forDuration: MAX });
   });
 
+  // Un fil JS occupé rend un relevé en retard : ce n'est pas une pause, la note est au plafond.
+  it("ne prend pas un relevé en retard pour une pause de la capture au premier plan seul", async () => {
+    notificationsGranted = false;
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+    recording(MAX * 1000 - 3000);
+    view.refresh();
+    vi.setSystemTime(MAX * 1000);
+
+    nativeEnd(0);
+
+    expect(relay.record).toHaveBeenCalledExactlyOnceWith({ forDuration: MAX });
+    expect(view.onRecorded).toHaveBeenCalledExactlyOnceWith({
+      uri: "file:///cache/note.m4a",
+      durationSeconds: MAX,
+    });
+  });
+
+  // Le natif clôt au plafond de l'horloge, pause comprise : la note n'a capté que ce qui précède.
+  it("mesure au relevé une capture au premier plan seul mise en pause, sans avis de plafond", async () => {
+    notificationsGranted = false;
+    const view = setup();
+    await startCapture(view);
+    recording(59_500);
+    view.refresh();
+    // Écran verrouillé : expo-audio met la capture en pause, le relevé ne dit plus qu'il capte.
+    idle();
+    view.refresh();
+    vi.setSystemTime(MAX * 1000);
+
+    nativeEnd(0);
+
+    await waitFor(() =>
+      expect(view.onRecorded).toHaveBeenCalledExactlyOnceWith({
+        uri: "file:///cache/note.m4a",
+        durationSeconds: 60,
+      }),
+    );
+    expect(relay.record).not.toHaveBeenCalledWith({ forDuration: MAX });
+    expect(view.onLimitReached).not.toHaveBeenCalled();
+  });
+
   // Android attend jusqu'à 5 s son service : la préparation d'une capture close peut aboutir pendant
-  // la suivante, sur un enregistreur que celle-ci a déjà repris puis libéré.
-  it("ne prend pas pour relais la préparation d'une capture déjà close", async () => {
+  // la suivante. Elle passe d'abord, libère l'enregistreur, et la capture neuve prépare le sien.
+  it("prépare le relais d'une capture neuve après celle d'une capture déjà close", async () => {
     const releaseBinding = relay.hold();
     const view = setup();
     await startCapture(view);
@@ -1007,15 +1113,100 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     idle();
     view.refresh();
     await startCapture(view);
-    // La capture neuve n'a pas pu préparer le relais, encore pris : elle l'a libéré.
-    await waitFor(() => expect(relay.stop).toHaveBeenCalled());
+    // La capture neuve attend la préparation en cours au lieu de la croiser.
+    expect(relay.prepareToRecordAsync).toHaveBeenCalledOnce();
 
     await act(async () => releaseBinding());
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalledTimes(2));
+    expect(relay.stop).toHaveBeenCalledOnce();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
     vi.setSystemTime(MAX * 1000);
     nativeEnd(0);
 
-    await waitFor(() => expect(view.onLimitReached).toHaveBeenCalledOnce());
-    expect(relay.record).not.toHaveBeenCalledWith({ forDuration: MAX });
+    expect(relay.record).toHaveBeenCalledExactlyOnceWith({ forDuration: MAX });
+    expect(view.onLimitReached).not.toHaveBeenCalled();
+  });
+
+  // iOS ne lève pas quand `AVAudioRecorder` refuse de démarrer : seul `isRecording` le dit.
+  it("s'arrête au plafond si le relais ne capte pas, et garde la note", async () => {
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+    relay.record.mockImplementationOnce(() => undefined);
+    vi.setSystemTime(MAX * 1000);
+
+    nativeEnd(0);
+
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenLastCalledWith(false));
+    expect(view.onRecorded).toHaveBeenCalledExactlyOnceWith({
+      uri: "file:///cache/note.m4a",
+      durationSeconds: MAX,
+    });
+    expect(view.onLimitReached).toHaveBeenCalledOnce();
+    // Le relais muet est libéré : il ne garde ni le micro ni le service.
+    expect(relay.stop).toHaveBeenCalled();
+  });
+
+  // Le relais change d'enregistreur avant le rendu qui suit : un tap dans l'intervalle arrête le
+  // bon, au lieu de laisser le relais capter, capture close, sans que rien ne l'arrête jamais.
+  it("un tap envoyer entre le relais et le rendu suivant arrête l'enregistreur qui capte", async () => {
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+    vi.setSystemTime(MAX * 1000);
+    recorder.endNatively();
+
+    // Hors `act` : le rendu du relais n'a pas encore eu lieu quand le tap arrive.
+    listeners[0]?.({
+      id: "rec-0",
+      isFinished: true,
+      hasError: false,
+      error: null,
+      url: "file:///cache/note.m4a",
+    });
+    press(icon(view.container, "send"));
+
+    await waitFor(() => expect(view.onRecordingChange).toHaveBeenLastCalledWith(false));
+    expect(relay.stop).toHaveBeenCalled();
+    expect(relay.isRecording).toBe(false);
+  });
+
+  // Android peut signaler une panne du relais aussitôt repris, avant le rendu qui suit le relais.
+  it("entend la panne du relais annoncée avant le rendu suivant", async () => {
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+    vi.setSystemTime(MAX * 1000);
+    recorder.endNatively();
+
+    // Hors `act`, l'une après l'autre : aucun rendu entre la fin de la note et la panne du relais.
+    listeners[0]?.({
+      id: "rec-0",
+      isFinished: true,
+      hasError: false,
+      error: null,
+      url: "file:///cache/note.m4a",
+    });
+    listeners[1]?.({
+      id: "rec-1",
+      isFinished: true,
+      hasError: true,
+      error: "MEDIA_ERROR_SERVER_DIED",
+      url: null,
+    });
+
+    await waitFor(() => expect(view.onError).toHaveBeenCalledWith("messages.audio.recordError"));
+    expect(view.onRecordingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  // Sans options, iOS réutilise son `AVAudioRecorder`, donc le fichier de la note qui part.
+  it("prépare chaque note avec le preset, pour qu'iOS lui ouvre un fichier neuf", async () => {
+    const view = setup();
+    await startCapture(view);
+    await waitFor(() => expect(relay.prepareToRecordAsync).toHaveBeenCalled());
+
+    expect(recorder.prepareToRecordAsync).toHaveBeenCalledWith(RecordingPresets.HIGH_QUALITY);
+    expect(relay.prepareToRecordAsync).toHaveBeenCalledWith(RecordingPresets.HIGH_QUALITY);
   });
 
   it("ne dit pas le plafond quand la note close ne part pas", async () => {
@@ -1031,6 +1222,7 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     expect(view.onLimitReached).not.toHaveBeenCalled();
   });
 
+  // Le débrief n'a plus qu'une place : rien ne prend la suite, la note part et la capture s'arrête.
   it("s'arrête au plafond sur la dernière note possible, et le dit", async () => {
     const view = setup({ notesLeft: 1 });
     await startCapture(view);
