@@ -136,6 +136,13 @@ la porte du §6 reste la vérification.
 **La porte qualité de `CLAUDE.md`** (section *Porte qualité*) — je lance ce qui est automatisable,
 Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les migrations et l'app. Lui préparer les commandes.
 
+**Je teste un maximum de choses moi-même.** Avant de renvoyer une vérification au développeur, je
+la fais si j'en ai les moyens : tests unitaires et de rendu (en vérifiant qu'ils mordent sur
+l'ancien code), e2e, `docker` + `curl` contre l'API, parcours Playwright dans Chromium contre la
+vraie API (un spec temporaire, retiré après), parcours sur l'émulateur Android. **Le développeur ne
+teste que ce que je ne peux vraiment pas tester** — téléphone réel, iOS, NAS, interfaces web, vidéo
+sur appareil — et le plan de test dit, pour le reste, ce que j'ai vérifié et comment.
+
 ## 7. Journal, issues, board
 
 - Une dette traitée ou prise se met à jour dans `docs/dette/<domaine>.md` **dans la PR qui la
@@ -151,7 +158,8 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
   avec le nom de branche, et je l'applique au « ok ».
 
 ## 8. Test
-- Préparer un plan de test à la fin de chaque issue pour que le développeur test
+- Préparer un plan de test à la fin de chaque issue pour que le développeur test — limité à ce que
+  je n'ai vraiment pas pu vérifier moi-même (§6), le reste listé comme déjà vérifié.
 
 **Revue de la PR par une autre session.** En tête du plan de test, je dis si elle est conseillée,
 et avec quelle commande. Elle est lancée par le développeur, dans une **autre session** que la mienne
