@@ -18,13 +18,23 @@ function setup(search: Readonly<Record<string, string>> = { token: "jeton-du-mai
   return renderInRoute(<ResetPasswordScreen />, {
     path: "/reset-password",
     search,
-    links: ["/login"],
+    links: ["/login", "/forgot-password"],
   });
 }
 
 async function submit(view: Awaited<ReturnType<typeof setup>>) {
   await view.user.type(view.getByLabelText(PASSWORD), "nouveaumdp1");
   await view.user.click(view.getByRole("button", { name: SUBMIT }));
+}
+
+/** Plus de formulaire, un lien vers un nouvel e-mail, et la connexion toujours à portée. */
+function expectDeadLink(view: Awaited<ReturnType<typeof setup>>) {
+  expect(view.queryByLabelText(PASSWORD)).not.toBeInTheDocument();
+  expect(view.getByRole("link", { name: "auth.reset.toForgotPassword" })).toHaveAttribute(
+    "href",
+    "/forgot-password",
+  );
+  expect(view.getByRole("link", { name: "auth.reset.toLogin" })).toHaveAttribute("href", "/login");
 }
 
 beforeEach(() => {
@@ -57,28 +67,53 @@ describe("ResetPasswordScreen", () => {
     expect(await view.findByText("auth.reset.success")).toBeInTheDocument();
   });
 
-  it("dit le lien invalide sans appeler l'API quand l'URL n'a pas de jeton", async () => {
+  // Better Auth a vérifié le jeton AVANT de rediriger, et l'a trouvé inconnu, consommé ou expiré.
+  it("dit d'emblée le lien mort quand Better Auth l'a refusé, et mène à un nouvel e-mail", async () => {
+    const view = await setup({ error: "INVALID_TOKEN" });
+
+    expectDeadLink(view);
+    expect(view.getByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
+    // Rien de secret : `error` reste, et une page rechargée redit la même chose.
+    expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN");
+  });
+
+  // Page rechargée après que le jeton a quitté l'URL (#335), ou adresse tapée à la main : le lien
+  // de l'e-mail marche peut-être encore, le texte ne doit pas le déclarer mort.
+  it("dit d'emblée qu'il manque le lien quand l'URL n'a ni jeton ni erreur", async () => {
     const view = await setup({});
 
-    await submit(view);
+    expectDeadLink(view);
+    // `getByText` : le conteneur des toasts porte lui aussi `role="status"`.
+    expect(view.getByText("auth.reset.missingToken")).toHaveAttribute("role", "status");
+    expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
+  });
 
-    // Le cas d'une page rechargée : le jeton est parti de l'URL, il faut recliquer le lien du mail.
-    expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
-    expect(resetPasswordMock).not.toHaveBeenCalled();
+  it("ôte quand même le jeton de l'URL quand une erreur l'accompagne", async () => {
+    // Better Auth ne pose jamais les deux : l'URL est fabriquée, le lien y est tenu pour mort.
+    const view = await setup({ token: "jeton-du-mail", error: "INVALID_TOKEN" });
+
+    await waitFor(() =>
+      expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN"),
+    );
+    expectDeadLink(view);
+    expect(view.getByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
   });
 
   // Jeton consommé ou expiré pendant que la page restait ouverte, ou compte supprimé depuis l'envoi
   // de l'e-mail (#256) : le lien est mort, quoi qu'on tape.
   it.each(["INVALID_TOKEN", "USER_NOT_FOUND"])(
-    "dit le lien invalide quand l'API le refuse (%s)",
+    "remplace le formulaire par le lien mort quand l'API refuse le jeton (%s)",
     async (code) => {
       resetPasswordMock.mockResolvedValue({ error: { status: 400, code } });
       const view = await setup();
 
       await submit(view);
 
-      expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
-      expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();
+      expect(await view.findByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
+      expectDeadLink(view);
+      // Dans l'URL et non dans un état : une page rechargée redit que le lien est mort.
+      expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN");
+      expect(view.router.history).toHaveLength(1);
     },
   );
 
