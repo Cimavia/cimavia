@@ -4,8 +4,9 @@ import type {
   MediaRejection,
   SessionFeedbackDto,
 } from "@cmv/shared";
-import { MediaType, mediaRecapText, remainingMediaSlots } from "@cmv/shared";
+import { isUnauthorizedError, MediaType, mediaRecapText, remainingMediaSlots } from "@cmv/shared";
 import type { ImagePickerAsset } from "expo-image-picker";
+import type { TFunction } from "i18next";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
@@ -61,6 +62,9 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
   async function onAddMedia() {
     setPreUploadErrorKey(null);
     setRecap([]);
+    // Un nouveau geste efface l'échec du précédent, retrait compris : sans ça, « Le retrait a
+    // échoué » survivait à tout jusqu'au retrait suivant.
+    removeMedia.reset();
 
     let picked: ImagePickerAsset[];
     try {
@@ -91,12 +95,12 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
     );
   }
 
-  const error = mediaErrorMessage(
-    addAudio.error ?? removeMedia.error,
-    preUploadErrorKey,
-    t,
-    FEEDBACK_MEDIA_PROFILE,
-  );
+  const error = mediaErrorMessage(addAudio.error, preUploadErrorKey, t, FEEDBACK_MEDIA_PROFILE);
+  /**
+   * Le retrait a sa ligne à lui (#366). Fondu dans l'erreur d'ajout, il disait « L'envoi a échoué »
+   * pour une suppression, et une note vocale ratée plus tôt le masquait.
+   */
+  const removeError = removeErrorMessage(removeMedia.error, t);
 
   return (
     <View className="gap-3 border-cmv-border border-t pt-4">
@@ -109,6 +113,10 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
         isRemoving={removeMedia.isPending}
       />
 
+      {removeError == null ? null : (
+        <CmvText className="text-cmv-error text-sm">{removeError}</CmvText>
+      )}
+
       <MediaPicker
         photosLeft={photosLeft}
         videosLeft={videosLeft}
@@ -118,6 +126,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
         }}
         onRecordAudio={(audio) => {
           setPreUploadErrorKey(null);
+          removeMedia.reset();
           addAudio.mutate(audio);
         }}
         onRecorderError={setPreUploadErrorKey}
@@ -150,6 +159,18 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
  * exact : le plafond du lot EST la somme des places restantes. `unsupported` ne peut pas survenir —
  * la galerie ne rend que des images et des vidéos, et `assetMediaKind` est total.
  */
+/**
+ * Ce que dit un retrait refusé (#366) — `null` quand il n'y a rien à dire :
+ * - pas d'échec ;
+ * - un 401 : la session est perdue, `SessionGuard` le traite (#439) ; « vérifie ta connexion »
+ *   enverrait l'athlète chercher une panne réseau qui n'existe pas.
+ * Sinon le message de l'API (« Média introuvable », limite de débit), ou le libellé du retrait.
+ */
+function removeErrorMessage(error: unknown, t: TFunction): string | null {
+  if (error == null || isUnauthorizedError(error)) return null;
+  return apiErrorMessage(error) ?? t("feedback.media.removeError");
+}
+
 function rejectedReason({ kind }: MediaRejection): MediaRecapReason {
   return {
     key: kind === MediaType.VIDEO ? "feedback.media.noSlotVideo" : "feedback.media.noSlotImage",

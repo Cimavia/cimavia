@@ -394,6 +394,22 @@ describe("useDeleteFeedbackMedia", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(athleteFeedbackApi.deleteMedia).toHaveBeenCalledWith(SESSION_ID, "md-1");
   });
+
+  // Un 404 dit que le média est déjà parti ailleurs : la relecture fait tomber sa vignette, au
+  // lieu de la laisser rendre le même 404 à chaque essai (#366).
+  it("relit le débrief même quand le retrait échoue, et rend l'échec", async () => {
+    const failure = new Error("Média introuvable");
+    vi.mocked(athleteFeedbackApi.deleteMedia).mockRejectedValue(failure);
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteFeedbackMedia(SESSION_ID), { wrapper });
+
+    act(() => result.current.mutate("md-1"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBe(failure);
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(3));
+    invalidate.mockRestore();
+  });
 });
 
 describe("pickFeedbackAssets", () => {
