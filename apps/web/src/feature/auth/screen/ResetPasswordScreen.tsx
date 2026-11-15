@@ -1,4 +1,9 @@
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@cmv/shared";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  RESET_PASSWORD_LINK_REFUSED,
+  resetPasswordRefusal,
+} from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type SubmitEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,24 +18,15 @@ const route = getRouteApi("/reset-password");
 const LINK_CLASS = "mt-4 block text-sm text-cmv-accent hover:text-cmv-accent-hi";
 
 /**
- * Ce que dit un refus de Better Auth à l'envoi.
- *
- * - **`INVALID_TOKEN`, `USER_NOT_FOUND`** : le lien est mort — jeton inconnu, déjà consommé ou
- *   expiré, ou compte supprimé depuis l'envoi de l'e-mail (#256). Rien de ce qu'on tape n'y
- *   changera : le formulaire laisse la place au lien mort (#437).
- * - **`PASSWORD_TOO_LONG`** : le lien marche, le mot de passe dépasse la borne de l'API. Le champ
- *   ne porte pas de `maxLength` pour ça : il tronquerait EN SILENCE un mot de passe collé ou généré,
- *   et celui qu'aurait retenu le gestionnaire ne serait plus celui du compte.
- * - **429** : la limite de débit — il faut attendre, pas réessayer tout de suite.
- * - le reste : le générique. Aucun ne doit passer pour un lien mort : on redemanderait un e-mail
- *   pour rien.
+ * Les refus qui laissent le formulaire en place (`resetPasswordRefusal`) : le lien marche, seul le
+ * mot de passe ou le moment est en cause. Le lien mort, lui, remplace le formulaire.
  */
-function resetRefusal(error: Readonly<{ status?: number; code?: string | undefined }>) {
-  if (error.code === "INVALID_TOKEN" || error.code === "USER_NOT_FOUND") return "deadLink";
-  if (error.code === "PASSWORD_TOO_LONG") return "auth.reset.passwordTooLong";
-  if (error.status === 429) return "auth.errors.tooManyAttempts";
-  return "auth.errors.generic";
-}
+const REFUSAL_KEY = {
+  passwordTooShort: "auth.reset.passwordTooShort",
+  passwordTooLong: "auth.reset.passwordTooLong",
+  tooManyAttempts: "auth.errors.tooManyAttempts",
+  generic: "auth.errors.generic",
+} as const;
 
 /**
  * Où mène le lien de l'e-mail de réinitialisation, une fois que Better Auth a vérifié son jeton.
@@ -72,7 +68,11 @@ export function ResetPasswordScreen() {
     // Refusé à l'envoi, le lien est mort comme s'il était arrivé refusé : l'URL le dit, et une page
     // rechargée ne prétendra pas qu'il marche peut-être encore.
     const onLinkRefused = () =>
-      navigate({ to: "/reset-password", search: { error: "INVALID_TOKEN" }, replace: true });
+      navigate({
+        to: "/reset-password",
+        search: { error: RESET_PASSWORD_LINK_REFUSED },
+        replace: true,
+      });
     return <ResetPasswordForm token={token} onLinkRefused={onLinkRefused} />;
   }
 
@@ -118,23 +118,29 @@ function ResetPasswordForm({
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    let message: string;
     try {
       const { error: resetError } = await authClient.resetPassword({
         newPassword: password,
         token,
       });
-      if (resetError) {
-        const refusal = resetRefusal(resetError);
-        if (refusal === "deadLink") onLinkRefused();
-        else setError(t(refusal, { max: PASSWORD_MAX_LENGTH }));
+      if (!resetError) {
+        setDone(true);
         return;
       }
-      setDone(true);
+      const refusal = resetPasswordRefusal(resetError);
+      // Le bouton reste désactivé jusqu'à ce que le formulaire disparaisse : réactivé entre-temps,
+      // un second clic renverrait un jeton qu'on sait mort.
+      if (refusal === "deadLink") {
+        onLinkRefused();
+        return;
+      }
+      message = t(REFUSAL_KEY[refusal], { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH });
     } catch {
-      setError(t("auth.errors.generic"));
-    } finally {
-      setSubmitting(false);
+      message = t("auth.errors.generic");
     }
+    setError(message);
+    setSubmitting(false);
   }
 
   if (done) return <p className="text-sm text-cmv-text-mid">{t("auth.reset.success")}</p>;

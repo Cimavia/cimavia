@@ -119,6 +119,7 @@ describe("ResetPasswordScreen", () => {
 
   // Le lien marche encore : dire le contraire ferait redemander un e-mail pour rien.
   it.each([
+    ["auth.reset.passwordTooShort", { status: 400, code: "PASSWORD_TOO_SHORT" }],
     ["auth.reset.passwordTooLong", { status: 400, code: "PASSWORD_TOO_LONG" }],
     ["auth.errors.tooManyAttempts", { status: 429 }],
     ["auth.errors.generic", { status: 500, code: "INTERNAL_SERVER_ERROR" }],
@@ -130,6 +131,8 @@ describe("ResetPasswordScreen", () => {
 
     expect(await view.findByText(message)).toBeInTheDocument();
     expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
+    // Le formulaire reste, et on peut renvoyer.
+    expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();
   });
 
   it("ne tronque pas un mot de passe trop long : c'est l'API qui le refuse", async () => {

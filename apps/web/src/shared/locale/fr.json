@@ -118,6 +118,7 @@
       "invalidToken": "Ce lien a expiré ou a déjà servi. Demande un nouvel e-mail pour choisir ton mot de passe.",
       "missingToken": "Pour choisir un nouveau mot de passe, ouvre le lien reçu par e-mail. S'il a expiré ou déjà servi, demande-en un nouveau.",
       "toForgotPassword": "Recevoir un nouveau lien",
+      "passwordTooShort": "Ce mot de passe est trop court : {{min}} caractères au moins.",
       "passwordTooLong": "Ce mot de passe est trop long : {{max}} caractères au plus.",
       "toLogin": "Aller à la connexion"
     },

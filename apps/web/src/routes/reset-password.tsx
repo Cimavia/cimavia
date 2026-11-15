@@ -1,3 +1,4 @@
+import { RESET_PASSWORD_LINK_REFUSED } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { ResetPasswordScreen } from "@/feature/auth";
 
@@ -13,14 +14,13 @@ import { ResetPasswordScreen } from "@/feature/auth";
  * siennes à `failed` : c'est la seule que Better Auth pose sur cette route, et l'écran ne recopie
  * jamais ce qu'il lit dans l'URL.
  */
-export const RESET_LINK_REFUSED = "INVALID_TOKEN";
-export type ResetPasswordSearch = { token?: string; error?: typeof RESET_LINK_REFUSED };
+export type ResetPasswordSearch = { token?: string; error?: typeof RESET_PASSWORD_LINK_REFUSED };
 
 export function parseResetPasswordSearch(search: Record<string, unknown>): ResetPasswordSearch {
   const { token, error } = search;
   return {
     ...(typeof token === "string" && token !== "" && { token }),
-    ...(error != null && error !== "" && { error: RESET_LINK_REFUSED }),
+    ...(error != null && error !== "" && { error: RESET_PASSWORD_LINK_REFUSED }),
   };
 }
 
