@@ -175,6 +175,23 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
   });
 
   /**
+   * NFD ne décompose pas « œ » (#358) : la ligature est repliée à l'ÉCRITURE de `titleSearch` comme
+   * à la LECTURE du terme. Si un seul des deux côtés la repliait, « nœud » tapé tel quel ne
+   * trouverait plus son propre titre — c'est ce que la reprise des lignes déjà en base évite aussi.
+   */
+  it("trouve un titre à ligature, qu'on la tape ou non", async () => {
+    const created = await coachA.post("/exercises").send({ title: "Nœud de huit" });
+    expect(created.status).toBe(201);
+    const id: string = created.body.id;
+
+    for (const typed of ["noeud", "nœud", "NŒUD"]) {
+      const res = await coachA.get("/exercises").query({ search: typed });
+      expect(res.status).toBe(200);
+      expect(res.body.map((exercise: { id: string }) => exercise.id)).toContain(id);
+    }
+  });
+
+  /**
    * Les tags d'un exercice se REMPLACENT (replace-all) : les envoyer redéfinit la liste, les omettre
    * n'y touche pas, `[]` la vide. Un vidage qui laisserait l'ancienne liste en place ferait mentir
    * le filtre par tag — l'exercice resterait trouvé par un mot que le coach a retiré.
