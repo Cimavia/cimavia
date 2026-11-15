@@ -17,6 +17,7 @@ import {
 } from "react-icons/io5";
 import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
+import { CmvUpdateBanner } from "@/shared/component/CmvUpdateBanner";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { useCounterparts } from "@/shared/hook/useCounterparts";
 import { confirmLeave } from "@/shared/hook/useLeaveGuard";
@@ -201,6 +202,9 @@ export function CmvAppShell({
             </Link>
           ))}
         </nav>
+
+        {/* Hors de la nav qui défile : l'invite reste en vue, comme le pied du compte (#290). */}
+        <CmvUpdateBanner />
 
         <div className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-md">
           {/* Le compte vit HORS des deux espaces — ce n'est ni du coach ni de l'athlète — d'où sa

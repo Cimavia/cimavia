@@ -2,6 +2,7 @@ import { UNKNOWN_COUNTERPARTS, type UnreadCountDto } from "@cmv/shared";
 import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notificationApi } from "@/feature/notification/api";
+import { BundleUpdateContext } from "@/shared/hook/useBundleUpdate";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { authClient } from "@/shared/lib/auth";
 import { NAV_ITEMS } from "@/shared/lib/nav";
@@ -45,12 +46,14 @@ const BACK: CmvBackLink<{ to: "/planning"; search: { from: string } }> = {
   link: { to: "/planning", search: { from: "2026-11-09" } },
 };
 
-const open = ({ unsaved = false, fill = false, back = false } = {}) =>
+const open = ({ unsaved = false, fill = false, back = false, updated = false } = {}) =>
   renderInRoute(
-    <CmvAppShell title="Tableau de bord" fill={fill} back={back ? BACK : undefined}>
-      <p>contenu</p>
-      {unsaved ? <Unsaved /> : null}
-    </CmvAppShell>,
+    <BundleUpdateContext value={updated}>
+      <CmvAppShell title="Tableau de bord" fill={fill} back={back ? BACK : undefined}>
+        <p>contenu</p>
+        {unsaved ? <Unsaved /> : null}
+      </CmvAppShell>
+    </BundleUpdateContext>,
     // Une route par cible : `/messages` et `/invoices` figurent une fois dans chaque espace.
     {
       path: "/",
@@ -96,6 +99,24 @@ describe("CmvAppShell — le basculeur d'espace", () => {
     await waitFor(() => expect(notificationApi.unreadCount).toHaveBeenCalled());
 
     expect(queryByText("nav.spaceUnread")).toBeNull();
+  });
+});
+
+describe("CmvAppShell — une nouvelle version en ligne (#290)", () => {
+  it("invite à recharger dans la barre latérale, pas par-dessus la page", async () => {
+    const { getByRole } = await open({ updated: true });
+
+    // Dans `aside` : en surimpression, l'invite couvrirait le champ de la messagerie.
+    expect(within(getByRole("complementary")).getByRole("status")).toHaveTextContent(
+      "common.update.available",
+    );
+  });
+
+  it("se tait tant que la racine n'a rien vu", async () => {
+    const { queryByText } = await open();
+
+    // Par son texte : la zone des toasts porte déjà le rôle `status`.
+    expect(queryByText("common.update.available")).toBeNull();
   });
 });
 
