@@ -64,7 +64,9 @@ describe("ResetPasswordScreen", () => {
         token: "jeton-du-mail",
       }),
     );
-    expect(await view.findByText("auth.reset.success")).toBeInTheDocument();
+    // Annoncé : il remplace le formulaire après l'envoi. `getByText` : le conteneur des toasts
+    // porte lui aussi `role="status"`.
+    expect(await view.findByText("auth.reset.success")).toHaveAttribute("role", "status");
     // Dans l'URL et non dans un état : le jeton parti, une page rechargée dirait sinon « ouvre le
     // lien reçu par e-mail » à qui vient de réussir.
     expect(view.router.state.location.href).toBe("/reset-password?done=true");
@@ -99,8 +101,8 @@ describe("ResetPasswordScreen", () => {
     const view = await setup({});
 
     expectDeadLink(view);
-    // `getByText` : le conteneur des toasts porte lui aussi `role="status"`.
-    expect(view.getByText("auth.reset.missingToken")).toHaveAttribute("role", "status");
+    // Ni alerte ni `status` : affiché dès l'arrivée, c'est le contenu de la page, il se lit avec elle.
+    expect(view.getByText("auth.reset.missingToken")).not.toHaveAttribute("role");
     expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
   });
 
@@ -145,7 +147,8 @@ describe("ResetPasswordScreen", () => {
 
     await submit(view);
 
-    expect(await view.findByText(message)).toBeInTheDocument();
+    // Annoncé : il apparaît après l'envoi.
+    expect(await view.findByRole("alert")).toHaveTextContent(message);
     expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
     // Le formulaire reste, et on peut renvoyer.
     expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();

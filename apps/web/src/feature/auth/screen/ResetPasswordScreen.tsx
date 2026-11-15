@@ -4,18 +4,17 @@ import {
   RESET_PASSWORD_LINK_REFUSED,
   resetPasswordRefusal,
 } from "@cmv/shared";
-import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, type SubmitEvent, useEffect, useState } from "react";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { type SubmitEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
+import { AuthLink, AuthMessage, AuthNotice } from "../component/AuthNotice";
 
 // Le token vient du lien de reset (?token=…) généré par Better Auth.
 const route = getRouteApi("/reset-password");
-
-const LINK_CLASS = "mt-4 block text-sm text-cmv-accent hover:text-cmv-accent-hi";
 
 /**
  * Les refus qui laissent le formulaire en place (`resetPasswordRefusal`) : le lien marche, seul le
@@ -61,12 +60,21 @@ export function ResetPasswordScreen() {
   }, [tokenInUrl, linkError, navigate]);
 
   function content() {
-    if (done) return <p className="text-sm text-cmv-text-mid">{t("auth.reset.success")}</p>;
+    // Annoncé : il remplace le formulaire après l'envoi, là où était le focus.
+    if (done) return <AuthMessage role="status">{t("auth.reset.success")}</AuthMessage>;
     if (linkError !== undefined) {
-      return <LinkNotice role="alert">{t("auth.reset.invalidToken")}</LinkNotice>;
+      return (
+        <AuthNotice alert to="/forgot-password" linkLabel={t("auth.reset.toForgotPassword")}>
+          {t("auth.reset.invalidToken")}
+        </AuthNotice>
+      );
     }
     if (token == null) {
-      return <LinkNotice role="status">{t("auth.reset.missingToken")}</LinkNotice>;
+      return (
+        <AuthNotice to="/forgot-password" linkLabel={t("auth.reset.toForgotPassword")}>
+          {t("auth.reset.missingToken")}
+        </AuthNotice>
+      );
     }
     // L'issue de l'envoi va dans l'URL, pas dans un état : une page rechargée redit la même chose.
     // Refusé, le lien est mort comme s'il était arrivé refusé ; changé, le mot de passe ne fait
@@ -89,28 +97,8 @@ export function ResetPasswordScreen() {
   return (
     <AuthLayout title={t("auth.reset.title")}>
       {content()}
-      <Link to="/login" className={LINK_CLASS}>
-        {t("auth.reset.toLogin")}
-      </Link>
+      <AuthLink to="/login">{t("auth.reset.toLogin")}</AuthLink>
     </AuthLayout>
-  );
-}
-
-/** Pas de formulaire : il ne pourrait rien faire. La suite est un nouvel e-mail. */
-function LinkNotice({
-  role,
-  children,
-}: Readonly<{ role: "alert" | "status"; children: ReactNode }>) {
-  const { t } = useTranslation();
-  return (
-    <>
-      <p role={role} className="text-sm text-cmv-text-mid">
-        {children}
-      </p>
-      <Link to="/forgot-password" className={LINK_CLASS}>
-        {t("auth.reset.toForgotPassword")}
-      </Link>
-    </>
   );
 }
 
@@ -165,7 +153,11 @@ function ResetPasswordForm({
         value={password}
         onChange={(event) => setPassword(event.target.value)}
       />
-      {error != null && <p className="text-sm text-cmv-error">{error}</p>}
+      {error != null && (
+        <p role="alert" className="text-sm text-cmv-error">
+          {error}
+        </p>
+      )}
       <CmvButton type="submit" disabled={submitting} fullWidth>
         {submitting ? t("auth.reset.submitting") : t("auth.reset.submit")}
       </CmvButton>

@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { authClient } from "@/shared/lib/auth";
 import { AuthLayout } from "../component/AuthLayout";
+import { AuthLink } from "../component/AuthNotice";
 
 export function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -63,9 +63,7 @@ export function ForgotPasswordScreen() {
           </CmvButton>
         </form>
       )}
-      <Link to="/login" className="mt-4 block text-sm text-cmv-accent hover:text-cmv-accent-hi">
-        {t("auth.forgot.back")}
-      </Link>
+      <AuthLink to="/login">{t("auth.forgot.back")}</AuthLink>
     </AuthLayout>
   );
 }

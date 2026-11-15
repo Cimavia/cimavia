@@ -16,7 +16,8 @@ describe("VerifyEmailScreen (#270)", () => {
   it("confirme l'adresse et invite à se connecter", async () => {
     const view = await setup("verified");
 
-    expect(view.getByText("auth.verifyEmail.success")).toBeInTheDocument();
+    // Ni alerte ni `status` : affiché dès l'arrivée, c'est le contenu de la page, il se lit avec elle.
+    expect(view.getByText("auth.verifyEmail.success")).not.toHaveAttribute("role");
     expect(view.queryByText("auth.verifyEmail.invalid")).not.toBeInTheDocument();
     expect(view.getByRole("link", { name: "auth.verifyEmail.toLogin" })).toHaveAttribute(
       "href",
