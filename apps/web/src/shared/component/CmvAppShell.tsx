@@ -22,7 +22,7 @@ import { useCounterparts } from "@/shared/hook/useCounterparts";
 import { confirmLeave } from "@/shared/hook/useLeaveGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
-import { itemsOfSpace, landingPath, SHARED_ROUTES } from "@/shared/lib/nav";
+import { isSharedRoute, itemsOfSpace, landingPath } from "@/shared/lib/nav";
 import { cn } from "@/shared/util/cn.util";
 
 /**
@@ -96,7 +96,7 @@ const SPACES = [
  */
 function searchFor(to: string, space: CapabilityName) {
   // L'espace Entreprise ne sert aucune route partagée : il n'a jamais de titre à porter.
-  return SHARED_ROUTES.has(to) && space !== "company"
+  return isSharedRoute(to) && space !== "company"
     ? { as: space, athlete: undefined, q: undefined, filter: undefined, session: undefined }
     : { as: undefined, athlete: undefined, q: undefined, filter: undefined, session: undefined };
 }
@@ -193,7 +193,7 @@ export function CmvAppShell({
               activeProps={{ className: "bg-cmv-surface-hi text-cmv-text-hi" }}
               activeOptions={{
                 exact: item.to === "/",
-                includeSearch: SHARED_ROUTES.has(item.to),
+                includeSearch: isSharedRoute(item.to),
               }}
             >
               <item.icon aria-hidden className="shrink-0" />

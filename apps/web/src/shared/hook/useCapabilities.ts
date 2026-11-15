@@ -7,7 +7,7 @@ import {
 } from "@cmv/shared";
 import { useLocation, useSearch } from "@tanstack/react-router";
 import { authClient } from "@/shared/lib/auth";
-import { SHARED_ROUTES, spaceOfPath } from "@/shared/lib/nav";
+import { isSharedRoute, spaceOfPath } from "@/shared/lib/nav";
 
 /**
  * Les capacités du compte connecté, plus les deux états que la session peut avoir en plus de son
@@ -44,11 +44,13 @@ export function useCapabilities(): SessionCapabilities {
  * reçues, des fils des deux côtés. Pour tous les autres, l'API n'a qu'une réponse possible et
  * l'URL reste nue — c'est ce qui fait que rien ne change pour les comptes existants.
  *
- * Depuis #129, le titre vient de l'**URL** (`?as=`), posée par les deux entrées de navigation :
- * c'est un choix explicite, partageable et survivant au rechargement, là où un état d'écran se
- * perdrait. Le **persona** (`role`) ne sert plus que de repli, pour les chemins qui atteignent ces
- * écrans sans passer par la nav — un lien profond, un signet, une notification. Ce n'est pas un
- * droit dérivé du rôle : la garde, elle, lit les capacités.
+ * Le titre vient de l'**URL**, par `useActiveSpace` : le chemin d'abord, quand il désigne un espace
+ * (`/` est coach, `/planning` athlète) ; sur les deux routes partagées seulement, `?as=`, posé par
+ * leurs deux entrées de navigation (#129) — ailleurs il est ignoré (#343). C'est un choix
+ * explicite, partageable et survivant au rechargement, là où un état d'écran se perdrait. Le
+ * **persona** (`role`) ne sert que de repli, pour les chemins qui atteignent ces écrans sans passer
+ * par la nav — un lien profond, un signet, une notification. Ce n'est pas un droit dérivé du rôle :
+ * la garde, elle, lit les capacités.
  */
 export function useExercisedCapability(): TrainingCapability | null {
   const { data } = authClient.useSession();
@@ -86,8 +88,7 @@ export function useActiveSpace(): CapabilityName {
   // nav le pose (#343) — et pour un titre que le compte POSSÈDE ; sinon on retombe sur le persona,
   // comme s'il était absent.
   if (
-    // Sans la barre oblique finale : `/invoices/` reste la route partagée.
-    SHARED_ROUTES.has(pathname.replace(/\/$/, "")) &&
+    isSharedRoute(pathname) &&
     ((search.as === "coach" && isCoach) || (search.as === "athlete" && isAthlete))
   ) {
     return search.as;
