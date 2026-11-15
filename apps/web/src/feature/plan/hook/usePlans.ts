@@ -1,5 +1,5 @@
 import type { CreatePlanInput, PlanSummaryDto } from "@cmv/shared";
-import { myPlanKeys } from "@cmv/shared";
+import { myPlanKeys, notificationKeys, reminderKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceKeys } from "@/feature/invoice/api";
 import { createPlan, deletePlan, listPlans, planKeys, publishPlan } from "@/feature/plan/api";
@@ -59,6 +59,11 @@ export function useDeletePlan() {
       // La facture du cycle part en cascade (FK ON DELETE CASCADE) : rafraîchir la liste des
       // factures, sinon /invoices afficherait une facture qui n'existe plus en base.
       queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      // Les rappels du cycle et de sa facture sont purgés dans la même transaction (pas de FK, la
+      // référence est polymorphe) : sans ces deux invalidations, la liste, la tuile « à traiter »
+      // et le badge garderaient un rappel qui n'existe plus jusqu'au polling suivant (#485).
+      queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
       toast.onSuccess("plan.toast.deleted");
     },
     onError,

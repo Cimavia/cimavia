@@ -1,4 +1,4 @@
-import { invoiceKeys } from "@cmv/shared";
+import { invoiceKeys, notificationKeys, reminderKeys } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -21,6 +21,16 @@ let queryClient: QueryClient;
 
 function wrapper({ children }: Readonly<{ children: ReactNode }>) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
+/**
+ * Depuis #349, la même requête clôt le rappel « en retard » de la facture : liste des rappels, tuile
+ * du tableau de bord et pastille doivent tomber avec les factures, pas au polling suivant (#485).
+ */
+function expectInvoiceTransitionInvalidated(invalidate: ReturnType<typeof vi.spyOn>) {
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: reminderKeys.all });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.all });
 }
 
 beforeEach(() => {
@@ -48,9 +58,10 @@ describe("useCancelInvoice", () => {
 
   /**
    * La RACINE du cache est invalidée, pas la seule liste : le tableau de bord tire ses deux tuiles
-   * de facturation de la même donnée, et une facture annulée doit en sortir aussi.
+   * de facturation de la même donnée, et une facture annulée doit en sortir aussi. Le rappel
+   * « en retard » qu'elle portait est clos par l'API : rappels et notifications tombent avec elle.
    */
-  it("invalide toute la racine des factures", async () => {
+  it("invalide toute la racine des factures, les rappels et les notifications", async () => {
     cancelMock.mockResolvedValue({ id: "inv-1" });
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useCancelInvoice(), { wrapper });
@@ -58,7 +69,7 @@ describe("useCancelInvoice", () => {
     result.current.mutate("inv-1");
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
+    expectInvoiceTransitionInvalidated(invalidate);
   });
 
   // L'échec ne doit pas invalider : rien n'a changé côté serveur, et rafraîchir masquerait l'erreur.
@@ -75,15 +86,30 @@ describe("useCancelInvoice", () => {
 });
 
 describe("useUpdateInvoiceStatus", () => {
-  it("transmet le statut demandé et invalide la racine", async () => {
-    updateStatusMock.mockResolvedValue({ id: "inv-1" });
+  // Remise à régler comprise : l'API ne rouvre pas le rappel, mais c'est à elle d'en décider.
+  it.each(["PAID", "PENDING"] as const)(
+    "transmet le statut %s, puis invalide factures, rappels et notifications",
+    async (status) => {
+      updateStatusMock.mockResolvedValue({ id: "inv-1" });
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+      const { result } = renderHook(() => useUpdateInvoiceStatus(), { wrapper });
+
+      result.current.mutate({ id: "inv-1", status });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(updateStatusMock).toHaveBeenCalledWith("inv-1", { status });
+      expectInvoiceTransitionInvalidated(invalidate);
+    },
+  );
+
+  it("n'invalide rien quand le changement de statut échoue", async () => {
+    updateStatusMock.mockRejectedValue(new Error("409"));
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useUpdateInvoiceStatus(), { wrapper });
 
     result.current.mutate({ id: "inv-1", status: "PAID" });
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(updateStatusMock).toHaveBeenCalledWith("inv-1", { status: "PAID" });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });

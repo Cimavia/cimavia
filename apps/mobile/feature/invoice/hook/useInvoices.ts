@@ -1,5 +1,6 @@
 import type { InvoiceDto, TrainingCapability, UpdateInvoiceStatusInput } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notificationKeys, reminderKeys } from "@cmv/shared";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceApi, invoiceKeys } from "@/feature/invoice/api";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 
@@ -21,6 +22,23 @@ export function useInvoices(pinned?: TrainingCapability) {
 }
 
 /**
+ * Ce qu'un changement de statut de facture périme. La racine entière des factures : le tableau de
+ * bord tire ses deux tuiles de facturation de la même liste. Et AUSSI les rappels et le centre de
+ * notifications : depuis #349, payer ou annuler une facture clôt son rappel « en retard » dans la
+ * même requête ; ne périmer que les factures le laissait dans la liste, la tuile « à traiter » et
+ * la pastille jusqu'au polling suivant (#485). Même dispositif que `useReminderMutation`, et que
+ * côté web.
+ *
+ * Invalidé à chaque transition, remise à régler comprise, alors que l'API ne rouvre pas le rappel
+ * dans ce cas : décider ici quelle transition touche un rappel recopierait une règle du serveur.
+ */
+function invalidateAfterInvoiceTransition(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+  queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+  queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+}
+
+/**
  * Marquage manuel payé / impayé — coach seul (`@Roles([COACH])` sur la route). Le paiement réel est
  * externe en MVP : ce statut est une déclaration du coach, pas la trace d'un encaissement.
  *
@@ -33,10 +51,7 @@ export function useUpdateInvoiceStatus() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: UpdateInvoiceStatusInput["status"] }) =>
       invoiceApi.updateStatus(id, { status }),
-    onSuccess: () => {
-      // Racine entière : le tableau de bord tire ses deux tuiles de facturation de la même liste.
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-    },
+    onSuccess: () => invalidateAfterInvoiceTransition(queryClient),
   });
 }
 
@@ -54,9 +69,6 @@ export function useCancelInvoice() {
 
   return useMutation({
     mutationFn: (id: string) => invoiceApi.cancel(id),
-    onSuccess: () => {
-      // Racine entière : le tableau de bord tire ses deux tuiles de facturation de la même liste.
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-    },
+    onSuccess: () => invalidateAfterInvoiceTransition(queryClient),
   });
 }

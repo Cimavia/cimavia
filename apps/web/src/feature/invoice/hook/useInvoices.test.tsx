@@ -1,4 +1,10 @@
-import { type InvoiceDto, InvoiceStatus, invoiceKeys } from "@cmv/shared";
+import {
+  type InvoiceDto,
+  InvoiceStatus,
+  invoiceKeys,
+  notificationKeys,
+  reminderKeys,
+} from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -114,6 +120,16 @@ describe("useInvoices", () => {
 
 const invoice = (status: InvoiceDto["status"]) => ({ id: "inv-1", status }) as InvoiceDto;
 
+/**
+ * Depuis #349, la même requête clôt le rappel « en retard » de la facture : liste des rappels, tuile
+ * du tableau de bord et badge doivent tomber avec les factures, pas au polling suivant (#485).
+ */
+function expectInvoiceTransitionInvalidated(invalidate: ReturnType<typeof vi.spyOn>) {
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: reminderKeys.all });
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: notificationKeys.all });
+}
+
 /** Monte un hook de mutation et espionne ce qu'il périme dans le cache. */
 function mountMutation<T>(hook: () => T) {
   const { wrapper, queryClient } = renderWithQueryClient();
@@ -125,32 +141,37 @@ describe("useUpdateInvoiceStatus", () => {
   it.each([
     [InvoiceStatus.PAID, "invoice.toast.paid"],
     [InvoiceStatus.PENDING, "invoice.toast.reopened"],
-  ])("passe la facture en %s, relit les factures et le dit", async (status, toastKey) => {
-    vi.mocked(invoiceApi.updateStatus).mockResolvedValue(invoice(status));
-    const { result, invalidate } = mountMutation(() => useUpdateInvoiceStatus());
+  ])(
+    "passe la facture en %s, relit factures, rappels et notifications, et le dit",
+    async (status, toastKey) => {
+      vi.mocked(invoiceApi.updateStatus).mockResolvedValue(invoice(status));
+      const { result, invalidate } = mountMutation(() => useUpdateInvoiceStatus());
 
-    act(() => result.current.mutate({ id: "inv-1", status }));
+      act(() => result.current.mutate({ id: "inv-1", status }));
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(invoiceApi.updateStatus).toHaveBeenCalledWith("inv-1", { status });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
-    expect(toastMock.onSuccess).toHaveBeenCalledWith(toastKey);
-  });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(invoiceApi.updateStatus).toHaveBeenCalledWith("inv-1", { status });
+      expectInvoiceTransitionInvalidated(invalidate);
+      expect(toastMock.onSuccess).toHaveBeenCalledWith(toastKey);
+    },
+  );
 
-  it("dit l'échec", async () => {
+  // Rien n'a changé côté serveur : relire masquerait l'échec sans rien rafraîchir.
+  it("dit l'échec, sans rien relire", async () => {
     const failure = new Error("409");
     vi.mocked(invoiceApi.updateStatus).mockRejectedValue(failure);
-    const { result } = mountMutation(() => useUpdateInvoiceStatus());
+    const { result, invalidate } = mountMutation(() => useUpdateInvoiceStatus());
 
     act(() => result.current.mutate({ id: "inv-1", status: InvoiceStatus.PAID }));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(toastMock.onError.mock.lastCall?.[0]).toBe(failure);
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });
 
 describe("useCancelInvoice", () => {
-  it("annule, relit les factures et le dit", async () => {
+  it("annule, relit factures, rappels et notifications, et le dit", async () => {
     vi.mocked(invoiceApi.cancel).mockResolvedValue(invoice(InvoiceStatus.CANCELLED));
     const { result, invalidate } = mountMutation(() => useCancelInvoice());
 
@@ -158,18 +179,19 @@ describe("useCancelInvoice", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invoiceApi.cancel).toHaveBeenCalledWith("inv-1");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: invoiceKeys.all });
+    expectInvoiceTransitionInvalidated(invalidate);
     expect(toastMock.onSuccess).toHaveBeenCalledWith("invoice.toast.cancelled");
   });
 
-  it("dit l'échec", async () => {
+  it("dit l'échec, sans rien relire", async () => {
     vi.mocked(invoiceApi.cancel).mockRejectedValue(new Error("409"));
-    const { result } = mountMutation(() => useCancelInvoice());
+    const { result, invalidate } = mountMutation(() => useCancelInvoice());
 
     act(() => result.current.mutate("inv-1"));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(toastMock.onError).toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });
 
