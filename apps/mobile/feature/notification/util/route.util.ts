@@ -6,7 +6,8 @@ import {
   notificationOpeningCapability,
   type TrainingCapability,
 } from "@cmv/shared";
-import { type Href, router } from "expo-router";
+import type { Href } from "expo-router";
+import { type CapabilitySwitchControl, openUnder } from "@/shared/lib/open-under";
 
 /**
  * Où mène une notification. Une seule table de destinations pour les DEUX portes d'entrée :
@@ -88,23 +89,18 @@ function targetFor(
 export type NotificationDestination = { href: Href; capability: TrainingCapability };
 
 /**
- * Ouvre une destination : bascule le sélecteur de titre, PUIS navigue — dans cet ordre, sinon
- * l'écran d'arrivée se rendrait une fois sous l'ancien titre. Le sélecteur n'est visible que pour
- * un compte qui cumule ; pour les autres, la question du titre ne se pose pas.
+ * Ouvre une destination sous son titre — le geste d'`openUnder`, partagé avec les écrans d'un seul
+ * titre (#343). `null` ne mène nulle part.
  *
  * Écrit une fois pour les deux portes d'entrée (la cloche et le push) : la table leur donne déjà
  * la même destination, ceci leur donne le même geste.
  */
 export function openDestination(
   target: NotificationDestination | null,
-  capabilitySwitch: Readonly<{
-    visible: boolean;
-    select: (capability: TrainingCapability) => void;
-  }>,
+  capabilitySwitch: CapabilitySwitchControl,
 ): void {
   if (target == null) return;
-  if (capabilitySwitch.visible) capabilitySwitch.select(target.capability);
-  router.push(target.href);
+  openUnder(target.href, target.capability, capabilitySwitch);
 }
 
 function destination(

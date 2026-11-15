@@ -1,5 +1,5 @@
 import { type CoachAthleteDto, coachPresence } from "@cmv/shared";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
@@ -9,6 +9,7 @@ import { useOpenCoachConversation } from "@/feature/message/hook/useConversation
 import { CmvAvatar, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
 import { authClient } from "@/shared/lib/auth";
+import { openUnder } from "@/shared/lib/open-under";
 import { formatInstantDate } from "@/shared/util/date.util";
 
 /**
@@ -97,19 +98,20 @@ function CoachList({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
 
 function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   const { t } = useTranslation();
-  const { current, select } = useCapabilitySwitch();
+  const capabilitySwitch = useCapabilitySwitch();
   const open = useOpenCoachConversation();
 
   /**
    * Écrire à son coach est un geste d'ATHLÈTE : le fil se résout et se lit à ce titre. Un compte à
-   * double capacité arrivé ici depuis son espace coach y bascule d'abord — sinon la conversation
-   * se chercherait dans sa liste de coach. Depuis #612 un fil s'ouvre par son id : on résout la
-   * conversation à deux, puis on y va.
+   * double capacité arrivé ici depuis son espace coach y bascule avant d'y aller (`openUnder`) —
+   * sinon la conversation se chercherait dans sa liste de coach. Depuis #612 un fil s'ouvre par son
+   * id : on résout la conversation à deux, puis on bascule et on y va. Un fil qui ne s'ouvre pas ne
+   * change donc pas d'espace sous les yeux.
    */
   function openThread() {
-    if (current === "coach") select("athlete");
     open.mutate(coach.coachId, {
-      onSuccess: (conversation) => router.push(`/messages/${conversation.id}`),
+      onSuccess: (conversation) =>
+        openUnder(`/messages/${conversation.id}`, "athlete", capabilitySwitch),
     });
   }
 

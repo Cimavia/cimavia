@@ -289,6 +289,39 @@ liste des domaines vivent dans l'index.
 > `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
 > qu'il MONTRE suit le titre, pas ce que le compte possède.
 
+> **Tranché en [#343](https://github.com/Cimavia/cimavia/issues/343)** (un écran d'un seul titre lit
+> au sien, pas au titre exercé) : c'est le pendant de la règle de #129. Sur mobile, le titre exercé
+> est un ÉTAT, posé par le sélecteur de Factures et Messages, par « Mes coachs » ou par une
+> notification (#344), et rien ne le ramène au changement d'onglet. Le tableau de bord du coach le
+> lisait pourtant : un compte double revenu de ses factures « en tant qu'athlète » y comptait ses
+> factures REÇUES. La réponse à un débrief aussi, et l'API, qui cherche le fil sous le titre reçu,
+> la refusait.
+>
+> - **L'écran impose son titre** : `useExercisedCapability(pinned)` le fait passer avant le
+>   sélecteur, et rend toujours `null` à un compte mono-capacité — l'URL reste nue. Le tableau de
+>   bord lit en coach ; un débrief se répond en coach ou en athlète selon son écran.
+> - **Il y emmène son titre** : depuis un écran coach, la tuile « factures en retard » et le rappel
+>   d'une facture ouvrent Factures par `useOpenAs("coach")`, qui bascule le sélecteur avant de
+>   naviguer — le geste de `openDestination` pour une notification. Sinon la tuile comptait les
+>   factures du coach et menait aux factures reçues.
+> - **Écarté : garder l'onglet sur le titre exercé** (`redirectForPath`). Il aurait chassé le coach
+>   de son tableau de bord, ou basculé le sélecteur dans son dos à chaque onglet.
+> - **Écarté aussi : déduire le titre du chemin**, comme le web (`spaceOfPath`) — proposé deux fois
+>   en revue de la PR. Sur mobile, les onglets restent montés : un tableau de bord resté sous
+>   `/session/…` relirait ses factures en athlète, en arrière-plan. `usePushToken`, à la racine,
+>   route un message au titre exercé (#344) : l'écran affiché au moment du push en déciderait.
+>   Et les écrans hors barre d'onglets (`/feedbacks`, `/reminders`, `/session`) demanderaient une
+>   seconde table. Le prix assumé : un nouvel écran d'un seul titre doit passer le sien.
+> - **Écarté encore : un fournisseur posé par l'écran** (`<PinnedCapability value="coach">`),
+>   proposé en revue pour couvrir ses descendants. Les hooks qu'appelle l'écran lui-même sont
+>   AU-DESSUS de ce qu'il rend : il faudrait scinder chaque écran en enveloppe + contenu, pour un
+>   oubli tout aussi possible — une enveloppe se néglige comme un paramètre. Rien de ce que rendent
+>   ces écrans ne dépend du titre aujourd'hui : la puce « à propos de… » du `MessageBubble` est
+>   masquée dans un débrief.
+> - **Le web avait le même trou par l'URL** : `?as=` primait sur le chemin partout, et `/?as=athlete`
+>   montrait le menu athlète au-dessus du tableau de bord coach. Il ne vaut plus que sur les routes
+>   servies aux deux, les seules où la nav le pose ; ailleurs, le chemin, puis le persona.
+
 > **Appris en #14** (deux classes Tailwind concurrentes ne se départagent pas par la chaîne) : le
 > fond d'alerte des tuiles du tableau de bord avait disparu côté web. `CmvCard` posait
 > `bg-cmv-surface`, `DashboardTile` ajoutait `bg-cmv-error-soft` via `className`, et `cn` ne résout

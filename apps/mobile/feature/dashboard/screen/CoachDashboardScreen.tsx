@@ -21,6 +21,7 @@ import { useConversations } from "@/feature/message/hook/useConversation";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useOpenAs } from "@/shared/hook/useExercisedCapability";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -48,8 +49,12 @@ export function CoachDashboardScreen() {
 
   const athletes = useAthletes();
   const feedbacks = useCoachFeedbacks();
-  const invoices = useInvoices();
-  const conversations = useConversations();
+  // En titre de coach, quel que soit le sélecteur (#343) : celui-ci vit sur Factures et Messages, et
+  // un compte double revenu de ses factures « en tant qu'athlète » y lirait ses factures REÇUES.
+  const invoices = useInvoices("coach");
+  const conversations = useConversations("coach");
+  // La tuile compte les factures du coach : elle ouvre Factures au même titre.
+  const openAsCoach = useOpenAs("coach");
   // Le RÉSUMÉ, pas la liste : deux entiers comptés en SQL, là où `useReminders` rapporterait
   // jusqu'à 200 lignes pour qu'on en mesure une.
   const reminders = useReminderSummary();
@@ -147,7 +152,7 @@ export function CoachDashboardScreen() {
               count={countOverdueInvoices(invoices.data, today)}
               hint={t("dashboard.tiles.overdueInvoicesHint")}
               tone="error"
-              onPress={() => router.push("/invoices")}
+              onPress={() => openAsCoach("/invoices")}
             />
           </View>
 
