@@ -120,14 +120,18 @@ function FeedbackBody({
   const conversation = useConversationWith(isSelf ? null : (summary?.athleteId ?? null));
   const queryClient = useQueryClient();
   const freshMediaUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
-  const reply = useFeedbackReply({
-    feedbackId: feedback?.id ?? null,
-    conversationId: conversation.data?.id,
-    isThreadError: conversation.isError,
-    // La liste ENTIÈRE et pas seulement ce débrief : `firstReply` y vit aussi, et c'est lui qui
-    // dira « répondu » sur la ligne qu'on vient de traiter.
-    onSent: () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all }),
-  });
+  const reply = useFeedbackReply(
+    {
+      feedbackId: feedback?.id ?? null,
+      conversationId: conversation.data?.id,
+      isThreadError: conversation.isError,
+      // La liste ENTIÈRE et pas seulement ce débrief : `firstReply` y vit aussi, et c'est lui qui
+      // dira « répondu » sur la ligne qu'on vient de traiter.
+      onSent: () => queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all }),
+    },
+    // Le débrief d'un de ses athlètes, donc en coach — quel que soit le sélecteur (#343).
+    "coach",
+  );
 
   // Refus qui PRÉCÈDE l'upload (permission galerie, permission/erreur micro) : porté à la main, il
   // ne passe par aucune mutation. Réinitialisé à chaque nouvelle tentative.

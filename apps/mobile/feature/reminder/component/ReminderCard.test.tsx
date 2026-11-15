@@ -1,8 +1,21 @@
-import { type ReminderDto, ReminderEntityType, ReminderStatus } from "@cmv/shared";
+import { type ReminderDto, ReminderEntityType, ReminderStatus, Role } from "@cmv/shared";
+import { waitFor } from "@testing-library/react";
 import { router } from "expo-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReminderCard } from "@/feature/reminder/component/ReminderCard";
+import { withSelectorOn } from "@/test/capability";
 import { pressButton, renderRn } from "@/test/render";
+
+// Sans session par défaut : la carte d'un compte mono-capacité n'a aucun titre à basculer.
+const { session } = vi.hoisted(() => ({
+  session: { current: null as { user: Record<string, unknown> } | null },
+}));
+vi.mock("@/shared/lib/auth", () => ({
+  authClient: { useSession: () => ({ data: session.current }) },
+}));
+beforeEach(() => {
+  session.current = null;
+});
 
 // La pastille rend sa variante sans classe lisible dans le DOM (NativeWind) : on la double pour
 // que la couleur choisie — ce que la carte DÉCIDE — reste observable.
@@ -130,6 +143,24 @@ describe("ReminderCard — la cible", () => {
 
     pressButton(container, "reminder.targetLine");
 
+    expect(router.push).toHaveBeenCalledWith("/invoices");
+  });
+
+  /**
+   * Un rappel se reçoit en coach : sa facture est parmi les émises. Un compte double qui a laissé
+   * le sélecteur sur « athlète » doit y arriver côté coach, pas sur ses factures reçues (#343).
+   */
+  it("ouvre les factures en coach pour un compte double resté sur athlète", async () => {
+    session.current = { user: { id: "me", isCoach: true, isAthlete: true, role: Role.COACH } };
+    const handlers = { onMarkDone: vi.fn(), onDismiss: vi.fn(), onReopen: vi.fn() };
+    const { container, getByTestId } = renderRn(
+      withSelectorOn("athlete", <ReminderCard reminder={reminder()} busy={false} {...handlers} />),
+    );
+    await waitFor(() => expect(getByTestId("exercised").textContent).toBe("athlete"));
+
+    pressButton(container, "reminder.targetLine");
+
+    expect(getByTestId("exercised").textContent).toBe("coach");
     expect(router.push).toHaveBeenCalledWith("/invoices");
   });
 

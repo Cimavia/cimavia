@@ -4,6 +4,7 @@ import {
   type CreateConversationInput,
   type MessageDto,
   type SendMessageInput,
+  type TrainingCapability,
   withConversation,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,9 +23,11 @@ const POLL_INTERVAL_MS = 10_000;
  * de sondage : le retour au premier plan, le tirer-pour-rafraîchir et l'invalidation par `markRead`
  * suffisent (un intervalle permanent viderait la batterie pour des compteurs qu'on ne regarde pas
  * changer).
+ *
+ * `pinned` : titre imposé par un écran mono-titre, voir `useExercisedCapability` (#343).
  */
-export function useConversations() {
-  const as = useExercisedCapability();
+export function useConversations(pinned?: TrainingCapability) {
+  const as = useExercisedCapability(pinned);
   return useQuery<ConversationDto[]>({
     queryKey: messageKeys.conversations(as),
     queryFn: () => messageApi.listConversations(as),
@@ -166,15 +169,24 @@ export function useMessages(conversationId: string | undefined) {
 }
 
 /**
- * `attachment` : ce sur quoi le message porte (« à propos de… »).
- *
- * Il vit ICI et non dans le `Composer` : la barre d'envoi ne sait rien du contexte où on l'a
- * posée, et c'est très bien — c'est l'écran qui répond depuis un débrief, pas elle. Sans ce
- * paramètre, une réponse écrite depuis le débrief partirait nue dans le fil.
+ * Comment un envoi s'inscrit dans l'écran qui le fait — une forme pour le texte comme pour les
+ * médias (`useSendMessageMedia`), pour qu'un titre ne se passe jamais à la mauvaise position.
  */
-export function useSendMessage(conversationId: string, attachment?: { sessionFeedbackId: string }) {
+export type SendMessageOptions = {
+  /**
+   * Ce sur quoi le message porte (« à propos de… »). Il vit ICI et non dans le `Composer` : la
+   * barre d'envoi ne sait rien du contexte où on l'a posée — c'est l'écran qui répond depuis un
+   * débrief, pas elle. Sans lui, une réponse écrite depuis le débrief partirait nue dans le fil.
+   */
+  attachment?: { sessionFeedbackId: string } | undefined;
+  /** Titre imposé par un écran mono-titre, voir `useExercisedCapability` (#343). */
+  pinned?: TrainingCapability;
+};
+
+export function useSendMessage(conversationId: string, options?: SendMessageOptions) {
   const queryClient = useQueryClient();
-  const as = useExercisedCapability();
+  const as = useExercisedCapability(options?.pinned);
+  const attachment = options?.attachment;
   return useMutation({
     mutationFn: (input: SendMessageInput) =>
       messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),

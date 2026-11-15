@@ -110,6 +110,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const SHARED_ROUTES = new Set(["/invoices", "/messages"]);
 
 /**
+ * Ce chemin est-il une route servie aux deux ? Sans sa barre oblique finale : `/invoices/` l'est
+ * autant que `/invoices`. La seule définition — `spaceOfPath` et `useActiveSpace` la partagent, et
+ * deux formes du même test finiraient par traiter `/invoices/` différemment (#343).
+ */
+export function isSharedRoute(pathname: string): boolean {
+  return SHARED_ROUTES.has(pathname.replace(/\/$/, ""));
+}
+
+/**
  * Y a-t-il quelqu'un en face DANS cet espace ? Jamais pour l'entreprise : elle n'est partie à aucune
  * relation d'entraînement, et un ternaire coach/athlète l'aurait rangée côté athlète.
  */
@@ -159,7 +168,7 @@ export function landingPath(space: CapabilityName, counterparts: CounterpartsDto
  * dès qu'il ouvre ses factures d'athlète.
  */
 export function spaceOfPath(pathname: string): CapabilityName | null {
-  if (SHARED_ROUTES.has(pathname)) return null;
+  if (isSharedRoute(pathname)) return null;
   const match = NAV_ITEMS.find(
     (item) =>
       !SHARED_ROUTES.has(item.to) &&
