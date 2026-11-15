@@ -1,3 +1,4 @@
+export { CmvAudioLimitNotice } from "./CmvAudioLimitNotice";
 export { CmvAudioPlayer } from "./CmvAudioPlayer";
 export { CmvAudioRecorder, type RecordedAudio } from "./CmvAudioRecorder";
 export { CmvAvatar } from "./CmvAvatar";

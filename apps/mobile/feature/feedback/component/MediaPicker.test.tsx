@@ -1,7 +1,23 @@
+import { act } from "@testing-library/react";
 import { requestRecordingPermissionsAsync } from "expo-audio";
 import { describe, expect, it, vi } from "vitest";
 import { MediaPicker } from "@/feature/feedback/component/MediaPicker";
+import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
+import { CmvAudioRecorder } from "@/shared/component/CmvAudioRecorder";
 import { press, pressButton, renderRn } from "@/test/render";
+
+// Le vrai enregistreur, ÉPIÉ : ses props disent ce que le débrief lui confie.
+vi.mock("@/shared/component/CmvAudioRecorder", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/component/CmvAudioRecorder")>();
+  return { ...actual, CmvAudioRecorder: vi.fn(actual.CmvAudioRecorder) };
+});
+
+/** Ce que le débrief a passé à l'enregistreur à son dernier rendu. */
+function recorderProps() {
+  const props = vi.mocked(CmvAudioRecorder).mock.lastCall?.[0];
+  if (props == null) throw new Error("enregistreur jamais rendu");
+  return props;
+}
 
 const base = {
   photosLeft: 3,
@@ -59,6 +75,26 @@ describe("MediaPicker", () => {
     const { container } = renderRn(<MediaPicker {...base} audiosLeft={1} />);
     press(micButton(container));
     expect(requestRecordingPermissionsAsync).toHaveBeenCalledOnce();
+  });
+
+  /** Au plafond, la parole continue dans une note neuve tant que le débrief a de la place (#856). */
+  it("confie à l'enregistreur le plafond du débrief et ses places restantes", () => {
+    renderRn(<MediaPicker {...base} audiosLeft={2} />);
+    expect(recorderProps()).toMatchObject({
+      maxDurationSeconds: FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds,
+      notesLeft: 2,
+    });
+  });
+
+  it("dit l'arrêt au plafond jusqu'au prochain enregistrement", () => {
+    const { queryByText } = renderRn(<MediaPicker {...base} />);
+    expect(queryByText("messages.audio.limitReached")).toBeNull();
+
+    act(() => recorderProps().onLimitReached?.());
+    expect(queryByText("messages.audio.limitReached")).not.toBeNull();
+
+    act(() => recorderProps().onRecordingChange?.(true));
+    expect(queryByText("messages.audio.limitReached")).toBeNull();
   });
 
   it("ne montre l'avancement que pendant un envoi", () => {

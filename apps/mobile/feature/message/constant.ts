@@ -32,3 +32,11 @@ export const MESSAGE_MEDIA_PROFILE: MediaProfile = {
     uploadError: "messages.media.uploadError",
   },
 };
+
+/**
+ * Les notes qu'une capture peut produire dans le fil (#856) : au plafond, la parole continue dans
+ * une note neuve, jusqu'à ce compte — 15 min de parole d'un tenant. Le débrief a son quota ; le fil
+ * n'en a pas, et un micro oublié en poche enverrait sinon une note toutes les 5 min, écran gardé
+ * allumé, jusqu'à la batterie vide.
+ */
+export const MESSAGE_AUDIO_NOTES_PER_CAPTURE = 3;

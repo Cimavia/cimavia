@@ -345,7 +345,9 @@
     "audio": {
       "permission": "cimavia a besoin du micro pour enregistrer un message vocal.",
       "recordError": "L'enregistrement a échoué. Réessaie.",
-      "foregroundOnly": "Notifications désactivées : la note se met en pause écran verrouillé."
+      "foregroundOnly": "Notifications désactivées : la note se met en pause écran verrouillé.",
+      "relayed": "Note {{index}} envoyée, l'enregistrement continue.",
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté."
     },
     "title": "Messages",
     "search": {

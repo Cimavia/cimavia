@@ -5,9 +5,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
-import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
+import { MESSAGE_AUDIO_NOTES_PER_CAPTURE, MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { AttachSource } from "@/feature/message/hook/useMessageMedia";
-import { CmvAudioRecorder, CmvCharCount, CmvText, type RecordedAudio } from "@/shared/component";
+import {
+  CmvAudioLimitNotice,
+  CmvAudioRecorder,
+  CmvCharCount,
+  CmvText,
+  type RecordedAudio,
+} from "@/shared/component";
 
 type ComposerProps = {
   /** Le champ ne se vide qu'une fois la promesse tenue : un échec laisse le texte en place. */
@@ -52,6 +58,8 @@ export function Composer({
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const [choosing, setChoosing] = useState(false);
+  // La note s'est arrêtée au plafond faute de relais (#856) : dit jusqu'au prochain enregistrement.
+  const [limitReached, setLimitReached] = useState(false);
   // Un envoi qui démarre referme le choix — un débrief qui recharge passe aussi par là. Masqué
   // seulement, il resurgirait à la fin de l'envoi sans qu'on l'ait demandé.
   if (mediaBusy && choosing) setChoosing(false);
@@ -75,12 +83,17 @@ export function Composer({
       onRecordingChange={(next) => {
         setRecording(next);
         // Le choix ouvert avant le micro ne doit pas resurgir quand l'enregistrement se termine.
-        if (next) setChoosing(false);
+        if (next) {
+          setChoosing(false);
+          setLimitReached(false);
+        }
       }}
       onError={onMediaError}
       disabled={mediaBusy}
       // La réponse à un débrief passe aussi par ici : elle part dans le fil, au plafond du message.
       maxDurationSeconds={MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds}
+      notesLeft={MESSAGE_AUDIO_NOTES_PER_CAPTURE}
+      onLimitReached={() => setLimitReached(true)}
     />
   );
 
@@ -145,6 +158,11 @@ export function Composer({
 
       {/* Le champ s'efface pendant un enregistrement : son compteur avec lui. */}
       {recording ? null : <CmvCharCount length={text.length} maxLength={MESSAGE_TEXT_MAX_LENGTH} />}
+
+      <CmvAudioLimitNotice
+        visible={limitReached}
+        maxDurationSeconds={MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds}
+      />
 
       {mediaBusy ? (
         <View className="flex-row items-center gap-2 pt-2">

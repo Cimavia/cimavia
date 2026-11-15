@@ -1,9 +1,11 @@
 import { MESSAGE_TEXT_MAX_LENGTH } from "@cmv/shared";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "@/feature/message/component/Composer";
+import { MESSAGE_AUDIO_NOTES_PER_CAPTURE, MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
+import { CmvAudioRecorder } from "@/shared/component/CmvAudioRecorder";
 import { press, renderRn } from "@/test/render";
 
 /**
@@ -12,16 +14,21 @@ import { press, renderRn } from "@/test/render";
  * du micro au repos, et la presser annonce un enregistrement en cours.
  */
 vi.mock("@/shared/component/CmvAudioRecorder", () => ({
-  CmvAudioRecorder: ({
-    onRecordingChange,
-  }: {
-    onRecordingChange?: (recording: boolean) => void;
-  }) => (
-    <button type="button" onClick={() => onRecordingChange?.(true)}>
-      <span data-icon="mic-outline" />
-    </button>
+  CmvAudioRecorder: vi.fn(
+    ({ onRecordingChange }: { onRecordingChange?: (recording: boolean) => void }) => (
+      <button type="button" onClick={() => onRecordingChange?.(true)}>
+        <span data-icon="mic-outline" />
+      </button>
+    ),
   ),
 }));
+
+/** Ce que la barre a passé à l'enregistreur à son dernier rendu. */
+function recorderProps() {
+  const props = vi.mocked(CmvAudioRecorder).mock.lastCall?.[0];
+  if (props == null) throw new Error("enregistreur jamais rendu");
+  return props;
+}
 
 const base = {
   onSendText: vi.fn().mockResolvedValue(undefined),
@@ -213,6 +220,26 @@ describe("Composer", () => {
     expect(iconButton(container, "add-circle-outline")).toBeNull();
     expect(container.querySelector("textarea, input")).toBeNull();
     expect(iconButton(container, "mic-outline")).not.toBeNull();
+  });
+
+  /**
+   * Au plafond, sans relais, la capture s'arrête et le bandeau part avec elle : c'est la barre qui
+   * le dit, au plafond du MESSAGE — une réponse à un débrief passe par ici aussi (#856).
+   */
+  it("dit l'arrêt au plafond jusqu'au prochain enregistrement", () => {
+    const { container, queryByText } = renderRn(<Composer {...base} />);
+    // Le fil n'a pas de quota : c'est la barre qui borne le relais, pour un micro oublié en poche.
+    expect(recorderProps()).toMatchObject({
+      maxDurationSeconds: MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds,
+      notesLeft: MESSAGE_AUDIO_NOTES_PER_CAPTURE,
+    });
+    expect(queryByText("messages.audio.limitReached")).toBeNull();
+
+    act(() => recorderProps().onLimitReached?.());
+    expect(queryByText("messages.audio.limitReached")).not.toBeNull();
+
+    press(iconButton(container, "mic-outline") as Element);
+    expect(queryByText("messages.audio.limitReached")).toBeNull();
   });
 
   /** Un fichier sans nom se nomme quand même : la ligne d'avancement ne laisse pas de trou. */
