@@ -112,6 +112,10 @@ const MINUTES_PER_HOUR = 60;
 const HOURS_PER_DAY = 24;
 // Au-delà d'une semaine, « il y a 23 jours » informe moins qu'une date : on rend la main.
 const RELATIVE_MAX_DAYS = 7;
+// `createdAt` vient du serveur, `now` de l'appareil : une horloge d'appareil qui retarde de quelques
+// secondes place l'instant dans le futur. Jusqu'à 2 min, ce n'est qu'un décalage — « à l'instant ».
+// Au-delà, l'écart n'est plus anodin et la date absolue le montre au lieu de le maquiller.
+const CLOCK_SKEW_TOLERANCE_MS = 2 * MS_PER_MINUTE;
 
 /**
  * Clé i18n par unité. Le comptage est ici (pur, testé), les LIBELLÉS restent dans les fichiers de
@@ -132,18 +136,20 @@ export const RELATIVE_TIME_KEY = {
  * Hermes (mobile), et il produirait une chaîne hors du circuit i18next — donc une string en dur
  * déguisée (règle dure n°6).
  *
- * Retourne `null` quand aucune forme relative n'est pertinente : instant illisible, horloge en
- * avance, ou plus vieux qu'une semaine. L'appelant affiche alors la date absolue
- * (`formatIsoDateTime`) — ce n'est pas une valeur de repli, c'est l'autre façon de dire la même
- * chose, et elle est plus honnête.
+ * Retourne `null` quand aucune forme relative n'est pertinente : instant illisible, plus de 2 min
+ * dans le futur (horloge de l'appareil en retard), ou plus vieux qu'une semaine. L'appelant affiche
+ * alors la date absolue (`formatIsoDateTime`) — ce n'est pas une valeur de repli, c'est l'autre
+ * façon de dire la même chose, et elle est plus honnête.
  */
 export function relativeTimeFrom(isoDateTime: string, now: Date): RelativeTime | null {
   const instant = Date.parse(isoDateTime);
   if (Number.isNaN(instant)) return null;
 
-  const minutes = Math.floor((now.getTime() - instant) / MS_PER_MINUTE);
-  if (minutes < 0) return null;
-  if (minutes < 1) return { unit: "now", value: 0 };
+  const elapsed = now.getTime() - instant;
+  if (elapsed < -CLOCK_SKEW_TOLERANCE_MS) return null;
+  if (elapsed < MS_PER_MINUTE) return { unit: "now", value: 0 };
+
+  const minutes = Math.floor(elapsed / MS_PER_MINUTE);
   if (minutes < MINUTES_PER_HOUR) return { unit: "minute", value: minutes };
 
   const hours = Math.floor(minutes / MINUTES_PER_HOUR);
