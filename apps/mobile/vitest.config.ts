@@ -34,7 +34,18 @@ export default defineConfig({
      * Metro. Le `@/` est donc redéclaré, en miroir des `paths` du tsconfig.
      */
     alias: [
-      { find: /^react-native$/, replacement: "react-native-web" },
+      /**
+       * Un chemin ABSOLU, celui du mobile, et non le nom du paquet. Le workspace porte deux copies
+       * de `react-native-web`, une par React (19.2.3 ici, 19.2.7 au web). Résolu par son nom, l'alias
+       * se lit depuis l'importeur : un paquet qui n'a pas `react-native` dans ses dépendances,
+       * comme `@better-auth/expo`, tombait sur la copie que pnpm hisse, et que le `vi.mock` d'un
+       * test ne couvre pas. La montée de #838 a changé ce hissage : le plugin s'est cru sur le web,
+       * et `auth.sign-out.test.ts` a vu un cookie que la déconnexion ne vidait plus.
+       */
+      {
+        find: /^react-native$/,
+        replacement: path.resolve(import.meta.dirname, "node_modules/react-native-web"),
+      },
       { find: /^@\//, replacement: `${path.resolve(import.meta.dirname, ".")}/` },
       {
         find: /^@cmv\/shared\/test\//,
