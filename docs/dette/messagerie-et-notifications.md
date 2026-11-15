@@ -314,9 +314,14 @@ liste des domaines vivent dans l'index.
 > La facture s'affiche de nouveau en retard, et le coach peut rouvrir le rappel depuis
 > l'historique ; **(3)** une course est acceptée — un tick qui lit la facture juste avant que le
 > paiement soit validé peut encore insérer un rappel `PENDING`. La fenêtre dure quelques
-> millisecondes pour un tick horaire, et le rappel se ferme d'un clic. Côté clients, payer
-> n'invalide encore que les caches facture : badge et tuile se mettent à jour au polling suivant
-> ([#485](https://github.com/Cimavia/cimavia/issues/485)).
+> millisecondes pour un tick horaire, et le rappel se ferme d'un clic. Côté clients, depuis
+> [#485](https://github.com/Cimavia/cimavia/issues/485), changer le statut d'une facture ou
+> l'annuler périme aussi les rappels et le centre de notifications, sur le web comme sur
+> mobile : liste, tuile « à traiter » et badge suivent sans attendre le polling. Ce dispositif
+> joue à **chaque** transition, même la remise à régler, qui ne rouvre rien : sinon le client
+> devrait savoir quelle transition touche un rappel, et cette règle est au serveur. La
+> suppression d'un cycle, qui purge ses rappels (**R-4**), périme les mêmes caches côté web
+> (le mobile ne supprime pas de cycle).
 
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.

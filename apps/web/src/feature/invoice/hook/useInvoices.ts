@@ -1,6 +1,6 @@
 import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
-import { InvoiceStatus } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { InvoiceStatus, notificationKeys, reminderKeys } from "@cmv/shared";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   attachInvoiceDocument,
   getPlanBilling,
@@ -26,6 +26,22 @@ export function useInvoices() {
   });
 }
 
+/**
+ * Ce qu'un changement de statut de facture périme : les factures, mais AUSSI les rappels et le
+ * centre de notifications. Depuis #349, payer ou annuler une facture clôt son rappel « en retard »
+ * dans la même requête ; ne périmer que les factures laissait ce rappel dans la liste, la tuile
+ * « à traiter » et le badge jusqu'au polling suivant (#485). Même dispositif que
+ * `useReminderMutation`.
+ *
+ * Invalidé à chaque transition, remise à régler comprise, alors que l'API ne rouvre pas le rappel
+ * dans ce cas : décider ici quelle transition touche un rappel recopierait une règle du serveur.
+ */
+function invalidateAfterInvoiceTransition(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+  queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+  queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+}
+
 export function useUpdateInvoiceStatus() {
   const queryClient = useQueryClient();
   const toast = useMutationToast();
@@ -34,7 +50,7 @@ export function useUpdateInvoiceStatus() {
     mutationFn: ({ id, status }: { id: string; status: UpdateInvoiceStatusInput["status"] }) =>
       invoiceApi.updateStatus(id, { status }),
     onSuccess: (invoice) => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      invalidateAfterInvoiceTransition(queryClient);
       toast.onSuccess(
         invoice.status === InvoiceStatus.PAID ? "invoice.toast.paid" : "invoice.toast.reopened",
       );
@@ -50,7 +66,7 @@ export function useCancelInvoice() {
   return useMutation({
     mutationFn: (id: string) => invoiceApi.cancel(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      invalidateAfterInvoiceTransition(queryClient);
       toast.onSuccess("invoice.toast.cancelled");
     },
     onError: toast.onError,
