@@ -49,7 +49,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | ✅ |
 | #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | ✅ |
 | #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | ✅ |
-| #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | |
+| #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | ✅ |
 | #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | |
 | #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | ✅ |
 | #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
@@ -60,12 +60,12 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | |
 | #82 | Note vocale web → iOS : format lisible partout | 🟡 | |
 | #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | ✅ |
-| #366 | Retirer un média d'un débrief échoue en silence | ⚪ | |
+| #366 | Retirer un média d'un débrief échoue en silence | ⚪ | ✅ |
 | #369 | L'indice « défaut … » affiche des secondes brutes | ⚪ | ✅ |
-| #381 | Une horloge en avance affiche une date absolue | ⚪ | |
-| #358 | La recherche ne replie pas « œ » ni « æ » | ⚪ | |
-| #437 | Lien de réinitialisation expiré : le formulaire s'affiche quand même | ⚪ | |
-| #485 | Payer une facture laisse le badge des rappels périmé | ⚪ | |
+| #381 | Une horloge en avance affiche une date absolue | ⚪ | ✅ |
+| #358 | La recherche ne replie pas « œ » ni « æ » | ⚪ | ✅ |
+| #437 | Lien de réinitialisation expiré : le formulaire s'affiche quand même | ⚪ | ✅ |
+| #485 | Payer une facture laisse le badge des rappels périmé | ⚪ | ✅ |
 | #514 | Métrique maison : bouton actif sur un libellé trop long | ⚪ | |
 | #521 | Mobile : une colonne repliée répète son unité | ⚪ | ✅ |
 
