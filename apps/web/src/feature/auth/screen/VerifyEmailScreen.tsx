@@ -1,10 +1,9 @@
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AuthLayout } from "../component/AuthLayout";
+import { AuthNotice } from "../component/AuthNotice";
 
 const route = getRouteApi("/verify-email");
-
-const LINK_CLASS = "mt-4 block text-cmv-accent text-sm hover:text-cmv-accent-hi";
 
 /**
  * Où ramène le lien de l'e-mail de vérification (#270), après que l'API a vérifié le jeton.
@@ -22,28 +21,21 @@ export function VerifyEmailScreen() {
   const { t } = useTranslation();
   const { outcome } = route.useSearch();
 
-  if (outcome === "passwordRequired") {
-    return (
-      <AuthLayout title={t("auth.verifyEmail.title")}>
-        <p role="alert" className="text-cmv-text-mid text-sm">
+  function notice() {
+    if (outcome === "passwordRequired") {
+      return (
+        <AuthNotice alert to="/forgot-password" linkLabel={t("auth.verifyEmail.toForgotPassword")}>
           {t("auth.verifyEmail.passwordRequired")}
-        </p>
-        <Link to="/forgot-password" className={LINK_CLASS}>
-          {t("auth.verifyEmail.toForgotPassword")}
-        </Link>
-      </AuthLayout>
+        </AuthNotice>
+      );
+    }
+    const failed = outcome === "failed";
+    return (
+      <AuthNotice alert={failed} to="/login" linkLabel={t("auth.verifyEmail.toLogin")}>
+        {failed ? t("auth.verifyEmail.invalid") : t("auth.verifyEmail.success")}
+      </AuthNotice>
     );
   }
 
-  const failed = outcome === "failed";
-  return (
-    <AuthLayout title={t("auth.verifyEmail.title")}>
-      <p role={failed ? "alert" : "status"} className="text-cmv-text-mid text-sm">
-        {failed ? t("auth.verifyEmail.invalid") : t("auth.verifyEmail.success")}
-      </p>
-      <Link to="/login" className={LINK_CLASS}>
-        {t("auth.verifyEmail.toLogin")}
-      </Link>
-    </AuthLayout>
-  );
+  return <AuthLayout title={t("auth.verifyEmail.title")}>{notice()}</AuthLayout>;
 }
