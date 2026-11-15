@@ -279,6 +279,23 @@ liste des domaines vivent dans l'index.
 > voudrait rien dire, donc il n'existe pas. Le `DEFAULT ''` de la migration ne sert qu'à poser la
 > colonne sur les lignes déjà là et **ne lui survit pas**.
 
+> **Tranché en [#358](https://github.com/Cimavia/cimavia/issues/358)** (les ligatures, et elles
+> seules) : NFD ne décompose pas « œ » ni « æ », que le correcteur d'iOS insère tout seul ;
+> `comparableText` les replie à la main en « oe » / « ae ». Les autres lettres que NFD laisse
+> entières (« ß », « ø », « ł ») restent hors règle : les traiter demanderait une table de
+> translittération, soit la seconde définition de « sans accent » refusée plus haut. Le produit est
+> en français, ces deux ligatures sont les siennes.
+>
+> **Changer la règle impose de reprendre `titleSearch`**, et c'est le piège de la colonne
+> normalisée : la forme comparable est figée à l'écriture. Sans la migration de données, un
+> « Nœud de huit » déjà en base serait resté `nœud de huit`, quand le terme cherché devenait
+> `noeud` — introuvable, même tapé à l'identique. La reprise remplace les ligatures DANS
+> `titleSearch` plutôt que de le recalculer depuis `title` : seule cette partie de la règle a
+> changé, et refaire toute la fonction en SQL l'exposerait à la casse de la locale de la base.
+> Les minuscules seules suffisent : la colonne l'est déjà, et la reprise de #141 a tourné sous
+> `en_US.utf8`, où `lower()` traite « Œ » (vérifié en local ; même image sur le NAS). Toute
+> évolution future de `comparableText` appelle la même reprise.
+
 > **Fermé par #79** (le filtrage client n'est pas une option, malgré les voisins) : `LibraryPicker`
 > et `ExercisePicker` filtrent en mémoire, et il aurait été tentant d'aligner la liste dessus.
 > [#79](https://github.com/Cimavia/cimavia/issues/79) paginera `GET /exercises` — filtrer une page
