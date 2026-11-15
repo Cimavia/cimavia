@@ -27,5 +27,8 @@ export function sentryDataCollection({ userInfo }: { userInfo: boolean }) {
     frameContextLines: 7,
     graphQL: { document: false, variables: false },
     genAI: { inputs: false, outputs: false },
+    // Arrivée en 11.11. Absente, elle retomberait sur `genAI`, déjà coupé : posée quand même, la
+    // liste reste complète, et le `satisfies Required<…>` de l'API la réclame.
+    mcp: { inputs: false, outputs: false },
   };
 }
