@@ -390,10 +390,7 @@ describe("useSendMessageMedia", () => {
 
   // Une note vocale enregistrée depuis un débrief part au titre de son écran, pas du sélecteur.
   it("transmet le titre imposé par l'écran (#343)", () => {
-    renderHook(
-      () => useSendMessageMedia(CONVERSATION_ID, { attachment: undefined, pinned: "coach" }),
-      { wrapper },
-    );
+    renderHook(() => useSendMessageMedia(CONVERSATION_ID, { pinned: "coach" }), { wrapper });
 
     expect(useExercisedCapability).toHaveBeenLastCalledWith("coach");
   });

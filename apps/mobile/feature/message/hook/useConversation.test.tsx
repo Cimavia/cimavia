@@ -220,7 +220,7 @@ describe("titre imposé par l'écran (#343)", () => {
 
   it("transmet le titre imposé à l'envoi", () => {
     const { wrapper } = freshClient();
-    renderHook(() => useSendMessage("c1", undefined, "coach"), { wrapper });
+    renderHook(() => useSendMessage("c1", { pinned: "coach" }), { wrapper });
 
     expect(useExercisedCapability).toHaveBeenLastCalledWith("coach");
   });

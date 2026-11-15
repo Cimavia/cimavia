@@ -37,11 +37,14 @@ describe("useFeedbackReply (mobile)", () => {
   it("rattache le débrief et le titre de l'écran au texte comme aux médias", () => {
     setup("f-1", "c-1");
 
-    expect(useSendMessage).toHaveBeenCalledWith("c-1", { sessionFeedbackId: "f-1" }, "coach");
+    expect(useSendMessage).toHaveBeenCalledWith("c-1", {
+      attachment: { sessionFeedbackId: "f-1" },
+      pinned: "coach",
+    });
     expect(useSendMessageMedia).toHaveBeenCalledWith("c-1", {
       attachment: { sessionFeedbackId: "f-1" },
-      onSent,
       pinned: "coach",
+      onSent,
     });
   });
 

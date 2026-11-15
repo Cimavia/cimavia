@@ -18,11 +18,11 @@ import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
 export function useFeedbackReply(input: FeedbackReplyInput, capability: TrainingCapability) {
   const attachment = feedbackReplyAttachment(input.feedbackId);
   const thread = input.conversationId ?? "";
-  const send = useSendMessage(thread, attachment, capability);
+  const send = useSendMessage(thread, { attachment, pinned: capability });
   const media = useSendMessageMedia(thread, {
     attachment,
-    onSent: input.onSent,
     pinned: capability,
+    onSent: input.onSent,
   });
 
   return {

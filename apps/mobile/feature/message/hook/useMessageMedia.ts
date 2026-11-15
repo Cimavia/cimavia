@@ -28,6 +28,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
+import type { SendMessageOptions } from "@/feature/message/hook/useConversation";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { apiErrorMessage } from "@/shared/lib/api";
@@ -75,19 +76,13 @@ type PreparedMessageMedia = PreparedMedia | PreparedMessageFile;
 export function useSendMessageMedia(
   conversationId: string,
   /**
-   * Ce sur quoi les médias envoyés portent, et ce qu'il faut rafraîchir en plus du fil.
+   * Les options du texte (`SendMessageOptions`), plus ce qu'il faut rafraîchir en plus du fil.
    *
-   * Les deux vont ensemble : répondre en vocal depuis un débrief doit rattacher le message ET
-   * faire apparaître la note là où on l'a enregistrée. Invalider le seul fil laisserait l'écran
-   * du débrief afficher l'état d'avant l'envoi.
-   *
-   * `pinned` : titre imposé par un écran mono-titre, voir `useExercisedCapability` (#343).
+   * Rattachement et rafraîchissement vont ensemble : répondre en vocal depuis un débrief doit
+   * rattacher le message ET faire apparaître la note là où on l'a enregistrée. Invalider le seul
+   * fil laisserait l'écran du débrief afficher l'état d'avant l'envoi.
    */
-  options?: {
-    attachment: { sessionFeedbackId: string } | undefined;
-    onSent?: () => void;
-    pinned?: TrainingCapability;
-  },
+  options?: SendMessageOptions & { onSent?: () => void },
 ) {
   const queryClient = useQueryClient();
   const as = useExercisedCapability(options?.pinned);
