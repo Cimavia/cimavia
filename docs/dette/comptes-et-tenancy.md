@@ -306,6 +306,18 @@ liste des domaines vivent dans l'index.
 >   factures du coach et menait aux factures reçues.
 > - **Écarté : garder l'onglet sur le titre exercé** (`redirectForPath`). Il aurait chassé le coach
 >   de son tableau de bord, ou basculé le sélecteur dans son dos à chaque onglet.
+> - **Écarté aussi : déduire le titre du chemin**, comme le web (`spaceOfPath`) — proposé deux fois
+>   en revue de la PR. Sur mobile, les onglets restent montés : un tableau de bord resté sous
+>   `/session/…` relirait ses factures en athlète, en arrière-plan. `usePushToken`, à la racine,
+>   route un message au titre exercé (#344) : l'écran affiché au moment du push en déciderait.
+>   Et les écrans hors barre d'onglets (`/feedbacks`, `/reminders`, `/session`) demanderaient une
+>   seconde table. Le prix assumé : un nouvel écran d'un seul titre doit passer le sien.
+> - **Écarté encore : un fournisseur posé par l'écran** (`<PinnedCapability value="coach">`),
+>   proposé en revue pour couvrir ses descendants. Les hooks qu'appelle l'écran lui-même sont
+>   AU-DESSUS de ce qu'il rend : il faudrait scinder chaque écran en enveloppe + contenu, pour un
+>   oubli tout aussi possible — une enveloppe se néglige comme un paramètre. Rien de ce que rendent
+>   ces écrans ne dépend du titre aujourd'hui : la puce « à propos de… » du `MessageBubble` est
+>   masquée dans un débrief.
 > - **Le web avait le même trou par l'URL** : `?as=` primait sur le chemin partout, et `/?as=athlete`
 >   montrait le menu athlète au-dessus du tableau de bord coach. Il ne vaut plus que sur les routes
 >   servies aux deux, les seules où la nav le pose ; ailleurs, le chemin, puis le persona.
