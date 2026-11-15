@@ -120,6 +120,15 @@ updates:
       # JSX du mobile compris, dont une 8 seule exigerait un `core` 8. Les correctifs de la 7 passent.
       - dependency-name: "@babel/*"
         update-types: ["version-update:semver-major"]
+      # Deux majeures qui sont des migrations, pas des bumps : la PR seule ne fait que rester rouge.
+      # TypeScript 7 retire le `moduleResolution: Node10` des cibles CommonJS et réécrit le
+      # compilateur, dont `nest build` appelle l'API (#806 → #851). Tailwind 4 déplace le plugin
+      # PostCSS et la configuration, et NativeWind 4 l'interdit au mobile (#807 → #852). L'ignore
+      # part avec l'issue qui fait la montée.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
 
   # Les images de base des deux Dockerfiles, épinglées par digest : Dependabot réécrit le digest
   # quand le tag est reconstruit, et propose le tag suivant quand il en paraît un. Plus l'image de

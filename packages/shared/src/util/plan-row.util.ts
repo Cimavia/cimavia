@@ -255,16 +255,20 @@ function toConcurrency<T extends PlanRowSource>(
    * exagérerait la charge. Le premier cycle sert d'amorce ET reste dans le parcours : le
    * comparer à lui-même est sans effet, et évite une seconde liste dont on n'a pas besoin.
    */
+  // Stryker disable EqualityOperator: à égalité, garder l'un ou l'autre rend la même date
   const from = ongoing.reduce(
-    // Stryker disable next-line EqualityOperator: à égalité, garder l'un ou l'autre rend la même date
-    (latest, plan) => (plan.startDate > latest ? plan.startDate : latest),
+    (latest, plan) =>
+      // biome-ignore lint/complexity/useMathMinMax: dates ISO, des chaînes — Math.max/min rendrait NaN
+      plan.startDate > latest ? plan.startDate : latest,
     first.startDate,
   );
   const to = ongoing.reduce(
-    // Stryker disable next-line EqualityOperator: à égalité, garder l'un ou l'autre rend la même date
-    (earliest, plan) => (plan.endDate < earliest ? plan.endDate : earliest),
+    (earliest, plan) =>
+      // biome-ignore lint/complexity/useMathMinMax: dates ISO, des chaînes — Math.max/min rendrait NaN
+      plan.endDate < earliest ? plan.endDate : earliest,
     first.endDate,
   );
+  // Stryker restore EqualityOperator
 
   return { planIds: [first.id, second.id, ...rest.map((plan) => plan.id)], from, to };
 }

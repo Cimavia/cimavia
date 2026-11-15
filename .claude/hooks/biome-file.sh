@@ -10,6 +10,10 @@ file=$(jq -r '.tool_input.file_path // empty')
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
+# Hors du dépôt (mémoire, plans de Claude Code), rien à vérifier — et Biome 2.6, qui lit désormais
+# le Markdown, y plante (« path is expected to be under the root ») au lieu de l'ignorer.
+[[ "$(realpath -m "$file")" == "$(pwd -P)"/* ]] || exit 0
+
 # Les fichiers exclus par biome.json (docs/, configs JS…) et les extensions inconnues sortent en 0.
 if ! out=$(pnpm exec biome check --write --no-errors-on-unmatched --files-ignore-unknown=true "$file" 2>&1); then
   printf 'Biome signale des erreurs non corrigeables automatiquement dans %s :\n%s\n' "$file" "$out" >&2

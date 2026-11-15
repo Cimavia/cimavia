@@ -12,6 +12,13 @@ describe("sentryDataCollection", () => {
     });
   });
 
+  it("n'enregistre aucun contenu d'IA générative ni de requête MCP", () => {
+    expect(sentryDataCollection({ userInfo: true })).toMatchObject({
+      genAI: { inputs: false, outputs: false },
+      mcp: { inputs: false, outputs: false },
+    });
+  });
+
   it("ne fait varier que l'IP d'une couche à l'autre", () => {
     const { userInfo: api, ...rest } = sentryDataCollection({ userInfo: true });
     const { userInfo: web, ...webRest } = sentryDataCollection({ userInfo: false });
