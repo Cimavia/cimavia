@@ -17,6 +17,13 @@ import {
 } from "../support/fixtures";
 import { ANY_VERSION, deleteAtLatest, patchAtLatest, versionOf } from "../support/version";
 
+/** Les ids que `GET /exercises?search=` ramène à cet acteur — la requête doit réussir. */
+async function idsFound(agent: Agent, search: string): Promise<string[]> {
+  const res = await agent.get("/exercises").query({ search });
+  expect(res.status).toBe(200);
+  return res.body.map((exercise: { id: string }) => exercise.id);
+}
+
 describe("Isolation bibliothèque d'exercices (P2)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -148,12 +155,6 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     expect(created.status).toBe(201);
     const id: string = created.body.id;
 
-    const idsFound = async (agent: Agent, search: string) => {
-      const res = await agent.get("/exercises").query({ search });
-      expect(res.status).toBe(200);
-      return res.body.map((exercise: { id: string }) => exercise.id);
-    };
-
     // Les quatre façons de le taper ramènent la même ligne — c'est le défaut de l'issue.
     for (const typed of ["echauffement", "Échauffement", "DEVERS", "dévers"]) {
       expect(await idsFound(coachA, typed)).toContain(id);
@@ -185,10 +186,9 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     const id: string = created.body.id;
 
     for (const typed of ["noeud", "nœud", "NŒUD"]) {
-      const res = await coachA.get("/exercises").query({ search: typed });
-      expect(res.status).toBe(200);
-      expect(res.body.map((exercise: { id: string }) => exercise.id)).toContain(id);
+      expect(await idsFound(coachA, typed)).toContain(id);
     }
+    expect(await idsFound(coachB, "noeud")).toHaveLength(0);
   });
 
   /**

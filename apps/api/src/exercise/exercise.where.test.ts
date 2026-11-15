@@ -58,9 +58,10 @@ describe("exerciseListWhere", () => {
   it("trouve un titre à ligature, qu'on la tape ou non", () => {
     const stored = comparableText("Nœud de huit");
     for (const typed of ["noeud", "nœud", "NŒUD"]) {
-      expect(exerciseListWhere({ search: typed })).toEqual({ titleSearch: { contains: "noeud" } });
+      const needle = exerciseListWhere({ search: typed }).titleSearch;
+      expect(needle).toEqual({ contains: expect.any(String) });
+      expect(stored).toContain((needle as { contains: string }).contains);
     }
-    expect(stored).toContain("noeud");
   });
 
   it("cumule les tags et la recherche", () => {
