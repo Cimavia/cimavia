@@ -27,6 +27,7 @@ vi.mock("@/feature/feedback/hook/useFeedbackMedia", () => ({
 }));
 
 const addAssets = vi.fn();
+const removeReset = vi.fn();
 
 beforeEach(() => {
   addAssets.mockResolvedValue([]);
@@ -44,6 +45,7 @@ beforeEach(() => {
   } as unknown as ReturnType<typeof useAddFeedbackAudio>);
   vi.mocked(useDeleteFeedbackMedia).mockReturnValue({
     mutate: vi.fn(),
+    reset: removeReset,
     isPending: false,
     error: null,
   } as unknown as ReturnType<typeof useDeleteFeedbackMedia>);
@@ -189,17 +191,110 @@ describe("FeedbackMediaSection", () => {
   });
 
   it("dit la clé du refus quand l'échec vient d'une règle métier", () => {
-    vi.mocked(useDeleteFeedbackMedia).mockReturnValue({
+    vi.mocked(useAddFeedbackAudio).mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
-      error: new MediaRejectedError("feedback.media.videoTooBig"),
-    } as unknown as ReturnType<typeof useDeleteFeedbackMedia>);
+      error: new MediaRejectedError("feedback.media.audioTooBig"),
+      progress: 0,
+    } as unknown as ReturnType<typeof useAddFeedbackAudio>);
 
     const { queryByText } = renderRn(
       <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
     );
 
-    expect(queryByText("feedback.media.videoTooBig")).not.toBeNull();
+    expect(queryByText("feedback.media.audioTooBig")).not.toBeNull();
+  });
+
+  describe("retrait refusé (#366)", () => {
+    function failRemoval(error: unknown) {
+      vi.mocked(useDeleteFeedbackMedia).mockReturnValue({
+        mutate: vi.fn(),
+        reset: removeReset,
+        isPending: false,
+        error,
+      } as unknown as ReturnType<typeof useDeleteFeedbackMedia>);
+    }
+
+    // Panne réseau, 5xx : rien d'actionnable côté API, c'est le retrait qui se nomme — pas
+    // « L'envoi a échoué », qui parlerait d'un ajout.
+    it.each([
+      ["une panne réseau", new Error("Network request failed")],
+      ["une erreur du storage", new ApiError(500, "Internal server error", null)],
+    ])("dit l'échec du retrait sur %s", (_, error) => {
+      failRemoval(error);
+
+      const { queryByText } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      expect(queryByText("feedback.media.removeError")).not.toBeNull();
+      expect(queryByText("feedback.media.uploadError")).toBeNull();
+    });
+
+    it("garde le message de l'API quand elle a de quoi le dire", () => {
+      failRemoval(new ApiError(404, "Média introuvable", null));
+
+      const { queryByText } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      expect(queryByText("Média introuvable")).not.toBeNull();
+      expect(queryByText("feedback.media.removeError")).toBeNull();
+    });
+
+    // Avant #366, une note vocale ratée plus tôt masquait l'échec du retrait.
+    it("ne se laisse pas masquer par l'échec d'une note vocale", () => {
+      vi.mocked(useAddFeedbackAudio).mockReturnValue({
+        mutate: vi.fn(),
+        isPending: false,
+        error: new MediaRejectedError("feedback.media.audioTooLong"),
+        progress: 0,
+      } as unknown as ReturnType<typeof useAddFeedbackAudio>);
+      failRemoval(new Error("Network request failed"));
+
+      const { queryByText } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      expect(queryByText("feedback.media.audioTooLong")).not.toBeNull();
+      expect(queryByText("feedback.media.removeError")).not.toBeNull();
+    });
+
+    it("ne dit rien tant que le retrait n'a pas échoué", () => {
+      const { queryByText } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      expect(queryByText("feedback.media.removeError")).toBeNull();
+    });
+
+    // La session perdue est l'affaire de `SessionGuard` (#439) : « vérifie ta connexion » mentirait.
+    it("se tait sur un 401", () => {
+      failRemoval(new ApiError(401, "Unauthorized", null));
+
+      const { queryByText } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      expect(queryByText("feedback.media.removeError")).toBeNull();
+      expect(queryByText("Unauthorized")).toBeNull();
+    });
+
+    // Sans ça, « Le retrait a échoué » survivait à tout jusqu'au retrait suivant.
+    it.each([
+      ["l'ajout de photos", "feedback.media.addMedia"],
+      ["une note vocale", "enregistrer"],
+    ])("s'efface au geste suivant : %s", async (_, button) => {
+      vi.mocked(pickFeedbackAssets).mockResolvedValue([]);
+      failRemoval(new Error("Network request failed"));
+      const { container } = renderRn(
+        <FeedbackMediaSection sessionId="ss-1" feedback={twoPhotos} />,
+      );
+
+      pressButton(container, button);
+
+      await waitFor(() => expect(removeReset).toHaveBeenCalledTimes(1));
+    });
   });
 
   it("rattache la note vocale que l'enregistreur lui rend", () => {
@@ -267,6 +362,7 @@ describe("FeedbackMediaSection", () => {
     const mutate = vi.fn();
     vi.mocked(useDeleteFeedbackMedia).mockReturnValue({
       mutate,
+      reset: removeReset,
       isPending: false,
       error: null,
     } as unknown as ReturnType<typeof useDeleteFeedbackMedia>);

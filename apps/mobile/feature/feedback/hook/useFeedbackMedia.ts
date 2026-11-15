@@ -122,12 +122,18 @@ export function useAddFeedbackAudio(sessionId: string) {
   return { ...mutation, progress, retry };
 }
 
+/**
+ * Le cache se rafraîchit AUSSI sur un échec (#366) : un 404 dit que le média est déjà parti (retiré
+ * depuis un autre appareil), et sans relecture sa vignette resterait là, à rendre le même 404 à
+ * chaque essai. Sur une vraie panne, la relecture ne change rien — ou échoue, et le cache persisté
+ * reste tel quel. L'échec lui-même se lit dans `error`, que la section affiche.
+ */
 export function useDeleteFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
 
   return useMutation({
     mutationFn: (mediaId: string) => athleteFeedbackApi.deleteMedia(sessionId, mediaId),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 }
 

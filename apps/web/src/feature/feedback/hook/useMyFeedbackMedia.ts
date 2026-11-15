@@ -22,6 +22,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { athleteFeedbackApi } from "@/feature/feedback/api";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
+import { useMutationToast } from "@/shared/hook/useMutationToast";
 import type { RecordedWebAudio } from "@/shared/hook/useWebAudioRecorder";
 import { sendWebPart, uploadToSignedUrl, webPartFailure } from "@/shared/lib/upload";
 import {
@@ -140,12 +141,22 @@ async function prepareAndUpload(
   await uploadAndAttach(sessionId, media, onProgress, onRetry, continuesBatch);
 }
 
+/**
+ * L'échec se dit par un toast : l'écran ne lit que `mutate` et `isPending`, et sans lui le bouton
+ * se rallumait sur une photo restée en place, sans rien dire (#366).
+ *
+ * Le cache se rafraîchit AUSSI sur un échec : un 404 dit que le média est déjà parti (retiré depuis
+ * un autre appareil), et sans relecture sa vignette resterait là, à rendre le même 404 à chaque
+ * essai. Sur une vraie panne, la relecture ne change rien — ou échoue, et le cache reste tel quel.
+ */
 export function useDeleteFeedbackMedia(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
+  const toast = useMutationToast();
 
   return useMutation({
     mutationFn: (mediaId: string) => athleteFeedbackApi.deleteMedia(sessionId, mediaId),
-    onSuccess: invalidate,
+    onSettled: invalidate,
+    onError: toast.onError,
   });
 }
 
