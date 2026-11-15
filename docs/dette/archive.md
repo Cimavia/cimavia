@@ -142,6 +142,12 @@ l'[index](../dette-technique.md).
 |---|---|---|---|
 | ~~MI-1~~ | ~~**Le coach n'apprend pas tout de suite qu'un athlète l'a rejoint**~~ : le `staleTime` par défaut (60 s web, 5 min mobile) retenait `GET /me/counterparts`, et il fallait recharger la page pour voir la messagerie apparaître. | ✅ | déclencheur survenu **le jour même** (retour de bêta) — `staleTime: 0` sur cette seule requête, refetch au montage et au retour sur l'app. **La moitié athlète, corrigée en [#308](https://github.com/Cimavia/cimavia/issues/308)** : sur mobile, l'athlète qui venait de rejoindre n'avait pas non plus son onglet Messages — `useAcceptInvitation` énumérait ses invalidations et oubliait les contreparties, et le `staleTime: 0` n'y pouvait rien, la barre d'onglets restant montée sous `join`. Il invalide depuis tout le cache, comme le web, et par la même mutation : `acceptInvitationMutation` (`@cmv/shared`), écrite une fois pour ne plus diverger |
 
+### Post-MVP — Note vocale écran verrouillé ([#619](https://github.com/Cimavia/cimavia/issues/619))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~NV-3~~ | ~~**Le mobile ne borne pas la capture vocale**~~ : `CmvAudioRecorder` enregistre sans plafond, et une note de plus de cinq minutes n'est refusée — en entier — qu'à l'envoi. Le web s'arrête au plafond du profil en gardant la capture (#340). | ✅ | résolue en **#856** — le natif clôt la note au plafond et elle part ; la parole continue dans une note neuve tant qu'une place reste, sinon l'écran dit l'arrêt |
+
 ## Planifications
 
 ### P3 — Planifications

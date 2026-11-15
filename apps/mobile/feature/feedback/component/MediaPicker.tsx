@@ -1,7 +1,15 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
-import { CmvAudioRecorder, CmvButton, CmvText, type RecordedAudio } from "@/shared/component";
+import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
+import {
+  CmvAudioLimitNotice,
+  CmvAudioRecorder,
+  CmvButton,
+  CmvText,
+  type RecordedAudio,
+} from "@/shared/component";
 
 type MediaPickerProps = {
   photosLeft: number;
@@ -41,6 +49,8 @@ export function MediaPicker({
   step,
 }: Readonly<MediaPickerProps>) {
   const { t } = useTranslation();
+  // La note s'est arrêtée au plafond faute de relais (#856) : dit jusqu'au prochain enregistrement.
+  const [limitReached, setLimitReached] = useState(false);
 
   return (
     <View className="gap-2">
@@ -51,10 +61,22 @@ export function MediaPicker({
         </CmvText>
         <CmvAudioRecorder
           onRecorded={onRecordAudio}
+          onRecordingChange={(recording) => {
+            if (recording) setLimitReached(false);
+          }}
           onError={onRecorderError}
           disabled={isUploading || audiosLeft <= 0}
+          maxDurationSeconds={FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds}
+          // Au plafond, la parole continue dans une note neuve tant que le débrief a de la place.
+          notesLeft={audiosLeft}
+          onLimitReached={() => setLimitReached(true)}
         />
       </View>
+
+      <CmvAudioLimitNotice
+        visible={limitReached}
+        maxDurationSeconds={FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds}
+      />
 
       <CmvButton
         label={t("feedback.media.addMedia")}
