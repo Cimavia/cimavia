@@ -46,9 +46,18 @@ describe("relativeTimeFrom", () => {
     expect(relativeTimeFrom(ago(WEEK + DAY), NOW)).toBeNull();
   });
 
-  it("rend null sur un instant illisible ou une horloge en avance", () => {
+  // Un instant « dans le futur » : l'horloge de l'appareil retarde sur celle du serveur.
+  const ahead = (ms: number) => new Date(NOW.getTime() + ms).toISOString();
+
+  it("rend « à l'instant » sur un instant jusqu'à 2 min dans le futur — un simple décalage d'horloge", () => {
+    expect(relativeTimeFrom(ahead(1_000), NOW)).toEqual({ unit: "now", value: 0 });
+    expect(relativeTimeFrom(ahead(2 * MINUTE), NOW)).toEqual({ unit: "now", value: 0 });
+  });
+
+  it("rend null sur un instant illisible ou plus de 2 min dans le futur", () => {
     expect(relativeTimeFrom("pas-une-date", NOW)).toBeNull();
-    expect(relativeTimeFrom(new Date(NOW.getTime() + HOUR).toISOString(), NOW)).toBeNull();
+    expect(relativeTimeFrom(ahead(2 * MINUTE + 1), NOW)).toBeNull();
+    expect(relativeTimeFrom(ahead(HOUR), NOW)).toBeNull();
   });
 });
 
