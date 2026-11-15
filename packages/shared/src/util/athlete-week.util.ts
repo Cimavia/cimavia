@@ -168,7 +168,9 @@ export function athleteCalendarBounds<S extends CalendarSession>(
 
   return tail.reduce(
     (bounds, plan) => ({
+      // biome-ignore lint/complexity/useMathMinMax: dates ISO, des chaînes — Math.max/min rendrait NaN
       firstMonday: plan.first < bounds.firstMonday ? plan.first : bounds.firstMonday,
+      // biome-ignore lint/complexity/useMathMinMax: dates ISO, des chaînes — Math.max/min rendrait NaN
       lastMonday: plan.last > bounds.lastMonday ? plan.last : bounds.lastMonday,
     }),
     { firstMonday: head.first, lastMonday: head.last },
