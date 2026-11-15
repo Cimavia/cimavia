@@ -43,7 +43,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 |---|---|---|---|
 | #731 | Notes vocales en erreur en preview : établir la cause, puis corriger | 🟠 | ✅ |
 | #439 | Un 401 n'est traité nulle part sur mobile | 🟠 | ✅ |
-| #340 | Quitter pendant un enregistrement envoie la capture tronquée | 🟠 | |
+| #340 | Quitter pendant un enregistrement envoie la capture tronquée | 🟠 | ✅ |
 | #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | ✅ |
 | #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | ✅ |
 | #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | ✅ |
@@ -55,9 +55,9 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
 | #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | ✅ |
 | #333 | « Dupliquer en variante » sans garde de double clic | 🟡 | ✅ |
-| #356 | « Le dernier cycle terminé » est élu par date de début | 🟡 | |
+| #356 | « Le dernier cycle terminé » est élu par date de début | 🟡 | ✅ |
 | #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | ✅ |
-| #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | |
+| #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | ✅ |
 | #82 | Note vocale web → iOS : format lisible partout | 🟡 | |
 | #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | ✅ |
 | #366 | Retirer un média d'un débrief échoue en silence | ⚪ | ✅ |
