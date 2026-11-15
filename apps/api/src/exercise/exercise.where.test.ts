@@ -54,6 +54,16 @@ describe("exerciseListWhere", () => {
     }
   });
 
+  // NFD ne décompose pas « œ » (#358) : l'aiguille la replie comme la colonne, tapée ou non.
+  it("trouve un titre à ligature, qu'on la tape ou non", () => {
+    const stored = comparableText("Nœud de huit");
+    for (const typed of ["noeud", "nœud", "NŒUD"]) {
+      const needle = exerciseListWhere({ search: typed }).titleSearch;
+      expect(needle).toEqual({ contains: expect.any(String) });
+      expect(stored).toContain((needle as { contains: string }).contains);
+    }
+  });
+
   it("cumule les tags et la recherche", () => {
     expect(exerciseListWhere({ tags: ["grimpe"], search: "Dévers" })).toEqual({
       tags: { some: { name: { in: ["grimpe"] } } },
