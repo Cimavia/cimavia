@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
+import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { AttachSource } from "@/feature/message/hook/useMessageMedia";
 import { CmvAudioRecorder, CmvCharCount, CmvText, type RecordedAudio } from "@/shared/component";
 
@@ -78,6 +79,8 @@ export function Composer({
       }}
       onError={onMediaError}
       disabled={mediaBusy}
+      // La réponse à un débrief passe aussi par ici : elle part dans le fil, au plafond du message.
+      maxDurationSeconds={MESSAGE_MEDIA_PROFILE.audioMaxDurationSeconds}
     />
   );
 

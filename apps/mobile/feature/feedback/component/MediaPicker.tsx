@@ -1,6 +1,7 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, View } from "react-native";
+import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { CmvAudioRecorder, CmvButton, CmvText, type RecordedAudio } from "@/shared/component";
 
 type MediaPickerProps = {
@@ -53,6 +54,7 @@ export function MediaPicker({
           onRecorded={onRecordAudio}
           onError={onRecorderError}
           disabled={isUploading || audiosLeft <= 0}
+          maxDurationSeconds={FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds}
         />
       </View>
 

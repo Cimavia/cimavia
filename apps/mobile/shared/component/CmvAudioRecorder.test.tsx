@@ -1,13 +1,14 @@
 import * as Sentry from "@sentry/react-native";
 import { act, waitFor } from "@testing-library/react";
 import {
+  type RecordingStatus,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
 } from "expo-audio";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { press, renderRn } from "@/test/render";
 import { CmvAudioRecorder } from "./CmvAudioRecorder";
 
@@ -64,8 +65,16 @@ function fakeRecorder() {
 
 let recorder = fakeRecorder();
 
+/** Le plafond des deux profils (`MAX_*_AUDIO_DURATION_SECONDS`). */
+const MAX = 300;
+
 function setup() {
-  const props = { onRecorded: vi.fn(), onRecordingChange: vi.fn(), onError: vi.fn() };
+  const props = {
+    onRecorded: vi.fn(),
+    onRecordingChange: vi.fn(),
+    onError: vi.fn(),
+    maxDurationSeconds: MAX,
+  };
   const view = renderRn(<CmvAudioRecorder {...props} />);
   return { ...props, ...view };
 }
@@ -113,6 +122,7 @@ async function startCapture(view: ReturnType<typeof setup>) {
       onRecorded={view.onRecorded}
       onRecordingChange={view.onRecordingChange}
       onError={view.onError}
+      maxDurationSeconds={MAX}
     />,
   );
 }
@@ -290,6 +300,7 @@ describe("CmvAudioRecorder — taps pendant la préparation du micro (#731)", ()
         onRecorded={view.onRecorded}
         onRecordingChange={view.onRecordingChange}
         onError={view.onError}
+        maxDurationSeconds={MAX}
       />,
     );
 
@@ -467,7 +478,7 @@ describe("CmvAudioRecorder — écran allumé pendant la capture", () => {
       await waitFor(() => expect(view.onRecordingChange).toHaveBeenCalledWith(false));
       expect(deactivateKeepAwake).not.toHaveBeenCalled();
       idle();
-      view.rerender(<CmvAudioRecorder onRecorded={view.onRecorded} />);
+      view.rerender(<CmvAudioRecorder onRecorded={view.onRecorded} maxDurationSeconds={MAX} />);
 
       expect(deactivateKeepAwake).toHaveBeenCalledOnce();
     },
@@ -592,7 +603,7 @@ describe("CmvAudioRecorder — au repos", () => {
   it("n'ouvre pas le micro quand le parent le ferme", () => {
     const onError = vi.fn();
     const { container } = renderRn(
-      <CmvAudioRecorder onRecorded={vi.fn()} onError={onError} disabled />,
+      <CmvAudioRecorder onRecorded={vi.fn()} onError={onError} disabled maxDurationSeconds={MAX} />,
     );
 
     press(icon(container, "mic-outline"));
@@ -647,5 +658,161 @@ describe("CmvAudioRecorder — fin d'enregistrement", () => {
     expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
     expect(onRecorded).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
+  });
+});
+
+/** La fin que le natif annonce, à l'écouteur passé à `useAudioRecorder`. */
+function nativeEnd(status: Partial<RecordingStatus> = {}) {
+  const listener = vi.mocked(useAudioRecorder).mock.lastCall?.[1];
+  if (listener == null) throw new Error("aucun écouteur de fin passé à useAudioRecorder");
+  act(() =>
+    listener({
+      id: "rec-1",
+      isFinished: true,
+      hasError: false,
+      error: null,
+      url: "file:///cache/note.m4a",
+      ...status,
+    }),
+  );
+}
+
+describe("CmvAudioRecorder — plafond du profil (#856)", () => {
+  beforeEach(() => {
+    // Seule l'horloge est figée : c'est elle qui mesure une note close par le natif.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(0);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Le natif tient le plafond : Android suspend les timers JS écran verrouillé, pas la capture.
+  it("confie le plafond au natif", async () => {
+    const { container } = setup();
+
+    press(icon(container, "mic-outline"));
+
+    await waitFor(() =>
+      expect(recorder.record).toHaveBeenCalledExactlyOnceWith({ forDuration: MAX }),
+    );
+  });
+
+  it("transmet la note que le natif a close au plafond, durée bornée", async () => {
+    const view = setup();
+    await startCapture(view);
+    // Le relevé est retombé à 0 avec l'arrêt natif : seule l'horloge sait combien a duré la note.
+    idle();
+    vi.setSystemTime(MAX * 1000 + 700);
+
+    // Le fichier est celui que nomme la fin native, pas l'`uri` de l'enregistreur.
+    nativeEnd({ url: "file:///cache/plafond.m4a" });
+
+    await waitFor(() =>
+      expect(view.onRecorded).toHaveBeenCalledExactlyOnceWith({
+        uri: "file:///cache/plafond.m4a",
+        durationSeconds: MAX,
+      }),
+    );
+    // Il n'y a plus rien à arrêter : le natif l'a fait.
+    expect(recorder.stop).not.toHaveBeenCalled();
+    expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+    expect(view.onRecordingChange).toHaveBeenLastCalledWith(false);
+    expect(view.onError).not.toHaveBeenCalled();
+    expect(icon(view.container, "mic-outline")).toBeDefined();
+  });
+
+  it("borne au plafond la durée d'un tap envoyer relevé au-delà", async () => {
+    // Relevé toutes les 500 ms puis arrondi : 300,6 s rendait 301, refusé à l'envoi.
+    recording(MAX * 1000 + 600);
+    const { container, onRecorded } = setup();
+
+    press(icon(container, "send"));
+
+    await waitFor(() =>
+      expect(onRecorded).toHaveBeenCalledExactlyOnceWith({
+        uri: "file:///cache/note.m4a",
+        durationSeconds: MAX,
+      }),
+    );
+  });
+
+  it("ne clôt pas une seconde fois sur la fin que son propre arrêt annonce", async () => {
+    const view = setup();
+    await startCapture(view);
+    press(icon(view.container, "send"));
+    await waitFor(() => expect(view.onRecorded).toHaveBeenCalledOnce());
+
+    nativeEnd();
+
+    expect(view.onRecorded).toHaveBeenCalledOnce();
+    expect(view.onRecordingChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignore une fin native hors capture", () => {
+    const { onRecorded, onRecordingChange } = setup();
+
+    nativeEnd();
+
+    expect(onRecorded).not.toHaveBeenCalled();
+    expect(onRecordingChange).not.toHaveBeenCalled();
+    expect(setAudioModeAsync).not.toHaveBeenCalled();
+  });
+
+  it("ignore une fin native arrivée pendant la préparation du micro", async () => {
+    const release = recorder.hold();
+    const { container, onRecorded, onRecordingChange } = setup();
+    press(icon(container, "mic-outline"));
+    await waitFor(() => expect(recorder.prepareToRecordAsync).toHaveBeenCalledOnce());
+
+    // En retard sur une capture déjà close : elle ne concerne pas celle qui se prépare.
+    nativeEnd();
+    release();
+
+    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledExactlyOnceWith(true));
+    expect(onRecorded).not.toHaveBeenCalled();
+    expect(icon(container, "send")).toBeDefined();
+  });
+
+  // Android `onError` (serveur média mort) n'arrête rien et garde l'enregistreur préparé ; iOS
+  // annonce une fin sans fichier ni erreur quand ses services média redémarrent.
+  it.each([
+    { cas: "en erreur", status: { hasError: true, error: "stop failed", url: null } },
+    { cas: "sans fichier", status: { hasError: false, error: null, url: null } },
+  ])(
+    "signale une fin native $cas, libère l'enregistreur et ne transmet rien",
+    async ({ status }) => {
+      const view = setup();
+      await startCapture(view);
+      idle();
+      vi.setSystemTime(MAX * 1000);
+
+      nativeEnd(status);
+
+      await waitFor(() =>
+        expect(view.onError).toHaveBeenCalledExactlyOnceWith("messages.audio.recordError"),
+      );
+      expect(view.onRecorded).not.toHaveBeenCalled();
+      expect(setAudioModeAsync).toHaveBeenLastCalledWith(PLAYBACK_MODE);
+      expect(view.onRecordingChange).toHaveBeenLastCalledWith(false);
+      expect(Sentry.captureException).toHaveBeenCalledOnce();
+      // Sans quoi le tap suivant trouverait l'enregistreur encore préparé (#700).
+      expect(recorder.stop).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("démarre au tap suivant une fin native en erreur", async () => {
+    const view = setup();
+    await startCapture(view);
+    // Le faux suit Android : la préparation reste posée tant que rien ne libère l'enregistreur.
+    idle();
+    nativeEnd({ hasError: true, error: "media server died", url: null });
+    await waitFor(() => expect(view.onError).toHaveBeenCalledOnce());
+
+    press(icon(view.container, "mic-outline"));
+
+    await waitFor(() => expect(recorder.record).toHaveBeenCalledTimes(2));
+    expect(view.onError).toHaveBeenCalledOnce();
   });
 });

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Sentry from "@sentry/react-native";
 import {
   RecordingPresets,
+  type RecordingStatus,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
@@ -24,6 +25,11 @@ type CmvAudioRecorderProps = {
   // Refus métier (permission, erreur d'enregistrement) → le parent traduit la clé i18n.
   onError?: (reasonKey: string) => void;
   disabled?: boolean;
+  /**
+   * Le plafond du profil, en secondes (#856). Le natif arrête la capture à ce terme et la note part
+   * comme sur un tap « envoyer » : refusée à l'envoi, elle se perdait en entier.
+   */
+  maxDurationSeconds: number;
 };
 
 /**
@@ -146,8 +152,17 @@ export function CmvAudioRecorder({
   onRecordingChange,
   onError,
   disabled,
+  maxDurationSeconds,
 }: Readonly<CmvAudioRecorderProps>) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  /**
+   * La fin que le natif annonce : au plafond, il s'arrête SEUL (#856). expo-audio n'abonne
+   * l'écouteur qu'une fois, au montage : il lit donc la version courante par ref, comme les
+   * lecteurs (`CmvVideoPlayer`).
+   */
+  const onNativeEndRef = useRef<(status: RecordingStatus) => void>(() => undefined);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) =>
+    onNativeEndRef.current(status),
+  );
   const state = useAudioRecorderState(recorder);
   const [busy, setBusy] = useState(false);
   const [foregroundOnly, setForegroundOnly] = useState(false);
@@ -167,6 +182,11 @@ export function CmvAudioRecorder({
    * que le natif ne confirme jamais garde son bandeau, donc sa corbeille.
    */
   const [phase, setPhase] = useState<"idle" | "preparing" | "recording">("idle");
+  /**
+   * L'instant de `record()`. Au plafond, le relevé natif est déjà retombé à 0 (Android remet sa
+   * durée à zéro en s'arrêtant) : c'est l'horloge qui mesure la note.
+   */
+  const startedAt = useRef(0);
 
   const toIdle = () => {
     engaged.current = false;
@@ -215,7 +235,13 @@ export function CmvAudioRecorder({
       capturing.current = true;
       await setAudioModeAsync(recordMode(true));
       const background = await prepare();
-      recorder.record();
+      /**
+       * Le plafond est tenu par le NATIF, et non par le relevé JS : Android suspend les timers JS
+       * dès l'écran verrouillé (`JavaTimerManager.onHostPause`), quand la capture, elle, continue
+       * (#619). Un arrêt piloté côté JS laisserait la note dépasser le plafond sans le voir.
+       */
+      recorder.record({ forDuration: maxDurationSeconds });
+      startedAt.current = Date.now();
       setPhase("recording");
       setForegroundOnly(!background);
       onRecordingChange?.(true);
@@ -232,17 +258,27 @@ export function CmvAudioRecorder({
     }
   };
 
-  const finish = async (keep: boolean) => {
+  /**
+   * Clôt la capture, qu'elle finisse sur un tap ou au plafond. `stop` arrête le natif — ou, au
+   * plafond, constate qu'il s'est arrêté seul — et rend le fichier de la note. La durée est BORNÉE
+   * au plafond : relevée toutes les 500 ms puis arrondie, elle peut rendre 301 s, qu'on refuserait
+   * à l'envoi comme avant.
+   */
+  const close = async (
+    keep: boolean,
+    durationMillis: number,
+    stop: () => Promise<string | null>,
+  ) => {
     setBusy(true);
+    // Baissé AVANT l'arrêt : la fin que celui-ci annonce à son tour ne doit pas clore une 2ᵉ fois.
     capturing.current = false;
-    // La durée est lue AVANT stop (après, l'état retombe à 0).
-    const durationSeconds = Math.round(state.durationMillis / 1000);
+    const durationSeconds = Math.min(Math.round(durationMillis / 1000), maxDurationSeconds);
     try {
-      await recorder.stop();
+      const uri = await stop();
       await setAudioModeAsync(PLAYBACK_MODE);
       onRecordingChange?.(false);
-      if (keep && recorder.uri != null && durationSeconds > 0) {
-        onRecorded({ uri: recorder.uri, durationSeconds });
+      if (keep && uri != null && durationSeconds > 0) {
+        onRecorded({ uri, durationSeconds });
       }
     } catch (error) {
       captureRecorderError(error);
@@ -255,7 +291,34 @@ export function CmvAudioRecorder({
     }
   };
 
-  // La fin, elle, revient au natif : le bandeau part quand le relevé ne dit plus enregistrer.
+  // La durée est lue AVANT stop (après, l'état retombe à 0).
+  const finish = (keep: boolean) =>
+    close(keep, state.durationMillis, async () => {
+      await recorder.stop();
+      return recorder.uri;
+    });
+
+  /**
+   * Au plafond, la note part comme sur un tap « envoyer » : le natif s'est arrêté seul, et sa fin
+   * nomme le fichier. Toute autre fin venue du natif suit le même chemin — la note gardée vaut
+   * mieux qu'un tap « envoyer » qui lirait une durée de 0.
+   *
+   * Une fin SANS fichier est un échec, même annoncée sans erreur : iOS en émet une quand ses
+   * services média redémarrent (`mediaServicesDidReset`). L'échec libère l'enregistreur — l'`onError`
+   * d'Android ne le fait pas, et le tap suivant le trouverait encore préparé (#700). Hors de la
+   * phase d'enregistrement, une fin est en retard sur la capture qu'elle annonce : elle est ignorée.
+   */
+  onNativeEndRef.current = (status) => {
+    if (!status.isFinished || !capturing.current || phase !== "recording") return;
+    void close(true, Date.now() - startedAt.current, async () => {
+      if (!status.hasError && status.url != null) return status.url;
+      await releaseRecorder(recorder);
+      throw new Error(status.error ?? "native recording ended without a file");
+    });
+  };
+
+  // Le bandeau tient tant que la capture est à nous, ou que le natif dit encore enregistrer : un
+  // arrêt qui échoue le garde, corbeille comprise.
   if (phase === "recording" || state.isRecording) {
     return (
       <RecordingBanner
