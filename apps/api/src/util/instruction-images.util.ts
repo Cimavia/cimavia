@@ -26,6 +26,38 @@ export function instructionImageIds(documents: readonly InstructionDocument[]): 
 }
 
 /**
+ * Les images de consigne qu'une consigne réécrite ne cite plus — à retirer avec elle (#330).
+ *
+ * Sans ce ménage, une image remplacée restait rattachée : invisible dans la consigne, filtrée des
+ * pièces jointes, donc insupprimable par le Coach, et recopiée dans chaque séance planifiée — d'où
+ * le téléphone de l'athlète la téléchargeait.
+ *
+ * `null` (consigne effacée) n'en cite aucune. Pièces jointes et liens ne sont jamais concernés :
+ * la consigne ne les cite pas, ils vivent à part.
+ */
+export function uncitedInstructionImages<T extends InstructionDocument>(
+  instructions: RichDocument | null,
+  documents: readonly T[],
+): T[] {
+  const cited = new Set(imageMediaIds(instructions ?? []));
+  const owned = instructionImageIds(documents);
+  return documents.filter((doc) => owned.has(doc.id) && !cited.has(doc.id));
+}
+
+/**
+ * Les documents qu'une copie de la ligne reprend : tous, sauf les images que sa consigne ne cite
+ * pas (#330) — rien ne les afficherait, et le téléphone de l'athlète les téléchargerait quand même
+ * pour le hors-ligne. Sert à la séance planifiée comme à la copie figée.
+ */
+export function withoutUncitedImages<T extends InstructionDocument>(
+  instructions: RichDocument | null,
+  documents: readonly T[],
+): T[] {
+  const uncited = new Set(uncitedInstructionImages(instructions, documents).map((doc) => doc.id));
+  return documents.filter((doc) => !uncited.has(doc.id));
+}
+
+/**
  * Refuse (400) une consigne qui cite une image que la ligne écrite ne porte pas.
  *
  * Le `mediaId` vient du client : c'est une référence entrante, à prouver possédée comme une clé

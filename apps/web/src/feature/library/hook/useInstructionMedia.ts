@@ -36,6 +36,12 @@ export type InstructionMedia = {
    * l'enregistrement échoue après elle — et qu'un réessai ne doit pas renvoyer (#302).
    */
   markSent: (mediaId: string, documentId: string) => void;
+  /**
+   * Oublie l'envoi des images que la consigne enregistrée ne cite plus : le serveur vient de
+   * supprimer leur document (#330). Remise par un Ctrl+Z, une telle image repart comme neuve —
+   * sans quoi elle citerait un document disparu, et l'enregistrement prendrait un 400.
+   */
+  forgetUncitedSent: (cited: readonly string[]) => void;
   /** Progression d'envoi par `mediaId` (0–100), alimentée pendant l'enregistrement. */
   progress: Readonly<Record<string, number>>;
   setProgress: (mediaId: string, percent: number) => void;
@@ -96,5 +102,22 @@ export function useInstructionMedia(documents: readonly ExerciseDocumentDto[]): 
     setSent((current) => new Map(current).set(mediaId, documentId));
   }, []);
 
-  return { register, resolve, pending, sent, markSent, progress: progressByMedia, setProgress };
+  const forgetUncitedSent = useCallback((cited: readonly string[]) => {
+    const kept = new Set(cited);
+    setSent((current) => {
+      const next = new Map([...current].filter(([mediaId]) => kept.has(mediaId)));
+      return next.size === current.size ? current : next;
+    });
+  }, []);
+
+  return {
+    register,
+    resolve,
+    pending,
+    sent,
+    markSent,
+    forgetUncitedSent,
+    progress: progressByMedia,
+    setProgress,
+  };
 }

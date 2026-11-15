@@ -137,6 +137,43 @@ describe("useSaveExercise — un fichier qui ne se joint pas", () => {
     expect(failure).toBe(STORAGE_REFUSED);
   });
 
+  // Avant #330, le magasin envoyait tout ce que le Coach avait posé depuis l'ouverture.
+  it("n'envoie pas l'image retirée de la consigne, seulement celle qui y reste", async () => {
+    const removed = { ...pendingImage, mediaId: "pending:img-retiree" };
+    const result = setup();
+
+    await act(async () => {
+      await result.current.save({
+        ...creation,
+        input: { title: "Gainage", instructions: [image(PENDING_IMAGE)] },
+        pendingFiles: [],
+        pendingImages: [removed, pendingImage],
+      });
+    });
+
+    expect(api.attachDocument).toHaveBeenCalledTimes(1);
+    expect(api.updateExercise).toHaveBeenLastCalledWith(SAVED.id, {
+      instructions: [image("doc-1")],
+      expectedUpdatedAt: SAVED.updatedAt,
+    });
+  });
+
+  it("n'écrit pas la consigne une seconde fois quand la seule image en attente a été retirée", async () => {
+    const result = setup();
+
+    await act(async () => {
+      await result.current.save({
+        ...creation,
+        input: { title: "Gainage", instructions: [image("doc-0")] },
+        pendingFiles: [],
+        pendingImages: [pendingImage],
+      });
+    });
+
+    expect(api.requestUploadUrl).not.toHaveBeenCalled();
+    expect(api.updateExercise).not.toHaveBeenCalled();
+  });
+
   // La session perdue a sa propre fenêtre (#336) : le formulaire n'a rien à en dire.
   it("laisse passer une session perdue sans la prendre pour un fichier refusé", async () => {
     const unauthorized = new ApiError(401, "Unauthorized", null);

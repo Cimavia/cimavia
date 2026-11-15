@@ -53,13 +53,13 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | |
 | #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | ✅ |
 | #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
-| #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | |
+| #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | ✅ |
 | #333 | « Dupliquer en variante » sans garde de double clic | 🟡 | ✅ |
 | #356 | « Le dernier cycle terminé » est élu par date de début | 🟡 | |
-| #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | |
+| #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | ✅ |
 | #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | |
 | #82 | Note vocale web → iOS : format lisible partout | 🟡 | |
-| #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | |
+| #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | ✅ |
 | #366 | Retirer un média d'un débrief échoue en silence | ⚪ | |
 | #369 | L'indice « défaut … » affiche des secondes brutes | ⚪ | ✅ |
 | #381 | Une horloge en avance affiche une date absolue | ⚪ | |

@@ -34,6 +34,7 @@ function fakeMedia(overrides: Partial<InstructionMedia> = {}): InstructionMedia 
     pending: [],
     sent: new Map(),
     markSent: vi.fn(),
+    forgetUncitedSent: vi.fn(),
     progress: {},
     setProgress: vi.fn(),
     ...overrides,

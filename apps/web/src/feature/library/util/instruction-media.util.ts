@@ -1,11 +1,20 @@
-import { RichBlockType, type RichDocument } from "@cmv/shared";
-import { isPendingMediaId } from "@/feature/library/hook/useInstructionMedia";
+import { imageMediaIds, RichBlockType, type RichDocument } from "@cmv/shared";
+import { isPendingMediaId, type PendingImage } from "@/feature/library/hook/useInstructionMedia";
 
-/** Vrai si au moins une image attend encore son envoi — évite un second PATCH pour rien. */
-export function hasPendingImages(blocks: RichDocument): boolean {
-  return blocks.some(
-    (block) => block.type === RichBlockType.IMAGE && isPendingMediaId(block.mediaId),
-  );
+/**
+ * Les images en attente que la consigne cite ENCORE — les seules à envoyer (#330).
+ *
+ * Le magasin ne rétrécit pas quand le Coach retire une image : un Ctrl+Z la remet dans le
+ * document, et elle doit pouvoir partir. C'est donc la consigne, au moment d'enregistrer, qui dit
+ * ce qui part. Sans ce filtre, une image retirée était envoyée et rattachée quand même, invisible
+ * dans la consigne comme dans les pièces jointes, et recopiée dans chaque séance planifiée.
+ */
+export function citedPendingImages(
+  blocks: RichDocument,
+  pending: readonly PendingImage[],
+): PendingImage[] {
+  const cited = new Set(imageMediaIds(blocks));
+  return pending.filter((image) => cited.has(image.mediaId));
 }
 
 /**

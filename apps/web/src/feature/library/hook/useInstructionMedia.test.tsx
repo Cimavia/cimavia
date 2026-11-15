@@ -89,6 +89,26 @@ describe("useInstructionMedia", () => {
     expect(result.current.resolve(mediaId)).toBe("blob:local-1");
   });
 
+  // Le serveur a supprimé le document de l'image retirée (#330) : remise par Ctrl+Z, elle repart.
+  it("remet en attente l'image envoyée que la consigne ne cite plus, pas les autres", () => {
+    const { result } = setup();
+
+    const ids: string[] = [];
+    act(() => {
+      ids.push(result.current.register(photo("retiree.png"), "image/png"));
+      ids.push(result.current.register(photo("gardee.png"), "image/png"));
+    });
+    const [removed = "", kept = ""] = ids;
+    act(() => {
+      result.current.markSent(removed, "doc_8");
+      result.current.markSent(kept, "doc_9");
+    });
+    act(() => result.current.forgetUncitedSent([kept]));
+
+    expect(result.current.pending.map((image) => image.mediaId)).toEqual([removed]);
+    expect([...result.current.sent]).toEqual([[kept, "doc_9"]]);
+  });
+
   it("suit la progression de chaque image, séparément", () => {
     const { result } = setup();
 

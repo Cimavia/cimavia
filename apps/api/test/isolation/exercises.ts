@@ -15,7 +15,7 @@ import {
   putExerciseFile,
   uploadInstructionImage,
 } from "../support/fixtures";
-import { ANY_VERSION, deleteAtLatest, versionOf } from "../support/version";
+import { ANY_VERSION, deleteAtLatest, patchAtLatest, versionOf } from "../support/version";
 
 describe("Isolation bibliothèque d'exercices (P2)", () => {
   let coachA: Agent;
@@ -632,6 +632,88 @@ describe("Images de consigne : possédées, et recopiées en variante (#315)", (
   });
 });
 
+/**
+ * Une image que la consigne ne cite plus restait rattachée : invisible dans la consigne, filtrée
+ * des pièces jointes, donc insupprimable — et recopiée dans chaque séance planifiée (#330).
+ */
+describe("Images retirées de la consigne (#330)", () => {
+  let coach: Agent;
+
+  const documentsOf = async (exerciseId: string) =>
+    (await coach.get(`/exercises/${exerciseId}`)).body.documents as { id: string; url: string }[];
+  const urlOf = async (exerciseId: string, documentId: string) =>
+    required(
+      (await documentsOf(exerciseId)).find(({ id }) => id === documentId),
+      `document ${documentId}`,
+    ).url;
+  /** Un exercice dont la consigne cite une image réellement envoyée. */
+  const illustrated = async (title: string) => {
+    const created = await coach.post("/exercises").send({ title });
+    expect(created.status).toBe(201);
+    const path = `/exercises/${created.body.id}`;
+    const image = await uploadInstructionImage(coach, created.body.id);
+    const res = await patchAtLatest(coach, path, {
+      instructions: [{ type: "IMAGE", mediaId: image }],
+    });
+    expect(res.status).toBe(200);
+    return { id: created.body.id as string, path, image, url: await urlOf(created.body.id, image) };
+  };
+
+  beforeAll(async () => {
+    coach = await signUp("orphan-images-coach@cmv.test", Role.COACH);
+  });
+
+  it("remplacer l'image retire l'ancienne, ligne et objet", async () => {
+    const exercise = await illustrated("Gainage");
+    const replacement = await uploadInstructionImage(coach, exercise.id);
+
+    const res = await patchAtLatest(coach, exercise.path, {
+      instructions: [{ type: "IMAGE", mediaId: replacement }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.documents.map(({ id }: { id: string }) => id)).toEqual([replacement]);
+    expect((await fetch(exercise.url)).status).toBe(404);
+  });
+
+  it("garde les images d'une modification qui n'envoie pas la consigne", async () => {
+    const exercise = await illustrated("Pompes");
+
+    expect((await patchAtLatest(coach, exercise.path, { title: "Pompes larges" })).status).toBe(
+      200,
+    );
+
+    expect((await documentsOf(exercise.id)).map(({ id }) => id)).toEqual([exercise.image]);
+    expect((await fetch(exercise.url)).status).toBe(200);
+  });
+
+  it("effacer la consigne retire ses images, pas les pièces jointes", async () => {
+    const exercise = await illustrated("Squat");
+    const link = await coach
+      .post(`${exercise.path}/documents`)
+      .send({ type: "LINK", url: "https://exemple.test/squat" });
+    expect(link.status).toBe(201);
+
+    expect((await patchAtLatest(coach, exercise.path, { instructions: null })).status).toBe(200);
+
+    expect((await documentsOf(exercise.id)).map(({ id }) => id)).toEqual([link.body.id]);
+  });
+
+  it("garde l'objet qu'une variante affiche encore", async () => {
+    const source = await illustrated("Fentes");
+    const variant = await coach
+      .post(`${source.path}/duplicate`)
+      .send({ title: "Fentes (variante)" });
+    expect(variant.status).toBe(201);
+
+    expect((await patchAtLatest(coach, source.path, { instructions: null })).status).toBe(200);
+
+    expect(await documentsOf(source.id)).toEqual([]);
+    const [copy] = await documentsOf(variant.body.id);
+    expect((await fetch(required(copy, "image de la variante").url)).status).toBe(200);
+  });
+});
+
 describe("Métriques maison du coach (#162)", () => {
   let coachA: Agent;
   let coachB: Agent;
@@ -868,8 +950,8 @@ describe("Exercice — version lue (#604)", () => {
   });
 
   /**
-   * L'onglet 1 retire l'image de la consigne puis le document ; l'onglet 2, resté sur l'ancienne
-   * version, la cite encore. C'est un conflit d'édition, pas une saisie invalide : 409, pour que
+   * L'onglet 1 retire l'image de la consigne, ce qui supprime son document (#330) ; l'onglet 2,
+   * resté sur l'ancienne version, la cite encore. C'est un conflit d'édition, pas une saisie invalide : 409, pour que
    * le builder propose de recharger plutôt qu'un « enregistrement impossible ».
    */
   it("répond 409, pas 400, à une version périmée qui cite une image retirée depuis", async () => {
@@ -881,7 +963,6 @@ describe("Exercice — version lue (#604)", () => {
     expect(withImage.status).toBe(200);
 
     expect((await patch({ instructions: null }, withImage.body.updatedAt)).status).toBe(200);
-    expect((await coach.delete(`${path()}/documents/${image}`)).status).toBe(204);
 
     const stale = await patch(
       { instructions: [{ type: "IMAGE", mediaId: image }] },
