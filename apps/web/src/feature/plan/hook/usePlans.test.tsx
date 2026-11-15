@@ -1,4 +1,4 @@
-import { ApiError, myPlanKeys, ProblemType } from "@cmv/shared";
+import { ApiError, myPlanKeys, notificationKeys, ProblemType, reminderKeys } from "@cmv/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoiceKeys } from "@/feature/invoice/api";
@@ -61,12 +61,36 @@ describe("useDeletePlan", () => {
     // AUTRE cycle ne touche pas au presse-papier.
     expect(result.current.clip.clipboard?.planWeekId ?? null).toBe(kept);
   });
+
+  /**
+   * L'API purge les rappels du cycle et de sa facture dans la même transaction (#485) : la tuile
+   * « à traiter » et le badge doivent les perdre tout de suite, pas au polling suivant.
+   */
+  it("rafraîchit cycles, factures, rappels et notifications", async () => {
+    const { wrapper, stale } = seeded();
+    const { result } = renderHook(() => useDeletePlan(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ planId: "plan-1", expectedUpdatedAt: VERSION }));
+
+    expect(stale(planKeys.list())).toBe(true);
+    expect(stale(invoiceKeys.all)).toBe(true);
+    expect(stale(reminderKeys.summary())).toBe(true);
+    expect(stale(notificationKeys.unreadCount())).toBe(true);
+    expect(toastMock.onSuccess).toHaveBeenCalledWith("plan.toast.deleted");
+  });
 });
 
 /** Des entrées de cache posées d'avance : c'est leur fraîcheur qui dit ce qu'une écriture a invalidé. */
 function seeded() {
   const view = renderWithQueryClient();
-  for (const key of [planKeys.list(), invoiceKeys.all, myPlanKeys.visible()]) {
+  const keys = [
+    planKeys.list(),
+    invoiceKeys.all,
+    myPlanKeys.visible(),
+    reminderKeys.summary(),
+    notificationKeys.unreadCount(),
+  ];
+  for (const key of keys) {
     // Sans observateur, le `gcTime: 0` du client de test les ramasserait avant la lecture.
     view.queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY });
     view.queryClient.setQueryData(key, []);
