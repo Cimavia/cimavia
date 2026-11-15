@@ -1271,7 +1271,7 @@ export {
   isEmailAllowed,
   normalizeEmail,
   parseEmailList,
-  RESET_PASSWORD_LINK_REFUSED,
+  RESET_LINK_REFUSED,
   resendOutcome,
   resetPasswordRefusal,
   SIGNUP_MODES,

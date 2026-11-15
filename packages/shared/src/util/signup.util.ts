@@ -118,7 +118,7 @@ export function signInErrorKey(error: {
  * jeton : inconnu, déjà consommé ou expiré (#437). Le code de l'erreur que rend aussi l'envoi d'un
  * jeton mort — l'écran pose la même valeur dans son URL dans les deux cas.
  */
-export const RESET_PASSWORD_LINK_REFUSED = "INVALID_TOKEN";
+export const RESET_LINK_REFUSED = "INVALID_TOKEN";
 
 /**
  * Pourquoi l'API refuse un nouveau mot de passe, d'après l'erreur que rend le client Better Auth.
@@ -140,7 +140,7 @@ export function resetPasswordRefusal(error: {
   code?: string | undefined;
 }): "deadLink" | "passwordTooShort" | "passwordTooLong" | "tooManyAttempts" | "generic" {
   switch (error.code) {
-    case RESET_PASSWORD_LINK_REFUSED:
+    case RESET_LINK_REFUSED:
     case "USER_NOT_FOUND":
       return "deadLink";
     case "PASSWORD_TOO_SHORT":

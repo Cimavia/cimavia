@@ -1,4 +1,4 @@
-import { RESET_PASSWORD_LINK_REFUSED } from "@cmv/shared";
+import { RESET_LINK_REFUSED } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { ResetPasswordScreen } from "@/feature/auth";
 
@@ -21,7 +21,7 @@ import { ResetPasswordScreen } from "@/feature/auth";
  */
 export type ResetPasswordSearch = {
   token?: string;
-  error?: typeof RESET_PASSWORD_LINK_REFUSED;
+  error?: typeof RESET_LINK_REFUSED;
   done?: true;
 };
 
@@ -31,7 +31,7 @@ export function parseResetPasswordSearch(search: Record<string, unknown>): Reset
   const hasError = error != null && error !== "";
   return {
     ...(hasToken && { token }),
-    ...(hasError && { error: RESET_PASSWORD_LINK_REFUSED }),
+    ...(hasError && { error: RESET_LINK_REFUSED }),
     // `true` et non `"true"` : le routeur a déjà lu la valeur de l'URL comme du JSON. Et seul :
     // l'écran ne le pose jamais avec un jeton ou une erreur, et une URL fabriquée ne doit pas
     // annoncer un mot de passe changé à la place du formulaire ou du lien mort.

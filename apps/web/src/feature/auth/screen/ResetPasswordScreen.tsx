@@ -1,7 +1,7 @@
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
-  RESET_PASSWORD_LINK_REFUSED,
+  RESET_LINK_REFUSED,
   resetPasswordRefusal,
 } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
@@ -86,7 +86,7 @@ export function ResetPasswordScreen() {
         onLinkRefused={() =>
           navigate({
             to: "/reset-password",
-            search: { error: RESET_PASSWORD_LINK_REFUSED },
+            search: { error: RESET_LINK_REFUSED },
             replace: true,
           })
         }
