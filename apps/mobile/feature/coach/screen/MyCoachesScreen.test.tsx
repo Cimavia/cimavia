@@ -355,8 +355,8 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
     createConversation.mockResolvedValue({ id: "cv-julie" });
     pressButton(container, "coach.message");
 
-    expect(select).toHaveBeenCalledWith("athlete");
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/messages/cv-julie"));
+    expect(select).toHaveBeenCalledWith("athlete");
   });
 });
 

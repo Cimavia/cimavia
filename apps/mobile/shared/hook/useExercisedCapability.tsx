@@ -1,7 +1,8 @@
 import { capabilitiesOf, Role, required, type TrainingCapability } from "@cmv/shared";
-import { type Href, router } from "expo-router";
-import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
+import type { Href } from "expo-router";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
 import { useAccountUser } from "@/shared/hook/useSessionGuard";
+import { openUnder } from "@/shared/lib/open-under";
 
 /**
  * Le titre auquel les écrans partagés (Factures, Messagerie) lisent — `null` quand la question ne
@@ -63,14 +64,17 @@ export function useCapabilitySwitch(): {
   current: TrainingCapability | null;
   select: (capability: TrainingCapability) => void;
 } {
-  const context = useContext(ExercisedCapabilityContext);
+  const setOverride = useContext(ExercisedCapabilityContext)?.setOverride;
   const current = useExercisedCapability();
-  return {
-    visible: current != null,
-    current,
-    // Le fournisseur est posé à la racine (`app/_layout.tsx`) : hors de lui, c'est un bug de câblage.
-    select: required(context, "sélecteur hors de ExercisedCapabilityProvider").setOverride,
-  };
+  // Le fournisseur est posé à la racine (`app/_layout.tsx`) : hors de lui, c'est un bug de câblage.
+  // Exigé au moment de BASCULER, pas au rendu : un compte mono-capacité n'a rien à basculer, et
+  // l'écran qui le sert n'a pas à monter le fournisseur pour autant. Stable tant que lui l'est.
+  const select = useCallback(
+    (capability: TrainingCapability) =>
+      required(setOverride, "sélecteur hors de ExercisedCapabilityProvider")(capability),
+    [setOverride],
+  );
+  return { visible: current != null, current, select };
 }
 
 /**
@@ -93,18 +97,10 @@ export function useActingCapability(): TrainingCapability {
 
 /**
  * Ouvre un écran servi aux deux titres (Factures, Messages) sous celui de l'écran d'où l'on part
- * (#343) : bascule le sélecteur, PUIS navigue — comme `openDestination` pour une notification.
- * Sans ça, la tuile « factures en retard » du tableau de bord, qui compte celles du coach, menait
- * un compte double resté sur « athlète » à ses factures REÇUES. Pour un compte mono-capacité, rien
- * à basculer : il navigue.
+ * (#343), par le geste d'`openUnder`. Sans ça, la tuile « factures en retard » du tableau de bord,
+ * qui compte celles du coach, menait un compte double resté sur « athlète » à ses factures REÇUES.
  */
 export function useOpenAs(capability: TrainingCapability): (href: Href) => void {
-  const context = useContext(ExercisedCapabilityContext);
-  const visible = useExercisedCapability() != null;
-  return (href) => {
-    if (visible) {
-      required(context, "useOpenAs hors de ExercisedCapabilityProvider").setOverride(capability);
-    }
-    router.push(href);
-  };
+  const capabilitySwitch = useCapabilitySwitch();
+  return (href) => openUnder(href, capability, capabilitySwitch);
 }
