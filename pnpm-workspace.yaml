@@ -26,7 +26,7 @@ overrides:
   "fast-uri@>=3 <3.1.9": "^3.1.9"
   "fast-uri@>=4 <4.2.3": "^4.2.3"
   # Chaîne de build mobile — @expo/cli et la signature de code des updates. Jamais dans une image.
-  "node-forge@>=1 <1.4.1": "^1.4.1"
+  "node-forge@>=1 <1.4.3": "^1.4.3"
   # Chaîne de build CSS — tailwindcss 3 (postcss-nested), pour le web, le mobile et les tokens.
   # Jamais dans un bundle. Rejeté tant que le correctif n'existait qu'en 7 (#670), levé en #753.
   "postcss-selector-parser@>=6 <6.1.5": "^6.1.5"

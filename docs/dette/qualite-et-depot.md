@@ -1140,3 +1140,17 @@ liste des domaines vivent dans l'index.
 > fichier : la porte qualité reste la vérification. `.claude/settings.local.json`, réécrit par Claude
 > Code à chaque permission accordée, entre au `.gitignore` du dépôt : Biome ne lit pas l'ignore
 > global, et `biome ci .` échouait dessus.
+
+> **Tranché en [#838](https://github.com/Cimavia/cimavia/pull/838)** (Biome 2.6) : **le formateur
+> Markdown reste coupé** (`markdown.formatter.enabled: false`). Arrivé actif avec la 2.6, il
+> réécrivait quatorze `.md` d'un coup, et glissait une ligne vide sous le `---` d'ouverture de
+> l'en-tête YAML des skills et des agents `.claude/` — un en-tête dont rien ne dit que leur
+> chargeur le tolère. Le linter Markdown, lui, reste ce que la version livre.
+>
+> **`useMathMinMax` reste active, mais ne voit pas les types** : elle signale un ternaire qui
+> choisit le plus grand de deux opérandes, et le corrige en `Math.max` — qui rend `NaN` sur deux
+> dates ISO, des chaînes. Les sites sur dates portent donc un `biome-ignore` justifié ; le correctif
+> « unsafe » ne s'applique jamais en lot. Un `biome-ignore` doit être le commentaire **juste
+> au-dessus** du nœud : un `// Stryker disable next-line` intercalé le rend inopérant, et
+> l'inverse aussi. Là où les deux se rencontrent (`plan-row.util.ts`), Stryker passe en bloc
+> `disable` … `restore`.
