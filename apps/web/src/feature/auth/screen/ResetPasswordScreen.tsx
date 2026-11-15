@@ -1,4 +1,4 @@
-import { PASSWORD_MIN_LENGTH } from "@cmv/shared";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@cmv/shared";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { type SubmitEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,27 @@ import { AuthLayout } from "../component/AuthLayout";
 
 // Le token vient du lien de reset (?token=…) généré par Better Auth.
 const route = getRouteApi("/reset-password");
+
+/**
+ * Ce que dit un refus de Better Auth à l'envoi.
+ *
+ * - **`INVALID_TOKEN`, `USER_NOT_FOUND`** : le lien est mort — jeton inconnu, déjà consommé ou
+ *   expiré, ou compte supprimé depuis l'envoi de l'e-mail (#256). Rien de ce qu'on tape n'y changera.
+ * - **`PASSWORD_TOO_LONG`** : le lien marche, le mot de passe dépasse la borne de l'API. Le champ
+ *   ne porte pas de `maxLength` pour ça : il tronquerait EN SILENCE un mot de passe collé ou généré,
+ *   et celui qu'aurait retenu le gestionnaire ne serait plus celui du compte.
+ * - **429** : la limite de débit — il faut attendre, pas réessayer tout de suite.
+ * - le reste : le générique. Aucun ne doit passer pour un lien mort : on redemanderait un e-mail
+ *   pour rien.
+ */
+function resetRefusalKey(error: Readonly<{ status?: number; code?: string | undefined }>): string {
+  if (error.code === "INVALID_TOKEN" || error.code === "USER_NOT_FOUND") {
+    return "auth.reset.invalidToken";
+  }
+  if (error.code === "PASSWORD_TOO_LONG") return "auth.reset.passwordTooLong";
+  if (error.status === 429) return "auth.errors.tooManyAttempts";
+  return "auth.errors.generic";
+}
 
 export function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -45,7 +66,7 @@ export function ResetPasswordScreen() {
         token,
       });
       if (resetError) {
-        setError(t("auth.reset.invalidToken"));
+        setError(t(resetRefusalKey(resetError), { max: PASSWORD_MAX_LENGTH }));
         return;
       }
       setDone(true);

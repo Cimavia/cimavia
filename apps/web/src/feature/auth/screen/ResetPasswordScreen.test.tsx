@@ -67,14 +67,42 @@ describe("ResetPasswordScreen", () => {
     expect(resetPasswordMock).not.toHaveBeenCalled();
   });
 
-  it("dit le lien invalide quand l'API refuse le jeton", async () => {
-    resetPasswordMock.mockResolvedValue({ error: { status: 400 } });
+  // Jeton consommé ou expiré pendant que la page restait ouverte, ou compte supprimé depuis l'envoi
+  // de l'e-mail (#256) : le lien est mort, quoi qu'on tape.
+  it.each(["INVALID_TOKEN", "USER_NOT_FOUND"])(
+    "dit le lien invalide quand l'API le refuse (%s)",
+    async (code) => {
+      resetPasswordMock.mockResolvedValue({ error: { status: 400, code } });
+      const view = await setup();
+
+      await submit(view);
+
+      expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
+      expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();
+    },
+  );
+
+  // Le lien marche encore : dire le contraire ferait redemander un e-mail pour rien.
+  it.each([
+    ["auth.reset.passwordTooLong", { status: 400, code: "PASSWORD_TOO_LONG" }],
+    ["auth.errors.tooManyAttempts", { status: 429 }],
+    ["auth.errors.generic", { status: 500, code: "INTERNAL_SERVER_ERROR" }],
+  ])("dit %s pour un refus qui ne tient pas au lien", async (message, error) => {
+    resetPasswordMock.mockResolvedValue({ error });
     const view = await setup();
 
     await submit(view);
 
-    expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
-    expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();
+    expect(await view.findByText(message)).toBeInTheDocument();
+    expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
+  });
+
+  it("ne tronque pas un mot de passe trop long : c'est l'API qui le refuse", async () => {
+    // Un `maxLength` couperait en silence un mot de passe collé ou généré, et le gestionnaire
+    // retiendrait autre chose que celui du compte.
+    const view = await setup();
+
+    expect(view.getByLabelText(PASSWORD)).not.toHaveAttribute("maxLength");
   });
 
   it("dit l'erreur générique quand l'appel échoue", async () => {
