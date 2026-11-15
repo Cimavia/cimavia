@@ -643,16 +643,43 @@ liste des domaines vivent dans l'index.
 >   pendant une capture qu'il se prépare. Effet connu : l'amorce d'Android capte quelques
 >   millisecondes en tête de la note suivante. Non vérifié : Android 9 et antérieurs, où deux
 >   captures simultanées peuvent être refusées — le relais échouerait alors, et la capture
->   s'arrêterait au plafond comme sans relais.
+>   s'arrêterait au plafond comme sans relais ; et un appareil dont la politique audio donnerait le
+>   micro à la capture la plus récente, ce qui rendrait muette la note en cours. Les deux se
+>   guettent en recette sur téléphone : du son d'un bout à l'autre de chaque note, pas seulement
+>   aux jonctions.
+> - **Chaque préparation passe le preset.** Sans options, iOS réutilise son `AVAudioRecorder`, donc
+>   son fichier : préparer à nouveau l'enregistreur de la note qui vient de partir l'écrasait en
+>   plein envoi. Avec elles, il en crée un neuf, au nom unique, comme Android à chaque préparation.
+> - **Un relais qui ne capte pas est un échec.** iOS ne lève pas quand `AVAudioRecorder` refuse de
+>   démarrer (`record(forDuration:)` rend `false`, qu'expo-audio ignore) : le composant relit
+>   `isRecording`, qui lit le natif, et s'arrête au plafond en gardant la note.
+> - **L'enregistreur qui capte est tenu par un `ref`**, posé dès le relais : un tap « envoyer » ou
+>   une fin native arrivés avant le rendu suivant visent le bon, au lieu de laisser le relais capter
+>   sans que rien ne l'arrête.
 > - **La durée transmise est celle de l'horloge**, bornée au plafond : Android remet sa durée à
->   zéro en s'arrêtant, et le relevé natif (toutes les 500 ms) arrive après. Une pause au premier
->   plan seul la gonfle, sans jamais dépasser le plafond ; la durée reste déclarative (P5-2).
+>   zéro en s'arrêtant, et le relevé natif (toutes les 500 ms) n'est plus lu écran verrouillé.
+>   Exception, la capture **au premier plan seul** : elle se met en pause écran verrouillé, et le
+>   natif la clôt quand même au plafond de l'horloge. Sa durée est alors le dernier relevé pris
+>   pendant qu'elle captait (à un relevé près), et une note close ainsi bien avant le plafond n'est
+>   ni relayée ni dite « au plafond ». Il ne compte que si l'écart dépasse 5 s : un fil JS en
+>   retard ne passe pas pour une pause. La durée reste déclarative (P5-2).
 > - **Seule une fin au plafond relaie ou se dit.** Une fin native bien avant (interruption iOS,
 >   arrêt venu d'ailleurs) garde la note, sans relais ni avis. Une fin **sans fichier** est un
 >   échec, même annoncée sans erreur (iOS, `mediaServicesDidReset`), et libère l'enregistreur.
 > - **Pas de relais sans service en arrière-plan** : sans `POST_NOTIFICATIONS`, la capture est au
 >   premier plan seul, et un micro ouvert app en arrière-plan ne capterait que du silence. Elle
 >   s'arrête au plafond.
+> - **Le relais est libéré AVANT le mode lecture.** `setAudioModeAsync` retire le service de
+>   premier plan à tous les enregistreurs d'Android (`useForegroundService`), et `stopRecording` ne
+>   désinscrit du service que s'il l'a encore : un relais amorcé libéré après aurait gardé le
+>   service et sa notification.
+> - **L'amorce n'a lieu qu'avec le service.** Au premier plan seul, expo-audio relance au retour de
+>   l'app tout enregistreur en pause : un relais amorcé capterait par-dessus la note. Il est donc
+>   préparé seulement.
+> - **Sur iOS, préparer le relais touche la session partagée** (`setCategory`, `setActive(true)`) ;
+>   si la création de son enregistreur échoue (disque plein), le natif désactive la session, et la
+>   note en cours se tait. Risque accepté, rare et hors de portée du JS ; il se lève par une issue si
+>   la recette iPhone ou Sentry le montre.
 > - **Le relais est borné.** Le débrief passe ses places restantes (`notesLeft`) ; le fil, qui n'a
 >   pas de quota, passe `MESSAGE_AUDIO_NOTES_PER_CAPTURE` (3 notes, 15 min) — sans quoi un micro
 >   oublié en poche, écran gardé allumé, enverrait une note toutes les cinq minutes. Le compte est
@@ -662,10 +689,18 @@ liste des domaines vivent dans l'index.
 >   suite, la capture s'arrête et l'écran appelant le dit (`CmvAudioLimitNotice`), d'un ton neutre :
 >   la note est partie. Une seule clé pour les deux écrans, et elle n'est dite qu'une fois la note
 >   partie. L'avertissement avant le plafond reste hors de cette issue.
-> - **Une préparation porte le rang de sa capture** : celle d'Android attend jusqu'à 5 s son service,
->   et celle d'une capture close, résolue pendant la suivante, ne se croit pas prête pour elle.
+> - **Les préparations du relais passent une à une**, et chacune n'est prête que pour SA capture :
+>   celle d'Android attend jusqu'à 5 s son service, et une capture neuve lancée dans l'intervalle
+>   croisait la préparation de la précédente sur le même enregistreur. Elle l'attend ; la
+>   précédente, close, libère l'enregistreur, et la neuve prépare le sien.
+> - **Les places du débrief sont lues au départ de la capture**, et la relecture qui suit un envoi
+>   n'est pas attendue : un micro rallumé dans l'intervalle (quelques centaines de millisecondes)
+>   peut compter une place de trop, et la note relayée en trop est refusée par l'API, qui le dit.
+>   Attendre la relecture a été essayé puis retiré : hors ligne, TanStack Query la met en pause, et
+>   l'envoi serait resté « en cours » jusqu'au retour du réseau.
 > - **Deux relevés natifs par écran** (`useAudioRecorderState`, un par enregistreur), gardés tous
->   les deux : un seul, rebranché au relais, afficherait un instant la durée de la note close.
+>   les deux : un seul, rebranché au relais, afficherait un instant la durée de la note close. Au
+>   repos, un relevé inchangé ne provoque aucun rendu (le hook garde l'état précédent).
 
 > **Tranché en #700** (un démarrage raté ne bloque plus les suivants) : Android pose `isPrepared`
 > à la préparation et refuse toute autre tant que l'enregistreur n'est ni arrêté ni libéré. Un
