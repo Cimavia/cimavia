@@ -71,7 +71,9 @@ describe("routeForNotification", () => {
     });
   });
 
-  it("mène le coach à la section débriefs et l'athlète à SA séance", () => {
+  // Le débrief adressé par SA SÉANCE, comme la puce « à propos de… » : la boîte de réception
+  // l'ouvre et le marque lu, au lieu de « Choisis un débrief » (#380).
+  it("mène le coach à CE débrief et l'athlète à SA séance", () => {
     const feedback = notification(
       NotificationEntityType.SCHEDULED_SESSION,
       "session-7",
@@ -79,7 +81,7 @@ describe("routeForNotification", () => {
     );
     expect(routeForNotification(feedback, COACH)).toStrictEqual({
       to: "/feedbacks",
-      search: { feedback: undefined, session: undefined },
+      search: { feedback: undefined, session: "session-7" },
     });
     const dto = notification(NotificationEntityType.SCHEDULED_SESSION, "session-7");
     expect(routeForNotification(dto, ATHLETE)).toStrictEqual({
@@ -238,7 +240,7 @@ describe("routeForNotification — compte à double capacité", () => {
     );
     expect(route(dto, BOTH, "athlete")).toStrictEqual({
       to: "/feedbacks",
-      search: { feedback: undefined, session: undefined },
+      search: { feedback: undefined, session: "session-7" },
     });
   });
 

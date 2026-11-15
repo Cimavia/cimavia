@@ -20,7 +20,7 @@ import {
 type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
   | { to: "/sessions/$sessionId"; params: { sessionId: string }; search: { from: undefined } }
-  | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
+  | { to: "/feedbacks"; search: { feedback: undefined; session: string } }
   | {
       to: "/messages";
       search: {
@@ -55,9 +55,9 @@ const COACH_HOME = {
 } as const satisfies NotificationTarget;
 
 /**
- * Où mène une notification quand on clique dessus. Le web n'a pas (encore) d'écran par débrief ni
- * par fil : on ouvre la SECTION concernée, ce qui reste très au-dessus de « l'utilisateur cherche
- * lui-même ce dont on vient de lui parler ».
+ * Où mène une notification quand on clique dessus : sur l'objet lui-même quand une route sait
+ * l'ouvrir (un débrief, un fil, une séance, un cycle du builder), sinon sur la SECTION concernée,
+ * ce qui reste très au-dessus de « l'utilisateur cherche lui-même ce dont on vient de lui parler ».
  *
  * **La destination dépend du TITRE sous lequel on l'ouvre**, et pas seulement de la cible. Les deux rôles reçoivent des
  * notifications sur les mêmes entités, mais ne disposent pas des mêmes écrans pour les lire : un
@@ -118,17 +118,19 @@ export function routeForNotification(
         ? { to: "/plans/$planId", params: { planId: notification.entityId } }
         : { to: "/planning", search: { from: undefined } };
     /**
-     * Ce type n'est émis QU'AU COACH aujourd'hui (`FEEDBACK_RECEIVED`), et le web n'a pas d'écran
-     * par débrief : on ouvre la section. La branche athlète est écrite quand même, comme sur
-     * mobile — cette table décrit où vit une cible pour une capacité, pas quelles notifications
-     * existent, et la destination existe désormais (#25).
+     * Ce type n'est émis QU'AU COACH aujourd'hui (`FEEDBACK_RECEIVED`), et `entityId` est la
+     * SÉANCE débriefée : `?session=` ouvre CE débrief dans la boîte de réception et le marque lu,
+     * comme la puce « à propos de… » et comme le mobile (#380). Un débrief que le coach ne voit
+     * plus ne résout rien : l'écran reste sur sa liste. La branche athlète est écrite quand même,
+     * comme sur mobile — cette table décrit où vit une cible pour une capacité, pas quelles
+     * notifications existent, et la destination existe désormais (#25).
      *
      * Côté athlète, aucune semaine de planning n'accompagne la séance : on n'arrive pas du planning,
      * et « Mon planning » rouvrira donc son défaut (#251).
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach
-        ? { to: "/feedbacks", search: { feedback: undefined, session: undefined } }
+        ? { to: "/feedbacks", search: { feedback: undefined, session: notification.entityId } }
         : {
             to: "/sessions/$sessionId",
             params: { sessionId: notification.entityId },
