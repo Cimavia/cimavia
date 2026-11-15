@@ -65,6 +65,22 @@ describe("ResetPasswordScreen", () => {
       }),
     );
     expect(await view.findByText("auth.reset.success")).toBeInTheDocument();
+    // Dans l'URL et non dans un état : le jeton parti, une page rechargée dirait sinon « ouvre le
+    // lien reçu par e-mail » à qui vient de réussir.
+    expect(view.router.state.location.href).toBe("/reset-password?done=true");
+    expect(view.router.history).toHaveLength(1);
+  });
+
+  it("redit le succès à la page rechargée, sans formulaire ni lien à redemander", async () => {
+    const view = await setup({ done: "true" });
+
+    expect(view.getByText("auth.reset.success")).toBeInTheDocument();
+    expect(view.queryByLabelText(PASSWORD)).not.toBeInTheDocument();
+    expect(view.queryByText("auth.reset.missingToken")).not.toBeInTheDocument();
+    expect(view.getByRole("link", { name: "auth.reset.toLogin" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
   });
 
   // Better Auth a vérifié le jeton AVANT de rediriger, et l'a trouvé inconnu, consommé ou expiré.

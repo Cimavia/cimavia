@@ -24,6 +24,16 @@ describe("parseResetPasswordSearch", () => {
     });
   });
 
+  it("retient le succès que l'écran y pose, lu comme du JSON par le routeur", () => {
+    expect(parse({ done: true })).toEqual({ done: true });
+    // Une valeur restée textuelle ou autre n'est pas celle que l'écran pose.
+    expect(parse({ done: "true" })).toEqual({});
+    expect(parse({ done: 1 })).toEqual({});
+    // Jamais à côté d'un jeton ou d'une erreur : l'écran ne les pose pas ensemble.
+    expect(parse({ done: true, token: "jeton-du-mail" })).toEqual({ token: "jeton-du-mail" });
+    expect(parse({ done: true, error: "INVALID_TOKEN" })).toEqual({ error: "INVALID_TOKEN" });
+  });
+
   it("ne retient rien d'autre, ni un jeton ou une erreur vides, ni un jeton malformé", () => {
     // Sans jeton, l'écran dit qu'il manque : un `token` vide ou non textuel n'en est pas un, et
     // l'écran n'aurait rien à retirer de l'URL.

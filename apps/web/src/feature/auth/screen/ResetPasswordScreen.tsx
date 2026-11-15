@@ -38,11 +38,13 @@ const REFUSAL_KEY = {
  * - **ni l'un ni l'autre** : page rechargée après que le jeton a quitté l'URL (#335), ou adresse
  *   tapée à la main. Le lien de l'e-mail marche peut-être encore — le texte le dit, et propose
  *   aussi d'en redemander un.
+ *
+ * Et une quatrième, posée par l'écran lui-même : **mot de passe changé** (`?done=true`).
  */
 export function ResetPasswordScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { token: tokenInUrl, error: linkError } = route.useSearch();
+  const { token: tokenInUrl, error: linkError, done } = route.useSearch();
   // Lu UNE fois : le jeton quitte l'URL juste après, et c'est cette copie qui part à l'envoi.
   const [token] = useState(tokenInUrl ?? null);
 
@@ -59,21 +61,29 @@ export function ResetPasswordScreen() {
   }, [tokenInUrl, linkError, navigate]);
 
   function content() {
+    if (done) return <p className="text-sm text-cmv-text-mid">{t("auth.reset.success")}</p>;
     if (linkError !== undefined) {
       return <LinkNotice role="alert">{t("auth.reset.invalidToken")}</LinkNotice>;
     }
     if (token == null) {
       return <LinkNotice role="status">{t("auth.reset.missingToken")}</LinkNotice>;
     }
-    // Refusé à l'envoi, le lien est mort comme s'il était arrivé refusé : l'URL le dit, et une page
-    // rechargée ne prétendra pas qu'il marche peut-être encore.
-    const onLinkRefused = () =>
-      navigate({
-        to: "/reset-password",
-        search: { error: RESET_PASSWORD_LINK_REFUSED },
-        replace: true,
-      });
-    return <ResetPasswordForm token={token} onLinkRefused={onLinkRefused} />;
+    // L'issue de l'envoi va dans l'URL, pas dans un état : une page rechargée redit la même chose.
+    // Refusé, le lien est mort comme s'il était arrivé refusé ; changé, le mot de passe ne fait
+    // plus réclamer un lien.
+    return (
+      <ResetPasswordForm
+        token={token}
+        onDone={() => navigate({ to: "/reset-password", search: { done: true }, replace: true })}
+        onLinkRefused={() =>
+          navigate({
+            to: "/reset-password",
+            search: { error: RESET_PASSWORD_LINK_REFUSED },
+            replace: true,
+          })
+        }
+      />
+    );
   }
 
   return (
@@ -106,11 +116,11 @@ function LinkNotice({
 
 function ResetPasswordForm({
   token,
+  onDone,
   onLinkRefused,
-}: Readonly<{ token: string; onLinkRefused: () => void }>) {
+}: Readonly<{ token: string; onDone: () => void; onLinkRefused: () => void }>) {
   const { t } = useTranslation();
   const [password, setPassword] = useState("");
-  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -124,13 +134,13 @@ function ResetPasswordForm({
         newPassword: password,
         token,
       });
+      // Le bouton reste désactivé jusqu'à ce que le formulaire disparaisse : réactivé entre-temps,
+      // un second clic renverrait un jeton qui a servi, ou qu'on sait mort.
       if (!resetError) {
-        setDone(true);
+        onDone();
         return;
       }
       const refusal = resetPasswordRefusal(resetError);
-      // Le bouton reste désactivé jusqu'à ce que le formulaire disparaisse : réactivé entre-temps,
-      // un second clic renverrait un jeton qu'on sait mort.
       if (refusal === "deadLink") {
         onLinkRefused();
         return;
@@ -142,8 +152,6 @@ function ResetPasswordForm({
     setError(message);
     setSubmitting(false);
   }
-
-  if (done) return <p className="text-sm text-cmv-text-mid">{t("auth.reset.success")}</p>;
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
