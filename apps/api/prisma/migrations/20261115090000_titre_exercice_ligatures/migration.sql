@@ -3,14 +3,14 @@
 -- trouvé par personne, pas même par « nœud ». Données seules : le schéma ne change pas.
 --
 -- Le remplacement porte sur `titleSearch`, sans le recalculer depuis `title` : seules les
--- ligatures changent de règle. Les majuscules n'y sont plus : la colonne est déjà en minuscules,
--- écrite par le TypeScript ou reprise en #141 par `lower()` sous `en_US.utf8`.
+-- ligatures changent de règle. « Œ » et « Æ » sont repris aussi : la reprise de #141 passait par
+-- `lower()`, qui dépend de la locale de CHAQUE base — vérifiée en local, pas sur le NAS.
 -- Raisonnement complet : `docs/dette/seances-et-exercices.md`, « Tranché en #358 ».
 
 BEGIN;
 
 UPDATE "exercise"
-SET "titleSearch" = replace(replace("titleSearch", 'œ', 'oe'), 'æ', 'ae')
-WHERE "titleSearch" ~ '[œæ]';
+SET "titleSearch" = replace(replace(replace(replace("titleSearch", 'œ', 'oe'), 'Œ', 'oe'), 'æ', 'ae'), 'Æ', 'ae')
+WHERE "titleSearch" ~ '[œŒæÆ]';
 
 COMMIT;

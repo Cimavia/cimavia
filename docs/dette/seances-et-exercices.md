@@ -292,9 +292,9 @@ liste des domaines vivent dans l'index.
 > `noeud` — introuvable, même tapé à l'identique. La reprise remplace les ligatures DANS
 > `titleSearch` plutôt que de le recalculer depuis `title` : seule cette partie de la règle a
 > changé, et refaire toute la fonction en SQL l'exposerait à la casse de la locale de la base.
-> Les minuscules seules suffisent : la colonne l'est déjà, et la reprise de #141 a tourné sous
-> `en_US.utf8`, où `lower()` traite « Œ » (vérifié en local ; même image sur le NAS). Toute
-> évolution future de `comparableText` appelle la même reprise.
+> « Œ » et « Æ » sont repris aussi : la reprise de #141 passait par `lower()`, qui dépend de la
+> locale de chaque base, et celle du NAS n'est pas vérifiable d'ici. Toute évolution future de
+> `comparableText` appelle la même reprise.
 
 > **Fermé par #79** (le filtrage client n'est pas une option, malgré les voisins) : `LibraryPicker`
 > et `ExercisePicker` filtrent en mémoire, et il aurait été tentant d'aligner la liste dessus.
