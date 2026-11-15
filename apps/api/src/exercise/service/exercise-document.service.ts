@@ -10,7 +10,7 @@ import {
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { toDocumentDto } from "../../infra/storage/document.mapper";
-import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
+import { buildObjectKey } from "../../infra/storage/object-key";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -54,8 +54,11 @@ export class ExerciseDocumentService {
     // Puis l'objet doit être celui que le ticket a signé : le rattachement redit son type et sa
     // taille, le storage les confronte à ce qu'il a reçu (#317).
     if (input.type === DocumentType.FILE) {
-      assertKeyUnder(documentKeyPrefix(exercise.coachId, exerciseId), input.storagePath);
-      await this.storage.assertUploadedAsDeclared(input.storagePath, input);
+      await this.storage.assertAttachable(
+        documentKeyPrefix(exercise.coachId, exerciseId),
+        input.storagePath,
+        input,
+      );
     }
     // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast final.
     const data: Omit<Prisma.ExerciseDocumentUncheckedCreateInput, "coachId"> =

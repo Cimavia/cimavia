@@ -5,6 +5,7 @@
     "password": "Mot de passe",
     "loading": "Chargement…",
     "error": "Une erreur est survenue. Réessaie.",
+    "rateLimited": "Trop de demandes d'affilée. Patiente un instant, puis réessaie.",
     "cancel": "Annuler",
     "and": "et",
     "requiredLegend": "* champs obligatoires",
@@ -114,7 +115,11 @@
       "submit": "Réinitialiser",
       "submitting": "Réinitialisation…",
       "success": "Mot de passe réinitialisé. Tu peux te connecter.",
-      "invalidToken": "Lien invalide ou expiré.",
+      "invalidToken": "Ce lien a expiré ou a déjà servi. Demande un nouvel e-mail pour choisir ton mot de passe.",
+      "missingToken": "Pour choisir un nouveau mot de passe, ouvre le lien reçu par e-mail. S'il a expiré ou déjà servi, demande-en un nouveau.",
+      "toForgotPassword": "Recevoir un nouveau lien",
+      "passwordTooShort": "Ce mot de passe est trop court : {{min}} caractères au moins.",
+      "passwordTooLong": "Ce mot de passe est trop long : {{max}} caractères au plus.",
       "toLogin": "Aller à la connexion"
     },
     "reauth": {
@@ -1202,7 +1207,8 @@
     },
     "audio": {
       "permission": "Autorise l'accès au micro pour enregistrer un message vocal.",
-      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté."
+      "unsupported": "Ton navigateur ne sait pas enregistrer dans un format accepté.",
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté."
     },
     "empty": {
       "title": "Aucun message",
@@ -1256,6 +1262,8 @@
     },
     "participantCount": "{{count}} participant",
     "participantCount_other": "{{count}} participants",
+    "newMessages": "{{count}} nouveau message",
+    "newMessages_other": "{{count}} nouveaux messages",
     "previewSelf": "Vous : {{preview}}",
     "previewAuthor": "{{name}} : {{preview}}",
     "readBy": "Lu par {{names}}",
@@ -1420,6 +1428,7 @@
       "addFile": "Ajouter des photos ou des vidéos",
       "addAudio": "Note vocale",
       "stopRecording": "Arrêter ({{seconds}} s)",
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté.",
       "remaining": "Encore {{photos}} photo(s), {{videos}} vidéo(s) et {{audios}} note(s) vocale(s).",
       "remove": "Retirer",
       "openFull": "Ouvrir en grand",

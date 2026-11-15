@@ -12,6 +12,7 @@ import type { PrismaClient } from "@prisma/client";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import type { BetterAuthLogging } from "../observability/better-auth-log";
 import { personaOf } from "./persona";
 
 /**
@@ -32,6 +33,12 @@ export type AuthConfig = {
   secret: string;
   baseURL: string;
   trustedOrigins: string[];
+  /**
+   * L'en-tête qui porte l'IP du client (`clientIpHeaderOf`, #781) — `null` en local, où il n'y a
+   * pas de proxy. Une clé obligatoire, même nulle : l'oublier dans `app.module.ts` remettrait le
+   * défaut de Better Auth sans qu'aucun test ne le voie.
+   */
+  clientIpHeader: string | null;
   sendResetPassword: SendAuthLink;
   /** Le lien qui prouve que l'inscrit possède son adresse (#270). */
   sendVerificationEmail: SendAuthLink;
@@ -56,6 +63,11 @@ export type AuthConfig = {
    * `SignupPolicy` porte la décision, celle-ci ne fait qu'en appliquer le verdict.
    */
   mayCreateAccount: (email: string, account: { isCompany: boolean }) => Promise<boolean>;
+  /**
+   * Où vont les journaux et les erreurs de la bibliothèque (#466) : Pino, donc Axiom et Sentry,
+   * plutôt que la console. Injecté pour la même raison que les callbacks ci-dessus.
+   */
+  logging: BetterAuthLogging;
 };
 
 /**
@@ -196,6 +208,16 @@ function passwordRequired(request: Request | undefined, baseURL: string): APIErr
 }
 
 /**
+ * Où Better Auth lit l'IP du client (#781) : elle sépare les compteurs de sa limite de débit — 3
+ * tentatives par 10 s sur `/sign-in` et `/sign-up`, active en production — et il l'inscrit sur la
+ * session. Sans en-tête, son défaut (`x-forwarded-for`) : pourquoi il ne tient pas derrière un
+ * proxy, voir `CLIENT_IP_HEADER` dans `envSchema`.
+ */
+function clientIpOptions(header: string | null) {
+  return header === null ? undefined : { ipAddressHeaders: [header] };
+}
+
+/**
  * Instance Better Auth branchée sur le PrismaClient **unique** de l'app (adapter Prisma).
  * Le profil (capacités, role, locale) vit sur `user` via additionalFields — validés côté app :
  * `role` ∈ Role, `locale` ∈ Locale. ADMIN n'est pas auto-assignable à l'inscription.
@@ -216,6 +238,7 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
       ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map((o) => o.trim()) ?? []),
     ],
     database: prismaAdapter(prisma, { provider: "postgresql" }),
+    advanced: { ipAddress: clientIpOptions(config.clientIpHeader) },
     // Le modèle Prisma de session auth est renommé `AuthSession` pour libérer le nom `Session`
     // au profit de l'entité métier séance (P2). La table reste `session` (via @@map) — pas de
     // migration de données. Better Auth résout le délégué Prisma via ce `modelName`.
@@ -223,6 +246,10 @@ export function createAuth(prisma: PrismaClient, config: AuthConfig) {
     // Plugin serveur Expo : gère l'origine (scheme cimavia://) et les cookies natifs du client mobile.
     plugins: [expo()],
     hooks: { before: signUpGate(config.mayCreateAccount) },
+    // `warn`, le défaut de la bibliothèque, mais ÉCRIT : c'est ce que `betterAuthLogging` reçoit
+    // (#466). Laissé implicite, une mise à jour le changerait et ferait entrer ses `info` dans Axiom.
+    logger: { level: "warn", log: config.logging.log },
+    onAPIError: { onError: config.logging.onError },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: PASSWORD_MIN_LENGTH,

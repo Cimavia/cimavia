@@ -12,6 +12,7 @@ import { MULTIPART_THRESHOLD_BYTES } from "@cmv/shared";
 import {
   BadGatewayException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
@@ -94,6 +95,16 @@ describe("StorageService — storage configuré", () => {
     // La taille entre dans la signature : le storage rejettera un envoi d'un autre poids.
     expect(url).toContain("content-length");
     expect(url).toContain("X-Amz-Expires=300");
+  });
+
+  // Le presigner retire `content-type` de la signature d'office : sans lui, le type déclaré n'est
+  // qu'une indication, et un autre type passerait à l'envoi (#468).
+  it("signe le type de contenu en plus de la taille", async () => {
+    const storage = storageWith(FULL_CONFIG);
+
+    const url = await storage.createUploadUrl("media.mp4", "video/mp4", 300, 1024);
+
+    expect(new URL(url).searchParams.get("X-Amz-SignedHeaders")).toContain("content-type");
   });
 
   it("signe une URL par part, numérotée à partir de 1 et portant sa propre taille", async () => {
@@ -242,6 +253,47 @@ describe("StorageService — réponses du storage", () => {
     const { storage } = storageAnswering(outage);
 
     await expect(storage.completeMultipartUpload("media.mp4", "upload-1", 1)).rejects.toBe(outage);
+  });
+
+  /**
+   * Ce que doit un rattachement, en un appel (#468) : la clé du périmètre, PUIS l'objet reçu. Une
+   * clé hors périmètre ne coûte aucun aller-retour vers le storage.
+   */
+  describe("assertAttachable", () => {
+    const prefix = "conversation/c1/";
+    const key = `${prefix}0b6f3c2e-8d1a-4c5e-9f7b-2a4d6e8c0f13-doc.pdf`;
+    const declared = { mimeType: "application/pdf", size: 2048 };
+
+    it("laisse passer une clé du périmètre dont l'objet est tel que déclaré", async () => {
+      const { storage, sent } = storageAnswering({
+        ContentType: "application/pdf",
+        ContentLength: 2048,
+      });
+
+      await expect(storage.assertAttachable(prefix, key, declared)).resolves.toBeUndefined();
+      expect(sent).toHaveLength(1);
+    });
+
+    it("refuse une clé hors périmètre sans interroger le storage (403)", async () => {
+      const { storage, sent } = storageAnswering({});
+
+      await expect(
+        storage.assertAttachable(
+          prefix,
+          `conversation/autre/${key.slice(prefix.length)}`,
+          declared,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(sent).toEqual([]);
+    });
+
+    it("refuse un objet qui dément la déclaration (409)", async () => {
+      const { storage } = storageAnswering({ ContentType: "video/mp4", ContentLength: 2048 });
+
+      await expect(storage.assertAttachable(prefix, key, declared)).rejects.toThrow(
+        ConflictException,
+      );
+    });
   });
 
   /**

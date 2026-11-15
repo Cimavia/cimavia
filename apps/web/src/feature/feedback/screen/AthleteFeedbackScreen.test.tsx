@@ -1,7 +1,13 @@
 import type { MediaBatch, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { MAX_FEEDBACK_PHOTOS, MAX_FEEDBACK_VIDEOS, MediaType, myFeedbackKeys } from "@cmv/shared";
+import {
+  MAX_FEEDBACK_AUDIO_DURATION_SECONDS,
+  MAX_FEEDBACK_PHOTOS,
+  MAX_FEEDBACK_VIDEOS,
+  MediaType,
+  myFeedbackKeys,
+} from "@cmv/shared";
 import { blockSession } from "@cmv/shared/test/block-session";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { MediaRejectedError } from "@/shared/util/media.util";
@@ -734,6 +740,42 @@ describe("AthleteFeedbackScreen", () => {
 
       await waitFor(() => expect(addAudio).toHaveBeenCalled());
       expect(queryByRole("button", { name: "common.cancel" })).not.toBeInTheDocument();
+    });
+
+    // #340 : rien n'arrêtait la capture à cinq minutes, et l'envoi refusait la note entière.
+    it("arrête la capture au plafond, garde la note et le dit", async () => {
+      const addAudio = vi.fn();
+      addMediaMock.mockReturnValue({
+        addFiles: addFilesMock,
+        addAudio,
+        audioError: null,
+        isUploading: false,
+        step: null,
+        progress: 0,
+      });
+      let tick: (() => void) | null = null;
+      const realSetInterval = window.setInterval.bind(window);
+      vi.spyOn(window, "setInterval").mockImplementation(((
+        callback: () => void,
+        delay?: number,
+      ) => {
+        // Seul le minuteur de l'enregistreur (1 s) est pris en main ; les autres tournent.
+        if (delay !== 1000) return realSetInterval(callback, delay);
+        tick = callback;
+        return 1;
+      }) as unknown as typeof window.setInterval);
+      const { user, findByRole, findByText, queryByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: "feedback.media.addAudio" }));
+      await findByRole("button", { name: "feedback.media.stopRecording" });
+      act(() => {
+        for (let second = 0; second < MAX_FEEDBACK_AUDIO_DURATION_SECONDS; second += 1) tick?.();
+      });
+
+      await waitFor(() => expect(addAudio).toHaveBeenCalledOnce());
+      expect(await findByText("feedback.media.limitReached")).toBeInTheDocument();
+      expect(queryByRole("button", { name: "common.cancel" })).not.toBeInTheDocument();
+      vi.mocked(window.setInterval).mockRestore();
     });
 
     // Le refus du micro précède tout envoi : il n'a ni lot ni hook où se dire, l'écran le dit.

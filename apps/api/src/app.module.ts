@@ -5,13 +5,14 @@ import { APP_FILTER } from "@nestjs/core";
 import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule as BetterAuthModule } from "@thallesp/nestjs-better-auth";
 import { ClsModule } from "nestjs-cls";
-import { LoggerModule } from "nestjs-pino";
+import { LoggerModule, PinoLogger } from "nestjs-pino";
 import { AccessModule } from "./access/access.module";
 import { AccountModule } from "./account/account.module";
 import { createAuth } from "./auth/auth.config";
 import { CapabilityModule } from "./auth/capability.module";
 import { SignupModule } from "./auth/signup.module";
 import { SignupPolicy } from "./auth/signup.policy";
+import { clientIpHeaderOf } from "./config/client-ip-header";
 import { validateEnv } from "./config/env.validation";
 import { browserOrigins, MOBILE_SCHEMES } from "./config/origins";
 import { CustomMetricModule } from "./custom-metric/custom-metric.module";
@@ -27,10 +28,12 @@ import { PrismaService } from "./infra/prisma/prisma.service";
 import { InvoiceModule } from "./invoice/invoice.module";
 import { MessageModule } from "./message/message.module";
 import { NotificationModule } from "./notification/notification.module";
+import { authMiddleware, betterAuthLogging } from "./observability/better-auth-log";
 import { loggerOptions } from "./observability/logger.config";
 import { OrganizationModule } from "./organization/organization.module";
 import { PlanModule } from "./plan/plan.module";
 import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
+import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
 import { StructureModule } from "./structure/structure.module";
@@ -58,6 +61,9 @@ import { VersionModule } from "./version/version.module";
         PasswordResetMailer,
         EmailVerificationMailer,
         SignupPolicy,
+        // Global (LoggerModule) : le logger du contexte courant — la racine hors requête — et de
+        // quoi ouvrir celui d'une requête d'auth (#466).
+        PinoLogger,
       ],
       useFactory: (
         prisma: PrismaService,
@@ -65,20 +71,29 @@ import { VersionModule } from "./version/version.module";
         passwordReset: PasswordResetMailer,
         emailVerification: EmailVerificationMailer,
         signup: SignupPolicy,
+        pino: PinoLogger,
       ) => ({
+        // Better Auth répond avant le middleware de nestjs-pino : sans celui-ci, ses routes ne
+        // laissent aucune ligne de journal (#466, voir `authMiddleware`).
+        middleware: authMiddleware(pino),
         auth: createAuth(prisma, {
           secret: config.get("BETTER_AUTH_SECRET", { infer: true }),
           baseURL: config.get("BETTER_AUTH_URL", { infer: true }),
           trustedOrigins: [...browserOrigins(config), ...MOBILE_SCHEMES],
+          clientIpHeader: clientIpHeaderOf(config),
           sendResetPassword: (params) => passwordReset.send(params),
           sendVerificationEmail: (params) => emailVerification.sendVerification(params),
           notifyExistingAccount: (params) => emailVerification.sendExistingAccount(params),
           mayCreateAccount: (email, account) => signup.mayCreateAccount(email, account),
+          // Relu à chaque ligne : le logger de la requête en cours, pas la racine du démarrage.
+          logging: betterAuthLogging(() => pino.logger),
         }),
       }),
     }),
     // APRÈS BetterAuthModule, et l'ordre compte : voir CapabilityModule.
     CapabilityModule,
+    // APRÈS CapabilityModule : la clé du compteur est l'acteur que l'AuthGuard pose (#782).
+    RateLimitModule,
     TenancyModule,
     NotificationModule,
     AccountModule,

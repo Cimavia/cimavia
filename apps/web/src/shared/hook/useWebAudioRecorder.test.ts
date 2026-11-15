@@ -58,13 +58,21 @@ function lastRecorder(): FakeRecorder {
 const track = { stop: vi.fn() };
 const getUserMedia = vi.fn();
 
-function setup(allowedMimeTypes: readonly string[] = ["audio/mp4"]) {
+function setup(allowedMimeTypes: readonly string[] = ["audio/mp4"], maxDurationSeconds?: number) {
   const onRecorded = vi.fn();
   const onError = vi.fn();
+  const onLimitReached = vi.fn();
   const hook = renderHook(() =>
-    useWebAudioRecorder({ allowedMimeTypes, errorKeys: ERROR_KEYS, onRecorded, onError }),
+    useWebAudioRecorder({
+      allowedMimeTypes,
+      errorKeys: ERROR_KEYS,
+      onRecorded,
+      onError,
+      ...(maxDurationSeconds == null ? {} : { maxDurationSeconds }),
+      onLimitReached,
+    }),
   );
-  return { ...hook, onRecorded, onError };
+  return { ...hook, onRecorded, onError, onLimitReached };
 }
 
 beforeEach(() => {
@@ -72,7 +80,9 @@ beforeEach(() => {
   FakeRecorder.supported = new Set(["audio/mp4"]);
   FakeRecorder.last = null;
   FakeRecorder.asyncStop = false;
-  track.stop.mockClear();
+  // Une piste terminée fait émettre `stop` à l'enregistreur : c'est ce qui rendait le démontage
+  // dangereux (#340), et ce que le faux doit reproduire pour que le test morde.
+  track.stop.mockReset().mockImplementation(() => FakeRecorder.last?.flush());
   getUserMedia.mockReset().mockResolvedValue({ getTracks: () => [track] });
   vi.stubGlobal("MediaRecorder", FakeRecorder);
   Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
@@ -158,6 +168,57 @@ describe("useWebAudioRecorder — la capture", () => {
     unmount();
 
     expect(track.stop).toHaveBeenCalled();
+  });
+
+  it("n'envoie rien d'une capture quittée en route (#340)", async () => {
+    const { result, unmount, onRecorded } = setup();
+    await act(() => result.current.start());
+    act(() => vi.advanceTimersByTime(4000));
+    lastRecorder().chunks = [new Blob(["moitié de phrase"])];
+
+    unmount();
+
+    expect(track.stop).toHaveBeenCalled();
+    expect(onRecorded).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWebAudioRecorder — le plafond de durée", () => {
+  it("s'arrête au plafond en gardant la capture, et le dit", async () => {
+    const { result, onRecorded, onLimitReached } = setup(["audio/mp4"], 3);
+    await act(() => result.current.start());
+    lastRecorder().chunks = [new Blob(["son"])];
+
+    act(() => vi.advanceTimersByTime(3000));
+
+    expect(result.current.isRecording).toBe(false);
+    expect(onLimitReached).toHaveBeenCalledOnce();
+    expect(onRecorded).toHaveBeenCalledOnce();
+    expect(onRecorded.mock.lastCall?.[0].durationSeconds).toBe(3);
+    act(() => vi.advanceTimersByTime(5000));
+    expect(onRecorded).toHaveBeenCalledOnce();
+  });
+
+  it("ne dépasse jamais le plafond, même si l'horloge a dérivé", async () => {
+    const { result, onRecorded } = setup(["audio/mp4"], 3);
+    await act(() => result.current.start());
+    lastRecorder().chunks = [new Blob(["son"])];
+
+    // Le minuteur a du retard : 3,6 s d'horloge s'arrondiraient à 4 s, que l'envoi refuserait.
+    act(() => vi.setSystemTime(Date.now() + 3600));
+    act(() => vi.advanceTimersByTime(3000));
+
+    expect(onRecorded.mock.lastCall?.[0].durationSeconds).toBe(3);
+  });
+
+  it("laisse enregistrer sans limite quand aucun plafond n'est donné", async () => {
+    const { result, onLimitReached } = setup();
+    await act(() => result.current.start());
+
+    act(() => vi.advanceTimersByTime(600_000));
+
+    expect(result.current.isRecording).toBe(true);
+    expect(onLimitReached).not.toHaveBeenCalled();
   });
 });
 

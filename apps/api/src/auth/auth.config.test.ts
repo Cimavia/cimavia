@@ -13,10 +13,12 @@ function authWith(overrides: Partial<AuthConfig> = {}, prisma = {} as PrismaClie
     secret: "s".repeat(32),
     baseURL: "http://localhost:3001",
     trustedOrigins: ["http://localhost:5173"],
+    clientIpHeader: null,
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve(),
     notifyExistingAccount: () => Promise.resolve(),
     mayCreateAccount: () => Promise.resolve(true),
+    logging: { log: () => undefined, onError: () => undefined },
     ...overrides,
   });
 }
@@ -42,6 +44,38 @@ describe("createAuth — origines de confiance", () => {
     vi.stubEnv("BETTER_AUTH_TRUSTED_ORIGINS", undefined);
 
     expect(authWith().options.trustedOrigins).toEqual(["http://localhost:5173"]);
+  });
+});
+
+describe("createAuth — journaux (#466)", () => {
+  it("confie ses journaux et ses erreurs de route au branchement reçu, pas à la console", async () => {
+    const logging = { log: vi.fn(), onError: vi.fn() };
+    const { options } = authWith({ logging });
+    const error = new Error("panne");
+
+    options.logger?.log?.("error", "message", error);
+    await options.onAPIError?.onError?.(error);
+
+    expect(logging.log).toHaveBeenCalledWith("error", "message", error);
+    expect(logging.onError).toHaveBeenCalledWith(error);
+    expect(options.logger?.level).toBe("warn");
+  });
+});
+
+/**
+ * L'IP qui sépare les compteurs de la limite de débit (#781). Les e2e tournent en `test`, où
+ * Better Auth n'active pas sa limite : seule la configuration dit ce qu'il lira en production.
+ */
+describe("createAuth — en-tête de l'IP du client (#781)", () => {
+  it("lit l'IP dans le seul en-tête configuré", () => {
+    expect(authWith({ clientIpHeader: "cf-connecting-ip" }).options.advanced?.ipAddress).toEqual({
+      ipAddressHeaders: ["cf-connecting-ip"],
+    });
+  });
+
+  // Local et e2e : pas de proxy, le défaut de la bibliothèque — rien d'inventé à sa place.
+  it("laisse le défaut de Better Auth sans en-tête configuré", () => {
+    expect(authWith().options.advanced?.ipAddress).toBeUndefined();
   });
 });
 

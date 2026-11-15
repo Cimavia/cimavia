@@ -1,6 +1,6 @@
 import type { ConversationDto, MessageDto } from "@cmv/shared";
 import { act, waitFor } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/message/hook/useMessages";
@@ -12,6 +12,9 @@ import { MessageThread } from "./MessageThread";
  * Les hooks du fil sont remplacés : leur transport a ses propres tests. Ce qui s'éprouve ICI est
  * QUAND le fil marque lu — à chaque nouvel entrant, une seule fois chacun, et de nouveau après un
  * échec (#305). La barre d'envoi et les bulles ont leurs propres tests.
+ *
+ * Le défilement aussi : `useStickToBottom` se teste seul, jsdom ne met rien en page. Ici, on
+ * pilote ce qu'il dit — le lecteur est-il au bas ? — et on vérifie ce que le fil en fait (#367).
  */
 vi.mock("@/feature/message/hook/useMessages", () => ({
   useThreadMessages: vi.fn(),
@@ -24,7 +27,13 @@ vi.mock("@/feature/message/component/MessageBubble", () => ({ MessageBubble: vi.
 vi.mock("@/shared/hook/useCapabilities", () => ({ useExercisedCapability: () => "coach" }));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => vi.fn() }));
 
-const { sessionMock } = vi.hoisted(() => ({ sessionMock: vi.fn() }));
+const { sessionMock, stick } = vi.hoisted(() => ({
+  sessionMock: vi.fn(),
+  stick: { atBottom: true, stickToBottom: vi.fn(), scrollToBottom: vi.fn() },
+}));
+vi.mock("@/shared/hook/useStickToBottom", () => ({
+  useStickToBottom: () => ({ scrollRef: () => undefined, contentRef: () => undefined, ...stick }),
+}));
 vi.mock("@/shared/lib/auth", () => ({ authClient: { useSession: () => sessionMock() } }));
 
 const READ_AT = "2026-09-27T10:00:00.000Z";
@@ -81,13 +90,9 @@ const group = (overrides: Partial<ConversationDto> = {}) =>
 const props = { conversation: conversation() };
 const readTo = (lastReadAt: string) => ({ conversation: conversation({ lastReadAt }) });
 
-beforeAll(() => {
-  // jsdom ne défile pas : le fil colle au dernier message à chaque arrivée.
-  Element.prototype.scrollIntoView = vi.fn();
-});
-
 beforeEach(() => {
   vi.clearAllMocks();
+  stick.atBottom = true;
   sessionMock.mockReturnValue({ data: { user: { id: "me" } } });
   mockThread([]);
   vi.mocked(useSendMessage).mockReturnValue({
@@ -277,5 +282,112 @@ describe("MessageThread — à plusieurs (#612)", () => {
     const view = renderWithProviders(<MessageThread conversation={group()} />);
 
     expect(view.queryByText("messages.readBy")).toBeNull();
+  });
+});
+
+describe("MessageThread — défilement (#367)", () => {
+  const pill = (view: ReturnType<typeof renderWithProviders>) =>
+    view.queryByRole("button", { name: "messages.newMessages" });
+
+  const composer = () => vi.mocked(Composer).mock.lastCall?.[0];
+
+  // Le geste d'envoi, quel qu'il soit, et pas « le dernier message est de moi ».
+  it.each([
+    ["un texte", () => composer()?.onSendText("salut")],
+    ["des fichiers", () => composer()?.onSendFiles([])],
+    ["une note vocale", () => composer()?.onRecordedAudio({} as never)],
+  ])("me ramène au bas quand j'envoie %s, même en lisant plus haut", (_, sendIt) => {
+    stick.atBottom = false;
+    mockThread([message("m1")]);
+    renderWithProviders(<MessageThread {...props} />);
+    expect(stick.stickToBottom).not.toHaveBeenCalled();
+
+    act(() => {
+      void sendIt();
+    });
+    expect(stick.stickToBottom).toHaveBeenCalledOnce();
+  });
+
+  // Un message à mon nom posté d'ailleurs — le mobile, un avis de débrief — n'est pas un geste ici.
+  it("ne me ramène pas au bas pour un message à mon nom venu d'ailleurs", () => {
+    stick.atBottom = false;
+    mockThread([message("m1")]);
+    const { rerender } = renderWithProviders(<MessageThread {...props} />);
+
+    mockThread([message("m1"), message("m2", { senderId: "me" })], 2);
+    rerender(<MessageThread {...props} />);
+    expect(stick.stickToBottom).not.toHaveBeenCalled();
+  });
+
+  // Lu, c'est vu : le marquage attend le retour au bas.
+  it("ne marque lu qu'une fois le lecteur revenu au bas", async () => {
+    stick.atBottom = false;
+    mockThread([message("m1")]);
+    const { rerender } = renderWithProviders(<MessageThread {...props} />);
+    expect(markRead).not.toHaveBeenCalled();
+
+    stick.atBottom = true;
+    rerender(<MessageThread {...props} />);
+    await waitFor(() => expect(markRead).toHaveBeenCalledOnce());
+  });
+
+  it("ne ramène pas au bas un lecteur qui remonte quand un message arrive", () => {
+    mockThread([message("m1")]);
+    const { rerender } = renderWithProviders(<MessageThread {...props} />);
+
+    stick.atBottom = false;
+    mockThread([message("m1"), message("m2")], 2);
+    rerender(<MessageThread {...props} />);
+    expect(stick.stickToBottom).not.toHaveBeenCalled();
+  });
+
+  it("signale les messages arrivés depuis que le lecteur a quitté le bas", async () => {
+    mockThread([message("m1")]);
+    const view = renderWithProviders(<MessageThread {...props} />);
+    expect(pill(view)).toBeNull();
+
+    stick.atBottom = false;
+    view.rerender(<MessageThread {...props} />);
+    expect(pill(view)).toBeNull();
+
+    mockThread([message("m1"), message("m2"), message("m3")], 2);
+    view.rerender(<MessageThread {...props} />);
+    // Le nombre se perd en `cimode` (test/i18n.ts) : son compte est éprouvé par
+    // `incomingCountAfter`, ici on affirme que la pastille paraît.
+    const shown = pill(view);
+    expect(shown).not.toBeNull();
+
+    await view.user.click(shown as HTMLElement);
+    expect(stick.scrollToBottom).toHaveBeenCalledOnce();
+  });
+
+  it("se tait une fois le lecteur revenu au bas", () => {
+    mockThread([message("m1")]);
+    const view = renderWithProviders(<MessageThread {...props} />);
+    stick.atBottom = false;
+    view.rerender(<MessageThread {...props} />);
+    mockThread([message("m1"), message("m2")], 2);
+    view.rerender(<MessageThread {...props} />);
+    expect(pill(view)).not.toBeNull();
+
+    stick.atBottom = true;
+    view.rerender(<MessageThread {...props} />);
+    expect(pill(view)).toBeNull();
+
+    // Revenu puis reparti : ce qu'il a vu au bas ne compte plus.
+    stick.atBottom = false;
+    view.rerender(<MessageThread {...props} />);
+    expect(pill(view)).toBeNull();
+  });
+
+  it("ne compte pas mes propres messages", () => {
+    mockThread([message("m1")]);
+    const view = renderWithProviders(<MessageThread {...props} />);
+    stick.atBottom = false;
+    view.rerender(<MessageThread {...props} />);
+
+    mockThread([message("m1"), message("m2", { senderId: "me" })], 2);
+    view.rerender(<MessageThread {...props} />);
+    expect(pill(view)).toBeNull();
   });
 });

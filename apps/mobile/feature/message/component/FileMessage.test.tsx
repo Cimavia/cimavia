@@ -94,8 +94,19 @@ describe("FileMessage", () => {
 
     pressFile(getByLabelText);
     await findByText("messages.file.openError");
-    pressFile(getByLabelText);
+    // `react-native-web` ne rend le `disabled` au Pressable que dans un effet, après l'affichage de
+    // l'échec : un tap qui le devance est ignoré. Il se retente donc jusqu'à être pris — un tap
+    // pris efface l'échec aussitôt, et ne se répète pas.
+    await waitFor(() => {
+      pressFile(getByLabelText);
+      expect(queryByText("messages.file.openError")).toBeNull();
+    });
 
-    await waitFor(() => expect(queryByText("messages.file.openError")).toBeNull());
+    // L'ouverture réussie est allée au bout — le bouton est rendu — sans ramener l'échec.
+    await waitFor(() => expect(openMessageFile).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(getByLabelText("messages.file.open").getAttribute("aria-disabled")).toBeNull(),
+    );
+    expect(queryByText("messages.file.openError")).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import {
   type CoachOrganizationDto,
+  EXERCISE_TITLE_MAX_LENGTH,
   type ExerciseDto,
   LibraryScope,
   MyAccessLevel,
@@ -110,6 +111,20 @@ describe("ExerciseList — filtres", () => {
     await user.type(getByRole("searchbox", { name: SEARCH }), "  Planche ");
 
     expect(lastFilters()).toEqual({ search: "Planche", scope: LibraryScope.ALL });
+  });
+
+  // L'API refuse une recherche plus longue qu'aucun titre (#352) : collée, elle se coupe ici.
+  it("coupe une recherche collée plus longue qu'aucun titre", async () => {
+    state({ data: [] });
+    const { user, getByRole } = await setup();
+
+    await user.click(getByRole("searchbox", { name: SEARCH }));
+    await user.paste("x".repeat(EXERCISE_TITLE_MAX_LENGTH + 1));
+
+    expect(lastFilters()).toEqual({
+      search: "x".repeat(EXERCISE_TITLE_MAX_LENGTH),
+      scope: LibraryScope.ALL,
+    });
   });
 
   // Une recherche faite d'espaces n'en est pas une : elle ne filtre rien.

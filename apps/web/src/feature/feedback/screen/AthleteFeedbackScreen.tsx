@@ -15,6 +15,7 @@ import {
   feedbackTrackingInput,
   MediaType,
   mediaRecapText,
+  minutesOf,
   myFeedbackKeys,
   remainingMediaSlots,
   required,
@@ -43,6 +44,7 @@ import {
   CmvErrorState,
   CmvProgressBar,
   CmvTextArea,
+  useToast,
 } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
@@ -336,6 +338,7 @@ function FeedbackMediaSection({
   feedback,
 }: Readonly<{ sessionId: string; feedback: SessionFeedbackDto | null }>) {
   const { t } = useTranslation();
+  const toast = useToast();
   const add = useAddFeedbackMedia(sessionId);
   const remove = useDeleteFeedbackMedia(sessionId);
   const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
@@ -361,6 +364,13 @@ function FeedbackMediaSection({
       add.addAudio(audio);
     },
     onError: setRecorderErrorKey,
+    maxDurationSeconds: FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds,
+    onLimitReached: () =>
+      toast.info(
+        t("feedback.media.limitReached", {
+          max: minutesOf(FEEDBACK_MEDIA_PROFILE.audioMaxDurationSeconds),
+        }),
+      ),
   });
 
   /**

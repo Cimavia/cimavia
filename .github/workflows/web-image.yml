@@ -206,18 +206,19 @@ jobs:
 
           # check <port> <chemin> <CSP observée attendue>
           check() {
-            curl -sS --max-time 10 --path-as-is -o /dev/null -D - "http://127.0.0.1:$1$2" \
+            local port="$1" target="$2" expected_csp="$3"
+            curl -sS --max-time 10 --path-as-is -o /dev/null -D - "http://127.0.0.1:${port}${target}" \
               | tr -d '\r' >"$RUNNER_TEMP/recus"
             for header in \
               "content-security-policy: frame-ancestors 'none'; object-src 'none'; base-uri 'none'" \
-              "content-security-policy-report-only: $3" \
+              "content-security-policy-report-only: ${expected_csp}" \
               "x-content-type-options: nosniff" \
               "referrer-policy: strict-origin-when-cross-origin" \
               "permissions-policy: camera=(), microphone=(self), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()"
             do
               if ! grep -qixF -- "$header" "$RUNNER_TEMP/recus"; then
                 cat "$RUNNER_TEMP/recus"
-                echo "::error::$2 (port $1) sans l'en-tête attendu : ${header}"
+                echo "::error::${target} (port ${port}) sans l'en-tête attendu : ${header}"
                 exit 1
               fi
             done

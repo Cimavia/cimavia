@@ -28,8 +28,10 @@ import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
+import type { SendMessageOptions } from "@/feature/message/hook/useConversation";
 import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { apiErrorMessage } from "@/shared/lib/api";
 import { discardPickedFile } from "@/shared/lib/message-file";
 import {
   StorageUploadError,
@@ -74,16 +76,16 @@ type PreparedMessageMedia = PreparedMedia | PreparedMessageFile;
 export function useSendMessageMedia(
   conversationId: string,
   /**
-   * Ce sur quoi les médias envoyés portent, et ce qu'il faut rafraîchir en plus du fil.
+   * Les options du texte (`SendMessageOptions`), plus ce qu'il faut rafraîchir en plus du fil.
    *
-   * Les deux vont ensemble : répondre en vocal depuis un débrief doit rattacher le message ET
-   * faire apparaître la note là où on l'a enregistrée. Invalider le seul fil laisserait l'écran
-   * du débrief afficher l'état d'avant l'envoi.
+   * Rattachement et rafraîchissement vont ensemble : répondre en vocal depuis un débrief doit
+   * rattacher le message ET faire apparaître la note là où on l'a enregistrée. Invalider le seul
+   * fil laisserait l'écran du débrief afficher l'état d'avant l'envoi.
    */
-  options?: { attachment: { sessionFeedbackId: string } | undefined; onSent?: () => void },
+  options?: SendMessageOptions & { onSent?: () => void },
 ) {
   const queryClient = useQueryClient();
-  const as = useExercisedCapability();
+  const as = useExercisedCapability(options?.pinned);
   const [step, setStep] = useState<MediaBatchStep | null>(null);
 
   const attachment = options?.attachment;
@@ -224,10 +226,14 @@ function prepareMessageFile(file: DocumentPicker.DocumentPickerAsset): PreparedM
   };
 }
 
-/** Un refus métier porte sa clé i18n ; tout autre échec, le message générique de l'envoi. */
+/**
+ * Un refus métier porte sa clé i18n ; un refus de l'API garde son message, 429 compris (#782) ;
+ * une panne (réseau, 5xx) retombe sur le message générique de l'envoi.
+ */
 function failureReason(error: unknown): MediaRecapReason {
   if (error instanceof MediaRejectedError) return { key: error.reasonKey, params: error.params };
-  return { key: "messages.media.uploadError", params: {} };
+  const message = apiErrorMessage(error);
+  return message == null ? { key: "messages.media.uploadError", params: {} } : { message };
 }
 
 /**

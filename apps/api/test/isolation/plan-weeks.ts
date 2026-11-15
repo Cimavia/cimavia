@@ -213,21 +213,21 @@ describe("Semaines d'un cycle : ajout, plafond et retrait", () => {
     expect(invoices.find((invoice) => invoice.planId === plan.body.id)?.status).toBe("PENDING");
   });
 
-  // Le filtre de la liste des cycles, côté coach : l'écran d'un athlète ne montre que les siens.
-  it("filtre les cycles par athlète, sans franchir la frontière du coach", async () => {
+  // La liste des cycles ne passe pas la frontière du coach. Plus de `?athleteId=` (#352) : le web
+  // regroupe les cycles par athlète lui-même, et aucun client n'envoyait ce filtre.
+  it("liste ses cycles, sans franchir la frontière du coach", async () => {
     const mine = await coach
       .post("/plans")
       .send({ athleteId: secondAthleteId, title: "Pour le second", startDate: monday });
-
-    const filtered = await coach.get("/plans").query({ athleteId: secondAthleteId });
-    expect(filtered.status).toBe(200);
-    expect(filtered.body.map((plan: { id: string }) => plan.id)).toEqual([mine.body.id]);
-
-    // L'athlète d'un autre coach : une liste vide, pas ses cycles.
-    await other
+    const foreign = await other
       .post("/plans")
       .send({ athleteId: foreignAthleteId, title: "Chez l'autre", startDate: monday });
-    expect((await coach.get("/plans").query({ athleteId: foreignAthleteId })).body).toEqual([]);
+
+    const listed = await coach.get("/plans");
+    expect(listed.status).toBe(200);
+    const ids = listed.body.map((plan: { id: string }) => plan.id);
+    expect(ids).toContain(mine.body.id);
+    expect(ids).not.toContain(foreign.body.id);
   });
 
   /**

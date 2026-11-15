@@ -49,6 +49,39 @@ describe("useActiveSpace — un compte à double capacité", () => {
 
   it("laisse ?as= trancher sur une route servie aux deux", async () => {
     expect(await read(useActiveSpace, "/invoices", { as: "athlete" })).toBe("athlete");
+    expect(await read(useActiveSpace, "/invoices/", { as: "athlete" })).toBe("athlete");
+  });
+
+  /**
+   * La nav ne pose `?as=` que sur Factures et Messages ; ailleurs il est tapé ou gardé en signet.
+   * Le laisser primer montrait le menu athlète au-dessus du tableau de bord coach, qui lisait alors
+   * les factures reçues (#343).
+   */
+  it("ignore ?as= sur une route d'un seul espace", async () => {
+    expect(await read(useActiveSpace, "/", { as: "athlete" })).toBe("coach");
+    expect(await read(useActiveSpace, "/planning", { as: "coach" })).toBe("athlete");
+    expect(await read(useExercisedCapability, "/", { as: "athlete" })).toBe("coach");
+  });
+
+  it("ignore ?as= hors des routes servies aux deux, même sans espace au chemin", async () => {
+    session.user = { ...DUAL, role: Role.ATHLETE };
+
+    expect(await read(useActiveSpace, "/account", { as: "coach" })).toBe("athlete");
+  });
+
+  it.each([
+    ["athlète", ATHLETE_ONLY, "coach", "athlete"],
+    ["coach", COACH_ONLY, "athlete", "coach"],
+  ])("ignore ?as= hors des capacités d'un compte %s seul (#371)", async (_, user, as, expected) => {
+    session.user = user;
+
+    expect(await read(useActiveSpace, "/invoices", { as })).toBe(expected);
+  });
+
+  it("ignore ?as= pour un compte Entreprise, qui n'a aucun des deux titres (#371)", async () => {
+    session.user = { isCoach: false, isAthlete: false, isCompany: true, role: Role.COMPANY };
+
+    expect(await read(useActiveSpace, "/account", { as: "coach" })).toBe("company");
   });
 
   it("retombe sur le persona quand ni le chemin ni ?as= ne disent rien", async () => {

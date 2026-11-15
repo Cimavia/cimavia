@@ -11,6 +11,7 @@ import {
 import { Body, Controller, Delete, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { FeedbackMediaService } from "../service/feedback-media.service";
 
@@ -27,6 +28,7 @@ export class FeedbackMediaController {
   // Étape 1 : demander un ticket d'upload avant d'envoyer le fichier vers l'object storage. Le
   // ticket dit au client s'il pousse en un PUT ou part par part (cf. `upload.schema.ts`).
   @Post("upload-url")
+  @RateLimit(RateLimitPolicy.UPLOAD)
   createUploadUrl(
     @Param("scheduledSessionId") scheduledSessionId: string,
     @Body(new ZodSchemaPipe(requestFeedbackUploadUrlSchema)) dto: RequestFeedbackUploadUrlInput,

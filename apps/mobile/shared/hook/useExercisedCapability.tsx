@@ -1,6 +1,8 @@
 import { capabilitiesOf, Role, required, type TrainingCapability } from "@cmv/shared";
-import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
+import type { Href } from "expo-router";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
 import { useAccountUser } from "@/shared/hook/useSessionGuard";
+import { openUnder } from "@/shared/lib/open-under";
 
 /**
  * Le titre auquel les écrans partagés (Factures, Messagerie) lisent — `null` quand la question ne
@@ -36,13 +38,19 @@ export function ExercisedCapabilityProvider({ children }: Readonly<{ children: R
  * Pour un compte qui cumule : le choix du sélecteur s'il a été fait, sinon le **persona** (`role`)
  * — l'univers d'atterrissage que #9 lui a laissé. Ce n'est pas un droit dérivé du rôle : la garde,
  * elle, lit les capacités.
+ *
+ * `pinned` : le titre d'un écran qui n'en sert qu'un (#343) — le tableau de bord est coach, le
+ * débrief de séance est athlète. Il passe AVANT le sélecteur : celui-ci ne vit que sur les écrans
+ * servis aux deux, et rien ne le ramène quand on change d'onglet. Sans ça, un compte double revenu
+ * de ses factures « en tant qu'athlète » lisait ses factures reçues sur son tableau de bord.
  */
-export function useExercisedCapability(): TrainingCapability | null {
+export function useExercisedCapability(pinned?: TrainingCapability): TrainingCapability | null {
   const user = useAccountUser();
   const context = useContext(ExercisedCapabilityContext);
   const { isCoach, isAthlete } = capabilitiesOf(user);
 
   if (!isCoach || !isAthlete) return null;
+  if (pinned != null) return pinned;
   if (context?.override != null) return context.override;
   return user?.role === Role.ATHLETE ? "athlete" : "coach";
 }
@@ -56,14 +64,17 @@ export function useCapabilitySwitch(): {
   current: TrainingCapability | null;
   select: (capability: TrainingCapability) => void;
 } {
-  const context = useContext(ExercisedCapabilityContext);
+  const setOverride = useContext(ExercisedCapabilityContext)?.setOverride;
   const current = useExercisedCapability();
-  return {
-    visible: current != null,
-    current,
-    // Le fournisseur est posé à la racine (`app/_layout.tsx`) : hors de lui, c'est un bug de câblage.
-    select: required(context, "sélecteur hors de ExercisedCapabilityProvider").setOverride,
-  };
+  // Le fournisseur est posé à la racine (`app/_layout.tsx`) : hors de lui, c'est un bug de câblage.
+  // Exigé au moment de BASCULER, pas au rendu : un compte mono-capacité n'a rien à basculer, et
+  // l'écran qui le sert n'a pas à monter le fournisseur pour autant. Stable tant que lui l'est.
+  const select = useCallback(
+    (capability: TrainingCapability) =>
+      required(setOverride, "sélecteur hors de ExercisedCapabilityProvider")(capability),
+    [setOverride],
+  );
+  return { visible: current != null, current, select };
 }
 
 /**
@@ -82,4 +93,14 @@ export function useActingCapability(): TrainingCapability {
   const exercised = useExercisedCapability();
   const { isCoach } = capabilitiesOf(useAccountUser());
   return exercised ?? (isCoach ? "coach" : "athlete");
+}
+
+/**
+ * Ouvre un écran servi aux deux titres (Factures, Messages) sous celui de l'écran d'où l'on part
+ * (#343), par le geste d'`openUnder`. Sans ça, la tuile « factures en retard » du tableau de bord,
+ * qui compte celles du coach, menait un compte double resté sur « athlète » à ses factures REÇUES.
+ */
+export function useOpenAs(capability: TrainingCapability): (href: Href) => void {
+  const capabilitySwitch = useCapabilitySwitch();
+  return (href) => openUnder(href, capability, capabilitySwitch);
 }

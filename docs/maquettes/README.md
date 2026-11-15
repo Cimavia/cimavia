@@ -466,11 +466,13 @@ tenait jusque-là. Validée explicitement. Elle touche la zone que `CLAUDE.md` g
 par exercice*) : ce n'est pas un ressenti par exercice, seulement un décompte, mais ça ouvre la même
 porte et ajoute un modèle, des endpoints et de la synchronisation.
 
-1. **Le timer ne demande AUCUNE donnée nouvelle** — il joue les durées déjà saisies par le coach et
-   sa forme découle du type de structure : Séries → repos ; durée d'effort → alternance effort /
-   repos ; EMOM → top chaque intervalle ; AMRAP → compte à rebours ; Circuit → repos entre tours ;
-   Libre → aucun timer imposé. Règle générale : **toute durée affichée est lançable d'un tap**, le
-   chiffre EST le bouton. Le timer ne démarre jamais seul.
+1. **Le timer ne demande AUCUNE donnée nouvelle** — il joue les durées déjà saisies par le coach :
+   celles de la structure (bip, effort / repos, autant que possible, limite, repos entre exercices
+   et entre tours) et, sur un bloc fait à son rythme, celles de la grille, ligne par ligne, qui
+   l'emportent (`blockRun`, #722). Sans aucune durée nulle part, pas de timer. **Un bloc se lance en entier**, par « Lancer
+   le chrono » : une durée isolée ne se lance plus d'un tap. La règle « le chiffre EST le bouton »
+   est remplacée en #519 — ses pastilles répétaient la phrase et la grille, et annonçaient l'effort
+   de la première ligne comme celui du bloc. Le timer ne démarre jamais seul.
 2. **Le suivi ne suit pas le groupement du coach.** Un bloc écrit « ×4 séries » n'a qu'une ligne
    dans la grille : côté athlète il faut QUATRE cases. L'unité est nommée par type — séries, tops,
    tours, étapes — et l'AMRAP se compte au lieu de se cocher (l'objectif est indicatif).

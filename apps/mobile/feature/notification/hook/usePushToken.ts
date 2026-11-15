@@ -3,16 +3,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { registerPushToken, revokePushToken } from "@/feature/notification/api";
 import {
   readInstallationSecret,
   storeInstallationSecret,
 } from "@/feature/notification/util/installation-secret";
-import { routeForPushPayload } from "@/feature/notification/util/route.util";
+import { openDestination, routeForPushPayload } from "@/feature/notification/util/route.util";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
+import { useActingCapability, useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
+import { useAccountUser } from "@/shared/hook/useSessionGuard";
 
 /**
  * Enregistre l'appareil pour les notifications push (p4-4).
@@ -20,39 +21,54 @@ import { useCapabilities } from "@/shared/hook/useCapabilities";
  * Appelé depuis la zone authentifiée seulement : un token ne vaut que rattaché à un compte, et
  * demander la permission sur l'écran de login serait incompréhensible pour l'utilisateur.
  *
- * Rejoué à chaque montage : Expo peut faire tourner le token (réinstallation, restauration), et
- * l'API est idempotente. Un échec ne casse jamais l'app — au pire, pas de notification.
+ * Rejoué à chaque montage et à chaque changement de compte : Expo peut faire tourner le token
+ * (réinstallation, restauration), et l'API est idempotente. Un échec ne casse jamais l'app — au pire, pas de notification.
  */
 export function usePushToken() {
   const queryClient = useQueryClient();
+  const { isCoach, isAthlete, isCompany, isPending } = useCapabilities();
+  const acting = useActingCapability();
+  const { visible, select } = useCapabilitySwitch();
+  const accountId = useAccountUser()?.id;
+
   /**
-   * Décomposé en primitives et non gardé comme objet : `useCapabilities` en construit un neuf à
-   * chaque rendu, et le mettre en dépendance de l'effet réabonnerait le listener de push à chaque
-   * fois — donc perdrait la réponse à une notification ouverte au mauvais moment.
+   * Un token ne vaut que rattaché à un compte : l'enregistrement attend qu'il y en ait un, et se
+   * rejoue quand il change. Séparé du listener, que le titre exercé fait relire à chaque bascule
+   * du sélecteur — réenregistrer l'appareil à chaque fois serait un appel réseau pour rien.
    */
-  const { isCoach, isAthlete, isCompany } = useCapabilities();
+  useEffect(() => {
+    if (accountId != null) void registerDevice();
+  }, [accountId]);
+
+  /**
+   * Le push touché, en attente d'être ouvert. Le listener ne fait que le noter : au démarrage à
+   * froid depuis une notification, la session n'est pas encore résolue, aucune capacité n'est
+   * connue — router à ce moment ne mènerait nulle part, et Expo ne rejoue pas la réponse.
+   */
+  const [touched, setTouched] = useState<{ data: unknown } | null>(null);
 
   useEffect(() => {
-    void registerDevice();
-
-    // Ouvrir la notification doit mener à ce dont elle parle — sinon l'athlète atterrit sur
-    // l'accueil et cherche lui-même la séance dont on vient de lui parler.
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       // Le cache est PERSISTÉ et frais 5 min : arriver par un push sans invalider afficherait la
       // version d'avant l'événement qu'on vient d'annoncer. Même geste qu'au toucher d'une ligne
       // du centre — les deux portes d'entrée doivent se comporter pareil.
       queryClient.invalidateQueries();
-      // Destinations partagées avec le centre de notifications (#50) : ouvrir le push et toucher
-      // la ligne correspondante mènent au même endroit, par construction.
-      const target = routeForPushPayload(response.notification.request.content.data, {
-        isCoach,
-        isAthlete,
-        isCompany,
-      });
-      if (target != null) router.push(target);
+      setTouched({ data: response.notification.request.content.data });
     });
     return () => subscription.remove();
-  }, [queryClient, isCoach, isAthlete, isCompany]);
+  }, [queryClient]);
+
+  // Ouvrir la notification doit mener à ce dont elle parle — sinon l'athlète atterrit sur l'accueil
+  // et cherche lui-même la séance dont on vient de lui parler. Destinations partagées avec le
+  // centre (#50) : même endroit, même titre (#344), par construction.
+  useEffect(() => {
+    if (touched == null || isPending) return;
+    setTouched(null);
+    openDestination(routeForPushPayload(touched.data, { isCoach, isAthlete, isCompany }, acting), {
+      visible,
+      select,
+    });
+  }, [touched, isPending, isCoach, isAthlete, isCompany, acting, visible, select]);
 }
 
 async function registerDevice(): Promise<void> {

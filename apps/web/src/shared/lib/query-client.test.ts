@@ -90,6 +90,10 @@ describe("createQueryClient", () => {
       // fenêtre de reconnexion.
       expect(retry(0, unauthorized())).toBe(false);
     });
+
+    it("ne rejoue pas un 429 : l'essai consommerait la borne qu'il faut laisser se vider", () => {
+      expect(retry(0, new ApiError(429, "Trop de requêtes", null))).toBe(false);
+    });
   });
 
   // La décision, cas par cas, est éprouvée dans `@cmv/shared` ; ici, seulement le câblage (#699).

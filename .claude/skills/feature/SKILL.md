@@ -16,8 +16,27 @@ quoi lire, quelles questions poser, et dans quel ordre livrer.
    contradiction avec ce fichier, les docs gagnent** — et c'est un résultat à signaler.
 2. **Ce qui cloche se signale, ne se répare pas en douce.** Test cassé, doc fausse, dette mal
    suivie : le dire. Le corriger seulement si c'est le sujet de la PR, ou après accord.
-3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (GitHub, Scaleway,
-   Neon, SonarCloud, secrets, branch protection). Je les liste, Kylian les fait.
+3. **Je n'exécute jamais git** (add, commit, push) **ni les interfaces web** (Scaleway, Neon,
+   SonarCloud, NAS, secrets, branch protection). Je les liste, Kylian les fait.
+4. **Les retouches GitHub sans enjeu, je les propose puis je les fais moi-même** — pas de liste
+   à recopier dans l'interface. Sans enjeu = sans effet sur le code ni sur la gouvernance du dépôt,
+   et réversible :
+   - titre et **description** (corps) d'une issue ou d'une PR ;
+   - **labels**, jalon ;
+   - board « Cimavia — Roadmap » : statut, phase, ajout d'une issue ;
+   - relations : sous-issue, blocage ;
+   - commentaire sur une issue ou une PR (réponse à une revue, précision).
+
+   Je les regroupe en **une seule proposition** (dans le rapport du §3, le plan du §4 ou le bilan
+   d'un incrément), chacune avec l'avant → l'après, et j'attends le « ok ». Ensuite je les applique
+   par `gh api` (mécanique et IDs du board : skill `issue`, section *Mécanique `gh`*), **je relis
+   l'état après coup** — `gh api` peut échouer sans bruit — et je rends le résultat. Un corps
+   d'issue réécrit passe par un fichier du scratchpad (`-F body=@<fichier>`), jamais par un script
+   à faire lancer.
+
+   **Restent à Kylian** : créer, merger ou fermer une PR, fermer ou rouvrir une issue, supprimer
+   quoi que ce soit, releases et tags, secrets, branch protection, réglages du dépôt. Créer une
+   issue suit le skill `issue` (proposée, puis créée après validation).
 
 ## 1. Situer
 
@@ -117,6 +136,13 @@ la porte du §6 reste la vérification.
 **La porte qualité de `CLAUDE.md`** (section *Porte qualité*) — je lance ce qui est automatisable,
 Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les migrations et l'app. Lui préparer les commandes.
 
+**Je teste un maximum de choses moi-même.** Avant de renvoyer une vérification au développeur, je
+la fais si j'en ai les moyens : tests unitaires et de rendu (en vérifiant qu'ils mordent sur
+l'ancien code), e2e, `docker` + `curl` contre l'API, parcours Playwright dans Chromium contre la
+vraie API (un spec temporaire, retiré après), parcours sur l'émulateur Android. **Le développeur ne
+teste que ce que je ne peux vraiment pas tester** — téléphone réel, iOS, NAS, interfaces web, vidéo
+sur appareil — et le plan de test dit, pour le reste, ce que j'ai vérifié et comment.
+
 ## 7. Journal, issues, board
 
 - Une dette traitée ou prise se met à jour dans `docs/dette/<domaine>.md` **dans la PR qui la
@@ -125,11 +151,15 @@ Le développeur lance les e2e (seulement si Claude ne peut pas le faire), les mi
   doit rester vert.
 - Une **décision que le code ne justifie pas seul** se consigne en encadré « Tranché en #N ».
 - Les issues à créer se proposent, puis se créent après validation (→ skill `issue`).
-- Toute anomalie de board (statut, titre désynchronisé, relation manquante) se signale.
-- Mettre le statut "en cours" sur les issues correspondant au développement demandé
+- Toute anomalie de GitHub — statut de board, titre ou description désynchronisés du travail réel,
+  label `area:` qui ne couvre pas ce qui est touché (question 3), relation manquante — se
+  **propose à la correction** et se corrige moi-même après accord (règle d'or 4).
+- Le passage à **Status = En cours** des issues traitées se propose dès le premier retour (§1),
+  avec le nom de branche, et je l'applique au « ok ».
 
 ## 8. Test
-- Préparer un plan de test à la fin de chaque issue pour que le développeur test
+- Préparer un plan de test à la fin de chaque issue pour que le développeur test — limité à ce que
+  je n'ai vraiment pas pu vérifier moi-même (§6), le reste listé comme déjà vérifié.
 
 **Revue de la PR par une autre session.** En tête du plan de test, je dis si elle est conseillée,
 et avec quelle commande. Elle est lancée par le développeur, dans une **autre session** que la mienne

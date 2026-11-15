@@ -3,6 +3,8 @@ import {
   type NotificationDto,
   NotificationEntityType,
   NotificationType,
+  notificationOpeningCapability,
+  type TrainingCapability,
 } from "@cmv/shared";
 
 /**
@@ -18,21 +20,26 @@ import {
 type NotificationTarget =
   | { to: "/plans/$planId"; params: { planId: string } }
   | { to: "/sessions/$sessionId"; params: { sessionId: string }; search: { from: undefined } }
-  | { to: "/feedbacks"; search: { feedback: undefined; session: undefined } }
+  | { to: "/feedbacks"; search: { feedback: undefined; session: string } }
   | {
       to: "/messages";
       search: {
         athlete: undefined;
         coach: undefined;
         conversation: string;
-        as: undefined;
+        as: TrainingCapability | undefined;
         q: undefined;
       };
     }
   | { to: "/planning"; search: { from: undefined } }
   | {
       to: "/invoices";
-      search: { as: undefined; q: undefined; situation: undefined; athlete: undefined };
+      search: {
+        as: TrainingCapability | undefined;
+        q: undefined;
+        situation: undefined;
+        athlete: undefined;
+      };
     }
   | { to: "/my-coach" }
   // Le tableau de suivi du coach, sans filtre (#123).
@@ -48,11 +55,11 @@ const COACH_HOME = {
 } as const satisfies NotificationTarget;
 
 /**
- * Où mène une notification quand on clique dessus. Le web n'a pas (encore) d'écran par débrief ni
- * par fil : on ouvre la SECTION concernée, ce qui reste très au-dessus de « l'utilisateur cherche
- * lui-même ce dont on vient de lui parler ».
+ * Où mène une notification quand on clique dessus : sur l'objet lui-même quand une route sait
+ * l'ouvrir (un débrief, un fil, une séance, un cycle du builder), sinon sur la SECTION concernée,
+ * ce qui reste très au-dessus de « l'utilisateur cherche lui-même ce dont on vient de lui parler ».
  *
- * **La destination dépend de la CAPACITÉ**, et pas seulement du type. Les deux rôles reçoivent des
+ * **La destination dépend du TITRE sous lequel on l'ouvre**, et pas seulement de la cible. Les deux rôles reçoivent des
  * notifications sur les mêmes entités, mais ne disposent pas des mêmes écrans pour les lire : un
  * cycle diffusé mène le coach à son builder (`/plans/$planId`), route qu'un athlète ne peut pas
  * ouvrir — l'y envoyer le ferait rebondir sur son accueil, c'est-à-dire nulle part. Tant que la
@@ -64,17 +71,20 @@ const COACH_HOME = {
  * puis `PLAN` et `SCHEDULED_SESSION` avec le planning et le détail de séance (#25), enfin
  * `CONVERSATION` avec la messagerie (#29). Plus aucune cible ne mène nulle part pour un athlète.
  *
- * Limite connue, laissée à #7 : une notification ne dit pas **à quel titre** on la reçoit. Sur un
- * compte à double capacité, un cycle diffusé « en tant qu'athlète » mènera quand même au builder.
+ * Ce titre est celui de la NOTIFICATION (`notificationOpeningCapability`, #344), pas celui qu'on
+ * exerce ni toutes les capacités possédées : la cloche liste, mêlé, ce qu'un compte coach et athlète
+ * reçoit des deux côtés — un cycle se lit en athlète, un débrief en coach, quel que soit l'espace
+ * qu'on parcourt. `acting`, le titre exercé, ne départage que ce que le type laisse ouvert (un
+ * message). Sur un compte qui cumule, le titre part aussi dans `?as=` des deux écrans servis aux
+ * deux : une facture émise ouverte depuis l'espace coach montre celles de l'athlète.
  *
  * `null` aussi sur un type inconnu — une version d'app plus ancienne que l'API ne doit pas deviner.
  */
 export function routeForNotification(
   notification: NotificationDto,
   capabilities: Capabilities,
+  acting: TrainingCapability,
 ): NotificationTarget | null {
-  const { isCoach } = capabilities;
-
   /**
    * Une invitation REFUSÉE ne mène nulle part, et c'est décidé AVANT la table — le seul type dont
    * la destination soit supprimée plutôt que déduite.
@@ -86,6 +96,13 @@ export function routeForNotification(
    * chercherait une ligne qui n'y est plus.
    */
   if (notification.type === NotificationType.INVITATION_DECLINED) return null;
+
+  const capability = notificationOpeningCapability(notification.type, capabilities, acting);
+  // Le compte n'a plus la capacité sous laquelle il l'a reçue : aucun de ses écrans ne la montre.
+  if (capability == null) return null;
+  const isCoach = capability === "coach";
+  // L'URL reste nue pour un compte mono-capacité : la question du titre ne se pose pas (#129).
+  const as = capabilities.isCoach && capabilities.isAthlete ? capability : undefined;
 
   switch (notification.entityType) {
     /**
@@ -101,17 +118,19 @@ export function routeForNotification(
         ? { to: "/plans/$planId", params: { planId: notification.entityId } }
         : { to: "/planning", search: { from: undefined } };
     /**
-     * Ce type n'est émis QU'AU COACH aujourd'hui (`FEEDBACK_RECEIVED`), et le web n'a pas d'écran
-     * par débrief : on ouvre la section. La branche athlète est écrite quand même, comme sur
-     * mobile — cette table décrit où vit une cible pour une capacité, pas quelles notifications
-     * existent, et la destination existe désormais (#25).
+     * Ce type n'est émis QU'AU COACH aujourd'hui (`FEEDBACK_RECEIVED`), et `entityId` est la
+     * SÉANCE débriefée : `?session=` ouvre CE débrief dans la boîte de réception et le marque lu,
+     * comme la puce « à propos de… » et comme le mobile (#380). Un débrief que le coach ne voit
+     * plus ne résout rien : l'écran reste sur sa liste. La branche athlète est écrite quand même,
+     * comme sur mobile — cette table décrit où vit une cible pour une capacité, pas quelles
+     * notifications existent, et la destination existe désormais (#25).
      *
      * Côté athlète, aucune semaine de planning n'accompagne la séance : on n'arrive pas du planning,
      * et « Mon planning » rouvrira donc son défaut (#251).
      */
     case NotificationEntityType.SCHEDULED_SESSION:
       return isCoach
-        ? { to: "/feedbacks", search: { feedback: undefined, session: undefined } }
+        ? { to: "/feedbacks", search: { feedback: undefined, session: notification.entityId } }
         : {
             to: "/sessions/$sessionId",
             params: { sessionId: notification.entityId },
@@ -127,7 +146,7 @@ export function routeForNotification(
           athlete: undefined,
           coach: undefined,
           conversation: notification.entityId,
-          as: undefined,
+          as,
           q: undefined,
         },
       };
@@ -135,7 +154,7 @@ export function routeForNotification(
     case NotificationEntityType.INVOICE:
       return {
         to: "/invoices",
-        search: { as: undefined, q: undefined, situation: undefined, athlete: undefined },
+        search: { as, q: undefined, situation: undefined, athlete: undefined },
       };
     /**
      * L'invitation (#146) se branche par CAPACITÉ comme tout le reste de cette table, et les deux
@@ -145,8 +164,8 @@ export function routeForNotification(
      *
      * L'invitation d'une entreprise tombe dans la même branche : celle d'un Coach (#601) attend sur
      * son tableau de bord, celle d'un athlète (#602) dans « Mes coachs », comme l'arrivée d'un Coach
-     * de l'entreprise qui le suit désormais. Limite connue : un compte à double capacité va toujours
-     * côté coach, faute de lire le type (consigné en #602).
+     * de l'entreprise qui le suit désormais. Sur un compte à double capacité, c'est le type qui
+     * tranche (#344) : l'invitation reçue se lit en athlète, la réponse en coach.
      */
     case NotificationEntityType.INVITATION:
       return isCoach ? COACH_HOME : { to: "/my-coach" };

@@ -11,11 +11,12 @@ const DEV = {
   SIGNUP_MODE: "open",
 };
 
-/** Le minimum pour démarrer sur un tier déployé : https et jeton Expo en plus. */
+/** Le minimum pour démarrer sur un tier déployé : https, jeton Expo et en-tête d'IP en plus. */
 const DEPLOYED = {
   ...DEV,
   BETTER_AUTH_URL: "https://api-preview.cimavia.test",
   EXPO_ACCESS_TOKEN: "jeton-robot",
+  CLIENT_IP_HEADER: "cf-connecting-ip",
   SIGNUP_MODE: "invitation",
 };
 
@@ -66,19 +67,48 @@ describe("envSchema — tiers déployés (#357)", () => {
     ]);
   });
 
-  it("signale ensemble les deux exigences du tier, pas une par démarrage", () => {
-    const { EXPO_ACCESS_TOKEN: _absent, ...withoutExpo } = DEPLOYED;
-
-    expect(
-      refusals({ ...withoutExpo, APP_ENV: "preview", BETTER_AUTH_URL: "http://api.test" }).map(
-        (refusal) => refusal.path,
-      ),
-    ).toEqual(["BETTER_AUTH_URL", "EXPO_ACCESS_TOKEN"]);
+  it.each(["preview", "production"])("refuse en %s l'absence de l'en-tête d'IP", (tier) => {
+    expect(refusals({ ...DEPLOYED, APP_ENV: tier, CLIENT_IP_HEADER: "" })).toEqual([
+      { path: "CLIENT_IP_HEADER", message: expect.stringContaining(`obligatoire en ${tier}`) },
+    ]);
   });
 
-  it("reste permissif en développement : http et pas de jeton Expo", () => {
+  it("signale ensemble les exigences du tier, pas une par démarrage", () => {
+    const { EXPO_ACCESS_TOKEN: _expo, CLIENT_IP_HEADER: _ip, ...withoutBoth } = DEPLOYED;
+
+    expect(
+      refusals({ ...withoutBoth, APP_ENV: "preview", BETTER_AUTH_URL: "http://api.test" }).map(
+        (refusal) => refusal.path,
+      ),
+    ).toEqual(["BETTER_AUTH_URL", "EXPO_ACCESS_TOKEN", "CLIENT_IP_HEADER"]);
+  });
+
+  it("reste permissif en développement : http, ni jeton Expo ni en-tête d'IP", () => {
     expect(refusals(DEV)).toEqual([]);
     expect(envSchema.parse(DEV).APP_ENV).toBe("development");
+  });
+});
+
+/**
+ * L'en-tête de l'IP du client (#781) : Fastify range les en-têtes en minuscules, un nom écrit
+ * autrement ne serait jamais trouvé sur la requête — et l'IP retomberait sans bruit.
+ */
+describe("envSchema — en-tête de l'IP du client (#781)", () => {
+  it("accepte un nom d'en-tête en minuscules", () => {
+    expect(envSchema.parse(DEPLOYED).CLIENT_IP_HEADER).toBe("cf-connecting-ip");
+  });
+
+  it.each([
+    ["en capitales", "CF-Connecting-IP"],
+    ["avec un deux-points", "cf-connecting-ip:"],
+    ["en liste", "cf-connecting-ip,x-forwarded-for"],
+    // Le défaut que la variable remplace : une liste que chaque proxy allonge.
+    ["qui porte une liste d'adresses", "x-forwarded-for"],
+    ["qui porte une liste d'adresses (RFC 7239)", "forwarded"],
+  ])("refuse un nom %s", (_, header) => {
+    expect(refusals({ ...DEV, CLIENT_IP_HEADER: header }).map(({ path }) => path)).toEqual([
+      "CLIENT_IP_HEADER",
+    ]);
   });
 });
 

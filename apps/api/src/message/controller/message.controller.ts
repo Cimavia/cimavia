@@ -11,6 +11,7 @@ import {
 import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { MessageService } from "../service/message.service";
 import { MessageMediaService } from "../service/message-media.service";
@@ -35,6 +36,7 @@ export class MessageController {
   // Média : demander un ticket d'upload avant d'envoyer le fichier vers l'object storage. Le
   // ticket dit au client s'il pousse en un PUT ou part par part (cf. `upload.schema.ts`).
   @Post("upload-url")
+  @RateLimit(RateLimitPolicy.UPLOAD)
   createUploadUrl(
     @Param("conversationId") conversationId: string,
     @Body(new ZodSchemaPipe(requestMessageUploadUrlSchema)) dto: RequestMessageUploadUrlInput,
@@ -65,6 +67,7 @@ export class MessageController {
   }
 
   @Post()
+  @RateLimit(RateLimitPolicy.MESSAGE)
   send(
     @Param("conversationId") conversationId: string,
     @Body(new ZodSchemaPipe(sendMessageSchema)) dto: SendMessageInput,

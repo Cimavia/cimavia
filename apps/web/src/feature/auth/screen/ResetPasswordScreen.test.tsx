@@ -18,13 +18,23 @@ function setup(search: Readonly<Record<string, string>> = { token: "jeton-du-mai
   return renderInRoute(<ResetPasswordScreen />, {
     path: "/reset-password",
     search,
-    links: ["/login"],
+    links: ["/login", "/forgot-password"],
   });
 }
 
 async function submit(view: Awaited<ReturnType<typeof setup>>) {
   await view.user.type(view.getByLabelText(PASSWORD), "nouveaumdp1");
   await view.user.click(view.getByRole("button", { name: SUBMIT }));
+}
+
+/** Plus de formulaire, un lien vers un nouvel e-mail, et la connexion toujours à portée. */
+function expectDeadLink(view: Awaited<ReturnType<typeof setup>>) {
+  expect(view.queryByLabelText(PASSWORD)).not.toBeInTheDocument();
+  expect(view.getByRole("link", { name: "auth.reset.toForgotPassword" })).toHaveAttribute(
+    "href",
+    "/forgot-password",
+  );
+  expect(view.getByRole("link", { name: "auth.reset.toLogin" })).toHaveAttribute("href", "/login");
 }
 
 beforeEach(() => {
@@ -54,27 +64,102 @@ describe("ResetPasswordScreen", () => {
         token: "jeton-du-mail",
       }),
     );
-    expect(await view.findByText("auth.reset.success")).toBeInTheDocument();
+    // Annoncé : il remplace le formulaire après l'envoi. `getByText` : le conteneur des toasts
+    // porte lui aussi `role="status"`.
+    expect(await view.findByText("auth.reset.success")).toHaveAttribute("role", "status");
+    // Dans l'URL et non dans un état : le jeton parti, une page rechargée dirait sinon « ouvre le
+    // lien reçu par e-mail » à qui vient de réussir.
+    expect(view.router.state.location.href).toBe("/reset-password?done=true");
+    expect(view.router.history).toHaveLength(1);
   });
 
-  it("dit le lien invalide sans appeler l'API quand l'URL n'a pas de jeton", async () => {
+  it("redit le succès à la page rechargée, sans formulaire ni lien à redemander", async () => {
+    const view = await setup({ done: "true" });
+
+    expect(view.getByText("auth.reset.success")).toBeInTheDocument();
+    expect(view.queryByLabelText(PASSWORD)).not.toBeInTheDocument();
+    expect(view.queryByText("auth.reset.missingToken")).not.toBeInTheDocument();
+    expect(view.getByRole("link", { name: "auth.reset.toLogin" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+  });
+
+  // Better Auth a vérifié le jeton AVANT de rediriger, et l'a trouvé inconnu, consommé ou expiré.
+  it("dit d'emblée le lien mort quand Better Auth l'a refusé, et mène à un nouvel e-mail", async () => {
+    const view = await setup({ error: "INVALID_TOKEN" });
+
+    expectDeadLink(view);
+    expect(view.getByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
+    // Rien de secret : `error` reste, et une page rechargée redit la même chose.
+    expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN");
+  });
+
+  // Page rechargée après que le jeton a quitté l'URL (#335), ou adresse tapée à la main : le lien
+  // de l'e-mail marche peut-être encore, le texte ne doit pas le déclarer mort.
+  it("dit d'emblée qu'il manque le lien quand l'URL n'a ni jeton ni erreur", async () => {
     const view = await setup({});
 
-    await submit(view);
-
-    // Le cas d'une page rechargée : le jeton est parti de l'URL, il faut recliquer le lien du mail.
-    expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
-    expect(resetPasswordMock).not.toHaveBeenCalled();
+    expectDeadLink(view);
+    // Ni alerte ni `status` : affiché dès l'arrivée, c'est le contenu de la page, il se lit avec elle.
+    expect(view.getByText("auth.reset.missingToken")).not.toHaveAttribute("role");
+    expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
   });
 
-  it("dit le lien invalide quand l'API refuse le jeton", async () => {
-    resetPasswordMock.mockResolvedValue({ error: { status: 400 } });
+  it("ôte quand même le jeton de l'URL quand une erreur l'accompagne", async () => {
+    // Better Auth ne pose jamais les deux : l'URL est fabriquée, le lien y est tenu pour mort.
+    const view = await setup({ token: "jeton-du-mail", error: "INVALID_TOKEN" });
+
+    await waitFor(() =>
+      expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN"),
+    );
+    expectDeadLink(view);
+    expect(view.getByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
+  });
+
+  // Jeton consommé ou expiré pendant que la page restait ouverte, ou compte supprimé depuis l'envoi
+  // de l'e-mail (#256) : le lien est mort, quoi qu'on tape.
+  it.each(["INVALID_TOKEN", "USER_NOT_FOUND"])(
+    "remplace le formulaire par le lien mort quand l'API refuse le jeton (%s)",
+    async (code) => {
+      resetPasswordMock.mockResolvedValue({ error: { status: 400, code } });
+      const view = await setup();
+
+      await submit(view);
+
+      expect(await view.findByRole("alert")).toHaveTextContent("auth.reset.invalidToken");
+      expectDeadLink(view);
+      // Dans l'URL et non dans un état : une page rechargée redit que le lien est mort.
+      expect(view.router.state.location.href).toBe("/reset-password?error=INVALID_TOKEN");
+      expect(view.router.history).toHaveLength(1);
+    },
+  );
+
+  // Le lien marche encore : dire le contraire ferait redemander un e-mail pour rien.
+  it.each([
+    ["auth.reset.passwordTooShort", { status: 400, code: "PASSWORD_TOO_SHORT" }],
+    ["auth.reset.passwordTooLong", { status: 400, code: "PASSWORD_TOO_LONG" }],
+    ["auth.errors.tooManyAttempts", { status: 429 }],
+    ["auth.errors.generic", { status: 500, code: "INTERNAL_SERVER_ERROR" }],
+  ])("dit %s pour un refus qui ne tient pas au lien", async (message, error) => {
+    resetPasswordMock.mockResolvedValue({ error });
     const view = await setup();
 
     await submit(view);
 
-    expect(await view.findByText("auth.reset.invalidToken")).toBeInTheDocument();
+    // Annoncé : il apparaît après l'envoi.
+    expect(await view.findByRole("alert")).toHaveTextContent(message);
+    expect(view.queryByText("auth.reset.invalidToken")).not.toBeInTheDocument();
+    // Le formulaire reste, et on peut renvoyer.
     expect(view.getByRole("button", { name: SUBMIT })).toBeEnabled();
+  });
+
+  it("ne tronque pas un mot de passe trop long : c'est l'API qui le refuse", async () => {
+    // Un `maxLength` couperait en silence un mot de passe collé ou généré, et le gestionnaire
+    // retiendrait autre chose que celui du compte.
+    const view = await setup();
+
+    expect(view.getByLabelText(PASSWORD)).not.toHaveAttribute("maxLength");
   });
 
   it("dit l'erreur générique quand l'appel échoue", async () => {

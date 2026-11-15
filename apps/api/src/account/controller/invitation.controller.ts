@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post } from "@nestjs/co
 import { ApiTags } from "@nestjs/swagger";
 import { Session, type UserSession } from "@thallesp/nestjs-better-auth";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { CreateInvitationDto } from "../dto/create-invitation.dto";
 import { InvitationService } from "../service/invitation.service";
 
@@ -12,6 +13,7 @@ export class InvitationController {
 
   @Post()
   @RequireCapability("coach")
+  @RateLimit(RateLimitPolicy.INVITATION)
   create(@Body() dto: CreateInvitationDto) {
     return this.invitations.create(dto);
   }

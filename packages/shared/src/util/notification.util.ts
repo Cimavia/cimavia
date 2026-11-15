@@ -101,6 +101,32 @@ export function capabilityOfNotification(type: NotificationType): TrainingCapabi
 }
 
 /**
+ * Sous quel titre OUVRIR une notification (#344) — ce qui décide où elle mène, et quel côté les
+ * écrans partagés (factures, messagerie) montrent en arrivant.
+ *
+ * Le titre de la notification d'abord, pas celui qu'on exerce : le centre n'est PAS filtré par
+ * espace, il liste tout ce que le compte a reçu. Router un « débrief reçu » sous le titre athlète
+ * qu'on exerce mènerait à la séance de SON athlète par une route d'athlète — un 403. Le titre
+ * exercé ne départage que le message, que les deux côtés d'un fil reçoivent.
+ *
+ * `null` dans deux cas, et l'appelant ne navigue pas :
+ * - le compte n'a plus la capacité sous laquelle il l'a reçue (un Coach qui a cessé de coacher
+ *   relit un vieux débrief) : aucun de ses écrans ne la montre, mieux vaut rester que viser un 403 ;
+ * - le type est inconnu (API plus récente que ce client) : fail closed, comme
+ *   `capabilityOfNotification` — un client ne devine pas le titre d'un type qu'il ignore. La cloche
+ *   et le push s'accordent ainsi : le push ne sait pas lire les clés d'id d'un type inconnu.
+ */
+export function notificationOpeningCapability(
+  type: NotificationType,
+  capabilities: Capabilities,
+  acting: TrainingCapability,
+): TrainingCapability | null {
+  const received = capabilityOfNotification(type);
+  if (received != null) return hasCapability(capabilities, received) ? received : null;
+  return type === NotificationType.MESSAGE_RECEIVED ? acting : null;
+}
+
+/**
  * Le titre auquel un message est reçu : coach si le destinataire est le coach du fil, athlète
  * sinon. La conversation est la seule à porter l'information — d'où ce second temps.
  */

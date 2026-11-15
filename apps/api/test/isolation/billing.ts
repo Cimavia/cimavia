@@ -122,6 +122,30 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
     expect(attached.body.documentUrl).not.toBeNull();
   });
 
+  // #468 : la taille enregistrée est celle de l'objet reçu, pas celle que le client annonce.
+  it("refuse un justificatif dont la taille dément l'objet reçu (409), ou jamais envoyé (404)", async () => {
+    const file = { fileName: "menteur.pdf", mimeType: "application/pdf", size: 20_000 };
+    const signed = await coachA.post(`/plans/${planId}/billing/document/upload-url`).send(file);
+    expect(signed.status).toBe(201);
+
+    // Jamais envoyé : rien à rattacher.
+    const never = await coachA
+      .put(`/plans/${planId}/billing/document`)
+      .send({ ...file, storagePath: signed.body.storagePath });
+    expect(never.status).toBe(404);
+
+    const put = await fetch(signed.body.uploadUrl, {
+      method: "PUT",
+      body: Buffer.alloc(file.size, 1),
+      headers: { "content-type": file.mimeType },
+    });
+    expect(put.status).toBe(200);
+    const lying = await coachA
+      .put(`/plans/${planId}/billing/document`)
+      .send({ ...file, size: 1_000, storagePath: signed.body.storagePath });
+    expect(lying.status).toBe(409);
+  });
+
   it("refuse un justificatif non-PDF (400), et un autre coach ne peut pas en joindre (404)", async () => {
     expect(
       (

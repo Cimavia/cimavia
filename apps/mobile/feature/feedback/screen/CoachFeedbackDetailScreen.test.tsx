@@ -500,6 +500,15 @@ describe("CoachFeedbackDetailScreen — après une réponse", () => {
   });
 });
 
+// Le débrief d'un de ses athlètes se répond en coach, même sélecteur laissé sur « athlète » (#343).
+describe("CoachFeedbackDetailScreen — le titre de la réponse", () => {
+  it("répond en coach", () => {
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(vi.mocked(useFeedbackReply).mock.lastCall?.[1]).toBe("coach");
+  });
+});
+
 /**
  * Le débrief et ses réponses sont deux listes (#529) : chacune enchaîne ses notes, et la dernière
  * note de l'athlète ne lance pas la réponse du coach.

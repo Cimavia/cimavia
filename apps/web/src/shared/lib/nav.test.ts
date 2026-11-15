@@ -1,6 +1,13 @@
 import { type CounterpartsDto, UNKNOWN_COUNTERPARTS } from "@cmv/shared";
 import { describe, expect, it } from "vitest";
-import { itemsOfSpace, landingPath, NAV_ITEMS, SHARED_ROUTES, spaceOfPath } from "./nav";
+import {
+  isSharedRoute,
+  itemsOfSpace,
+  landingPath,
+  NAV_ITEMS,
+  SHARED_ROUTES,
+  spaceOfPath,
+} from "./nav";
 
 const BOTH_SIDES: CounterpartsDto = { asCoach: true, asAthlete: true };
 const NO_ONE: CounterpartsDto = { asCoach: false, asAthlete: false };
@@ -98,6 +105,15 @@ describe("spaceOfPath", () => {
     for (const shared of SHARED_ROUTES) {
       expect(spaceOfPath(shared)).toBeNull();
     }
+  });
+
+  // Une seule définition de « route partagée », barre oblique finale comprise (#343).
+  it("reconnaît une route partagée avec ou sans barre oblique finale", () => {
+    expect(isSharedRoute("/invoices")).toBe(true);
+    expect(isSharedRoute("/invoices/")).toBe(true);
+    expect(spaceOfPath("/messages/")).toBeNull();
+    expect(isSharedRoute("/")).toBe(false);
+    expect(isSharedRoute("/plans")).toBe(false);
   });
 
   it("range les pages de l'entreprise dans son espace", () => {

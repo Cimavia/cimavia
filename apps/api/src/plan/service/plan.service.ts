@@ -56,8 +56,6 @@ import {
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 import { PlanAccessService, settledOrganizations } from "./plan-access.service";
 
-export type ListPlansFilters = { athleteId?: string };
-
 /** Un cycle lu avec de quoi dire qui le possède, et ce que l'acteur peut en faire (#607). */
 export type PlanWithAccess = Prisma.PlanGetPayload<{ include: typeof ACCESS_INCLUDE }>;
 
@@ -111,13 +109,9 @@ export class PlanService {
    * Ses cycles, et ceux qu'on lui ouvre (#607) : un athlète suivi à plusieurs montre aussi ce que
    * l'autre Coach lui a écrit, avec son auteur (`coachName`) et le droit qu'on en a.
    */
-  async list(filters: ListPlansFilters): Promise<PlanSummaryDto[]> {
-    const where: Prisma.PlanWhereInput = {};
-    if (filters.athleteId) where.athleteId = filters.athleteId;
-
+  async list(): Promise<PlanSummaryDto[]> {
     const [plans, context] = await Promise.all([
       this.db.plan.findMany({
-        where,
         include: COACH_PLAN_COUNTS_INCLUDE,
         orderBy: { startDate: "desc" },
       }),

@@ -1,12 +1,14 @@
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
-import { afterAll, beforeAll } from "vitest";
+import { ThrottlerStorage } from "@nestjs/throttler";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { AppModule } from "../../src/app.module";
 import { configureApp, createHttpAdapter } from "../../src/app.setup";
 import type { MailMessage } from "../../src/infra/mail/mail.service";
 import { MailService } from "../../src/infra/mail/mail.service";
 import { PRISMA_LOG, PrismaService } from "../../src/infra/prisma/prisma.service";
 import { listenToQueries, QUERY_LOG } from "./query-count";
+import { ResettableThrottlerStorage } from "./rate-limit";
 
 // Toutes les tables du schéma (les `@@map` de Prisma), enfants avant parents.
 const TABLES = [
@@ -71,8 +73,16 @@ const mailServiceDouble = {
   },
 };
 
+const throttlerStorage = new ResettableThrottlerStorage();
+
 /** Monte l'app, vide la base et écoute sur le port e2e — à appeler une fois, depuis l'entrée. */
 export function setupE2eApp(): void {
+  // Chaque cas part de compteurs de débit vides : voir `ResettableThrottlerStorage`. Avant ET après
+  // chaque cas : le `beforeAll` d'un domaine tourne avant le premier `beforeEach`, il hériterait
+  // sinon des requêtes du dernier cas du domaine précédent.
+  beforeEach(() => throttlerStorage.reset());
+  afterEach(() => throttlerStorage.reset());
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -84,6 +94,8 @@ export function setupE2eApp(): void {
       // Le vrai service, construit par Nest avec le journal des requêtes (#629).
       .overrideProvider(PRISMA_LOG)
       .useValue(QUERY_LOG)
+      .overrideProvider(ThrottlerStorage)
+      .useValue(throttlerStorage)
       .compile();
     listenToQueries(moduleRef.get(PrismaService));
     app = moduleRef.createNestApplication<NestFastifyApplication>(createHttpAdapter(), {

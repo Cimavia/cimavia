@@ -104,6 +104,12 @@ describe("BlockScreen — le chrono", () => {
       vi.advanceTimersByTime(250);
     });
 
+  /** Laisse l'OS répondre : la programmation des notifications est asynchrone. */
+  const settle = () =>
+    act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+
   const launch = () => {
     renderRn(<BlockScreen />);
     vi.useFakeTimers();
@@ -200,10 +206,70 @@ describe("BlockScreen — le chrono", () => {
   it("annonce les étapes à venir par notification", async () => {
     open("blk-3");
     launch();
-    await act(async () => {
-      await vi.runOnlyPendingTimersAsync();
-    });
+    await settle();
 
     expect(vi.mocked(Notifications.scheduleNotificationAsync)).toHaveBeenCalled();
+  });
+
+  /**
+   * « Autorise les notifications » ne s'adresse qu'à qui les a refusées (#374). Il s'affichait
+   * aussi en pause, et le temps que l'OS programme chaque repos — à qui les avait autorisées.
+   */
+  describe("l'avertissement « autorise les notifications »", () => {
+    const getPermissions = vi.mocked(Notifications.getPermissionsAsync);
+    const granted = getPermissions.getMockImplementation();
+    const warning = () => screen.queryByText("plan.timer.notArmed");
+
+    const refuse = () =>
+      getPermissions.mockResolvedValue({
+        status: "denied",
+        granted: false,
+        canAskAgain: false,
+      } as Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>);
+
+    afterEach(() => {
+      if (granted != null) getPermissions.mockImplementation(granted);
+    });
+
+    it("ne s'affiche ni pendant que l'OS programme le repos, ni une fois programmé", async () => {
+      launch();
+      press(screen.getByText("plan.clock.done"));
+
+      expect(screen.getByText("plan.clock.title.REST")).toBeTruthy();
+      expect(warning()).toBeNull();
+
+      await settle();
+      expect(warning()).toBeNull();
+    });
+
+    it("ne s'affiche pas en pause, quand rien n'est à programmer", async () => {
+      launch();
+      press(screen.getByText("plan.clock.done"));
+      await settle();
+
+      press(screen.getByText("plan.timer.pause"));
+      await settle();
+
+      expect(screen.getByText("plan.timer.resume")).toBeTruthy();
+      expect(warning()).toBeNull();
+    });
+
+    it("s'affiche sur le repos quand la permission est refusée, jamais sur la série", async () => {
+      refuse();
+      launch();
+      await settle();
+
+      expect(screen.getByText("plan.clock.title.DO")).toBeTruthy();
+      expect(warning()).toBeNull();
+
+      press(screen.getByText("plan.clock.done"));
+      await settle();
+      expect(warning()).toBeTruthy();
+
+      // Le repos s'écoule : la série suivante ne reprend pas l'avertissement du repos.
+      tick(200_000);
+      expect(screen.getByText("plan.clock.title.DO")).toBeTruthy();
+      expect(warning()).toBeNull();
+    });
   });
 });

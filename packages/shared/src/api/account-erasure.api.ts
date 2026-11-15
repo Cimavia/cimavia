@@ -23,6 +23,8 @@ export type ErasureFailure = "wrongPassword" | "tooManyAttempts" | "busy";
  * Le `403` se lit au `type` et non au statut : un autre garde peut refuser pour une autre raison, et
  * annoncer « mot de passe incorrect » ferait retaper un mot de passe juste. Le `429` et le `409`
  * n'ont pas de code, seulement une phrase écrite pour les logs : leur statut suffit sur cette route.
+ * Le `429` peut aussi venir de la limite de débit des routes (#782), sans qu'aucun essai ait été
+ * compté : « trop d'essais, réessaie plus tard » reste juste — il faut attendre dans les deux cas.
  */
 export function erasureFailureOf(error: unknown): ErasureFailure | null {
   if (!(error instanceof ApiError)) return null;

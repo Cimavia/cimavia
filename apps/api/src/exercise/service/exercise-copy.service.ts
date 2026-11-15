@@ -23,7 +23,7 @@ import {
   toInstructionsInput,
   toSuggestedMetricsInput,
 } from "../../util/exercise-json.util";
-import { withCopiedImages } from "../../util/instruction-images.util";
+import { withCopiedImages, withoutUncitedImages } from "../../util/instruction-images.util";
 import { type ExerciseWithDocuments, metricCitationsOf } from "../exercise.mapper";
 
 /**
@@ -48,7 +48,10 @@ export type CopySource = Pick<
 /** Ce que la copie change de sa source. */
 export type CopyOptions = {
   title: string;
-  /** Les documents de la source qui suivent : tous pour une copie figée, les images pour une variante. */
+  /**
+   * Les documents de la source qui suivent : tous pour une copie figée, les images pour une
+   * variante — jamais une image que la consigne ne cite pas (#330).
+   */
   documents: CopySource["documents"];
   /** La provenance d'une copie figée ; `null` pour une variante. */
   frozen: { coachId: string; at: Date } | null;
@@ -107,7 +110,9 @@ export class ExerciseCopyService {
     // Un par un, dans l'ordre de la source : il faut l'id de chaque copie pour réécrire la
     // consigne, et leur ancienneté est l'ordre d'affichage.
     const idByOldId = new Map<string, string>();
-    const documents = [...options.documents].sort(
+    const instructions = parseInstructions(source.instructions);
+    // Une image que la consigne ne cite pas ne suit pas (#330) : un orphelin d'avant le ménage.
+    const documents = withoutUncitedImages(instructions, options.documents).sort(
       (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
     );
     for (const document of documents) {
@@ -128,7 +133,6 @@ export class ExerciseCopyService {
       idByOldId.set(document.id, copy.id);
     }
 
-    const instructions = parseInstructions(source.instructions);
     if (instructions != null) {
       await tx.exercise.update({
         where: { id: created.id },

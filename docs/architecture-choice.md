@@ -48,6 +48,7 @@ Tout ce qui configure l'app HTTP (pipe de validation global, CORS…) vit dans *
 - Toute entrée HTTP validée par **Zod** (`@cmv/shared`). DTO = schéma Zod + type inféré, **partagés** front/back. Pas de DTO redéfini côté app.
 - **Les contraintes vivent dans le schéma**, pas dans le service : types MIME acceptés, tailles max, longueurs… Ainsi la règle est appliquée par le pipe (400 automatique) **et** réutilisable par le client (cf. `requestUploadUrlSchema`, `isAllowedDocumentMime`). Un contrôle réécrit dans un service est une duplication.
 - Schéma non portable par une classe DTO (**union discriminée**) → `@Body(new ZodSchemaPipe(schema))` par route (une classe ne peut pas étendre un type union).
+- **La requête se valide entière** : `@Query() query: XxxQueryDto` (ou `@Query(new ZodSchemaPipe(schema))`), jamais `@Query("clé") valeur: string`. Une clé répétée arrive en **tableau**, et une clé lue brute le portait jusqu'au service — un 500 (#352). `route-declarations.e2e-spec.ts` refuse tout argument `@Query` monté sans schéma.
 - `ConfigModule` + Zod valident l'environnement **au boot** : l'API refuse de démarrer si une variable manque/est mal typée.
 
 ### Observabilité

@@ -36,10 +36,13 @@ export { capabilityBlockerOf, capabilityKeys, createCapabilityApi } from "./api/
 export type { ApiClient, ApiClientConfig, ApiFetch, ApiFieldError } from "./api/client";
 export {
   ApiError,
-  apiErrorMessage,
   createApiClient,
+  createApiErrorMessage,
+  isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
+  RATE_LIMITED,
+  shouldRetryQuery,
 } from "./api/client";
 export type { CoachFeedbackApi } from "./api/coach-feedback.api";
 export { coachFeedbackKeys, createCoachFeedbackApi } from "./api/coach-feedback.api";
@@ -214,6 +217,8 @@ export {
   INSTRUCTION_IMAGE_MIME_TYPES,
   isAllowedDocumentMime,
   isInstructionImageMime,
+  type ListExercisesQuery,
+  listExercisesQuerySchema,
   MAX_DOCUMENT_SIZE_BYTES,
   requestUploadUrlSchema,
   updateExerciseSchema,
@@ -1003,7 +1008,11 @@ export {
 export { draftAfterSend } from "./util/message-draft.util";
 export { checkMessageFile, type MessageFileCheck } from "./util/message-file.util";
 export type { ReadMarker } from "./util/message-read.util";
-export { createReadMarker, lastUnreadIncomingId } from "./util/message-read.util";
+export {
+  createReadMarker,
+  incomingCountAfter,
+  lastUnreadIncomingId,
+} from "./util/message-read.util";
 export { type MessageUploadSource, messageUploadInput } from "./util/message-upload.util";
 export type { MetricAdoption } from "./util/metric-adoption.util";
 export {
@@ -1042,6 +1051,7 @@ export {
   capabilityOfNotification,
   notificationCategoriesFor,
   notificationFilterChoices,
+  notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
 } from "./util/notification.util";
@@ -1261,7 +1271,9 @@ export {
   isEmailAllowed,
   normalizeEmail,
   parseEmailList,
+  RESET_LINK_REFUSED,
   resendOutcome,
+  resetPasswordRefusal,
   SIGNUP_MODES,
   signInErrorKey,
   signUpErrorKey,

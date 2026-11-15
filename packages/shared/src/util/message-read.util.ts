@@ -57,3 +57,25 @@ export function createReadMarker(): ReadMarker {
     },
   };
 }
+
+/**
+ * Combien d'entrants sont arrivés APRÈS `seenUpToId`, le dernier message que le lecteur avait sous
+ * les yeux au bas du fil (#367) : c'est le compte de la pastille « Nouveaux messages » d'un lecteur
+ * parti remonter l'historique, que le fil ne ramène plus au bas d'office.
+ *
+ * « Entrant » au sens de `lastUnreadIncomingId` : tout ce qui n'est pas de moi, avis compris.
+ * `seenUpToId` à `null` : le lecteur n'avait vu aucun message, tout l'entrant compte.
+ *
+ * `null` quand on ne sait pas compter — session inconnue (ses messages paraîtraient entrants) ou
+ * repère absent du fil : la pastille se tait plutôt que d'annoncer un nombre inventé.
+ */
+export function incomingCountAfter(
+  messages: readonly MessageDto[],
+  seenUpToId: string | null,
+  currentUserId: string | null,
+): number | null {
+  if (currentUserId == null) return null;
+  const start = seenUpToId == null ? 0 : messages.findIndex(({ id }) => id === seenUpToId) + 1;
+  if (start === 0 && seenUpToId != null) return null;
+  return messages.slice(start).filter(({ senderId }) => senderId !== currentUserId).length;
+}

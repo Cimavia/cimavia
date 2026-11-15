@@ -289,6 +289,39 @@ liste des domaines vivent dans l'index.
 > `capabilitiesOf` reste pour les gardes. La règle : dès qu'un écran sert les deux capacités, ce
 > qu'il MONTRE suit le titre, pas ce que le compte possède.
 
+> **Tranché en [#343](https://github.com/Cimavia/cimavia/issues/343)** (un écran d'un seul titre lit
+> au sien, pas au titre exercé) : c'est le pendant de la règle de #129. Sur mobile, le titre exercé
+> est un ÉTAT, posé par le sélecteur de Factures et Messages, par « Mes coachs » ou par une
+> notification (#344), et rien ne le ramène au changement d'onglet. Le tableau de bord du coach le
+> lisait pourtant : un compte double revenu de ses factures « en tant qu'athlète » y comptait ses
+> factures REÇUES. La réponse à un débrief aussi, et l'API, qui cherche le fil sous le titre reçu,
+> la refusait.
+>
+> - **L'écran impose son titre** : `useExercisedCapability(pinned)` le fait passer avant le
+>   sélecteur, et rend toujours `null` à un compte mono-capacité — l'URL reste nue. Le tableau de
+>   bord lit en coach ; un débrief se répond en coach ou en athlète selon son écran.
+> - **Il y emmène son titre** : depuis un écran coach, la tuile « factures en retard » et le rappel
+>   d'une facture ouvrent Factures par `useOpenAs("coach")`, qui bascule le sélecteur avant de
+>   naviguer — le geste de `openDestination` pour une notification. Sinon la tuile comptait les
+>   factures du coach et menait aux factures reçues.
+> - **Écarté : garder l'onglet sur le titre exercé** (`redirectForPath`). Il aurait chassé le coach
+>   de son tableau de bord, ou basculé le sélecteur dans son dos à chaque onglet.
+> - **Écarté aussi : déduire le titre du chemin**, comme le web (`spaceOfPath`) — proposé deux fois
+>   en revue de la PR. Sur mobile, les onglets restent montés : un tableau de bord resté sous
+>   `/session/…` relirait ses factures en athlète, en arrière-plan. `usePushToken`, à la racine,
+>   route un message au titre exercé (#344) : l'écran affiché au moment du push en déciderait.
+>   Et les écrans hors barre d'onglets (`/feedbacks`, `/reminders`, `/session`) demanderaient une
+>   seconde table. Le prix assumé : un nouvel écran d'un seul titre doit passer le sien.
+> - **Écarté encore : un fournisseur posé par l'écran** (`<PinnedCapability value="coach">`),
+>   proposé en revue pour couvrir ses descendants. Les hooks qu'appelle l'écran lui-même sont
+>   AU-DESSUS de ce qu'il rend : il faudrait scinder chaque écran en enveloppe + contenu, pour un
+>   oubli tout aussi possible — une enveloppe se néglige comme un paramètre. Rien de ce que rendent
+>   ces écrans ne dépend du titre aujourd'hui : la puce « à propos de… » du `MessageBubble` est
+>   masquée dans un débrief.
+> - **Le web avait le même trou par l'URL** : `?as=` primait sur le chemin partout, et `/?as=athlete`
+>   montrait le menu athlète au-dessus du tableau de bord coach. Il ne vaut plus que sur les routes
+>   servies aux deux, les seules où la nav le pose ; ailleurs, le chemin, puis le persona.
+
 > **Appris en #14** (deux classes Tailwind concurrentes ne se départagent pas par la chaîne) : le
 > fond d'alerte des tuiles du tableau de bord avait disparu côté web. `CmvCard` posait
 > `bg-cmv-surface`, `DashboardTile` ajoutait `bg-cmv-error-soft` via `className`, et `cn` ne résout
@@ -469,7 +502,7 @@ liste des domaines vivent dans l'index.
 >   révocation de la même milliseconde — n'est pas gardé : `accept` écrit sans condition depuis
 >   #146, et la fenêtre ne justifie pas de le reprendre ici.
 > - Une invitation **expirée** reste révocable : l'expiration est une date, pas un statut. Ce qui
->   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#102), et
+>   est parti — e-mail, push, `INVITATION_RECEIVED` dans le centre — ne se rattrape pas (#74), et
 >   aucune notification n'annonce le retrait. Cette transition ouvre la seconde option de #314
 >   sans trancher entre les deux — c'est fait depuis, encadré suivant.
 
@@ -655,7 +688,6 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| MC-2 | **Une notification d'invitation mène toujours côté coach un compte à double capacité** : la cloche et le push routent `INVITATION` par capacité, pas par type. Invité par une entreprise (`INVITATION_RECEIVED`) ou rejoint par l'un de ses Coachs (`ORGANIZATION_COACH_JOINED`, #602), un compte coach et athlète arrive sur son tableau de bord de coach, et non dans « Mes coachs ». Déjà vrai de l'invitation d'un Coach depuis #146. | 🟢 | — *(déclencheur : un retour beta d'un compte à double capacité perdu ; le correctif lirait `capabilityOfNotification` dans les deux tables de routage)* |
 | MC-3 | **La lecture du parent à la création passe par un paramètre interne de Prisma** ([#603](https://github.com/Cimavia/cimavia/issues/603)) : `__internalParams.transaction`, absent de ses types, relayé par `requestTransaction`. C'est le seul moyen de lire, depuis une extension de requête, le parent qu'une transaction interactive vient de créer. Une montée de Prisma qui le retirerait ferait lire hors transaction : le parent y serait invisible, la création refusée (500), jamais une fuite — et l'e2e « lit le parent dans la transaction qui vient de le créer » tomberait. | 🟢 | — *(déclencheur : une montée de version de Prisma ; la sortie serait une transaction portée par le CLS, `@nestjs-cls/transactional`, au prix des ~24 `$transaction` des services)* |
 | MC-4 | **Les versions avancent à la main, pas par un trigger** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : une semaine n'est pas réécrite quand l'une de ses séances change, et c'est `touchWeeks` qui fait avancer sa version, appelé chemin par chemin (création, retouche et retrait de séance, décalage du début). Un nouveau chemin qui écrirait une séance sans l'appeler laisserait passer un collage ou un glisser périmé, sans 409. | 🟢 | — *(déclencheur : un nouveau chemin d'écriture de séance planifiée — import, déplacement groupé, script ; la sortie serait un trigger Postgres sur `scheduled_session` qui ignore les colonnes du débrief, ou un écrivain unique)* |
 | MC-5 | **Ranger une journée fait avancer ses séances** ([#604](https://github.com/Cimavia/cimavia/issues/604)) : `writeDay` et `compactDay` réécrivent la position des séances voisines, et avec elle leur `updatedAt`. Un Coach dont le panneau est ouvert sur l'une d'elles prend un « modifiée pendant que tu l'éditais » alors que seul son rang a bougé. Le faux conflit est rare et sans perte : la saisie reste, « Recharger » repart de la dernière version. | 🟢 | — *(déclencheur : un retour beta d'un conflit inexpliqué ; la sortie serait une position écrite sans faire avancer la version, comme le débrief)* |
@@ -671,7 +703,7 @@ liste des domaines vivent dans l'index.
 | MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. | 🟢 | [#213](https://github.com/Cimavia/cimavia/issues/213) · [#285](https://github.com/Cimavia/cimavia/issues/285) — *à leur livraison, décider si la conversation se ferme, se quitte ou reste en lecture* |
 | MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
 
-*Résolues, à l'[archive](archive.md) : MC-1, MC-8, MC-13, MC-17.*
+*Résolues, à l'[archive](archive.md) : MC-1, MC-2, MC-8, MC-13, MC-17.*
 
 > **Tranché en [#593](https://github.com/Cimavia/cimavia/issues/593)** (cadrage du 2026-10-06, une
 > phase de test à deux Coachs associés) : un athlète au plus un Coach, une donnée à un seul Coach,
@@ -1489,3 +1521,77 @@ liste des domaines vivent dans l'index.
 >   une connexion déjà ouverte, la requête n'échoue pas, elle attend, et le compte part au retour du
 >   réseau. Une sonde qui se trompe (VPN, portail) prive du geste dans l'app, pas du geste : la page
 >   web et l'e-mail restent ouverts. Le délai passé, c'est une issue inconnue ordinaire.
+
+## Limite de débit des routes métier ([#782](https://github.com/Cimavia/cimavia/issues/782))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| RL-1 | **Les compteurs de débit vivent en mémoire** (`ThrottlerStorageService` de `@nestjs/throttler`) : une instance, une table, comme AV-3 et SC-2. Plusieurs instances d'API multiplient chaque borne, un redémarrage les remet à zéro. | 🟢 | — *(déclencheur : plus d'une instance d'API ; un stockage partagé alors, Redis ou Postgres)* |
+| RL-2 | **Les bornes ne sont pas mesurées** : Axiom n'a jamais reçu de journaux, et la ligne de journal d'une requête ne porte pas l'id de l'utilisateur. Elles sont déduites du code (`RATE_LIMITS`). | 🟡 | — *(déclencheur : `AXIOM_TOKEN` posé, et l'id de l'acteur dans `requestLogProps` ; relire alors les 429 par route)* |
+| RL-3 | **Une lecture refusée par le plafond global dit « erreur de chargement »**, pas « attends » : les états d'erreur des écrans ne reçoivent pas l'erreur, seulement leur texte. Le plafond (300 / min) est taillé pour qu'un usage normal ne l'atteigne pas, et le blocage ne dure qu'une minute sans s'allonger aux essais. | 🟢 | — *(déclencheur : un 429 sur une lecture vu dans les journaux, une fois RL-2 levée)* |
+| RL-4 | **Le repli IP du limiteur Nest ne regroupe pas une IPv6 par `/64`**, comme Better Auth le fait pour les siens : un client IPv6 qui change d'adresse dans son préfixe change de compteur. Sans effet aujourd'hui — aucune route publique n'est comptée, `/health` et le tick sont `NoRateLimit`. | 🟢 | — *(déclencheur : une première route publique comptée ; normaliser alors l'IP comme `normalizeIP` de Better Auth)* |
+
+> **Tranché en [#782](https://github.com/Cimavia/cimavia/issues/782)** (2026-11-11 ; les bornes et
+> le sort des 429 chez Sentry sont des choix de Kylian) :
+>
+> - **La clé est l'acteur, pas l'IP.** La garde passe après l'AuthGuard de Better Auth et après
+>   `CapabilitiesGuard` (`RateLimitModule`, importé après `CapabilityModule`) : une requête sans
+>   session a déjà pris son 401, un 403 ne coûte rien. L'IP ne reste qu'en repli, pour une route
+>   publique future — lue dans l'en-tête du proxy depuis #781, voir ci-dessous.
+> - **`/health` et le tick des rappels ne sont pas comptés** (`NoRateLimit`, qui saute TOUS les
+>   compteurs, politique du contrôleur comprise) : un 429 ferait déclarer l'API morte par la sonde,
+>   et le tick est déjà fermé par son secret.
+> - **Chaque compteur est par acteur, toutes routes confondues** (`actorKey`) : la clé par défaut
+>   de la librairie inclut la route, ce qui aurait fait du plafond global 300 par route, et multiplié
+>   par quatre la borne d'upload — le coût de stockage qu'elle protège est celui de l'acteur, pas
+>   d'une route. Global 300 / min ; upload 40 / min et 200 / h pour les quatre URL ensemble ; envoi
+>   de message 30 / min ; les deux invitations (Coach et Entreprise) 30 / h. Les autres e-mails
+>   vont à des comptes déjà liés : le plafond global suffit.
+> - **Les valeurs sont déduites, pas mesurées** (RL-2) : ≈ 16 requêtes par minute et par onglet de
+>   polling ; un débrief part en un lot de 30 médias au plus (20 photos, 10 vidéos), une URL chacun,
+>   d'où 40 et non les 20 d'abord proposés, tirés du seul lot de messages (10).
+> - **Un refus compte** : la garde passe avant la validation, un corps invalide consomme la borne
+>   comme un succès. Sinon un script n'aurait qu'à envoyer n'importe quoi.
+> - **Le 429 du limiteur ne part pas chez Sentry** — un script qui insiste en viderait le quota. Il
+>   reste dans la ligne de journal. Le 429 du mot de passe faux sur la suppression du compte, lui,
+>   part : il dit une tentative.
+> - **Les clients traduisent le statut** (`common.rateLimited`), sans lire le corps, et ne relancent
+>   pas une lecture refusée (`shouldRetryQuery`) : l'essai consommerait la borne à vider. Seule
+>   `createApiErrorMessage` sort de `@cmv/shared` : la version brute tairait le 429. Les écritures
+>   le disent ; une LECTURE refusée garde l'erreur de chargement générique (RL-3).
+> - **Un 429 écrit par un proxy part chez Sentry**, comme toute réponse que l'API n'a pas écrite
+>   (#699) : aucun proxy n'en rend aujourd'hui, et le jour où une règle Cloudflare en produirait,
+>   les voir est le but.
+> - **Un seul en-tête, le `Retry-After` standard, sur le seul 429** (`RateLimitGuard`). Ceux de la
+>   librairie portent le nom du compteur (`Retry-After-upload-minute`, `X-RateLimit-*-global`),
+>   qu'aucun client ni proxy ne lit.
+> - **Les e2e remettent les compteurs à zéro avant et après chaque cas**
+>   (`ResettableThrottlerStorage`) : la suite d'isolation partage ses acteurs, et un athlète y
+>   demande bien plus de 40 URL d'upload par minute. Après aussi, parce que le `beforeAll` d'un
+>   domaine passe avant le premier `beforeEach`. Chaque cas garde les vraies bornes.
+
+> **Tranché en [#781](https://github.com/Cimavia/cimavia/issues/781)** (2026-11-13 ; la variable
+> et l'alignement du limiteur Nest sont des choix de Kylian) :
+>
+> - **L'IP du client se lit dans un seul en-tête, `CLIENT_IP_HEADER`**, et non dans
+>   `x-forwarded-for`. Cloudflare AJOUTE l'IP du client à celui qu'il reçoit : un client qui en
+>   envoie un en produit deux, et Better Auth, qui renonce alors à l'IP, le comptait dans un
+>   compteur unique par route — `/sign-in` à 3 tentatives par 10 s pour tous ceux dans son cas.
+>   Derrière Cloudflare, c'est `cf-connecting-ip`, qu'il écrit lui-même et écrase s'il arrive du
+>   client.
+> - **Une variable, et non une constante** : l'en-tête tient au proxy devant l'API, et la production
+>   n'est pas choisie (#259). **Obligatoire sur un tier déployé** (`envSchema`) : un oubli empêche
+>   le démarrage au lieu de remettre le compteur commun. Le compose du NAS la pose **en dur**, à
+>   côté de `cloudflared` — elle décrit le trajet de ce fichier, pas un réglage de l'exploitant.
+> - **L'en-tête n'est fiable que si l'API n'est joignable QUE par le proxy** : aucun port publié
+>   sur le NAS. Une production joignable en direct devra fermer cet accès, ou choisir un autre
+>   en-tête, avant de poser la variable.
+> - **Le limiteur Nest lit le même en-tête** pour son repli sans acteur (`actorTracker`) :
+>   `request.ip` y était l'adresse de `cloudflared`, la même pour tous. Il n'en croit qu'une
+>   adresse valide, comme Better Auth : absent, répété ou libre, l'en-tête envoie le client dans
+>   `ip:unknown` — jamais sur l'adresse du proxy, que rien ne distingue, ni sur une valeur qu'un
+>   client changerait à chaque requête.
+> - **`x-forwarded-for` et `forwarded` sont refusés** comme valeur de la variable : ce sont des
+>   listes que chaque proxy allonge, le défaut même qu'elle remplace.
+> - **Sans la variable** (local, e2e), rien ne change : Better Auth compte `127.0.0.1` en
+>   développement et en test, où sa limite est de toute façon éteinte ; Nest compte la connexion.

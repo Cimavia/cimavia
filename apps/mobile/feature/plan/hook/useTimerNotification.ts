@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cancelTimerEnd, scheduleTimerEnd } from "@/feature/plan/lib/timer-alert";
+import { cancelTimerEnd, scheduleTimerEnd, secondsUntil } from "@/feature/plan/lib/timer-alert";
 
 /** Une échéance à annoncer : quand, et ce que la notification doit dire. */
 export type TimerAlert = { at: number; title: string; body: string };
@@ -49,9 +49,20 @@ export function timelineAlerts<S extends { seconds: number }>(
  *
  * Elles sont donc reposées EN BLOC dès que le déroulé change — pause, « Passer », « + 30 s ».
  * Les recalculer entièrement plutôt que rapiécer évite l'écart entre ce qui sonne et ce qui reste.
+ *
+ * `armed` a trois valeurs, et seul `false` mérite un avertissement (#374) :
+ * - `true` : au moins une échéance est programmée ;
+ * - `false` : l'OS a été sollicité et n'a RIEN accepté — permission refusée, ou notifications
+ *   indisponibles sur l'appareil. Le minuteur ne sonnera pas téléphone rangé ;
+ * - `null` : rien à programmer — pause, étape qui attend « J'ai fini », échéance trop proche —, ou
+ *   l'OS n'a pas encore répondu. Avertir là, c'était dire « autorise les notifications » à qui les
+ *   a autorisées.
+ *
+ * Pendant une reprogrammation (« + 30 s », « Passer »), la valeur précédente tient jusqu'à la
+ * réponse de l'OS : rien ne clignote entre deux lots.
  */
-export function useTimerNotification(alerts: readonly TimerAlert[]): { armed: boolean } {
-  const [armed, setArmed] = useState(false);
+export function useTimerNotification(alerts: readonly TimerAlert[]): { armed: boolean | null } {
+  const [armed, setArmed] = useState<boolean | null>(null);
 
   /**
    * Ce qui est réellement programmé, stabilisé sur le CONTENU des alertes.
@@ -72,9 +83,10 @@ export function useTimerNotification(alerts: readonly TimerAlert[]): { armed: bo
   }
 
   useEffect(() => {
-    const pending = scheduled;
+    // Une échéance trop proche n'est pas un refus : sans elle, le lot peut n'avoir rien à poser.
+    const pending = scheduled.filter((alert) => secondsUntil(alert.at) != null);
     if (pending.length === 0) {
-      setArmed(false);
+      setArmed(null);
       return;
     }
 
@@ -99,5 +111,7 @@ export function useTimerNotification(alerts: readonly TimerAlert[]): { armed: bo
     };
   }, [scheduled]);
 
-  return { armed };
+  // Dérivé au rendu, et pas seulement dans l'effet : le lot vidé (repos fini, place à la série)
+  // ne doit pas montrer un rendu l'avertissement du lot précédent.
+  return { armed: scheduled.length === 0 ? null : armed };
 }

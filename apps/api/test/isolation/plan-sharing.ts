@@ -126,8 +126,8 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
   });
 
   const planPath = () => `/plans/${world.planTi.id}`;
-  const plansOfTi = async (agent: SharedPlanWorld["m"]) => {
-    const res = await agent.get("/plans").query({ athleteId: world.ids.ti });
+  const listedPlans = async (agent: SharedPlanWorld["m"]) => {
+    const res = await agent.get("/plans");
     expect(res.status).toBe(200);
     return (res.body as PlanSummaryDto[]).map((plan) => plan.id);
   };
@@ -135,7 +135,7 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
   it("sans droit, ou fermé exprès, M ne voit pas le cycle de C", async () => {
     await grantPlan(world, world.planTi.id, null);
     expect((await world.m.get(planPath())).status).toBe(404);
-    expect(await plansOfTi(world.m)).not.toContain(world.planTi.id);
+    expect(await listedPlans(world.m)).not.toContain(world.planTi.id);
 
     await grantPlan(world, world.planTi.id, "NONE");
     expect((await world.m.get(planPath())).status).toBe(404);
@@ -151,7 +151,7 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
       myAccess: { level: MyAccessLevel.READ, via: { id: world.ids.organization } },
       grants: null,
     });
-    expect(await plansOfTi(world.m)).toContain(world.planTi.id);
+    expect(await listedPlans(world.m)).toContain(world.planTi.id);
     expect((await world.m.get(`/scheduled-sessions/${world.planTi.sessionId}`)).status).toBe(200);
 
     const owned = await world.c.get(planPath());
@@ -235,7 +235,7 @@ describe("Planification partagée : M suit le cycle que C écrit pour TI", () =>
 
     expect((await world.n.get(planPath())).status).toBe(404);
     expect((await world.b.get(planPath())).status).toBe(404);
-    expect(await plansOfTi(world.b)).not.toContain(world.planTi.id);
+    expect(await listedPlans(world.b)).not.toContain(world.planTi.id);
   });
 
   it("le cycle de TE reste fermé à M, même ouvert à F : M ne suit pas TE", async () => {

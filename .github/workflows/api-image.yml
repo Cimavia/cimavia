@@ -142,7 +142,8 @@ jobs:
       # seule source, et le smoke suit s'il change. Le secret est factice, et l'URL publique ne se résout pas — l'API ne
       # l'appelle jamais au démarrage. Valeurs conformes à ce que #357 exige d'un tier déployé :
       # secret de 32 caractères au moins, URL en https, et un jeton Expo — factice lui aussi, Expo
-      # n'étant appelé qu'à l'envoi d'un push. `SIGNUP_MODE` n'a pas de défaut (#263) :
+      # n'étant appelé qu'à l'envoi d'un push. L'en-tête de l'IP du client (#781) est celui du NAS,
+      # exigé lui aussi d'un tier déployé. `SIGNUP_MODE` n'a pas de défaut (#263) :
       # absente, l'API refuserait de démarrer, et le smoke rougirait pour une raison qui n'est pas
       # l'image.
       #
@@ -159,6 +160,7 @@ jobs:
           BETTER_AUTH_URL: https://api.example.invalid
           EXPO_ACCESS_TOKEN: smoke-test-expo-token-not-for-production
           SIGNUP_MODE: invitation
+          CLIENT_IP_HEADER: cf-connecting-ip
         run: |
           pg="$(docker compose -f apps/api/docker-compose.test.yml config --format json \
             | jq -c '.services["postgres-e2e"].environment')"
@@ -168,7 +170,7 @@ jobs:
           export DATABASE_URL="postgresql://${user}:${password}@localhost:5434/${db}?schema=public"
           docker run -d --name cimavia-smoke --network host --health-interval 3s \
             -e NODE_ENV -e APP_ENV -e DATABASE_URL -e BETTER_AUTH_SECRET -e BETTER_AUTH_URL \
-            -e EXPO_ACCESS_TOKEN -e SIGNUP_MODE \
+            -e EXPO_ACCESS_TOKEN -e SIGNUP_MODE -e CLIENT_IP_HEADER \
             "$IMAGE"
 
       # `healthy` est la sonde de l'image (liveness, `/health`). Un conteneur arrêté ou `unhealthy`

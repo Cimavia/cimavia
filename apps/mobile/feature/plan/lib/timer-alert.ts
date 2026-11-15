@@ -13,6 +13,16 @@ export function vibrateTimerDone(): void {
 }
 
 /**
+ * Les secondes d'ici l'échéance, ou `null` quand elle est trop proche pour être programmée : iOS
+ * refuse un intervalle nul, et un flottant n'a aucun sens ici. `useTimerNotification` le lit aussi,
+ * pour ne pas prendre une échéance imminente pour un refus de l'OS (#374).
+ */
+export function secondsUntil(endsAt: number): number | null {
+  const seconds = Math.round((endsAt - Date.now()) / 1000);
+  return seconds < 1 ? null : seconds;
+}
+
+/**
  * La notification de fin de timer, **programmée à l'avance** sur l'échéance.
  *
  * C'est le seul moyen d'être prévenu téléphone verrouillé ou app quittée : en arrière-plan le JS
@@ -30,9 +40,8 @@ export async function scheduleTimerEnd(
   title: string,
   body: string,
 ): Promise<string | null> {
-  // Entier et au moins 1 s : iOS refuse un intervalle nul, et un flottant n'a aucun sens ici.
-  const seconds = Math.round((endsAt - Date.now()) / 1000);
-  if (seconds < 1) return null;
+  const seconds = secondsUntil(endsAt);
+  if (seconds == null) return null;
 
   try {
     if (!(await ensurePermission())) return null;

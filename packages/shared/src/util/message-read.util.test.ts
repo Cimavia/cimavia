@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MessageDto } from "../dto/message.schema";
-import { createReadMarker, lastUnreadIncomingId } from "./message-read.util";
+import { createReadMarker, incomingCountAfter, lastUnreadIncomingId } from "./message-read.util";
 
 const at = (minute: number) => `2026-09-27T10:${String(minute).padStart(2, "0")}:00.000Z`;
 
@@ -74,5 +74,39 @@ describe("createReadMarker", () => {
     marker.claim("m2");
     marker.release("m1");
     expect(marker.claim("m2")).toBe(false);
+  });
+});
+
+describe("incomingCountAfter (#367)", () => {
+  const thread = [
+    message("m1", "coach", 1),
+    message("m2", "me", 2),
+    message("m3", "coach", 3),
+    message("m4", "coach", 4),
+  ];
+
+  it("compte les entrants arrivés après le dernier message vu", () => {
+    expect(incomingCountAfter(thread, "m2", "me")).toBe(2);
+  });
+
+  it("ne compte pas mes propres messages", () => {
+    expect(incomingCountAfter(thread, "m1", "me")).toBe(2);
+  });
+
+  it("rend 0 quand le dernier vu est le dernier du fil", () => {
+    expect(incomingCountAfter(thread, "m4", "me")).toBe(0);
+  });
+
+  it("compte tout l'entrant quand le lecteur n'avait encore rien vu", () => {
+    expect(incomingCountAfter(thread, null, "me")).toBe(3);
+  });
+
+  // Un repère qu'on ne retrouve pas : on ne sait pas d'où compter.
+  it("rend null quand le dernier vu n'est plus dans le fil", () => {
+    expect(incomingCountAfter(thread, "disparu", "me")).toBeNull();
+  });
+
+  it("rend null sans session", () => {
+    expect(incomingCountAfter(thread, "m2", null)).toBeNull();
   });
 });

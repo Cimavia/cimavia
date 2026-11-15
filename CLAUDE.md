@@ -48,6 +48,7 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.9`). Lint/format **Biome** (`2.5.15`,
 | Auth | Better Auth (`@thallesp/nestjs-better-auth`, `@better-auth/expo`) | `1.7.12` *(P1)* |
 | Validation + env | Zod | `4.6.7` |
 | Observabilité API | nestjs-pino / @sentry/nestjs + @sentry/profiling-node | `5.3.1` / `11.8.0` |
+| Limite de débit API | @nestjs/throttler | `6.7.1` |
 | Observabilité web | @sentry/react / @sentry/vite-plugin | `11.8.0` / `11.8.0` |
 | Observabilité mobile | @sentry/react-native | `7.11.0` *(version épinglée par Expo SDK 56)* |
 | Mobile | Expo SDK / React Native / NativeWind | `56.0.22` / `0.85.3` / `4.2.7` |

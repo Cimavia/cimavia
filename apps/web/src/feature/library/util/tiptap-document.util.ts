@@ -3,6 +3,7 @@ import {
   type InlineMark,
   type InlineNode,
   imageWidthSchema,
+  linkHrefSchema,
   type RichBlock,
   RichBlockType,
   type RichDocument,
@@ -43,6 +44,14 @@ const TIPTAP_NAME_BY_MARK: Record<InlineMark, string> = {
   UNDERLINE: "underline",
 };
 
+/**
+ * Un lien que le serveur accepterait — `linkHrefSchema`, http ou https. La seule règle de lien de
+ * l'éditeur : le bouton, la saisie, le collage et la conversion passent tous par elle (#329).
+ */
+export function isAllowedLinkHref(url: string): boolean {
+  return linkHrefSchema.safeParse(url).success;
+}
+
 // ── TipTap → RichDocument ───────────────────────────────────────────────────────────────────
 
 function toInlineNode(node: JSONContent): InlineNode | null {
@@ -54,7 +63,10 @@ function toInlineNode(node: JSONContent): InlineNode | null {
   for (const mark of node.marks ?? []) {
     const known = MARK_BY_TIPTAP_NAME[mark.type];
     if (known != null) marks.push(known);
-    if (mark.type === "link" && typeof mark.attrs?.href === "string") href = mark.attrs.href;
+    // Un lien que le schéma refuse est jeté, son texte gardé : recopié, il ferait refuser TOUT
+    // l'exercice par l'API, sur une marque que le coach ne voit peut-être même pas (#329).
+    const raw = mark.type === "link" ? mark.attrs?.href : undefined;
+    if (typeof raw === "string" && isAllowedLinkHref(raw)) href = raw;
   }
 
   return {

@@ -279,6 +279,23 @@ liste des domaines vivent dans l'index.
 > voudrait rien dire, donc il n'existe pas. Le `DEFAULT ''` de la migration ne sert qu'à poser la
 > colonne sur les lignes déjà là et **ne lui survit pas**.
 
+> **Tranché en [#358](https://github.com/Cimavia/cimavia/issues/358)** (les ligatures, et elles
+> seules) : NFD ne décompose pas « œ » ni « æ », que le correcteur d'iOS insère tout seul ;
+> `comparableText` les replie à la main en « oe » / « ae ». Les autres lettres que NFD laisse
+> entières (« ß », « ø », « ł ») restent hors règle : les traiter demanderait une table de
+> translittération, soit la seconde définition de « sans accent » refusée plus haut. Le produit est
+> en français, ces deux ligatures sont les siennes.
+>
+> **Changer la règle impose de reprendre `titleSearch`**, et c'est le piège de la colonne
+> normalisée : la forme comparable est figée à l'écriture. Sans la migration de données, un
+> « Nœud de huit » déjà en base serait resté `nœud de huit`, quand le terme cherché devenait
+> `noeud` — introuvable, même tapé à l'identique. La reprise remplace les ligatures DANS
+> `titleSearch` plutôt que de le recalculer depuis `title` : seule cette partie de la règle a
+> changé, et refaire toute la fonction en SQL l'exposerait à la casse de la locale de la base.
+> « Œ » et « Æ » sont repris aussi : la reprise de #141 passait par `lower()`, qui dépend de la
+> locale de chaque base, et celle du NAS n'est pas vérifiable d'ici. Toute évolution future de
+> `comparableText` appelle la même reprise.
+
 > **Fermé par #79** (le filtrage client n'est pas une option, malgré les voisins) : `LibraryPicker`
 > et `ExercisePicker` filtrent en mémoire, et il aurait été tentant d'aligner la liste dessus.
 > [#79](https://github.com/Cimavia/cimavia/issues/79) paginera `GET /exercises` — filtrer une page
@@ -627,6 +644,47 @@ liste des domaines vivent dans l'index.
 >   envoyée.
 > - **Aucune reprise de données** : la base preview ne contenait aucune référence étrangère au
 >   2026-10-05, ni en bibliothèque ni en séances planifiées.
+
+---
+
+## Post-MVP — Images retirées de la consigne ([#330](https://github.com/Cimavia/cimavia/issues/330))
+
+> **Tranché en [#330](https://github.com/Cimavia/cimavia/issues/330)** (une image que la consigne
+> ne cite plus ne vit plus nulle part) : une image retirée ou remplacée restait rattachée, filtrée
+> des pièces jointes donc insupprimable, recopiée dans chaque séance planifiée — et téléchargée par
+> le téléphone de l'athlète pour le hors-ligne. Côté web, une image posée puis retirée partait même
+> à l'enregistrement.
+>
+> - **C'est la consigne qui dit ce qui part, pas le magasin.** Le builder ne retire rien de son
+>   magasin quand le Coach supprime une image : un Ctrl+Z la remet, elle doit pouvoir partir.
+>   `citedPendingImages` filtre au moment d'enregistrer. Et une image déjà envoyée que
+>   l'enregistrement ne cite plus redevient « en attente » (`forgetUncitedSent`) : remise par
+>   Ctrl+Z, elle repart, au lieu de citer un document supprimé et de prendre un 400.
+> - **Le serveur fait le ménage à chaque écriture de `instructions`** (`uncitedInstructionImages`) :
+>   les lignes dans la transaction, les objets après, par `DocumentCleanupService` — un objet
+>   qu'une séance planifiée ou une variante porte encore reste. `instructions` absent : rien ne
+>   bouge ; `null` : toutes les images partent, pièces jointes et liens jamais.
+> - **La purge des objets ne fait pas échouer la réponse.** L'écriture est faite : un 500 ferait
+>   réessayer le builder sur une version périmée, donc un 409. Un échec se journalise — le nom de
+>   l'erreur, jamais l'erreur S3 entière, qui porte la clé — et laisse l'objet orphelin, P2-1
+>   ([#72](https://github.com/Cimavia/cimavia/issues/72)). Un seul décompte des clés, les
+>   suppressions en parallèle : la réponse les attend.
+> - **Aucune copie ne reprend une image que sa consigne ne cite pas** (`withoutUncitedImages`) —
+>   séance planifiée, copie de semaine et copie figée (#609). Filet pour les orphelins d'avant
+>   #330, et pour l'image d'un enregistrement en cours.
+> - **Aucune reprise de données.** Les orphelins de la bibliothèque partent au prochain
+>   enregistrement de leur exercice (le builder renvoie toujours la consigne). Les copies déjà
+>   faites en séance planifiée restent ; elles se comptent avant de décider d'en faire plus.
+> - **Contreparties assumées** :
+>   - un rédacteur dont l'image vient d'être rattachée, quand le propriétaire enregistre avant la
+>     fin de son envoi, la perd — mais son enregistrement prend de toute façon un 409, et il
+>     recharge ;
+>   - une image **chargée avec l'exercice**, retirée, enregistrée puis remise par Ctrl+Z, s'affiche
+>     « introuvable » et l'enregistrement suivant prend un 400 : son fichier n'est plus sur le
+>     poste. Le Coach la retire et la repose ;
+>   - le décompte des références se fait après le commit, hors transaction : une diffusion qui
+>     valide sa copie dans les millisecondes qui suivent garde une clé déjà purgée. La même course
+>     existe déjà sur la suppression d'un document ou d'un exercice.
 
 ---
 
@@ -1047,6 +1105,20 @@ liste des domaines vivent dans l'index.
 > - **Les rangées « Série 1 », « Tour 2 » ont leur phrase pour clé React** (`phraseId`), jamais
 >   leur texte traduit, qui peut se répéter.
 
+> **Tranché en [#374](https://github.com/Cimavia/cimavia/issues/374)** (« autorise les
+> notifications » affiché à qui les a autorisées) : `useTimerNotification` rend `armed` sur trois
+> valeurs, et le chrono n'avertit que sur `false`.
+> - **`null` = rien à programmer** — pause, étape qui attend « J'ai fini », échéance à moins d'une
+>   seconde (`secondsUntil`) — **ou l'OS n'a pas encore répondu**. C'est ce dernier cas qui
+>   faisait clignoter l'avertissement à chaque repos enchaîné après une série : `armed` restait
+>   faux le temps de la programmation.
+> - **`false` couvre le refus ET la panne**, là où l'issue le réservait au refus :
+>   `scheduleTimerEnd` rend `null` dans les deux cas, et le minuteur ne sonnera pas plus dans l'un
+>   que dans l'autre. Les distinguer demanderait un second message, pour une panne qu'aucun retour
+>   n'a montrée.
+> - **Le masquage sur l'étape qui attend disparaît de l'écran** : il cachait le symptôme sans
+>   toucher la cause, et la pause y échappait.
+
 > **Tranché en [#723](https://github.com/Cimavia/cimavia/issues/723)** (retrait de l'ancien
 > modèle d'exercice structuré : la phase *contract* de l'épic) :
 > - **La migration garde, elle ne rejoue pas** (amende BL-1, qui annonçait un rejeu de la
@@ -1159,6 +1231,13 @@ liste des domaines vivent dans l'index.
 > - **Copier une semaine copie aussi le bloc retiré**, sans code de plus : la copie reprend les
 >   blocs tels qu'ils sont.
 
+> **Tranché en [#519](https://github.com/Cimavia/cimavia/issues/519)** (les pastilles de chrono) :
+> **une durée isolée ne se lance plus d'un tap.** La règle « toute durée affichée est lançable,
+> le chiffre EST le bouton » (`docs/maquettes/README.md`, volet exécution, point 1) est
+> remplacée : un bloc se lance en entier, par « Lancer le chrono » (#722). Ses pastilles
+> répétaient la phrase et la grille, et annonçaient l'effort de la première ligne comme celui du
+> bloc. Le code avait déjà disparu avec `ExerciseCard` (#723) : #519 ne corrige que la règle écrite.
+
 ## Post-MVP — Protocole d'un lien joint ([#324](https://github.com/Cimavia/cimavia/issues/324))
 
 > **Tranché en [#324](https://github.com/Cimavia/cimavia/issues/324)** (le protocole se garde à
@@ -1168,3 +1247,34 @@ liste des domaines vivent dans l'index.
 > revérifient donc l'URL. Ce qui était en base avant le correctif a été contrôlé par une requête
 > sur la preview (`url !~* '^https?://'`, aucune ligne). Un nouvel écrivain de `exercise_document`
 > (import, migration de données) passe par le même schéma, ou rouvre la question.
+
+## Post-MVP — Lien posé sans le bouton dans la consigne ([#329](https://github.com/Cimavia/cimavia/issues/329))
+
+> **Tranché en [#329](https://github.com/Cimavia/cimavia/issues/329)** (seul un `http(s)://` écrit
+> en entier devient un lien de lui-même) : la saisie, le collage et le collage sur une sélection
+> posent un lien seulement si le texte reconnu passe `linkHrefSchema`. TipTap ne donne à ses filtres
+> (`isAllowedUri`, `shouldAutoLink`) que ce TEXTE, pas le `href` qu'il en déduit : une adresse
+> e-mail reste donc du texte, mais « cimavia.fr » ou « www.cimavia.fr » aussi, alors que le
+> `http://` qu'il y aurait ajouté passait le schéma. Les rattraper demanderait de refaire la
+> reconnaissance de linkify à côté de TipTap, pour un gain faible : le bouton « lien » reste là
+> pour eux. La conversion (`toInlineNode`) jette en plus tout `href` refusé, texte gardé — le
+> dernier rempart avant l'API, qui refuse sinon l'exercice entier.
+
+## Post-MVP — Sous-liste et saut de ligne dans la consigne ([#328](https://github.com/Cimavia/cimavia/issues/328))
+
+> **Tranché en [#328](https://github.com/Cimavia/cimavia/issues/328)** (neutralisés à la saisie,
+> pas portés dans le modèle) : l'éditeur laissait faire une sous-liste (Tab) et un saut de ligne
+> (Maj+Entrée) que `richDocumentSchema` ne porte pas — la conversion les jetait, le coach voyait
+> son texte disparaître ou se coller à l'enregistrement. Porter la sous-liste aurait défait une
+> décision du schéma (« les blocs ne s'imbriquent pas », rendu trivial web et mobile), pour un geste
+> que l'éditeur offrait par défaut, pas par choix.
+>
+> - **Un élément de liste = un paragraphe**, dans le schéma de l'éditeur (`ListItemExtension`) et
+>   non par le seul retrait du raccourci : Tab sous une liste et le collage passaient aussi. Tab
+>   sort donc du champ ; une liste imbriquée collée est remise à plat, en listes voisines.
+> - **Maj+Entrée vaut Entrée** plutôt que rien : nouveau paragraphe, nouvel élément, nouvel encadré.
+>   Un `<br>` collé devient une espace.
+> - **Effacer à la jonction d'une liste et du bloc suivant joint leurs textes** (`ListJoinExtension`) :
+>   sans ça, ProseMirror enveloppait le bloc dans un nouvel élément, que Backspace ressortait aussitôt.
+>
+> La sous-liste reste possible un jour : ce sera une issue produit, avec son rendu des deux côtés.

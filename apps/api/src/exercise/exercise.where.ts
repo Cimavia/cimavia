@@ -4,7 +4,8 @@ import type { Prisma } from "@prisma/client";
 export type ListExercisesFilters = {
   /** Déjà normalisés (`exerciseTagFilterSchema`). Vide : pas de filtre. */
   tags?: readonly string[];
-  search?: string;
+  /** Absente : pas de recherche. */
+  search?: string | undefined;
 };
 
 /**

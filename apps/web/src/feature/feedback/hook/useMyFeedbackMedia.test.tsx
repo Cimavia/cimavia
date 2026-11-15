@@ -28,6 +28,9 @@ const {
   partFailureMock: vi.fn(),
 }));
 
+const { toastMock } = vi.hoisted(() => ({ toastMock: { onSuccess: vi.fn(), onError: vi.fn() } }));
+vi.mock("@/shared/hook/useMutationToast", () => ({ useMutationToast: () => toastMock }));
+
 vi.mock("@/feature/feedback/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/feedback/api")>()),
   athleteFeedbackApi: {
@@ -362,5 +365,23 @@ describe("useDeleteFeedbackMedia", () => {
     // Retirer le dernier média peut faire retomber la séance : le planning doit suivre.
     await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4));
     expect(deleteMock).toHaveBeenCalledWith(SESSION_ID, "md-1");
+    expect(toastMock.onError).not.toHaveBeenCalled();
+  });
+
+  // Un 404 dit que le média est déjà parti ailleurs : la relecture fait tomber sa vignette, au
+  // lieu de la laisser rendre le même 404 à chaque essai.
+  it("dit l'échec du retrait, et relit le débrief pour se recaler", async () => {
+    const failure = new Error("Média introuvable");
+    deleteMock.mockRejectedValue(failure);
+    const { wrapper, queryClient } = renderWithQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteFeedbackMedia(SESSION_ID), { wrapper });
+
+    act(() => result.current.mutate("md-1"));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toastMock.onError).toHaveBeenCalledTimes(1);
+    expect(toastMock.onError.mock.lastCall?.[0]).toBe(failure);
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4));
   });
 });

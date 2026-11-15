@@ -187,6 +187,40 @@ describe("useExerciseDraft — les images de consigne d'un enregistrement interr
   });
 });
 
+/**
+ * Le serveur supprime le document d'une image que la consigne ne cite plus (#330), mais l'éditeur
+ * garde son historique : un Ctrl+Z la remet sous son id provisoire.
+ */
+describe("useExerciseDraft — une image retirée puis remise", () => {
+  it("repart au lieu de citer le document que le serveur a supprimé", async () => {
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useExerciseDraft(null, "Gainage"), { wrapper });
+    let photo = "";
+    act(() => {
+      photo = result.current.media.register(png("prise.png"), "image/png");
+    });
+    api.attachDocument
+      .mockReset()
+      .mockResolvedValueOnce({ id: "doc-1" })
+      .mockResolvedValueOnce({ id: "doc-2" });
+
+    act(() => result.current.setInstructions([image(photo)]));
+    await act(() => result.current.submit());
+    act(() => result.current.setInstructions([]));
+    await act(() => result.current.submit());
+    const before = api.updateExercise.mock.calls.length;
+    act(() => result.current.setInstructions([image(photo)]));
+    await act(() => result.current.submit());
+
+    expect(api.requestUploadUrl).toHaveBeenCalledTimes(2);
+    // Le temps 1 ne cite plus doc-1, et le temps 3 cite la nouvelle copie.
+    const written = api.updateExercise.mock.calls
+      .slice(before)
+      .map(([, input]) => input.instructions);
+    expect(written).toEqual([null, [image("doc-2")]]);
+  });
+});
+
 describe("useExerciseDraft — le titre de départ", () => {
   it.each([
     [

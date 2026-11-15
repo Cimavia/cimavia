@@ -16,12 +16,12 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #354 | Des textes persistés n'ont aucune longueur maximale | 🟠 | ✅ |
 | #677 | La mutation de la tenancy dépasse son délai et n'est plus mesurée | 🟠 | ✅ |
 | #323 | `validateBlockValues` ne tourne que dans le navigateur | 🟡 | ✅ |
-| #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | |
-| #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | |
-| #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | |
-| #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | |
-| #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | |
-| #466 | Les routes d'auth n'apparaissent jamais dans les journaux Pino | 🟡 | |
+| #780 | Le web n'envoie aucun en-tête de sécurité : ni CSP, ni frame-ancestors, ni nosniff | 🟡 | ✅ |
+| #782 | Les routes métier de l'API n'ont aucune limite de débit | 🟡 | ✅ |
+| #781 | Derrière Cloudflare, le rate limit de Better Auth peut compter tous les clients comme un seul | 🟡 | ✅ |
+| #468 | Le rattachement d'un média croit le type et la taille déclarés | 🟡 | ✅ |
+| #352 | Une clé de requête répétée rend 500 (paramètres hors Zod) | 🟡 | ✅ |
+| #466 | Les routes d'auth n'apparaissent jamais dans les journaux Pino | 🟡 | ✅ |
 | #81 | Inspection serveur des durées (ffprobe) | ⚪ | |
 
 ## Conformité et données personnelles
@@ -35,7 +35,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #796 | Supprimer son compte depuis l'app mobile *(enfant de #256)* | 🔴 | ✅ |
 | #285 | Effacer un compte et ses médias | 🔴 | ✅ |
 | #783 | Cadrage : quelles données personnelles partent chez Sentry, Axiom, Scaleway, Expo et Cloudflare ? | 🟡 | |
-| #74 | Rupture d'une relation : purger objets et notifications | 🟡 | |
+| #74 | Rupture d'une relation : purger objets et notifications *(absorbe #102, après #213)* | 🟡 | |
 
 ## Bugs
 
@@ -44,30 +44,30 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #731 | Notes vocales en erreur en preview : établir la cause, puis corriger | 🟠 | ✅ |
 | #439 | Un 401 n'est traité nulle part sur mobile | 🟠 | ✅ |
 | #340 | Quitter pendant un enregistrement envoie la capture tronquée | 🟠 | |
-| #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | |
-| #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | |
-| #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | |
-| #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | |
-| #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | |
-| #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | |
-| #363 | Ouvrir une séance du constructeur ne montre ni chargement ni échec | 🟡 | |
-| #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | |
-| #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | |
-| #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | |
-| #333 | « Dupliquer en variante » sans garde de double clic | 🟡 | |
+| #347 | « Passer » dans le bandeau réduit arrête tout le déroulé | 🟠 | ✅ |
+| #329 | Une adresse e-mail dans la consigne rend l'exercice inenregistrable | 🟠 | ✅ |
+| #519 | Les pastilles de chrono annoncent l'effort de la première ligne | 🟡 | ✅ |
+| #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | ✅ |
+| #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | ✅ |
+| #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | ✅ |
+| #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | |
+| #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | ✅ |
+| #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
+| #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | ✅ |
+| #333 | « Dupliquer en variante » sans garde de double clic | 🟡 | ✅ |
 | #356 | « Le dernier cycle terminé » est élu par date de début | 🟡 | |
-| #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | |
+| #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | ✅ |
 | #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | |
 | #82 | Note vocale web → iOS : format lisible partout | 🟡 | |
-| #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | |
-| #366 | Retirer un média d'un débrief échoue en silence | ⚪ | |
-| #369 | L'indice « défaut … » affiche des secondes brutes | ⚪ | |
-| #381 | Une horloge en avance affiche une date absolue | ⚪ | |
-| #358 | La recherche ne replie pas « œ » ni « æ » | ⚪ | |
-| #437 | Lien de réinitialisation expiré : le formulaire s'affiche quand même | ⚪ | |
-| #485 | Payer une facture laisse le badge des rappels périmé | ⚪ | |
+| #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | ✅ |
+| #366 | Retirer un média d'un débrief échoue en silence | ⚪ | ✅ |
+| #369 | L'indice « défaut … » affiche des secondes brutes | ⚪ | ✅ |
+| #381 | Une horloge en avance affiche une date absolue | ⚪ | ✅ |
+| #358 | La recherche ne replie pas « œ » ni « æ » | ⚪ | ✅ |
+| #437 | Lien de réinitialisation expiré : le formulaire s'affiche quand même | ⚪ | ✅ |
+| #485 | Payer une facture laisse le badge des rappels périmé | ⚪ | ✅ |
 | #514 | Métrique maison : bouton actif sur un libellé trop long | ⚪ | |
-| #521 | Mobile : une colonne repliée répète son unité | ⚪ | |
+| #521 | Mobile : une colonne repliée répète son unité | ⚪ | ✅ |
 
 ## Performance et scalabilité
 
@@ -174,7 +174,6 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | Issue | Nom | Prio | Fermée |
 |---|---|---|---|
 | #72 | Tâche de purge des objets sans ligne en base | 🟡 | |
-| #102 | Nettoyer les notifications d'une relation supprimée *(avec #213)* | 🟡 | |
 | #108 | Purger les rappels d'une cible disparue *(avec #213)* | 🟡 | |
 | #73 | Purger le PDF à la suppression d'un cycle brouillon | ⚪ | |
 | #75 | Suppression d'un document : rollback si la ligne ne part pas | ⚪ | |

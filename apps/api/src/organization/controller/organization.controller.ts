@@ -2,6 +2,7 @@ import { type OrganizationInvitationQuery, organizationInvitationQuerySchema } f
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateOrganizationInvitationDto } from "../dto/create-organization-invitation.dto";
 import { OrganizationService } from "../service/organization.service";
@@ -35,6 +36,7 @@ export class OrganizationController {
   }
 
   @Post("invitations")
+  @RateLimit(RateLimitPolicy.INVITATION)
   invite(@Body() dto: CreateOrganizationInvitationDto) {
     return this.organization.invite(dto);
   }

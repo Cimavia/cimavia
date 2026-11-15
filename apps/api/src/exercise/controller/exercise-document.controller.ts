@@ -2,6 +2,7 @@ import { type AttachDocumentInput, attachDocumentSchema } from "@cmv/shared";
 import { Body, Controller, Delete, HttpCode, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
+import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { RequestUploadUrlDto } from "../dto/request-upload-url.dto";
 import { ExerciseDocumentService } from "../service/exercise-document.service";
@@ -16,6 +17,7 @@ export class ExerciseDocumentController {
 
   // Étape 1 : demander une URL PUT signée avant d'envoyer le fichier vers l'object storage.
   @Post("upload-url")
+  @RateLimit(RateLimitPolicy.UPLOAD)
   createUploadUrl(@Param("exerciseId") exerciseId: string, @Body() dto: RequestUploadUrlDto) {
     return this.documents.createUploadUrl(exerciseId, dto);
   }

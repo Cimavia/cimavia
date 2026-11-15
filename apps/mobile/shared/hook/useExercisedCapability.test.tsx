@@ -1,5 +1,6 @@
 import { Role, type TrainingCapability } from "@cmv/shared";
 import { act, renderHook } from "@testing-library/react";
+import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { authClient } from "@/shared/lib/auth";
@@ -8,6 +9,7 @@ import {
   useActingCapability,
   useCapabilitySwitch,
   useExercisedCapability,
+  useOpenAs,
 } from "./useExercisedCapability";
 
 vi.mock("@/shared/lib/auth", () => ({ authClient: { useSession: vi.fn() } }));
@@ -56,6 +58,28 @@ describe("useExercisedCapability", () => {
     signIn(account);
 
     expect(renderHook(() => useExercisedCapability(), { wrapper }).result.current).toBe(expected);
+  });
+
+  /** L'écran mono-titre ne lit pas au sélecteur : celui-ci a pu être laissé sur l'autre titre (#343). */
+  it("fait primer le titre imposé par l'écran sur le choix du sélecteur", () => {
+    signIn(DUAL_COACH);
+
+    const { result } = renderHook(
+      () => ({ switcher: useCapabilitySwitch(), pinned: useExercisedCapability("coach") }),
+      { wrapper },
+    );
+    act(() => result.current.switcher.select("athlete"));
+
+    expect(result.current.pinned).toBe("coach");
+  });
+
+  // Le titre imposé ne change rien pour qui n'en a qu'un : l'URL de l'API reste nue (#129).
+  it("rend null pour un compte mono-capacité même sous un titre imposé", () => {
+    signIn(COACH);
+
+    expect(
+      renderHook(() => useExercisedCapability("coach"), { wrapper }).result.current,
+    ).toBeNull();
   });
 });
 
@@ -117,5 +141,31 @@ describe("useActingCapability", () => {
     act(() => result.current.switcher.select("athlete"));
 
     expect(result.current.acting).toBe("athlete");
+  });
+});
+
+describe("useOpenAs (#343)", () => {
+  /** Ouvert depuis un écran coach, Factures doit montrer les factures du coach, pas les reçues. */
+  it("bascule le sélecteur d'un compte double, puis navigue", () => {
+    signIn(DUAL_COACH);
+    const { result } = renderHook(
+      () => ({ switcher: useCapabilitySwitch(), openAsCoach: useOpenAs("coach") }),
+      { wrapper },
+    );
+    act(() => result.current.switcher.select("athlete"));
+
+    act(() => result.current.openAsCoach("/invoices"));
+
+    expect(result.current.switcher.current).toBe("coach");
+    expect(router.push).toHaveBeenCalledWith("/invoices");
+  });
+
+  // Rien à basculer pour qui n'a qu'un titre : il navigue, même hors du fournisseur.
+  it("navigue sans rien basculer pour un compte mono-capacité", () => {
+    signIn(COACH);
+
+    renderHook(() => useOpenAs("coach")).result.current("/invoices");
+
+    expect(router.push).toHaveBeenCalledWith("/invoices");
   });
 });

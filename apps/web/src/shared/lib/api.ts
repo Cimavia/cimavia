@@ -1,4 +1,5 @@
-import { createApiClient } from "@cmv/shared";
+import { createApiClient, createApiErrorMessage } from "@cmv/shared";
+import i18n from "i18next";
 import { requireApiUrl } from "./runtime-config";
 
 /**
@@ -12,4 +13,18 @@ export const api = createApiClient({
 });
 
 export type { ApiFieldError } from "@cmv/shared";
-export { ApiError, apiErrorMessage, isStaleWriteError, isUnauthorizedError } from "@cmv/shared";
+export {
+  ApiError,
+  isRateLimitedError,
+  isStaleWriteError,
+  isUnauthorizedError,
+} from "@cmv/shared";
+
+/**
+ * Le message à montrer pour une erreur d'API, 429 de la limite de débit compris (#782).
+ *
+ * L'instance d'`i18next` et non `@/shared/lib/i18n` : l'importer l'initialiserait en français dans
+ * chaque test qui charge ce client, là où ils lisent les clés brutes. L'app l'initialise au
+ * démarrage, avant tout appel.
+ */
+export const apiErrorMessage = createApiErrorMessage((key) => i18n.t(key));

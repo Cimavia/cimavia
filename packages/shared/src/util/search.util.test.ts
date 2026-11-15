@@ -28,6 +28,20 @@ describe("comparableText", () => {
     expect(comparableText("Echauffement").includes(comparableText("échauff"))).toBe(true);
   });
 
+  /**
+   * NFD ne décompose pas les ligatures (#358) : sans repli explicite, « noeud » ne trouvait pas
+   * « Nœud de huit », et le correcteur d'iOS insère « œ » sans qu'on l'ait tapé. Les majuscules y
+   * passent aussi, et la symétrie tient dans les deux sens.
+   */
+  it("replie les ligatures œ et æ, majuscules comprises", () => {
+    expect(comparableText("Nœud de huit")).toBe("noeud de huit");
+    expect(comparableText("Lætitia")).toBe("laetitia");
+    expect(comparableText("ŒUVRE ÆSOPE")).toBe("oeuvre aesope");
+    expect(comparableText("Nœud").includes(comparableText("noeud"))).toBe(true);
+    expect(comparableText("Noeud").includes(comparableText("nœud"))).toBe(true);
+    expect(comparableText("Laetitia").includes(comparableText("Lætitia"))).toBe(true);
+  });
+
   // Clé de comparaison, pas d'affichage : `initialsOf` garde ses accents, lui.
   it("ne partage pas la règle d'affichage d'initialsOf", () => {
     expect(initialsOf("Élodie Noël")).toBe("ÉN");

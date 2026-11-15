@@ -12,7 +12,7 @@ liste des domaines vivent dans l'index.
 | P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : sur Chrome/Firefox, `MediaRecorder` produit du webm/opus, qu'iOS peut ne pas lire. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` cascade `Conversation`/`Message` en base mais **laisse les objets S3 orphelins en masse**. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` ne cascade **rien** (aucune clé étrangère n’y mène : `Conversation`, `Plan`, `Invoice`… portent `coachId`/`athleteId` vers `User`), et les objets S3 de ce suivi seraient **orphelins en masse**. Bloquée par le flux de rupture ([#213](https://github.com/Cimavia/cimavia/issues/213)). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
 
 *Résolues, à l'[archive](archive.md) : P5-4, P5-5.*
 
@@ -49,7 +49,7 @@ liste des domaines vivent dans l'index.
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
-| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256) ; la suppression d'une relation, non, et attend le flux de rupture (#213). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
@@ -314,9 +314,14 @@ liste des domaines vivent dans l'index.
 > La facture s'affiche de nouveau en retard, et le coach peut rouvrir le rappel depuis
 > l'historique ; **(3)** une course est acceptée — un tick qui lit la facture juste avant que le
 > paiement soit validé peut encore insérer un rappel `PENDING`. La fenêtre dure quelques
-> millisecondes pour un tick horaire, et le rappel se ferme d'un clic. Côté clients, payer
-> n'invalide encore que les caches facture : badge et tuile se mettent à jour au polling suivant
-> ([#485](https://github.com/Cimavia/cimavia/issues/485)).
+> millisecondes pour un tick horaire, et le rappel se ferme d'un clic. Côté clients, depuis
+> [#485](https://github.com/Cimavia/cimavia/issues/485), changer le statut d'une facture ou
+> l'annuler périme aussi les rappels et le centre de notifications, sur le web comme sur
+> mobile : liste, tuile « à traiter » et badge suivent sans attendre le polling. Ce dispositif
+> joue à **chaque** transition, même la remise à régler, qui ne rouvre rien : sinon le client
+> devrait savoir quelle transition touche un rappel, et cette règle est au serveur. La
+> suppression d'un cycle, qui purge ses rappels (**R-4**), périme les mêmes caches côté web
+> (le mobile ne supprime pas de cycle).
 
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
@@ -577,6 +582,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | NV-1 | **La notification Android de l'enregistrement est en anglais** (règle dure n°6) : « Recording audio » / « Tap to return to app », et le canal « Audio Recording » visible dans Réglages › Notifications. `AudioRecordingService.kt` les écrit en dur, sans ressource Android à surcharger : la voie d'IOS-1 (`expo.locales`) ne s'applique pas. Seule issue aujourd'hui, un `pnpm patch` du service, écarté : à rejouer à chaque montée d'`expo-audio`. Même famille que [#348](https://github.com/Cimavia/cimavia/issues/348). | 🟢 | — *(déclencheur : une option de configuration côté `expo-audio`, ou un retour d'utilisateur qui s'en plaint)* |
 | NV-2 | **Le service de premier plan `microphone` n'est déclaré nulle part côté store** : la Play Console exige une justification et une vidéo pour chaque type de service de premier plan du manifeste. | 🟡 | — *(déclencheur : la première publication sur le Play Store ; Android n'est distribué qu'en interne, `eas.json` n'a pas de `submit` Android)* |
+| NV-3 | **Le mobile ne borne pas la capture vocale** : `CmvAudioRecorder` enregistre sans plafond, et une note de plus de cinq minutes n'est refusée — en entier — qu'à l'envoi. Le web s'arrête au plafond du profil en gardant la capture (#340). | 🟡 | — *(issue à créer)* |
 
 > **Tranché en #619** (la note vocale continue écran verrouillé) : le Coach bêta perdait tout ce
 > qu'il disait une fois l'iPhone en veille. expo-audio met l'enregistreur en pause dès que l'app
@@ -678,3 +684,64 @@ liste des domaines vivent dans l'index.
 >   `FILE` en pastille vidéo muette jusqu'à leur mise à jour, et l'aperçu de la liste des
 >   conversations en clé brute (`messages.preview.FILE`, absente de leur catalogue) : c'est une
 >   `feat` avec un module natif neuf, pas d'OTA (#287).
+
+## Post-MVP — Défilement du fil web ([#367](https://github.com/Cimavia/cimavia/issues/367))
+
+> **Tranché en #367** (le fil suit le lecteur, pas l'arrivée des messages) : le web recolle au bas
+> quand le contenu du fil ou son cadre **change de taille** (`useStickToBottom`, un
+> `ResizeObserver`), et seulement si le lecteur était au bas, à 80 px près. Un `scrollIntoView` au
+> rendu tombait avant le chargement des images : la dernière photo restait coupée, et chaque
+> sondage ramenait au bas un lecteur qui remontait l'historique.
+>
+> - **Aucune place réservée aux images** : le DTO média ne porte pas leurs dimensions, et les
+>   relever à l'envoi demanderait une migration, l'API et les deux clients. L'observateur suffit
+>   à rester collé ; il couvre en prime la vidéo (300×150 avant ses métadonnées) et la barre
+>   d'envoi qui s'agrandit.
+> - **Se décrocher, c'est remonter**, pas « être à plus de 80 px du bas » : une photo qui charge
+>   entre l'écriture de `scrollTop` et l'événement `scroll` creuse l'écart sans que le lecteur ait
+>   bougé, et le fil se serait décroché tout seul.
+> - **Le geste d'envoi ramène au bas** — texte, fichiers, note vocale —, d'où qu'on écrive. Pas
+>   « le dernier message est de moi » : un entrant arrivé dans le même sondage le masquerait, et
+>   un message à mon nom posté d'ailleurs (le mobile, un avis de débrief) me tirerait vers le bas
+>   sans geste ici. Un message reçu, jamais.
+> - **Lu, c'est vu** : le fil ne marque plus lu qu'au bas. Il y ramenait le lecteur à chaque
+>   arrivée, ce qui rendait le marquage immédiat à peu près vrai ; parti dans l'historique, il
+>   n'a pas vu ce qui arrive, et l'expéditeur lirait « Lu par » à tort.
+> - **La pastille « N nouveaux messages »** dit au lecteur parti ce qu'il manque : les entrants
+>   arrivés après le dernier message qu'il avait vu au bas (`incomingCountAfter`, entrant au sens
+>   du marquage lu, avis compris). Repère introuvable ou session inconnue : elle se tait plutôt
+>   que d'inventer un nombre. Un clic descend en douceur ; elle disparaît au retour au bas, par ce
+>   clic ou à la main. Sa région est `aria-live` et toujours montée : un lecteur d'écran, que le
+>   fil ne déplace plus, est prévenu. Pas de maquette : elle reprend les tokens de surface et de
+>   bordure.
+> - **Pas de `flex-col-reverse`** : son ancrage diffère d'un navigateur à l'autre, et inverser
+>   l'ordre du DOM aurait fait lire le fil à rebours aux lecteurs d'écran.
+> - **Le mobile ne bouge pas** : sa `FlatList` inversée reste au bas quand un média y grandit, et
+>   ne ramène pas au bas le lecteur qui remonte. Il n'a pas de pastille ; à ouvrir si la bêta la
+>   réclame.
+
+## Post-MVP — Destination d'une notification ([#344](https://github.com/Cimavia/cimavia/issues/344))
+
+> **Tranché en [#344](https://github.com/Cimavia/cimavia/issues/344)** (une notification s'ouvre
+> sous SON titre, pas sous celui qu'on exerce) : sur un compte coach et athlète, les deux tables de
+> routage — mobile (cloche et push) et web — branchaient sur `isCoach`, et la capacité coach gagnait
+> toujours. L'issue proposait de router au titre exercé ; c'eût été déplacer le bug. Le centre
+> n'est **pas filtré par espace** : il liste, mêlé, ce que le compte reçoit des deux côtés, et un
+> « débrief reçu » ouvert en titre athlète serait parti vers `/session/:id`, une route d'athlète
+> qui ne lit pas la séance de SON athlète.
+>
+> - **Le titre vient du type** (`notificationOpeningCapability`, `@cmv/shared`), par
+>   `capabilityOfNotification` (#176) : un cycle se lit en athlète, un débrief en coach.
+> - **Le titre exercé ne départage que le message**, que les deux côtés d'un fil reçoivent. Le
+>   mobile garde alors sa règle : le fil absent du titre courant laisse sur la liste, où la pastille
+>   du sélecteur signale l'autre côté. Le web pose l'espace parcouru dans `?as=` — avant, rien, et
+>   l'écran retombait sur le persona : un pari ni meilleur ni pire, mais qui ne fait pas changer
+>   d'espace sous les yeux.
+> - **Ne mènent nulle part** : un titre que le compte n'a plus (un Coach qui a cessé de coacher
+>   relit un vieux débrief) — plutôt qu'un 403 —, et un **type inconnu**, fail closed comme
+>   `capabilityOfNotification` : un client ne devine pas le titre d'un type que l'API a ajouté
+>   après lui. La cloche et le push s'accordent ainsi, le push ne sachant pas lire ses clés d'id.
+> - **Ouvrir une notification emporte son titre** : le mobile bascule le sélecteur avant de
+>   naviguer, le web le pose dans `?as=` de Factures et Messagerie — l'un et l'autre pour un compte
+>   qui cumule seulement, l'URL d'un compte mono-capacité restant nue (#129). Sans ça, une facture
+>   émise ouverte en titre coach montrait les factures du coach.

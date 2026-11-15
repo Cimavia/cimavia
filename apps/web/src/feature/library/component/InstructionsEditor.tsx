@@ -1,7 +1,6 @@
 import {
   isInstructionImageMime,
   isRichDocumentTooLong,
-  linkHrefSchema,
   MAX_DOCUMENT_SIZE_BYTES,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichDocument,
@@ -23,11 +22,15 @@ import {
 import { CalloutExtension } from "@/feature/library/component/CalloutExtension";
 import { ImageExtension } from "@/feature/library/component/ImageExtension";
 import { useInstructionMediaContext } from "@/feature/library/component/InstructionMediaContext";
+import { LineBreakExtension } from "@/feature/library/component/LineBreakExtension";
+import { ListItemExtension } from "@/feature/library/component/ListItemExtension";
+import { ListJoinExtension } from "@/feature/library/component/ListJoinExtension";
 import { INSTRUCTION_IMAGE_ACCEPT } from "@/feature/library/constant";
 import {
   CALLOUT_NODE,
   HEADING_LEVEL,
   IMAGE_NODE,
+  isAllowedLinkHref,
   toRichDocument,
   toTipTapDocument,
 } from "@/feature/library/util/tiptap-document.util";
@@ -71,8 +74,26 @@ export function InstructionsEditor({
         codeBlock: false,
         blockquote: false,
         horizontalRule: false,
-        link: { openOnClick: false, protocols: ["http", "https"] },
+        // Même raison, au niveau en dessous (#328) : remplacés plutôt que retirés, voir
+        // `ListItemExtension` et `LineBreakExtension`.
+        hardBreak: false,
+        listItem: false,
+        // Seul un lien que le serveur accepte peut naître ici (#329). Les deux filtres comptent :
+        // `isAllowedUri` garde la saisie et les règles de collage, `shouldAutoLink` seul garde le
+        // collage sur une sélection. À la saisie et au collage, ils reçoivent le TEXTE reconnu, pas
+        // le `href` qu'en déduit l'extension : « coach@club.fr » ne devient plus `mailto:`,
+        // « cimavia.fr » reste du texte — seul un http(s) écrit en entier fait un lien.
+        // (`protocols` n'aurait rien changé : il AJOUTE des protocoles à ceux que l'extension
+        // admet déjà, `mailto` compris.)
+        link: {
+          openOnClick: false,
+          isAllowedUri: isAllowedLinkHref,
+          shouldAutoLink: isAllowedLinkHref,
+        },
       }),
+      ListItemExtension,
+      ListJoinExtension,
+      LineBreakExtension,
       CalloutExtension,
       ImageExtension,
     ],
@@ -85,7 +106,7 @@ export function InstructionsEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-40 bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-hi outline-none [&_h3]:text-cmv-subtitle [&_h3]:text-cmv-text-hi [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-cmv-lg [&_ol]:pl-cmv-lg",
+          "min-h-40 bg-cmv-surface px-cmv-md py-cmv-sm text-cmv-body text-cmv-text-hi outline-none [&_a]:text-cmv-accent-on [&_a]:underline [&_h3]:text-cmv-subtitle [&_h3]:text-cmv-text-hi [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-cmv-lg [&_ol]:pl-cmv-lg",
       },
     },
   });
@@ -219,7 +240,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
   function applyLink(href: string) {
     // Le MÊME schéma que le serveur : `z.url()` accepte `javascript:alert(1)`, qui est une URL
     // syntaxiquement valide. Sans ce garde, un lien de consigne devient un vecteur XSS.
-    if (!linkHrefSchema.safeParse(href).success) return;
+    if (!isAllowedLinkHref(href)) return;
     editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
     setLinkDraft(null);
   }
@@ -352,7 +373,7 @@ type LinkFieldProps = {
 
 function LinkField({ value, onChange, onSubmit, onCancel }: Readonly<LinkFieldProps>) {
   const { t } = useTranslation();
-  const isValid = linkHrefSchema.safeParse(value).success;
+  const isValid = isAllowedLinkHref(value);
 
   return (
     <div className="flex items-center gap-cmv-xs">

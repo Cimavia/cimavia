@@ -4,6 +4,7 @@ import {
   messageKeys,
   myFeedbackKeys,
   shouldReportQueryError,
+  shouldRetryQuery,
 } from "@cmv/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sentry from "@sentry/react-native";
@@ -29,9 +30,6 @@ const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Les données restent « fraîches » 5 min : pas de rafale de requêtes en changeant d'onglet.
 const STALE_TIME_MS = 5 * 60 * 1000;
 
-/** Un seul nouvel essai sur une lecture qui échoue — une coupure brève n'affiche pas d'erreur. */
-const QUERY_RETRY_COUNT = 1;
-
 /**
  * L'écoute globale des échecs, posée sur les CACHES pour que l'`onError` d'un écran ne la remplace
  * pas.
@@ -54,9 +52,9 @@ const queryClient = new QueryClient({
       // `gcTime` doit couvrir `maxAge` : une entrée collectée en mémoire ne serait jamais
       // réécrite sur le disque, et le cache persisté se viderait à la première ouverture.
       gcTime: CACHE_MAX_AGE_MS,
-      // Pas de nouvel essai sur un 401 : la même session serait refusée de la même façon.
-      retry: (failureCount, error) =>
-        !isUnauthorizedError(error) && failureCount < QUERY_RETRY_COUNT,
+      // Un seul nouvel essai — une coupure brève n'affiche pas d'erreur —, sauf sur un 401 ou un
+      // 429, que l'essai ne ferait que répéter.
+      retry: shouldRetryQuery,
     },
   },
 });

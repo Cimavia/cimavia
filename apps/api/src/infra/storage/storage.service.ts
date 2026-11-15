@@ -30,6 +30,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
+import { assertKeyUnder } from "./object-key";
 
 const UNCONFIRMED_UPLOAD = "Le storage n'a pas pu confirmer la réception du fichier";
 
@@ -160,7 +161,13 @@ export class StorageService {
       ContentType: contentType,
       ContentLength: contentLength,
     });
-    return getSignedUrl(signer, command, { expiresIn: ttl });
+    // Le presigner retire `content-type` de la signature d'office (`unsignableHeaders`) : sans le
+    // remettre, le storage prendrait n'importe quel type à l'envoi, et `assertUploadedAsDeclared`
+    // ne ferait que relire ce que le client a lui-même posé (#468).
+    return getSignedUrl(signer, command, {
+      expiresIn: ttl,
+      signableHeaders: new Set(["content-type"]),
+    });
   }
 
   /**
@@ -352,6 +359,24 @@ export class StorageService {
     } while (marker != null);
 
     return parts.sort((a, b) => a.PartNumber - b.PartNumber);
+  }
+
+  /**
+   * Tout ce qu'un rattachement doit au storage, en UN appel : la clé désigne un objet de CE
+   * périmètre (`assertKeyUnder`, #293), puis l'objet est celui que le ticket a signé
+   * (`assertUploadedAsDeclared`, #317). C'est l'oubli de la seconde garde, branche par branche, qui
+   * a créé S-1 : un rattachement qui passe par ici ne peut plus en sauter une (#468).
+   *
+   * Le préfixe se recalcule côté serveur, jamais depuis la requête. La clé d'abord : un refus de
+   * clé ne coûte aucun aller-retour vers le storage.
+   */
+  async assertAttachable(
+    prefix: string,
+    key: string,
+    declared: { mimeType: string; size: number },
+  ): Promise<void> {
+    assertKeyUnder(prefix, key);
+    await this.assertUploadedAsDeclared(key, declared);
   }
 
   /**

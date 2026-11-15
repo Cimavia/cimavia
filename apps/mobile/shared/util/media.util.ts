@@ -1,5 +1,4 @@
 import {
-  apiErrorMessage,
   FEEDBACK_PHOTO_MAX_DIMENSION_PX,
   type FeedbackVideoMimeType,
   isAllowedFeedbackVideoMime,
@@ -12,6 +11,7 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { ImagePickerAsset } from "expo-image-picker";
 import type { TFunction } from "i18next";
 import type { RecordedAudio } from "@/shared/component";
+import { apiErrorMessage } from "@/shared/lib/api";
 
 /**
  * Préparation d'un média avant envoi, côté MOBILE — partagée par le débrief et la messagerie (#96).
