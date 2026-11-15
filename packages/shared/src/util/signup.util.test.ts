@@ -4,6 +4,7 @@ import {
   normalizeEmail,
   parseEmailList,
   resendOutcome,
+  resetPasswordRefusal,
   signInErrorKey,
   signUpErrorKey,
 } from "./signup.util";
@@ -80,6 +81,28 @@ describe("signUpErrorKey", () => {
   // 422 compris : depuis #270, l'API ne le rend plus, et une adresse déjà prise ne se trahit pas.
   it.each([400, 401, 422, 500, undefined])("retombe sur le générique pour %s", (status) => {
     expect(signUpErrorKey(status)).toBe("auth.errors.generic");
+  });
+});
+
+describe("resetPasswordRefusal (#437)", () => {
+  // Le formulaire laisse alors la place au lien mort : rien de ce qu'on tape n'y changera.
+  it.each([
+    { status: 400, code: "INVALID_TOKEN" },
+    // Compte supprimé depuis l'envoi de l'e-mail (#256).
+    { status: 400, code: "USER_NOT_FOUND" },
+  ])("tient le lien pour mort sur $code", (error) => {
+    expect(resetPasswordRefusal(error)).toBe("deadLink");
+  });
+
+  it.each([
+    [{ status: 400, code: "PASSWORD_TOO_SHORT" }, "passwordTooShort"],
+    [{ status: 400, code: "PASSWORD_TOO_LONG" }, "passwordTooLong"],
+    [{ status: 429 }, "tooManyAttempts"],
+    [{ status: 500, code: "INTERNAL_SERVER_ERROR" }, "generic"],
+    // Une panne réseau ne porte aucun code.
+    [{}, "generic"],
+  ])("ne prend pas %o pour un lien mort", (error, refusal) => {
+    expect(resetPasswordRefusal(error)).toBe(refusal);
   });
 });
 

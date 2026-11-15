@@ -113,6 +113,45 @@ export function signInErrorKey(error: {
   return "auth.errors.generic";
 }
 
+/**
+ * Ce que Better Auth pose en `?error=` quand il refuse le lien de réinitialisation, à la place du
+ * jeton : inconnu, déjà consommé ou expiré (#437). Le code de l'erreur que rend aussi l'envoi d'un
+ * jeton mort — l'écran pose la même valeur dans son URL dans les deux cas.
+ */
+export const RESET_PASSWORD_LINK_REFUSED = "INVALID_TOKEN";
+
+/**
+ * Pourquoi l'API refuse un nouveau mot de passe, d'après l'erreur que rend le client Better Auth.
+ *
+ * Une RAISON et non une clé i18n, contrairement à `signInErrorKey` : seul le web a un écran de
+ * réinitialisation, et une clé écrite ici devrait exister au catalogue mobile aussi.
+ *
+ * - **`deadLink`** — `INVALID_TOKEN`, `USER_NOT_FOUND` : jeton inconnu, déjà consommé ou expiré,
+ *   ou compte supprimé depuis l'envoi de l'e-mail (#256). Rien de ce qu'on tape n'y changera.
+ * - **`passwordTooShort`, `passwordTooLong`** : le lien marche, le mot de passe sort des bornes. Le
+ *   champ web ne porte pas de `maxLength` : il tronquerait EN SILENCE un mot de passe collé ou
+ *   généré, et le gestionnaire retiendrait un autre mot de passe que celui du compte.
+ * - **`tooManyAttempts`** — 429 : il faut attendre, pas réessayer tout de suite.
+ * - **`generic`** : le reste. Aucun refus ne doit passer pour un lien mort : on redemanderait un
+ *   e-mail pour rien.
+ */
+export function resetPasswordRefusal(error: {
+  status?: number | undefined;
+  code?: string | undefined;
+}): "deadLink" | "passwordTooShort" | "passwordTooLong" | "tooManyAttempts" | "generic" {
+  switch (error.code) {
+    case RESET_PASSWORD_LINK_REFUSED:
+    case "USER_NOT_FOUND":
+      return "deadLink";
+    case "PASSWORD_TOO_SHORT":
+      return "passwordTooShort";
+    case "PASSWORD_TOO_LONG":
+      return "passwordTooLong";
+    default:
+      return error.status === 429 ? "tooManyAttempts" : "generic";
+  }
+}
+
 /** Où en est le renvoi du lien de vérification, sur l'écran « vérifie ta boîte » (#270). */
 export type ResendState = "idle" | "sending" | "sent" | "failed";
 
