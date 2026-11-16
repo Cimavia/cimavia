@@ -64,3 +64,6 @@ prisma/migrations/.gitkeep
 # ici et pas seulement dans l'ignore global : Biome ne lit que celui du dépôt, et `biome ci .` (porte
 # qualité, hook de fin de réponse) échouait sur un fichier que personne n'édite.
 .claude/settings.local.json
+# Skill archify : les pages HTML de schémas qu'il génère sur le poste. Ce ne sont pas des sources du
+# dépôt, et `biome ci .` y relevait un millier d'erreurs.
+.archify/
