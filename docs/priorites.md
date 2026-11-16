@@ -1,9 +1,9 @@
 # Priorités du backlog
 
-Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-11**.
+Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-16**.
 
 - **Prio** : le label `prio:` de l'issue sur GitHub — 🔴 `urgent` · 🟠 `high` · 🟡 `med` · ⚪ `low`.
-- **Fermée** : ✅ quand l'issue est fermée.
+- **Fermée** : ✅ quand l'issue est fermée — cochée dans la PR qui la livre (skill `feature`, §7).
 - Les épics conteneurs (#67, #68, #69, #70, #71, #100, #114, #117, #412) n'y figurent pas : leur
   priorité est celle de leur enfant ouvert le plus prioritaire.
 
@@ -50,7 +50,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #374 | « Autorise les notifications » s'affiche à chaque série manuelle | 🟡 | ✅ |
 | #367 | Le fil ne reste pas collé en bas quand le dernier message est une photo | 🟡 | ✅ |
 | #380 | « Débrief reçu » ouvre la boîte de réception vide | 🟡 | ✅ |
-| #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | |
+| #363 | Ouvrir une séance du constructeur ne montre aucun chargement | ⚪ | ✅ |
 | #328 | Sous-liste et retour à la ligne disparaissent de la consigne | 🟡 | ✅ |
 | #331 | Objectif AMRAP : null s'affiche « 1 » et ne peut plus être retiré | 🟡 | ✅ |
 | #330 | Une image retirée de la consigne est quand même envoyée | 🟡 | ✅ |
@@ -92,7 +92,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #779 | La copie hors du NAS est manuelle : une panne du NAS perd tout depuis la dernière | 🟠 | |
 | #772 | Restauration du README cassée, et un silo-setup en échec ignoré par la promotion | 🟠 | |
 | #760 | Une bibliothèque en deux copies dans le bundle mobile passe la CI | 🟠 | |
-| #290 | L'app web ne prend une nouvelle version qu'après un rechargement forcé | 🟠 | |
+| #290 | L'app web ne prend une nouvelle version qu'après un rechargement forcé | 🟠 | ✅ |
 | #394 | Recette sur iPhone réel du code écrit pour iOS | 🟠 | |
 | #255 | Le profil EAS production n'a pas d'URL d'API | 🟠 | |
 | #800 | Une version plus récente de SILO est disponible | 🟠 | |
@@ -151,7 +151,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #375 | Le design system mobile lit le stockage hors-ligne | ⚪ | |
 | #359 | Un type de notification oublié disparaît des pastilles | ⚪ | |
 | #386 | Commentaire et cahier des charges à 60 s au lieu de 180 s | ⚪ | |
-| #342 | Le bouton de fermeture du panneau porte un libellé en dur | ⚪ | |
+| #342 | Le bouton de fermeture du panneau porte un libellé en dur | ⚪ | ✅ |
 | #348 | Le nom du canal de notification Android est écrit en dur | ⚪ | |
 | #368 | La limite du justificatif est écrite en dur dans le catalogue | ⚪ | |
 
