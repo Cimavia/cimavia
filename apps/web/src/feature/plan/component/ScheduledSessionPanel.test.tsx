@@ -8,11 +8,11 @@ import {
   STRUCTURE_PRESETS,
   StructurePresetKey,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/shared/lib/api";
 import { renderWithProviders } from "../../../../test/render";
-import { ScheduledSessionPanel } from "./ScheduledSessionPanel";
+import { ScheduledSessionPanel, ScheduledSessionPanelLoading } from "./ScheduledSessionPanel";
 
 const {
   createMock,
@@ -759,5 +759,26 @@ describe("ScheduledSessionPanel — en Lecture (#607)", () => {
 
     await view.user.click(view.getByText("common.close", { selector: "button" }));
     expect(view.onClose).toHaveBeenCalled();
+  });
+});
+
+// Sous 1024 px, le panneau couvre tout le fond : son pied garde de quoi le fermer pendant qu'il
+// charge, sous le libellé que montrera le panneau chargé (#363).
+describe("ScheduledSessionPanelLoading", () => {
+  it.each([
+    [false, "common.cancel"],
+    [true, "common.close"],
+  ])("en Lecture = %s, se ferme par « %s »", async (readOnly, label) => {
+    const onClose = vi.fn();
+    const { getByRole, user } = renderWithProviders(
+      <ScheduledSessionPanelLoading readOnly={readOnly} onClose={onClose} />,
+    );
+    // Dans le panneau : le fond, hors de lui, porte aussi « Fermer ».
+    const panel = within(getByRole("complementary", { name: "plan.session.editTitle" }));
+    expect(panel.getByRole("status")).toHaveTextContent("common.loading");
+
+    await user.click(panel.getByRole("button", { name: label }));
+
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

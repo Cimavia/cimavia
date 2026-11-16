@@ -19,7 +19,10 @@ import { useTranslation } from "react-i18next";
 import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
 import { ScheduledComposition } from "@/feature/plan/component/ScheduledComposition";
-import { SessionPanelFooter } from "@/feature/plan/component/SessionPanelFooter";
+import {
+  SessionPanelCloseButton,
+  SessionPanelFooter,
+} from "@/feature/plan/component/SessionPanelFooter";
 import { usePlanMutations } from "@/feature/plan/hook/usePlan";
 import {
   CmvLeaveDialog,
@@ -196,7 +199,8 @@ function panelHeading(isEditing: boolean, readOnly: boolean) {
 /**
  * Le panneau d'une séance ouverte, le temps qu'elle se relise (#363) : il s'ouvre dès le clic,
  * sous le même en-tête et à la même largeur que celui qui le remplacera. Il ne montre rien du
- * cache — relire à chaque ouverture est voulu (#604). Rien à annuler : Échap et le fond ferment.
+ * cache — relire à chaque ouverture est voulu (#604). Son pied garde de quoi le fermer : sous
+ * 1024 px, le panneau couvre tout le fond, et la souris ou le doigt n'auraient plus rien d'autre.
  */
 export function ScheduledSessionPanelLoading({
   readOnly,
@@ -211,6 +215,7 @@ export function ScheduledSessionPanelLoading({
       title={t(heading.title)}
       description={t(heading.description)}
       onClose={onClose}
+      footer={<SessionPanelCloseButton readOnly={readOnly} onClose={onClose} />}
     >
       <p role="status" className="text-cmv-text-mid">
         {t("common.loading")}
