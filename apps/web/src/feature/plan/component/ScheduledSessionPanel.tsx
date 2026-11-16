@@ -193,6 +193,32 @@ function panelHeading(isEditing: boolean, readOnly: boolean) {
   };
 }
 
+/**
+ * Le panneau d'une séance ouverte, le temps qu'elle se relise (#363) : il s'ouvre dès le clic,
+ * sous le même en-tête et à la même largeur que celui qui le remplacera. Il ne montre rien du
+ * cache — relire à chaque ouverture est voulu (#604). Rien à annuler : Échap et le fond ferment.
+ */
+export function ScheduledSessionPanelLoading({
+  readOnly,
+  onClose,
+}: Readonly<{ readOnly: boolean; onClose: () => void }>) {
+  const { t } = useTranslation();
+  const heading = panelHeading(true, readOnly);
+  return (
+    <CmvPanel
+      open
+      size={heading.size}
+      title={t(heading.title)}
+      description={t(heading.description)}
+      onClose={onClose}
+    >
+      <p role="status" className="text-cmv-text-mid">
+        {t("common.loading")}
+      </p>
+    </CmvPanel>
+  );
+}
+
 type ScheduledSessionPanelProps = {
   planId: string;
   // Cycle diffusé : retirer une séance prévient l'athlète, le panneau l'annonce avant confirmation.

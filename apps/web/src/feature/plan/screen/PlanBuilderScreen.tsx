@@ -29,7 +29,10 @@ import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions"
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
 import { PlanStatusLine } from "@/feature/plan/component/PlanStatusLine";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
-import { ScheduledSessionPanel } from "@/feature/plan/component/ScheduledSessionPanel";
+import {
+  ScheduledSessionPanel,
+  ScheduledSessionPanelLoading,
+} from "@/feature/plan/component/ScheduledSessionPanel";
 import {
   planDetailQuery,
   scheduledSessionDetailQuery,
@@ -495,7 +498,8 @@ type SessionPanelHostProps = {
 
 /**
  * Le panneau de séance, ouvert sur ce que l'écran a cliqué. En édition, il attend l'instance
- * complète : le résumé de la vue semaine ne porte pas la composition.
+ * complète — en disant qu'il charge (#363) : le résumé de la vue semaine ne porte pas la
+ * composition.
  *
  * Elle est RELUE à chaque ouverture, même en cache (#604) : nos propres gestes — un glisser, un
  * recollage de journée — ont pu faire avancer la séance, et la saisie citerait la version d'avant,
@@ -531,7 +535,12 @@ function SessionPanelHost({ edit, weeks, ...props }: Readonly<SessionPanelHostPr
     onClose();
   }, [isGone, error, onError, onClose]);
 
-  if (isEditing && (!isFetchedAfterMount || session == null)) return null;
+  // Pas encore relue : le panneau s'ouvre quand même, et dit qu'il charge (#363). Relue sans
+  // séance : l'effet ci-dessus le dit et le ferme.
+  if (isEditing && !isFetchedAfterMount) {
+    return <ScheduledSessionPanelLoading readOnly={props.readOnly} onClose={onClose} />;
+  }
+  if (isEditing && session == null) return null;
 
   return (
     <ScheduledSessionPanel
