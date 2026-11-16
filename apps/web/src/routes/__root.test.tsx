@@ -8,15 +8,29 @@ import {
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Route as rootRoute } from "@/routes/__root";
+import { useBundleUpdate, useIsBundleUpdateAvailable } from "@/shared/hook/useBundleUpdate";
 import { useSentryUser } from "@/shared/hook/useSentryUser";
 
 vi.mock("@/shared/hook/useSentryUser", () => ({ useSentryUser: vi.fn() }));
+vi.mock("@/shared/hook/useBundleUpdate", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/hook/useBundleUpdate")>()),
+  useBundleUpdate: vi.fn(() => false),
+}));
 
 const CHILD = "l'écran sous la racine";
 
+function Child() {
+  return (
+    <>
+      <p>{CHILD}</p>
+      <p>{useIsBundleUpdateAvailable() ? "nouvelle version" : "à jour"}</p>
+    </>
+  );
+}
+
 async function renderRoot() {
   const routeTree = rootRoute.addChildren([
-    createRoute({ getParentRoute: () => rootRoute, path: "/", component: () => <p>{CHILD}</p> }),
+    createRoute({ getParentRoute: () => rootRoute, path: "/", component: Child }),
   ]);
   const router = createRouter({
     routeTree,
@@ -30,6 +44,8 @@ async function renderRoot() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // `clearAllMocks` garde les valeurs de retour : celle d'un test ne doit pas fuir dans le suivant.
+  vi.mocked(useBundleUpdate).mockReturnValue(false);
 });
 
 describe("route racine", () => {
@@ -46,5 +62,14 @@ describe("route racine", () => {
     // — la piste qu'ouvrait #181 — le retirerait des écrans d'authentification, où un crash
     // redeviendrait anonyme. Ce test est ce qui rend ce déplacement rouge.
     expect(useSentryUser).toHaveBeenCalled();
+  });
+
+  it("transmet aux écrans la nouvelle version qu'elle a vue (#290)", async () => {
+    vi.mocked(useBundleUpdate).mockReturnValue(true);
+    await renderRoot();
+
+    // Ici et pas dans `CmvAppShell`, que chaque écran remonte : ce qui a été vu y serait oublié
+    // à la navigation suivante.
+    expect(screen.getByText("nouvelle version")).toBeInTheDocument();
   });
 });

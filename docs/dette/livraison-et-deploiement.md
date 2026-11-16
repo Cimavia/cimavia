@@ -1070,3 +1070,46 @@ liste des domaines vivent dans l'index.
 > le rend explicite, il ne colmate pas de fuite. Le jeton de `/reset-password` s'écrit en revanche
 > dans les logs d'accès d'nginx, ce que cet en-tête ne change pas :
 > [#817](https://github.com/Cimavia/cimavia/issues/817).
+
+## Post-MVP — Adoption d'une nouvelle version web ([#290](https://github.com/Cimavia/cimavia/issues/290))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| MAJ-1 | **Un onglet resté ouvert casse avant d'avoir vu l'invite** s'il ouvre un écran chargé à la demande après un déploiement : l'image nginx ne contient que le dernier build, le chunk d'hier (`InstructionsEditor`, `ExerciseBuilderScreen.tsx`) répond 404 et l'import dynamique tombe sur `CmvCrashScreen` — qui recharge, et le signale à Sentry. L'invite ne paraît qu'au retour sur l'onglet ou dans les 10 min. Garder en ligne les assets des N derniers builds est une autre décision. | 🟢 | — *(déclencheur : des crashs « chunk introuvable » dans Sentry après une promotion)* |
+| MAJ-2 | **`location /assets/` émet deux en-têtes `Cache-Control`** : `expires 1y` en pose un, `add_header` l'autre. Les navigateurs les concatènent et l'effet est le bon ; un cache intermédiaire pourrait n'en lire qu'un. | 🟢 | — *(déclencheur : la prochaine retouche de `apps/web/nginx.conf`)* |
+
+> **Tranché en #290** (on compare le script d'entrée, pas une version publiée) : l'issue penchait
+> pour un `version.json` à la racine du site. Mais il serait lisible sans session, et « Tranché en
+> #186 » garde la version derrière une authentification. La page compare donc le `src` de son
+> script d'entrée hashé (`/assets/index-<hash>.js`) à celui de l'`index.html` relu en
+> `cache: "no-store"` (`apps/web/src/shared/lib/bundle-update.ts`) : déjà public, sans étape de
+> build ni `location` nginx de plus, et il change exactement quand le bundle change.
+>
+> **La référence est le DOM de la page, pas une lecture au démarrage**, comme le proposait l'issue :
+> un onglet restauré depuis le cache du navigateur relirait la version neuve à son premier `fetch`,
+> la prendrait pour la sienne, et ne verrait jamais qu'il est périmé. Seul un module servi depuis
+> `/assets/` compte : une extension du navigateur peut injecter le sien, et l'entrée du serveur de
+> dev (`/src/main.tsx`) laisse la détection éteinte. Une lecture ratée — réseau, statut d'erreur,
+> redirection vers la connexion Cloudflare Access — ne dit rien.
+>
+> **Le CSS n'est pas comparé**, et n'a pas à l'être : chaque déploiement change le numéro de
+> version, qui vit dans le chunk `app`, dont le nom est écrit dans l'entrée — vérifié, deux builds
+> `1.0.0` et `1.0.1` du même code donnent deux entrées et une même feuille de style. Cela tient à
+> la règle de #266 : une version ne se promeut qu'une fois, jamais en arrière. Un tier qui
+> redéploierait un même numéro avec un autre style échapperait à la détection.
+>
+> **Le cache de Cloudflare reste hors de portée** : `no-store` ne contourne que celui du navigateur.
+> Un `index.html` servi périmé par l'edge (`cf-cache-status: HIT`) endormirait la détection comme
+> le rechargement lui-même — c'est un réglage du dashboard, que l'issue demandait de mesurer.
+
+> **Tranché en #290** (une invite, jamais un rechargement silencieux) : le Coach demandait que
+> l'app se mette à jour « toute seule ». Recharger sans demander efface une saisie en cours — un
+> message pas encore envoyé n'est pas gardé par `useLeaveGuard`. L'invite `CmvUpdateBanner` est
+> **persistante**, sans bouton fermer, et vit dans la barre latérale de `CmvAppShell`, au-dessus du
+> compte : posée en surimpression, elle couvrait le champ de la messagerie. Les écrans
+> d'authentification n'en ont pas — rien à y perdre, et le premier écran après la connexion
+> l'affiche.
+>
+> La vérification tourne au chargement — l'onglet restauré monte au premier plan sans
+> `visibilitychange` —, au retour sur l'onglet et toutes les 10 min tant qu'il est visible. Elle vit dans la **route racine** et non dans `CmvAppShell`, que chaque écran
+> remonte : ce qui a été vu y serait oublié à la navigation suivante.
