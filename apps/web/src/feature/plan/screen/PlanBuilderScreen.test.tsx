@@ -12,7 +12,7 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { listMyOrganizations } from "@/feature/library/api";
@@ -471,14 +471,57 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(queryByText("plan.session.createTitle")).toBeNull();
   });
 
-  // Le résumé de la semaine ne porte pas la composition : le panneau attend le détail chargé.
-  it("charge le détail de la séance ouverte avant de montrer le panneau", async () => {
-    const { findByText, getByRole, user } = await mount({ weeks: [week] });
+  // Le résumé de la semaine ne porte pas la composition : le panneau attend le détail chargé —
+  // ouvert dès le clic, en le disant (#363), plutôt que de laisser croire que rien ne se passe.
+  it("ouvre le panneau dès le clic et dit qu'il charge, le temps de relire la séance", async () => {
+    let answer: (session: ScheduledSessionDto) => void = () => undefined;
+    vi.mocked(getScheduledSession).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { getByRole, user } = await mount({ weeks: [week] });
 
     await user.click(getByRole("button", { name: /Force max/ }));
 
-    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    const panel = () => within(getByRole("complementary", { name: "plan.session.editTitle" }));
+    expect(panel().getByRole("status")).toHaveTextContent("common.loading");
+    expect(panel().queryByRole("textbox", { name: "plan.session.titleLabel" })).toBeNull();
     expect(getScheduledSession).toHaveBeenCalledWith("ss_1");
+
+    answer(summary);
+
+    // Le panneau de la séance relue prend la place de celui qui chargeait.
+    await waitFor(() =>
+      expect(panel().getByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue(
+        "Force max",
+      ),
+    );
+    expect(panel().queryByRole("status")).toBeNull();
+  });
+
+  // Et la réponse qui arrive après ne rouvre rien, ni ne dit rien : le Coach est passé à autre chose.
+  it("se referme pendant qu'il charge, sans suite quand la lecture répond", async () => {
+    let fail: (error: unknown) => void = () => undefined;
+    const read = new Promise<ScheduledSessionDto>((_, reject) => {
+      fail = reject;
+    });
+    vi.mocked(getScheduledSession).mockReturnValue(read);
+    const { getByRole, queryByRole, queryByText, user } = await mount({ weeks: [week] });
+    await user.click(getByRole("button", { name: /Force max/ }));
+    const name = "plan.session.editTitle";
+    expect(getByRole("complementary", { name })).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(queryByRole("complementary", { name })).toBeNull();
+
+    fail(new ApiError(404, "Séance planifiée introuvable", null));
+    // Rien de positif à attendre : on laisse à l'échec le temps de remonter. Panneau resté ouvert,
+    // le toast se voit dès 10 ms — vérifié en retirant Échap.
+    await read.catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(queryByText("Séance planifiée introuvable")).toBeNull();
+    expect(queryByRole("complementary", { name })).toBeNull();
   });
 
   // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion (#604).
