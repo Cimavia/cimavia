@@ -206,7 +206,9 @@ jobs:
 
           # check <port> <chemin> <CSP observée attendue>
           check() {
-            local port="$1" target="$2" expected_csp="$3"
+            local port="$1"
+            local target="$2"
+            local expected_csp="$3"
             curl -sS --max-time 10 --path-as-is -o /dev/null -D - "http://127.0.0.1:${port}${target}" \
               | tr -d '\r' >"$RUNNER_TEMP/recus"
             for header in \

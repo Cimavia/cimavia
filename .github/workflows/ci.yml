@@ -433,7 +433,8 @@ jobs:
           files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
           common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.dockerignore|\.github/workflows/ci\.yml|\.github/actions/)'
           flag() {
-            local app="$1" pattern="$2"
+            local app="$1"
+            local pattern="$2"
             if grep -qE -e "$common" -e "$pattern" <<<"$files"; then
               echo "${app}=true"
             else
