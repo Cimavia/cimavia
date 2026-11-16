@@ -134,7 +134,7 @@ describe("CoachInvoiceList — ce que dit une ligne", () => {
   ])("annonce %s", (_, overrides, subtitle) => {
     setup(rowsOf([invoice(overrides)]));
 
-    expect(screen.queryByText(subtitle)).not.toBeNull();
+    expect(screen.getByText(subtitle)).toBeTruthy();
   });
 
   /** Rien de dû se rend « — », jamais « 0 € » : un zéro se lit comme un montant. */

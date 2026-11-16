@@ -109,7 +109,10 @@ export function useSendMessageMedia(
    * Le fil est invalidé à CHAQUE média plutôt qu'à la fin : les messages apparaissent au fur et à
    * mesure, comme si on les avait envoyés un par un — ce que l'expéditeur a fait, du reste.
    */
-  const upload = async (prepare: () => Promise<PreparedMessageMedia>, current: MediaBatchStep) => {
+  const upload = async (
+    prepare: () => PreparedMessageMedia | Promise<PreparedMessageMedia>,
+    current: MediaBatchStep,
+  ) => {
     setStep(current);
     await uploadAndSend(
       conversationId,
@@ -133,7 +136,7 @@ export function useSendMessageMedia(
       ? pickThenSend(pickFiles, onPickError, {
           kindOf: fileMessageKind,
           nameOf: (file) => file.name,
-          prepare: async (file) => prepareMessageFile(file),
+          prepare: prepareMessageFile,
           release: (file) => discardPickedFile(file.uri),
         })
       : pickThenSend(pickImagesOrVideos, onPickError, {
@@ -149,7 +152,8 @@ export function useSendMessageMedia(
     item: {
       kindOf: (item: T) => MessageMediaKind | null;
       nameOf: (item: T) => string | null;
-      prepare: (item: T) => Promise<PreparedMessageMedia>;
+      /** Un refus levé ici, même synchrone, devient le rejet de l'envoi : `upload` l'attend. */
+      prepare: (item: T) => PreparedMessageMedia | Promise<PreparedMessageMedia>;
       /** Rend ce que la sélection a laissé sur l'appareil, envoyé ou non. */
       release?: (item: T) => void;
     },

@@ -146,7 +146,7 @@ export class ConversationCandidateService {
         followedAthleteIds: followed.get(coachId) ?? [],
       }),
     );
-    return { athletes: athletes.sort(byName), coaches: coaches.sort(byName) };
+    return { athletes: athletes.toSorted(byName), coaches: coaches.toSorted(byName) };
   }
 
   /** Lesquels de ces athlètes chacun de ces Coachs suit, par un lien actif. */

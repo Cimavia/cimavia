@@ -217,9 +217,7 @@ export function ScheduledSessionPanelLoading({
       onClose={onClose}
       footer={<SessionPanelCloseButton readOnly={readOnly} onClose={onClose} />}
     >
-      <p role="status" className="text-cmv-text-mid">
-        {t("common.loading")}
-      </p>
+      <output className="block text-cmv-text-mid">{t("common.loading")}</output>
     </CmvPanel>
   );
 }

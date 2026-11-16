@@ -19,12 +19,9 @@ export function CmvUpdateBanner() {
   if (!useIsBundleUpdateAvailable()) return null;
 
   return (
-    <div
-      role="status"
-      className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-info-line bg-cmv-info-soft p-cmv-md"
-    >
+    <output className="flex flex-col gap-cmv-sm rounded-cmv-md border border-cmv-info-line bg-cmv-info-soft p-cmv-md">
       <p className="text-cmv-caption text-cmv-info-on">{t("common.update.available")}</p>
       <CmvButton onClick={() => window.location.reload()}>{t("common.update.reload")}</CmvButton>
-    </div>
+    </output>
   );
 }

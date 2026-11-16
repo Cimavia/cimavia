@@ -156,6 +156,11 @@ sur appareil — et le plan de test dit, pour le reste, ce que j'ai vérifié et
   **propose à la correction** et se corrige moi-même après accord (règle d'or 4).
 - Le passage à **Status = En cours** des issues traitées se propose dès le premier retour (§1),
   avec le nom de branche, et je l'applique au « ok ».
+- **Une issue livrée qui figure dans `docs/priorites.md` y est cochée** : ✅ dans la colonne
+  « Fermée » de sa ligne, une fois le développement fait, **dans la PR qui la livre** — un
+  commit `docs(priorites): #<n> cochée` donné avec le dernier incrément, pour que la coche
+  arrive sur `main` avec la fermeture. Pas de ligne pour l'issue : rien à cocher, ne pas en
+  ajouter (le tableau est celui du skill `prioriser`).
 
 ## 8. Test
 - Préparer un plan de test à la fin de chaque issue pour que le développeur test — limité à ce que

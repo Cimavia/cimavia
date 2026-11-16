@@ -12,6 +12,7 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { AttachmentsSection } from "@/feature/library/component/AttachmentsSection";
 import { BuilderActions } from "@/feature/library/component/BuilderActions";
+import { BuilderBanners } from "@/feature/library/component/BuilderBanners";
 import { ExercisePreview } from "@/feature/library/component/ExercisePreview";
 import { FrozenBadge } from "@/feature/library/component/FrozenBadge";
 import { InstructionMediaProvider } from "@/feature/library/component/InstructionMediaContext";
@@ -35,8 +36,6 @@ import {
   CmvButton,
   CmvErrorState,
   CmvLeaveDialog,
-  CmvReadOnlyBanner,
-  CmvStaleBanner,
   CmvTagInput,
   CmvTextField,
 } from "@/shared/component";
@@ -267,26 +266,19 @@ function ExerciseBuilder({
       }
     >
       <FrozenBadge frozenFrom={edited?.frozenFrom} className="mb-cmv-lg" />
-      {readOnly ? (
-        <div className="mb-cmv-xl">
-          <CmvReadOnlyBanner
-            message={t("library.builder.readOnly", { owner: foreign.owner.name })}
-          />
-        </div>
-      ) : null}
+      <BuilderBanners
+        readOnlyMessage={
+          readOnly ? t("library.builder.readOnly", { owner: foreign.owner.name }) : null
+        }
+        staleMessage={staleMessage}
+        editedId={edited?.id ?? null}
+        onReload={onReload}
+        isReloading={isReloading}
+      />
       {/* Deux colonnes dès `xl` seulement : en dessous, l'aperçu passe SOUS le formulaire plutôt
           que de le comprimer — une consigne étroite devient illisible. */}
       {/* Éditeur ET aperçu sous le même magasin : ils résolvent les mêmes `mediaId`, et l'aperçu
           doit montrer l'image dès qu'elle est posée — pas seulement après enregistrement. */}
-      {staleMessage != null && edited != null ? (
-        <div className="mb-cmv-xl">
-          <CmvStaleBanner
-            message={t(staleMessage)}
-            onReload={() => onReload(edited.id)}
-            isReloading={isReloading}
-          />
-        </div>
-      ) : null}
       <RefusedFieldsContext value={refused.report}>
         <InstructionMediaProvider media={draft.media}>
           <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">

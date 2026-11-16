@@ -37,7 +37,7 @@ export function isCurrentCopy(cached: ScheduledSessionDto, known: SessionMark): 
  *
  * Lève quand le rechargement échoue : c'est à l'appelant de dire ce que l'échec veut dire pour lui.
  */
-export async function usableSession(
+export function usableSession(
   queryClient: QueryClient,
   sessionId: string,
   known?: SessionMark,
@@ -52,7 +52,7 @@ export async function usableSession(
     (known == null || isCurrentCopy(cached, known)) &&
     isSignedUrlUsable(state.dataUpdatedAt, Date.now())
   ) {
-    return cached;
+    return Promise.resolve(cached);
   }
 
   return queryClient.fetchQuery<ScheduledSessionDto>({

@@ -213,24 +213,22 @@ describe("ProblemExceptionFilter — ce que Sentry reçoit vraiment", () => {
     expect(sent[0]).toMatchObject({ level: "error" });
   });
 
-  it("n'envoie rien pour un 401, session perdue au bout de sept jours", async () => {
-    const response = await get("/session");
+  it.each([
+    { url: "/session", status: 401, why: "un 401, session perdue au bout de sept jours" },
+    {
+      url: "/health/ready",
+      status: 503,
+      why: "le 503 de la sonde de santé, qu'elle répète en boucle",
+    },
+    {
+      url: "/debit",
+      status: 429,
+      why: "le 429 de la limite de débit, qu'un script répéterait sans fin",
+    },
+  ])("n'envoie rien pour $why", async ({ url, status }) => {
+    const response = await get(url);
 
-    expect(response.statusCode).toBe(401);
-    expect(sent).toEqual([]);
-  });
-
-  it("n'envoie rien pour le 503 de la sonde de santé, qu'elle répète en boucle", async () => {
-    const response = await get("/health/ready");
-
-    expect(response.statusCode).toBe(503);
-    expect(sent).toEqual([]);
-  });
-
-  it("n'envoie rien pour le 429 de la limite de débit, qu'un script répéterait sans fin", async () => {
-    const response = await get("/debit");
-
-    expect(response.statusCode).toBe(429);
+    expect(response.statusCode).toBe(status);
     expect(sent).toEqual([]);
   });
 

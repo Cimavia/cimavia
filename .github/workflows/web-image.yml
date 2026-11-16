@@ -206,7 +206,9 @@ jobs:
 
           # check <port> <chemin> <CSP observée attendue>
           check() {
-            local port="$1" target="$2" expected_csp="$3"
+            local port="$1"
+            local target="$2"
+            local expected_csp="$3"
             curl -sS --max-time 10 --path-as-is -o /dev/null -D - "http://127.0.0.1:${port}${target}" \
               | tr -d '\r' >"$RUNNER_TEMP/recus"
             for header in \
@@ -237,7 +239,10 @@ jobs:
           docker run -d --name cimavia-web-smoke-sans-dsn -p 8081:8080 \
             -e CMV_API_URL=https://api.example.invalid -e CMV_APP_ENV=preview -e CMV_SENTRY_DSN= \
             -e CMV_MEDIA_URL=https://s3.example.invalid "$IMAGE" >/dev/null
-          curl -fsS --max-time 10 --retry 10 --retry-connrefused --retry-delay 1 -o /dev/null http://127.0.0.1:8081/
+          # `--retry-all-errors` et non `--retry-connrefused` : tant que nginx n'écoute pas, le proxy
+          # de Docker ACCEPTE la connexion puis la coupe. curl rend alors 56 (« reset by peer »),
+          # qu'aucune autre option ne relance — l'étape échouait à chaque push sur `main`.
+          curl -fsS --max-time 10 --retry 10 --retry-all-errors --retry-delay 1 -o /dev/null http://127.0.0.1:8081/
           check 8081 /athletes "${policy} ; ${tail}"
 
       # L'autre moitié du contrat : une variable ABSENTE fait refuser le démarrage, plutôt que de

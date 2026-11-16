@@ -28,9 +28,9 @@ export function VerificationSent({ email }: Readonly<{ email: string }>) {
     <div className="flex flex-col gap-4">
       <p className="text-cmv-text-mid text-sm">{t("auth.verificationSent.body", { email })}</p>
       {resend === "sent" && (
-        <p role="status" className="text-cmv-text-mid text-sm">
+        <output className="block text-cmv-text-mid text-sm">
           {t("auth.verificationSent.resent")}
-        </p>
+        </output>
       )}
       {resend === "failed" && (
         <p role="alert" className="text-cmv-error text-sm">

@@ -57,13 +57,16 @@ export function memberKeyOf(member: ConversationMember): string {
  * dessus au caractère près.
  */
 export function participantKeyOf(members: readonly ConversationMember[]): string {
-  return members
-    .map(memberKeyOf)
-    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
-    .join("|");
+  return members.map(memberKeyOf).sort(byCodeUnit).join("|");
 }
 
 /** À deux, une conversation est `DIRECT` ; à trois ou plus, `GROUP`. */
 export function conversationKindOf(members: readonly ConversationMember[]): ConversationKind {
   return members.length === 2 ? ConversationKind.DIRECT : ConversationKind.GROUP;
+}
+
+/** L'ordre des unités de code, sans locale : celui que la migration a écrit à la main. */
+function byCodeUnit(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }

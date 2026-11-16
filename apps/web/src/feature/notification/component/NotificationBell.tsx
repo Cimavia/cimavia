@@ -182,7 +182,7 @@ function NotificationPopover({
 }: Readonly<NotificationPopoverProps>) {
   const { t } = useTranslation();
   const viewport = useViewportSize();
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDialogElement>(null);
   /**
    * En `fixed` sous la cloche, aligné à sa droite, et recalé au défilement comme au
    * redimensionnement (`useAnchoredPosition`) : sorti du bandeau par le portail, il ne la suit plus
@@ -217,14 +217,17 @@ function NotificationPopover({
   // Une taille enregistrée sur un grand écran se ramène ici à celui-ci, sans être réécrite.
   const shown = current == null ? null : clampSize(current, POPOVER_MIN, max);
 
+  // Un `<dialog>` NON modal, ouvert d'office : la page reste utilisable sous lui. Le navigateur
+  // le centre (marges auto, `left: 0`) et le colore en noir : ancré à droite de la cloche, il
+  // remet ces trois-là à zéro.
   return (
-    <div
+    <dialog
+      open
       ref={panelRef}
-      role="dialog"
       aria-label={t("notification.title")}
       tabIndex={-1}
       className={cn(
-        "fixed z-50 flex flex-col rounded-cmv-lg border border-cmv-border bg-cmv-bg-1 shadow-xl focus:outline-none",
+        "fixed left-auto z-50 m-0 flex flex-col rounded-cmv-lg border border-cmv-border bg-cmv-bg-1 text-inherit shadow-xl focus:outline-none",
         shown == null && "max-h-96 w-80",
       )}
       style={{ ...position, ...shown }}
@@ -242,6 +245,6 @@ function NotificationPopover({
         }}
         className="absolute bottom-0 left-0 z-10"
       />
-    </div>
+    </dialog>
   );
 }

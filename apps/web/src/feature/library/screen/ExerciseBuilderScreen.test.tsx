@@ -352,7 +352,7 @@ describe("ExerciseBuilderScreen — ouvert depuis une séance (#303)", () => {
     await view.user.click(view.getByRole("button", { name: "library.builder.cancel" }));
 
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/library/sessions/s-1"));
-    expect(view.router.history.length).toBe(depth);
+    expect(view.router.history).toHaveLength(depth);
   });
 });
 
