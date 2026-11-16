@@ -343,8 +343,10 @@ seulement *par quelle porte* il entre.
   cochées. Aucune invitation — il n'a pas de coach, il est son propre athlète.
 - **Un coach qui est aussi l'athlète de quelqu'un d'autre** : les deux gestes, dans cet ordre —
   l'adresse dans `SIGNUP_ALLOWED_EMAILS` **ou** une invitation de son futur coach lui permet de
-  s'inscrire, puis il accepte l'invitation pour être lié. Rappel de l'invariant : **au plus un
-  coach par athlète**, et l'API refuse la seconde liaison (`409`).
+  s'inscrire, puis il accepte l'invitation pour être lié. Un athlète peut avoir **plusieurs
+  coachs** depuis #599, un lien par couple. L'API ne refuse (`409`) qu'une seconde liaison au
+  **même** coach, une liaison à soi-même, ou une liaison qui fermerait un cycle (A coache B qui
+  coache A).
 
 ## Deux identités pour le stockage (#267)
 
