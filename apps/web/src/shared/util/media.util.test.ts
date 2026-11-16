@@ -55,13 +55,31 @@ describe("pickRecorderMimeType", () => {
     vi.stubGlobal("MediaRecorder", { isTypeSupported: (mime: string) => mimes.includes(mime) });
 
   /**
-   * `audio/mp4` d'abord (#82) : c'est le seul format lisible partout, iOS compris. Chrome et
-   * Firefox préfèrent `audio/webm`, et le laisser gagner rendrait la note inaudible pour un
-   * athlète sur iPhone.
+   * L'AAC demandé par son codec (#82) : un `audio/mp4` nu laisse le navigateur choisir, et
+   * Chromium sans encodeur AAC y met de l'Opus. Quand l'AAC est possible, il doit gagner.
    */
-  it("préfère audio/mp4 même quand le navigateur propose aussi du webm", () => {
-    supporting("audio/webm", "audio/mp4");
+  it.each([
+    ["la messagerie", MESSAGE_MEDIA_PROFILE],
+    ["le débrief", FEEDBACK_MEDIA_PROFILE],
+  ])("demande l'aac explicitement pour %s quand le navigateur sait l'encoder", (_, profile) => {
+    supporting("audio/webm", "audio/mp4", "audio/mp4;codecs=mp4a.40.2");
+    expect(pickRecorderMimeType(profile.audioMimeTypes)).toBe("audio/mp4;codecs=mp4a.40.2");
+  });
+
+  /**
+   * Sans AAC, `audio/mp4` nu reste préféré au webm : c'est ce que Chrome et Brave produisent
+   * sans encodeur AAC, et le seul format de débrief qu'ils aient.
+   */
+  it("préfère audio/mp4 nu au webm quand l'aac manque", () => {
+    supporting("audio/webm", "audio/mp4", "audio/mp4;codecs=opus");
     expect(pickRecorderMimeType(MESSAGE_MEDIA_PROFILE.audioMimeTypes)).toBe("audio/mp4");
+  });
+
+  // Le codec AAC n'est proposé qu'à une feature qui admet `audio/mp4` : jamais un format que
+  // son schéma refuserait.
+  it("ne propose pas l'aac à une feature qui n'admet pas audio/mp4", () => {
+    supporting("audio/webm", "audio/mp4;codecs=mp4a.40.2");
+    expect(pickRecorderMimeType(["audio/webm"])).toBe("audio/webm");
   });
 
   it("retombe sur le premier format admis quand mp4 manque", () => {

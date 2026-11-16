@@ -119,13 +119,21 @@ export type WebMediaSource =
   | { kind: "file"; file: File }
   | { kind: "audio"; blob: Blob; durationSeconds: number };
 
+// AAC en conteneur MP4, le seul couple que lisent à coup sûr iOS, Android et tous les navigateurs.
+const AAC_IN_MP4 = "audio/mp4;codecs=mp4a.40.2";
+
 /**
  * Le mime d'enregistrement à demander à `MediaRecorder`, ou `null` si ce navigateur ne sait
  * produire AUCUN format que la feature accepte.
  *
- * `audio/mp4` d'abord (correctif court de #82) : c'est le seul format lisible partout, iOS compris.
- * `audio/webm`, que Chrome et Firefox préfèrent, n'est accepté que par la messagerie — et même là
- * il reste illisible par un athlète iOS, ce qui est la dette P5-3.
+ * Le conteneur ne dit pas le codec (#82) : un `audio/mp4` nu laisse le navigateur choisir, et
+ * Chromium sans encodeur AAC (Linux, constaté sur 158) y met de l'Opus, dont la lecture sur iOS
+ * n'est pas acquise. L'ordre est donc : AAC demandé explicitement, puis `audio/mp4` nu, puis le
+ * premier format admis. `audio/webm`, que Firefox est seul à ne pas pouvoir éviter, n'est accepté
+ * que par la messagerie — et y reste illisible par l'app iOS, ce qui est la dette P5-3.
+ *
+ * Le mime rendu peut porter des paramètres (`;codecs=…`) : `prepareAudioBlob` les retire avant
+ * de signer, le schéma ne connaissant que le type de base.
  *
  * `null` n'est pas un cas d'erreur à rattraper plus tard : c'est ce qui doit faire disparaître le
  * bouton d'enregistrement AVANT qu'on enregistre trente secondes pour un 400.
@@ -136,8 +144,10 @@ export function pickRecorderMimeType(allowed: readonly string[]): string | null 
   // emporte l'écran de débrief entier — au lieu de n'éteindre que le bouton d'enregistrement,
   // qui est tout ce que `null` doit produire.
   if (typeof MediaRecorder === "undefined") return null;
-  const supported = allowed.filter((mime) => MediaRecorder.isTypeSupported(mime));
-  return supported.find((mime) => mime === "audio/mp4") ?? supported[0] ?? null;
+  const candidates = allowed.includes("audio/mp4")
+    ? [AAC_IN_MP4, "audio/mp4", ...allowed]
+    : allowed;
+  return candidates.find((mime) => MediaRecorder.isTypeSupported(mime)) ?? null;
 }
 
 export function prepareImageFile(file: File, profile: MediaProfile): PreparedWebMedia {
