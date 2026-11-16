@@ -13,6 +13,7 @@ import {
   required,
   type ScheduledSessionDto,
   type ScheduledSessionSummaryDto,
+  shouldRetryQuery,
   todayIsoDate,
 } from "@cmv/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -401,6 +402,8 @@ export function PlanBuilderScreen() {
 
       {edit == null ? null : (
         <SessionPanelHost
+          // Une autre séance est une autre ouverture : sa relecture repart de zéro.
+          key={edit.sessionId ?? "new"}
           edit={edit}
           planStartDate={plan.startDate}
           weeks={plan.weeks}
@@ -441,6 +444,9 @@ function DosageButton({ plan }: Readonly<{ plan: PlanDto }>) {
 }
 
 const isNotFound = (error: unknown) => error instanceof ApiError && error.status === 404;
+// Une réponse 4xx : l'API a lu la demande et la refuse — la reposer n'y changera rien.
+const isRefusal = (error: unknown) =>
+  error instanceof ApiError && error.status >= 400 && error.status < 500;
 
 /**
  * Ce qui reste au propriétaire dans la barre du builder : ouvrir le cycle à ses entreprises
@@ -511,36 +517,48 @@ function SessionPanelHost({ edit, weeks, ...props }: Readonly<SessionPanelHostPr
   const { onError } = useMutationToast();
   const { onClose, planId } = props;
   const isEditing = edit.sessionId != null;
+  const detail = scheduledSessionDetailQuery(edit.sessionId ?? "");
+  // Les réceptions de la séance à l'ouverture : seule une séance reçue DEPUIS ouvre le panneau.
+  const receptions = () => queryClient.getQueryState(detail.queryKey)?.dataUpdateCount ?? 0;
+  const [receivedAtOpening] = useState(receptions);
   const {
     data: session,
     error,
     isFetchedAfterMount,
   } = useQuery<ScheduledSessionDto>({
-    ...scheduledSessionDetailQuery(edit.sessionId ?? ""),
+    ...detail,
     // La requête ne part jamais sans l'id.
     enabled: isEditing,
     refetchOnMount: "always",
+    // Un refus le restera — séance retirée, accès au cycle partagé repris (#607) : relancer ferait
+    // attendre le Coach sur « Chargement… » pour rien (#363).
+    retry: (failureCount, cause) => !isRefusal(cause) && shouldRetryQuery(failureCount, cause),
   });
   const { generation, reload, isReloading } = useStaleReload(
     undefined,
     scheduledSessionDetailQuery,
   );
-  // Relue, et toujours rien : retirée entre-temps par un autre Coach. Le panneau ne s'ouvre pas,
-  // et le dit — sans quoi le clic semblerait ne rien faire.
-  const isGone = isEditing && isFetchedAfterMount && session == null;
+  /**
+   * Relue depuis l'ouverture. La version en cache ne compte pas : sur une relecture ratée, React
+   * Query la garde, et le panneau s'ouvrirait dessus sans rien dire (#363). Un « Recharger » raté,
+   * lui, ne la fait pas oublier : la séance avait été reçue, la saisie et le bandeau restent.
+   */
+  const isRead = session != null && receptions() > receivedAtOpening;
+  // Relue, et toujours rien : retirée entre-temps par un autre Coach, ou illisible. Le panneau se
+  // referme, et le dit — sans quoi le clic semblerait ne rien faire.
+  const isUnreadable = isEditing && isFetchedAfterMount && !isRead;
 
   useEffect(() => {
-    if (!isGone) return;
+    if (!isUnreadable) return;
     onError(error);
     onClose();
-  }, [isGone, error, onError, onClose]);
+  }, [isUnreadable, error, onError, onClose]);
 
-  // Pas encore relue : le panneau s'ouvre quand même, et dit qu'il charge (#363). Relue sans
-  // séance : l'effet ci-dessus le dit et le ferme.
+  // Pas encore relue : le panneau s'ouvre quand même, et dit qu'il charge (#363).
   if (isEditing && !isFetchedAfterMount) {
     return <ScheduledSessionPanelLoading readOnly={props.readOnly} onClose={onClose} />;
   }
-  if (isEditing && session == null) return null;
+  if (isUnreadable) return null;
 
   return (
     <ScheduledSessionPanel
