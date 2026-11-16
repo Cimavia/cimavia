@@ -27,7 +27,7 @@ const DEPLOYED_TIERS = ["preview", "production"] as const;
  * est une liste dès que le client en envoie un, et c'est elle qui faisait compter tout le monde
  * ensemble. `CLIENT_IP_HEADER` les refuse — `x-forwarded-for` est le défaut même qu'il remplace.
  */
-const LIST_IP_HEADERS: readonly string[] = ["x-forwarded-for", "forwarded"];
+const LIST_IP_HEADERS: ReadonlySet<string> = new Set(["x-forwarded-for", "forwarded"]);
 
 const envShape = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -86,7 +86,7 @@ const envShape = z.object({
       .string()
       .regex(/^[a-z0-9-]+$/, "un nom d'en-tête en minuscules, ex. cf-connecting-ip")
       .refine(
-        (header) => !LIST_IP_HEADERS.includes(header),
+        (header) => !LIST_IP_HEADERS.has(header),
         "un en-tête qui porte UNE adresse, écrite par le proxy — pas une liste que le client allonge",
       )
       .optional(),

@@ -86,7 +86,7 @@ export function readByOf(
   currentUserId: string | null,
 ): ReadBy | null {
   if (conversation.kind !== ConversationKind.GROUP || currentUserId == null) return null;
-  const lastSent = messages.filter((message) => message.senderId === currentUserId).at(-1);
+  const lastSent = messages.findLast((message) => message.senderId === currentUserId);
   if (lastSent == null) return null;
 
   const sentAt = Date.parse(lastSent.createdAt);
