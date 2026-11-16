@@ -197,6 +197,17 @@ liste des domaines vivent dans l'index.
 > `|| true` dans le lecteur de variables. À retenir pour tout script du dépôt : sous `set -e`, chaque
 > `var="$(…)"` est une sortie silencieuse possible.
 
+> **Tranché en #772** (un `silo-setup` en échec fait échouer la promotion, sans retenir l'API) :
+> depuis #676, un refus de la policy de l'API arrête `silo-setup` en erreur — mais aucun service
+> n'en dépendait, et `pull-preview.sh` n'attendait que l'API et le web. Une clé sans policy passait
+> donc pour « déployée, API et web sains », et chaque média échouait ensuite chez le Coach. Le
+> script attend désormais la sortie de `silo-setup` (au plus 120 s, après les sondes) et refuse
+> de noter la version tant que le code n'est pas 0. L'autre voie, `depends_on: silo-setup:
+> condition: service_completed_successfully` sur l'API, était plus déclarative mais écartée : un
+> refus de policy aurait empêché l'API de redémarrer, et le Coach aurait perdu l'app entière au
+> lieu des seuls médias. Limite assumée : le run de promotion reste vert dans ce cas — l'API a
+> redémarré —, seuls l'e-mail DSM et le journal le disent.
+
 ---
 
 ## Post-MVP — Observabilité front ([#183](https://github.com/Cimavia/cimavia/issues/183))

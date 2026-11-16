@@ -111,7 +111,7 @@ sur un dépôt public, donc exécutable par un workflow venu d'une PR. Désormai
    images de la version, sans rien reconstruire (#417) ;
 3. toutes les 5 minutes, `pull-preview.sh` tire le tag `preview`. S'il a changé, il télécharge le
    compose **du commit promu**, le valide contre le `.env`, lance `up -d` et attend que l'API et
-   le web soient sains.
+   le web soient sains, puis que `silo-setup` sorte en 0 (#772).
 
 Aucun port entrant ni aucun accès de GitHub au NAS : c'est le NAS qui sort, vers GHCR et GitHub.
 
@@ -188,7 +188,8 @@ Attendu : 32 ou plus pour les deux secrets, une longueur non nulle pour le jeton
 
 Trois endroits le disent : le run de promotion devient rouge au bout de 20 minutes, la tâche DSM
 envoie son e-mail, et le journal `pull-preview/pull-preview.log` (dans le dossier du `.env`) dit
-pourquoi.
+pourquoi. **Sauf pour `silo-setup`** : l'API a déjà redémarré et répond, donc le run de promotion
+reste vert ; seuls l'e-mail et le journal le signalent.
 
 | Dans le journal | Cause probable |
 |---|---|
@@ -197,6 +198,8 @@ pourquoi.
 | `api non sain après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
 | `current transaction is aborted`, dans `docker logs` de `api` | une migration a échoué, et sa transaction l'a annulée **en entier** (#628) : rien n'est appliqué. Le message est l'effet, pas la cause — la cause est dans `docker logs cimavia_preview_postgres` (ligne `ERROR`, puis `STATEMENT`). Corriger **ce même** `migration.sql` (il n'a été appliqué nulle part sur preview) et publier une version. Puis, dans l'ordre : arrêter `cimavia_preview_api` — sans quoi son redémarrage rejouerait l'ancienne migration dès qu'elle n'est plus marquée en échec —, la marquer annulée (`prisma migrate resolve --rolled-back <nom>`, depuis l'image de l'API), promouvoir. Une migration corrigée ajoutée à côté ne servirait à rien : `migrate deploy` rejouerait d'abord celle en échec |
 | `web non sain après 300s` | nginx ne démarre pas : `unknown "cmv_…" variable` dans `docker logs` du conteneur `web` veut dire une variable de config du web qui ne lui arrive pas (#417) |
+| `silo-setup sorti en …` | SILO a refusé une des commandes de `silo-setup` (#772) — le bucket, sa fermeture au public, la policy de l'API, la clé ou son rattachement. Le plus souvent la clé : un `S3_ACCESS_KEY_ID` ou un `S3_SECRET_ACCESS_KEY` que SILO juge invalide (`The secret key is invalid` : entre 8 et 40 caractères) ; sinon un `S3_BUCKET` qu'il refuse (majuscule, `_`). L'app tourne, mais **chaque envoi ou lecture de média échoue** chez le Coach. La fin des logs est dans le journal ; le détail dans `docker logs cimavia_preview_silo_setup` |
+| `silo-setup toujours « … »` | Le plus souvent « running » : `silo-setup` n'arrive pas à se connecter en root et réessaie sans fin (`attente SILO…` en boucle). `docker logs cimavia_preview_silo_setup` dit lequel : `signature … does not match`, SILO refuse le compte root ; sinon SILO ne répond pas, et `docker logs cimavia_preview_silo` dit pourquoi |
 
 Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a
 échoué, *Re-run failed jobs* la relance sans republier.
