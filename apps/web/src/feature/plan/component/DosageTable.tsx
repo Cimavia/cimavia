@@ -54,7 +54,7 @@ const COLUMN_MIN = "min-w-28";
 
 /** Une seule façon de griser : les hachures — séance non posée, ou rien à régler cette semaine. */
 const HATCHED =
-  "bg-[repeating-linear-gradient(135deg,theme(colors.cmv.surface)_0_6px,theme(colors.cmv.bg-0)_6px_12px)]";
+  "bg-[repeating-linear-gradient(135deg,theme(colors.cmv.surface.DEFAULT)_0_6px,theme(colors.cmv.bg.0)_6px_12px)]";
 
 const OFF_LABEL: Record<DosageOff, string> = {
   [DosageOff.REPLACED]: "plan.dosage.off.REPLACED",

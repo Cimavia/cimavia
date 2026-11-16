@@ -58,7 +58,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #356 | « Le dernier cycle terminé » est élu par date de début | 🟡 | ✅ |
 | #344 | Destination d'une notification décidée sur la capacité possédée | 🟡 | ✅ |
 | #343 | Le tableau de bord coach lit ses factures au titre exercé | 🟡 | ✅ |
-| #82 | Note vocale web → iOS : format lisible partout | 🟡 | |
+| #82 | Note vocale web → iOS : format lisible partout | 🟡 | ✅ |
 | #371 | La barre latérale se construit sur `?as=` sans borne | ⚪ | ✅ |
 | #366 | Retirer un média d'un débrief échoue en silence | ⚪ | ✅ |
 | #369 | L'indice « défaut … » affiche des secondes brutes | ⚪ | ✅ |
