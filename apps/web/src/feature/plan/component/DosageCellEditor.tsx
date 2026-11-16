@@ -49,7 +49,7 @@ type DosageCellEditorProps = {
 export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
   const { t } = useTranslation();
   const { reference, referenceText, onChange, onClose, alignEnd } = props;
-  const dialog = useRef<HTMLDivElement>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
   const latestClose = useRef(onClose);
   latestClose.current = onClose;
 
@@ -57,7 +57,10 @@ export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
   // validé sa saisie. Où il a COMMENCÉ se lit à l'appui — « Revenir à la séance-type » disparaît
   // dès son clic, et ne serait plus dans la cellule quand le document le reçoit. Sa propre cellule
   // n'en est pas un : son bouton referme déjà, et le compter la rouvrirait aussitôt.
+  // Échap referme aussi, depuis un champ de la bulle : un `<dialog>` non modal ne reçoit pas le
+  // `cancel` qu'Échap envoie à une fenêtre modale.
   useEffect(() => {
+    const bubble = dialog.current;
     let pressedOutside = false;
     function onPress(event: MouseEvent) {
       const cell = dialog.current?.parentElement;
@@ -67,25 +70,29 @@ export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
       if (pressedOutside) latestClose.current();
       pressedOutside = false;
     }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") latestClose.current();
+    }
     document.addEventListener("mousedown", onPress, true);
     document.addEventListener("click", onClick);
+    bubble?.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", onPress, true);
       document.removeEventListener("click", onClick);
+      bubble?.removeEventListener("keydown", onKeyDown);
     };
   }, []);
 
   return (
-    <div
+    // Les marges auto et le noir que le navigateur donne à un `<dialog>` sont remis à zéro, et le
+    // bord opposé à son ancrage relâché : `left: 0` l'étirerait sinon d'un bord à l'autre.
+    <dialog
+      open
       ref={dialog}
-      role="dialog"
       aria-label={t("plan.dosage.editCell")}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") onClose();
-      }}
       className={cn(
-        "absolute top-full z-10 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi p-cmv-md shadow-lg",
-        alignEnd ? "right-0" : "left-0",
+        "absolute top-full z-10 m-0 flex w-64 flex-col gap-cmv-sm rounded-cmv-md border border-cmv-border bg-cmv-surface-hi p-cmv-md text-inherit shadow-lg",
+        alignEnd ? "right-0 left-auto" : "right-auto left-0",
       )}
     >
       <Fields {...props} />
@@ -104,7 +111,7 @@ export function DosageCellEditor(props: Readonly<DosageCellEditorProps>) {
           {t("common.close")}
         </CmvButton>
       </div>
-    </div>
+    </dialog>
   );
 }
 
