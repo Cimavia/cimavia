@@ -1,10 +1,11 @@
 import {
   ApiError,
   CUSTOM_METRIC_LABEL_MAX_LENGTH,
+  CUSTOM_METRIC_UNIT_MAX_LENGTH,
   type CustomMetric,
   MetricValueType,
 } from "@cmv/shared";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
 import { CustomMetricForm } from "./CustomMetricForm";
@@ -151,29 +152,42 @@ describe("CustomMetricForm", () => {
     });
   });
 
-  describe("un libellé trop long", () => {
-    // Le champ ne borne pas la saisie (un collage passe) : le bouton dit pourquoi l'API refusera.
-    it("le signale sur le bouton d'envoi au-delà du maximum", () => {
-      const { getByRole } = setup();
+  // Les champs se bornent par `maxLength`, comme tous depuis #354 : un collage trop long se coupe
+  // à la saisie, au lieu de partir vers une API qui le refuserait (#514).
+  describe("un texte trop long", () => {
+    it("coupe un libellé collé à sa borne", async () => {
+      const { user, getByRole } = setup();
 
-      fireEvent.change(getByRole("textbox", { name: LABEL }), {
-        target: { value: "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH + 1) },
-      });
+      await user.click(getByRole("textbox", { name: LABEL }));
+      await user.paste("x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH + 1));
 
-      expect(getByRole("button", { name: SUBMIT })).toHaveAttribute(
-        "title",
-        "library.builder.custom.labelTooLong",
+      expect(getByRole("textbox", { name: LABEL })).toHaveValue(
+        "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH),
       );
     });
 
-    it("ne dit rien au maximum exact", () => {
-      const { getByRole } = setup();
+    it("envoie un libellé à sa borne exacte", async () => {
+      createMock.mockResolvedValue(metric());
+      const { user, getByRole } = setup();
 
-      fireEvent.change(getByRole("textbox", { name: LABEL }), {
-        target: { value: "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH) },
-      });
+      await user.click(getByRole("textbox", { name: LABEL }));
+      await user.paste("x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH));
+      await user.click(getByRole("button", { name: SUBMIT }));
 
-      expect(getByRole("button", { name: SUBMIT })).not.toHaveAttribute("title");
+      await waitFor(() =>
+        expect(createMock).toHaveBeenCalledWith(
+          expect.objectContaining({ label: "x".repeat(CUSTOM_METRIC_LABEL_MAX_LENGTH) }),
+        ),
+      );
+    });
+
+    it("coupe une unité collée à sa borne", async () => {
+      const { user, getByLabelText } = setup();
+
+      await user.click(getByLabelText(UNIT));
+      await user.paste("x".repeat(CUSTOM_METRIC_UNIT_MAX_LENGTH + 1));
+
+      expect(getByLabelText(UNIT)).toHaveValue("x".repeat(CUSTOM_METRIC_UNIT_MAX_LENGTH));
     });
   });
 

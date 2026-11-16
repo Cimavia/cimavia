@@ -66,7 +66,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #358 | La recherche ne replie pas « œ » ni « æ » | ⚪ | ✅ |
 | #437 | Lien de réinitialisation expiré : le formulaire s'affiche quand même | ⚪ | ✅ |
 | #485 | Payer une facture laisse le badge des rappels périmé | ⚪ | ✅ |
-| #514 | Métrique maison : bouton actif sur un libellé trop long | ⚪ | |
+| #514 | Métrique maison : bouton actif sur un libellé trop long | ⚪ | ✅ |
 | #521 | Mobile : une colonne repliée répète son unité | ⚪ | ✅ |
 
 ## Performance et scalabilité

@@ -127,6 +127,7 @@ export function CustomMetricForm({
         onChange={(event) => setLabel(event.target.value)}
         placeholder={t("library.builder.custom.labelPlaceholder")}
         minLength={1}
+        maxLength={CUSTOM_METRIC_LABEL_MAX_LENGTH}
         required
         requiredMark
       />
@@ -135,8 +136,9 @@ export function CustomMetricForm({
         label={t("library.builder.custom.unit")}
         name="customMetricUnit"
         value={unit}
-        onChange={(event) => setUnit(event.target.value.slice(0, CUSTOM_METRIC_UNIT_MAX_LENGTH))}
+        onChange={(event) => setUnit(event.target.value)}
         placeholder={t("library.builder.custom.unitPlaceholder")}
+        maxLength={CUSTOM_METRIC_UNIT_MAX_LENGTH}
       />
 
       <CmvSegmented<MetricValueType>
@@ -154,15 +156,7 @@ export function CustomMetricForm({
       <CmvFormError error={create.error ?? update.error} />
 
       <div className="flex items-center gap-cmv-sm">
-        <CmvButton
-          onClick={onSubmit}
-          disabled={!canSubmit}
-          title={
-            label.length > CUSTOM_METRIC_LABEL_MAX_LENGTH
-              ? t("library.builder.custom.labelTooLong")
-              : undefined
-          }
-        >
+        <CmvButton onClick={onSubmit} disabled={!canSubmit}>
           {t(isEditing ? "library.builder.custom.update" : "library.builder.custom.submit")}
         </CmvButton>
         {isEditing ? (
