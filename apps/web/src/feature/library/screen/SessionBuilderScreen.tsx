@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BlockSessionPreview } from "@/feature/library/component/BlockSessionPreview";
 import { BuilderActions } from "@/feature/library/component/BuilderActions";
+import { BuilderBanners } from "@/feature/library/component/BuilderBanners";
 import { LibraryPicker } from "@/feature/library/component/LibraryPicker";
 import { SaveAsStructurePanel } from "@/feature/library/component/SaveAsStructurePanel";
 import { blockNameOf, SessionBlockCard } from "@/feature/library/component/SessionBlockCard";
@@ -61,8 +62,6 @@ import {
   CmvFormError,
   CmvLeaveDialog,
   CmvPanel,
-  CmvReadOnlyBanner,
-  CmvStaleBanner,
   CmvTextArea,
   CmvTextField,
   useToast,
@@ -349,22 +348,15 @@ function SessionBuilder({
         />
       }
     >
-      {readOnly ? (
-        <div className="mb-cmv-xl">
-          <CmvReadOnlyBanner
-            message={t("library.session.readOnly", { owner: foreign.owner.name })}
-          />
-        </div>
-      ) : null}
-      {staleMessage != null && edited != null ? (
-        <div className="mb-cmv-xl">
-          <CmvStaleBanner
-            message={t(staleMessage)}
-            onReload={() => onReload(edited.id)}
-            isReloading={isReloading}
-          />
-        </div>
-      ) : null}
+      <BuilderBanners
+        readOnlyMessage={
+          readOnly ? t("library.session.readOnly", { owner: foreign.owner.name }) : null
+        }
+        staleMessage={staleMessage}
+        editedId={edited?.id ?? null}
+        onReload={onReload}
+        isReloading={isReloading}
+      />
       <RefusedFieldsContext value={refused.report}>
         <div className="grid gap-cmv-xl xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-cmv-xl">
