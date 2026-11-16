@@ -141,6 +141,6 @@ describe("RemindersScreen — le chargement et la panne", () => {
 
     refresh(container);
 
-    await waitFor(() => expect(list.mock.calls.length).toBe(calls + 1));
+    await waitFor(() => expect(list.mock.calls).toHaveLength(calls + 1));
   });
 });
