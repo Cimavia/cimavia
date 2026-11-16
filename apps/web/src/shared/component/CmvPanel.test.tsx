@@ -64,6 +64,54 @@ describe("CmvPanel", () => {
   });
 
   /**
+   * Ouvert au premier clic d'un double-clic, il se pose sous le pointeur : le second clic ne doit
+   * ni toucher son fond ni ce qu'il porte (#363). Passé le délai d'un double-clic, tout agit.
+   */
+  it("absorbe le second clic du double-clic qui l'a ouvert", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const onClose = vi.fn();
+    const onCancel = vi.fn();
+    const { getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={onClose}>
+        <button type="button" onClick={onCancel}>
+          Annuler
+        </button>
+      </CmvPanel>,
+    );
+    const backdrop = getByRole("button", { name: "common.close" });
+    const cancel = getByRole("button", { name: "Annuler" });
+
+    fireEvent.click(backdrop, { detail: 2 });
+    fireEvent.click(cancel, { detail: 2 });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + 500);
+    fireEvent.click(cancel, { detail: 2 });
+    fireEvent.click(backdrop, { detail: 2 });
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("ferme sur un clic simple, ou au clavier, dès son ouverture", () => {
+    const onClose = vi.fn();
+    const { getByRole } = renderWithProviders(
+      <CmvPanel open title={OUTER} onClose={onClose}>
+        <p>Contenu</p>
+      </CmvPanel>,
+    );
+    const backdrop = getByRole("button", { name: "common.close" });
+
+    fireEvent.click(backdrop, { detail: 1 });
+    fireEvent.click(backdrop, { detail: 0 });
+
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  /**
    * LE cas qui justifie la pile. Sans elle, les deux panneaux posent leur écouteur sur `window`,
    * les deux sont appelés, et annuler le rappel referme la facture qu'on lisait derrière.
    */

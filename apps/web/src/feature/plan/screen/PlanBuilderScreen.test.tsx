@@ -12,7 +12,7 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { waitFor } from "@testing-library/react";
+import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { listMyOrganizations } from "@/feature/library/api";
@@ -471,14 +471,61 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(queryByText("plan.session.createTitle")).toBeNull();
   });
 
-  // Le résumé de la semaine ne porte pas la composition : le panneau attend le détail chargé.
-  it("charge le détail de la séance ouverte avant de montrer le panneau", async () => {
-    const { findByText, getByRole, user } = await mount({ weeks: [week] });
+  // Le résumé de la semaine ne porte pas la composition : le panneau attend le détail chargé —
+  // ouvert dès le clic, en le disant (#363), plutôt que de laisser croire que rien ne se passe.
+  it("ouvre le panneau dès le clic et dit qu'il charge, le temps de relire la séance", async () => {
+    let answer: (session: ScheduledSessionDto) => void = () => undefined;
+    vi.mocked(getScheduledSession).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { getByRole, user } = await mount({ weeks: [week] });
 
     await user.click(getByRole("button", { name: /Force max/ }));
 
-    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    const panel = () => within(getByRole("complementary", { name: "plan.session.editTitle" }));
+    expect(panel().getByRole("status")).toHaveTextContent("common.loading");
+    expect(panel().queryByRole("textbox", { name: "plan.session.titleLabel" })).toBeNull();
     expect(getScheduledSession).toHaveBeenCalledWith("ss_1");
+
+    answer(summary);
+
+    // Le panneau de la séance relue prend la place de celui qui chargeait.
+    await waitFor(() =>
+      expect(panel().getByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue(
+        "Force max",
+      ),
+    );
+    expect(panel().queryByRole("status")).toBeNull();
+  });
+
+  // Et la réponse qui arrive après ne rouvre rien, ni ne dit rien : le Coach est passé à autre chose.
+  it("se referme pendant qu'il charge, sans suite quand la lecture répond", async () => {
+    let fail: (error: unknown) => void = () => undefined;
+    const read = new Promise<ScheduledSessionDto>((_, reject) => {
+      fail = reject;
+    });
+    vi.mocked(getScheduledSession).mockReturnValue(read);
+    const { getByRole, queryByRole, queryByText, queryClient, user } = await mount({
+      weeks: [week],
+    });
+    await user.click(getByRole("button", { name: /Force max/ }));
+    const name = "plan.session.editTitle";
+    expect(getByRole("complementary", { name })).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    expect(queryByRole("complementary", { name })).toBeNull();
+
+    fail(new ApiError(404, "Séance planifiée introuvable", null));
+    // La lecture a échoué, et React Query a oublié la séance : plus personne ne l'écoutait. Un
+    // panneau resté à l'écoute la garderait — l'attente échouerait, et le toast se verrait.
+    await read.catch(() => undefined);
+    await waitFor(() =>
+      expect(queryClient.getQueryState(scheduledSessionKeys.detail("ss_1"))).toBeUndefined(),
+    );
+    expect(queryByText("Séance planifiée introuvable")).toBeNull();
+    expect(queryByRole("complementary", { name })).toBeNull();
   });
 
   // Maquette #597 : « Recharger » remplace la saisie par la dernière version, sans fusion (#604).
@@ -506,10 +553,34 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(getScheduledSession).toHaveBeenCalledTimes(2);
   });
 
+  // La séance avait été reçue : un « Recharger » raté ne la fait pas oublier. La saisie et le
+  // bandeau restent, un toast dit pourquoi rien n'a changé — le panneau ne se referme pas (#363).
+  it("garde le panneau et la saisie quand « Recharger » échoue", async () => {
+    const stale = new ApiError(409, "Conflit", null, true, ProblemType.STALE_WRITE);
+    const { findByRole, findByText, getByRole, user } = await mount(
+      { weeks: [week] },
+      null,
+      [],
+      {},
+      null,
+      stale,
+    );
+    await user.click(getByRole("button", { name: /Force max/ }));
+    const title = await findByRole("textbox", { name: "plan.session.titleLabel" });
+    await user.clear(title);
+    await user.type(title, "Saisie gardée");
+    vi.mocked(getScheduledSession).mockRejectedValue(new ApiError(503, "Indisponible", null));
+
+    await user.click(getByRole("button", { name: "common.staleReload" }));
+
+    expect(await findByText("common.staleReloadFailed")).toBeTruthy();
+    expect(getByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue("Saisie gardée");
+  });
+
   // Nos propres gestes — un glisser, un recollage — font avancer la séance : ouverte sur le cache,
   // la saisie citerait la version d'avant et se verrait refuser (#604).
   it("ouvre la séance sur sa relecture, jamais sur le cache", async () => {
-    const { findByRole, findByText, getByRole, queryClient, user } = await mount({
+    const { findByRole, getByRole, queryClient, user } = await mount({
       weeks: [week],
     });
     // Comme en production : la séance reste en cache, et fraîche, après la fermeture du panneau.
@@ -518,7 +589,8 @@ describe("PlanBuilderScreen — les semaines", () => {
       staleTime: 60_000,
     });
     await user.click(getByRole("button", { name: /Force max/ }));
-    await findByText("plan.session.editTitle");
+    // La séance chargée, pas le panneau qui la charge : lui a aussi son « Annuler ».
+    await findByRole("textbox", { name: "plan.session.titleLabel" });
     await user.click(getByRole("button", { name: "common.cancel" }));
     vi.mocked(getScheduledSession).mockResolvedValue({ ...summary, title: "Force (déplacée)" });
 
@@ -541,13 +613,58 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(queryByText("plan.session.editTitle")).toBeNull();
   });
 
+  // Sur une relecture ratée, React Query garde la version en cache : le panneau ne s'ouvre pas
+  // dessus, il dit l'échec (#363). Sinon chaque enregistrement échouerait ensuite sans raison.
+  it("ne rouvre pas sur le cache une séance que la relecture dit retirée", async () => {
+    const { findByRole, findByText, getByRole, queryByText, queryClient, user } = await mount({
+      weeks: [week],
+    });
+    queryClient.setQueryDefaults(scheduledSessionKeys.detail("ss_1"), {
+      gcTime: 60_000,
+      staleTime: 60_000,
+    });
+    await user.click(getByRole("button", { name: /Force max/ }));
+    await findByRole("textbox", { name: "plan.session.titleLabel" });
+    await user.click(getByRole("button", { name: "common.cancel" }));
+    vi.mocked(getScheduledSession).mockRejectedValue(
+      new ApiError(404, "Séance planifiée introuvable", null),
+    );
+
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    expect(await findByText("Séance planifiée introuvable")).toBeTruthy();
+    expect(queryByText("plan.session.editTitle")).toBeNull();
+  });
+
+  // Un refus le restera : relire une seconde fois ferait attendre le Coach (#363).
+  it.each([
+    [404, "Séance planifiée introuvable"],
+    [403, "Accès refusé"],
+  ])("ne relit pas une seconde fois une séance refusée (%i)", async (status, message) => {
+    vi.mocked(getScheduledSession).mockRejectedValue(new ApiError(status, message, null));
+    const { findByText, getByRole, queryClient, user } = await mount({ weeks: [week] });
+    // La règle de production, sans son délai : une lecture ratée se relance une fois.
+    queryClient.setQueryDefaults(scheduledSessionKeys.detail("ss_1"), {
+      retry: 1,
+      retryDelay: 0,
+    });
+
+    await user.click(getByRole("button", { name: /Force max/ }));
+
+    expect(await findByText(message)).toBeTruthy();
+    expect(getScheduledSession).toHaveBeenCalledOnce();
+  });
+
   // « Composer cette séance », depuis Dosage : le cycle s'ouvre sur son panneau, une seule fois.
   it("ouvre la séance que l'URL demande, puis retire la demande", async () => {
-    const { findByText, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
+    const { findByRole, router } = await mount({ weeks: [week] }, null, [], {}, null, null, {
       session: "ss_1",
     });
 
-    expect(await findByText("plan.session.editTitle")).toBeTruthy();
+    // La séance lue, pas seulement le panneau qui la charge.
+    expect(await findByRole("textbox", { name: "plan.session.titleLabel" })).toHaveValue(
+      "Force max",
+    );
     await waitFor(() => expect(router.state.location.search).toEqual({}));
     expect(router.state.location.pathname).toBe("/plans/pln_1");
   });

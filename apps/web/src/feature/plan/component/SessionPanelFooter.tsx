@@ -36,7 +36,7 @@ export function SessionPanelFooter({
     return (
       <>
         <div className="flex-1" />
-        <CmvButton onClick={onClose}>{t("common.close")}</CmvButton>
+        <SessionPanelCloseButton readOnly onClose={onClose} />
       </>
     );
   }
@@ -53,12 +53,28 @@ export function SessionPanelFooter({
         />
       ) : null}
       <div className="flex-1" />
-      <CmvButton variant="ghost" onClick={onClose} disabled={isBusy}>
-        {t("common.cancel")}
-      </CmvButton>
+      <SessionPanelCloseButton readOnly={false} onClose={onClose} disabled={isBusy} />
       <CmvButton type="submit" onClick={onSubmit} disabled={isBusy || !canSubmit}>
         {isBusy ? t("plan.session.submitting") : t("plan.session.submit")}
       </CmvButton>
     </>
+  );
+}
+
+/**
+ * Ce qui referme le panneau de séance sans rien envoyer : « Fermer » en Lecture, « Annuler »
+ * sinon. Le panneau qui charge la séance le porte aussi, sous le même libellé (#363).
+ */
+export function SessionPanelCloseButton({
+  readOnly,
+  onClose,
+  disabled = false,
+}: Readonly<{ readOnly: boolean; onClose: () => void; disabled?: boolean }>) {
+  const { t } = useTranslation();
+  if (readOnly) return <CmvButton onClick={onClose}>{t("common.close")}</CmvButton>;
+  return (
+    <CmvButton variant="ghost" onClick={onClose} disabled={disabled}>
+      {t("common.cancel")}
+    </CmvButton>
   );
 }
