@@ -1,10 +1,7 @@
-import type {
-  AthleteCalendarBounds,
-  AthleteCalendarCycle,
-  AthleteCalendarWeek,
-  ScheduledSessionSummaryDto,
-} from "@cmv/shared";
 import {
+  type AthleteCalendarBounds,
+  type AthleteCalendarCycle,
+  type AthleteCalendarWeek,
   athleteCalendarBounds,
   athleteCalendarWeek,
   athleteWeekNeighbours,
@@ -13,6 +10,7 @@ import {
   defaultAthleteMonday,
   mondayOfIsoWeek,
   PlanWeekType,
+  type ScheduledSessionSummaryDto,
   todayIsoDate,
   weekSessionProgress,
 } from "@cmv/shared";

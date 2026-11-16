@@ -33,6 +33,9 @@ const TYPE_ICONS: Record<AccountType, IconType> = {
 const CHOICE_BASE = "cursor-pointer border focus-within:ring-2 focus-within:ring-cmv-accent";
 const CHOICE_ON = `${CHOICE_BASE} border-cmv-accent bg-cmv-accent-soft`;
 const CHOICE_OFF = `${CHOICE_BASE} border-cmv-border bg-cmv-surface hover:border-cmv-border-hi`;
+/** Une case de capacité, cochée ou non : son libellé prend la couleur de son état. */
+const CAPABILITY_ON = `${CHOICE_ON} text-cmv-text-hi`;
+const CAPABILITY_OFF = `${CHOICE_OFF} text-cmv-text-mid`;
 
 export function RegisterScreen() {
   const { t } = useTranslation();
@@ -163,7 +166,7 @@ export function RegisterScreen() {
                   // Deux choix INDÉPENDANTS : de vraies cases, que l'on peut cocher toutes deux.
                   <label
                     key={capability}
-                    className={`flex flex-1 items-center gap-cmv-sm rounded-cmv-md px-cmv-md py-cmv-md text-sm ${checked ? `${CHOICE_ON} text-cmv-text-hi` : `${CHOICE_OFF} text-cmv-text-mid`}`}
+                    className={`flex flex-1 items-center gap-cmv-sm rounded-cmv-md px-cmv-md py-cmv-md text-sm ${checked ? CAPABILITY_ON : CAPABILITY_OFF}`}
                   >
                     <input
                       type="checkbox"
