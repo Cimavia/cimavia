@@ -12,8 +12,9 @@
 #   3. lit dans l'image de l'API le commit dont elle est issue, et télécharge le compose DE CE
 #      COMMIT (le dépôt est public) : le compose suit la version promue, jamais une copie locale ;
 #   4. le valide contre le `.env`, puis `up -d` avec les deux images épinglées par digest ;
-#   5. attend que l'API et le web soient sains, et ne note la version comme déployée qu'à ce
-#      moment-là.
+#   5. attend que l'API et le web soient sains ;
+#   6. attend la fin de `silo-setup`, qui pose la clé de l'API et sa policy, et exige un code 0.
+#      La version n'est notée déployée qu'à ce moment-là.
 #
 # Code de sortie non nul = échec : la tâche DSM peut l'envoyer par e-mail. Journal :
 # `pull-preview/pull-preview.log` à côté du script.
@@ -36,6 +37,9 @@ RAW="https://raw.githubusercontent.com/Cimavia/cimavia"
 # toute version depuis v1.5.3 a `deploy/preview/`, et la promotion ne revient jamais en arrière.
 COMPOSE_PATH="deploy/preview/docker-compose.yml"
 HEALTH_TIMEOUT_S=300
+# L'attente de `silo-setup` court APRÈS les sondes : SILO a déjà eu le temps de démarrer, et elle
+# ne sert qu'au cas où `silo-setup` boucle sur un SILO qui ne l'accepte pas (`until mc alias set …`).
+SETUP_TIMEOUT_S=120
 
 mkdir -p "$STATE_DIR"
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >>"$LOG"; }
@@ -143,7 +147,36 @@ wait_healthy() {
 wait_healthy api
 wait_healthy web
 
+# ── 6. La clé de l'API a-t-elle sa policy ? ──────────────────────────────────
+# `silo-setup` est relancé par chaque `up -d` et s'arrête en erreur si SILO refuse la clé de l'API
+# ou sa policy (#676). Aucun service n'en dépend : sans ce contrôle, l'API et le web sont sains,
+# la version est notée déployée, et chaque envoi de média échoue ensuite chez le Coach (#772).
+# Pas de `depends_on: service_completed_successfully` : un refus couperait l'API entière au lieu
+# des seuls médias (journal de dette, « Tranché en #772 »).
+wait_setup() {
+  local id status code waited=0
+  # Par son service dans le compose DÉPLOYÉ, comme `wait_healthy`. `-a` : sans lui, un conteneur
+  # déjà sorti n'est pas listé. `|| true` partout : sous `set -e`, une substitution en échec
+  # sortirait sans rien journaliser.
+  id="$(compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -a -q silo-setup 2>/dev/null || true)"
+  [[ -n "$id" ]] || fail "conteneur silo-setup introuvable après up"
+  status="$(docker inspect --format '{{.State.Status}}' "$id" 2>/dev/null || true)"
+  # `exited` ou `dead` : il ne bougera plus. Tout le reste s'attend, borné.
+  until [[ "$status" == "exited" || "$status" == "dead" ]]; do
+    if [[ "$waited" -ge "$SETUP_TIMEOUT_S" ]]; then
+      fail "silo-setup toujours « ${status:-introuvable} » après ${SETUP_TIMEOUT_S}s : $(docker logs --tail 20 "$id" 2>&1 | tr '\n' ' ')"
+    fi
+    sleep 5
+    waited=$((waited + 5))
+    status="$(docker inspect --format '{{.State.Status}}' "$id" 2>/dev/null || true)"
+  done
+  code="$(docker inspect --format '{{.State.ExitCode}}' "$id" 2>/dev/null || true)"
+  [[ "$code" == "0" ]] ||
+    fail "silo-setup sorti en ${code:-?} (« $status »), la clé de l'API n'a peut-être pas sa policy : $(docker logs --tail 20 "$id" 2>&1 | tr '\n' ' ')"
+}
+wait_setup
+
 cp "$COMPOSE_FILE" "$STATE_DIR/docker-compose.yml"
 printf '%s\n' "$NEW_PROJECT" >"$STATE_DIR/project"
 printf '%s\n' "$CURRENT" >"$STATE_DIR/deployed"
-log "OK : $REVISION déployée, API et web sains"
+log "OK : $REVISION déployée, API et web sains, silo-setup sorti en 0"

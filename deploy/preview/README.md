@@ -111,7 +111,7 @@ sur un dépôt public, donc exécutable par un workflow venu d'une PR. Désormai
    images de la version, sans rien reconstruire (#417) ;
 3. toutes les 5 minutes, `pull-preview.sh` tire le tag `preview`. S'il a changé, il télécharge le
    compose **du commit promu**, le valide contre le `.env`, lance `up -d` et attend que l'API et
-   le web soient sains.
+   le web soient sains, puis que `silo-setup` sorte en 0 (#772).
 
 Aucun port entrant ni aucun accès de GitHub au NAS : c'est le NAS qui sort, vers GHCR et GitHub.
 
@@ -188,7 +188,8 @@ Attendu : 32 ou plus pour les deux secrets, une longueur non nulle pour le jeton
 
 Trois endroits le disent : le run de promotion devient rouge au bout de 20 minutes, la tâche DSM
 envoie son e-mail, et le journal `pull-preview/pull-preview.log` (dans le dossier du `.env`) dit
-pourquoi.
+pourquoi. **Sauf pour `silo-setup`** : l'API a déjà redémarré et répond, donc le run de promotion
+reste vert ; seuls l'e-mail et le journal le signalent.
 
 | Dans le journal | Cause probable |
 |---|---|
@@ -197,6 +198,8 @@ pourquoi.
 | `api non sain après 300s` | l'API ne démarre pas, souvent une migration ou une variable refusée au démarrage (voir « Avant de promouvoir ») : `docker logs` du conteneur `api` |
 | `current transaction is aborted`, dans `docker logs` de `api` | une migration a échoué, et sa transaction l'a annulée **en entier** (#628) : rien n'est appliqué. Le message est l'effet, pas la cause — la cause est dans `docker logs cimavia_preview_postgres` (ligne `ERROR`, puis `STATEMENT`). Corriger **ce même** `migration.sql` (il n'a été appliqué nulle part sur preview) et publier une version. Puis, dans l'ordre : arrêter `cimavia_preview_api` — sans quoi son redémarrage rejouerait l'ancienne migration dès qu'elle n'est plus marquée en échec —, la marquer annulée (`prisma migrate resolve --rolled-back <nom>`, depuis l'image de l'API), promouvoir. Une migration corrigée ajoutée à côté ne servirait à rien : `migrate deploy` rejouerait d'abord celle en échec |
 | `web non sain après 300s` | nginx ne démarre pas : `unknown "cmv_…" variable` dans `docker logs` du conteneur `web` veut dire une variable de config du web qui ne lui arrive pas (#417) |
+| `silo-setup sorti en …` | SILO a refusé une des commandes de `silo-setup` (#772) — le bucket, sa fermeture au public, la policy de l'API, la clé ou son rattachement. Le plus souvent la clé : un `S3_ACCESS_KEY_ID` ou un `S3_SECRET_ACCESS_KEY` que SILO juge invalide (`The secret key is invalid` : entre 8 et 40 caractères) ; sinon un `S3_BUCKET` qu'il refuse (majuscule, `_`). L'app tourne, mais **chaque envoi ou lecture de média échoue** chez le Coach. La fin des logs est dans le journal ; le détail dans `docker logs cimavia_preview_silo_setup` |
+| `silo-setup toujours « … »` | Le plus souvent « running » : `silo-setup` n'arrive pas à se connecter en root et réessaie sans fin (`attente SILO…` en boucle). `docker logs cimavia_preview_silo_setup` dit lequel : `signature … does not match`, SILO refuse le compte root ; sinon SILO ne répond pas, et `docker logs cimavia_preview_silo` dit pourquoi |
 
 Une fois la cause réglée, le prochain passage réessaie seul. Si seule la confirmation du workflow a
 échoué, *Re-run failed jobs* la relance sans republier.
@@ -340,8 +343,10 @@ seulement *par quelle porte* il entre.
   cochées. Aucune invitation — il n'a pas de coach, il est son propre athlète.
 - **Un coach qui est aussi l'athlète de quelqu'un d'autre** : les deux gestes, dans cet ordre —
   l'adresse dans `SIGNUP_ALLOWED_EMAILS` **ou** une invitation de son futur coach lui permet de
-  s'inscrire, puis il accepte l'invitation pour être lié. Rappel de l'invariant : **au plus un
-  coach par athlète**, et l'API refuse la seconde liaison (`409`).
+  s'inscrire, puis il accepte l'invitation pour être lié. Un athlète peut avoir **plusieurs
+  coachs** depuis #599, un lien par couple. L'API ne refuse (`409`) qu'une seconde liaison au
+  **même** coach, une liaison à soi-même, ou une liaison qui fermerait un cycle (A coache B qui
+  coache A).
 
 ## Deux identités pour le stockage (#267)
 
@@ -453,31 +458,35 @@ docker exec -i cimavia_postgres pg_restore -U cimavia -d cimavia_restore --no-ow
 # 3. Les médias dans un bucket à part. Le service `silo-setup` du compose du dépôt apporte le `mc`
 #    de la même version que SILO et le bon réseau, sans tag à recopier ici. Le dossier courant reste
 #    celui de la sauvegarde, et le SILO local doit déjà tourner : `--no-deps` n'y touche pas.
+#    `mc mirror` affiche chaque copie malgré `--quiet` : sa sortie est jetée, ses erreurs restent.
 docker compose -f <…>/cimavia/apps/api/docker-compose.yml run --rm -T --no-deps -v "$PWD/media:/media" --entrypoint sh silo-setup -c \
   "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null \
-   && mc mb --ignore-existing s/cimavia-restore && mc mirror --quiet /media s/cimavia-restore \
+   && mc mb --ignore-existing s/cimavia-restore && mc mirror --quiet /media s/cimavia-restore >/dev/null \
    && mc ls --recursive --summarize s/cimavia-restore | tail -2"
-
-# 4. Lancer l'API sur cette base et ce bucket, puis le web
-DATABASE_URL="postgresql://cimavia:cimavia@localhost:5432/cimavia_restore" S3_BUCKET=cimavia-restore \
-  pnpm --filter @cmv/api dev
 ```
 
-**Ce qui prouve que la sauvegarde vaut quelque chose** : se connecter avec le compte du Coach et son
-mot de passe **inchangé**, ouvrir une planification, lire une vidéo de débrief et un PDF de facture.
 Le nombre d'objets affiché à l'étape 3 doit être celui du manifeste.
 
-**Deux contrôles qui se lisent sans ouvrir l'app**, et qui valent d'être faits à chaque restauration.
+**Deux contrôles qui se lisent sans ouvrir l'app**, et qui valent d'être faits à chaque restauration
+— **avant** l'étape 4 : elle retire les tokens push, et la moindre connexion à l'app écrit une
+`session`.
 
-Le premier compare la base restaurée à celle d'origine, table par table — il n'a de sens que si les
-deux tournent encore :
+Le premier compare, table par table, les lignes **du dump** à celles de la base restaurée : la
+restauration n'a rien perdu. Le dump est la référence, pas la base du NAS — elle a bougé depuis
+03:00, et la comparer donnerait un diff à interpréter. Ni la base de dev du poste, qui n'a rien à
+voir. Dans le dossier de la sauvegarde :
 
 ```bash
-Q="SELECT table_name, (xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', table_schema, table_name), false, true, '')))[1]::text::int AS n FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
-docker exec cimavia_postgres psql -U cimavia -d cimavia -At -F'|' -c "$Q" > /tmp/src.txt
-docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -F'|' -c "$Q" > /tmp/dst.txt
+docker exec -i cimavia_postgres pg_restore --data-only -f - < base/cimavia-<date>.dump \
+  | awk '/^COPY /{t=$2; sub(/^public\./,"",t); gsub(/"/,"",t); n=0; next} t!="" && /^\\\.$/{print t"|"n; t=""; next} t!=""{n++}' \
+  | sort > /tmp/src.txt
+Q="SELECT table_name, (xpath('/row/cnt/text()', query_to_xml(format('select count(*) as cnt from %I.%I', table_schema, table_name), false, true, '')))[1]::text::int FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -At -F'|' -c "$Q" | sort > /tmp/dst.txt
 diff /tmp/src.txt /tmp/dst.txt && echo "nombres de lignes identiques"
 ```
+
+Les lignes d'un `COPY` se comptent une à une : un saut de ligne dans une valeur y est échappé
+(`\n`). Le `gsub` retire les guillemets que `pg_dump` met à `"user"`, mot réservé.
 
 Le second vérifie que **chaque média référencé par la base existe dans le stockage restauré** :
 
@@ -495,6 +504,28 @@ comm -13 /tmp/paths.txt /tmp/objects.txt | wc -l   # objets non référencés : 
 compris. Des **objets non référencés**, en revanche, sont normaux — ce sont les envois abandonnés
 que personne ne ramasse (dette **U-6**). Leur nombre dit ce que cette dette coûte : 19 sur un poste
 de développement au 2026-09-20, pour 101 chemins référencés.
+
+**Puis dans l'app — en lecture seule.** La base restaurée porte les tokens push des **vrais
+téléphones** de la bêta, et l'API n'a aucun interrupteur : un message, un Feedback ou une diffusion
+de Plan envoyé depuis ce poste notifierait les Athletes (#772). Les e-mails, eux, restent dans
+Mailpit — tant que le `.env` du poste y pointe `SMTP_HOST`, comme `.env.example`. On regarde, on
+n'écrit rien — et l'étape 4 retire d'abord ces tokens, pour qu'une erreur ne parte nulle part.
+
+```bash
+# 4. Plus aucun push possible depuis cette base, puis l'API sur cette base et ce bucket, puis le web.
+#    Le compte root du SILO LOCAL, pas la clé `cimavia-api` du .env : sa policy ne couvre que
+#    `cimavia-media-dev` et `cimavia-media-e2e` (#267), et aucun média restauré ne se lirait. Une
+#    variable posée sur la ligne de commande l'emporte sur le .env.
+#    Sentry et Axiom coupés : les données réelles de la bêta n'y partent pas étiquetées
+#    « development », rangées avec celles qu'on jette.
+docker exec cimavia_postgres psql -U cimavia -d cimavia_restore -c 'DELETE FROM push_token'
+DATABASE_URL="postgresql://cimavia:cimavia@localhost:5432/cimavia_restore" S3_BUCKET=cimavia-restore \
+  S3_ACCESS_KEY_ID=cimavia S3_SECRET_ACCESS_KEY=cimavia_dev_secret SENTRY_DSN= AXIOM_TOKEN= \
+  pnpm --filter @cmv/api dev
+```
+
+**Ce qui prouve que la sauvegarde vaut quelque chose** : se connecter avec le compte du Coach et son
+mot de passe **inchangé**, ouvrir une planification, lire une vidéo de débrief et un PDF de facture.
 
 Ménage une fois le test fait :
 
