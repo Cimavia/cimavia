@@ -1,4 +1,11 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { CmvResizeHandle } from "@/shared/component/CmvResizeHandle";
 import { useViewportSize } from "@/shared/hook/useViewportSize";
@@ -19,6 +26,8 @@ const SIZE_CLASSES: Record<CmvPanelSize, string> = {
  * bande l'emporte sur le minimum : une fenêtre plus étroite que les deux rétrécit le panneau.
  */
 const PANEL_MIN_WIDTH = 320;
+// Le délai de double-clic par défaut de Windows, le plus long des systèmes courants.
+const DOUBLE_CLICK_MS = 500;
 const BACKDROP_STRIP = 48;
 
 type CmvPanelProps = {
@@ -82,6 +91,25 @@ export function CmvPanel({
     if (!open) setDraftWidth(null);
   }, [open]);
 
+  /**
+   * Le second clic d'un double-clic appartient au geste qui a OUVERT le panneau — une carte de
+   * séance, une ligne de liste. Le panneau vient de se poser sous le pointeur : ce clic tomberait
+   * sur son fond ou sur « Annuler », et le refermerait aussitôt (#363). Il est absorbé, le temps
+   * d'un double-clic ; ensuite, un double-clic dans le panneau agit comme partout. Au clavier,
+   * `detail` vaut 0 : rien n'est absorbé.
+   */
+  const openedAt = useRef(0);
+  function absorbOpeningGesture(event: MouseEvent) {
+    if (event.detail < 2 || Date.now() - openedAt.current >= DOUBLE_CLICK_MS) return;
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  // Avant la peinture : aucun clic ne peut tomber sur le panneau avant que sa fenêtre soit posée.
+  useLayoutEffect(() => {
+    if (open) openedAt.current = Date.now();
+  }, [open]);
+
   // Échap ferme le panneau. Effet monté seulement quand le panneau est ouvert.
   useEffect(() => {
     if (!open) return;
@@ -116,7 +144,7 @@ export function CmvPanel({
         };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end" onClickCapture={absorbOpeningGesture}>
       <button
         type="button"
         aria-label={t("common.close")}
