@@ -208,7 +208,8 @@ vi.mock("expo-video", async () => {
       });
       return player;
     }),
-    VideoView: () => <span data-video-view="" />,
+    // Un `vi.fn` : un test joue la première image en appelant le `onFirstFrameRender` reçu.
+    VideoView: vi.fn((_props: { onFirstFrameRender?: () => void }) => <span data-video-view="" />),
     // Le lecteur SANS vue qui sert aux vignettes (#92) : par défaut il n'en tire aucune, et
     // l'appelant retombe sur sa pastille — l'état d'un appareil sans réseau.
     createVideoPlayer: vi.fn(() => ({
@@ -258,6 +259,8 @@ vi.mock("expo-network", () => ({
   useNetworkState: () => ({ isConnected: true, isInternetReachable: true }),
   getNetworkStateAsync: vi.fn(async () => ({ isConnected: true, isInternetReachable: true })),
   addNetworkStateListener: vi.fn(() => ({ remove: vi.fn() })),
+  // Les valeurs du vrai enum : un test qui demande la 5G l'écrit comme le code qui la lit.
+  NetworkStateType: { NONE: "NONE", UNKNOWN: "UNKNOWN", CELLULAR: "CELLULAR", WIFI: "WIFI" },
 }));
 
 // Désactivé par défaut, comme dans le dev client : la relance retombe sur `retry`. Un test qui

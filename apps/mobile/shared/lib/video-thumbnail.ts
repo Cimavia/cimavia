@@ -46,8 +46,44 @@ let generation = 0;
 // de vingt vidéos n'en ouvre donc jamais vingt ensemble.
 let queue: Promise<unknown> = Promise.resolve();
 
-// Une vidéo affichée deux fois (le fil, puis sous le débrief qu'elle commente) n'est tirée qu'une.
-const inFlight = new Map<string, Promise<string | null>>();
+/**
+ * Une demande dans la file, et combien d'écrans l'attendent encore. Une vidéo affichée deux fois (le
+ * fil, puis sous le débrief qu'elle commente) n'est tirée qu'une ; un écran quitté retire son
+ * attente, et la demande que plus personne n'attend sort de la file sans rien tirer (#809).
+ */
+type Pending = { task: Promise<string | null>; waiting: number };
+const inFlight = new Map<string, Pending>();
+
+/**
+ * Les lecteurs vidéo ouverts, qui suspendent la file (#809). Une vignette tire des octets sur le
+ * MÊME lien que la vidéo qu'on regarde : en 5G, c'est autant de moins pour la lecture. Celle déjà
+ * en cours finit — un tirage natif ne s'interrompt pas —, les suivantes attendent la fermeture.
+ */
+let suspensions = 0;
+let resumed: Promise<void> = Promise.resolve();
+let resume: () => void = () => undefined;
+
+/** Met la file en pause ; rend la fonction qui la relâche, sans effet au-delà du premier appel. */
+export function suspendVideoThumbnails(): () => void {
+  if (suspensions === 0) {
+    resumed = new Promise((resolve) => {
+      resume = resolve;
+    });
+  }
+  suspensions += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    suspensions -= 1;
+    if (suspensions === 0) resume();
+  };
+}
+
+// Lu au moment où la tâche arrive en tête de file, pas à la demande : c'est là qu'elle tirerait.
+function whenResumed(): Promise<void> {
+  return suspensions === 0 ? Promise.resolve() : resumed;
+}
 
 function thumbnailDirectory(): Directory {
   return new Directory(Paths.cache, DIRECTORY_NAME);
@@ -78,6 +114,15 @@ export function localVideoThumbnailUri(mediaId: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Un appelant de plus attend cette demande. Sans signal, il l'attend jusqu'au bout.
+function joinWaiters(pending: Pending, signal: AbortSignal | undefined): void {
+  if (signal?.aborted) return;
+  pending.waiting += 1;
+  signal?.addEventListener("abort", () => {
+    pending.waiting -= 1;
+  });
 }
 
 async function generate(
@@ -139,29 +184,44 @@ async function generate(
 /**
  * La vignette d'une vidéo : celle du disque, sinon tirée à son tour dans la file. `null` quand elle
  * n'a pas pu l'être — rien n'est retenu de l'échec, le prochain affichage retentera.
+ *
+ * `signal` : l'écran qui la demande est parti. Si plus personne ne l'attend quand vient son tour,
+ * elle n'est pas tirée — un fil quitté ne continue pas à télécharger ses vidéos. Déjà en cours,
+ * elle finit : un tirage natif ne s'interrompt pas.
  */
 export function videoThumbnail(
   mediaId: string,
   resolveUrl: ResolveVideoUrl,
   durationSeconds: number | null,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   if (!MEDIA_ID_PATTERN.test(mediaId)) return Promise.resolve(null);
 
   const local = localVideoThumbnailUri(mediaId);
   if (local != null) return Promise.resolve(local);
 
-  const pending = inFlight.get(mediaId);
-  if (pending != null) return pending;
+  const existing = inFlight.get(mediaId);
+  if (existing != null) {
+    joinWaiters(existing, signal);
+    return existing.task;
+  }
 
   // L'époque de la DEMANDE, pas celle du tirage : une vidéo peut attendre son tour longtemps.
   const epoch = generation;
-  const task = queue.then(() => generate(mediaId, resolveUrl, durationSeconds, epoch));
+  const pending: Pending = { task: Promise.resolve(null), waiting: 0 };
+  joinWaiters(pending, signal);
+  const task = queue
+    .then(whenResumed)
+    .then(() =>
+      pending.waiting === 0 ? null : generate(mediaId, resolveUrl, durationSeconds, epoch),
+    );
+  pending.task = task;
   // `generate` ne lève jamais, mais la file ne doit en aucun cas rester bloquée sur un rejet.
   queue = task.catch(() => null);
-  inFlight.set(mediaId, task);
+  inFlight.set(mediaId, pending);
   void task.finally(() => {
     // Une purge a pu vider la table, et un nouvel appel y reposer SA tâche : on ne retire que la nôtre.
-    if (inFlight.get(mediaId) === task) inFlight.delete(mediaId);
+    if (inFlight.get(mediaId) === pending) inFlight.delete(mediaId);
   });
   return task;
 }

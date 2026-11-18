@@ -49,6 +49,7 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
                 <CmvVideoPlayer
                   mediaId={item.id}
                   durationSeconds={item.durationSeconds}
+                  sizeBytes={item.sizeBytes}
                   resolveUrl={() => freshUrl(item.id)}
                   containerClassName="h-24 w-24 items-center justify-center gap-1 rounded-lg border border-cmv-border bg-cmv-surface"
                   thumbnailClassName="h-24 w-24 overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
