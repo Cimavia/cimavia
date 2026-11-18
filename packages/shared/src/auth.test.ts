@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PASSWORD_BOUNDS,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   RESET_PASSWORD_TOKEN_TTL_HOURS,
@@ -14,6 +15,11 @@ describe("contraintes d'authentification", () => {
   it("borne le mot de passe entre 8 et 128 caractères", () => {
     expect(PASSWORD_MIN_LENGTH).toBe(8);
     expect(PASSWORD_MAX_LENGTH).toBe(128);
+  });
+
+  // Les messages de bornes disent ce que Better Auth applique, pas une copie qui dériverait.
+  it("donne aux messages de bornes les valeurs appliquées", () => {
+    expect(PASSWORD_BOUNDS).toEqual({ min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH });
   });
 
   /**

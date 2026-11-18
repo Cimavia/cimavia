@@ -1,6 +1,7 @@
 import type { AccountType, TrainingCapability } from "@cmv/shared";
 import {
   ACCOUNT_TYPES,
+  PASSWORD_BOUNDS,
   SELECTABLE_CAPABILITIES,
   signUpCapabilities,
   signUpErrorKey,
@@ -79,7 +80,7 @@ export function RegisterScreen() {
         ...signUp,
       });
       if (signUpError != null) {
-        setError(t(signUpErrorKey(signUpError.status)));
+        setError(t(signUpErrorKey(signUpError), PASSWORD_BOUNDS));
         return;
       }
       setSentTo(email);

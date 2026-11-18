@@ -137,8 +137,8 @@ describe("ResetPasswordScreen", () => {
 
   // Le lien marche encore : dire le contraire ferait redemander un e-mail pour rien.
   it.each([
-    ["auth.reset.passwordTooShort", { status: 400, code: "PASSWORD_TOO_SHORT" }],
-    ["auth.reset.passwordTooLong", { status: 400, code: "PASSWORD_TOO_LONG" }],
+    ["auth.errors.passwordTooShort", { status: 400, code: "PASSWORD_TOO_SHORT" }],
+    ["auth.errors.passwordTooLong", { status: 400, code: "PASSWORD_TOO_LONG" }],
     ["auth.errors.tooManyAttempts", { status: 429 }],
     ["auth.errors.generic", { status: 500, code: "INTERNAL_SERVER_ERROR" }],
   ])("dit %s pour un refus qui ne tient pas au lien", async (message, error) => {

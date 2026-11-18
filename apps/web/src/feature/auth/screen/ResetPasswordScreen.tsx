@@ -1,5 +1,5 @@
 import {
-  PASSWORD_MAX_LENGTH,
+  PASSWORD_BOUNDS,
   PASSWORD_MIN_LENGTH,
   RESET_LINK_REFUSED,
   resetPasswordRefusal,
@@ -21,8 +21,8 @@ const route = getRouteApi("/reset-password");
  * mot de passe ou le moment est en cause. Le lien mort, lui, remplace le formulaire.
  */
 const REFUSAL_KEY = {
-  passwordTooShort: "auth.reset.passwordTooShort",
-  passwordTooLong: "auth.reset.passwordTooLong",
+  passwordTooShort: "auth.errors.passwordTooShort",
+  passwordTooLong: "auth.errors.passwordTooLong",
   tooManyAttempts: "auth.errors.tooManyAttempts",
   generic: "auth.errors.generic",
 } as const;
@@ -133,7 +133,7 @@ function ResetPasswordForm({
         onLinkRefused();
         return;
       }
-      message = t(REFUSAL_KEY[refusal], { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH });
+      message = t(REFUSAL_KEY[refusal], PASSWORD_BOUNDS);
     } catch {
       message = t("auth.errors.generic");
     }

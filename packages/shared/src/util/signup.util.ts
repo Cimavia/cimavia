@@ -66,7 +66,8 @@ export function isEmailAllowed(email: string, allowed: readonly string[]): boole
 }
 
 /**
- * La clé i18n qui dit POURQUOI une inscription est refusée, d'après le code HTTP.
+ * La clé i18n qui dit POURQUOI une inscription est refusée, d'après l'erreur que rend le client
+ * Better Auth.
  *
  * Partagée entre le web et le mobile — ils la déclaraient à l'identique, et c'est exactement le
  * genre de table qui diverge : le jour où l'API distingue un code de plus, une seule des deux
@@ -74,15 +75,36 @@ export function isEmailAllowed(email: string, allowed: readonly string[]): boole
  *
  * - **403** : l'environnement n'accepte pas d'inscription (#263). La saisie n'y est pour rien, et
  *   faire recommencer un formulaire juste serait la pire réponse possible.
+ * - **`PASSWORD_TOO_SHORT`, `PASSWORD_TOO_LONG`** : le mot de passe sort des bornes (#847). Les
+ *   messages portent la borne (`{{min}}`, `{{max}}`), à passer à `t`. Le mobile ne contrôle pas la
+ *   longueur, et aucun champ ne porte de `maxLength` — il tronquerait EN SILENCE un mot de passe
+ *   collé ou généré (#437) : c'est l'API qui dit la règle, et le générique la ferait retaper à
+ *   l'identique.
+ * - **`INVALID_EMAIL`** : une adresse mal formée, que le champ mobile ne valide pas.
+ * - **429** : trop de tentatives — « réessaie » ferait refaire tout de suite ce que la limite
+ *   refuse.
  * - le reste, y compris une panne réseau qui ne porte aucun code : le message générique.
  *
- * Plus de 422 depuis #270 : avec la vérification d'adresse, une adresse déjà inscrite reçoit la
- * même réponse qu'une adresse neuve — c'est ce qui empêche de deviner qui a un compte — et c'est
- * son propriétaire qui l'apprend, par e-mail. Le formulaire n'a plus rien à en dire.
+ * Nommer ces trois refus ne trahit pas qui a un compte : Better Auth les rend AVANT de chercher
+ * l'adresse. Plus de 422 depuis #270 : avec la vérification d'adresse, une adresse déjà inscrite
+ * reçoit la même réponse qu'une adresse neuve — c'est son propriétaire qui l'apprend, par e-mail.
  */
-export function signUpErrorKey(status: number | undefined): string {
-  if (status === 403) return "auth.errors.signupClosed";
-  return "auth.errors.generic";
+export function signUpErrorKey(error: {
+  status?: number | undefined;
+  code?: string | undefined;
+}): string {
+  if (error.status === 403) return "auth.errors.signupClosed";
+  if (error.status === 429) return "auth.errors.tooManyAttempts";
+  switch (error.code) {
+    case "PASSWORD_TOO_SHORT":
+      return "auth.errors.passwordTooShort";
+    case "PASSWORD_TOO_LONG":
+      return "auth.errors.passwordTooLong";
+    case "INVALID_EMAIL":
+      return "auth.errors.invalidEmail";
+    default:
+      return "auth.errors.generic";
+  }
 }
 
 /**
@@ -123,8 +145,9 @@ export const RESET_LINK_REFUSED = "INVALID_TOKEN";
 /**
  * Pourquoi l'API refuse un nouveau mot de passe, d'après l'erreur que rend le client Better Auth.
  *
- * Une RAISON et non une clé i18n, contrairement à `signInErrorKey` : seul le web a un écran de
- * réinitialisation, et une clé écrite ici devrait exister au catalogue mobile aussi.
+ * Une RAISON et non une clé i18n, contrairement à `signInErrorKey` : `deadLink` n'est pas un
+ * message mais un autre écran — le formulaire laisse la place au lien vers un nouvel e-mail. Les
+ * autres raisons ont chacune leur clé sous `auth.errors`, la table de l'écran les y renvoie.
  *
  * - **`deadLink`** — `INVALID_TOKEN`, `USER_NOT_FOUND` : jeton inconnu, déjà consommé ou expiré,
  *   ou compte supprimé depuis l'envoi de l'e-mail (#256). Rien de ce qu'on tape n'y changera.
