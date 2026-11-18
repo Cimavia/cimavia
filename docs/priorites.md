@@ -136,7 +136,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 
 | Issue | Nom | Prio | Fermée |
 |---|---|---|---|
-| #455 | La porte locale tombe au hasard : tests web hors délai | 🟠 | |
+| #455 | La porte locale tombe au hasard : tests web hors délai | 🟠 | ✅ |
 | #668 | Le minuteur d'un toast survit au démontage : CI rouge sur une suite verte | 🟡 | ✅ |
 | #382 | Le test de changement d'heure est vert quelle que soit l'implémentation | 🟡 | |
 | #351 | Onze `notifyX` recopiés, aucun test sur la partie fragile | 🟡 | |
