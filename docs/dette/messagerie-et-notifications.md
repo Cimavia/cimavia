@@ -858,3 +858,38 @@ liste des domaines vivent dans l'index.
 >   naviguer, le web le pose dans `?as=` de Factures et Messagerie — l'un et l'autre pour un compte
 >   qui cumule seulement, l'URL d'un compte mono-capacité restant nue (#129). Sans ça, une facture
 >   émise ouverte en titre coach montrait les factures du coach.
+
+## Post-MVP — Date d'un message ([#867](https://github.com/Cimavia/cimavia/issues/867))
+
+> **Tranché en [#867](https://github.com/Cimavia/cimavia/issues/867)** (un message n'est jamais
+> daté avant le dernier de son fil) : `createdAt` venait de `@default(now())`, donc de l'horloge
+> du serveur, et cette horloge recule. Sous WSL2, elle s'est recalée de −2,26 s entre deux envois
+> séparés de 633 ms (mesuré dans la trace de l'e2e Playwright, qui tombait une fois sur trente). La
+> réponse a été datée avant le message auquel elle répondait. Le fil et l'aperçu de la liste
+> passaient à rebours, et un message daté avant la marque de lecture de son destinataire n'était
+> **jamais compté non lu**. Un serveur que NTP ramène en arrière ferait de même.
+>
+> - **La date d'un message est `max(maintenant, lastMessageAt + 1 ms)`** (`nextMessageDate`). Elle
+>   est posée par `appendMessage`, seule porte d'écriture d'un message : l'envoi et l'avis de débrief
+>   y passent tous deux. Une milliseconde de plus et non la même date : le fil se trie sur la seule
+>   `createdAt`, et une égalité y laisserait l'ordre au hasard.
+> - **`lastMessageAt` est relu dans la transaction**, et non pris du fil chargé en début de
+>   requête : entre les deux passent une relecture au storage et un rattachement à résoudre, le
+>   temps qu'un autre message soit validé. Il n'est **jamais ramené en arrière** : un envoi
+>   concurrent validé après un autre peut porter une date plus ancienne.
+> - **La date peut devancer l'horloge.** Après un recul, elle le devance de la durée du recul au
+>   plus, quelques secondes. Après un saut EN AVANT que l'horloge corrige ensuite, les messages du
+>   fil restent datés dans le futur, une milliseconde l'un après l'autre, jusqu'à ce que l'horloge
+>   rattrape le dernier. C'est le prix de l'ordre. Une borne le romprait, et un tel saut ne s'est
+>   jamais vu. Les notifications, elles, gardent l'horloge du serveur et peuvent précéder de ces
+>   quelques secondes le message qu'elles annoncent.
+> - **L'attente du parcours Playwright ne bouge pas** : c'est le produit qui se trompait, pas le
+>   test.
+>
+> Écart assumé : **deux écritures dont les transactions se chevauchent ne sont pas sérialisées**.
+> Aucun verrou n'est posé sur le fil : il faudrait du SQL brut (`FOR UPDATE`, ou `GREATEST` dans
+> l'`UPDATE`), et la règle dure n°1 le réserve aux exceptions. Hors recul, chacune garde la date
+> de son horloge, comme avant. PENDANT un recul, deux écritures du même fil, à quelques
+> millisecondes l'une de l'autre, peuvent lire le même `lastMessageAt` et prendre la même date :
+> leur ordre devient celui de Postgres, et celle validée après une lecture du fil peut passer pour
+> lue. Il faut donc réunir un recul et deux écritures au même instant dans le même fil.
