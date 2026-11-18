@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { cn } from "@/shared/util/cn.util";
 
 // Nature du message : elle porte l'information AVANT le texte (couleur + pastille).
@@ -42,14 +50,10 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
-  const push = useCallback(
-    (message: string, tone: ToastTone) => {
-      const id = crypto.randomUUID();
-      setToasts((current) => [...current, { id, message, tone }]);
-      window.setTimeout(() => dismiss(id), tone === "error" ? ERROR_TOAST_TTL_MS : TOAST_TTL_MS);
-    },
-    [dismiss],
-  );
+  const push = useCallback((message: string, tone: ToastTone) => {
+    const id = crypto.randomUUID();
+    setToasts((current) => [...current, { id, message, tone }]);
+  }, []);
 
   const value = useMemo<ToastContextValue>(
     () => ({
@@ -74,28 +78,47 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
         className="pointer-events-none fixed top-0 right-0 z-[60] flex w-full max-w-sm flex-col gap-cmv-sm p-cmv-lg"
       >
         {toasts.map((toast) => (
-          <button
-            key={toast.id}
-            type="button"
-            onClick={() => dismiss(toast.id)}
-            className="pointer-events-auto flex w-full items-start gap-cmv-sm overflow-hidden rounded-cmv-md border border-cmv-border-hi bg-cmv-surface-hi pr-cmv-md text-left shadow-2xl"
-          >
-            {/* Barre de couleur pleine hauteur — repère visuel immédiat de la nature du message. */}
-            <span className={cn("w-1 self-stretch", TONE_CLASSES[toast.tone].bar)} />
-
-            <span className="flex flex-1 items-start gap-cmv-sm py-cmv-md">
-              <span
-                className={cn(
-                  "mt-1.5 h-2 w-2 shrink-0 rounded-cmv-pill",
-                  TONE_CLASSES[toast.tone].dot,
-                )}
-              />
-              <span className="text-cmv-body text-cmv-text-hi">{toast.message}</span>
-            </span>
-          </button>
+          <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}
       </output>
     </ToastContext.Provider>
+  );
+}
+
+/**
+ * Un toast porte sa propre échéance : le minuteur naît et meurt avec lui. Fermé au clic, il est
+ * désarmé au lieu de tirer pour rien ; le fournisseur démonté, il part avec ses enfants. Un
+ * minuteur qui survivait au démontage tirait, dans les tests, sur un jsdom déjà démonté — et React
+ * levait un `ReferenceError` imputé au fichier suivant (#668).
+ */
+function ToastItem({
+  toast,
+  onDismiss,
+}: Readonly<{ toast: Toast; onDismiss: (id: string) => void }>) {
+  const { id, tone } = toast;
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => onDismiss(id),
+      tone === "error" ? ERROR_TOAST_TTL_MS : TOAST_TTL_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [id, tone, onDismiss]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onDismiss(id)}
+      className="pointer-events-auto flex w-full items-start gap-cmv-sm overflow-hidden rounded-cmv-md border border-cmv-border-hi bg-cmv-surface-hi pr-cmv-md text-left shadow-2xl"
+    >
+      {/* Barre de couleur pleine hauteur — repère visuel immédiat de la nature du message. */}
+      <span className={cn("w-1 self-stretch", TONE_CLASSES[tone].bar)} />
+
+      <span className="flex flex-1 items-start gap-cmv-sm py-cmv-md">
+        <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-cmv-pill", TONE_CLASSES[tone].dot)} />
+        <span className="text-cmv-body text-cmv-text-hi">{toast.message}</span>
+      </span>
+    </button>
   );
 }
 
