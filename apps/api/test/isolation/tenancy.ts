@@ -272,10 +272,11 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
   });
 
   /**
-   * Prisma REGROUPE les `findUnique` d'un même tick, sans regarder leurs valeurs : ces deux
-   * lectures partent en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`, constaté en #626),
-   * et Prisma rend à chacun sa ligne en comparant tout le `where`. Le jour où il ne comparerait que
-   * la clé unique, le coach B recevrait la ligne du coach A : c'est ce test qui le verrait.
+   * Prisma REGROUPE les `findUnique` d'un même tick quand leur filtre est à plat : en #626, ces deux
+   * lectures partaient en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`), et chacun ne
+   * recevait sa ligne que par le tri de Prisma. Le filtre passe sous `AND` depuis #814, et chacune
+   * part dans la sienne. Une composition revenue à plat remettrait le lot, et le tri : c'est ce test
+   * qui verrait le coach B recevoir la ligne du coach A.
    */
   it("deux findUnique simultanés de deux coachs sur le même id ne se répondent pas l'un l'autre", async () => {
     const read = (coachId: string) =>

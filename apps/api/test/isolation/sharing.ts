@@ -244,10 +244,10 @@ describe("Extension tenant : un droit accordé à une entreprise ouvre l'éléme
   });
 
   /**
-   * Prisma regroupe les `findUnique` d'un même tick et rend à chacun sa ligne en comparant le
-   * `where` (« Tranché en #626 ») — or un filtre de relation n'est pas dans la ligne rendue
-   * (« Tranché en #603 »). Trois lectures simultanées du même id : chacun reçoit ce qu'il a le
-   * droit de lire, et le Coach hors de F rien.
+   * Regroupés, des `findUnique` d'un même tick recevraient leur ligne par le tri de Prisma
+   * (« Tranché en #626 »), qui ne voit pas un filtre de relation (« Tranché en #603 ») : le filtre
+   * sous `AND` les en garde, chacun partant dans sa requête (#814). Trois lectures simultanées du
+   * même id : chacun reçoit ce qu'il a le droit de lire, et le Coach hors de F rien.
    */
   it("trois findUnique simultanés sur le même id ne se répondent pas l'un l'autre", async () => {
     await grantF("READ");
