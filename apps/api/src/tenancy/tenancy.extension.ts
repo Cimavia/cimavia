@@ -217,7 +217,7 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
           } else {
             const { membership } = resolved.scope;
             if (membership != null) {
-              membershipFrozenOrThrow((args as { data?: unknown }).data, membership, model);
+              membershipFrozenOrThrow((args as { data?: Row }).data, membership, model);
             }
             scopeWhere(args, resolved.scope.where(resolved.actorId, resolved.kind.operationClass));
           }

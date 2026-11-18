@@ -19,6 +19,7 @@ import {
   sharedChild,
   sharedRoot,
   TENANT_SCOPES,
+  type TenantFilter,
   type TenantScope,
   throughRoot,
 } from "./tenant-scope";
@@ -361,7 +362,8 @@ describe("actorJoinsOrThrow", () => {
 });
 
 describe("membershipFrozenOrThrow", () => {
-  const freeze = (data: unknown) => () => membershipFrozenOrThrow(data, MEMBERSHIP, "Conversation");
+  const freeze = (data: TenantFilter | undefined) => () =>
+    membershipFrozenOrThrow(data, MEMBERSHIP, "Conversation");
 
   it("laisse passer une écriture qui ne touche pas aux participants", () => {
     expect(freeze({ lastMessageAt: new Date() })).not.toThrow();
