@@ -25,6 +25,7 @@ const base = {
   audiosLeft: 1,
   onAddMedia: vi.fn(),
   onRecordAudio: vi.fn(),
+  onCaptureStart: vi.fn(),
   onRecorderError: vi.fn(),
   isUploading: false,
   progress: 0,
@@ -95,6 +96,19 @@ describe("MediaPicker", () => {
 
     act(() => recorderProps().onRecordingChange?.(true));
     expect(queryByText("messages.audio.limitReached")).toBeNull();
+  });
+
+  // #858 : l'écran efface ses erreurs au début d'une capture, pas à chaque note — une note relayée
+  // ne passe pas par là. La fin de capture, elle, n'efface rien non plus.
+  it("prévient l'écran au début d'une capture, et seulement là", () => {
+    const onCaptureStart = vi.fn();
+    renderRn(<MediaPicker {...base} onCaptureStart={onCaptureStart} />);
+
+    act(() => recorderProps().onRecordingChange?.(false));
+    expect(onCaptureStart).not.toHaveBeenCalled();
+
+    act(() => recorderProps().onRecordingChange?.(true));
+    expect(onCaptureStart).toHaveBeenCalledOnce();
   });
 
   it("ne montre l'avancement que pendant un envoi", () => {

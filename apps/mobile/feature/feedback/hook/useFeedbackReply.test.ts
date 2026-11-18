@@ -21,6 +21,7 @@ function setup(feedbackId: string | null, conversationId: string | undefined) {
     isUploading: false,
     step: null,
     audioError: null,
+    clearAudioError: vi.fn(),
   } as unknown as ReturnType<typeof useSendMessageMedia>);
 
   return renderHook(() =>

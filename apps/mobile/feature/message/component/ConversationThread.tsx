@@ -203,10 +203,14 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
             setRecap([]);
             void media.pickAndSend(setPreUploadErrorKey, source).then(setRecap);
           }}
-          onRecordAudio={(audio) => {
+          // Une capture lancée à la main efface les échecs précédents ; une note relayée au
+          // plafond, elle, part sans rien effacer — l'échec de la note d'avant resterait sinon
+          // tu (#858).
+          onCaptureStart={() => {
             setPreUploadErrorKey(null);
-            media.recordAndSend(audio);
+            media.clearAudioError();
           }}
+          onRecordAudio={media.recordAndSend}
           onMediaError={setPreUploadErrorKey}
           sending={send.isPending}
           mediaBusy={media.isUploading}

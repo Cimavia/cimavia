@@ -17,6 +17,12 @@ type MediaPickerProps = {
   audiosLeft: number;
   onAddMedia: () => void;
   onRecordAudio: (audio: RecordedAudio) => void;
+  /**
+   * Une capture vient de démarrer, lancée à la main (#858). C'est là, et non à chaque note reçue,
+   * que l'écran efface ses erreurs : une note relayée au plafond ne doit pas taire l'échec d'envoi
+   * de la précédente.
+   */
+  onCaptureStart: () => void;
   onRecorderError: (reasonKey: string) => void;
   isUploading: boolean;
   /** Avancement de l'envoi en cours, 0-100. */
@@ -42,6 +48,7 @@ export function MediaPicker({
   audiosLeft,
   onAddMedia,
   onRecordAudio,
+  onCaptureStart,
   onRecorderError,
   isUploading,
   progress,
@@ -62,7 +69,9 @@ export function MediaPicker({
         <CmvAudioRecorder
           onRecorded={onRecordAudio}
           onRecordingChange={(recording) => {
-            if (recording) setLimitReached(false);
+            if (!recording) return;
+            setLimitReached(false);
+            onCaptureStart();
           }}
           onError={onRecorderError}
           disabled={isUploading || audiosLeft <= 0}

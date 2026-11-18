@@ -124,11 +124,14 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
         onAddMedia={() => {
           void onAddMedia();
         }}
-        onRecordAudio={(audio) => {
+        // Une capture lancée à la main efface les échecs précédents ; une note relayée au plafond,
+        // elle, part sans rien effacer — l'échec de la note d'avant resterait sinon tu (#858).
+        onCaptureStart={() => {
           setPreUploadErrorKey(null);
           removeMedia.reset();
-          addAudio.mutate(audio);
+          addAudio.clearError();
         }}
+        onRecordAudio={addAudio.send}
         onRecorderError={setPreUploadErrorKey}
         isUploading={addMedia.isUploading || addAudio.isPending}
         progress={addMedia.isUploading ? addMedia.progress : addAudio.progress}

@@ -22,15 +22,15 @@ import {
   sendMediaBatch,
   UploadMode,
 } from "@cmv/shared";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import type { SendMessageOptions } from "@/feature/message/hook/useConversation";
-import type { RecordedAudio } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { useVoiceNoteUpload } from "@/shared/hook/useVoiceNoteUpload";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { discardPickedFile } from "@/shared/lib/message-file";
 import {
@@ -95,15 +95,20 @@ export function useSendMessageMedia(
     options?.onSent?.();
   };
 
-  const audio = useMutation({
-    mutationFn: (recorded: RecordedAudio) =>
+  /**
+   * Les notes d'une même capture partent l'une après l'autre, et l'échec de l'une reste dit tant
+   * qu'une nouvelle capture ne l'efface pas (`useVoiceNoteUpload`, #858).
+   */
+  const audio = useVoiceNoteUpload(
+    `message-audio:${conversationId}`,
+    (recorded) =>
       // Une note vocale est un geste à elle seule : elle prévient toujours le destinataire.
       uploadAndSend(conversationId, prepareAudio(recorded, MESSAGE_MEDIA_PROFILE), as, {
         ...attachment,
         continuesBatch: false,
       }),
-    onSuccess: invalidate,
-  });
+    invalidate,
+  );
 
   /**
    * Le fil est invalidé à CHAQUE média plutôt qu'à la fin : les messages apparaissent au fur et à
@@ -185,15 +190,18 @@ export function useSendMessageMedia(
     });
   };
 
-  const recordAndSend = (recorded: RecordedAudio) => audio.mutate(recorded);
-
   return {
     pickAndSend,
-    recordAndSend,
+    recordAndSend: audio.send,
     isUploading: step != null || audio.isPending,
     step,
-    /** L'échec de la NOTE VOCALE seule : les refus d'un lot vivent dans son récapitulatif. */
+    /**
+     * L'échec d'une NOTE VOCALE seule : les refus d'un lot vivent dans son récapitulatif. Retenu
+     * jusqu'à `clearAudioError`, qu'une note partie ensuite n'appelle pas (#858).
+     */
     audioError: audio.error,
+    /** À appeler au début d'une capture lancée à la main, jamais à l'arrivée d'une note. */
+    clearAudioError: audio.clearError,
   };
 }
 

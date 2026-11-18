@@ -346,7 +346,7 @@ describe("useAddFeedbackAudio", () => {
     });
     const { result } = renderHook(() => useAddFeedbackAudio(SESSION_ID), { wrapper });
 
-    act(() => result.current.mutate({ uri: "file://note.m4a", durationSeconds: 12 }));
+    act(() => result.current.send({ uri: "file://note.m4a", durationSeconds: 12 }));
 
     await waitFor(() => expect(attachMock).toHaveBeenCalledOnce());
     expect(launchLibraryMock).not.toHaveBeenCalled();
@@ -375,9 +375,9 @@ describe("useAddFeedbackAudio — les échecs du stockage", () => {
     uploadFileMock.mockRejectedValue(new StorageUploadError(reason, failure));
     const { result } = renderHook(() => useAddFeedbackAudio(SESSION_ID), { wrapper });
 
-    act(() => result.current.mutate({ uri: "file://note.m4a", durationSeconds: 12 }));
+    act(() => result.current.send({ uri: "file://note.m4a", durationSeconds: 12 }));
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
+    await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.error).toBeInstanceOf(MediaRejectedError);
     expect((result.current.error as MediaRejectedError).reasonKey).toBe(key);
     expect(attachMock).not.toHaveBeenCalled();
