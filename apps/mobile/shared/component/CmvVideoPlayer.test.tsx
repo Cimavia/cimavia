@@ -1,7 +1,8 @@
 import * as Sentry from "@sentry/react-native";
 import { act, screen, waitFor } from "@testing-library/react";
-import { useVideoPlayer } from "expo-video";
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { getNetworkStateAsync, NetworkStateType } from "expo-network";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
 import { press, renderRn } from "@/test/render";
 import { CmvVideoPlayer } from "./CmvVideoPlayer";
@@ -17,6 +18,9 @@ const FIRST = "https://s3.test/voie.mp4?X-Amz-Date=120000";
 const POLLED = "https://s3.test/voie.mp4?X-Amz-Date=120010";
 const FRESH = "https://s3.test/voie.mp4?X-Amz-Date=121000";
 
+// 90 s à 64 Mbit/s : un original de caméra, tel que mesuré en #809.
+const SIZE = 720_000_000;
+
 // Le faux de `test/native.tsx`, vu par ce qu'un test en interroge.
 type FakePlayer = {
   play: Mock;
@@ -29,7 +33,7 @@ type Resolve = () => Promise<string | null>;
 
 function setup(resolveUrl: Resolve = vi.fn(async () => FIRST)) {
   const element = (resolver: Resolve) => (
-    <CmvVideoPlayer mediaId="msg-1" durationSeconds={90} resolveUrl={resolver} />
+    <CmvVideoPlayer mediaId="msg-1" durationSeconds={90} sizeBytes={SIZE} resolveUrl={resolver} />
   );
   const view = renderRn(element(resolveUrl));
   const pill = () => {
@@ -67,7 +71,8 @@ function player(): FakePlayer {
   return created.value as unknown as FakePlayer;
 }
 
-// Joue un événement natif auprès de TOUS ses écouteurs, comme expo-video.
+// Joue un événement natif auprès de TOUS ses écouteurs, comme expo-video : le lecteur en a deux
+// sur `statusChange` (la reprise, la mesure de #809).
 function dispatch(event: string, payload: object) {
   const listeners = player()
     .addListener.mock.calls.filter(([name]) => name === event)
@@ -79,8 +84,22 @@ function dispatch(event: string, payload: object) {
 }
 
 // Un changement d'état natif, comme l'événement `statusChange` d'expo-video.
-function emit(status: "error" | "readyToPlay", message?: string) {
+function emit(status: "error" | "readyToPlay" | "loading", message?: string) {
   dispatch("statusChange", { status, ...(message == null ? {} : { error: { message } }) });
+}
+
+// Le lecteur joue (ou s'arrête), comme l'événement `playingChange`.
+function emitPlaying(isPlaying: boolean) {
+  dispatch("playingChange", { isPlaying });
+}
+
+// La première image est à l'écran : c'est la VUE qui le dit, par `onFirstFrameRender`.
+function firstFrame() {
+  const props = vi.mocked(VideoView).mock.calls.at(-1)?.[0] as
+    | { onFirstFrameRender?: () => void }
+    | undefined;
+  if (props?.onFirstFrameRender == null) throw new Error("aucune vue vidéo à l'écoute");
+  act(() => props.onFirstFrameRender?.());
 }
 
 beforeEach(() => {
@@ -104,6 +123,7 @@ describe("CmvVideoPlayer", () => {
       <CmvVideoPlayer
         mediaId="msg-1"
         durationSeconds={null}
+        sizeBytes={null}
         resolveUrl={vi.fn(async () => FIRST)}
       />,
     );
@@ -160,12 +180,14 @@ describe("CmvVideoPlayer", () => {
   it("se ferme sur le bouton dédié, et relâche son lecteur", async () => {
     const { open } = setup();
     await open();
-    const subscription = player().addListener.mock.results[0]?.value as { remove: Mock };
+    const subscriptions = player().addListener.mock.results.map(
+      (result) => result.value as { remove: Mock },
+    );
 
     press(screen.getByLabelText("media.video.close"));
 
     await waitFor(() => expect(videoView()).toBeNull());
-    expect(subscription.remove).toHaveBeenCalled();
+    for (const subscription of subscriptions) expect(subscription.remove).toHaveBeenCalled();
   });
 
   /**
@@ -317,6 +339,7 @@ describe("CmvVideoPlayer — vignette", () => {
       <CmvVideoPlayer
         mediaId="msg-1"
         durationSeconds={null}
+        sizeBytes={null}
         resolveUrl={vi.fn(async () => FIRST)}
       />,
     );
@@ -428,6 +451,172 @@ describe("CmvVideoPlayer — remontée à Sentry (#809)", () => {
     await open();
 
     emit("readyToPlay");
+
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #809 : une lecture lente remonte ce qu'elle a coûté, avec le réseau et le débit de la vidéo. Ce
+ * qui est « lent » se décide dans `videoPlaybackReport` (éprouvé dans `@cmv/shared`) : ici, seul
+ * compte que le lecteur relaie les bons instants et envoie le rapport à la fermeture.
+ */
+describe("CmvVideoPlayer — lecture lente (#809)", () => {
+  let now = 0;
+  const at = (ms: number) => {
+    now = ms;
+  };
+
+  beforeEach(() => {
+    now = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+  });
+
+  afterEach(() => {
+    vi.mocked(Date.now).mockRestore();
+  });
+
+  const closePlayer = async () => {
+    press(screen.getByLabelText("media.video.close"));
+    await waitFor(() => expect(videoView()).toBeNull());
+  };
+
+  const slowReports = () =>
+    vi
+      .mocked(Sentry.captureMessage)
+      .mock.calls.filter(([title]) => title === "Lecture d'une vidéo lente");
+  const slowTags = () =>
+    (slowReports()[0]?.[1] as { tags?: Record<string, string> } | undefined)?.tags;
+
+  it("remonte un démarrage lent, compté depuis le geste, avec le débit et le réseau", async () => {
+    vi.mocked(getNetworkStateAsync).mockResolvedValueOnce({
+      type: NetworkStateType.CELLULAR,
+      isConnected: true,
+      isInternetReachable: true,
+    });
+    const { open } = setup();
+    await open();
+    at(8000);
+    firstFrame();
+    at(30_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toEqual({
+      level: "warning",
+      tags: { platform: "web", network: "cellular", started: "true" },
+      extra: { startupMs: 8000, started: true, stallCount: 0, stallMs: 0, bitrateMbps: 64 },
+    });
+  });
+
+  it("compte les recharges d'une lecture partie vite", async () => {
+    const { open } = setup();
+    await open();
+    at(500);
+    firstFrame();
+    at(4000);
+    emit("loading");
+    at(7000);
+    emit("readyToPlay");
+    at(9000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toMatchObject({
+      extra: { startupMs: 500, stallCount: 1, stallMs: 3000 },
+    });
+  });
+
+  // Le réseau inconnu ne s'invente pas : pas de tag, plutôt qu'un « unknown » qui passerait pour
+  // une valeur.
+  it("remonte une vidéo fermée avant sa première image, sans réseau quand il est inconnu", async () => {
+    const { open } = setup();
+    await open();
+    at(12_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toMatchObject({
+      tags: { platform: "web", started: "false" },
+      extra: { startupMs: 12_000, started: false },
+    });
+    expect(slowTags()).not.toHaveProperty("network");
+  });
+
+  it("n'invente pas de réseau quand le système ne répond pas", async () => {
+    vi.mocked(getNetworkStateAsync).mockRejectedValueOnce(new Error("indisponible"));
+    const { open } = setup();
+    await open();
+    at(12_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowTags()).not.toHaveProperty("network");
+  });
+
+  // Lu à l'ouverture : passer en wifi pour fermer ne réécrit pas le lien qui a fait attendre.
+  it("garde le réseau de l'ouverture, pas celui de la fermeture", async () => {
+    vi.mocked(getNetworkStateAsync)
+      .mockResolvedValueOnce({ type: NetworkStateType.CELLULAR })
+      .mockResolvedValue({ type: NetworkStateType.WIFI });
+    const { open } = setup();
+    await open();
+    at(12_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toMatchObject({ tags: { network: "cellular" } });
+  });
+
+  // La lecture reprise (`playingChange`) ferme une recharge comme l'état « prêt ».
+  it("ferme une recharge à la reprise de la lecture", async () => {
+    const { open } = setup();
+    await open();
+    at(500);
+    firstFrame();
+    at(4000);
+    emit("loading");
+    at(6000);
+    emitPlaying(true);
+    at(60_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toMatchObject({ extra: { stallCount: 1, stallMs: 2000 } });
+  });
+
+  // `playingChange` dit que la lecture est DEMANDÉE ou reprise, pas qu'une image est à l'écran.
+  it("ne prend pas la lecture lancée pour sa première image", async () => {
+    const { open } = setup();
+    await open();
+    at(100);
+    emitPlaying(true);
+    at(9000);
+    firstFrame();
+    at(20_000);
+
+    await closePlayer();
+
+    await waitFor(() => expect(slowReports()).toHaveLength(1));
+    expect(slowReports()[0]?.[1]).toMatchObject({ extra: { startupMs: 9000, started: true } });
+  });
+
+  it("ne remonte rien d'une lecture fluide", async () => {
+    const { open } = setup();
+    await open();
+    at(1200);
+    firstFrame();
+    emitPlaying(true);
+    emitPlaying(false);
+    at(60_000);
+
+    await closePlayer();
 
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });

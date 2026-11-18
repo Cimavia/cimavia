@@ -1,12 +1,23 @@
-import { formatMediaDuration } from "@cmv/shared";
+import {
+  formatMediaDuration,
+  openVideoPlayback,
+  trackVideoPlayback,
+  type VideoPlaybackEvent,
+  type VideoPlaybackTimeline,
+  videoPlaybackReport,
+} from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useRef, useState } from "react";
+import { useVideoPlayer, type VideoPlayer, VideoView } from "expo-video";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Modal, Pressable, View } from "react-native";
 import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
-import { reportPlaybackError } from "@/shared/lib/playback-report";
+import {
+  currentNetworkType,
+  reportPlaybackError,
+  reportSlowVideo,
+} from "@/shared/lib/playback-report";
 import { CmvText } from "./CmvText";
 
 // Ce que l'ouverture peut rater, et que l'utilisateur doit voir plutôt que subir.
@@ -19,6 +30,8 @@ type CmvVideoPlayerProps = {
   mediaId: string;
   // Durée déclarée à l'envoi, `null` quand l'envoyeur ne l'a pas mesurée.
   durationSeconds: number | null;
+  // Poids du fichier : avec la durée, il donne le débit qu'une lecture lente remonte (#809).
+  sizeBytes: number | null;
   /**
    * Rend une URL GET signée ouvrable — celle du cache si elle est encore valide, une re-signée
    * sinon, `null` si le rafraîchissement a échoué. Il n'y a PAS de prop `url` : celle du cache peut
@@ -47,6 +60,7 @@ type CmvVideoPlayerProps = {
 export function CmvVideoPlayer({
   mediaId,
   durationSeconds,
+  sizeBytes,
   resolveUrl,
   containerClassName = "flex-row items-center gap-2",
   thumbnailClassName = "h-[120px] w-48 overflow-hidden rounded-lg",
@@ -55,12 +69,15 @@ export function CmvVideoPlayer({
   const thumbnail = useVideoThumbnail(mediaId, resolveUrl, durationSeconds);
   // L'URL avec laquelle le lecteur démarre ; `null` = fermé.
   const [source, setSource] = useState<string | null>(null);
+  // L'instant du geste : l'attente qu'on mesure commence là, re-signature comprise.
+  const openedAtRef = useRef(0);
   const [opening, setOpening] = useState(false);
   const [failure, setFailure] = useState<OpenFailure | null>(null);
 
   const duration = formatMediaDuration(durationSeconds);
 
   const open = async () => {
+    openedAtRef.current = Date.now();
     setFailure(null);
     setOpening(true);
     try {
@@ -136,7 +153,13 @@ export function CmvVideoPlayer({
 
       <Modal visible={source != null} animationType="fade" onRequestClose={close}>
         {source == null ? null : (
-          <FullscreenVideo source={source} resolveUrl={resolveUrl} onClose={close} onFail={fail} />
+          <FullscreenVideo
+            source={source}
+            resolveUrl={resolveUrl}
+            onClose={close}
+            onFail={fail}
+            measure={{ openedAtMs: openedAtRef.current, sizeBytes, durationSeconds }}
+          />
         )}
       </Modal>
     </View>
@@ -149,7 +172,57 @@ type FullscreenVideoProps = {
   onClose: () => void;
   // La lecture est perdue pour de bon : on ferme, et la pastille dit pourquoi.
   onFail: () => void;
+  measure: PlaybackMeasure;
 };
+
+type PlaybackMeasure = {
+  openedAtMs: number;
+  sizeBytes: number | null;
+  durationSeconds: number | null;
+};
+
+/**
+ * Le relevé d'une lecture (#809), remonté à la fermeture s'il a été lent. Figé à la naissance du
+ * lecteur, comme sa source : le fil sondé ne le réécrit pas.
+ *
+ * Rend le rappel de la première image, que seule la VUE connaît : `playingChange` peut précéder
+ * l'abonnement, et ne dit pas qu'une image est à l'écran.
+ */
+function usePlaybackMeasure(player: VideoPlayer, measure: PlaybackMeasure): () => void {
+  const measureRef = useRef(measure);
+  const timelineRef = useRef<VideoPlaybackTimeline | null>(null);
+  timelineRef.current ??= openVideoPlayback(measure.openedAtMs);
+
+  const track = useCallback((type: VideoPlaybackEvent["type"]) => {
+    if (timelineRef.current == null) return;
+    timelineRef.current = trackVideoPlayback(timelineRef.current, { type, atMs: Date.now() });
+  }, []);
+
+  useEffect(() => {
+    // Lu à l'ouverture : c'est le lien sur lequel la vidéo démarre, pas celui où on la ferme.
+    const network = currentNetworkType();
+    const status = player.addListener("statusChange", ({ status: next }) => {
+      if (next === "loading") track("loading");
+      else if (next === "readyToPlay") track("ready");
+    });
+    const playing = player.addListener("playingChange", ({ isPlaying }) => {
+      if (isPlaying) track("ready");
+    });
+
+    return () => {
+      status.remove();
+      playing.remove();
+      // Fermé, ou perdu : c'est la fin de cette lecture, et le seul moment où son coût est connu.
+      const timeline = timelineRef.current;
+      if (timeline == null) return;
+      const { sizeBytes, durationSeconds } = measureRef.current;
+      const report = videoPlaybackReport(timeline, Date.now(), sizeBytes, durationSeconds);
+      if (report != null) void network.then((type) => reportSlowVideo(report, type));
+    };
+  }, [player, track]);
+
+  return useCallback(() => track("firstFrame"), [track]);
+}
 
 /**
  * Le lecteur ouvert. Il naît sur `source` et n'en change que par `replaceAsync`, quand elle casse.
@@ -159,9 +232,16 @@ type FullscreenVideoProps = {
  * alors, et on reprend à la même position — au pire une micro-pause, comme une coupure réseau. Le
  * lecteur système de #151 ne le permettait pas : l'erreur restait hors de l'app.
  */
-function FullscreenVideo({ source, resolveUrl, onClose, onFail }: Readonly<FullscreenVideoProps>) {
+function FullscreenVideo({
+  source,
+  resolveUrl,
+  onClose,
+  onFail,
+  measure,
+}: Readonly<FullscreenVideoProps>) {
   const { t } = useTranslation();
   const player = useVideoPlayer(source, (created) => created.play());
+  const onFirstFrameRender = usePlaybackMeasure(player, measure);
 
   // L'URL que le lecteur lit VRAIMENT — plus forcément `source`.
   const sourceRef = useRef(source);
@@ -235,7 +315,13 @@ function FullscreenVideo({ source, resolveUrl, onClose, onFail }: Readonly<Fulls
           `contain` : agrandir sert à VOIR le geste, un recadrage le rognerait. Le bouton plein
           écran natif reste : l'app est verrouillée en portrait, et c'est lui qui laisse voir en
           grand une vidéo tournée en paysage. */}
-      <VideoView player={player} nativeControls contentFit="contain" style={{ flex: 1 }} />
+      <VideoView
+        player={player}
+        nativeControls
+        contentFit="contain"
+        style={{ flex: 1 }}
+        onFirstFrameRender={onFirstFrameRender}
+      />
       <Pressable
         onPress={onClose}
         hitSlop={12}
