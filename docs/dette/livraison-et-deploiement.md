@@ -1113,7 +1113,8 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | MAJ-1 | **Un onglet resté ouvert casse avant d'avoir vu l'invite** s'il ouvre un écran chargé à la demande après un déploiement : l'image nginx ne contient que le dernier build, le chunk d'hier (`InstructionsEditor`, `ExerciseBuilderScreen.tsx`) répond 404 et l'import dynamique tombe sur `CmvCrashScreen` — qui recharge, et le signale à Sentry. L'invite ne paraît qu'au retour sur l'onglet ou dans les 10 min. Garder en ligne les assets des N derniers builds est une autre décision. | 🟢 | — *(déclencheur : des crashs « chunk introuvable » dans Sentry après une promotion)* |
-| MAJ-2 | **`location /assets/` émet deux en-têtes `Cache-Control`** : `expires 1y` en pose un, `add_header` l'autre. Les navigateurs les concatènent et l'effet est le bon ; un cache intermédiaire pourrait n'en lire qu'un. | 🟢 | — *(déclencheur : la prochaine retouche de `apps/web/nginx.conf`)* |
+
+*Résolues, à l'[archive](archive.md) : MAJ-2.*
 
 > **Tranché en #290** (on compare le script d'entrée, pas une version publiée) : l'issue penchait
 > pour un `version.json` à la racine du site. Mais il serait lisible sans session, et « Tranché en

@@ -239,6 +239,13 @@ jobs:
             done
           }
 
+          # Un seul `Cache-Control` sur un asset, durée comprise : `expires` en posait un second (MAJ-2).
+          cache="$(curl -fsS --max-time 10 -o /dev/null -D - "http://127.0.0.1:8080${ASSET}" | tr -d '\r' | grep -i '^cache-control:' || true)"
+          if [ "${cache,,}" != "cache-control: public, max-age=31536000, immutable" ]; then
+            echo "::error::${ASSET} : Cache-Control inattendu : ${cache//$'\n'/ | }"
+            exit 1
+          fi
+
           for path in /athletes "$ASSET" /config.js /legal/fr/terms /legal/..%2Findex.html; do
             check 8080 "$path" "${policy}${sentry}${report}"
           done

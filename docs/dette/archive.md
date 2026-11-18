@@ -120,6 +120,12 @@ l'[index](../dette-technique.md).
 | ~~IOS-3~~ | ~~**`UIBackgroundModes: ["audio"]` déclaré sans usage**~~ : `expo-audio` le pose par défaut (`enableBackgroundPlayback`), et l'app ne jouait rien app fermée — un motif de rejet à la revue Apple. | ✅ | résolue en [#619](https://github.com/Cimavia/cimavia/issues/619) — `enableBackgroundRecording` en fait l'usage : la note vocale continue écran verrouillé ; `enableBackgroundPlayback: false` retire la lecture en arrière-plan qui le posait sans usage |
 | ~~IOS-6~~ | ~~**La chaîne de notification du minuteur n'a aucun test**~~ : `timer-alert.ts`, `useTimerNotification.ts`, et le calcul des échéances enfermé dans `SessionDetailScreen`. Découvert en mesurant `usePushToken` pour #134. Couverte en #509 : les deux premiers par leurs tests unitaires, le calcul des échéances à travers l'écran, sur ce qui part vers `expo-notifications` (encadré « Tranché en #509 »). Le plafond iOS réel reste à IOS-5. | ✅ | résolue en [#253](https://github.com/Cimavia/cimavia/issues/253), livrée par [#509](https://github.com/Cimavia/cimavia/issues/509) |
 
+### Post-MVP — Adoption d'une nouvelle version web ([#290](https://github.com/Cimavia/cimavia/issues/290))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~MAJ-2~~ | ~~**`location /assets/` émet deux en-têtes `Cache-Control`**~~ : `expires 1y` en pose un, `add_header` l'autre. Les navigateurs les concatènent et l'effet est le bon ; un cache intermédiaire pourrait n'en lire qu'un. | ✅ | résolue en [#817](https://github.com/Cimavia/cimavia/issues/817) — un seul `add_header Cache-Control "public, max-age=31536000, immutable"`, vérifié par le smoke test de `web-image.yml` |
+
 ## Messagerie et notifications
 
 ### P5 — Messagerie & débrief vocal
