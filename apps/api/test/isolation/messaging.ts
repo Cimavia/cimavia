@@ -1,5 +1,5 @@
 import { MULTIPART_THRESHOLD_BYTES, multipartPartSizes, Role } from "@cmv/shared";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
   type Agent,
   billAndPublish,
@@ -175,6 +175,57 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
       .post(`/conversations/${conversationId}/messages`)
       .send({ type: "TEXT", content: "" });
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * L'horloge du serveur peut reculer — WSL2 se recale par à-coups de plusieurs secondes (#833, #867).
+ * Un message daté par elle passerait AVANT celui qui l'a précédé : fil et aperçu à rebours, et un
+ * non-lu perdu, daté avant la marque de lecture de son destinataire.
+ */
+describe("Messagerie : un recul de l'horloge (#867)", () => {
+  let coach: Agent;
+  let athlete: Agent;
+  let conversationId: string;
+
+  beforeAll(async () => {
+    coach = await signUp("clock-coach@cmv.test", Role.COACH);
+    athlete = await signUp("clock-athlete@cmv.test", Role.ATHLETE);
+    const { athleteId } = await linkRelation(coach, athlete);
+    conversationId = (await openWith(coach, athleteId, "athlete")).body.id;
+  });
+
+  const send = (agent: Agent, content: string) =>
+    agent.post(`/conversations/${conversationId}/messages`).send({ type: "TEXT", content });
+
+  it("ne date pas un message avant le précédent : fil, aperçu et non-lu restent dans l'ordre", async () => {
+    const first = await send(coach, "Avant le recul");
+    expect(first.status).toBe(201);
+    expect((await athlete.post(`/conversations/${conversationId}/read`)).status).toBe(204);
+
+    // L'API tourne dans CE processus (`setupE2eApp`) : reculer `Date` ici, c'est reculer l'horloge
+    // qui date le message. Sans le correctif, ce cas rend le fil à rebours (vérifié en #867).
+    vi.setSystemTime(new Date(Date.now() - 5_000));
+    try {
+      expect((await send(coach, "Après le recul")).status).toBe(201);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const thread = await athlete.get(`/conversations/${conversationId}/messages`);
+    expect(thread.body.map((message: { content: string }) => message.content)).toEqual([
+      "Avant le recul",
+      "Après le recul",
+    ]);
+    const [, second] = thread.body as { createdAt: string }[];
+    expect(
+      new Date(required(second, "message d'après le recul").createdAt).getTime(),
+    ).toBeGreaterThan(new Date(first.body.createdAt).getTime());
+
+    const listed = (await athlete.get("/conversations")).body.find(
+      (conversation: { id: string }) => conversation.id === conversationId,
+    );
+    expect(listed).toMatchObject({ lastMessagePreview: "Après le recul", unreadCount: 1 });
   });
 });
 

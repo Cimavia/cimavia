@@ -755,7 +755,9 @@ liste des domaines vivent dans l'index.
 > suite web lancée seule tient en 64 s, bridée.
 >
 > Écarts assumés : **l'e2e Playwright de la messagerie**, tombé une fois sur la suite complète,
-> relève d'une autre cause et part en [#867](https://github.com/Cimavia/cimavia/issues/867). La
+> est parti en [#867](https://github.com/Cimavia/cimavia/issues/867). Il tenait au même recul de
+> l'horloge, mais côté API : le recul datait un message avant le précédent. C'est tranché dans
+> `messagerie-et-notifications.md`. La
 > même dépendance à l'horloge existe côté mobile (`usableSession`, qui relit par
 > `fetchQuery({ staleTime: 0 })`) ; elle n'y a fait tomber aucun test et reste en l'état.
 

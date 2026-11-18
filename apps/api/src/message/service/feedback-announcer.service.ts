@@ -4,6 +4,7 @@ import type { Prisma, SessionFeedback } from "@prisma/client";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
+import { appendMessage } from "../append-message";
 import { ConversationService, type JoinedConversation } from "./conversation.service";
 
 /**
@@ -117,14 +118,8 @@ export class FeedbackAnnouncerService {
       sessionFeedbackId: feedback.id,
     };
 
-    await this.db.$transaction(async (tx) => {
-      const created = await tx.message.create({ data });
-      // `lastMessageAt` sert au tri de la liste de fils : un avis remonte le fil comme un message,
-      // sinon un débrief déposé resterait en bas de la liste du coach.
-      await tx.conversation.update({
-        where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt },
-      });
-    });
+    // Un avis remonte le fil comme un message — sinon un débrief déposé resterait en bas de la
+    // liste du coach —, et se date de même après le dernier, même si l'horloge recule (#867).
+    await this.db.$transaction((tx) => appendMessage(tx, data));
   }
 }

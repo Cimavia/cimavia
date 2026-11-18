@@ -39,11 +39,17 @@ function build(existing: Events | Record<string, Thread>, options?: { ensureFail
     ...(threads[where.conversationId.replace("conv-", "")]?.events ?? []),
   ]);
   const create = vi.fn().mockResolvedValue({ id: "m1", createdAt: new Date("2026-09-07") });
-  const update = vi.fn().mockResolvedValue(undefined);
+  const update = vi.fn().mockResolvedValue({ count: 1 });
   const db = {
     message: { findMany },
     $transaction: (run: (tx: unknown) => Promise<unknown>) =>
-      run({ message: { create }, conversation: { update } }),
+      run({
+        message: { create },
+        conversation: {
+          findFirst: vi.fn().mockResolvedValue({ lastMessageAt: null }),
+          updateMany: update,
+        },
+      }),
   } as unknown as TenantPrisma;
 
   // Sans avis, pas de fil : il faut l'ouvrir. Avec, il existe déjà.
@@ -91,6 +97,7 @@ describe("FeedbackAnnouncerService", () => {
       senderId: "a1",
       type: MessageType.FEEDBACK_CREATED,
       sessionFeedbackId: "f1",
+      createdAt: expect.any(Date),
     });
   });
 
@@ -210,7 +217,7 @@ describe("FeedbackAnnouncerService", () => {
     await service.announce(FEEDBACK, ["c1"]);
 
     expect(update).toHaveBeenCalledWith({
-      where: { id: "conv-c1" },
+      where: expect.objectContaining({ id: "conv-c1" }),
       data: { lastMessageAt: new Date("2026-09-07") },
     });
   });
