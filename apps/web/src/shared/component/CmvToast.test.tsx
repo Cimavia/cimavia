@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../test/render";
 import { useToast } from "./CmvToast";
 
@@ -43,5 +43,67 @@ describe("CmvToast", () => {
     expect(() => render(<Trigger tone="info" message="x" />)).toThrow(
       "[toast] useToast() hors ToastProvider",
     );
+  });
+
+  /*
+    Les échéances, sous faux minuteurs. Limités à `setTimeout`/`clearTimeout` : le planificateur de
+    React passe par d'autres primitives, qui fausseraient `getTimerCount()`. Et `fireEvent` plutôt
+    que `user` : ce dernier attend des tours de boucle que les faux minuteurs ne rendent pas.
+  */
+  describe("échéance", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function showToast(tone: Tone, message: string) {
+      const screen = renderWithProviders(<Trigger tone={tone} message={message} />);
+      fireEvent.click(screen.getByRole("button", { name: "déclencher" }));
+      return screen;
+    }
+
+    it.each<[Tone, number]>([
+      ["success", 5000],
+      ["error", 8000],
+    ])("se retire seul : un toast %s dure %i ms", (tone, ttl) => {
+      // L'erreur reste plus longtemps : elle demande une action.
+      const { queryByRole } = showToast(tone, "Message");
+
+      act(() => {
+        vi.advanceTimersByTime(ttl - 1);
+      });
+      expect(queryByRole("button", { name: "Message" })).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(queryByRole("button", { name: "Message" })).toBeNull();
+    });
+
+    it("désarme l'échéance d'un toast fermé au clic", () => {
+      const screen = renderWithProviders(<Trigger tone="info" message="Date recalée" />);
+      // Référence prise avant le toast : seul SON minuteur est compté, pas ceux des autres
+      // fournisseurs du harnais.
+      const idle = vi.getTimerCount();
+      fireEvent.click(screen.getByRole("button", { name: "déclencher" }));
+      expect(vi.getTimerCount()).toBe(idle + 1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Date recalée" }));
+
+      expect(vi.getTimerCount()).toBe(idle);
+    });
+
+    it("ne laisse aucune échéance survivre au démontage du fournisseur", () => {
+      // Sans quoi le minuteur tire après la fin du fichier, sur un jsdom démonté (#668).
+      const { unmount } = showToast("error", "Échec");
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      unmount();
+
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 });
