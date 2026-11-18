@@ -582,9 +582,8 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | NV-1 | **La notification Android de l'enregistrement est en anglais** (règle dure n°6) : « Recording audio » / « Tap to return to app », et le canal « Audio Recording » visible dans Réglages › Notifications. `AudioRecordingService.kt` les écrit en dur, sans ressource Android à surcharger : la voie d'IOS-1 (`expo.locales`) ne s'applique pas. Seule issue aujourd'hui, un `pnpm patch` du service, écarté : à rejouer à chaque montée d'`expo-audio`. Même famille que [#348](https://github.com/Cimavia/cimavia/issues/348). | 🟢 | — *(déclencheur : une option de configuration côté `expo-audio`, ou un retour d'utilisateur qui s'en plaint)* |
 | NV-2 | **Le service de premier plan `microphone` n'est déclaré nulle part côté store** : la Play Console exige une justification et une vidéo pour chaque type de service de premier plan du manifeste. | 🟡 | — *(déclencheur : la première publication sur le Play Store ; Android n'est distribué qu'en interne, `eas.json` n'a pas de `submit` Android)* |
-| NV-4 | **Une note relayée peut masquer l'échec de la précédente** : au plafond, la note close part pendant que la parole continue (#856). Si son envoi dure plus de cinq minutes — une note de 5 min sur un lien de moins de 16 ko/s —, la suivante appelle `mutate()` sur la même mutation (`useAddFeedbackAudio`, l'`audio` de `useMessageMedia`) : TanStack Query cesse d'observer la première, son échec n'est plus affiché, et l'avancement est réécrit par la seconde. Les deux envois aboutissent ou échouent chacun ; seul l'avis manque. | 🟡 | [#858](https://github.com/Cimavia/cimavia/issues/858) |
 
-*Résolues, à l'[archive](archive.md) : NV-3.*
+*Résolues, à l'[archive](archive.md) : NV-3, NV-4.*
 
 > **Tranché en #619** (la note vocale continue écran verrouillé) : le Coach bêta perdait tout ce
 > qu'il disait une fois l'iPhone en veille. expo-audio met l'enregistreur en pause dès que l'app
@@ -701,6 +700,37 @@ liste des domaines vivent dans l'index.
 > - **Deux relevés natifs par écran** (`useAudioRecorderState`, un par enregistreur), gardés tous
 >   les deux : un seul, rebranché au relais, afficherait un instant la durée de la note close. Au
 >   repos, un relevé inchangé ne provoque aucun rendu (le hook garde l'état précédent).
+
+> **Tranché en #858** (une note relayée ne tait plus l'échec de la précédente) : au plafond, la
+> note close part pendant que la capture continue, et la suivante pouvait partir avant la fin de
+> son envoi. Les deux passaient par la même mutation, que TanStack Query n'observe que pour le
+> dernier `mutate()` : l'échec de la première n'était plus affiché, et l'Athlete la croyait partie.
+>
+> - **Les notes partent l'une après l'autre** (`scope` des mutations, une file par séance ou par
+>   fil — `useVoiceNoteUpload`). Sur un lien faible, deux envois simultanés ne vont pas plus vite
+>   au total ; en file, l'avancement affiché est celui d'une seule note, et « envoi en cours »
+>   couvre toute la file, puisque la dernière ne finit qu'après les autres. Une note qui échoue ne
+>   bloque pas la suivante.
+> - **L'échec est retenu hors de la mutation**, par le `onError` des options, qui part pour chaque
+>   note quel que soit l'observateur. Une note réussie ensuite ne l'efface pas.
+> - **Il s'efface au début d'une capture lancée à la main**, et jamais à l'arrivée d'une note :
+>   `MediaPicker` et `Composer` remontent `onCaptureStart` quand l'enregistreur démarre, et les
+>   trois écrans y effacent leurs erreurs (refus du micro ou de la galerie, échec d'une note,
+>   retrait raté du débrief). Avant, ils le faisaient dans `onRecordAudio`, que le relais appelle
+>   aussi. Un refus de la galerie disparaît donc au démarrage de la capture, et non plus à
+>   l'envoi de la note.
+> - **Le cache persisté n'écrit plus aucune mutation** (`shouldDehydrateMutation: () => false`),
+>   ce que son commentaire affirmait déjà. Par défaut, TanStack écrit sur le disque toute mutation
+>   en pause, file comprise : restaurée sans sa fonction d'envoi, une note hors réseau aurait
+>   bloqué toutes les suivantes de sa file jusqu'au retour du réseau ou du premier plan.
+> - **Quitter l'écran efface l'échec**, l'état étant local à l'écran : l'envoi continue, mais son
+>   échec n'est plus dit nulle part. Comportement d'avant #856, inchangé ici. De même, deux écrans
+>   montés sur le même fil (réponse au débrief, puis le fil) partagent sa file : la note de l'un
+>   attend celle de l'autre en disant « envoi en cours », sans en dire l'échec.
+> - **Limite assumée : un seul emplacement d'erreur.** Un refus posé à la main (micro, galerie)
+>   passe avant l'échec retenu (`mediaErrorMessage`). Si une capture voit d'abord échouer une note
+>   relayée, puis son propre arrêt échouer, seule la seconde panne est dite. Les deux à la fois
+>   demandent une seconde ligne dans trois écrans ; à rouvrir si la bêta le rencontre.
 
 > **Tranché en #700** (un démarrage raté ne bloque plus les suivants) : Android pose `isPrepared`
 > à la préparation et refuse toute autre tant que l'enregistreur n'est ni arrêté ni libéré. Un

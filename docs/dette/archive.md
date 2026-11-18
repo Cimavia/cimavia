@@ -147,6 +147,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~NV-3~~ | ~~**Le mobile ne borne pas la capture vocale**~~ : `CmvAudioRecorder` enregistre sans plafond, et une note de plus de cinq minutes n'est refusée — en entier — qu'à l'envoi. Le web s'arrête au plafond du profil en gardant la capture (#340). | ✅ | résolue en **#856** — le natif clôt la note au plafond et elle part ; la parole continue dans une note neuve tant qu'une place reste, sinon l'écran dit l'arrêt |
+| ~~NV-4~~ | ~~**Une note relayée peut masquer l'échec de la précédente**~~ : au plafond, la note close part pendant que la parole continue (#856). Si son envoi dure plus de cinq minutes, la suivante appelle `mutate()` sur la même mutation : TanStack Query cesse d'observer la première, et son échec n'est plus affiché. | ✅ | résolue en **#858** — les notes partent l'une après l'autre (`scope`), l'échec est retenu par le `onError` des options, et ne s'efface qu'au début d'une capture lancée à la main |
 
 ## Planifications
 
