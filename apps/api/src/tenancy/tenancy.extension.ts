@@ -34,9 +34,12 @@ type Row = Record<string, unknown>;
 type PrismaTransaction = { kind: string };
 type InternalParams = { __internalParams?: { transaction?: PrismaTransaction } };
 
-/** Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`. */
-type ParentRead = PromiseLike<Row[]> & {
-  requestTransaction(transaction: PrismaTransaction): PromiseLike<Row[]>;
+/**
+ * Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`.
+ * Sans transaction (`undefined`), elle part comme une lecture nue — c'est ce que fait son `then`.
+ */
+type ParentRead = {
+  requestTransaction(transaction: PrismaTransaction | undefined): PromiseLike<Row[]>;
 };
 type ParentDelegate = { findMany(args: unknown): ParentRead };
 
@@ -133,6 +136,9 @@ async function parentOwnersOrThrow(
     `[tenancy] ${parent.model}, parent de ${child.model}, n'a pas de scope pour cette capacité`,
   );
   const column = parent.checkOnly === true ? null : ownerColumnOrThrow(parentScope, parent.model);
+  // Prisma résout AUSSI `prisma.Exercise` (`modelsLayer`), sans le typer ni le documenter : on lit
+  // le délégué sous son nom typé. Un nom faux, lui, ferait tomber toute création d'enfant.
+  // Stryker disable next-line MethodExpression: majuscule ou minuscule, le client rend le même délégué
   const delegateName = parent.model.charAt(0).toLowerCase() + parent.model.slice(1);
   const delegate = required(
     (prisma as unknown as Record<string, ParentDelegate | undefined>)[delegateName],
@@ -144,7 +150,7 @@ async function parentOwnersOrThrow(
     where: { id: { in: child.ids }, ...parentScope.where(actor.actorId, "write") },
     select: column == null ? { id: true } : { id: true, [column]: true },
   });
-  const parents = await (transaction == null ? read : read.requestTransaction(transaction));
+  const parents = await read.requestTransaction(transaction);
   if (parents.length !== child.ids.length) {
     throw new Error(
       `[tenancy] ${child.model} : son ${parent.model} est introuvable, ou fermé en écriture`,
