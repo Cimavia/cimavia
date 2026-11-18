@@ -614,6 +614,9 @@ describe("scopeFor", () => {
     expect(scopeFor({ coach: shared, athlete: shared }, null)).toBe(shared);
     expect(scopeFor({ coach: column("userId"), athlete: column("userId") }, null)).toBeNull();
     expect(scopeFor({ coach: column("coachId"), athlete: column("athleteId") }, null)).toBeNull();
+    // Un modèle d'entreprise n'a ni l'un ni l'autre : deux absences égales n'ouvrent rien, et le
+    // refus est `null` — pas l'`undefined` d'un scope coach absent.
+    expect(scopeFor({ company: column("organizationId") }, null)).toBeNull();
   });
 
   it.each([
