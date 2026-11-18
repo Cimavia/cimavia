@@ -859,6 +859,8 @@ describe("Cycle — version lue (#604)", () => {
     const [published, removed] = await Promise.all([publish(id, read), remove(id, read)]);
 
     // Diffusé d'abord, il ne se supprime plus ; supprimé d'abord, il n'y a plus rien à diffuser.
+    // Supprimé PENDANT la diffusion, entre sa lecture et son verrou, c'est encore un 404 : compter
+    // les semaines avant le verrou y répondait 400 « sans semaine », par intermittence (#872).
     const plan = await coach.get(`/plans/${id}`);
     if (published.status === 200) {
       expect(removed.status).toBe(409);
