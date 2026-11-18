@@ -1327,6 +1327,19 @@ export {
 } from "./util/training-duration.util";
 export { trimTrailingSlashes } from "./util/url.util";
 export { FILTERED, redactUrlSecrets } from "./util/url-secret.util";
+export type {
+  VideoPlaybackEvent,
+  VideoPlaybackReport,
+  VideoPlaybackTimeline,
+} from "./util/video-playback.util";
+export {
+  openVideoPlayback,
+  SLOW_VIDEO_STARTUP_MS,
+  trackVideoPlayback,
+  VIDEO_STALL_MIN_MS,
+  videoBitrateMbps,
+  videoPlaybackReport,
+} from "./util/video-playback.util";
 export type { VoiceNoteChain, VoiceNoteCue, VoiceNoteFocus } from "./util/voice-note.util";
 export {
   createVoiceNoteChainHooks,
