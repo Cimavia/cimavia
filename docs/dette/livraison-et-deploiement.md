@@ -1104,9 +1104,30 @@ liste des domaines vivent dans l'index.
 > à tenir.
 >
 > `Referrer-Policy: strict-origin-when-cross-origin` est le défaut des navigateurs actuels : l'en-tête
-> le rend explicite, il ne colmate pas de fuite. Le jeton de `/reset-password` s'écrit en revanche
-> dans les logs d'accès d'nginx, ce que cet en-tête ne change pas :
-> [#817](https://github.com/Cimavia/cimavia/issues/817).
+> le rend explicite, il ne colmate pas de fuite. Le jeton de `/reset-password` s'écrivait en revanche
+> dans les logs d'nginx, ce que cet en-tête ne change pas : réglé en
+> [#817](https://github.com/Cimavia/cimavia/issues/817), ci-dessous.
+
+> **Tranché en #817** (la chaîne de requête est coupée des logs d'nginx, pas blanchie) : le format
+> `main` de l'image écrivait `/reset-password?token=…` par **trois** canaux, quand l'issue n'en
+> nommait qu'un — la ligne de requête du document ; le **Referer** de chaque asset qu'il charge,
+> complet en même origine malgré `Referrer-Policy` ; et le `referrer:` du log d'erreur pour un asset
+> absent (un chunk disparu après une promotion, MAJ-1), dont le format n'est pas configurable.
+>
+> Le `log_format cmv` de `apps/web/nginx.conf` coupe la chaîne de requête du chemin et du Referer, et
+> `log_not_found off` fait taire l'erreur — le 404 reste dans le log d'accès. Les autres erreurs (un
+> dossier sans index, un droit refusé) garderaient leur `referrer:` : aucun chargement de la page
+> n'en produit, et les taire toutes coûterait le log d'erreur entier. Couper plutôt que
+> blanchir les paramètres de `redactUrlSecrets` : rien de ce qu'on lit dans ces logs ne dépend de la
+> query, et la liste aurait existé deux fois, en regex nginx, qui ne sait pas remplacer toutes les
+> occurrences d'une chaîne. Le chemin vient de **`$request_uri`, pas de `$uri`** que proposait
+> l'issue : le repli SPA réécrit `$uri`, et chaque route de l'app se serait journalisée sous
+> `/index.html`, une tentative `/legal/..%2F…` comprise. Une requête malformée, sans `$request_uri`,
+> garde sa ligne brute : aucun navigateur n'en envoie, et c'est ce qui la diagnostique.
+>
+> **Un secret dans le CHEMIN d'une route web s'écrirait encore** : seule la query est coupée.
+> Aucune route de l'app n'en porte — `/reset-password/<jeton>` est une route de l'API. Le smoke test
+> de `web-image.yml` cherche `token=` dans `docker logs` après avoir ouvert la page et ses assets.
 
 ## Post-MVP — Adoption d'une nouvelle version web ([#290](https://github.com/Cimavia/cimavia/issues/290))
 
