@@ -18,6 +18,7 @@ import {
   reportPlaybackError,
   reportSlowVideo,
 } from "@/shared/lib/playback-report";
+import { suspendVideoThumbnails } from "@/shared/lib/video-thumbnail";
 import { CmvText } from "./CmvText";
 
 // Ce que l'ouverture peut rater, et que l'utilisateur doit voir plutôt que subir.
@@ -242,6 +243,8 @@ function FullscreenVideo({
   const { t } = useTranslation();
   const player = useVideoPlayer(source, (created) => created.play());
   const onFirstFrameRender = usePlaybackMeasure(player, measure);
+  // Les vignettes en attente tireraient sur le lien de la vidéo : elles attendent la fermeture.
+  useEffect(() => suspendVideoThumbnails(), []);
 
   // L'URL que le lecteur lit VRAIMENT — plus forcément `source`.
   const sourceRef = useRef(source);

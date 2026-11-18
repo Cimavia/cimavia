@@ -49,6 +49,37 @@ let queue: Promise<unknown> = Promise.resolve();
 // Une vidéo affichée deux fois (le fil, puis sous le débrief qu'elle commente) n'est tirée qu'une.
 const inFlight = new Map<string, Promise<string | null>>();
 
+/**
+ * Les lecteurs vidéo ouverts, qui suspendent la file (#809). Une vignette tire des octets sur le
+ * MÊME lien que la vidéo qu'on regarde : en 5G, c'est autant de moins pour la lecture. Celle déjà
+ * en cours finit — un tirage natif ne s'interrompt pas —, les suivantes attendent la fermeture.
+ */
+let suspensions = 0;
+let resumed: Promise<void> = Promise.resolve();
+let resume: () => void = () => undefined;
+
+/** Met la file en pause ; rend la fonction qui la relâche, sans effet au-delà du premier appel. */
+export function suspendVideoThumbnails(): () => void {
+  if (suspensions === 0) {
+    resumed = new Promise((resolve) => {
+      resume = resolve;
+    });
+  }
+  suspensions += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    suspensions -= 1;
+    if (suspensions === 0) resume();
+  };
+}
+
+// Lu au moment où la tâche arrive en tête de file, pas à la demande : c'est là qu'elle tirerait.
+function whenResumed(): Promise<void> {
+  return suspensions === 0 ? Promise.resolve() : resumed;
+}
+
 function thumbnailDirectory(): Directory {
   return new Directory(Paths.cache, DIRECTORY_NAME);
 }
@@ -155,7 +186,9 @@ export function videoThumbnail(
 
   // L'époque de la DEMANDE, pas celle du tirage : une vidéo peut attendre son tour longtemps.
   const epoch = generation;
-  const task = queue.then(() => generate(mediaId, resolveUrl, durationSeconds, epoch));
+  const task = queue
+    .then(whenResumed)
+    .then(() => generate(mediaId, resolveUrl, durationSeconds, epoch));
   // `generate` ne lève jamais, mais la file ne doit en aucun cas rester bloquée sur un rejet.
   queue = task.catch(() => null);
   inFlight.set(mediaId, task);

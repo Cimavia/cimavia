@@ -4,12 +4,19 @@ import { getNetworkStateAsync, NetworkStateType } from "expo-network";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
+import { suspendVideoThumbnails } from "@/shared/lib/video-thumbnail";
 import { press, renderRn } from "@/test/render";
 import { CmvVideoPlayer } from "./CmvVideoPlayer";
 
 // Le tirage est éprouvé dans `video-thumbnail.test.ts` : ici, seul compte ce qu'on en affiche.
 vi.mock("@/shared/hook/useVideoThumbnail", () => ({
   useVideoThumbnail: vi.fn((): string | null => null),
+}));
+
+// La pause de la file est éprouvée dans `video-thumbnail.test.ts` : ici, qu'elle couvre la lecture.
+const releaseThumbnails = vi.fn();
+vi.mock("@/shared/lib/video-thumbnail", () => ({
+  suspendVideoThumbnails: vi.fn(() => releaseThumbnails),
 }));
 
 const THUMB = "file:///cache/video-thumbnails/msg-1.jpg";
@@ -175,6 +182,20 @@ describe("CmvVideoPlayer", () => {
     expect(player()).toBe(opened);
     expect(vi.mocked(useVideoPlayer).mock.calls.every(([source]) => source === FIRST)).toBe(true);
     expect(opened.replaceAsync).not.toHaveBeenCalled();
+  });
+
+  // #809 : en 5G, une vignette tirée pendant la lecture prend sa part du même lien.
+  it("met la file des vignettes en pause le temps de la lecture", async () => {
+    const { open } = setup();
+    expect(suspendVideoThumbnails).not.toHaveBeenCalled();
+
+    await open();
+    expect(suspendVideoThumbnails).toHaveBeenCalledTimes(1);
+    expect(releaseThumbnails).not.toHaveBeenCalled();
+
+    press(screen.getByLabelText("media.video.close"));
+
+    await waitFor(() => expect(releaseThumbnails).toHaveBeenCalledTimes(1));
   });
 
   it("se ferme sur le bouton dédié, et relâche son lecteur", async () => {

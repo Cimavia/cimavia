@@ -92,8 +92,13 @@ vi.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg" },
 }));
 
-const { localVideoThumbnailUri, purgeVideoThumbnails, thumbnailTimeSeconds, videoThumbnail } =
-  await import("./video-thumbnail");
+const {
+  localVideoThumbnailUri,
+  purgeVideoThumbnails,
+  suspendVideoThumbnails,
+  thumbnailTimeSeconds,
+  videoThumbnail,
+} = await import("./video-thumbnail");
 
 const URL = "https://s3.test/voie.mp4?X-Amz-Date=120000";
 const THUMBNAIL = { width: 480, height: 300 };
@@ -362,6 +367,76 @@ describe("videoThumbnail", () => {
 
     expect(await abandoned).toBeNull();
     expect(await fresh).toBe(`${ROOT}/msg-1.jpg`);
+  });
+});
+
+/**
+ * #809 : une vignette tire sur le même lien que la vidéo regardée. Tant qu'un lecteur est ouvert,
+ * la file attend ; celle déjà en cours finit, un tirage natif ne s'interrompant pas.
+ */
+describe("suspendVideoThumbnails", () => {
+  // Laisse passer ce qui peut passer : si rien n'a bougé après, la file attend vraiment.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("retient la file tant qu'un lecteur est ouvert, et la relâche à sa fermeture", async () => {
+    const release = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+    expect(createVideoPlayer).not.toHaveBeenCalled();
+
+    release();
+
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+  });
+
+  it("laisse finir la vignette déjà en cours", async () => {
+    let finish: (value: unknown[]) => void = () => undefined;
+    givenPlayers(fakePlayer(() => new Promise((resolve) => (finish = resolve))));
+    const pending = videoThumbnail("msg-1", resolveTo(URL), 42);
+    await vi.waitFor(() => expect(createVideoPlayer).toHaveBeenCalledTimes(1));
+
+    const release = suspendVideoThumbnails();
+    finish([THUMBNAIL]);
+
+    try {
+      expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+    } finally {
+      release();
+    }
+  });
+
+  // Deux lecteurs (un débrief ouvert depuis un fil) : la file attend que le DERNIER se ferme.
+  it("attend que tous les lecteurs ouverts soient fermés", async () => {
+    const first = suspendVideoThumbnails();
+    const second = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+
+    first();
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    second();
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+  });
+
+  // Un démontage rejoué ne doit pas relâcher la pause d'un AUTRE lecteur encore ouvert.
+  it("ignore une seconde libération du même lecteur", async () => {
+    const first = suspendVideoThumbnails();
+    const second = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+
+    first();
+    first();
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    second();
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
   });
 });
 
