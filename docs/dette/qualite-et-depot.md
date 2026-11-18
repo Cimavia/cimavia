@@ -767,11 +767,11 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| GF-1 | **Un `findUnique` regroupé pourrait rendre la ligne d'un tenant à l'autre, dans un cas que rien n'atteint** (#626). Prisma rattache chaque ligne d'un lot à sa requête par les champs du `where`, dans leur ordre. Un appelant du client tenant qui écrirait lui-même la colonne tenant AVANT une clé composée qui la contient (`coachId_athleteId` de `CoachAthlete`, `AthleteSheet`) ferait comparer la valeur de la clé composée, pas celle du filtre : lu dans le même tick que la lecture légitime de l'autre coach, il recevrait sa ligne. Constaté sur le plan compilé, jamais en vrai : aucun `findUnique` ne passe aujourd'hui par le client tenant. La parade est dans `scopeWhere` — retirer du `where` les clés du filtre avant de les reposer en dernier —, avec un e2e concurrent sur clé composée pour la tenir. | 🟢 | — *(déclencheur : le premier `findUnique` sur le client tenant d'un modèle à clé composée tenant)* |
 | GF-2 | **Les règles de verrou de squawk sont exclues** (#628) : `lock_timeout`, `statement_timeout`, index non `CONCURRENTLY`, contrainte ou clé étrangère validée d'emblée. Une migration peut donc bloquer une table le temps qu'elle dure, sans signal. Sur les volumes du Coach bêta (des milliers de lignes), ce temps se compte en millisecondes, et l'API est arrêtée pendant qu'elle migre. | 🟢 | — *(déclencheur : une table qui dépasse le million de lignes, ou une prod où l'API sert pendant la migration — #84 ; retirer alors ces règles de `excluded_rules`)* |
 | GF-3 | **Des mutants survivent encore dans `@cmv/shared`** (#635) : le cliquet est à 92, pas à 100. Le lot `util/` et motifs est livré ; restent les schémas de réponse qu'aucun test de shared ne parse, les bornes `.min`/`.max` jamais testées à leur valeur exacte, la lecture d'horloge de `date.util` et les documents riches. Chaque lot remonte le cliquet du score qu'il gagne. | 🟢 | [#635](https://github.com/Cimavia/cimavia/issues/635) |
-| GF-4 | **La tenancy n'est plus à 100 % de mutants tués** (#677) : 96,81 % au premier job qui a fini depuis le passage à trois workers, et donc rouge chaque lundi. Onze survivants sont des filtres ou des contrôles de l'extension que rien ne tient (composition `scopeWhere`, `membershipFrozenOrThrow`, refus d'un parent introuvable), les autres sont des équivalents probables à déclarer à leur ligne. La liste varie d'une passe à l'autre : 17 en CI, 14 en local, quatre mutants de `tenant-scope.ts` survivant d'un côté et sortant en erreur de l'autre. | 🟡 | [#814](https://github.com/Cimavia/cimavia/issues/814) |
 | GF-5 | **91 % des mutants de la tenancy rejouent toute la suite** (#677) : leurs fixtures vivent dans des `beforeAll`, dont Stryker ne rattache la couverture à aucun test. Chacun coûte les 1 113 tests, d'où 2 h 49 en CI à trois workers. | 🟢 | [#815](https://github.com/Cimavia/cimavia/issues/815) *(déclencheur : le job tenancy dépasse à nouveau ses 300 min)* |
+
+*Résolues, à l'[archive](archive.md) : GF-1, GF-4.*
 
 > **Tranché en [#623](https://github.com/Cimavia/cimavia/issues/623)** (quatre règles dures
 > vérifiées par Biome) : des plugins **GritQL**, et non les règles natives. `style/noJsxLiterals`
@@ -894,7 +894,8 @@ liste des domaines vivent dans l'index.
 > valeurs, donc entre tenants. Constaté sur la base e2e : deux coachs lisant le même id partent en
 > un seul `SELECT … WHERE (id, coachId A) OR (id, coachId B)`, et Prisma rend à chacun sa ligne en
 > comparant tout le `where`. Ce tri est ce qui sépare les deux tenants : un e2e le tient désormais,
-> au lieu d'un détour qui l'évitait sans que rien ne dise pourquoi. Effet de bord voulu : un
+> au lieu d'un détour qui l'évitait sans que rien ne dise pourquoi *(levé en #814 : le filtre
+> passe sous `AND`, et Prisma ne regroupe plus ces lectures)*. Effet de bord voulu : un
 > `findUnique` sur le client de transaction lit enfin DANS la transaction, là où le détour passait
 > par le client de base.
 >
@@ -991,6 +992,42 @@ liste des domaines vivent dans l'index.
 > minutes gratuites d'un dépôt public : sa durée compte moins que le fait qu'il finisse. Le
 > dépasser à nouveau déclenche GF-5. Turbo l'écrit en `--log-order=stream`, qui
 > regroupait sinon sa sortie jusqu'à la fin : un job tué au timeout perdait toute sa progression.
+
+> **Tranché en [#814](https://github.com/Cimavia/cimavia/issues/814)** (la tenancy retrouve ses
+> 100 %) : **la référence est le rapport de la CI, pas une passe locale.** Les trois jobs complets
+> disponibles (PR #813, `tech/782`, `main` du 16/11) comptent les mêmes 18 survivants. La passe locale
+> du 11/11 en comptait 14, parce que neuf mutants y sont sortis en `RuntimeError` sur un
+> `EADDRINUSE` du port d'un worker : un port pris ne compte donc pas toujours comme un mutant tué
+> (« Tranché en #677 »), il peut aussi sortir le mutant du score. Le seul écart de la CI, `:180` tué
+> une fois sur trois, venait d'un test de course instable
+> ([#872](https://github.com/Cimavia/cimavia/issues/872)), pas de l'ordre des tests (#815). Les cinq
+> timeouts locaux sont tués par une assertion en CI.
+>
+> Le tri des 18 :
+> - **cinq filtres ou contrôles que rien ne tenait**, tenus maintenant par l'attaque directe du
+>   client tenant (`tenancy.ts`) : le filtre gardé quand l'appelant pose la relation qu'il suit,
+>   la conversation créée sans son acteur, ses participants, `kind` et `participantKey` réécrits ;
+> - **`scopeFor` rend `null`**, pas `undefined`, pour un modèle d'entreprise sans capacité ;
+> - **neuf équivalents, retirés par le code plutôt que déclarés.** Stryker ne déclare un mutant
+>   que par mutateur, et chaque ligne en portait un autre, tué : la déclaration l'aurait caché aussi.
+>   - **Le filtre s'ajoute toujours sous `AND`** (`scopeWhere`). À plat ou sous `AND`, c'était la
+>     même condition, d'où cinq survivants. Effet voulu : Prisma ne regroupe plus les `findUnique`
+>     d'un même tick, constaté sur la base e2e avec Prisma 7.10 (deux requêtes au lieu d'une). Le
+>     tri par lequel chacun recevait sa ligne, dont GF-1 craignait l'ordre, n'a plus lieu. Les
+>     racines partagées étaient déjà dans ce cas depuis #605, leur filtre étant un `AND`. Le prix :
+>     N lectures par id lancées ensemble font N requêtes, et aucun service n'en lance. Un Prisma
+>     qui regrouperait de nouveau un `where` composé rouvrirait GF-1.
+>   - **`membershipFrozenOrThrow` reçoit `TenantFilter | undefined`**, ce que Prisma lui passe :
+>     trois survivants testaient un `null` ou un `data` qui n'était pas un objet.
+>   - **La lecture du parent passe toujours par `requestTransaction`**, qui sans transaction lit
+>     comme la lecture nue. Déclarer le ternaire aurait caché son autre mutant, la lecture hors
+>     transaction. La dépendance à cet interne s'élargit d'autant (MC-3), et casserait bruyamment.
+> - **trois équivalents déclarés à leur ligne** :
+>   - l'invariant du registre de `coachesWhoRead`, que le type `CoachReadModel` rend inatteignable ;
+>   - **la mise en minuscule du délégué parent** : Prisma résout aussi `prisma.Exercise`
+>     (`modelsLayer`), mais sans le typer ni le documenter, et on ne s'y appuie pas. La déclaration
+>     cache deux mutants tués de la même ligne : un nom de délégué faux, qui ferait échouer
+>     bruyamment toute création d'enfant.
 
 > **Tranché en [#627](https://github.com/Cimavia/cimavia/issues/627)** (les parcours du Coach
 > dans un navigateur) : **Playwright**, dans `apps/web/e2e/`, sur quatre parcours — connexion et

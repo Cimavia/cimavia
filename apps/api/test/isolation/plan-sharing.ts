@@ -97,7 +97,10 @@ describe("Extension tenant : un droit sur un cycle l'ouvre aux Coachs de son ath
     await expect(readTree(world.ids.b)).resolves.toEqual([0, 0, 0, 0]);
   });
 
-  /** « Tranché en #626 » : un filtre de relation n'est pas dans la ligne que Prisma compare. */
+  /**
+   * Regroupées, ces lectures recevraient leur ligne par le tri de Prisma, qui ne voit pas un filtre
+   * de relation (« Tranché en #626 ») : le filtre sous `AND` les en garde (#814).
+   */
   it("trois findUnique simultanés sur le même cycle ne se répondent pas l'un l'autre", async () => {
     await grantPlan(world, world.planTi.id, "READ");
     const read = (userId: string) =>

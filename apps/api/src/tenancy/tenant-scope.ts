@@ -565,13 +565,16 @@ export function actorJoinsOrThrow(
  * dérive : la liste se fixe à la création, quand le service a vérifié chacun d'eux. Le scope
  * d'écriture d'une conversation est la participation, et laisserait sinon n'importe quel participant
  * y en joindre un autre.
+ *
+ * `data` est celui d'une opération ciblée : l'objet d'un `update`, ou rien pour une lecture ou une
+ * suppression. Prisma n'en admet pas d'autre forme.
  */
 export function membershipFrozenOrThrow(
-  data: unknown,
+  data: TenantFilter | undefined,
   membership: Membership,
   model: string,
 ): void {
-  if (data == null || typeof data !== "object") return;
+  if (data == null) return;
   const touched = [membership.relation, ...membership.frozen].filter((key) => key in data);
   if (touched.length > 0) {
     throw new Error(`[tenancy] ${model} ne modifie pas ${touched.join(", ")} après sa création`);

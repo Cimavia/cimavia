@@ -34,9 +34,12 @@ type Row = Record<string, unknown>;
 type PrismaTransaction = { kind: string };
 type InternalParams = { __internalParams?: { transaction?: PrismaTransaction } };
 
-/** Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`. */
-type ParentRead = PromiseLike<Row[]> & {
-  requestTransaction(transaction: PrismaTransaction): PromiseLike<Row[]>;
+/**
+ * Une lecture du client de base, rattachée à la transaction en cours par `requestTransaction`.
+ * Sans transaction (`undefined`), elle part comme une lecture nue — c'est ce que fait son `then`.
+ */
+type ParentRead = {
+  requestTransaction(transaction: PrismaTransaction | undefined): PromiseLike<Row[]>;
 };
 type ParentDelegate = { findMany(args: unknown): ParentRead };
 
@@ -75,29 +78,19 @@ function resolveScopeOrThrow(
 }
 
 /**
- * Lecture/écriture ciblée : le filtre s'ajoute au `where`. Un `where` unique (`findUnique`,
- * `update`, `delete`) l'accepte aussi : Prisma y admet des champs non uniques à côté de la clé.
+ * Lecture/écriture ciblée : le filtre s'AJOUTE aux conditions de l'appelant, toujours sous `AND`.
+ * Posé à plat, il remplacerait celle que l'appelant pose sur la même clé — la relation d'un enfant
+ * filtré à travers sa racine (`{ session: … }`), le `OR` d'une recherche — et un `deleteMany`
+ * visant une séance viserait toutes celles que l'acteur peut écrire. Un `where` unique
+ * (`findUnique`, `update`, `delete`) l'accepte aussi : la clé reste à plat, à côté.
  *
- * Prisma REGROUPE les `findUnique` d'un même tick en une requête — par modèle et forme
- * d'arguments, sans leurs valeurs, donc entre tenants — et rend à chacun sa ligne en comparant
- * TOUS les champs du `where`, filtre tenant compris. Un e2e tient ce tri (« Tranché en #626 ») :
- * il est ce qui sépare deux coachs lisant le même id.
+ * Sous `AND`, Prisma ne REGROUPE plus les `findUnique` d'un même tick (#814) : chacun part dans
+ * sa requête, avec son filtre. À plat, deux coachs lisant le même id partaient en un seul `SELECT`,
+ * et ne recevaient chacun sa ligne que par le tri de Prisma (« Tranché en #626 »).
  */
 function scopeWhere(args: unknown, filter: TenantFilter): void {
-  const a = args as { where?: Record<string, unknown> };
-  const where: Record<string, unknown> = { ...a.where };
-  const added: unknown[] = [];
-  for (const [key, value] of Object.entries(filter)) {
-    // Un filtre composé (#605), ou une clé que l'appelant pose aussi — la relation d'un enfant
-    // filtré à travers sa racine (`{ session: … }`) : il s'AJOUTE aux conditions de l'appelant.
-    // Posé à plat, il remplacerait la sienne, et un `deleteMany` visant une séance viserait
-    // toutes celles que l'acteur peut écrire.
-    if (key === "AND") added.push(...asList(value));
-    else if (key in where) added.push({ [key]: value });
-    else where[key] = value;
-  }
-  if (added.length > 0) where.AND = [...asList(where.AND), ...added];
-  a.where = where;
+  const a = args as { where?: Row };
+  a.where = { ...a.where, AND: [...asList(a.where?.AND), filter] };
 }
 
 function asList(value: unknown): unknown[] {
@@ -143,6 +136,9 @@ async function parentOwnersOrThrow(
     `[tenancy] ${parent.model}, parent de ${child.model}, n'a pas de scope pour cette capacité`,
   );
   const column = parent.checkOnly === true ? null : ownerColumnOrThrow(parentScope, parent.model);
+  // Prisma résout AUSSI `prisma.Exercise` (`modelsLayer`), sans le typer ni le documenter : on lit
+  // le délégué sous son nom typé. Un nom faux, lui, ferait tomber toute création d'enfant.
+  // Stryker disable next-line MethodExpression: majuscule ou minuscule, le client rend le même délégué
   const delegateName = parent.model.charAt(0).toLowerCase() + parent.model.slice(1);
   const delegate = required(
     (prisma as unknown as Record<string, ParentDelegate | undefined>)[delegateName],
@@ -154,7 +150,7 @@ async function parentOwnersOrThrow(
     where: { id: { in: child.ids }, ...parentScope.where(actor.actorId, "write") },
     select: column == null ? { id: true } : { id: true, [column]: true },
   });
-  const parents = await (transaction == null ? read : read.requestTransaction(transaction));
+  const parents = await read.requestTransaction(transaction);
   if (parents.length !== child.ids.length) {
     throw new Error(
       `[tenancy] ${child.model} : son ${parent.model} est introuvable, ou fermé en écriture`,
@@ -217,7 +213,7 @@ export function createTenantPrisma(prisma: PrismaClient, cls: ClsService) {
           } else {
             const { membership } = resolved.scope;
             if (membership != null) {
-              membershipFrozenOrThrow((args as { data?: unknown }).data, membership, model);
+              membershipFrozenOrThrow((args as { data?: Row }).data, membership, model);
             }
             scopeWhere(args, resolved.scope.where(resolved.actorId, resolved.kind.operationClass));
           }

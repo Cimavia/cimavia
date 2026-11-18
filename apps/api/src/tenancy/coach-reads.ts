@@ -23,6 +23,7 @@ export async function coachesWhoRead(
   id: string,
   coachIds: readonly string[],
 ): Promise<string[]> {
+  // Stryker disable next-line OptionalChaining,StringLiteral: invariant du registre, que le type `CoachReadModel` rend inatteignable
   const scope = required(TENANT_SCOPES[model]?.coach, `[tenancy] ${model} sans scope coach`);
   const reads = await Promise.all(
     coachIds.map(async (coachId) => {

@@ -272,10 +272,11 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
   });
 
   /**
-   * Prisma REGROUPE les `findUnique` d'un même tick, sans regarder leurs valeurs : ces deux
-   * lectures partent en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`, constaté en #626),
-   * et Prisma rend à chacun sa ligne en comparant tout le `where`. Le jour où il ne comparerait que
-   * la clé unique, le coach B recevrait la ligne du coach A : c'est ce test qui le verrait.
+   * Prisma REGROUPE les `findUnique` d'un même tick quand leur filtre est à plat : en #626, ces deux
+   * lectures partaient en UNE requête (`WHERE (id, coachId A) OR (id, coachId B)`), et chacun ne
+   * recevait sa ligne que par le tri de Prisma. Le filtre passe sous `AND` depuis #814, et chacune
+   * part dans la sienne. Une composition revenue à plat remettrait le lot, et le tri : c'est ce test
+   * qui verrait le coach B recevoir la ligne du coach A.
    */
   it("deux findUnique simultanés de deux coachs sur le même id ne se répondent pas l'un l'autre", async () => {
     const read = (coachId: string) =>
@@ -395,6 +396,26 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     );
   });
 
+  /**
+   * L'appelant pose la relation que suit le filtre de l'enfant (`exercise`) : les deux conditions
+   * valent ensemble. Posée à la place du filtre, la sienne suffirait — l'id d'un exercice étranger
+   * en ouvrirait les tags, en lecture comme en suppression.
+   */
+  it("garde le filtre tenant quand l'appelant pose la relation qu'il suit", async () => {
+    await as(coach(coachAId), () =>
+      db.exerciseTag.create({ data: { exerciseId: exerciseAId, name: "à travers" } as never }),
+    );
+    const throughExercise = { where: { exercise: { id: exerciseAId } } };
+
+    await expect(
+      as(coach(coachBId), () => db.exerciseTag.findMany(throughExercise)),
+    ).resolves.toEqual([]);
+    await expect(
+      as(coach(coachBId), () => db.exerciseTag.deleteMany(throughExercise)),
+    ).resolves.toEqual({ count: 0 });
+    expect(await tagsNamed("à travers")).toHaveLength(1);
+  });
+
   // Une lecture glissée dans un lot décalerait ses résultats : la forme est refusée.
   it("refuse un enfant créé dans une transaction en tableau", async () => {
     await expect(
@@ -423,6 +444,75 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     );
 
     expect(invoice.coachId).toBe(coachAId);
+  });
+
+  /**
+   * Une conversation n'a pas de colonne propriétaire : ses participants SONT son scope (#611). Le
+   * service vérifie qui il réunit avant d'écrire, et aucune route ne réécrit la liste — l'attaque
+   * directe tient donc ce que la messagerie n'atteint pas.
+   */
+  describe("une conversation, scopée par ses participants", () => {
+    const participantKey = () => [`COACH:${coachAId}`, `COACH:${coachBId}`].sort().join("|");
+    const membersOf = (conversationId: string) =>
+      app
+        .get(PrismaService)
+        .conversationParticipant.findMany({ where: { conversationId }, orderBy: { userId: "asc" } })
+        .then((rows) => rows.map((row) => row.userId));
+
+    it("refuse de la créer sans l'acteur parmi ses participants, et n'écrit rien", async () => {
+      await expect(
+        as(coach(coachAId), () =>
+          db.conversation.create({
+            data: {
+              kind: "DIRECT",
+              participantKey: "ext:sans-acteur",
+              participants: { create: [{ userId: coachBId, capability: "COACH" }] },
+            } as never,
+          }),
+        ),
+      ).rejects.toThrow(
+        "[tenancy] Conversation se crée avec l'acteur parmi ses participants, au titre COACH",
+      );
+
+      await expect(
+        app.get(PrismaService).conversation.count({ where: { participantKey: "ext:sans-acteur" } }),
+      ).resolves.toBe(0);
+    });
+
+    it.each([
+      [
+        "participants",
+        (otherId: string) => ({ participants: { deleteMany: { userId: otherId } } }),
+      ],
+      ["kind", () => ({ kind: "GROUP" })],
+      ["participantKey", () => ({ participantKey: "ext:réécrite" })],
+    ] as const)("refuse à un participant de réécrire %s après coup", async (field, data) => {
+      const conversation = await as(coach(coachAId), () =>
+        db.conversation.create({
+          data: {
+            kind: "DIRECT",
+            participantKey: `${participantKey()}|${field}`,
+            participants: {
+              create: [
+                { userId: coachAId, capability: "COACH" },
+                { userId: coachBId, capability: "COACH" },
+              ],
+            },
+          } as never,
+        }),
+      );
+
+      await expect(
+        as(coach(coachAId), () =>
+          db.conversation.update({ where: { id: conversation.id }, data: data(coachBId) as never }),
+        ),
+      ).rejects.toThrow(`[tenancy] Conversation ne modifie pas ${field} après sa création`);
+
+      await expect(
+        app.get(PrismaService).conversation.findUnique({ where: { id: conversation.id } }),
+      ).resolves.toMatchObject({ kind: "DIRECT", participantKey: `${participantKey()}|${field}` });
+      await expect(membersOf(conversation.id)).resolves.toEqual([coachAId, coachBId].sort());
+    });
   });
 });
 

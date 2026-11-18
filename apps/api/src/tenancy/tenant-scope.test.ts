@@ -19,6 +19,7 @@ import {
   sharedChild,
   sharedRoot,
   TENANT_SCOPES,
+  type TenantFilter,
   type TenantScope,
   throughRoot,
 } from "./tenant-scope";
@@ -361,7 +362,8 @@ describe("actorJoinsOrThrow", () => {
 });
 
 describe("membershipFrozenOrThrow", () => {
-  const freeze = (data: unknown) => () => membershipFrozenOrThrow(data, MEMBERSHIP, "Conversation");
+  const freeze = (data: TenantFilter | undefined) => () =>
+    membershipFrozenOrThrow(data, MEMBERSHIP, "Conversation");
 
   it("laisse passer une écriture qui ne touche pas aux participants", () => {
     expect(freeze({ lastMessageAt: new Date() })).not.toThrow();
@@ -614,6 +616,9 @@ describe("scopeFor", () => {
     expect(scopeFor({ coach: shared, athlete: shared }, null)).toBe(shared);
     expect(scopeFor({ coach: column("userId"), athlete: column("userId") }, null)).toBeNull();
     expect(scopeFor({ coach: column("coachId"), athlete: column("athleteId") }, null)).toBeNull();
+    // Un modèle d'entreprise n'a ni l'un ni l'autre : deux absences égales n'ouvrent rien, et le
+    // refus est `null` — pas l'`undefined` d'un scope coach absent.
+    expect(scopeFor({ company: column("organizationId") }, null)).toBeNull();
   });
 
   it.each([
