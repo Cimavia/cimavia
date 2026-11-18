@@ -50,7 +50,12 @@ describe("useVideoThumbnail", () => {
     finish(THUMB);
 
     await waitFor(() => expect(result.current).toBe(THUMB));
-    expect(videoThumbnail).toHaveBeenCalledWith("msg-1", expect.any(Function), 42);
+    expect(videoThumbnail).toHaveBeenCalledWith(
+      "msg-1",
+      expect.any(Function),
+      42,
+      expect.any(AbortSignal),
+    );
   });
 
   it("reste à null quand le tirage échoue", async () => {
@@ -89,7 +94,26 @@ describe("useVideoThumbnail", () => {
     rerender({ mediaId: "msg-2", resolveUrl });
 
     await waitFor(() => expect(result.current).toBeNull());
-    expect(videoThumbnail).toHaveBeenLastCalledWith("msg-2", expect.any(Function), 42);
+    expect(videoThumbnail).toHaveBeenLastCalledWith(
+      "msg-2",
+      expect.any(Function),
+      42,
+      expect.any(AbortSignal),
+    );
+  });
+
+  // #809 : la file apprend que l'écran est parti, et ne tire pas une vignette que personne n'attend.
+  it("dit à la file que l'écran est parti, au démontage comme au changement de média", () => {
+    const { rerender, unmount } = setup({ mediaId: "msg-1", resolveUrl: vi.fn(async () => null) });
+    const signalOf = (call: number) => vi.mocked(videoThumbnail).mock.calls[call]?.[3];
+    expect(signalOf(0)?.aborted).toBe(false);
+
+    rerender({ mediaId: "msg-2", resolveUrl: vi.fn(async () => null) });
+    expect(signalOf(0)?.aborted).toBe(true);
+    expect(signalOf(1)?.aborted).toBe(false);
+
+    unmount();
+    expect(signalOf(1)?.aborted).toBe(true);
   });
 
   // Démonté avant la fin : la réponse n'est plus pour personne.

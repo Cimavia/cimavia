@@ -28,14 +28,15 @@ export function useVideoThumbnail(
     setUri(local);
     if (local != null) return;
 
-    // Démonté (ou un autre média) pendant le tirage : la réponse n'est plus pour ce rendu.
-    let cancelled = false;
-    void videoThumbnail(mediaId, () => resolveUrlRef.current(), durationSeconds).then((result) => {
-      if (!cancelled) setUri(result);
-    });
-    return () => {
-      cancelled = true;
-    };
+    // Démonté (ou un autre média) : la réponse n'est plus pour ce rendu, et la file le sait — une
+    // vignette que plus personne n'attend n'est pas tirée (#809).
+    const left = new AbortController();
+    void videoThumbnail(mediaId, () => resolveUrlRef.current(), durationSeconds, left.signal).then(
+      (result) => {
+        if (!left.signal.aborted) setUri(result);
+      },
+    );
+    return () => left.abort();
   }, [mediaId, durationSeconds]);
 
   return uri;
