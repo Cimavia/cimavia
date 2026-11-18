@@ -724,7 +724,8 @@ liste des domaines vivent dans l'index.
 > bien que `test-web` dépasse les ~3 min que fixait l'issue : ce seuil supposait le web loin
 > devant l'e2e, et une demi-minute ne paie ni un second setup ni une fusion de rapports de
 > couverture. À rouvrir si l'écart avec l'e2e dépasse ~1 min 30. Chaque job paie son propre setup
-> (~20 s) : c'est le prix du parallélisme. La porte **locale** reste sous un seul `turbo` (#455).
+> (~20 s) : c'est le prix du parallélisme. La porte **locale** reste sous un seul `turbo`,
+> bridé à la moitié des cœurs (« Tranché en #833 »).
 
 > **Tranché en [#833](https://github.com/Cimavia/cimavia/issues/833)** (les tests instables de
 > la porte locale) : sous `pnpm turbo typecheck test`, des tests web et mobile tombaient sans que
