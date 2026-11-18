@@ -1058,6 +1058,31 @@ liste des domaines vivent dans l'index.
 
 ---
 
+## Post-MVP — Rapport de démarrage ([#212](https://github.com/Cimavia/cimavia/issues/212))
+
+> **Tranché en #212** (ce que l'API dit d'elle-même au démarrage, et ce qu'elle n'en fait pas) :
+> `StartupReportService` **journalise, et ne refuse jamais de démarrer**. Ce qu'un tier déployé
+> exige, `envSchema` le refuse déjà (#357) ; le reste est optionnel par contrat, et une migration en
+> attente ne peut pas bloquer non plus, puisque #84 fera démarrer l'API AVANT ses migrations.
+> - **Une ligne par groupe** (`config/config-report.ts`) : mail, storage, push, tick, sentry,
+>   axiom. Quatre états — `complete` (`info`), `degraded`, `incomplete`, `off` (`warn`). `degraded`
+>   n'existe que pour le mail sans `WEB_URL` : il part, sans aucun lien. `incomplete` nomme les
+>   variables qui manquent, c'est le cas le plus suspect.
+> - **Le rapport ne relit pas les services, il redit leur règle** : un test retire chaque variable
+>   tour à tour et exige que `MailService` et `StorageService` rendent le même verdict que lui.
+> - **Migrations** : la table `_prisma_migrations` est lue en SQL (pas de modèle Prisma), plutôt
+>   que de lancer `prisma migrate status` — ni sous-processus, ni CLI au runtime. En attente ou en
+>   échec : `error`. Appliquée mais inconnue du code — une image plus ancienne remise en service :
+>   `warn`. Base injoignable ou dossier illisible : « contrôle impossible » en `warn`, jamais
+>   « à jour » (règle dure n°5).
+> - **Le contrôle ne retarde pas `listen`** : il n'est pas attendu. Le harnais e2e, lui, l'attend
+>   (`migrationCheck`) : ses deux requêtes tomberaient sinon dans un budget de `countQueries`.
+>
+> Tant que `migrate deploy` tourne dans l'entrypoint (P7-2), la ligne « migrations » ne mord qu'en
+> développement ; elle devient le seul signal en production le jour où #84 sort l'étape.
+
+---
+
 ## Post-MVP — En-têtes de sécurité du web ([#780](https://github.com/Cimavia/cimavia/issues/780))
 
 > **Tranché en #780** (la CSP part en deux en-têtes, et ce qu'elle laisse passer) : l'issue

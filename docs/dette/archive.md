@@ -30,6 +30,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~I-3~~ | ~~**`InvitationStatus.REVOKED` reste une valeur sans chemin**~~ : aucune route ne la posait, et un coach ne pouvait pas annuler une invitation encore en attente — il attendait son expiration (7 jours). | ✅ | résolue en [#524](https://github.com/Cimavia/cimavia/issues/524) — `POST /invitations/:id/revoke`, « Retirer » sur le web et le mobile |
+| ~~I-4~~ | ~~**Rien ne rattrape un `.env` local en retard sur `.env.example`**~~ (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | ✅ | résolue en [#212](https://github.com/Cimavia/cimavia/issues/212) — au démarrage, l'API journalise une ligne par groupe de configuration optionnel et les migrations en attente, en échec ou inconnues du code |
 
 ### v1.0 — Entreprises, plusieurs Coachs par athlète, droits d'accès ([#593](https://github.com/Cimavia/cimavia/issues/593))
 

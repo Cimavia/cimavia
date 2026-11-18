@@ -441,9 +441,8 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | I-1 | **L'e-mail d'invitation part en français**, quelle que soit la langue du destinataire. Il n'y a pas de `User.locale` à lire pour une adresse SANS compte, et `mailStringsFor(null)` replie sur le français. Seule une invitation portant elle-même une langue fermerait l'écart. | 🟢 | — *(déclencheur : un coach qui invite un athlète anglophone — l'anglais est déjà écrit au catalogue, il manque seulement de quoi le choisir)* |
 | I-2 | **Les mailers nomment une route WEB en clair** — `/account` (`NotificationMailer`), `/register` (`InvitationMailer`), et depuis [#270](https://github.com/Cimavia/cimavia/issues/270) `/verify-email`, `/login` et `/forgot-password` (`EmailVerificationMailer`). Aucun test ne peut les garder : l'API ne connaît pas le routeur du client. Renommer l'un de ces fichiers de route casse le lien **en silence**. Tous passent par `webPage` (`infra/mail/web-page.ts`), et le nom du fichier est cité à côté de chaque appel — c'est la seule parade, un `grep` le trouve. | 🟢 | — *(déclencheur : le jour où l'on renomme une route web ; rien à préparer avant)* |
-| I-4 | **Rien ne rattrape un `.env` local en retard sur `.env.example`** (transverse, découvert ici). Les variables `SMTP_*` / `WEB_URL` ajoutées en [#61](https://github.com/Cimavia/cimavia/issues/61) manquaient un mois plus tard sur la machine de dev : l'e-mail d'invitation ne partait pas, et **rien ne le disait à l'écran** — seul un `WARN` dans les logs. Même famille que la migration non appliquée, qui a produit une notification muette le même jour. | 🟡 | — *(déclencheur : c'est arrivé deux fois en une session ; une vérification au démarrage — clés absentes, migrations en attente — reste à ouvrir)* |
 
-*Résolues, à l'[archive](archive.md) : I-3.*
+*Résolues, à l'[archive](archive.md) : I-3, I-4.*
 
 > **Tranché en #146** (le canal dépend de l'adresse, et la réponse HTTP ne le trahit jamais) :
 > émettre une invitation nominative prend l'une de deux voies, et ce qu'elles ont en commun est le
