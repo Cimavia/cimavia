@@ -47,7 +47,8 @@ CI (`.github/workflows/`) :
   Le job **échoue si la Quality Gate échoue** (`sonar.qualitygate.wait`) : sans cette option il
   sortait en 0 quoi que dise la porte, et ne vérifiait donc que l'envoi du scan.
 - `ci.yml`, job **`Builds de production`** — sur PR seulement : construit l'image API et l'image web
-  sans les pousser, et l'export Expo android, pour les seules apps que la PR touche (#414). Une app
+  sans les pousser, et l'export Expo android, pour les seules apps que la PR touche (#414). L'export
+  passe par `pnpm check:bundle`, qui refuse un paquet chargé en deux copies dans le bundle (#760). Une app
   non touchée est sautée et le job reste vert : il peut donc être requis sans bloquer une PR de doc.
 
 Les trois premiers (et les quatre jobs de l'agrégateur) tournent sur chaque **PR vers `main`**, et
