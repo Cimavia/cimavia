@@ -9,7 +9,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P4-1 | **Vidéo non transcodée** : le plafond 720p n'est ni appliqué ni vérifié — une vidéo hors plafonds est **refusée**, pas réencodée. | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
+| P4-1 | **Vidéo non transcodée** : le fichier d'origine est servi tel quel, et un original de caméra pèse **60 à 69 Mbit/s** (mesuré en #809) — plus que ce que tient une 5G réelle : hors wifi, la lecture charge sans fin. Le plafond 720p n'est ni appliqué ni vérifié ; seules la durée (180 s) et la taille (1000 Mo) sont bornées, si bien que presque rien n'est refusé. **Rectifié en #809** : la ligne disait « une vidéo hors plafonds est refusée », vrai à 50 Mo, plus depuis l'envoi découpé — et taisait le coût réel, payé à la lecture. | 🟡 | [#80](https://github.com/Cimavia/cimavia/issues/80) |
 | P4-2 | **Durée vidéo déclarative** : `durationSeconds` vient du client, le serveur ne décode pas le fichier. | 🟢 | [#81](https://github.com/Cimavia/cimavia/issues/81) |
 
 *Résolues, à l'[archive](archive.md) : P4-3, P4-4, P4-5, P2-1 / P3-2.*
@@ -30,6 +30,39 @@ liste des domaines vivent dans l'index.
 > `resetAccountData` efface les vignettes au changement de compte, et une demande faite avant la
 > déconnexion — en cours ou encore dans la file — n'écrit rien dans le magasin vidé. Tout échec rend
 > `null`, et la pastille de #407 reste : une vignette est un confort, jamais une case vide.
+
+> **Tranché en #809** (une vidéo qui charge sans fin hors wifi) : la cause est le **poids des
+> fichiers**, pas la preview. Mesuré sur la base du Coach bêta : 8 vidéos sur 15 à **62–69 Mbit/s**,
+> 6 à 30 Mbit/s ; sur la base de dev, tous les originaux de caméra (Pixel, iPhone, Samsung) entre
+> 53 et 69 Mbit/s. Une vidéo ne se lit sans pause que si le lien tient son débit en continu : une
+> fibre en wifi le tient, une 5G réelle souvent pas. Le remède est le transcodage, **#80** — qui
+> vaut en production quel que soit l'hébergeur.
+>
+> **Le `moov` est en fin de fichier** pour 10 originaux de caméra sur 14 (atomes de premier niveau
+> lus par requêtes Range sur SILO) : un ou deux allers-retours de plus avant la première image.
+> Secondaire, et réglé du même geste par #80 (`faststart`).
+>
+> Ce que #809 livre, et qui vaut quelle que soit la cause :
+> - **La lecture remonte à Sentry** : ses échecs, comme la note vocale depuis #701, et une lecture
+>   **lente** — démarrage au-delà de 3 s ou recharge en route — avec le réseau (`wifi`,
+>   `cellular`) et le débit de la vidéo. C'est la mesure qui manquait : la prochaine plainte aura
+>   ses chiffres. Ce qui est « lent » se décide dans `videoPlaybackReport` (`@cmv/shared`). En
+>   message, pas en trace : `tracesSampleRate` reste à 0, et une lecture fluide n'envoie rien.
+> - **La file des vignettes se met en pause** tant qu'un lecteur est ouvert : une vignette tire
+>   sur le même lien que la vidéo regardée. Et **un écran quitté sort ses vignettes de la file** :
+>   jusque-là, le démontage ne coupait que l'affichage, et un fil de vingt vidéos quitté continuait
+>   à les télécharger.
+>
+> **Écartés**, et pourquoi :
+> - **`useCaching`** : expo-video n'expose pas de clé de cache, le cache se fait sur l'URL — donc
+>   sur la signature, qui change toutes les 5 min. Il ne servirait qu'à revoir une vidéo dans ces
+>   5 min, une vidéo de 600 Mo occuperait à elle seule une bonne part du cache d'1 Go, et des
+>   vidéos d'athlètes resteraient sur l'appareil au changement de compte. À reconsidérer après
+>   #80, sur des fichiers dix fois plus légers.
+> - **`bufferOptions`** : un tampon plus court ou plus long ne comble pas l'écart entre le débit
+>   d'une vidéo et celui du lien.
+> - **iOS seul** : `videoQuality` d'expo-image-picker réencoderait à l'import sur iPhone, mais
+>   Android n'a pas d'équivalent — et les 15 vidéos de la preview sont des `mp4` d'Android.
 
 > **Résolu en P4** : ~~P3-1~~ (push non envoyé) — `expo-server-sdk` est branché dans
 > `NotificationService`, sans que les appelants aient bougé. ~~P3-6~~ côté débriefs — la tuile

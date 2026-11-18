@@ -78,6 +78,7 @@ function MediaContent({
         <CmvVideoPlayer
           mediaId={message.id}
           durationSeconds={media.durationSeconds}
+          sizeBytes={media.sizeBytes}
           resolveUrl={() => resolveMediaUrl(message.id)}
         />
       );

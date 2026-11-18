@@ -92,8 +92,13 @@ vi.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg" },
 }));
 
-const { localVideoThumbnailUri, purgeVideoThumbnails, thumbnailTimeSeconds, videoThumbnail } =
-  await import("./video-thumbnail");
+const {
+  localVideoThumbnailUri,
+  purgeVideoThumbnails,
+  suspendVideoThumbnails,
+  thumbnailTimeSeconds,
+  videoThumbnail,
+} = await import("./video-thumbnail");
 
 const URL = "https://s3.test/voie.mp4?X-Amz-Date=120000";
 const THUMBNAIL = { width: 480, height: 300 };
@@ -362,6 +367,167 @@ describe("videoThumbnail", () => {
 
     expect(await abandoned).toBeNull();
     expect(await fresh).toBe(`${ROOT}/msg-1.jpg`);
+  });
+});
+
+/**
+ * #809 : un fil quitté ne continue pas à télécharger ses vidéos. Une demande que plus aucun écran
+ * n'attend sort de la file sans rien tirer, quand vient son tour.
+ */
+describe("videoThumbnail — écran quitté", () => {
+  // Une vignette en cours de tirage retient la file : les suivantes y sont « en attente ».
+  function holdQueue() {
+    let finish: (value: unknown[]) => void = () => undefined;
+    givenPlayers(
+      fakePlayer(() => new Promise((resolve) => (finish = resolve))),
+      fakePlayer(),
+    );
+    const first = videoThumbnail("msg-1", resolveTo(URL), 42);
+    return {
+      first,
+      started: () => vi.waitFor(() => expect(createVideoPlayer).toHaveBeenCalledTimes(1)),
+      finish: () => finish([THUMBNAIL]),
+    };
+  }
+
+  it("ne tire pas une vignette que plus personne n'attend", async () => {
+    const queue = holdQueue();
+    await queue.started();
+    const left = new AbortController();
+    const resolveSecond = resolveTo(URL);
+    const second = videoThumbnail("msg-2", resolveSecond, 42, left.signal);
+
+    left.abort();
+    queue.finish();
+
+    expect(await queue.first).toBe(`${ROOT}/msg-1.jpg`);
+    expect(await second).toBeNull();
+    expect(resolveSecond).not.toHaveBeenCalled();
+    expect(createVideoPlayer).toHaveBeenCalledTimes(1);
+  });
+
+  // La même vidéo, dans le fil ET sous le débrief : quitter l'un ne la retire pas à l'autre.
+  it("tire quand même une vignette qu'un autre écran attend encore", async () => {
+    const queue = holdQueue();
+    await queue.started();
+    const left = new AbortController();
+    const stays = new AbortController();
+    const second = videoThumbnail("msg-2", resolveTo(URL), 42, left.signal);
+    void videoThumbnail("msg-2", resolveTo(URL), 42, stays.signal);
+
+    left.abort();
+    queue.finish();
+
+    expect(await second).toBe(`${ROOT}/msg-2.jpg`);
+  });
+
+  // Revenu sur l'écran avant son tour : la demande en file est reprise, pas doublée.
+  it("tire la vignette d'un écran revenu avant son tour", async () => {
+    const queue = holdQueue();
+    await queue.started();
+    const left = new AbortController();
+    const second = videoThumbnail("msg-2", resolveTo(URL), 42, left.signal);
+    left.abort();
+    const back = videoThumbnail("msg-2", resolveTo(URL), 42, new AbortController().signal);
+
+    queue.finish();
+
+    expect(await back).toBe(`${ROOT}/msg-2.jpg`);
+    expect(await second).toBe(`${ROOT}/msg-2.jpg`);
+    expect(createVideoPlayer).toHaveBeenCalledTimes(2);
+  });
+
+  it("ne compte pas un écran déjà parti au moment de la demande", async () => {
+    const left = new AbortController();
+    left.abort();
+    const resolveUrl = resolveTo(URL);
+
+    expect(await videoThumbnail("msg-1", resolveUrl, 42, left.signal)).toBeNull();
+    expect(resolveUrl).not.toHaveBeenCalled();
+  });
+
+  // Un tirage natif ne s'interrompt pas : autant garder l'image qu'il a coûtée.
+  it("laisse finir une vignette déjà en cours quand son écran part", async () => {
+    let finish: (value: unknown[]) => void = () => undefined;
+    givenPlayers(fakePlayer(() => new Promise((resolve) => (finish = resolve))));
+    const left = new AbortController();
+    const pending = videoThumbnail("msg-1", resolveTo(URL), 42, left.signal);
+    await vi.waitFor(() => expect(createVideoPlayer).toHaveBeenCalledTimes(1));
+
+    left.abort();
+    finish([THUMBNAIL]);
+
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+  });
+});
+
+/**
+ * #809 : une vignette tire sur le même lien que la vidéo regardée. Tant qu'un lecteur est ouvert,
+ * la file attend ; celle déjà en cours finit, un tirage natif ne s'interrompant pas.
+ */
+describe("suspendVideoThumbnails", () => {
+  // Laisse passer ce qui peut passer : si rien n'a bougé après, la file attend vraiment.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("retient la file tant qu'un lecteur est ouvert, et la relâche à sa fermeture", async () => {
+    const release = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+    expect(createVideoPlayer).not.toHaveBeenCalled();
+
+    release();
+
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+  });
+
+  it("laisse finir la vignette déjà en cours", async () => {
+    let finish: (value: unknown[]) => void = () => undefined;
+    givenPlayers(fakePlayer(() => new Promise((resolve) => (finish = resolve))));
+    const pending = videoThumbnail("msg-1", resolveTo(URL), 42);
+    await vi.waitFor(() => expect(createVideoPlayer).toHaveBeenCalledTimes(1));
+
+    const release = suspendVideoThumbnails();
+    finish([THUMBNAIL]);
+
+    try {
+      expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+    } finally {
+      release();
+    }
+  });
+
+  // Deux lecteurs (un débrief ouvert depuis un fil) : la file attend que le DERNIER se ferme.
+  it("attend que tous les lecteurs ouverts soient fermés", async () => {
+    const first = suspendVideoThumbnails();
+    const second = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+
+    first();
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    second();
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
+  });
+
+  // Un démontage rejoué ne doit pas relâcher la pause d'un AUTRE lecteur encore ouvert.
+  it("ignore une seconde libération du même lecteur", async () => {
+    const first = suspendVideoThumbnails();
+    const second = suspendVideoThumbnails();
+    const resolveUrl = resolveTo(URL);
+    const pending = videoThumbnail("msg-1", resolveUrl, 42);
+
+    first();
+    first();
+    await settle();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    second();
+    expect(await pending).toBe(`${ROOT}/msg-1.jpg`);
   });
 });
 
