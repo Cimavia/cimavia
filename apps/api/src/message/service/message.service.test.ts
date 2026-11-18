@@ -103,7 +103,13 @@ function build(setup: Setup = {}) {
     scheduledSession: { findFirst: vi.fn().mockResolvedValue(setup.session ?? null) },
     sessionFeedback: { findFirst: vi.fn().mockResolvedValue(setup.feedback ?? null) },
     $transaction: (run: (tx: unknown) => Promise<unknown>) =>
-      run({ message: { create }, conversation: { update: vi.fn() } }),
+      run({
+        message: { create },
+        conversation: {
+          findFirst: vi.fn().mockResolvedValue({ lastMessageAt: null }),
+          updateMany: vi.fn(),
+        },
+      }),
   } as unknown as TenantPrisma;
   const notifyMessageReceived = vi.fn().mockResolvedValue(undefined);
   const getJoinedOrThrow = vi.fn().mockResolvedValue(conversation);
@@ -287,6 +293,7 @@ describe("MessageService.send — canaux de notification", () => {
         sessionFeedbackId: null,
         type: MessageType.TEXT,
         content: "Fini la séance",
+        createdAt: expect.any(Date),
       },
     });
   });

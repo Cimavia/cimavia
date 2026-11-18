@@ -15,6 +15,7 @@ import {
   exercisedOrThrow,
   type TenantContext,
 } from "../../tenancy/tenant-context.type";
+import { appendMessage } from "../append-message";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService, type JoinedConversation } from "./conversation.service";
 import { MessageAttachmentResolver } from "./message-attachment.resolver";
@@ -98,15 +99,8 @@ export class MessageService {
 
     const attachment = await this.resolveAttachment(conversation, actor, input);
     const data = buildMessageData(conversation.id, actor, input, attachment);
-    const message = await this.db.$transaction(async (tx) => {
-      const created = await tx.message.create({ data });
-      // `lastMessageAt` sert au tri de la liste de fils, sans agréger les messages.
-      await tx.conversation.update({
-        where: { id: conversation.id },
-        data: { lastMessageAt: created.createdAt },
-      });
-      return created;
-    });
+    // Daté après le dernier message du fil, même si l'horloge recule (#867).
+    const message = await this.db.$transaction((tx) => appendMessage(tx, data));
 
     // Un push par message, comme dans une messagerie — sauf la suite d'un lot de médias : six
     // photos d'une même sélection font un push, celui de la première arrivée (#537).
