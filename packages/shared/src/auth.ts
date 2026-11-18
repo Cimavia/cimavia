@@ -4,6 +4,14 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
 /**
+ * Les paramètres des messages qui disent la borne franchie (`{{min}}`, `{{max}}`), à passer à `t`
+ * avec `auth.errors.passwordTooShort` / `passwordTooLong` (#847). Un seul objet pour l'inscription
+ * web et mobile et la réinitialisation : un écran qui l'oublierait afficherait `{{max}}` en clair,
+ * et les tests de rendu, qui rendent la clé sans interpoler, ne le verraient pas.
+ */
+export const PASSWORD_BOUNDS = { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH } as const;
+
+/**
  * Durée de validité du lien de réinitialisation de mot de passe.
  *
  * Elle vaut le défaut de Better Auth, et c'est justement pourquoi elle est écrite : c'est cette

@@ -70,17 +70,37 @@ describe("isEmailAllowed", () => {
 
 describe("signUpErrorKey", () => {
   /**
-   * Le seul code que l'API distingue, et la raison d'être de cette table : le message générique
-   * (« une erreur est survenue, réessaie ») ferait recommencer une saisie juste, alors qu'une
-   * inscription fermée ne passera jamais.
+   * La raison d'être de cette table : le message générique (« une erreur est survenue, réessaie »)
+   * ferait recommencer une saisie juste, alors qu'une inscription fermée ne passera jamais.
    */
   it("nomme le refus d'un environnement fermé", () => {
-    expect(signUpErrorKey(403)).toBe("auth.errors.signupClosed");
+    expect(signUpErrorKey({ status: 403 })).toBe("auth.errors.signupClosed");
+  });
+
+  // #847 : la saisie est à corriger, et le générique la ferait renvoyer telle quelle.
+  it.each([
+    ["PASSWORD_TOO_SHORT", "auth.errors.passwordTooShort"],
+    ["PASSWORD_TOO_LONG", "auth.errors.passwordTooLong"],
+    ["INVALID_EMAIL", "auth.errors.invalidEmail"],
+  ])("nomme la saisie refusée %s", (code, key) => {
+    expect(signUpErrorKey({ status: 400, code })).toBe(key);
+  });
+
+  it("dit d'attendre après trop de tentatives", () => {
+    expect(signUpErrorKey({ status: 429 })).toBe("auth.errors.tooManyAttempts");
   });
 
   // 422 compris : depuis #270, l'API ne le rend plus, et une adresse déjà prise ne se trahit pas.
-  it.each([400, 401, 422, 500, undefined])("retombe sur le générique pour %s", (status) => {
-    expect(signUpErrorKey(status)).toBe("auth.errors.generic");
+  it.each([
+    { status: 400 },
+    { status: 400, code: "VALIDATION_ERROR" },
+    { status: 401 },
+    { status: 422 },
+    { status: 500, code: "INTERNAL_SERVER_ERROR" },
+    // Une panne réseau ne porte aucun code.
+    {},
+  ])("retombe sur le générique pour %o", (error) => {
+    expect(signUpErrorKey(error)).toBe("auth.errors.generic");
   });
 });
 

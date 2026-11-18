@@ -186,10 +186,15 @@ describe("RegisterScreen", () => {
      * c'est son propriétaire qu'elle prévient.
      */
     it.each([
-      [403, "auth.errors.signupClosed"],
-      [400, "auth.errors.generic"],
-    ])("traduit le refus %s en %s", async (status, message) => {
-      signUpMock.mockResolvedValue({ error: { status } });
+      [{ status: 403 }, "auth.errors.signupClosed"],
+      // #847 : une saisie hors bornes se corrige, le générique la ferait renvoyer telle quelle.
+      [{ status: 400, code: "PASSWORD_TOO_SHORT" }, "auth.errors.passwordTooShort"],
+      [{ status: 400, code: "PASSWORD_TOO_LONG" }, "auth.errors.passwordTooLong"],
+      [{ status: 400, code: "INVALID_EMAIL" }, "auth.errors.invalidEmail"],
+      [{ status: 429 }, "auth.errors.tooManyAttempts"],
+      [{ status: 500 }, "auth.errors.generic"],
+    ])("traduit le refus %o en %s", async (error, message) => {
+      signUpMock.mockResolvedValue({ error });
       const view = await setup();
 
       await submitRegistration(view);

@@ -157,10 +157,15 @@ describe("RegisterScreen (mobile)", () => {
      * comme à une adresse neuve, et c'est son propriétaire qu'elle prévient.
      */
     it.each([
-      [403, "auth.errors.signupClosed"],
-      [400, "auth.errors.generic"],
-    ])("traduit le refus %s en %s", async (status, message) => {
-      signUp.mockResolvedValue({ error: { status } } as never);
+      [{ status: 403 }, "auth.errors.signupClosed"],
+      // #847 : une saisie hors bornes se corrige, le générique la ferait renvoyer telle quelle.
+      [{ status: 400, code: "PASSWORD_TOO_SHORT" }, "auth.errors.passwordTooShort"],
+      [{ status: 400, code: "PASSWORD_TOO_LONG" }, "auth.errors.passwordTooLong"],
+      [{ status: 400, code: "INVALID_EMAIL" }, "auth.errors.invalidEmail"],
+      [{ status: 429 }, "auth.errors.tooManyAttempts"],
+      [{ status: 500 }, "auth.errors.generic"],
+    ])("traduit le refus %o en %s", async (error, message) => {
+      signUp.mockResolvedValue({ error } as never);
       const { container, queryByText } = renderRn(<RegisterScreen />);
       choose(TRAINING);
       fillIdentity(container);

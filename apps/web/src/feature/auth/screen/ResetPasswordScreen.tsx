@@ -1,5 +1,5 @@
 import {
-  PASSWORD_MAX_LENGTH,
+  PASSWORD_BOUNDS,
   PASSWORD_MIN_LENGTH,
   RESET_LINK_REFUSED,
   resetPasswordRefusal,
@@ -133,7 +133,7 @@ function ResetPasswordForm({
         onLinkRefused();
         return;
       }
-      message = t(REFUSAL_KEY[refusal], { min: PASSWORD_MIN_LENGTH, max: PASSWORD_MAX_LENGTH });
+      message = t(REFUSAL_KEY[refusal], PASSWORD_BOUNDS);
     } catch {
       message = t("auth.errors.generic");
     }
