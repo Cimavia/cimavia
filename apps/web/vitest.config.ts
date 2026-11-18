@@ -43,6 +43,10 @@ export default mergeConfig(
        */
       environment: "jsdom",
       setupFiles: ["./vitest.setup.ts"],
+      // La moitié des cœurs en local, où `turbo typecheck test` lance quatre suites à la fois : à
+      // pleine charge, un test d'écran dépassait ses 5 s. La CI, un job par suite, garde le défaut
+      // (« Tranché en #833 »).
+      ...(process.env.CI ? {} : { maxWorkers: "50%" }),
       // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, « aujourd'hui »
       // en UTC et « aujourd'hui » pour le lecteur se confondent, et l'écart de #321 passe inaperçu.
       env: { TZ: "Europe/Paris" },

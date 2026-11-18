@@ -726,6 +726,39 @@ liste des domaines vivent dans l'index.
 > couverture. À rouvrir si l'écart avec l'e2e dépasse ~1 min 30. Chaque job paie son propre setup
 > (~20 s) : c'est le prix du parallélisme. La porte **locale** reste sous un seul `turbo` (#455).
 
+> **Tranché en [#833](https://github.com/Cimavia/cimavia/issues/833)** (les tests instables de
+> la porte locale) : sous `pnpm turbo typecheck test`, des tests web et mobile tombaient sans que
+> la branche les touche, et passaient relancés seuls. Trois causes, sans lien entre elles.
+>
+> - **Le budget de 5 s, dépassé sous la charge.** Les quatre suites Vitest tournent à la fois, et
+>   chacune prend autant de workers que la machine a de cœurs. Le web et le mobile sont donc
+>   **bridés à la moitié des cœurs, hors CI seulement** (`maxWorkers: "50%"` quand `CI` est
+>   absent) : en CI, chaque suite a son runner depuis #683 et garde le défaut. L'api et shared,
+>   en `node` et rapides, ne le sont pas — aucun de leurs tests n'est jamais tombé. Le budget
+>   lui-même ne bouge pas : l'allonger en local cacherait un test réellement lent jusqu'à la CI.
+> - **Un import à froid dans le corps d'un test** (`apps/mobile/shared/lib/auth.test.ts`) : le
+>   premier cas importait le module après `vi.resetModules()`, et payait seul la transformation du
+>   graphe d'Expo et de Better Auth — 859 ms à vide, au-delà de 5 s sous la charge. Un import
+>   statique en tête la reporte à la collecte, qui n'a pas de budget. Le patron reste ailleurs :
+>   un fichier qui tombe sur son **premier** cas, et sur lui seul, relève de ce correctif.
+> - **L'horloge qui recule** : « Recharger » (#604) relisait par `fetchQuery({ staleTime: 0 })`,
+>   que TanStack Query juge sur `Date.now()`. Sous WSL2, l'horloge se recale par à-coups vers
+>   l'arrière (−0,9 et −1,5 s mesurés pendant une porte) : la donnée lue « après l'instant
+>   présent » passait pour fraîche, la relecture rendait le cache sans rien demander, et l'écran
+>   remontait sur la version même du conflit. `useStaleReload` **invalide** la requête avant de
+>   la relire — l'invalidation prime sur l'horloge. C'est un défaut réel, pas seulement de test,
+>   mais sa fenêtre en production est celle du recul : une relecture demandée dans la seconde.
+>
+> **Mesuré** sur un poste de 20 threads, par `pnpm turbo typecheck test --force --continue` :
+> sans borne, 4 portes rouges sur 4 ; bridé seul, 1 rouge sur 3 (l'horloge) ; plus l'invalidation,
+> 1 rouge sur 3 (l'import à froid) ; avec les trois, 3 vertes sur 3, en 100 à 110 s chacune. La
+> suite web lancée seule tient en 64 s, bridée.
+>
+> Écarts assumés : **l'e2e Playwright de la messagerie**, tombé une fois sur la suite complète,
+> relève d'une autre cause et part en [#867](https://github.com/Cimavia/cimavia/issues/867). La
+> même dépendance à l'horloge existe côté mobile (`usableSession`, qui relit par
+> `fetchQuery({ staleTime: 0 })`) ; elle n'y a fait tomber aucun test et reste en l'état.
+
 ---
 
 ## v1.0 — Garde-fous du dépôt ([#621](https://github.com/Cimavia/cimavia/issues/621))
