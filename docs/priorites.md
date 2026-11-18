@@ -97,7 +97,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #255 | Le profil EAS production n'a pas d'URL d'API | 🟠 | |
 | #800 | Une version plus récente de SILO est disponible | 🟠 | |
 | #784 | Personne n'est prévenu quand l'API ou le stockage de preview tombe | 🟡 | |
-| #212 | Dire au démarrage ce qui n'est pas configuré, ni migré | 🟡 | |
+| #212 | Dire au démarrage ce qui n'est pas configuré, ni migré | 🟡 | ✅ |
 | #418 | La promotion ne sait viser que preview | 🟡 | |
 | #84 | Migrations Prisma dans une étape de déploiement dédiée | ⚪ | |
 | #411 | Terraform pour Cloudflare et Scaleway | ⚪ | |
