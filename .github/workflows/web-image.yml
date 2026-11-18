@@ -187,6 +187,18 @@ jobs:
             exit 1
           fi
 
+      # Le bundle d'entrée qu'index.html référence : les deux étapes suivantes y lisent un asset.
+      - name: Bundle d'entrée
+        id: bundle
+        run: |
+          set -o pipefail
+          asset="$(curl -fsS --max-time 10 http://127.0.0.1:8080/ | grep -o '/assets/index-[^"]*\.js' | head -n1 || true)"
+          if [ -z "$asset" ]; then
+            echo "::error::index.html ne référence aucun bundle /assets/index-*.js."
+            exit 1
+          fi
+          echo "asset=${asset}" >> "$GITHUB_OUTPUT"
+
       # Les en-têtes de sécurité (#780), sur CHAQUE sorte de réponse : une route de l'app, un asset,
       # `/config.js` et un document légal — chacun dans une `location` qui pose son propre
       # `Cache-Control`, ce qui effaçait ceux du `server` avant `add_header_inherit` — et le 404 de
@@ -197,6 +209,7 @@ jobs:
       - name: En-têtes de sécurité sur chaque réponse
         env:
           IMAGE: ghcr.io/${{ steps.ns.outputs.owner }}/cimavia-web@${{ steps.build.outputs.digest }}
+          ASSET: ${{ steps.bundle.outputs.asset }}
         run: |
           set -o pipefail
           policy="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: https://s3.example.invalid; media-src 'self' blob: https://s3.example.invalid; connect-src 'self' https://api.example.invalid https://s3.example.invalid"
@@ -226,12 +239,14 @@ jobs:
             done
           }
 
-          asset="$(curl -fsS --max-time 10 http://127.0.0.1:8080/ | grep -o '/assets/index-[^"]*\.js' | head -n1)"
-          if [ -z "$asset" ]; then
-            echo "::error::index.html ne référence aucun bundle /assets/index-*.js."
+          # Un seul `Cache-Control` sur un asset, durée comprise : `expires` en posait un second (MAJ-2).
+          cache="$(curl -fsS --max-time 10 -o /dev/null -D - "http://127.0.0.1:8080${ASSET}" | tr -d '\r' | grep -i '^cache-control:' || true)"
+          if [ "${cache,,}" != "cache-control: public, max-age=31536000, immutable" ]; then
+            echo "::error::${ASSET} : Cache-Control inattendu : ${cache//$'\n'/ | }"
             exit 1
           fi
-          for path in /athletes "$asset" /config.js /legal/fr/terms /legal/..%2Findex.html; do
+
+          for path in /athletes "$ASSET" /config.js /legal/fr/terms /legal/..%2Findex.html; do
             check 8080 "$path" "${policy}${sentry}${report}"
           done
           check 8080 "/reset-password?token=jeton" "${policy}${sentry}"
@@ -244,6 +259,43 @@ jobs:
           # qu'aucune autre option ne relance — l'étape échouait à chaque push sur `main`.
           curl -fsS --max-time 10 --retry 10 --retry-all-errors --retry-delay 1 -o /dev/null http://127.0.0.1:8081/
           check 8081 /athletes "${policy} ; ${tail}"
+
+      # Le jeton de réinitialisation ne s'écrit nulle part dans les logs du conteneur (#817) : ni
+      # dans la ligne de requête du document, ni dans le Referer des assets qu'il charge — complet en
+      # même origine —, ni dans le log d'erreur d'un asset absent. Les étapes précédentes ont déjà
+      # ouvert `/reset-password?token=jeton` : aucun `token=` ne doit rester. Une route de l'app,
+      # elle, se journalise sous son chemin et non sous `/index.html`, ce que `$uri` aurait écrit
+      # après le repli SPA ; et le Referer garde son chemin.
+      - name: Aucun jeton dans les logs
+        env:
+          ASSET: ${{ steps.bundle.outputs.asset }}
+        run: |
+          page="http://127.0.0.1:8080/reset-password?token=jeton-du-smoke"
+          curl -fsS --max-time 10 -o /dev/null "$page"
+          curl -fsS --max-time 10 -o /dev/null -H "Referer: ${page}" "http://127.0.0.1:8080${ASSET}"
+          curl -sS --max-time 10 -o /dev/null -H "Referer: ${page}" http://127.0.0.1:8080/assets/absent.js
+          curl -fsS --max-time 10 -o /dev/null http://127.0.0.1:8080/athletes
+          docker logs cimavia-web-smoke >"$RUNNER_TEMP/logs" 2>&1
+          # Les lignes fautives s'affichent : le seul jeton possible est celui, factice, du smoke test.
+          if grep -F 'token=' "$RUNNER_TEMP/logs"; then
+            echo "::error::Le jeton de réinitialisation s'écrit dans les logs du web."
+            exit 1
+          fi
+
+          # logged <chemin> <statut> <Referer> — champ par champ du `log_format cmv` : le Referer `-`
+          # se confondrait sinon avec le X-Forwarded-For, `-` lui aussi.
+          logged() {
+            if ! awk -v path="$1" -v status="$2" -v referer="\"$3\"" \
+              '$6 == "\"GET" && $7 == path && $8 == "HTTP/1.1\"" && $9 == status && $11 == referer { found = 1 } END { exit !found }' \
+              "$RUNNER_TEMP/logs"; then
+              cat "$RUNNER_TEMP/logs"
+              echo "::error::Aucune ligne « GET $1 » en $2, Referer « $3 », dans les logs du web."
+              exit 1
+            fi
+          }
+          logged /athletes 200 -
+          logged "$ASSET" 200 http://127.0.0.1:8080/reset-password
+          logged /assets/absent.js 404 http://127.0.0.1:8080/reset-password
 
       # L'autre moitié du contrat : une variable ABSENTE fait refuser le démarrage, plutôt que de
       # servir `${CMV_…}` tel quel. C'est ce qui rend l'oubli visible sur le NAS. Chacune des quatre :
