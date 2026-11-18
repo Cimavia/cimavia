@@ -114,9 +114,10 @@ pnpm turbo test:e2e --filter=@cmv/api
 pnpm --filter @cmv/web test:e2e:web   # parcours Coach dans Chromium — job CI NON requis (#627)
 
 pnpm --filter @cmv/web exec vite build
-pnpm --filter @cmv/mobile exec expo export --platform android
-                               # ⚠️ depuis le paquet : la config Expo est dans apps/mobile,
-                               #    lancée à la racine la commande échoue sans raison lisible
+pnpm check:bundle              # export Expo android (sourcemaps comprises), puis refuse un paquet
+                               #    chargé en deux copies dans le bundle (#760). L'export seul,
+                               #    c'est `expo export` lancé DEPUIS apps/mobile : à la racine, il
+                               #    échoue sans raison lisible
 ```
 
 #### SonarCloud

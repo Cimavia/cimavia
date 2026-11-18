@@ -63,6 +63,7 @@ pnpm check:i18n                          # clés i18n assemblées (idem — cf. 
 pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
 pnpm check:dette                         # journal de dette : identifiants, suivi, archive
 pnpm check:migrations                    # squawk sur les migrations de la branche (CONTRIBUTING.md)
+pnpm check:bundle                        # export Expo android + aucun paquet en deux copies dans le bundle (#760)
 pnpm --filter @cmv/api exec prisma migrate dev
 # Tests e2e d'isolation multi-tenant (DB dédiée sur 5434 + SILO sur son bucket e2e).
 # Un worktree a son port et sa base, dérivés de git (#630) : les e2e de deux worktrees tournent

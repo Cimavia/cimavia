@@ -1004,6 +1004,32 @@ liste des domaines vivent dans l'index.
 > échoue dès que l'app et `nativewind` ne résolvent plus la même copie. Le correctif est du JS
 > seul : il part par update, sans rebuild.
 
+> **Tranché en [#760](https://github.com/Cimavia/cimavia/issues/760)** (la famille, pas seulement
+> le couple) : `nativewind.test.ts` ne garde que `react-native-css-interop`. `pnpm check:bundle`
+> exporte le bundle Android avec ses sourcemaps et refuse un paquet venu de deux dossiers `.pnpm`.
+> Il tourne dans le job *Builds de production* dès que le mobile est touché.
+> - **Zéro doublon, exceptions déclarées** dans le script avec leur raison, plutôt qu'une liste de
+>   singletons : le premier doublon qui casse serait, par définition, un paquet absent de la liste.
+>   Une exception qui ne correspond plus à rien fait échouer la garde.
+> - **La clé est le dossier `.pnpm` entier**, pas la version : il porte aussi les pairs, et deux
+>   copies de même version ont chacune leur état (`@better-auth/core` 1.7.12 l'a été, une fois par
+>   version de `@better-auth/utils`).
+> - **Android seul** : le graphe JS d'iOS est le même, au code `*.ios.*` près, qui ne change pas
+>   quelles copies sont résolues.
+> - **Le web n'est pas couvert**, et ce n'est pas qu'il serait à l'abri. Il n'a pas de store CSS
+>   partagé, mais deux copies de `react` ou de `@tanstack/react-query` y casseraient les contextes
+>   de la même façon, et rien ne dédoublonne au-delà de ce que pnpm résout. Mesure du 2026-11-18 :
+>   62 paquets dans le bundle Vite, aucun en double. Ses sourcemaps portent les mêmes dossiers
+>   `.pnpm`, en chemins relatifs : la garde pourrait s'y étendre.
+> - **Mesure du 2026-11-18** : 111 paquets, un seul en double, `nanoid` (3.3.19 et 3.3.20).
+>   Exempté : il n'a pas d'état partagé, et seul `pnpm dedupe` le réaligne, en déplaçant metro,
+>   babel et postcss avec lui. Le doublon de `@better-auth/core` a disparu de lui-même.
+> - **Ça ne remplace pas un coup d'œil sur un écran avant de promouvoir** : un `content` Tailwind
+>   qui ne couvre plus un dossier rend lui aussi un écran sans style, et aucune garde ne voit le
+>   rendu.
+> - Le banc `scripts/bundle-duplicates/fixtures/` passe avant le bundle : si Metro change la forme
+>   des chemins, la garde échoue au lieu de se taire.
+
 ---
 
 ## Post-MVP — Garde de démarrage des tiers déployés ([#357](https://github.com/Cimavia/cimavia/issues/357))

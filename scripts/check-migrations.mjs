@@ -30,6 +30,7 @@ import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { benchHolds } from "./fixture-bench.mjs";
+import { escapeData, escapeProperty } from "./github-annotation.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = join(ROOT, ".squawk.toml");
@@ -169,16 +170,6 @@ function fixturesHold() {
 function hintFor(rule) {
   if (rule in HINTS) return HINTS[rule];
   return rule.startsWith("exception-") ? null : HINT_DESTRUCTIVE;
-}
-
-/** L'échappement des commandes de workflow GitHub : `%`, retours de ligne, et dans une propriété
- * `:` et `,`, qui la couperaient. */
-function escapeData(text) {
-  return text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
-}
-
-function escapeProperty(text) {
-  return escapeData(text).replaceAll(":", "%3A").replaceAll(",", "%2C");
 }
 
 /** Le conseil n'est donné qu'une fois par fichier et par règle : une migration non atomique en

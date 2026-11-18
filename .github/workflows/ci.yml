@@ -431,7 +431,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
-          common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.dockerignore|\.github/workflows/ci\.yml|\.github/actions/)'
+          common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|package\.json|turbo\.json|\.nvmrc|\.dockerignore|\.github/workflows/ci\.yml|\.github/actions/)'
           flag() {
             local app="$1"
             local pattern="$2"
@@ -446,7 +446,9 @@ jobs:
             flag api '^(apps/api/|packages/(shared|tsconfig)/|scripts/docker-versions\.mjs$)'
             # `e2e` : le `tsc` du build web vérifie `e2e/`, qui importe @cmv/e2e (#630).
             flag web '^(apps/web/|packages/(shared|tokens|tsconfig|e2e)/|scripts/docker-versions\.mjs$)'
-            flag mobile '^(apps/mobile/|packages/(shared|tokens|tsconfig)/)'
+            # La garde des doublons (#760) et son banc : une PR qui ne toucherait qu'elle ne la ferait
+            # sinon jamais tourner.
+            flag mobile '^(apps/mobile/|packages/(shared|tokens|tsconfig)/|scripts/(check-bundle-duplicates\.mjs|fixture-bench\.mjs|bundle-duplicates/))'
           } | tee -a "$GITHUB_OUTPUT"
 
       - name: Setup Buildx
@@ -486,13 +488,13 @@ jobs:
         if: steps.changes.outputs.mobile == 'true'
         uses: $/.github/actions/setup
 
-      # Depuis `apps/mobile` : lancée à la racine, la commande échoue sans raison lisible (la config
-      # Expo n'y est pas). Sans `APP_VARIANT`, `app.config.ts` retombe sur `development` et n'exige
-      # aucune URL : le bundle Hermes se construit sans secret.
-      - name: Export Expo (android)
+      # `check:bundle` exporte depuis `apps/mobile` (la config Expo y est), avec les sourcemaps, puis
+      # refuse un paquet chargé en deux copies (#760) : en 1.16.0, deux `react-native-css-interop`
+      # ont effacé tout le style avec un export vert. Sans `APP_VARIANT`, `app.config.ts` retombe sur
+      # `development` et n'exige aucune URL : le bundle Hermes se construit sans secret.
+      - name: Export Expo (android) et doublons du bundle
         if: steps.changes.outputs.mobile == 'true'
-        working-directory: apps/mobile
-        run: pnpm exec expo export --platform android
+        run: pnpm check:bundle
 
   # Rapatrié depuis `sonar.yml` en #57 : SonarCloud veut TOUS les lcov dans UN scan, or ils naissent
   # dans plusieurs jobs ci-dessus — l'unitaire dans les trois jobs de tests, celui de l'API dans
