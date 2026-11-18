@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "x_cmv_doublons": [],
+  "sources": [
+    "\u0000polyfill:external-require",
+    "/apps/mobile/app/_layout.tsx",
+    "/packages/shared/src/index.ts",
+    "/apps/mobile/node_modules/expo/internal/async-require-module.js",
+    "/node_modules/.pnpm/react-native-css-interop@0.2.7_react-native@0.85.3_react@19.2.3/node_modules/react-native-css-interop/dist/runtime/native/api.js",
+    "/node_modules/.pnpm/react-native-css-interop@0.2.7_react-native@0.85.3_react@19.2.3/node_modules/react-native-css-interop/dist/runtime/jsx-runtime.js",
+    "/node_modules/.pnpm/@better-auth+core@1.7.12_@better-auth+utils@0.5.1/node_modules/@better-auth/core/dist/index.mjs",
+    "/node_modules/.pnpm/expo-router@56.2.22_1b954224c27301f4c9c57fdf74a4b517/node_modules/expo-router/build/index.js",
+    "/node_modules/.pnpm/react@19.2.3/node_modules/react/index.js"
+  ],
+  "mappings": ""
+}
