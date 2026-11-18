@@ -395,6 +395,26 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
     );
   });
 
+  /**
+   * L'appelant pose la relation que suit le filtre de l'enfant (`exercise`) : les deux conditions
+   * valent ensemble. Posée à la place du filtre, la sienne suffirait — l'id d'un exercice étranger
+   * en ouvrirait les tags, en lecture comme en suppression.
+   */
+  it("garde le filtre tenant quand l'appelant pose la relation qu'il suit", async () => {
+    await as(coach(coachAId), () =>
+      db.exerciseTag.create({ data: { exerciseId: exerciseAId, name: "à travers" } as never }),
+    );
+    const throughExercise = { where: { exercise: { id: exerciseAId } } };
+
+    await expect(
+      as(coach(coachBId), () => db.exerciseTag.findMany(throughExercise)),
+    ).resolves.toEqual([]);
+    await expect(
+      as(coach(coachBId), () => db.exerciseTag.deleteMany(throughExercise)),
+    ).resolves.toEqual({ count: 0 });
+    expect(await tagsNamed("à travers")).toHaveLength(1);
+  });
+
   // Une lecture glissée dans un lot décalerait ses résultats : la forme est refusée.
   it("refuse un enfant créé dans une transaction en tableau", async () => {
     await expect(
