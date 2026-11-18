@@ -36,6 +36,7 @@ import { ProblemExceptionFilter } from "./problem/problem-exception.filter";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { ReminderModule } from "./reminder/reminder.module";
 import { SessionModule } from "./session/session.module";
+import { StartupModule } from "./startup/startup.module";
 import { StructureModule } from "./structure/structure.module";
 import { TenancyModule } from "./tenancy/tenancy.module";
 import { VersionModule } from "./version/version.module";
@@ -111,6 +112,7 @@ import { VersionModule } from "./version/version.module";
     ReminderModule,
     HealthModule,
     VersionModule,
+    StartupModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ProblemExceptionFilter }],
 })
