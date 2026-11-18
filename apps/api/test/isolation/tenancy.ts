@@ -444,6 +444,75 @@ describe("Extension tenant : les refus et les lectures par clé unique", () => {
 
     expect(invoice.coachId).toBe(coachAId);
   });
+
+  /**
+   * Une conversation n'a pas de colonne propriétaire : ses participants SONT son scope (#611). Le
+   * service vérifie qui il réunit avant d'écrire, et aucune route ne réécrit la liste — l'attaque
+   * directe tient donc ce que la messagerie n'atteint pas.
+   */
+  describe("une conversation, scopée par ses participants", () => {
+    const participantKey = () => [`COACH:${coachAId}`, `COACH:${coachBId}`].sort().join("|");
+    const membersOf = (conversationId: string) =>
+      app
+        .get(PrismaService)
+        .conversationParticipant.findMany({ where: { conversationId }, orderBy: { userId: "asc" } })
+        .then((rows) => rows.map((row) => row.userId));
+
+    it("refuse de la créer sans l'acteur parmi ses participants, et n'écrit rien", async () => {
+      await expect(
+        as(coach(coachAId), () =>
+          db.conversation.create({
+            data: {
+              kind: "DIRECT",
+              participantKey: "ext:sans-acteur",
+              participants: { create: [{ userId: coachBId, capability: "COACH" }] },
+            } as never,
+          }),
+        ),
+      ).rejects.toThrow(
+        "[tenancy] Conversation se crée avec l'acteur parmi ses participants, au titre COACH",
+      );
+
+      await expect(
+        app.get(PrismaService).conversation.count({ where: { participantKey: "ext:sans-acteur" } }),
+      ).resolves.toBe(0);
+    });
+
+    it.each([
+      [
+        "participants",
+        (otherId: string) => ({ participants: { deleteMany: { userId: otherId } } }),
+      ],
+      ["kind", () => ({ kind: "GROUP" })],
+      ["participantKey", () => ({ participantKey: "ext:réécrite" })],
+    ] as const)("refuse à un participant de réécrire %s après coup", async (field, data) => {
+      const conversation = await as(coach(coachAId), () =>
+        db.conversation.create({
+          data: {
+            kind: "DIRECT",
+            participantKey: `${participantKey()}|${field}`,
+            participants: {
+              create: [
+                { userId: coachAId, capability: "COACH" },
+                { userId: coachBId, capability: "COACH" },
+              ],
+            },
+          } as never,
+        }),
+      );
+
+      await expect(
+        as(coach(coachAId), () =>
+          db.conversation.update({ where: { id: conversation.id }, data: data(coachBId) as never }),
+        ),
+      ).rejects.toThrow(`[tenancy] Conversation ne modifie pas ${field} après sa création`);
+
+      await expect(
+        app.get(PrismaService).conversation.findUnique({ where: { id: conversation.id } }),
+      ).resolves.toMatchObject({ kind: "DIRECT", participantKey: `${participantKey()}|${field}` });
+      await expect(membersOf(conversation.id)).resolves.toEqual([coachAId, coachBId].sort());
+    });
+  });
 });
 
 /**
