@@ -24,7 +24,17 @@ export function useStaleReload(
   const { onFailure } = useMutationToast();
   const [reloaded, setReloaded] = useState<{ id: string; generation: number } | null>(null);
   const mutation = useMutation({
-    mutationFn: (id: string) => queryClient.fetchQuery({ ...detail(id), staleTime: 0 }),
+    mutationFn: async (id: string) => {
+      const query = detail(id);
+      // Invalidée, la donnée est périmée quoi que dise l'horloge : `staleTime: 0` seul la compare à
+      // `Date.now()`, qu'un recalage fait reculer — la relecture rendait alors le cache (#833).
+      await queryClient.invalidateQueries({
+        queryKey: query.queryKey,
+        exact: true,
+        refetchType: "none",
+      });
+      return queryClient.fetchQuery({ ...query, staleTime: 0 });
+    },
   });
 
   function reload(id: string, onReloaded?: () => void) {
