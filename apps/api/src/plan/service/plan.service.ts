@@ -371,11 +371,6 @@ export class PlanService {
       throw new BadRequestException("Choisis l'athlète de ce cycle avant de le diffuser");
     }
 
-    const weekCount = await this.db.planWeek.count({ where: { planId: id } });
-    if (weekCount === 0) {
-      throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
-    }
-
     /**
      * Auto-coaching (#14) : pas de facture. Le gating existe pour qu'un coach ne diffuse pas un
      * cycle sans avoir dit ce qu'il coûte à SON ATHLÈTE — se le facturer à soi-même n'aurait
@@ -399,6 +394,14 @@ export class PlanService {
         { status: PlanStatus.PUBLISHED, publishedAt: new Date() },
         PLAN_NOT_FOUND,
       );
+      // Les semaines comptées APRÈS l'écriture, jamais avant (#872) : une suppression du cycle
+      // validée entre la lecture et ici les aurait emportées en cascade, et le cycle disparu aurait
+      // répondu 400 « sans semaine » au lieu du 404 de l'écriture. Après elle, la suppression
+      // attend notre verrou sur le cycle, puis bute sur la version (409). Le retrait d'une semaine,
+      // lui, ne prend pas ce verrou : sa fenêtre est celle assumée en « Tranché en #312 ».
+      if ((await tx.planWeek.count({ where: { planId: id } })) === 0) {
+        throw new BadRequestException("Un cycle sans semaine n'a rien à diffuser");
+      }
       // Gating : lève si aucune facturation n'a été saisie → la transaction est annulée.
       const issued = solo ? null : await this.invoices.issueForPlan(tx, plan);
       // Relu DANS la transaction, comme l'en-tête : la réponse porte NOTRE version.
