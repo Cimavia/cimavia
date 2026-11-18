@@ -28,6 +28,7 @@ vi.mock("@/feature/feedback/hook/useFeedbackMedia", () => ({
 
 const addAssets = vi.fn();
 const removeReset = vi.fn();
+const clearAudioError = vi.fn();
 
 beforeEach(() => {
   addAssets.mockResolvedValue([]);
@@ -38,7 +39,8 @@ beforeEach(() => {
     progress: 0,
   } as unknown as ReturnType<typeof useAddFeedbackMedia>);
   vi.mocked(useAddFeedbackAudio).mockReturnValue({
-    mutate: vi.fn(),
+    send: vi.fn(),
+    clearError: clearAudioError,
     isPending: false,
     error: null,
     progress: 0,
@@ -52,18 +54,31 @@ beforeEach(() => {
 });
 
 /**
- * Seul `CmvAudioRecorder` est remplacé, par un bouton qui rend un audio tout fait. Le vrai a
- * besoin d'un micro : `useAudioRecorderState` ne peut pas basculer en enregistrement sous un
- * runtime sans pont natif, donc `onRecorded` serait hors d'atteinte. Ce qui s'éprouve ici est ce
- * que la SECTION fait d'une note vocale rendue, pas la façon dont le micro la produit.
+ * Seul `CmvAudioRecorder` est remplacé, par deux boutons : « démarrer » lance une capture à la
+ * main, « enregistrer » rend un audio tout fait. Le vrai a besoin d'un micro :
+ * `useAudioRecorderState` ne peut pas basculer en enregistrement sous un runtime sans pont natif,
+ * donc `onRecorded` serait hors d'atteinte. Ce qui s'éprouve ici est ce que la SECTION fait d'une
+ * capture et d'une note vocale rendue, pas la façon dont le micro les produit.
+ *
+ * « enregistrer » sans « démarrer » est une note RELAYÉE au plafond (#856) : elle arrive pendant
+ * une capture déjà lancée.
  */
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  CmvAudioRecorder: ({ onRecorded }: { onRecorded: (audio: RecordedAudio) => void }) => (
-    <CmvButton
-      label="enregistrer"
-      onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
-    />
+  CmvAudioRecorder: ({
+    onRecorded,
+    onRecordingChange,
+  }: {
+    onRecorded: (audio: RecordedAudio) => void;
+    onRecordingChange?: (recording: boolean) => void;
+  }) => (
+    <>
+      <CmvButton label="démarrer" onPress={() => onRecordingChange?.(true)} />
+      <CmvButton
+        label="enregistrer"
+        onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
+      />
+    </>
   ),
 }));
 
@@ -176,7 +191,8 @@ describe("FeedbackMediaSection", () => {
 
   it("garde le message de l'API quand elle refuse le fichier", () => {
     vi.mocked(useAddFeedbackAudio).mockReturnValue({
-      mutate: vi.fn(),
+      send: vi.fn(),
+      clearError: clearAudioError,
       isPending: false,
       error: new ApiError(409, "le serveur a refusé ce fichier", null),
       progress: 0,
@@ -192,7 +208,8 @@ describe("FeedbackMediaSection", () => {
 
   it("dit la clé du refus quand l'échec vient d'une règle métier", () => {
     vi.mocked(useAddFeedbackAudio).mockReturnValue({
-      mutate: vi.fn(),
+      send: vi.fn(),
+      clearError: clearAudioError,
       isPending: false,
       error: new MediaRejectedError("feedback.media.audioTooBig"),
       progress: 0,
@@ -245,7 +262,8 @@ describe("FeedbackMediaSection", () => {
     // Avant #366, une note vocale ratée plus tôt masquait l'échec du retrait.
     it("ne se laisse pas masquer par l'échec d'une note vocale", () => {
       vi.mocked(useAddFeedbackAudio).mockReturnValue({
-        mutate: vi.fn(),
+        send: vi.fn(),
+        clearError: clearAudioError,
         isPending: false,
         error: new MediaRejectedError("feedback.media.audioTooLong"),
         progress: 0,
@@ -283,7 +301,7 @@ describe("FeedbackMediaSection", () => {
     // Sans ça, « Le retrait a échoué » survivait à tout jusqu'au retrait suivant.
     it.each([
       ["l'ajout de photos", "feedback.media.addMedia"],
-      ["une note vocale", "enregistrer"],
+      ["une capture au micro", "démarrer"],
     ])("s'efface au geste suivant : %s", async (_, button) => {
       vi.mocked(pickFeedbackAssets).mockResolvedValue([]);
       failRemoval(new Error("Network request failed"));
@@ -298,9 +316,10 @@ describe("FeedbackMediaSection", () => {
   });
 
   it("rattache la note vocale que l'enregistreur lui rend", () => {
-    const mutate = vi.fn();
+    const send = vi.fn();
     vi.mocked(useAddFeedbackAudio).mockReturnValue({
-      mutate,
+      send,
+      clearError: clearAudioError,
       isPending: false,
       error: null,
       progress: 0,
@@ -311,17 +330,10 @@ describe("FeedbackMediaSection", () => {
 
     pressButton(container, "enregistrer");
 
-    expect(mutate).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
+    expect(send).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
   });
 
-  it("efface le refus de la galerie quand la note vocale, elle, passe", async () => {
-    const mutate = vi.fn();
-    vi.mocked(useAddFeedbackAudio).mockReturnValue({
-      mutate,
-      isPending: false,
-      error: null,
-      progress: 0,
-    } as unknown as ReturnType<typeof useAddFeedbackAudio>);
+  it("efface le refus de la galerie et l'échec d'une note dès qu'une capture démarre", async () => {
     vi.mocked(pickFeedbackAssets).mockRejectedValue(
       new MediaRejectedError("feedback.media.permission"),
     );
@@ -331,12 +343,33 @@ describe("FeedbackMediaSection", () => {
     pressButton(container, "feedback.media.addMedia");
     expect(await findByText("feedback.media.permission")).toBeTruthy();
 
+    pressButton(container, "démarrer");
+
+    // Le refus portait sur la GALERIE : le laisser affiché pendant la capture ferait croire que la
+    // note vocale a échoué.
+    expect(queryByText("feedback.media.permission")).toBeNull();
+    expect(clearAudioError).toHaveBeenCalledOnce();
+  });
+
+  // #858 : une note relayée au plafond arrive pendant une capture déjà lancée. L'échec d'envoi de
+  // la note d'avant doit rester dit — l'Athlete la croirait partie.
+  it("n'efface rien quand une note relayée arrive", async () => {
+    vi.mocked(pickFeedbackAssets).mockRejectedValue(
+      new MediaRejectedError("feedback.media.permission"),
+    );
+    const { container, findByText, queryByText } = renderRn(
+      <FeedbackMediaSection sessionId="ss-1" feedback={emptyFeedback} />,
+    );
+    pressButton(container, "feedback.media.addMedia");
+    expect(await findByText("feedback.media.permission")).toBeTruthy();
+    // Le geste galerie a remis le retrait à zéro ; seule compte la suite.
+    removeReset.mockClear();
+
     pressButton(container, "enregistrer");
 
-    // Le refus portait sur la GALERIE : le laisser affiché ferait croire que la note vocale a
-    // échoué, alors qu'elle est rattachée.
-    expect(mutate).toHaveBeenCalledOnce();
-    expect(queryByText("feedback.media.permission")).toBeNull();
+    expect(queryByText("feedback.media.permission")).not.toBeNull();
+    expect(clearAudioError).not.toHaveBeenCalled();
+    expect(removeReset).not.toHaveBeenCalled();
   });
 
   /**

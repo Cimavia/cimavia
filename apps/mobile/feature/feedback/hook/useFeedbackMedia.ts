@@ -17,7 +17,7 @@ import { useState } from "react";
 import { athleteFeedbackApi, myFeedbackKeys } from "@/feature/feedback/api";
 import { FEEDBACK_MEDIA_PROFILE } from "@/feature/feedback/constant";
 import { myPlanKeys } from "@/feature/plan/api";
-import type { RecordedAudio } from "@/shared/component";
+import { useVoiceNoteUpload } from "@/shared/hook/useVoiceNoteUpload";
 import {
   StorageUploadError,
   sendStoragePart,
@@ -97,14 +97,19 @@ export function useAddFeedbackMedia(sessionId: string) {
 /**
  * Débrief vocal (P5) : la note vocale vient de l'enregistreur partagé (pas d'un picker). Même flux
  * ensuite — URL signée → upload direct → rattachement — et le débrief passe en DONE.
+ *
+ * Les notes d'une même capture partent l'une après l'autre, et l'échec de l'une reste dit tant
+ * qu'une nouvelle capture ne l'efface pas (`useVoiceNoteUpload`, #858) : l'avancement est donc
+ * celui de la note qui part.
  */
 export function useAddFeedbackAudio(sessionId: string) {
   const invalidate = useInvalidateFeedback(sessionId);
   const [progress, setProgress] = useState(0);
   const [retry, setRetry] = useState<MultipartRetry | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (audio: RecordedAudio) => {
+  const upload = useVoiceNoteUpload(
+    `feedback-audio:${sessionId}`,
+    (audio) => {
       setProgress(0);
       setRetry(null);
       return uploadAndAttach(
@@ -116,10 +121,10 @@ export function useAddFeedbackAudio(sessionId: string) {
         false,
       );
     },
-    onSuccess: invalidate,
-  });
+    invalidate,
+  );
 
-  return { ...mutation, progress, retry };
+  return { ...upload, progress, retry };
 }
 
 /**
