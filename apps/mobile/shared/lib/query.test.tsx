@@ -1,7 +1,7 @@
 import { ApiError, coachFeedbackKeys, messageKeys, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
 import * as Sentry from "@sentry/react-native";
 import { focusManager, onlineManager, QueryClient, useQueryClient } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import type { NetworkState } from "expo-network";
 import { AppState, type AppStateStatus } from "react-native";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -88,6 +88,36 @@ describe("resetQueryCache", () => {
 
   it("ne se plaint pas quand il n'y a rien à effacer", async () => {
     await expect(resetQueryCache()).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * Une mutation en pause — hors réseau, ou en attente dans une file — n'a rien à faire sur le disque :
+ * restaurée sans sa fonction d'envoi, elle ne peut aboutir, et une note vocale restée dans sa file
+ * bloquerait les suivantes (#858).
+ */
+describe("persistance des mutations", () => {
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
+  it("n'écrit pas sur le disque une mutation en pause", async () => {
+    const client = mountedClient();
+    // Le provider ne s'abonne au cache qu'au rendu qui suit la restauration : écrire avant, c'est
+    // écrire sans que rien ne persiste.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    onlineManager.setOnline(false);
+
+    void client
+      .getMutationCache()
+      .build(client, { mutationFn: () => Promise.resolve(), scope: { id: "note" } })
+      .execute(undefined);
+    // Une requête écrite APRÈS la mutation : l'écriture qui la porte a vu la mutation en pause.
+    client.setQueryData(["athletes", "list"], []);
+
+    const persisted = () => JSON.parse(storedItems.get(PERSIST_KEY) ?? "{}").clientState;
+    await waitFor(() => expect(persisted()?.queries).toHaveLength(1), { timeout: 3000 });
+    expect(persisted().mutations).toEqual([]);
   });
 });
 

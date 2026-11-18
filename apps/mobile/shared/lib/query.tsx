@@ -170,13 +170,23 @@ export async function invalidateSignedMediaQueries(client: QueryClient): Promise
 /**
  * Cache de requêtes PERSISTÉ (p3-5). Sans persistance, un cache purement mémoire disparaîtrait à
  * la fermeture de l'app : l'athlète hors réseau ouvrirait un écran vide.
- * Les mutations ne sont pas persistées (aucune écriture différée en MVP — cf. CDC §12).
+ *
+ * Les mutations ne sont pas persistées (aucune écriture différée en MVP — cf. CDC §12). Il faut le
+ * dire à TanStack : par défaut, il écrit sur le disque toute mutation EN PAUSE (hors réseau, ou en
+ * attente dans une file). Restaurée sans sa fonction d'envoi, elle ne peut aboutir — et depuis que
+ * les notes vocales partent en file (`scope`, #858), elle bloquerait toutes les notes suivantes de
+ * sa séance ou de son fil jusqu'au retour du réseau ou du premier plan.
  */
 export function QueryProvider({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, maxAge: CACHE_MAX_AGE_MS, buster: CACHE_SCHEMA_VERSION }}
+      persistOptions={{
+        persister,
+        maxAge: CACHE_MAX_AGE_MS,
+        buster: CACHE_SCHEMA_VERSION,
+        dehydrateOptions: { shouldDehydrateMutation: () => false },
+      }}
       onSuccess={() => invalidateSignedMediaQueries(queryClient)}
     >
       {children}
