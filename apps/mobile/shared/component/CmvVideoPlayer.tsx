@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Modal, Pressable, View } from "react-native";
 import { useVideoThumbnail } from "@/shared/hook/useVideoThumbnail";
+import { reportPlaybackError } from "@/shared/lib/playback-report";
 import { CmvText } from "./CmvText";
 
 // Ce que l'ouverture peut rater, et que l'utilisateur doit voir plutôt que subir.
@@ -177,7 +178,18 @@ function FullscreenVideo({ source, resolveUrl, onClose, onFail }: Readonly<Fulls
     // recharger.
     let cancelled = false;
 
-    const recover = async () => {
+    /**
+     * La lecture est perdue : c'est CE cas qui remonte à Sentry (#809), avec ce que le natif a
+     * répondu — on ne savait pas si la vidéo cassait sur un 403, un délai dépassé ou le réseau. Un
+     * 403 rattrapé par la re-signature est la routine du TTL (V-3) : le remonter noierait les
+     * vraies pannes.
+     */
+    const lose = (nativeMessage: string | null, url: string) => {
+      reportPlaybackError("Lecture d'une vidéo échouée", nativeMessage, url);
+      onFailRef.current();
+    };
+
+    const recover = async (nativeMessage: string | null) => {
       const failed = sourceRef.current;
       const time = player.currentTime;
       const fresh = await resolveUrlRef.current();
@@ -185,7 +197,7 @@ function FullscreenVideo({ source, resolveUrl, onClose, onFail }: Readonly<Fulls
       // La même URL, encore valide à nos yeux : ce n'est pas l'expiration qui a cassé la lecture
       // (fichier illisible, storage injoignable). La relancer bouclerait sur la même erreur.
       if (fresh == null || fresh === failed) {
-        onFailRef.current();
+        lose(nativeMessage, failed);
         return;
       }
       sourceRef.current = fresh;
@@ -193,11 +205,12 @@ function FullscreenVideo({ source, resolveUrl, onClose, onFail }: Readonly<Fulls
       await player.replaceAsync(fresh);
     };
 
-    const subscription = player.addListener("statusChange", ({ status }) => {
+    const subscription = player.addListener("statusChange", ({ status, error }) => {
       if (status === "error") {
+        const nativeMessage = error?.message ?? null;
         // Un rejet (re-signature ou chargement) est une panne comme une autre : jamais un écran noir.
-        recover().catch(() => {
-          if (!cancelled) onFailRef.current();
+        recover(nativeMessage).catch(() => {
+          if (!cancelled) lose(nativeMessage, sourceRef.current);
         });
         return;
       }

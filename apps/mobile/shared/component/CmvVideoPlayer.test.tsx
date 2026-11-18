@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react-native";
 import { act, screen, waitFor } from "@testing-library/react";
 import { useVideoPlayer } from "expo-video";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
@@ -66,13 +67,20 @@ function player(): FakePlayer {
   return created.value as unknown as FakePlayer;
 }
 
-// Joue un changement d'état natif, comme l'événement `statusChange` d'expo-video.
-function emit(status: "error" | "readyToPlay") {
-  const listener = player().addListener.mock.calls.at(-1)?.[1] as
-    | ((payload: { status: string }) => void)
-    | undefined;
-  if (listener == null) throw new Error("aucun écouteur de statut");
-  act(() => listener({ status }));
+// Joue un événement natif auprès de TOUS ses écouteurs, comme expo-video.
+function dispatch(event: string, payload: object) {
+  const listeners = player()
+    .addListener.mock.calls.filter(([name]) => name === event)
+    .map(([, listener]) => listener as (payload: object) => void);
+  if (listeners.length === 0) throw new Error(`aucun écouteur de ${event}`);
+  act(() => {
+    for (const listener of listeners) listener(payload);
+  });
+}
+
+// Un changement d'état natif, comme l'événement `statusChange` d'expo-video.
+function emit(status: "error" | "readyToPlay", message?: string) {
+  dispatch("statusChange", { status, ...(message == null ? {} : { error: { message } }) });
 }
 
 beforeEach(() => {
@@ -344,5 +352,83 @@ describe("CmvVideoPlayer — vignette", () => {
     press(getByLabelText("media.video.label"));
 
     expect(await findByText("media.video.refreshError")).toBeTruthy();
+  });
+});
+
+describe("CmvVideoPlayer — remontée à Sentry (#809)", () => {
+  it("remonte ce que le natif a répondu, avec l'hôte de la vidéo", async () => {
+    const { open } = setup();
+    await open();
+
+    emit("error", "Response code: 403");
+
+    await waitFor(() => expect(Sentry.captureMessage).toHaveBeenCalledTimes(1));
+    expect(Sentry.captureMessage).toHaveBeenCalledWith("Lecture d'une vidéo échouée", {
+      level: "error",
+      tags: { platform: "web", host: "s3.test" },
+      extra: { nativeMessage: "Response code: 403" },
+    });
+  });
+
+  it("n'emporte jamais l'URL signée que le natif cite", async () => {
+    const { open } = setup();
+    await open();
+
+    emit("error", `Source error: ${FIRST}`);
+
+    await waitFor(() => expect(Sentry.captureMessage).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain("X-Amz");
+  });
+
+  it("remonte une panne sans message natif, en le disant absent", async () => {
+    const { open } = setup();
+    await open();
+
+    emit("error");
+
+    await waitFor(() =>
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(
+        "Lecture d'une vidéo échouée",
+        expect.objectContaining({ extra: { nativeMessage: null } }),
+      ),
+    );
+  });
+
+  // V-3 : un 403 après 5 min de pause est la routine du TTL, la re-signature le rattrape.
+  it("ne remonte pas une panne rattrapée par la re-signature", async () => {
+    const resolveUrl = vi.fn(async (): Promise<string | null> => FIRST);
+    const { open } = setup(resolveUrl);
+    await open();
+    resolveUrl.mockResolvedValue(FRESH);
+
+    emit("error", "Response code: 403");
+    await waitFor(() => expect(player().replaceAsync).toHaveBeenCalledWith(FRESH));
+
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("remonte la panne quand la nouvelle source refuse de se charger", async () => {
+    const resolveUrl = vi.fn(async (): Promise<string | null> => FIRST);
+    const { open, findByText } = setup(resolveUrl);
+    await open();
+    resolveUrl.mockResolvedValue(FRESH);
+    player().replaceAsync.mockRejectedValue(new Error("chargement"));
+
+    emit("error", "Response code: 403");
+
+    expect(await findByText("media.video.openError")).toBeTruthy();
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      "Lecture d'une vidéo échouée",
+      expect.objectContaining({ tags: { platform: "web", host: "s3.test" } }),
+    );
+  });
+
+  it("ne remonte rien tant que la lecture ne casse pas", async () => {
+    const { open } = setup();
+    await open();
+
+    emit("readyToPlay");
+
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
   });
 });
