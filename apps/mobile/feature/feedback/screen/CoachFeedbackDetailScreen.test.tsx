@@ -71,16 +71,27 @@ vi.mock("@/shared/component", async (importOriginal) => {
     CmvAudioPlayer: player("audio"),
     CmvVideoPlayer: player("video"),
     CmvImageViewer: player("photo"),
-    CmvAudioRecorder: ({ onRecorded }: { onRecorded: (audio: RecordedAudio) => void }) => (
-      <CmvButton
-        label="enregistrer"
-        onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
-      />
+    // « démarrer » lance une capture à la main ; « enregistrer » seul est une note relayée (#858).
+    CmvAudioRecorder: ({
+      onRecorded,
+      onRecordingChange,
+    }: {
+      onRecorded: (audio: RecordedAudio) => void;
+      onRecordingChange?: (recording: boolean) => void;
+    }) => (
+      <>
+        <CmvButton label="démarrer" onPress={() => onRecordingChange?.(true)} />
+        <CmvButton
+          label="enregistrer"
+          onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
+        />
+      </>
     ),
   };
 });
 
 const markRead = vi.fn();
+const clearAudioError = vi.fn();
 const sendText = vi.fn().mockResolvedValue(undefined);
 
 const SUMMARY = {
@@ -146,6 +157,7 @@ beforeEach(() => {
     sending: false,
     pickAndSend: vi.fn().mockResolvedValue([]),
     recordAndSend: vi.fn(),
+    clearAudioError,
     mediaBusy: false,
     step: null,
     audioError: null,
@@ -327,6 +339,16 @@ describe("CoachFeedbackDetailScreen", () => {
     pressButton(container, "enregistrer");
 
     expect(recordAndSend).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
+    // Une note relayée au plafond arrive par là : elle ne tait pas l'échec de la précédente (#858).
+    expect(clearAudioError).not.toHaveBeenCalled();
+  });
+
+  it("efface l'échec d'une note dès qu'une capture démarre (#858)", () => {
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    pressButton(container, "démarrer");
+
+    expect(clearAudioError).toHaveBeenCalledOnce();
   });
 });
 

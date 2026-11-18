@@ -129,10 +129,13 @@ export function FeedbackReplyComposer({
           onRecap([]);
           void reply.pickAndSend(onPreUploadError, source).then(onRecap);
         }}
-        onRecordAudio={(audio) => {
+        // Effacer au début d'une capture, pas à l'arrivée d'une note : une note relayée au plafond
+        // tairait l'échec de la précédente (#858).
+        onCaptureStart={() => {
           onPreUploadError(null);
-          reply.recordAndSend(audio);
+          reply.clearAudioError();
         }}
+        onRecordAudio={reply.recordAndSend}
         onMediaError={onPreUploadError}
         // Tant que le fil n'est pas résolu, écrire n'aboutirait nulle part : la barre reste visible
         // mais fermée, plutôt que d'accepter un texte qu'elle perdrait.

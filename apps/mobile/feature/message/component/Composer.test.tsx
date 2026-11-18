@@ -34,6 +34,7 @@ const base = {
   onSendText: vi.fn().mockResolvedValue(undefined),
   onPickMedia: vi.fn(),
   onRecordAudio: vi.fn(),
+  onCaptureStart: vi.fn(),
   onMediaError: vi.fn(),
   sending: false,
   mediaBusy: false,
@@ -240,6 +241,19 @@ describe("Composer", () => {
 
     press(iconButton(container, "mic-outline") as Element);
     expect(queryByText("messages.audio.limitReached")).toBeNull();
+  });
+
+  // #858 : l'écran efface ses erreurs au début d'une capture, pas à chaque note — une note relayée
+  // ne passe pas par là. La fin de capture, elle, n'efface rien non plus.
+  it("prévient l'écran au début d'une capture, et seulement là", () => {
+    const onCaptureStart = vi.fn();
+    renderRn(<Composer {...base} onCaptureStart={onCaptureStart} />);
+
+    act(() => recorderProps().onRecordingChange?.(false));
+    expect(onCaptureStart).not.toHaveBeenCalled();
+
+    act(() => recorderProps().onRecordingChange?.(true));
+    expect(onCaptureStart).toHaveBeenCalledOnce();
   });
 
   /** Un fichier sans nom se nomme quand même : la ligne d'avancement ne laisse pas de trou. */

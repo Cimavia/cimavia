@@ -20,6 +20,12 @@ type ComposerProps = {
   onSendText: (text: string) => Promise<unknown>;
   onPickMedia: (source: AttachSource) => void;
   onRecordAudio: (audio: RecordedAudio) => void;
+  /**
+   * Une capture vient de démarrer, lancée à la main (#858). C'est là, et non à chaque note reçue,
+   * que l'écran efface ses erreurs : une note relayée au plafond ne doit pas taire l'échec d'envoi
+   * de la précédente.
+   */
+  onCaptureStart: () => void;
   onMediaError: (reasonKey: string) => void;
   sending: boolean;
   mediaBusy: boolean;
@@ -49,6 +55,7 @@ export function Composer({
   onSendText,
   onPickMedia,
   onRecordAudio,
+  onCaptureStart,
   onMediaError,
   sending,
   mediaBusy,
@@ -86,6 +93,7 @@ export function Composer({
         if (next) {
           setChoosing(false);
           setLimitReached(false);
+          onCaptureStart();
         }
       }}
       onError={onMediaError}

@@ -34,5 +34,6 @@ export function useFeedbackReply(input: FeedbackReplyInput, capability: Training
     mediaBusy: media.isUploading,
     step: media.step,
     audioError: media.audioError,
+    clearAudioError: media.clearAudioError,
   };
 }

@@ -24,24 +24,38 @@ const { sessionMock } = vi.hoisted(() => ({ sessionMock: vi.fn() }));
 vi.mock("@/shared/lib/auth", () => ({ authClient: { useSession: () => sessionMock() } }));
 
 /**
- * Seul `CmvAudioRecorder` est remplacé, par un bouton qui rend un audio tout fait. Le vrai a
- * besoin d'un micro : `useAudioRecorderState` ne peut pas basculer en enregistrement sous un
- * runtime sans pont natif, donc `onRecorded` serait hors d'atteinte. Ce qui s'éprouve ici est ce
- * que le FIL fait d'une note vocale rendue, pas la façon dont le micro la produit.
+ * Seul `CmvAudioRecorder` est remplacé, par deux boutons : « démarrer » lance une capture à la
+ * main, « enregistrer » rend un audio tout fait. Le vrai a besoin d'un micro :
+ * `useAudioRecorderState` ne peut pas basculer en enregistrement sous un runtime sans pont natif,
+ * donc `onRecorded` serait hors d'atteinte. Ce qui s'éprouve ici est ce que le FIL fait d'une
+ * capture et d'une note vocale rendue, pas la façon dont le micro les produit.
+ *
+ * « enregistrer » sans « démarrer » est une note RELAYÉE au plafond (#856) : elle arrive pendant
+ * une capture déjà lancée.
  */
 vi.mock("@/shared/component", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  CmvAudioRecorder: ({ onRecorded }: { onRecorded: (audio: RecordedAudio) => void }) => (
-    <CmvButton
-      label="enregistrer"
-      onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
-    />
+  CmvAudioRecorder: ({
+    onRecorded,
+    onRecordingChange,
+  }: {
+    onRecorded: (audio: RecordedAudio) => void;
+    onRecordingChange?: (recording: boolean) => void;
+  }) => (
+    <>
+      <CmvButton label="démarrer" onPress={() => onRecordingChange?.(true)} />
+      <CmvButton
+        label="enregistrer"
+        onPress={() => onRecorded({ uri: "file:///note.m4a", durationSeconds: 3 })}
+      />
+    </>
   ),
 }));
 
 const markRead = vi.fn();
 const refetch = vi.fn();
 const pickAndSend = vi.fn();
+const clearAudioError = vi.fn();
 
 function message(overrides: Partial<MessageDto>): MessageDto {
   return {
@@ -79,6 +93,7 @@ beforeEach(() => {
   vi.mocked(useSendMessageMedia).mockReturnValue({
     pickAndSend,
     recordAndSend: vi.fn(),
+    clearAudioError,
     isUploading: false,
     step: null,
     audioError: null,
@@ -302,30 +317,47 @@ describe("ConversationThread", () => {
     expect(mutateAsync).toHaveBeenCalledWith({ type: "TEXT", content: "bien joué" });
   });
 
-  it("efface le refus précédent avant d'envoyer une note vocale", async () => {
-    const recordAndSend = vi.fn();
-    vi.mocked(useSendMessageMedia).mockReturnValue({
-      pickAndSend,
-      recordAndSend,
-      isUploading: false,
-      step: null,
-      audioError: null,
-    } as unknown as ReturnType<typeof useSendMessageMedia>);
-    // La galerie a refusé : son message est à l'écran quand la note vocale part.
+  /** La galerie a refusé : son message est à l'écran quand le micro entre en jeu. */
+  async function renderAfterGalleryRefusal() {
     pickAndSend.mockImplementation(async (report: (key: string) => void) => {
       report("messages.media.permission");
       return [];
     });
+    const view = renderRn(<ConversationThread {...base} />);
+    pressAttach(view.container);
+    expect(await view.findByText("messages.media.permission")).toBeTruthy();
+    return view;
+  }
 
-    const { container, findByText, queryByText } = renderRn(<ConversationThread {...base} />);
-    pressAttach(container);
-    expect(await findByText("messages.media.permission")).toBeTruthy();
+  it("efface le refus précédent et l'échec d'une note dès qu'une capture démarre", async () => {
+    const { container, queryByText } = await renderAfterGalleryRefusal();
+
+    pressButton(container, "démarrer");
+
+    // Le refus de la galerie ne doit pas survivre au geste suivant.
+    expect(queryByText("messages.media.permission")).toBeNull();
+    expect(clearAudioError).toHaveBeenCalledOnce();
+  });
+
+  // #858 : une note relayée au plafond arrive pendant une capture déjà lancée. L'échec d'envoi de
+  // la note d'avant doit rester dit — l'expéditeur la croirait partie.
+  it("envoie la note relayée sans rien effacer", async () => {
+    const recordAndSend = vi.fn();
+    vi.mocked(useSendMessageMedia).mockReturnValue({
+      pickAndSend,
+      recordAndSend,
+      clearAudioError,
+      isUploading: false,
+      step: null,
+      audioError: null,
+    } as unknown as ReturnType<typeof useSendMessageMedia>);
+    const { container, queryByText } = await renderAfterGalleryRefusal();
 
     pressButton(container, "enregistrer");
 
     expect(recordAndSend).toHaveBeenCalledWith({ uri: "file:///note.m4a", durationSeconds: 3 });
-    // Le refus de la galerie ne doit pas survivre au geste suivant.
-    expect(queryByText("messages.media.permission")).toBeNull();
+    expect(queryByText("messages.media.permission")).not.toBeNull();
+    expect(clearAudioError).not.toHaveBeenCalled();
   });
 
   it("liste fichier par fichier ce qui n'a pas pu partir", async () => {
