@@ -5,6 +5,10 @@ const { expoClient } = vi.hoisted(() => ({
 }));
 vi.mock("@better-auth/expo/client", () => ({ expoClient }));
 
+// Le graphe d'Expo et de Better Auth se transforme ici, à la collecte, et non dans le premier cas :
+// sous la charge de `turbo`, cet import à froid dépassait seul les 5 s d'un test (#833).
+import "./auth";
+
 /**
  * Le client est construit AU CHARGEMENT du module, sur le scheme de la variante de build : chaque
  * cas recharge donc le module sous sa propre config Expo.
