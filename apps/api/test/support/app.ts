@@ -7,6 +7,7 @@ import { configureApp, createHttpAdapter } from "../../src/app.setup";
 import type { MailMessage } from "../../src/infra/mail/mail.service";
 import { MailService } from "../../src/infra/mail/mail.service";
 import { PRISMA_LOG, PrismaService } from "../../src/infra/prisma/prisma.service";
+import { StartupReportService } from "../../src/startup/startup-report.service";
 import { listenToQueries, QUERY_LOG } from "./query-count";
 import { ResettableThrottlerStorage } from "./rate-limit";
 
@@ -105,6 +106,9 @@ export function setupE2eApp(): void {
     // sans validation d'entrée et ne testeraient pas le comportement réel de l'API.
     configureApp(app);
     await app.init();
+    // Le contrôle des migrations du démarrage (#212) lit la base sans être attendu : ses requêtes
+    // doivent avoir fini avant le premier appel que mesure `countQueries`.
+    await app.get(StartupReportService).migrationCheck;
     await app.getHttpAdapter().getInstance().ready();
 
     const prisma = app.get(PrismaService);

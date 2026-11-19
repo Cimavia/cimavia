@@ -43,6 +43,11 @@ pnpm turbo dev
 > **Dans un worktree** (`git worktree add`, herdr, Claude Code) : `pnpm install` y recopie les `.env`
 > ignorés du dépôt principal, sans écraser ceux déjà là (`scripts/worktree-env.mjs`, #630).
 
+> **Un `.env` en retard ou une migration oubliée se lisent au lancement de l'API** (#212) : une ligne
+> `StartupReportService` par groupe optionnel (mail, storage, push, tick, sentry, axiom), en `warn`
+> s'il manque une variable, et une ligne `error` qui nomme les migrations en attente. L'API démarre
+> quand même.
+
 > **Passage de MinIO à SILO** (#257), une seule fois sur un poste qui avait déjà le compose :
 > `docker compose -f apps/api/docker-compose.yml up -d --remove-orphans`. Le service s'appelle
 > désormais `silo` ; sans `--remove-orphans`, les anciens conteneurs `cimavia_minio*` restent
