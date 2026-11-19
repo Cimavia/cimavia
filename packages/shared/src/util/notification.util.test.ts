@@ -278,16 +278,30 @@ describe("pushPayloadOf / pushTargetOf", () => {
     });
   });
 
-  // Les clés que lisent les apps installées : les renommer casserait leur navigation.
-  it.each([
-    [NotificationType.PLAN_PUBLISHED, { planId: "id-1" }],
-    [NotificationType.PLAN_SESSIONS_REORDERED, { planId: "id-1" }],
-    [NotificationType.FEEDBACK_RECEIVED, { scheduledSessionId: "id-1" }],
-    [NotificationType.MESSAGE_RECEIVED, { conversationId: "id-1" }],
-    [NotificationType.INVOICE_ISSUED, { invoiceId: "id-1" }],
-    [NotificationType.ORGANIZATION_COACH_JOINED, { invitationId: "id-1" }],
-  ] as const)("%s garde sa clé d'id historique", (type, ids) => {
-    expect(pushPayloadOf(type, "id-1")).toEqual({ type, ...ids });
+  /**
+   * Les clés que lisent les apps installées, écrites EN LITTÉRAL : l'aller-retour ci-dessus relit
+   * par les mêmes tables qu'il écrit, une erreur symétrique y passerait. Celui-ci ne les consulte
+   * pas — c'est lui qui voit une clé renommée ou un type rattaché à la mauvaise. Le `Record` exige
+   * une ligne par type persisté, celui qu'on ajoutera compris.
+   */
+  const HISTORICAL_ID_KEY: Record<PersistedNotificationType, string> = {
+    PLAN_PUBLISHED: "planId",
+    PLAN_UPDATED: "planId",
+    PLAN_SESSION_ADDED: "planId",
+    PLAN_SESSION_REMOVED: "planId",
+    PLAN_SESSIONS_REORDERED: "planId",
+    FEEDBACK_RECEIVED: "scheduledSessionId",
+    MESSAGE_RECEIVED: "conversationId",
+    INVOICE_ISSUED: "invoiceId",
+    INVITATION_RECEIVED: "invitationId",
+    INVITATION_ACCEPTED: "invitationId",
+    INVITATION_DECLINED: "invitationId",
+    ORGANIZATION_INVITATION_RECEIVED: "invitationId",
+    ORGANIZATION_COACH_JOINED: "invitationId",
+  };
+
+  it.each(persisted)("%s garde sa clé d'id historique", (type) => {
+    expect(pushPayloadOf(type, "id-1")).toEqual({ type, [HISTORICAL_ID_KEY[type]]: "id-1" });
   });
 
   it("relit un rappel dû sans sa cible", () => {
