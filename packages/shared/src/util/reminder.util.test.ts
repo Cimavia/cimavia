@@ -163,16 +163,25 @@ describe("snoozedDueAt", () => {
    *
    * Ce fuseau est Paris, fixé par `vitest.config.ts` (#382) : sous l'UTC des runners, il n'y a pas
    * de changement d'heure, et l'addition naïve passait aussi bien que `setDate`.
+   *
+   * Les deux sens, et les deux reports : l'addition naïve rend 8 h 30 après le passage à l'heure
+   * d'hiver, 10 h 30 après le passage à l'heure d'été. En 2026, l'Europe passe à l'heure d'été le
+   * dimanche 29 mars et à l'heure d'hiver le dimanche 25 octobre.
    */
-  it("conserve l'heure locale à travers un changement d'heure", () => {
-    // 2026 : l'heure d'hiver arrive le dimanche 25 octobre en Europe.
-    const beforeDstChange = new Date(2026, 9, 24, 9, 30);
-    const snoozed = new Date(snoozedDueAt("TOMORROW", beforeDstChange));
+  it.each([
+    { change: "l'heure d'été", option: "TOMORROW", from: [2, 28], to: [2, 29] },
+    { change: "l'heure d'été", option: "NEXT_WEEK", from: [2, 25], to: [3, 1] },
+    { change: "l'heure d'hiver", option: "TOMORROW", from: [9, 24], to: [9, 25] },
+    { change: "l'heure d'hiver", option: "NEXT_WEEK", from: [9, 20], to: [9, 27] },
+  ] as const)(
+    "$option conserve l'heure locale à travers le passage à $change",
+    ({ option, from: [month, day], to }) => {
+      const snoozed = new Date(snoozedDueAt(option, new Date(2026, month, day, 9, 30)));
 
-    expect(snoozed.getHours()).toBe(9);
-    expect(snoozed.getMinutes()).toBe(30);
-    expect(snoozed.getDate()).toBe(25);
-  });
+      expect([snoozed.getMonth(), snoozed.getDate()]).toEqual(to);
+      expect([snoozed.getHours(), snoozed.getMinutes()]).toEqual([9, 30]);
+    },
+  );
 
   // Un report tombe toujours dans le futur : c'est ce qui garantit que le rappel quitte le centre
   // et cesse d'être compté par le badge, sinon le geste n'aurait aucun effet visible.
