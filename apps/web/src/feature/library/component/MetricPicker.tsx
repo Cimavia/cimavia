@@ -6,6 +6,7 @@ import {
   type MetricKey,
   MetricSource,
   metricLabel,
+  movedItem,
   type SuggestedMetric,
   suggestedMetricIdentity,
 } from "@cmv/shared";
@@ -108,10 +109,8 @@ export function MetricPicker<M extends PickedMetric>({
   }
 
   function move(index: number, to: number) {
-    if (to < 0 || to >= metrics.length) return;
-    const next = [...metrics];
-    next.splice(to, 0, ...next.splice(index, 1));
-    onChange(next);
+    const next = movedItem(metrics, index, to);
+    if (next != null) onChange(next);
   }
 
   return (
