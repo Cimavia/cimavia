@@ -34,7 +34,7 @@ type FeedbackInboxListProps = {
  * La colonne de gauche de la boîte de réception : le compte de non-lus, les deux segments, puis
  * les débriefs reçus.
  *
- * Le titre « Débriefs » de la maquette n'est PAS repris ici : `CmvAppShell` le porte déjà en tête
+ * Le titre « Débriefs » de la maquette n'est PAS repris ici : `AppShell` le porte déjà en tête
  * de page, et l'écrire deux fois à dix centimètres d'écart ne dit rien de plus. Ce que la colonne
  * garde de la planche, c'est ce qu'elle seule sait : combien attendent, et sur quoi on filtre.
  */

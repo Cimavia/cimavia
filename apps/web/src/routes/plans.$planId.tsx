@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { PlanBuilderScreen } from "@/feature/plan";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?session=` : la séance dont le panneau s'ouvre en arrivant — « Composer cette séance », depuis
@@ -18,8 +18,8 @@ export function parsePlanBuilderSearch(search: Record<string, unknown>): PlanBui
 export const Route = createFileRoute("/plans/$planId")({
   validateSearch: parsePlanBuilderSearch,
   component: () => (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <PlanBuilderScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

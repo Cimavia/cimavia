@@ -14,6 +14,9 @@ const { getSessionMock, selfId } = vi.hoisted(() => ({
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: selfId.current } } }) },
 }));
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
+}));
 
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),

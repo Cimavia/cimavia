@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ReminderCard } from "@/feature/reminder/component/ReminderCard";
 import { useReminders, useUpdateReminderStatus } from "@/feature/reminder/hook/useReminders";
+import { AppShell } from "@/feature/shell";
 import {
-  CmvAppShell,
   CmvEmptyState,
   CmvErrorState,
   CmvSegmented,
@@ -49,7 +49,7 @@ export function RemindersScreen() {
   }));
 
   return (
-    <CmvAppShell title={t("reminder.title")} subtitle={t("reminder.subtitle")}>
+    <AppShell title={t("reminder.title")} subtitle={t("reminder.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {/* Erreur, vide et chargement sont trois états distincts : « aucun rappel » sur une panne
@@ -81,7 +81,7 @@ export function RemindersScreen() {
           )}
         </div>
       ) : null}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

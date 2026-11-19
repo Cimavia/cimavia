@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { FeedbacksScreen } from "@/feature/feedback";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?feedback=<id>` — le débrief ouvert vit dans l'URL, pas dans un `useState`.
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/feedbacks")({
   // Débriefs reçus : c'est la surface de LECTURE du coach. L'athlète écrit les siens sur une autre
   // route (`/me/…`, à venir avec #26) — ouvrir celle-ci ne le servirait pas, elle liste N athlètes.
   component: () => (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <FeedbacksScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

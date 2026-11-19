@@ -18,7 +18,7 @@ export const BUNDLE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
  * Une fois vu, c'est acquis : la vérification s'arrête, le bundle de la page ne rajeunira pas
  * avant le rechargement. Une lecture qui échoue (`null`) ne dit rien et n'arrête rien.
  *
- * Monté UNE fois, dans la route racine : l'invite vit dans `CmvAppShell`, que chaque écran remonte
+ * Monté UNE fois, dans la route racine : l'invite vit dans `AppShell`, que chaque écran remonte
  * à la navigation — la détection y oublierait ce qu'elle a vu.
  */
 export function useBundleUpdate(): boolean {

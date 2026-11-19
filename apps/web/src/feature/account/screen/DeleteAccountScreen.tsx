@@ -8,7 +8,8 @@ import {
 import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAccountErasure } from "@/feature/account/hook/useAccountErasure";
-import { CmvAppShell, CmvButton, CmvFormError, CmvWarningNotice } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvButton, CmvFormError, CmvWarningNotice } from "@/shared/component";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { authClient } from "@/shared/lib/auth";
 
@@ -47,7 +48,7 @@ export function DeleteAccountScreen() {
   }
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("account.delete.title")}
       back={{ label: t("account.title"), link: { to: "/account" } }}
     >
@@ -95,6 +96,6 @@ export function DeleteAccountScreen() {
           </div>
         </form>
       </div>
-    </CmvAppShell>
+    </AppShell>
   );
 }

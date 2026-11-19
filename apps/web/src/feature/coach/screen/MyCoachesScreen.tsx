@@ -3,7 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
 import { useMyCoaches, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
-import { CMV_TABLE, CmvAppShell, CmvAvatar, CmvCard, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CMV_TABLE, CmvAvatar, CmvCard, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 import { cn } from "@/shared/util/cn.util";
 import { formatInstantDate } from "@/shared/util/date.util";
@@ -36,7 +37,7 @@ export function MyCoachesScreen() {
   const { data: coaches, isPending, isError, refetch } = useMyCoaches();
 
   return (
-    <CmvAppShell title={t("coach.title")} subtitle={t("coach.subtitle")}>
+    <AppShell title={t("coach.title")} subtitle={t("coach.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {/* Panne réseau et « pas de coach » sont deux choses différentes : dire « aucun coach » sur
@@ -56,7 +57,7 @@ export function MyCoachesScreen() {
           {coaches.length === 0 ? <NoCoachCard /> : <CoachTable coaches={coaches} />}
         </div>
       )}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

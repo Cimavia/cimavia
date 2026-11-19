@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { CapabilitySection } from "@/feature/account/component/CapabilitySection";
 import { LegalLinks } from "@/feature/legal";
 import { NotificationEmailSection } from "@/feature/notification";
-import { CmvAppShell } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
 import { appVersionLabel } from "@/shared/lib/app-version";
 import { authClient } from "@/shared/lib/auth";
 
@@ -25,7 +25,7 @@ export function AccountScreen() {
   const version = appVersionLabel();
 
   return (
-    <CmvAppShell title={t("account.title")}>
+    <AppShell title={t("account.title")}>
       <div className="flex flex-col gap-cmv-xl">
         {/* Les notifications sont un réglage DU COMPTE, comme les casquettes : elles valent pour les
             deux espaces, et un compte à double capacité n'a qu'une seule boîte mail. Une Entreprise
@@ -61,6 +61,6 @@ export function AccountScreen() {
           {version == null ? t("account.about.unknown") : t("account.about.version", { version })}
         </p>
       </div>
-    </CmvAppShell>
+    </AppShell>
   );
 }

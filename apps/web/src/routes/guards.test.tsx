@@ -8,15 +8,15 @@ import {
 } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { RoleGate } from "@/feature/auth";
 import { routeTree } from "@/routeTree.gen";
-import { CmvRoleGate } from "@/shared/component";
 import { NAV_ITEMS, spaceOfPath } from "@/shared/lib/nav";
 
 /**
  * La table des gardes, lue dans l'arbre de routes RÉEL — celui que le générateur produit et que
  * `main.tsx` monte.
  *
- * Ce qu'aucune autre porte ne voit (#338) : une route livrée sans `CmvRoleGate`, ou avec la
+ * Ce qu'aucune autre porte ne voit (#338) : une route livrée sans `RoleGate`, ou avec la
  * capacité de l'autre rôle. `tsc` l'accepte, Biome aussi, et l'écran s'ouvre à qui n'y a pas droit.
  * C'est la mécanique de Q-1, et ce que #20 a trouvé côté mobile : des routes sans AUCUNE garde.
  *
@@ -25,9 +25,9 @@ import { NAV_ITEMS, spaceOfPath } from "@/shared/lib/nav";
  * elle, monte son écran pour de vrai ; il échoue dans la frontière d'erreur du routeur, l'espion
  * n'a rien reçu, et c'est ce vide que le test rapporte.
  */
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvRoleGate: vi.fn(() => null),
+vi.mock("@/feature/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/feature/auth")>()),
+  RoleGate: vi.fn(() => null),
 }));
 vi.mock("@/shared/hook/useSentryUser", () => ({ useSentryUser: vi.fn() }));
 
@@ -74,14 +74,14 @@ function urlOf(fullPath: string): string {
  * au-dessus — triées ; `null` si aucune garde n'a été montée.
  */
 async function gateAt(url: string): Promise<readonly CapabilityName[] | null> {
-  vi.mocked(CmvRoleGate).mockClear();
+  vi.mocked(RoleGate).mockClear();
   const router = routerAt(url);
   // `load()` avant le rendu : sans lui, le premier tour rend un arbre vide, et « aucune garde »
   // serait constaté sans qu'aucune route ait été montée.
   await router.load();
   render(<RouterProvider router={router} />);
 
-  const props = vi.mocked(CmvRoleGate).mock.calls[0]?.[0];
+  const props = vi.mocked(RoleGate).mock.calls[0]?.[0];
   if (props == null) return null;
   const { capability } = props;
   return (typeof capability === "string" ? [capability] : [...capability]).sort();

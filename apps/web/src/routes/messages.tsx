@@ -1,8 +1,8 @@
 import type { TrainingCapability } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { MessagesScreen } from "@/feature/message";
 import { parseAsSearch } from "@/routes/invoices";
-import { CmvRoleGate } from "@/shared/component";
 import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
@@ -46,8 +46,8 @@ export const Route = createFileRoute("/messages")({
   // `@Roles([COACH, ATHLETE])`. Ce que chacun y voit diffère (ses conversations au titre exercé),
   // et c'est l'API qui le tranche — pas la garde.
   component: () => (
-    <CmvRoleGate capability={["coach", "athlete"]}>
+    <RoleGate capability={["coach", "athlete"]}>
       <MessagesScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

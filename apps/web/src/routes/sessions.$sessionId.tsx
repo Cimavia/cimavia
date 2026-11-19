@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { parsePlanningSearch } from "@/routes/planning";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * Layout du sous-arbre `/sessions/$sessionId/*` : le détail (`.index`) et le débrief (`feedback`).
@@ -22,8 +22,8 @@ import { CmvRoleGate } from "@/shared/component";
 export const Route = createFileRoute("/sessions/$sessionId")({
   validateSearch: parsePlanningSearch,
   component: () => (
-    <CmvRoleGate capability="athlete">
+    <RoleGate capability="athlete">
       <Outlet />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

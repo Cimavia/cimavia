@@ -20,7 +20,8 @@ import {
 } from "@/feature/library/hook/useStructures";
 import { LibraryTab } from "@/feature/library/util/library-tab.util";
 import { type StructureStart, structureStart } from "@/feature/library/util/structure-start.util";
-import { CmvAppShell, CmvErrorState, CmvLeaveDialog, CmvStaleBanner } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvErrorState, CmvLeaveDialog, CmvStaleBanner } from "@/shared/component";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { RefusedFieldsContext, useRefusedFields } from "@/shared/hook/useRefusedFields";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
@@ -58,9 +59,9 @@ export function StructureBuilderScreen({
 
   if ((!creating && detail.isPending) || (waitsLibrary && library.isPending)) {
     return (
-      <CmvAppShell title={t("library.structure.loadingTitle")}>
+      <AppShell title={t("library.structure.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -71,14 +72,14 @@ export function StructureBuilderScreen({
     (waitsLibrary && library.isError && library.data === undefined);
   if (failed) {
     return (
-      <CmvAppShell title={t("library.structure.loadingTitle")}>
+      <AppShell title={t("library.structure.loadingTitle")}>
         <CmvErrorState
           title={t("common.errorTitle")}
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => (creating ? library.refetch() : detail.refetch())}
         />
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -161,7 +162,7 @@ function StructureBuilder({
   const knownTags = [...new Set((library?.structures ?? []).flatMap((item) => item.tags))];
 
   return (
-    <CmvAppShell
+    <AppShell
       title={heading.title}
       subtitle={heading.subtitle}
       actions={
@@ -227,7 +228,7 @@ function StructureBuilder({
         </div>
       </RefusedFieldsContext>
       <CmvLeaveDialog {...guard.dialog} />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

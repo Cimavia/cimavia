@@ -14,19 +14,12 @@ import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/plan/hook/useMyPlan", () => ({ useMyPlans: vi.fn() }));
 /**
- * `CmvAppShell` importe `authClient`, et `@/shared/lib/auth` crée ce client au chargement du
- * module : le laisser vivre arme un temporisateur de session qui survit au jsdom et fait compter
- * à Vitest une erreur NON GÉRÉE, suite verte comprise.
+ * Pas de mock de `@/shared/lib/auth` : depuis que le cadre a quitté le design system (#372),
+ * rien de cet écran ne charge le client — vérifié par sonde. Un hook qui le tirerait demain
+ * ramènerait la règle de #172 : le mocker.
  */
-vi.mock("@/shared/lib/auth", () => ({
-  authClient: {
-    useSession: () => ({ data: { user: { id: "ath_1" } } }),
-    signOut: () => Promise.resolve(),
-  },
-}));
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const TODAY = todayIsoDate();

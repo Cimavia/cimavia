@@ -16,7 +16,7 @@ import {
 } from "react-icons/io5";
 
 /**
- * La navigation web, décrite comme une donnée — consommée par `CmvAppShell` (qui la rend) et par
+ * La navigation web, décrite comme une donnée — consommée par `AppShell` (qui la rend) et par
  * `useActiveSpace` (qui en déduit l'espace courant). Une seule table, donc le basculeur ne peut
  * pas désigner un espace que la nav ne sait pas afficher.
  *
@@ -24,7 +24,7 @@ import {
  * mobile : deux consommateurs, dont un hook.
  *
  * Chaque entrée porte la capacité qui la rend visible — la MÊME que celle exigée par la route
- * correspondante (`CmvRoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà
+ * correspondante (`RoleGate`). C'est ce qui empêche la dérive dont ce projet a déjà
  * l'expérience : une nav qui propose ce que la route refuse. `routes/guards.test.tsx` le vérifie
  * sur l'arbre de routes réel, et `spaceOfPath` avec lui (#338).
  *

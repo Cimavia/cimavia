@@ -2,7 +2,7 @@ import { createConfirmedErasure } from "@cmv/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { accountErasureApi } from "@/feature/account/api";
-import { resetAccountData } from "@/shared/lib/account-reset";
+import { resetAccountData } from "@/feature/auth/util/account-reset.util";
 import { authClient, holdSessionRecheck, releaseSessionRecheck } from "@/shared/lib/auth";
 
 /**
@@ -10,7 +10,7 @@ import { authClient, holdSessionRecheck, releaseSessionRecheck } from "@/shared/
  *
  * Pas de `signOut` : le `204` dit que la session n'existe plus. Un rechargement complet plutôt
  * qu'un `navigate` : la session gardée en mémoire par Better Auth ferait ouvrir la fenêtre de
- * reconnexion de `CmvRoleGate` sur un compte disparu. `replace` : Retour ne ramène pas au formulaire.
+ * reconnexion de `RoleGate` sur un compte disparu. `replace` : Retour ne ramène pas au formulaire.
  *
  * La session tombe au COMMIT, avant le `204` (l'API envoie encore l'e-mail) : la relecture sur 401
  * reste suspendue jusqu'au départ, sinon une lecture de la page ouvrirait cette même fenêtre. Après

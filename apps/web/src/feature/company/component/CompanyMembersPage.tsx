@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { InviteToOrganizationPanel } from "@/feature/company/component/InviteToOrganizationPanel";
 import { OrganizationInvitationSections } from "@/feature/company/component/OrganizationInvitationSections";
 import { useOrganizationInvitations } from "@/feature/company/hook/useOrganization";
-import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 /** Les textes propres à chaque page ; le reste — sections, gestes, panneau — est commun. */
@@ -71,7 +72,7 @@ export function CompanyMembersPage<T>({
   const heading = loaded ? subtitle(members.data, pending) : null;
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t(texts.title)}
       {...(heading == null ? {} : { subtitle: heading })}
       actions={<CmvButton onClick={openPanel}>{t(texts.add)}</CmvButton>}
@@ -108,7 +109,7 @@ export function CompanyMembersPage<T>({
       {panelOpen ? (
         <InviteToOrganizationPanel role={role} onClose={() => setPanelOpen(false)} />
       ) : null}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

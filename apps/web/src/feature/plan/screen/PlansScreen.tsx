@@ -11,7 +11,8 @@ import { CoachPlanSection } from "@/feature/plan/component/CoachPlanSection";
 import { UnassignedDraftsSection } from "@/feature/plan/component/UnassignedDraftsSection";
 import { DEFAULT_WEEK_COUNT } from "@/feature/plan/constant";
 import { useCreatePlan, usePlans } from "@/feature/plan/hook/usePlans";
-import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 
 // Liste des planifications du coach (p3-1, reprise en #225). Surface coach : l'API refuse déjà
 // l'athlète en 403.
@@ -69,7 +70,7 @@ export function PlansScreen() {
   );
 
   return (
-    <CmvAppShell title={t("plan.title")} subtitle={t("plan.subtitle")} actions={newPlanButton}>
+    <AppShell title={t("plan.title")} subtitle={t("plan.subtitle")} actions={newPlanButton}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -100,6 +101,6 @@ export function PlansScreen() {
           <CoachPlanSection plans={plans} />
         </div>
       ) : null}
-    </CmvAppShell>
+    </AppShell>
   );
 }

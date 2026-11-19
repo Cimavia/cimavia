@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { isBlockRank, SessionBuilderScreen } from "@/feature/library";
-import { CmvRoleGate } from "@/shared/component";
 
 export const Route = createFileRoute("/library/sessions/$sessionId")({
   /**
@@ -30,13 +30,13 @@ function RouteComponent() {
   const { sessionId } = Route.useParams();
   const search = Route.useSearch();
   return (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <SessionBuilderScreen
         sessionId={sessionId}
         addExerciseId={"add" in search ? search.add : undefined}
         addToBlock={"block" in search ? search.block : undefined}
         addFromStructure={"structure" in search ? search.structure : undefined}
       />
-    </CmvRoleGate>
+    </RoleGate>
   );
 }

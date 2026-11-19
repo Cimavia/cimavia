@@ -19,7 +19,8 @@ import { useTranslation } from "react-i18next";
 import { useMyCoaches } from "@/feature/coach";
 import { AthleteWeekGrid } from "@/feature/plan/component/AthleteWeekGrid";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
-import { CmvAppShell, CmvBadge, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvBadge, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { formatDateRange } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -53,23 +54,23 @@ export function AthletePlanningScreen() {
 
   if (isPending) {
     return (
-      <CmvAppShell title={t("plan.athlete.title")}>
+      <AppShell title={t("plan.athlete.title")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
   // Une panne réseau n'est pas « aucun cycle » : la seconde inviterait à attendre son coach.
   if (isError) {
     return (
-      <CmvAppShell title={t("plan.athlete.title")}>
+      <AppShell title={t("plan.athlete.title")}>
         <CmvErrorState
           title={t("common.errorTitle")}
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => refetch()}
         />
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -79,9 +80,9 @@ export function AthletePlanningScreen() {
 
   if (week == null) {
     return (
-      <CmvAppShell title={t("plan.athlete.title")}>
+      <AppShell title={t("plan.athlete.title")}>
         <NoWeek presence={coachPresence(coaches)} onRetry={() => coaches.refetch()} />
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -90,7 +91,7 @@ export function AthletePlanningScreen() {
     navigate({ to: "/planning", search: { from: target }, replace: true });
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("plan.athlete.title")}
       subtitle={formatDateRange(week.startDate, week.endDate)}
     >
@@ -118,7 +119,7 @@ export function AthletePlanningScreen() {
             calendrier (#251). */}
         <AthleteWeekGrid week={week} today={today} planningFrom={requestedMonday} />
       </div>
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

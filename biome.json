@@ -46,6 +46,10 @@
       "includes": ["**/apps/mobile/app/**/_layout.tsx"]
     },
     {
+      "path": "./scripts/lint-rules/noFeatureImportInShared.grit",
+      "includes": ["**/apps/web/src/shared/**", "**/apps/mobile/shared/**", "!**/*.test.*"]
+    },
+    {
       "path": "./scripts/lint-rules/noRawSql.grit",
       "includes": ["**", "!**/*.test.ts", "!**/*.e2e-spec.ts", "!**/test/**"]
     }

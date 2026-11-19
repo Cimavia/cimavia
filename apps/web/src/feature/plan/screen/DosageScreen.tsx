@@ -28,8 +28,8 @@ import {
   usePlan,
   usePlanMutations,
 } from "@/feature/plan/hook/usePlan";
+import { AppShell } from "@/feature/shell";
 import {
-  CmvAppShell,
   CmvButton,
   CmvEmptyState,
   CmvErrorState,
@@ -74,12 +74,12 @@ export function DosageScreen() {
   const current = types.find((each) => each.key === (type ?? opening)) ?? types[0];
   if (current === undefined) {
     return (
-      <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, plan.data.id)}>
+      <AppShell title={t("plan.dosage.title")} back={backToPlan(t, plan.data.id)}>
         <CmvEmptyState
           title={t("plan.dosage.empty.title")}
           description={t("plan.dosage.empty.description")}
         />
-      </CmvAppShell>
+      </AppShell>
     );
   }
   return (
@@ -146,14 +146,14 @@ function DosageLoader({ onReloadPlan, ...props }: Readonly<DosageLoaderProps>) {
 function DosageUnreadable({ planId, onRetry }: Readonly<{ planId: string; onRetry: () => void }>) {
   const { t } = useTranslation();
   return (
-    <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
+    <AppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
       <CmvErrorState
         title={t("common.errorTitle")}
         description={t("common.errorDescription")}
         retryLabel={t("common.retry")}
         onRetry={onRetry}
       />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 
@@ -162,9 +162,9 @@ function DosageUnreadable({ planId, onRetry }: Readonly<{ planId: string; onRetr
 function DosageLoading({ planId }: Readonly<{ planId: string }>) {
   const { t } = useTranslation();
   return (
-    <CmvAppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
+    <AppShell title={t("plan.dosage.title")} back={backToPlan(t, planId)}>
       <p className="text-cmv-text-mid">{t("common.loading")}</p>
-    </CmvAppShell>
+    </AppShell>
   );
 }
 
@@ -292,7 +292,7 @@ function DosageEditor({
   }
 
   return (
-    <CmvAppShell
+    <AppShell
       fill
       title={current.title}
       subtitle={t("plan.dosage.subtitle", { name: athleteName })}
@@ -375,7 +375,7 @@ function DosageEditor({
         </RefusedFieldsContext>
       </div>
       <CmvLeaveDialog {...guard.dialog} />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

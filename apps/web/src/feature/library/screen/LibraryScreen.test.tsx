@@ -41,9 +41,8 @@ vi.mock("@/shared/lib/auth", () => ({
     signOut: vi.fn(),
   },
 }));
-vi.mock("@/feature/notification", () => ({
-  NotificationBell: () => null,
-  useUnreadByCapability: () => ({ data: undefined }),
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const session = {

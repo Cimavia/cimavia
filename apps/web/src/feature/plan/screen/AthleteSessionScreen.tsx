@@ -7,7 +7,8 @@ import { AthleteSessionRail } from "@/feature/plan/component/AthleteSessionRail"
 import { BlockRailSection } from "@/feature/plan/component/BlockRailSection";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvAppShell, CmvBadge, CmvCard, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvBadge, CmvCard, CmvErrorState } from "@/shared/component";
 import { formatDate } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -54,7 +55,7 @@ export function AthleteSessionScreen() {
         };
 
   return (
-    <CmvAppShell
+    <AppShell
       title={session?.title ?? t("plan.athlete.sessionFallbackTitle")}
       // Destination FIXE et non un retour d'historique : on arrive ici depuis le planning, la
       // liste des séances ou une notification, et `history.back()` sortirait de l'app dans le
@@ -82,7 +83,7 @@ export function AthleteSessionScreen() {
       ) : null}
 
       {session == null ? null : <LoadedSession session={session} from={from} />}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

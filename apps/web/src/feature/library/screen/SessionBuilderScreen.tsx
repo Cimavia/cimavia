@@ -52,9 +52,9 @@ import { myRightText } from "@/feature/library/util/access-text.util";
 import { LibraryTab } from "@/feature/library/util/library-tab.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
 import { isPresetKey } from "@/feature/library/util/structure-start.util";
+import { AppShell } from "@/feature/shell";
 import {
   CMV_EDIT,
-  CmvAppShell,
   CmvButton,
   CmvDragHandle,
   CmvEmptyState,
@@ -130,9 +130,9 @@ export function SessionBuilderScreen({
   // Le brouillon naît UNE fois : il doit attendre l'exercice à ajouter pour le compter d'emblée.
   if ((loadedId != null && isPending) || (addExerciseId != null && !addSettled)) {
     return (
-      <CmvAppShell title={t("library.session.loadingTitle")}>
+      <AppShell title={t("library.session.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -141,14 +141,14 @@ export function SessionBuilderScreen({
   // par l'erreur perdrait la saisie que le bandeau promet de garder.
   if (loadedId != null && isError && session === undefined) {
     return (
-      <CmvAppShell title={t("library.session.loadingTitle")}>
+      <AppShell title={t("library.session.loadingTitle")}>
         <CmvErrorState
           title={t("common.errorTitle")}
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => refetch()}
         />
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -328,7 +328,7 @@ function SessionBuilder({
   }
 
   return (
-    <CmvAppShell
+    <AppShell
       title={draft.trimmedTitle === "" ? t("library.session.createTitle") : draft.trimmedTitle}
       subtitle={sessionSubtitle(foreign, draft.blocks, t)}
       actions={
@@ -441,7 +441,7 @@ function SessionBuilder({
         onClose={() => setPicking(null)}
       />
       <CmvLeaveDialog {...guard.dialog} />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

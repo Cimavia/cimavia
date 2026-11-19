@@ -20,11 +20,10 @@ vi.mock("@/feature/coach/api", async () => {
 });
 
 /**
- * `CmvAppShell` importe `authClient`, et `@/shared/lib/auth` CRÉE ce client au chargement du
- * module — même quand l'AppShell est remplacé juste en dessous, l'`importOriginal` évalue le
- * graphe entier. Le client réel arme alors un temporisateur de session (nanostores) qui survit à
- * la destruction du jsdom : quand il se déclenche, `window` n'existe plus et Vitest compte une
- * erreur NON GÉRÉE — la suite entière échoue avec 519 tests verts.
+ * L'écran importe `authClient`, et `@/shared/lib/auth` CRÉE ce client au chargement du module. Le
+ * client réel arme alors un temporisateur de session (nanostores) qui survit à la destruction du
+ * jsdom : quand il se déclenche, `window` n'existe plus et Vitest compte une erreur NON GÉRÉE — la
+ * suite entière échoue avec 519 tests verts.
  *
  * C'est ce qui a rendu la CI rouge sans qu'aucun test ne tombe. Tous les autres écrans posent déjà
  * ce mock ; ces deux fichiers étaient les seuls à l'omettre.
@@ -40,9 +39,8 @@ vi.mock("@/shared/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const { accountApi } = await import("@/feature/coach/api");

@@ -12,7 +12,7 @@ import { isUnauthorizedError } from "@/shared/lib/api";
  * « Unauthorized » brut.
  *
  * Le 401 ne REDIRIGE pas : il demande seulement à Better Auth de relire la session
- * (`onUnauthorized`). C'est `CmvRoleGate` qui décide ensuite, et qui garde l'écran monté sous une
+ * (`onUnauthorized`). C'est `RoleGate` qui décide ensuite, et qui garde l'écran monté sous une
  * fenêtre de reconnexion — rediriger aurait démonté le constructeur en cours de saisie, soit
  * exactement la perte que le constat reprochait. Une seule source de décision pour les deux
  * chemins qui découvrent la perte : un 401 de l'API, et le retour sur l'onglet.

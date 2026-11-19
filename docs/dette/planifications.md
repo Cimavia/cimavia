@@ -711,6 +711,13 @@ liste des domaines vivent dans l'index.
 > Règle qui en sort : **un test qui monte quoi que ce soit tirant `@/shared/component` mocke
 > `@/shared/lib/auth`**. Ce n'est pas une commodité de test, c'est ce qui empêche un minuteur réel
 > d'exister. Le défaut ne se voit pas localement — il dépend de l'ordre et de la durée des fichiers.
+>
+> ⚠️ **Amendé en #372** : le barrel `@/shared/component` ne charge plus `@/shared/lib/auth` — le cadre
+> (`AppShell`) et la garde (`RoleGate`), seuls à l'importer, en sont sortis. La règle vise
+> désormais ce qui monte l'un ou l'autre, ou importe le client par un autre chemin. Une sonde (un
+> `process.stderr.write` dans la fabrique du mock) a montré que `AthletePlanningScreen.test` et
+> `AthleteSessionsScreen.test` ne le chargeaient plus : leurs mocks sont retirés. Les autres
+> restent, faute de la même preuve fichier par fichier.
 
 > **Corrigé en #172, trouvé en cherchant l'autre** (`findByRole` résout AVANT que l'écran ait fini de
 > se rendre) : `MyCoachScreen.test.tsx` (#146) tombait environ une fois sur trois, d'autant plus

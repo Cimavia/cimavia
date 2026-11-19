@@ -1,7 +1,7 @@
 import { ATHLETE_ROW_FILTERS, type AthleteRowFilter } from "@cmv/shared";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { DashboardScreen } from "@/feature/dashboard";
-import { CmvRoleGate } from "@/shared/component";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
@@ -70,8 +70,8 @@ export const Route = createFileRoute("/")({
       typeof search.athlete === "string" && search.athlete.length > 0 ? search.athlete : undefined,
   }),
   component: () => (
-    <CmvRoleGate capability="coach" fallback={<NotCoachHome />}>
+    <RoleGate capability="coach" fallback={<NotCoachHome />}>
       <DashboardScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

@@ -16,7 +16,7 @@ import { authClient } from "@/shared/lib/auth";
  *
  * La session ne s'obtient que par `authClient.useSession()`, un hook — d'où un hook ici et non une
  * ligne dans `shared/lib/auth.ts`. Il s'appelle depuis `routes/__root.tsx` : c'est le SEUL
- * composant monté sous le routeur sur toutes les routes. `CmvAppShell`, que #181 proposait, est
+ * composant monté sous le routeur sur toutes les routes. `AppShell`, que #181 proposait, est
  * rendu par quinze écrans et par aucun des écrans d'authentification.
  */
 export function useSentryUser(): void {

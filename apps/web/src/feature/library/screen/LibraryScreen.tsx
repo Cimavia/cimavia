@@ -7,7 +7,8 @@ import { useExercises } from "@/feature/library/hook/useExercises";
 import { useSessions } from "@/feature/library/hook/useSessions";
 import { useStructureLibrary } from "@/feature/library/hook/useStructures";
 import { LibraryTab, librarySearchOf } from "@/feature/library/util/library-tab.util";
-import { CmvAppShell, CmvButton, CmvTabs } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvButton, CmvTabs } from "@/shared/component";
 
 /** « Nouvel exercice », « Nouvelle séance » ou « Nouvelle structure », selon l'onglet. */
 const CREATE_LABEL = {
@@ -54,7 +55,7 @@ export function LibraryScreen() {
   }
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("library.title")}
       subtitle={t("library.subtitle")}
       actions={<CmvButton onClick={openCreate}>{t(CREATE_LABEL[tab])}</CmvButton>}
@@ -110,6 +111,6 @@ export function LibraryScreen() {
         ) : null}
         {tab === LibraryTab.EXERCISES ? <ExerciseList /> : null}
       </div>
-    </CmvAppShell>
+    </AppShell>
   );
 }

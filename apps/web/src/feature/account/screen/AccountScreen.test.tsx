@@ -15,14 +15,11 @@ vi.mock("@/feature/account/api", async (importOriginal) => {
   return { ...actual, capabilityApi: { ...actual.capabilityApi, update: vi.fn() } };
 });
 
-/**
- * `CmvAppShell` tire `NotificationBell` et `useUnreadByCapability` du même module : le remplacer en
- * entier évite qu'un compteur non lu parte chercher l'API pendant qu'on éprouve un pied de page.
- */
 vi.mock("@/feature/notification", () => ({
   NotificationEmailSection: () => <div data-testid="notification-section" />,
-  NotificationBell: () => <div data-testid="notification-bell" />,
-  useUnreadByCapability: () => ({ data: undefined }),
+}));
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const session = vi.hoisted(() => ({

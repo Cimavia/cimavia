@@ -85,9 +85,8 @@ const sessionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: sessionMock() }) },
 }));
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const TODAY = todayIsoDate();
@@ -478,7 +477,7 @@ describe("DashboardScreen — la fiche athlète", () => {
   });
 
   /**
-   * La session peut tomber SOUS l'écran : `CmvRoleGate` le garde alors monté, sous la fenêtre de
+   * La session peut tomber SOUS l'écran : `RoleGate` le garde alors monté, sous la fenêtre de
    * reconnexion, pour ne rien jeter (#336). Le nom du coach manque — l'écran tient quand même.
    */
   it("reste lisible quand la session tombe sous l'écran", async () => {

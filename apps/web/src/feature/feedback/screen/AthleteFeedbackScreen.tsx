@@ -37,8 +37,8 @@ import {
 import { useConversationWithCoach } from "@/feature/message/hook/useMessages";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
+import { AppShell } from "@/feature/shell";
 import {
-  CmvAppShell,
   CmvButton,
   CmvCard,
   CmvErrorState,
@@ -72,7 +72,7 @@ export function AthleteFeedbackScreen() {
   const { data: feedback, isPending, isError, refetch } = useMyFeedback(sessionId);
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("feedback.title")}
       subtitle={session.data?.title ?? t("feedback.subtitle")}
       // Retour vers LA SÉANCE et non le planning : le débrief est son enfant, et c'est de là
@@ -104,7 +104,7 @@ export function AthleteFeedbackScreen() {
           feedback={feedback ?? null}
         />
       )}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

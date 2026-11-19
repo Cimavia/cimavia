@@ -15,13 +15,13 @@ import {
   IoPersonOutline,
   IoSettingsOutline,
 } from "react-icons/io5";
+import { resetAccountData } from "@/feature/auth/util/account-reset.util";
 import { NotificationBell, useUnreadByCapability } from "@/feature/notification";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvUpdateBanner } from "@/shared/component/CmvUpdateBanner";
 import { useActiveSpace, useCapabilities } from "@/shared/hook/useCapabilities";
 import { useCounterparts } from "@/shared/hook/useCounterparts";
 import { confirmLeave } from "@/shared/hook/useLeaveGuard";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { isSharedRoute, itemsOfSpace, landingPath } from "@/shared/lib/nav";
 import { cn } from "@/shared/util/cn.util";
@@ -106,16 +106,16 @@ function searchFor(to: string, space: CapabilityName) {
  * Le retour d'écran : ce qu'il dit, et où il mène. Les options du lien sont vérifiées comme celles
  * d'un `<Link>` écrit en place — route, `params` et `search` compris (#746).
  */
-export type CmvBackLink<TLink = unknown> = {
+export type BackLink<TLink = unknown> = {
   label: string;
   link: ValidateLinkOptions<RegisteredRouter, TLink>;
 };
 
-type CmvAppShellProps<TLink = unknown> = {
+type AppShellProps<TLink = unknown> = {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
-  back?: CmvBackLink<TLink> | undefined;
+  back?: BackLink<TLink> | undefined;
   /**
    * La page tient dans l'écran et son contenu en prend toute la hauteur : un tableau y défile dans
    * son cadre, au lieu de s'arrêter à mi-page.
@@ -124,23 +124,31 @@ type CmvAppShellProps<TLink = unknown> = {
   children: ReactNode;
 };
 
+/**
+ * Le cadre de chaque écran connecté : la navigation, la cloche, le compte, le bandeau du titre.
+ *
+ * Une feature et non un composant du design system, d'où l'absence du préfixe `Cmv` (#372) : il
+ * monte la cloche de `feature/notification` et purge le compte par `feature/auth`, et `shared/` ne
+ * dépend d'aucune feature. Dans le barrel du design system, il faisait charger la feature
+ * notification et le client d'authentification à quiconque importait un `CmvButton`.
+ */
 // La signature générique est ce qui fait inférer, puis vérifier, les options du retour à l'appel.
-export function CmvAppShell<TLink>(props: Readonly<CmvAppShellProps<TLink>>): ReactNode;
-export function CmvAppShell({
+export function AppShell<TLink>(props: Readonly<AppShellProps<TLink>>): ReactNode;
+export function AppShell({
   title,
   subtitle,
   actions,
   back,
   fill = false,
   children,
-}: Readonly<CmvAppShellProps>) {
+}: Readonly<AppShellProps>) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: authSession } = authClient.useSession();
   const queryClient = useQueryClient();
   /**
    * Pas de garde sur `isPending` ici : ce composant n'est monté que par un écran, lui-même monté
-   * par `CmvRoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
+   * par `RoleGate` — qui a déjà attendu la session. La nav ne peut donc pas se dessiner vide le
    * temps d'un aller-retour.
    */
   const activeSpace = useActiveSpace();

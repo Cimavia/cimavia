@@ -1,7 +1,7 @@
 import { INVOICE_ROW_FILTERS, type InvoiceRowFilter, type TrainingCapability } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { InvoicesScreen } from "@/feature/invoice";
-import { CmvRoleGate } from "@/shared/component";
 import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
@@ -67,8 +67,8 @@ export function parseInvoicesSearch(search: Record<string, unknown>): InvoicesSe
 export const Route = createFileRoute("/invoices")({
   validateSearch: parseInvoicesSearch,
   component: () => (
-    <CmvRoleGate capability={["coach", "athlete"]}>
+    <RoleGate capability={["coach", "athlete"]}>
       <InvoicesScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

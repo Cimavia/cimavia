@@ -22,7 +22,8 @@ import { useConversations } from "@/feature/message/hook/useMessages";
 import { useUnreadNotificationCount } from "@/feature/notification/hook/useNotifications";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { useReminderSummary } from "@/feature/reminder/hook/useReminders";
-import { CmvAppShell, CmvButton, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvButton, CmvErrorState } from "@/shared/component";
 import { authClient } from "@/shared/lib/auth";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
@@ -235,7 +236,7 @@ export function DashboardScreen() {
     (athletes.data ?? []).find((athlete) => athlete.athleteId === sheetAthleteId) ?? null;
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("dashboard.title")}
       subtitle={t("dashboard.welcome", { name: authSession?.user.name ?? "—" })}
       // Action primaire de l'écran, comme la top bar de la maquette : inviter un athlète était le
@@ -319,6 +320,6 @@ export function DashboardScreen() {
       {sheetAthlete == null ? null : (
         <AthleteSheetPanel athlete={sheetAthlete} onClose={() => openSheet(null)} />
       )}
-    </CmvAppShell>
+    </AppShell>
   );
 }

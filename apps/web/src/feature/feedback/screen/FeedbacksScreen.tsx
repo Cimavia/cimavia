@@ -6,7 +6,8 @@ import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel
 import { FeedbackInboxList, InboxFilter } from "@/feature/feedback/component/FeedbackInboxList";
 import { FeedbackReadingPane } from "@/feature/feedback/component/FeedbackReadingPane";
 import { useFeedbacks, useMarkFeedbackRead } from "@/feature/feedback/hook/useFeedbacks";
-import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvEmptyState, CmvErrorState } from "@/shared/component";
 
 // `getRouteApi` plutôt qu'un import de `Route` : l'écran est importé PAR la route, l'inverse
 // fermerait le cycle. Le typage des search params est conservé.
@@ -31,7 +32,7 @@ export function FeedbacksScreen() {
   const hasFeedbacks = feedbacks != null && feedbacks.length > 0;
 
   return (
-    <CmvAppShell title={t("feedback.inbox.title")} subtitle={t("feedback.inbox.subtitle")}>
+    <AppShell title={t("feedback.inbox.title")} subtitle={t("feedback.inbox.subtitle")}>
       {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
@@ -51,7 +52,7 @@ export function FeedbacksScreen() {
       ) : null}
 
       {hasFeedbacks ? <FeedbackInbox feedbacks={feedbacks} /> : null}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

@@ -5,10 +5,10 @@ import { type SubmitEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
 import { safeRedirect } from "@/shared/lib/redirect";
 import { AuthLayout } from "../component/AuthLayout";
+import { resetAccountData } from "../util/account-reset.util";
 
 export function LoginScreen() {
   const { t } = useTranslation();

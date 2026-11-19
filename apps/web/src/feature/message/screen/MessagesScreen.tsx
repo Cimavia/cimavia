@@ -19,8 +19,9 @@ import {
   useConversationWith,
   useConversationWithCoach,
 } from "@/feature/message/hook/useMessages";
+import { AppShell } from "@/feature/shell";
 import type { MessagesSearch } from "@/routes/messages";
-import { CmvAppShell, CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { CmvButton, CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useActingCapability, useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useUrlSearchText } from "@/shared/hook/useUrlSearchText";
 import { authClient } from "@/shared/lib/auth";
@@ -76,7 +77,7 @@ export function MessagesScreen() {
   const list = conversations.data ?? [];
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("messages.title")}
       subtitle={t(as === "coach" ? "messages.subtitle" : "messages.athlete.subtitle")}
       actions={
@@ -127,7 +128,7 @@ export function MessagesScreen() {
           }}
         />
       ) : null}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

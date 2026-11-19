@@ -1,7 +1,7 @@
 import { CAPABILITY_NAMES } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { AccountScreen } from "@/feature/account";
-import { CmvRoleGate } from "@/shared/component";
+import { RoleGate } from "@/feature/auth";
 
 /**
  * Le compte : toutes les capacités, et c'est le point — c'est ici qu'on en ajoute une, et d'ici
@@ -10,8 +10,8 @@ import { CmvRoleGate } from "@/shared/component";
  */
 export const Route = createFileRoute("/account")({
   component: () => (
-    <CmvRoleGate capability={CAPABILITY_NAMES}>
+    <RoleGate capability={CAPABILITY_NAMES}>
       <AccountScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });
