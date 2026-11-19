@@ -282,9 +282,9 @@ describe("routeForPushPayload", () => {
     ],
     [NotificationType.INVOICE_ISSUED, { invoiceId: "i-1" }, NotificationEntityType.INVOICE, "i-1"],
     /**
-     * Les deux invitations qui MÈNENT quelque part (#146). Leur clé d'id est `invitationId`, et le
-     * typecheck ne l'aurait pas réclamée : la charge utile est `unknown`, un type oublié tomberait
-     * dans le `default` et le push ne mènerait nulle part là où la cloche mène quelque part.
+     * Les deux invitations qui MÈNENT quelque part (#146). Leur clé d'id est `invitationId`, lue
+     * dans la table partagée (#351) : un type oublié y serait rendu `null` par `pushTargetOf`, et le
+     * push ne mènerait nulle part là où la cloche mène quelque part.
      */
     [
       NotificationType.INVITATION_RECEIVED,

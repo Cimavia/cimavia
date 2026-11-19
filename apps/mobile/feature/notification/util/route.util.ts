@@ -5,6 +5,7 @@ import {
   type NotificationEntityTypeType,
   NotificationType,
   notificationOpeningCapability,
+  type PushTarget,
   pushTargetOf,
   type TrainingCapability,
 } from "@cmv/shared";
@@ -94,10 +95,7 @@ export type NotificationDestination = { href: Href; capability: TrainingCapabili
  * Ce qu'il faut savoir d'une notification pour la router : une ligne du centre, ou un push relu
  * par `pushTargetOf` — dont la cible peut manquer (`null` : indisponible, pas absente).
  */
-type NotificationTarget = Pick<NotificationDto, "type"> & {
-  entityType: NotificationEntityTypeType | null;
-  entityId: string | null;
-};
+type NotificationTarget = Pick<NotificationDto, "type" | "entityType" | "entityId"> | PushTarget;
 
 /**
  * Ouvre une destination sous son titre — le geste d'`openUnder`, partagé avec les écrans d'un seul
