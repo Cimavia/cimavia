@@ -1,4 +1,4 @@
-import { type OrderedScale, SCALE_MAX_STEPS, SCALE_STEP_MAX_LENGTH } from "@cmv/shared";
+import { movedItem, type OrderedScale, SCALE_MAX_STEPS, SCALE_STEP_MAX_LENGTH } from "@cmv/shared";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoTrashOutline } from "react-icons/io5";
@@ -41,10 +41,8 @@ export function ScaleEditor({ scale, onChange }: Readonly<ScaleEditorProps>) {
   }
 
   function move(index: number, to: number) {
-    if (to < 0 || to >= scale.length) return;
-    const next = [...scale];
-    next.splice(to, 0, ...next.splice(index, 1));
-    onChange(next);
+    const next = movedItem(scale, index, to);
+    if (next != null) onChange(next);
   }
 
   return (

@@ -229,10 +229,11 @@ liste des domaines vivent dans l'index.
 >   et l'éditeur de consigne tourne sur le vrai TipTap. Ce que l'écran envoie au serveur est
 >   l'affirmation : un geste sur une carte de séance se lit dans le `PUT`, pas dans un rappel
 >   espionné. C'est ce qui attrape un branchement croisé (la note écrite sur la mauvaise ligne).
-> - **Une seule suite pour le déplacement : `describeReorder` (`apps/web/test/reorder.tsx`).** Sept
->   éditeurs recopient le même déplacement ([#360](https://github.com/Cimavia/cimavia/issues/360)) ;
->   ils passent tous la même suite de gestes — flèche, poignée au clavier, glisser —, qui dira à la
->   fusion qu'aucun n'a changé de sens. Le montage peut être asynchrone, pour les écrans routés.
+> - **Une seule suite pour le déplacement : `describeReorder` (`apps/web/test/reorder.tsx`).** Les
+>   éditeurs qui réordonnent une liste passent tous la même suite de gestes — flèche, poignée au
+>   clavier, glisser. Elle a servi d'arbitre à la fusion de leurs copies en
+>   [#360](https://github.com/Cimavia/cimavia/issues/360). Le montage peut être asynchrone, pour les
+>   écrans routés.
 > - **Les gardes mortes vont à [#512](https://github.com/Cimavia/cimavia/issues/512)**, comme en
 >   #506 : un bouton fermé que son `onClick` re-garde, un `moved == null` après un index borné, un
 >   repli sur un attribut qui a un `default`. Quelques-unes n'apparaissent pas au rapport — v8 compte
@@ -340,6 +341,24 @@ liste des domaines vivent dans l'index.
 > (`invoice.mapper`, `planId` nul ; `invoice.service`), `joinedAt ?? null` de
 > `coach-athlete.mapper`, vivant sur une invitation `PENDING`, `LibraryPicker` et sa route (#303),
 > les chips de minuteur mobile (#519, supprimées depuis en #723).
+
+> **Tranché en [#360](https://github.com/Cimavia/cimavia/issues/360)** (le déplacement d'élément
+> n'a plus qu'une définition) : `movedItem` (`@cmv/shared`, `list.util.ts`) rend **`null` quand
+> rien ne bouge** — un rang hors liste, ou un élément déposé sur lui-même —, et non plus une copie
+> inchangée.
+>
+> - **Pourquoi `null`** : chaque éditeur doit NE RIEN ÉCRIRE pour un geste sans effet. Avec une
+>   copie, il re-gardait les bornes lui-même avant d'appeler la fonction, et les gardes avaient
+>   divergé (deux copies sur sept testaient `from === to`). Le `null` rassemble la garde, et le
+>   typage interdit à l'appelant de l'oublier. Un état React rend `current` (`?? current`) : React
+>   n'en redessine rien.
+> - **Les appelants** : la grille d'un exercice de bloc, les colonnes de métriques, les paliers
+>   d'une échelle et les blocs d'une séance, tous éprouvés par `describeReorder` ; la branche
+>   « même jour » de `dayAfterDrop`, par ses propres tests — c'est elle, pas l'écran du cycle, qui
+>   décide qu'un geste sans effet n'écrit rien. La branche « autre jour » reste une insertion, pas
+>   un déplacement.
+> - **Les cinq autres copies** de l'issue étaient parties avec la refonte par blocs, avec le second
+>   point (partager deux grilles qu'une seule a remplacées).
 
 ---
 

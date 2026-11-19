@@ -477,7 +477,10 @@ function Composition({
       folds.isFolded(block.id) ||
       (block.exercises.length > 1 && block.exercises.some((line) => folds.isFolded(line.key))),
   );
-  const blockDrag = useReorderDrag((from, to) => change((current) => movedItem(current, from, to)));
+  // `current` quand rien ne bouge : React garde l'état tel quel, et rien ne se redessine.
+  const moveBlock = (from: number, to: number) =>
+    change((current) => movedItem(current, from, to) ?? current);
+  const blockDrag = useReorderDrag(moveBlock);
   const exerciseDrag = useExerciseDrag((key, blockId, index) =>
     change((current) => movedExercise(current, key, blockId, index)),
   );
@@ -531,9 +534,7 @@ function Composition({
                 <CmvDragHandle
                   label={t("library.session.blocks.moveBlock", { block: names[index] })}
                   {...blockDrag.handleProps(index)}
-                  onMove={(direction) =>
-                    change((current) => movedItem(current, index, index + direction))
-                  }
+                  onMove={(direction) => moveBlock(index, index + direction)}
                 />
               )
             }
