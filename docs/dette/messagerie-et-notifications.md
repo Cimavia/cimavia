@@ -196,20 +196,20 @@ liste des domaines vivent dans l'index.
 > et non ciblée** : une table `entityType → clés de requête` couplerait la feature notification à
 > toutes les autres et se périmerait en silence au premier changement de route.
 
-> **Tranché en #351** (une méthode par événement, deux tables pour la cible) : la revue demandait
-> un `notify(type, …)` unique pour que le type ne puisse plus diverger de la charge utile du push.
-> Ce qui divergeait n'était pas la méthode mais trois saisies à la main — le `type` de la ligne,
-> son `entityType`, puis le `type` et la clé d'id du push — que rien ne liait. Elles se déduisent
+> **Tranché en #351** (une méthode par événement, deux tables pour la cible) : la revue demandait un
+> `notify(type, …)` unique pour que le type ne puisse plus diverger de la charge utile du push. Ce
+> qui divergeait n'était pas la méthode mais trois saisies à la main — le `type` de la ligne, son
+> `entityType`, puis le `type` et la clé d'id du push — que rien ne liait. Elles se déduisent
 > désormais du type, par deux tables de `@cmv/shared` : `NOTIFICATION_ENTITY_TYPE` (type → entité)
-> puis `PUSH_ID_KEY` (entité → clé), rangée par entité pour que deux types qui visent la même
-> cible ne puissent pas porter deux clés ; `emit` les écrit seul. Les quinze `notifyX` restent :
-> chacune a sa charge, ses noms à résoudre et ses canaux, et treize appelants les nomment — un
-> `notify` unique les aurait tous fait bouger sans rien garantir de plus. Les tables sont
+> puis `PUSH_ID_KEY` (entité → clé), rangée par entité pour que deux types qui visent la même cible
+> ne puissent pas porter deux clés ; `emit` les écrit seul. Les quinze `notifyX` restent : chacune a
+> sa charge, ses noms à résoudre et ses canaux, et dix-neuf appels les nomment, dans neuf services —
+> un `notify` unique les aurait tous fait bouger sans rien garantir de plus. Les tables sont
 > **partagées** parce qu'elles sont un contrat avec les apps **déjà installées** : le mobile les
 > redéclarait à la main pour relire le push (`routeForPushPayload`), où un type oublié tombait sans
 > bruit dans le `default`. Il les relit maintenant par `pushTargetOf`, qui rend une cible `null`
-> (indisponible) plutôt que de deviner — le rappel dû, poussé sans elle, prend ainsi le repli de
-> la cloche — et `null` sur un type qu'il ne connaît pas.
+> (indisponible) plutôt que de deviner — le rappel dû, poussé sans elle, prend ainsi le repli de la
+> cloche — et `null` sur un type qu'il ne connaît pas.
 
 ---
 
