@@ -2,8 +2,10 @@ import {
   type Capabilities,
   type NotificationDto,
   NotificationEntityType,
+  type NotificationEntityTypeType,
   NotificationType,
   notificationOpeningCapability,
+  pushTargetOf,
   type TrainingCapability,
 } from "@cmv/shared";
 import type { Href } from "expo-router";
@@ -36,13 +38,13 @@ import { type CapabilitySwitchControl, openUnder } from "@/shared/lib/open-under
  * athlète suivi par plusieurs coachs doit tomber sur le fil de celui qui a écrit. Sans id, la
  * liste seule reste très au-dessus de rien.
  */
-function conversationTarget(entityId: string | undefined): Href {
+function conversationTarget(entityId: string | null): Href {
   return entityId == null ? "/messages" : `/messages?conversation=${entityId}`;
 }
 
 function targetFor(
-  entityType: string,
-  entityId: string | undefined,
+  entityType: NotificationEntityTypeType | null,
+  entityId: string | null,
   capability: TrainingCapability,
 ): Href | null {
   /**
@@ -89,6 +91,15 @@ function targetFor(
 export type NotificationDestination = { href: Href; capability: TrainingCapability };
 
 /**
+ * Ce qu'il faut savoir d'une notification pour la router : une ligne du centre, ou un push relu
+ * par `pushTargetOf` — dont la cible peut manquer (`null` : indisponible, pas absente).
+ */
+type NotificationTarget = Pick<NotificationDto, "type"> & {
+  entityType: NotificationEntityTypeType | null;
+  entityId: string | null;
+};
+
+/**
  * Ouvre une destination sous son titre — le geste d'`openUnder`, partagé avec les écrans d'un seul
  * titre (#343). `null` ne mène nulle part.
  *
@@ -132,7 +143,7 @@ function destination(
  * `acting` est le titre exercé : il ne départage que ce que le type ne tranche pas (un message).
  */
 export function routeForNotification(
-  notification: NotificationDto,
+  notification: NotificationTarget,
   capabilities: Capabilities,
   acting: TrainingCapability,
 ): NotificationDestination | null {
@@ -156,75 +167,17 @@ export function routeForNotification(
 }
 
 /**
- * Payload d'un push Expo, écrit par `NotificationService`. Ses clés d'id sont HISTORIQUES
- * (`planId`, `scheduledSessionId`…) et propres à chaque type : une app déjà installée les lit,
- * on ne les renomme pas. D'où cette traduction vers la table commune plutôt qu'un second switch
- * de destinations.
+ * Où mène un push touché. Sa charge utile se relit par la table partagée (`pushTargetOf`, #351),
+ * celle-là même qui l'a écrite côté API : ses clés d'id sont HISTORIQUES (`planId`,
+ * `scheduledSessionId`…), une app déjà installée les lit, et ce client ne les recopie plus. La
+ * cible relue prend ensuite le chemin de la cloche — un seul jeu de destinations pour les deux,
+ * rappel dû compris : poussé sans sa cible, il tombe dans le même repli « Mes rappels ».
  */
 export function routeForPushPayload(
   data: unknown,
   capabilities: Capabilities,
   acting: TrainingCapability,
 ): NotificationDestination | null {
-  const payload = data as {
-    type?: NotificationType;
-    planId?: string;
-    scheduledSessionId?: string;
-    conversationId?: string;
-    invoiceId?: string;
-    reminderId?: string;
-    invitationId?: string;
-  } | null;
-  if (payload?.type == null) return null;
-
-  // Le même titre que la ligne du centre : c'est le TYPE qui le donne, et la charge utile le porte.
-  const capability = notificationOpeningCapability(payload.type, capabilities, acting);
-  if (capability == null) return null;
-  const open = (entityType: NotificationEntityType, entityId: string | undefined) =>
-    destination(targetFor(entityType, entityId, capability), capability);
-
-  switch (payload.type) {
-    /**
-     * Un rappel dû (#47) ne passe PAS par `targetFor` : sa charge utile porte un `reminderId`, pas
-     * l'id de sa cible — le push est émis sans lire le cycle ni la facture visés. Il mène donc
-     * directement à « Mes rappels », qui est de toute façon le repli du centre pour ce type.
-     *
-     * Coach seul, et c'est déjà tenu : un rappel se reçoit en coach, le compte qui ne l'est plus
-     * s'est arrêté plus haut.
-     */
-    case NotificationType.REMINDER_DUE:
-      return destination("/reminders", capability);
-    case NotificationType.PLAN_PUBLISHED:
-    case NotificationType.PLAN_UPDATED:
-    case NotificationType.PLAN_SESSION_ADDED:
-    case NotificationType.PLAN_SESSION_REMOVED:
-    case NotificationType.PLAN_SESSIONS_REORDERED:
-      return open(NotificationEntityType.PLAN, payload.planId);
-    case NotificationType.FEEDBACK_RECEIVED:
-      return open(NotificationEntityType.SCHEDULED_SESSION, payload.scheduledSessionId);
-    case NotificationType.MESSAGE_RECEIVED:
-      return open(NotificationEntityType.CONVERSATION, payload.conversationId);
-    case NotificationType.INVOICE_ISSUED:
-      return open(NotificationEntityType.INVOICE, payload.invoiceId);
-    /**
-     * Les trois temps d'une invitation (#146). Leur clé d'id est `invitationId` — le typecheck ne
-     * l'aurait PAS réclamée : cette fonction lit une charge utile `unknown`, et un type oublié
-     * tomberait simplement dans le `default`. Un push qui ne mène nulle part là où la cloche mène
-     * quelque part est précisément la divergence que cette traduction existe pour empêcher.
-     *
-     * Le refus est écarté ici comme il l'est dans la cloche : sa destination est supprimée, pas
-     * absente.
-     */
-    case NotificationType.INVITATION_RECEIVED:
-    case NotificationType.INVITATION_ACCEPTED:
-    // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur
-    // tableau de bord, où la table mène déjà toute invitation reçue en coach.
-    case NotificationType.ORGANIZATION_INVITATION_RECEIVED:
-    // Le Coach qui rejoint une entreprise (#602) : l'athlète le retrouve dans « Mes coachs ».
-    case NotificationType.ORGANIZATION_COACH_JOINED:
-      return open(NotificationEntityType.INVITATION, payload.invitationId);
-    default:
-      // `INVITATION_DECLINED` compris : sa destination est supprimée, comme dans la cloche.
-      return null;
-  }
+  const target = pushTargetOf(data);
+  return target == null ? null : routeForNotification(target, capabilities, acting);
 }
