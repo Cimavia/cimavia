@@ -1,0 +1,16 @@
+language js
+
+// `shared/` (web et mobile) ne dépend d'aucune feature (architecture-choice §3, tranché en #372).
+// Sinon le design system tire une feature dans le graphe de quiconque importe un `CmvButton` :
+// c'est ce qu'avaient fait `CmvAppShell` (la cloche), `CmvRoleGate` (la reconnexion) et la purge
+// de compte (le presse-papier du plan), tous trois rendus à leur feature. Un code partagé qui a
+// besoin d'une feature appartient à une feature ; une feature qui en importe une autre est la
+// norme. Toute forme d'import compte : `import`, `export … from`, `import()`, alias `@/feature`
+// ou chemin relatif, entre guillemets ou en gabarit. Les tests sont hors périmètre (biome.json).
+or {
+  JsModuleSource(),
+  JsImportCallExpression()
+} as $import where {
+  $import <: r"(?:import\(\s*)?[\"'`](?:@/|(?:\.\./)+)feature(?:/[^\"'`]*)?[\"'`]\s*\)?",
+  register_diagnostic(span=$import, message="shared/ n'importe aucune feature : ce code appartient à une feature, ou la dépendance s'inverse (architecture-choice §3).", severity="error")
+}
