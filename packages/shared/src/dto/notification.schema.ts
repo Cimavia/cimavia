@@ -57,8 +57,8 @@ export const NotificationType = {
   /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
-   * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
-   * au bon moment (#47).
+   * (`reminderToNotificationDto`). Il est pourtant POUSSÉ, à l'échéance, par le tick des rappels
+   * (#47) — sans ligne, et avec sa propre charge utile (`PushPayload`).
    */
   REMINDER_DUE: "REMINDER_DUE",
 } as const;
@@ -110,9 +110,11 @@ export type EmailableNotificationType = (typeof EMAILABLE_NOTIFICATION_TYPES)[nu
 export const emailableNotificationTypeSchema = z.enum(EMAILABLE_NOTIFICATION_TYPES);
 
 /**
- * Ce que la notification désigne, pour router à l'ouverture. Gardée explicite plutôt que dérivée du
- * `type`, en prévision des rappels — et c'est arrivé (#51) : `REMINDER_DUE` pointe vers un cycle OU
- * une facture, selon ce qu'on rappelle. Aucun `switch` sur le type n'aurait pu le deviner.
+ * Ce que la notification désigne, pour router à l'ouverture. Gardée explicite dans la LIGNE plutôt
+ * que dérivée du `type` à la lecture, en prévision des rappels — et c'est arrivé (#51) :
+ * `REMINDER_DUE` pointe vers un cycle OU une facture, selon ce qu'on rappelle. Aucun `switch` sur le
+ * type n'aurait pu le deviner. Pour un type PERSISTÉ, en revanche, elle ne varie pas : l'API l'en
+ * déduit à l'écriture (`NOTIFICATION_ENTITY_TYPE`, #351).
  */
 export const NotificationEntityType = {
   PLAN: "PLAN",
