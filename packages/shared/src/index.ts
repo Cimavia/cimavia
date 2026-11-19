@@ -983,6 +983,7 @@ export type { ExerciseFields } from "./util/library-input.util";
 export { toExerciseInput } from "./util/library-input.util";
 export type { AccessLabel, AccessLabelSubject } from "./util/library-row.util";
 export { accessLabel, matchesTagFilter, sessionTags } from "./util/library-row.util";
+export { movedItem } from "./util/list.util";
 export type {
   MediaBatch,
   MediaBatchStep,
@@ -1237,7 +1238,6 @@ export {
   filledGridRows,
   fittedBlock,
   movedExercise,
-  movedItem,
   presetSource,
   replacedExercise,
   replacementGrid,

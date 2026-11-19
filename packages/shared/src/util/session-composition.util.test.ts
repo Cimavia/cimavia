@@ -30,7 +30,6 @@ import {
   MetricSource,
   MetricUnit,
   movedExercise,
-  movedItem,
   presetSource,
   replacedExercise,
   revertedBlock,
@@ -346,13 +345,6 @@ describe("les exercices d'un bloc", () => {
     expect(duplicatedBlock(blocks, "inconnu", "b9", counter("n"))).toEqual(blocks);
     // La copie s'enregistre telle quelle : aucune clé n'est partagée.
     expect(sessionBlocksSchema.safeParse(duplicated).success).toBe(true);
-  });
-
-  it("déplacer un élément d'une liste, et rien quand le rang en sort", () => {
-    expect(movedItem(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
-    expect(movedItem(["a", "b", "c"], 2, 0)).toEqual(["c", "a", "b"]);
-    expect(movedItem(["a", "b"], 0, 5)).toEqual(["a", "b"]);
-    expect(movedItem(["a", "b"], 5, 0)).toEqual(["a", "b"]);
   });
 });
 

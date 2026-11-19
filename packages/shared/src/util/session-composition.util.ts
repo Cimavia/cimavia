@@ -224,17 +224,6 @@ function inserted<T>(items: readonly T[], index: number, item: T): T[] {
   return [...items.slice(0, index), item, ...items.slice(index)];
 }
 
-/** `items`, l'élément de rang `from` déplacé au rang `to`. Un rang hors liste ne change rien. */
-export function movedItem<T>(items: readonly T[], from: number, to: number): T[] {
-  const item = items[from];
-  if (item === undefined || to < 0 || to >= items.length) return [...items];
-  return inserted(
-    items.filter((_unused, index) => index !== from),
-    to,
-    item,
-  );
-}
-
 export function withAddedExercise(
   blocks: readonly SessionBlock[],
   blockId: string,

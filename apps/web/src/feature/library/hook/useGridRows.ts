@@ -34,9 +34,10 @@ export function useGridRows(
   }
 
   function moveRow(from: number, to: number) {
-    // Seules les lignes propres se déplacent : un fantôme n'est qu'un tour sans ligne.
-    if (to < 0 || to >= rows.length) return;
-    onRowsChange(movedItem(rows, from, to));
+    // Seules les lignes propres se déplacent : un fantôme n'est qu'un tour sans ligne, hors de
+    // `rows`, où `movedItem` ne voit rien à déplacer.
+    const next = movedItem(rows, from, to);
+    if (next != null) onRowsChange(next);
   }
 
   const drag = useReorderDrag(moveRow);
