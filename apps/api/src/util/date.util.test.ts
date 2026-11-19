@@ -35,6 +35,9 @@ describe("shiftDbDate", () => {
 /**
  * L'heure du produit (« Tranché en #321 ») : Paris, quel que soit le fuseau du conteneur. Le lundi
  * 14/09 à 0 h 30 à Paris est encore dimanche en UTC — c'est lundi qu'il faut répondre.
+ *
+ * La suite tourne en UTC, comme le conteneur (« Tranché en #382 ») : c'est ce qui fait échouer ici
+ * une lecture de l'heure locale. À Paris, elle rendait lundi elle aussi.
  */
 describe("productToday", () => {
   it("rend le jour à Paris, pas le jour UTC", () => {
