@@ -29,10 +29,11 @@ export type ReorderHarness = {
 };
 
 /**
- * La même suite de gestes, appliquée aux SEPT éditeurs de la bibliothèque qui recopient chacun le
- * déplacement d'élément (#360). Une seule définition du comportement attendu : quand #360 fusionnera
- * les copies, c'est elle qui dira qu'aucune n'a changé de sens. Les gestes passent par ce que le
- * coach touche — flèche, poignée au clavier, glisser —, jamais par la fonction interne.
+ * La même suite de gestes, appliquée à chaque éditeur de la bibliothèque qui réordonne une liste
+ * (la journée d'un cycle, elle, se juge dans `dayAfterDrop`). Ils déplacent tous
+ * par `movedItem` depuis #360, mais chacun la branche à sa façon — garde, écriture, glisser : c'est
+ * ce branchement que la suite éprouve. Les gestes passent par ce que le coach touche — flèche,
+ * poignée au clavier, glisser —, jamais par la fonction interne.
  *
  * `mount` monte l'éditeur sur trois éléments, dont `labels` donne l'ordre initial — de façon
  * asynchrone pour un écran monté dans un routeur. `withDrag: false` pour un éditeur qui ne se
