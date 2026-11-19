@@ -1,12 +1,12 @@
 import { type CapabilityName, hasCapability, isSessionLost } from "@cmv/shared";
 import { Navigate, useRouter } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
-import { ReauthOverlay } from "@/feature/auth";
+import { CmvFullPageLoading } from "@/shared/component";
 import { useCapabilities } from "@/shared/hook/useCapabilities";
 import { authClient } from "@/shared/lib/auth";
-import { CmvFullPageLoading } from "./CmvFullPageLoading";
+import { ReauthOverlay } from "./ReauthOverlay";
 
-type CmvRoleGateProps = {
+type RoleGateProps = {
   /**
    * La capacité exigée pour monter l'écran, ou la LISTE de celles qui suffisent — une seule
    * suffit alors. Deux capacités ne veut pas dire « écran partagé » : `/invoices` sert la même
@@ -26,9 +26,9 @@ type CmvRoleGateProps = {
  * Garde de capacité, posée dans le **fichier de route** et non dans l'écran :
  *
  *     component: () => (
- *       <CmvRoleGate capability="coach">
+ *       <RoleGate capability="coach">
  *         <InvoicesScreen />
- *       </CmvRoleGate>
+ *       </RoleGate>
  *     )
  *
  * POURQUOI la route et pas l'écran — c'est le point entier. Une garde en tête d'écran est un
@@ -46,8 +46,12 @@ type CmvRoleGateProps = {
  *
  * Effet de bord voulu : la route **déclare pour qui elle est**, au même endroit que son chemin —
  * c'est ce qui permet à la navigation de rester en phase avec ce qui est réellement accessible.
+ *
+ * Dans `feature/auth` et non dans le design system, d'où l'absence du préfixe `Cmv` (#372) :
+ * elle lit la session et pose la reconnexion sur place, ce qu'un composant de `shared/` n'a pas à
+ * savoir.
  */
-export function CmvRoleGate({ capability, children, fallback }: Readonly<CmvRoleGateProps>) {
+export function RoleGate({ capability, children, fallback }: Readonly<RoleGateProps>) {
   const { isPending, isAuthenticated, ...capabilities } = useCapabilities();
   const { data: session } = authClient.useSession();
   /**

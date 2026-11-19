@@ -4,7 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { accountErasureApi } from "@/feature/account/api";
 import { DeleteAccountScreen } from "@/feature/account/screen/DeleteAccountScreen";
-import { resetAccountData } from "@/shared/lib/account-reset";
+import { resetAccountData } from "@/feature/auth/util/account-reset.util";
 import { holdSessionRecheck, releaseSessionRecheck } from "@/shared/lib/auth";
 import { renderInRoute } from "../../../../test/render";
 
@@ -18,7 +18,7 @@ vi.mock("@/feature/notification", () => ({
   useUnreadByCapability: () => ({ data: undefined }),
 }));
 
-vi.mock("@/shared/lib/account-reset", () => ({ resetAccountData: vi.fn() }));
+vi.mock("@/feature/auth/util/account-reset.util", () => ({ resetAccountData: vi.fn() }));
 
 const session = vi.hoisted(() => ({
   user: { id: "u-1", name: "Léa", isCoach: false, isAthlete: true } as Record<string, unknown>,

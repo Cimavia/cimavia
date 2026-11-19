@@ -41,9 +41,8 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
   };
 });
 // Ses actions portent « Nouvelle conversation ».
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const person = (

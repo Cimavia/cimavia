@@ -29,9 +29,8 @@ vi.mock("@/feature/reminder/api", async (importOriginal) => {
     },
   };
 });
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const reminder = (over: Partial<ReminderDto> & Pick<ReminderDto, "id">): ReminderDto => ({

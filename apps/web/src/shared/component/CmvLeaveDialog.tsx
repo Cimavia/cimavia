@@ -16,7 +16,7 @@ import { CmvButton } from "./CmvButton";
  * le travail ET part — ce que le coach veut le plus souvent. Échap vaut « Annuler » : aucune
  * touche ne fait perdre la saisie.
  *
- * Rendu dans `body` et non sous l'écran : une session perdue rend l'écran `inert` (`CmvRoleGate`),
+ * Rendu dans `body` et non sous l'écran : une session perdue rend l'écran `inert` (`RoleGate`),
  * et le dialogue y serait inerte avec lui — « Changer de compte » laissait alors le coach devant
  * des boutons qui ne répondaient plus.
  */

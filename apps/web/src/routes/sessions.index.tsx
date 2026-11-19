@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { AthleteSessionsScreen, type SessionsSegment } from "@/feature/plan";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?segment=upcoming|past` — le segment vit dans l'URL, comme la semaine du planning : revenir
@@ -15,8 +15,8 @@ export const Route = createFileRoute("/sessions/")({
     segment: search.segment === "past" ? "past" : "upcoming",
   }),
   component: () => (
-    <CmvRoleGate capability="athlete">
+    <RoleGate capability="athlete">
       <AthleteSessionsScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

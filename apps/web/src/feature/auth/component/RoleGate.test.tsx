@@ -1,8 +1,8 @@
 import { act, waitFor } from "@testing-library/react";
 import { useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderInRoute } from "../../../test/render";
-import { CmvRoleGate } from "./CmvRoleGate";
+import { renderInRoute } from "../../../../test/render";
+import { RoleGate } from "./RoleGate";
 
 type SessionState = {
   data: { user: { id: string; email: string; isCoach?: boolean; isAthlete?: boolean } } | null;
@@ -47,9 +47,9 @@ const SCREEN = "écran gardé";
 /** Monte la garde sur `/feedbacks?feedback=f-1` — le lien profond d'une notification. */
 function setup(fallback?: React.ReactNode) {
   return renderInRoute(
-    <CmvRoleGate capability="coach" fallback={fallback}>
+    <RoleGate capability="coach" fallback={fallback}>
       <p>{SCREEN}</p>
-    </CmvRoleGate>,
+    </RoleGate>,
     { path: "/feedbacks", search: { feedback: "f-1" }, links: ["/login", "/"] },
   );
 }
@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("CmvRoleGate", () => {
+describe("RoleGate", () => {
   it("n'accorde ni ne refuse tant que la session n'est pas résolue", async () => {
     sessionStore.set({ data: null, isPending: true });
     const { router, getByText, queryByText } = await setup();
@@ -126,9 +126,9 @@ describe("CmvRoleGate", () => {
   it("accepte une capacité parmi plusieurs", async () => {
     signedInAs({ isAthlete: true });
     const { getByText } = await renderInRoute(
-      <CmvRoleGate capability={["coach", "athlete"]}>
+      <RoleGate capability={["coach", "athlete"]}>
         <p>{SCREEN}</p>
-      </CmvRoleGate>,
+      </RoleGate>,
       { path: "/invoices", links: ["/login", "/"] },
     );
 
@@ -143,12 +143,12 @@ describe("CmvRoleGate", () => {
     async function withDraft() {
       signedInAs({ isCoach: true });
       const view = await renderInRoute(
-        <CmvRoleGate capability="coach">
+        <RoleGate capability="coach">
           <label>
             titre
             <input />
           </label>
-        </CmvRoleGate>,
+        </RoleGate>,
         { path: "/library/exercises/new", links: ["/login", "/"] },
       );
       await view.user.type(view.getByLabelText("titre"), DRAFT);

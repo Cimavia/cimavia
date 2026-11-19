@@ -23,7 +23,7 @@ const VIEWPORT_GUTTER = 16;
 const SIDE_DEFAULT_WIDTH = 576;
 
 /**
- * Cloche + badge + centre de notifications (#49). Posée dans `CmvAppShell`, donc visible de tous
+ * Cloche + badge + centre de notifications (#49). Posée dans `AppShell`, donc visible de tous
  * les écrans : c'est la condition pour qu'une notification serve à quelque chose.
  *
  * Deux conteneurs pour un même contenu (#695) : le panneau déroulant, redimensionnable par son coin

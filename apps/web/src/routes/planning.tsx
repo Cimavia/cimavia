@@ -1,7 +1,7 @@
 import { isMondayIsoDate } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { AthletePlanningScreen } from "@/feature/plan";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * `?from=<lundi ISO>` — la semaine affichée vit dans l'URL, pas dans un `useState`.
@@ -33,8 +33,8 @@ export function parsePlanningSearch(search: Record<string, unknown>): PlanningSe
 export const Route = createFileRoute("/planning")({
   validateSearch: parsePlanningSearch,
   component: () => (
-    <CmvRoleGate capability="athlete">
+    <RoleGate capability="athlete">
       <AthletePlanningScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

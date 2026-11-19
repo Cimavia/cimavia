@@ -35,9 +35,8 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: session.current }) },
 }));
 
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const { organizationApi } = await import("@/feature/company/api");

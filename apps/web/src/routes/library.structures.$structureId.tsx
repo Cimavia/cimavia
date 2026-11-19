@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { StructureBuilderScreen } from "@/feature/library";
-import { CmvRoleGate } from "@/shared/component";
 
 export const Route = createFileRoute("/library/structures/$structureId")({
   component: RouteComponent,
@@ -9,8 +9,8 @@ export const Route = createFileRoute("/library/structures/$structureId")({
 function RouteComponent() {
   const { structureId } = Route.useParams();
   return (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <StructureBuilderScreen structureId={structureId} />
-    </CmvRoleGate>
+    </RoleGate>
   );
 }

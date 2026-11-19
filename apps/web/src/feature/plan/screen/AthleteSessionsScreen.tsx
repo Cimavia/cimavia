@@ -4,8 +4,8 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AthleteSessionCard } from "@/feature/plan/component/AthleteSessionCard";
 import { useMyPlans } from "@/feature/plan/hook/useMyPlan";
+import { AppShell } from "@/feature/shell";
 import {
-  CmvAppShell,
   CmvEmptyState,
   CmvErrorState,
   CmvSegmented,
@@ -73,7 +73,7 @@ export function AthleteSessionsScreen() {
   const showPlanTitle = (plans ?? []).length > 1;
 
   return (
-    <CmvAppShell
+    <AppShell
       title={t("plan.athlete.sessions.title")}
       // Le nombre de cycles plutôt qu'un titre : avec plusieurs, en nommer un seul serait faux, et
       // les concaténer donnerait un sous-titre illisible. `—` tant que la liste n'a pas répondu.
@@ -114,7 +114,7 @@ export function AthleteSessionsScreen() {
           <SessionsByDay entries={entries} showPlanTitle={showPlanTitle} />
         )}
       </div>
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

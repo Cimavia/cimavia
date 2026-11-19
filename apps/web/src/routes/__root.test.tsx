@@ -58,7 +58,7 @@ describe("route racine", () => {
   it("pose l'identité Sentry ici, et pas dans un écran", async () => {
     await renderRoot();
 
-    // C'est le seul composant monté sur TOUTES les routes. Déplacer cet appel dans `CmvAppShell`
+    // C'est le seul composant monté sur TOUTES les routes. Déplacer cet appel dans `AppShell`
     // — la piste qu'ouvrait #181 — le retirerait des écrans d'authentification, où un crash
     // redeviendrait anonyme. Ce test est ce qui rend ce déplacement rouge.
     expect(useSentryUser).toHaveBeenCalled();
@@ -68,7 +68,7 @@ describe("route racine", () => {
     vi.mocked(useBundleUpdate).mockReturnValue(true);
     await renderRoot();
 
-    // Ici et pas dans `CmvAppShell`, que chaque écran remonte : ce qui a été vu y serait oublié
+    // Ici et pas dans `AppShell`, que chaque écran remonte : ce qui a été vu y serait oublié
     // à la navigation suivante.
     expect(screen.getByText("nouvelle version")).toBeInTheDocument();
   });

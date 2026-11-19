@@ -6,8 +6,8 @@ import { useToast } from "@/shared/component";
 import { CmvButton } from "@/shared/component/CmvButton";
 import { CmvTextField } from "@/shared/component/CmvTextField";
 import { confirmLeave, saveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
-import { resetAccountData } from "@/shared/lib/account-reset";
 import { authClient } from "@/shared/lib/auth";
+import { resetAccountData } from "../util/account-reset.util";
 
 type ReauthOverlayProps = {
   /** Le compte qui a ouvert l'écran — le seul sous lequel on peut le reprendre. */
@@ -15,7 +15,7 @@ type ReauthOverlayProps = {
 };
 
 /**
- * La reconnexion SUR PLACE, posée par `CmvRoleGate` quand la session tombe sous un écran déjà
+ * La reconnexion SUR PLACE, posée par `RoleGate` quand la session tombe sous un écran déjà
  * ouvert (#336).
  *
  * Elle recouvre l'écran sans le démonter : c'est tout son objet. Renvoyer vers `/login` aurait jeté
@@ -116,7 +116,7 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
 
   return (
     // `open` et non `showModal()` : l'écran dessous est déjà mis hors d'atteinte par `inert`
-    // (`CmvRoleGate`), et `showModal` laisserait Échap fermer la fenêtre sans reconnexion.
+    // (`RoleGate`), et `showModal` laisserait Échap fermer la fenêtre sans reconnexion.
     // Les marges, bordure et tailles par défaut d'un `<dialog>` sont remises à zéro pour le voile.
     <dialog
       open

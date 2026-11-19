@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { ExerciseBuilderScreen, isBlockRank } from "@/feature/library";
-import { CmvRoleGate } from "@/shared/component";
 
 // Le constructeur d'exercice (#163) — pleine page, et coach seul comme le reste de la bibliothèque.
 export const Route = createFileRoute("/library/exercises/new")({
@@ -39,13 +39,13 @@ function blockOf(block: unknown): { block?: number } {
 function RouteComponent() {
   const { title, session, block, structure } = Route.useSearch();
   return (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <ExerciseBuilderScreen
         initialTitle={title}
         fromSessionId={session}
         fromBlock={block}
         fromStructure={structure}
       />
-    </CmvRoleGate>
+    </RoleGate>
   );
 }

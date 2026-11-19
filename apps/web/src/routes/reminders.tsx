@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { RemindersScreen } from "@/feature/reminder";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * Rappels : coach seul, et pas seulement par convention. `Reminder` est scopé `coachId` **seul** —
@@ -9,8 +9,8 @@ import { CmvRoleGate } from "@/shared/component";
  */
 export const Route = createFileRoute("/reminders")({
   component: () => (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <RemindersScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

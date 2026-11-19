@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { DosageScreen } from "@/feature/plan";
-import { CmvRoleGate } from "@/shared/component";
 
 /** `?type=` : la séance-type que Dosage règle — la première du cycle sans lui. */
 export type DosageSearch = { type?: string };
@@ -14,8 +14,8 @@ export function parseDosageSearch(search: Record<string, unknown>): DosageSearch
 export const Route = createFileRoute("/plans/$planId_/dosage")({
   validateSearch: parseDosageSearch,
   component: () => (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <DosageScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

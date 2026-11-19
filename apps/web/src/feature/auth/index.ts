@@ -1,5 +1,5 @@
 export { AuthLayout } from "./component/AuthLayout";
-export { ReauthOverlay } from "./component/ReauthOverlay";
+export { RoleGate } from "./component/RoleGate";
 export { ForgotPasswordScreen } from "./screen/ForgotPasswordScreen";
 export { LoginScreen } from "./screen/LoginScreen";
 export { RegisterScreen } from "./screen/RegisterScreen";

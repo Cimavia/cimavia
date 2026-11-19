@@ -43,8 +43,8 @@ import {
 import { usePlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
 import { usePlans } from "@/feature/plan/hook/usePlans";
 import { ScheduleReminderButton } from "@/feature/reminder";
+import { AppShell } from "@/feature/shell";
 import {
-  CmvAppShell,
   CmvButton,
   CmvEmptyState,
   CmvErrorState,
@@ -226,9 +226,9 @@ export function PlanBuilderScreen() {
   // « Planifications » : ce serait l'écran où mène le retour posé juste à côté.
   if (isPending) {
     return (
-      <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
+      <AppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
-      </CmvAppShell>
+      </AppShell>
     );
   }
   // Sur la DONNÉE, pas sur l'échec : une relecture ratée — « Recharger », un retour d'onglet —
@@ -260,7 +260,7 @@ export function PlanBuilderScreen() {
   }
 
   return (
-    <CmvAppShell
+    <AppShell
       // Le destinataire DANS le titre : devant une liste de cycles qui se ressemblent, savoir à
       // qui celui-ci s'adresse compte autant que son nom.
       title={t("plan.builder.titleWithAthlete", {
@@ -416,7 +416,7 @@ export function PlanBuilderScreen() {
         />
       )}
       <CmvLeaveDialog {...guard.dialog} />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 
@@ -588,13 +588,13 @@ function PlanUnreadable({ error, onRetry }: Readonly<{ error: unknown; onRetry: 
     return <Navigate {...PLANS_LINK} />;
   }
   return (
-    <CmvAppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
+    <AppShell title={t("plan.builder.fallbackTitle")} back={backToPlans(t)}>
       <CmvErrorState
         title={t("common.errorTitle")}
         description={t("common.errorDescription")}
         retryLabel={t("common.retry")}
         onRetry={onRetry}
       />
-    </CmvAppShell>
+    </AppShell>
   );
 }

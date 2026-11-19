@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { StructureBuilderScreen } from "@/feature/library";
-import { CmvRoleGate } from "@/shared/component";
 
 // Créer une structure (#717) — pleine page, coach seul comme le reste de la bibliothèque.
 export const Route = createFileRoute("/library/structures/new")({
@@ -18,8 +18,8 @@ export const Route = createFileRoute("/library/structures/new")({
 function RouteComponent() {
   const search = Route.useSearch();
   return (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <StructureBuilderScreen from={"from" in search ? search.from : undefined} />
-    </CmvRoleGate>
+    </RoleGate>
   );
 }

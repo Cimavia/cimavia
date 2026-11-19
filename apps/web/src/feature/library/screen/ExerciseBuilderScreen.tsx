@@ -30,9 +30,9 @@ import {
 } from "@/feature/library/hook/useExercises";
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { mergeCatalogs } from "@/feature/library/util/metric-catalog.util";
+import { AppShell } from "@/feature/shell";
 import {
   CMV_EDIT,
-  CmvAppShell,
   CmvButton,
   CmvErrorState,
   CmvLeaveDialog,
@@ -99,9 +99,9 @@ export function ExerciseBuilderScreen({
 
   if (loadedId != null && isPending) {
     return (
-      <CmvAppShell title={t("library.builder.loadingTitle")}>
+      <AppShell title={t("library.builder.loadingTitle")}>
         <p className="text-cmv-text-mid">{t("common.loading")}</p>
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -110,14 +110,14 @@ export function ExerciseBuilderScreen({
   // par l'erreur perdrait la saisie que le bandeau promet de garder.
   if (loadedId != null && isError && exercise === undefined) {
     return (
-      <CmvAppShell title={t("library.builder.loadingTitle")}>
+      <AppShell title={t("library.builder.loadingTitle")}>
         <CmvErrorState
           title={t("common.errorTitle")}
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => refetch()}
         />
-      </CmvAppShell>
+      </AppShell>
     );
   }
 
@@ -241,7 +241,7 @@ function ExerciseBuilder({
   });
 
   return (
-    <CmvAppShell
+    <AppShell
       title={heading.title}
       subtitle={heading.subtitle}
       actions={
@@ -372,7 +372,7 @@ function ExerciseBuilder({
         </InstructionMediaProvider>
       </RefusedFieldsContext>
       <CmvLeaveDialog {...guard.dialog} />
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

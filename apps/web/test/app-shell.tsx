@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import type { CmvAppShell } from "@/shared/component";
+import type { AppShell } from "@/feature/shell";
 
 /**
- * Le bandeau d'un écran, sans la navigation que tire le vrai `CmvAppShell` (capacités, cloche,
+ * Le bandeau d'un écran, sans la navigation que tire le vrai `AppShell` (capacités, cloche,
  * interlocuteurs) : hors sujet pour un test d'écran. Seul compte ce que l'écran y pose — le
  * sous-titre, quand il en a un, se lit par `getByTestId("subtitle")`.
  *
@@ -18,7 +18,7 @@ export function StubAppShell({
   actions,
   back,
   children,
-}: Parameters<typeof CmvAppShell>[0]) {
+}: Parameters<typeof AppShell>[0]) {
   return (
     <main>
       {back == null ? null : <Link {...back.link}>{back.label}</Link>}

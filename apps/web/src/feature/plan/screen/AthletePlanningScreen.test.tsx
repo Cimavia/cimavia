@@ -31,9 +31,8 @@ vi.mock("@/shared/lib/auth", () => ({
     signOut: () => Promise.resolve(),
   },
 }));
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 /** Les cycles sont datés depuis le lundi RÉEL : « aujourd'hui » tombe alors en semaine 1. */

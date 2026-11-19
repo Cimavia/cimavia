@@ -16,7 +16,7 @@ vi.mock("@/feature/account/api", async (importOriginal) => {
 });
 
 /**
- * `CmvAppShell` tire `NotificationBell` et `useUnreadByCapability` du même module : le remplacer en
+ * `AppShell` tire `NotificationBell` et `useUnreadByCapability` du même module : le remplacer en
  * entier évite qu'un compteur non lu parte chercher l'API pendant qu'on éprouve un pied de page.
  */
 vi.mock("@/feature/notification", () => ({

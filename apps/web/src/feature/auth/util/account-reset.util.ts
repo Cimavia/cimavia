@@ -14,6 +14,10 @@ import { clearPlanClipboard } from "@/feature/plan/hook/usePlanClipboard";
  * Appelée aux DEUX bouts, et les deux comptent : à la déconnexion, et à la connexion — le seul
  * passage obligé, puisqu'une session perdue ramène au login sans qu'aucune déconnexion soit passée.
  *
+ * Ici et non dans `shared/lib`, où vit son pendant mobile : il purge une donnée de feature (le
+ * presse-papier du plan), et `shared/` ne dépend d'aucune feature (#372). Sa place est le cycle de
+ * session, que `feature/auth` porte déjà — connexion et reconnexion l'appellent.
+ *
  * Ce qui n'y est PAS, volontairement : le suivi local des séances (`useLocalBlockTracking`). Sa clé est
  * l'identifiant d'une séance, que le compte suivant ne peut pas ouvrir — rien n'y fuit.
  */

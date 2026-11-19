@@ -1,4 +1,3 @@
-export { CmvAppShell, type CmvBackLink } from "./CmvAppShell";
 export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";
@@ -25,7 +24,6 @@ export { CmvReadOnlyBanner } from "./CmvReadOnlyBanner";
 export { CmvResizeHandle } from "./CmvResizeHandle";
 export type { ResolveImage } from "./CmvRichDocument";
 export { CmvRichDocument, IMAGE_WIDTH_CLASSES } from "./CmvRichDocument";
-export { CmvRoleGate } from "./CmvRoleGate";
 export type { CmvSegmentedOption } from "./CmvSegmented";
 export { CmvSegmented } from "./CmvSegmented";
 export type { CmvSelectGroup, CmvSelectOption } from "./CmvSelect";

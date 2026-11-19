@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { MyCoachesScreen } from "@/feature/coach";
-import { CmvRoleGate } from "@/shared/component";
 
 /**
  * « Mes coachs » : athlète seul. L'url garde son nom d'origine — un favori ou une notification déjà
@@ -9,8 +9,8 @@ import { CmvRoleGate } from "@/shared/component";
  */
 export const Route = createFileRoute("/my-coach")({
   component: () => (
-    <CmvRoleGate capability="athlete">
+    <RoleGate capability="athlete">
       <MyCoachesScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });

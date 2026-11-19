@@ -28,7 +28,7 @@ const SUBMIT = "auth.reauth.submit";
  * une assertion dessus passerait quoi que fasse la fenêtre.
  */
 async function setup({ unsaved = false } = {}) {
-  /** L'écran perdu, INERTE comme `CmvRoleGate` le rend — et sa saisie, gardée ou non (#327). */
+  /** L'écran perdu, INERTE comme `RoleGate` le rend — et sa saisie, gardée ou non (#327). */
   function Lost() {
     const guard = useLeaveGuard(unsaved, saveLost);
     return (

@@ -12,7 +12,8 @@ import { InvoiceDetailPanel } from "@/feature/invoice/component/InvoiceDetailPan
 import { InvoiceHistoryTable } from "@/feature/invoice/component/InvoiceHistoryTable";
 import { useInvoicePanel } from "@/feature/invoice/hook/useInvoicePanel";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
-import { CmvAppShell, CmvEmptyState, CmvErrorState } from "@/shared/component";
+import { AppShell } from "@/feature/shell";
+import { CmvEmptyState, CmvErrorState } from "@/shared/component";
 import { useActingCapability } from "@/shared/hook/useCapabilities";
 
 /**
@@ -30,7 +31,7 @@ import { useActingCapability } from "@/shared/hook/useCapabilities";
  * boutons.
  *
  * `useCapabilities` est lu ici pour la PRÉSENTATION, jamais pour garder : qui entre est décidé par
- * la route (`CmvRoleGate`), qui ne monte pas cet écran sans l'une des deux capacités.
+ * la route (`RoleGate`), qui ne monte pas cet écran sans l'une des deux capacités.
  */
 export function InvoicesScreen() {
   const { t } = useTranslation();
@@ -63,7 +64,7 @@ export function InvoicesScreen() {
   const showEmpty = !isPending && !isError && !hasInvoices;
 
   return (
-    <CmvAppShell
+    <AppShell
       title={isCoach ? t("invoice.title") : t("invoice.athlete.title")}
       subtitle={isCoach ? coachSummary(t, rows) : t("invoice.athlete.subtitle")}
     >
@@ -93,7 +94,7 @@ export function InvoicesScreen() {
       {athleteInvoices == null ? null : (
         <InvoiceHistoryTable invoices={athleteInvoices} onOpenInvoice={panel.open} />
       )}
-    </CmvAppShell>
+    </AppShell>
   );
 }
 

@@ -2,13 +2,13 @@ import { UNKNOWN_COUNTERPARTS, type UnreadCountDto } from "@cmv/shared";
 import { waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { notificationApi } from "@/feature/notification/api";
+import { CmvLeaveDialog } from "@/shared/component";
 import { BundleUpdateContext } from "@/shared/hook/useBundleUpdate";
 import { useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { authClient } from "@/shared/lib/auth";
 import { NAV_ITEMS } from "@/shared/lib/nav";
-import { renderInRoute } from "../../../test/render";
-import { CmvAppShell, type CmvBackLink } from "./CmvAppShell";
-import { CmvLeaveDialog } from "./CmvLeaveDialog";
+import { renderInRoute } from "../../../../test/render";
+import { AppShell, type BackLink } from "./AppShell";
 
 const session = vi.hoisted(() => ({
   user: { id: "u-1", name: "Dual Curl", isCoach: true, isAthlete: true } as Record<string, unknown>,
@@ -41,7 +41,7 @@ function Unsaved() {
 }
 
 /** Le retour d'un écran Athlete : une route et sa semaine, comme le débrief le transmet (#251). */
-const BACK: CmvBackLink<{ to: "/planning"; search: { from: string } }> = {
+const BACK: BackLink<{ to: "/planning"; search: { from: string } }> = {
   label: "Mon planning",
   link: { to: "/planning", search: { from: "2026-11-09" } },
 };
@@ -49,10 +49,10 @@ const BACK: CmvBackLink<{ to: "/planning"; search: { from: string } }> = {
 const open = ({ unsaved = false, fill = false, back = false, updated = false } = {}) =>
   renderInRoute(
     <BundleUpdateContext value={updated}>
-      <CmvAppShell title="Tableau de bord" fill={fill} back={back ? BACK : undefined}>
+      <AppShell title="Tableau de bord" fill={fill} back={back ? BACK : undefined}>
         <p>contenu</p>
         {unsaved ? <Unsaved /> : null}
-      </CmvAppShell>
+      </AppShell>
     </BundleUpdateContext>,
     // Une route par cible : `/messages` et `/invoices` figurent une fois dans chaque espace.
     {
@@ -68,7 +68,7 @@ beforeEach(() => {
   unread({ count: 0, coach: 0, athlete: 0 });
 });
 
-describe("CmvAppShell — le basculeur d'espace", () => {
+describe("AppShell — le basculeur d'espace", () => {
   it("n'existe pas pour un compte mono-capacité", async () => {
     session.user = { id: "u-1", name: "Coach", isCoach: true, isAthlete: false };
     const { queryByRole, getByText } = await open();
@@ -102,7 +102,7 @@ describe("CmvAppShell — le basculeur d'espace", () => {
   });
 });
 
-describe("CmvAppShell — une nouvelle version en ligne (#290)", () => {
+describe("AppShell — une nouvelle version en ligne (#290)", () => {
   it("invite à recharger dans la barre latérale, pas par-dessus la page", async () => {
     const { getByRole } = await open({ updated: true });
 
@@ -120,7 +120,7 @@ describe("CmvAppShell — une nouvelle version en ligne (#290)", () => {
   });
 });
 
-describe("CmvAppShell — la déconnexion", () => {
+describe("AppShell — la déconnexion", () => {
   it("coupe la session, vide ce que l'onglet garde du compte et ramène au login", async () => {
     const { user, getByRole, queryClient, router } = await open();
     queryClient.setQueryData(["athletes"], [{ id: "a-1" }]);
@@ -134,7 +134,7 @@ describe("CmvAppShell — la déconnexion", () => {
   });
 });
 
-describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327)", () => {
+describe("AppShell — se déconnecter avec une saisie non enregistrée (#327)", () => {
   beforeEach(() => {
     vi.mocked(authClient.signOut).mockClear();
     saveUnsaved.mockClear();
@@ -193,12 +193,12 @@ describe("CmvAppShell — se déconnecter avec une saisie non enregistrée (#327
   });
 });
 
-describe("CmvAppShell — un compte Entreprise (#600)", () => {
+describe("AppShell — un compte Entreprise (#600)", () => {
   const openCompany = () =>
     renderInRoute(
-      <CmvAppShell title="Coachs">
+      <AppShell title="Coachs">
         <p>contenu</p>
-      </CmvAppShell>,
+      </AppShell>,
       {
         path: "/company/coaches",
         links: ["/login", "/account", "/company/athletes"],
@@ -226,7 +226,7 @@ describe("CmvAppShell — un compte Entreprise (#600)", () => {
   });
 });
 
-describe("CmvAppShell — la page qui tient dans l'écran", () => {
+describe("AppShell — la page qui tient dans l'écran", () => {
   it("donne à son contenu toute la hauteur de l'écran, et rien de plus par défaut", async () => {
     const filled = await open({ fill: true });
     expect(filled.getByRole("main")).toHaveClass("h-screen");
@@ -238,7 +238,7 @@ describe("CmvAppShell — la page qui tient dans l'écran", () => {
   });
 });
 
-describe("CmvAppShell — le retour d'écran (#746)", () => {
+describe("AppShell — le retour d'écran (#746)", () => {
   // Le bandeau par sa balise : un `<header>` dans `<main>` n'est pas le repère `banner`.
   it("est un lien du bandeau vers sa destination, semaine comprise", async () => {
     const { getByRole } = await open({ back: true });

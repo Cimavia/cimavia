@@ -71,9 +71,8 @@ vi.mock("@/feature/athlete/hook/useAthletes", () => ({
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: "coach_1" } } }) },
 }));
-vi.mock("@/shared/component", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/shared/component")>()),
-  CmvAppShell: (await import("../../../../test/app-shell")).StubAppShell,
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 vi.mock("@/feature/reminder", () => ({ ScheduleReminderButton: () => null }));
 // Le détail d'une séance se charge à l'ouverture du panneau : c'est l'écran qui le demande.

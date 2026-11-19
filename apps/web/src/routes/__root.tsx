@@ -15,7 +15,7 @@ function RootLayout() {
   // Le seul composant monté sur TOUTES les routes, écrans d'authentification compris — donc le
   // seul endroit d'où l'identité Sentry suit vraiment la session.
   useSentryUser();
-  // Ici et pas dans `CmvAppShell`, que chaque écran remonte : ce qui a été vu survit à la
+  // Ici et pas dans `AppShell`, que chaque écran remonte : ce qui a été vu survit à la
   // navigation, et la vérification ne repart pas à chaque page (#290).
   const isUpdateAvailable = useBundleUpdate();
 

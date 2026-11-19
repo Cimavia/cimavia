@@ -1,7 +1,7 @@
 import { PLAN_ROW_FILTERS, type PlanRowFilter } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
+import { RoleGate } from "@/feature/auth";
 import { PlansScreen } from "@/feature/plan";
-import { CmvRoleGate } from "@/shared/component";
 import { searchTextFromUrl } from "@/shared/hook/useUrlSearchText";
 
 /**
@@ -52,8 +52,8 @@ export function parsePlansSearch(search: Record<string, unknown>): PlansSearch {
 export const Route = createFileRoute("/plans/")({
   validateSearch: parsePlansSearch,
   component: () => (
-    <CmvRoleGate capability="coach">
+    <RoleGate capability="coach">
       <PlansScreen />
-    </CmvRoleGate>
+    </RoleGate>
   ),
 });
