@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NotificationCategory, NotificationType } from "../dto/notification.schema";
+import {
+  NOTIFICATION_ENTITY_TYPE,
+  NotificationCategory,
+  NotificationEntityType,
+  NotificationType,
+  type PersistedNotificationType,
+} from "../dto/notification.schema";
 import {
   capabilityOfMessage,
   capabilityOfNotification,
@@ -8,6 +14,8 @@ import {
   notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
+  pushPayloadOf,
+  pushTargetOf,
 } from "./notification.util";
 
 describe("capabilityOfNotification", () => {
@@ -252,5 +260,71 @@ describe("notificationFilterChoices", () => {
 
   it("ne propose rien à qui n'a rien à filtrer", () => {
     expect(notificationFilterChoices({ ...NONE, isCompany: true })).toEqual([]);
+  });
+});
+
+/**
+ * La charge utile d'un push est un contrat avec des apps DÉJÀ installées (#351) : l'API l'écrit par
+ * `pushPayloadOf`, l'app la relit par `pushTargetOf`. Ce qui part doit revenir à l'identique.
+ */
+describe("pushPayloadOf / pushTargetOf", () => {
+  const persisted = Object.keys(NOTIFICATION_ENTITY_TYPE) as PersistedNotificationType[];
+
+  it.each(persisted)("%s : la cible écrite est la cible relue", (type) => {
+    expect(pushTargetOf(pushPayloadOf(type, "id-1"))).toEqual({
+      type,
+      entityType: NOTIFICATION_ENTITY_TYPE[type],
+      entityId: "id-1",
+    });
+  });
+
+  // Les clés que lisent les apps installées : les renommer casserait leur navigation.
+  it.each([
+    [NotificationType.PLAN_PUBLISHED, { planId: "id-1" }],
+    [NotificationType.PLAN_SESSIONS_REORDERED, { planId: "id-1" }],
+    [NotificationType.FEEDBACK_RECEIVED, { scheduledSessionId: "id-1" }],
+    [NotificationType.MESSAGE_RECEIVED, { conversationId: "id-1" }],
+    [NotificationType.INVOICE_ISSUED, { invoiceId: "id-1" }],
+    [NotificationType.ORGANIZATION_COACH_JOINED, { invitationId: "id-1" }],
+  ] as const)("%s garde sa clé d'id historique", (type, ids) => {
+    expect(pushPayloadOf(type, "id-1")).toEqual({ type, ...ids });
+  });
+
+  it("relit un rappel dû sans sa cible", () => {
+    expect(pushTargetOf({ type: NotificationType.REMINDER_DUE, reminderId: "r-1" })).toEqual({
+      type: NotificationType.REMINDER_DUE,
+      entityType: null,
+      entityId: null,
+    });
+  });
+
+  // Indisponible, pas absente : la messagerie mène encore à la liste des fils.
+  it("rend l'id null quand la charge ne le porte pas, ou sous une autre clé", () => {
+    expect(pushTargetOf({ type: NotificationType.MESSAGE_RECEIVED })).toEqual({
+      type: NotificationType.MESSAGE_RECEIVED,
+      entityType: NotificationEntityType.CONVERSATION,
+      entityId: null,
+    });
+    expect(pushTargetOf({ type: NotificationType.PLAN_PUBLISHED, invoiceId: "i-1" })).toEqual({
+      type: NotificationType.PLAN_PUBLISHED,
+      entityType: NotificationEntityType.PLAN,
+      entityId: null,
+    });
+    expect(pushTargetOf({ type: NotificationType.INVOICE_ISSUED, invoiceId: 42 })).toEqual({
+      type: NotificationType.INVOICE_ISSUED,
+      entityType: NotificationEntityType.INVOICE,
+      entityId: null,
+    });
+  });
+
+  // Une API plus récente que l'app, ou un push qui n'est pas le nôtre : on ne devine rien.
+  it.each([
+    ["un type inconnu", { type: "PLAN_ARCHIVED", planId: "p-1" }],
+    ["une propriété du prototype", { type: "toString" }],
+    ["une charge sans type", { planId: "p-1" }],
+    ["une charge absente", null],
+    ["une charge qui n'est pas un objet", "PLAN_PUBLISHED"],
+  ])("ne relit rien d'%s", (_, data) => {
+    expect(pushTargetOf(data)).toBeNull();
   });
 });

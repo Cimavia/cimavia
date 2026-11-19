@@ -2,9 +2,14 @@ import { type Capabilities, hasCapability, type TrainingCapability } from "../ca
 import {
   NOTIFICATION_CATEGORY,
   NOTIFICATION_CATEGORY_LABEL_KEY,
+  NOTIFICATION_ENTITY_TYPE,
   NotificationCategory,
   type NotificationDto,
+  type NotificationEntityType,
   NotificationType,
+  type PersistedNotificationType,
+  PUSH_ID_KEY,
+  type PushPayload,
 } from "../dto/notification.schema";
 
 /**
@@ -205,4 +210,52 @@ export function notificationFilterChoices(capabilities: Capabilities): Notificat
       labelKey: NOTIFICATION_CATEGORY_LABEL_KEY[category],
     })),
   ];
+}
+
+/**
+ * La charge utile du push d'une notification persistée (#351) : son type, et l'id de sa cible sous
+ * la clé historique de son entité. L'API l'écrit, les apps la relisent par `pushTargetOf`.
+ */
+export function pushPayloadOf(type: PersistedNotificationType, entityId: string): PushPayload {
+  // Une clé calculée perd le lien entre `type` et sa clé aux yeux du compilateur : ce sont les
+  // tables qui le garantissent, et l'aller-retour avec `pushTargetOf` qui le vérifie, type par type.
+  return { type, [PUSH_ID_KEY[NOTIFICATION_ENTITY_TYPE[type]]]: entityId } as PushPayload;
+}
+
+/**
+ * Ce que désigne un push touché (#351) — la même forme qu'une ligne du centre, pour que les deux
+ * portes d'entrée prennent le même chemin.
+ *
+ * `null` y veut dire INDISPONIBLE, pas « aucune cible » : `entityId` quand la charge ne le porte
+ * pas (l'écran qui sait s'en passer, la liste des fils plutôt qu'un fil, le fait) ; et les deux
+ * pour un rappel dû, poussé sans lire sa cible — c'est le repli « Mes rappels » qui le prend.
+ */
+export type PushTarget =
+  | {
+      type: PersistedNotificationType;
+      entityType: NotificationEntityType;
+      entityId: string | null;
+    }
+  | { type: typeof NotificationType.REMINDER_DUE; entityType: null; entityId: null };
+
+/**
+ * Relit la charge utile d'un push, telle qu'Expo la rend : `unknown`, écrite par une API qui peut
+ * être plus récente que l'app. `null` sur un type inconnu — fail closed, comme
+ * `notificationOpeningCapability` : un client ne devine pas la clé d'id d'un type qu'il ignore.
+ */
+export function pushTargetOf(data: unknown): PushTarget | null {
+  if (typeof data !== "object" || data == null) return null;
+  const payload = data as Record<string, unknown>;
+  const { type } = payload;
+  if (type === NotificationType.REMINDER_DUE) return { type, entityType: null, entityId: null };
+  if (!isPersistedType(type)) return null;
+
+  const entityType = NOTIFICATION_ENTITY_TYPE[type];
+  const entityId = payload[PUSH_ID_KEY[entityType]];
+  return { type, entityType, entityId: typeof entityId === "string" ? entityId : null };
+}
+
+// `Object.hasOwn` et non `in` : `in` remonte le prototype, et `"toString"` passerait pour un type.
+function isPersistedType(value: unknown): value is PersistedNotificationType {
+  return typeof value === "string" && Object.hasOwn(NOTIFICATION_ENTITY_TYPE, value);
 }
