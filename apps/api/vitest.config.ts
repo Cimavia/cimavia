@@ -15,9 +15,14 @@ export default defineConfig({
     // `node_modules` — sans cette ligne, un `pnpm test` lancé pendant un run, ou après un run
     // interrompu, y exécuterait aussi les tests des dépendances.
     exclude: ["node_modules/**", "dist/**", "test/**", ".stryker-tmp/**"],
-    // À Paris et non dans le fuseau de la machine (#382) : sous l'UTC des runners, une date calculée
-    // en UTC et une date calculée à Paris se confondent, et le test ne distingue plus rien (#321).
-    env: { TZ: "Europe/Paris" },
+    /**
+     * En UTC, le fuseau du conteneur, et non dans celui de la machine (« Tranché en #382 ») : les
+     * clients se testent à Paris, pas l'API. Elle compte à Paris en le DISANT (`PRODUCT_TIME_ZONE`),
+     * jamais par l'heure locale du process — qui, en production, est l'UTC de l'image. Testée à
+     * Paris, une lecture locale glissée côté serveur rendait le bon jour sur le poste et le
+     * mauvais sur le NAS ; ici, elle fait échouer `productToday` à 0 h 30.
+     */
+    env: { TZ: "UTC" },
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],
