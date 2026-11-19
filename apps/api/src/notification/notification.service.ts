@@ -160,7 +160,13 @@ type NotificationEvent = {
 /** Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3). */
 type NotificationRecord = NotificationEvent & { entityType: NotificationEntityTypeType };
 
-/** Un cycle diffusé, ou l'un de ses ajustements : l'athlète en est prévenu, sans nom d'acteur. */
+/**
+ * Un cycle diffusé, ou l'un de ses ajustements : l'athlète en est prévenu, sans nom d'acteur.
+ *
+ * LISTÉS plutôt que lus dans `NOTIFICATION_ENTITY_TYPE` (#351) : `emitPlanChange` fixe le
+ * destinataire et tait l'acteur, et viser un cycle ne suffit pas à le justifier — un futur type
+ * « cycle copié par X », destiné au coach, y entrerait sans erreur. L'ajouter ici est une décision.
+ */
 type PlanChangeType =
   | typeof NotificationType.PLAN_PUBLISHED
   | typeof NotificationType.PLAN_UPDATED
@@ -173,8 +179,9 @@ type PlanChangeType =
  * débrief reçu — puis message (P5) et facture (P6).
  *
  * Une méthode par événement, et non un `notify(type, …)` unique (#351) : chacune a sa charge, ses
- * noms à résoudre et ses canaux, et treize appelants les nomment. Ce qu'elles avaient de commun —
- * l'entité et la charge utile du push — est passé dans `emit`, d'où le type ne peut plus diverger.
+ * noms à résoudre et ses canaux, et dix-neuf appels les nomment, dans neuf services. Ce qu'elles
+ * avaient de commun — l'entité et la charge utile du push — est passé dans `emit`, d'où le type ne
+ * peut plus diverger.
  *
  * Trois règles gouvernent ce service :
  *
