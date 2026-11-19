@@ -959,9 +959,28 @@ liste des domaines vivent dans l'index.
 > - **Un instant affiché comme un jour passe par `formatInstantDate`** (`paidAt`, `joinedAt`), et
 >   par `isoDateOfInstant` quand la logique en a besoin : en tronquer les dix premiers caractères
 >   donnait, lui aussi, le jour UTC. Huit appels le faisaient, l'issue en citait un.
-> - **Les tests tournent à Paris** ([#382](https://github.com/Cimavia/cimavia/issues/382)) :
->   `env: { TZ: "Europe/Paris" }` dans les quatre `vitest.config.ts` unitaires. Sous l'UTC des
->   runners, heure locale et heure UTC se confondaient, et le test du changement d'heure passait
->   avec une addition naïve de 24 h — vérifié en la réintroduisant.
+> - **Les tests des clients tournent à Paris** ([#382](https://github.com/Cimavia/cimavia/issues/382)) :
+>   `env: { TZ: "Europe/Paris" }` dans les `vitest.config.ts` unitaires de shared, du web et du
+>   mobile. Sous l'UTC des runners, heure locale et heure UTC se confondaient, et le test du
+>   changement d'heure passait avec une addition naïve de 24 h — vérifié en la réintroduisant.
+>   L'API, elle, se teste en UTC (encadré suivant).
 > - **Hors de cette issue** : un écran resté ouvert au passage de minuit garde la date du jour où
 >   il a été rendu. Aucun retour ne l'a signalé.
+
+> **Tranché en [#382](https://github.com/Cimavia/cimavia/issues/382)** (chaque suite dans le fuseau
+> où son code tourne) : #321 avait posé Paris dans les quatre configs unitaires, API comprise.
+>
+> - **L'API se teste en UTC**, le fuseau de son conteneur (`node:22-bookworm-slim`, sans `TZ`). Elle
+>   compte à Paris en le nommant (`PRODUCT_TIME_ZONE`), jamais par l'heure locale du process.
+>   Testée à Paris, une lecture locale glissée côté serveur rendait le jour de Paris sur le poste
+>   et le jour UTC sur le NAS : le test de `productToday` à 0 h 30 la laissait passer, il la fait
+>   désormais échouer (vérifié en la réintroduisant). Ses 990 tests passaient déjà sous les deux
+>   fuseaux.
+> - **Shared, web et mobile restent à Paris** : ils lisent l'heure de l'appareil. Retirer ce `TZ`
+>   fait tomber quatre tests de shared et un du web ; le mobile n'en perd aucun, sa logique de date
+>   vivant dans shared.
+> - **Le report d'un rappel est éprouvé dans les deux sens** (29 mars, 25 octobre), à un et sept
+>   jours : chaque cas échoue avec l'addition naïve.
+> - **Hors de cette issue** : les e2e de l'API n'ont pas de `TZ` et tournent dans celui de la
+>   machine — Paris sur le poste, UTC en CI. Leur en poser un buterait sur Stryker, dont les threads
+>   partagent le fuseau du process (`apps/api/stryker.config.mjs`).
