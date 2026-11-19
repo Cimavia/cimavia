@@ -13,9 +13,8 @@ vi.mock("@/feature/account/api", async (importOriginal) => {
   return { ...actual, accountErasureApi: { erase: vi.fn() } };
 });
 
-vi.mock("@/feature/notification", () => ({
-  NotificationBell: () => null,
-  useUnreadByCapability: () => ({ data: undefined }),
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 vi.mock("@/feature/auth/util/account-reset.util", () => ({ resetAccountData: vi.fn() }));

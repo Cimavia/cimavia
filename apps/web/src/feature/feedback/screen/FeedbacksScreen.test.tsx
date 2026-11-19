@@ -56,9 +56,8 @@ vi.mock("@/feature/athlete/hook/useAthletes", () => ({
   useAthleteSheet: () => ({ data: null, isPending: false }),
   useSaveAthleteSheet: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-vi.mock("@/feature/notification", () => ({
-  NotificationBell: () => null,
-  useUnreadByCapability: () => ({ data: undefined }),
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
 
 const markRead = vi.fn();

@@ -56,6 +56,9 @@ vi.mock("@/feature/message/api", async (importOriginal) => ({
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: selfId.current } } }) },
 }));
+vi.mock("@/feature/shell", async () => ({
+  AppShell: (await import("../../../../test/app-shell")).StubAppShell,
+}));
 
 /**
  * Les médias sont coupés au niveau du HOOK et non de l'API : leur flux (URL signée, XHR, quotas)
