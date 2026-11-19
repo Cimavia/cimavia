@@ -803,6 +803,31 @@ liste des domaines vivent dans l'index.
 > nomme sa règle (`✗ noRawSql`) : Biome ne nomme pas le plugin dans son rapport, le script le
 > reconnaît à son message, lu dans le `.grit`.
 
+> **Tranché en [#372](https://github.com/Cimavia/cimavia/issues/372)** (`shared/` ne dépend
+> d'aucune feature, et une règle Biome le tient) : la revue du 16/09 avait vu un import de feature
+> dans le design system web ; au moment de le traiter, il y en avait trois. `CmvAppShell` montait la
+> cloche (`feature/notification`), `CmvRoleGate` la reconnexion sur place (`feature/auth`, #439),
+> et `shared/lib/account-reset` purgeait le presse-papier du plan (`feature/plan`, #341). Les deux
+> derniers étaient arrivés **le même jour**, faute de règle qui le refuse — d'où le plugin
+> `noFeatureImportInShared`, sur `apps/web/src/shared` et `apps/mobile/shared` (le mobile n'en
+> avait aucun) : `import`, `export … from` et `import()`, par alias comme par chemin relatif. Les
+> tests en sont exclus : un test de `shared/` peut s'appuyer sur une feature sans que le code en
+> dépende.
+>
+> Chacun est rendu à une feature plutôt que réinjecté par une prop ou un contexte : le cadre devient
+> **`feature/shell`** (`AppShell`, `BackLink`), la garde **`feature/auth`** (`RoleGate`), la purge
+> **`feature/auth/util/account-reset.util.ts`** — le cycle de session, que connexion et reconnexion
+> appellent déjà. Ils perdent le préfixe `Cmv`, réservé au design system (architecture-choice §5) ;
+> les encadrés plus anciens les nomment encore `CmvAppShell` et `CmvRoleGate`. La purge mobile
+> reste dans `shared/lib` : elle ne touche que des stockages partagés, rien qui soit à une feature.
+>
+> Ce qui **n'en découle pas** : les sept tests d'écran qui bouchonnaient `@/feature/notification`
+> le faisaient parce qu'ils montaient le VRAI cadre, dont la cloche interroge l'API — pas à cause
+> du barrel. Deux autres (`AthleteFeedbackScreen`, `AthleteSessionScreen`) le montaient sans rien
+> bouchonner. Les neuf sont passés sur `StubAppShell`, comme les treize autres ; c'est ce geste, et
+> non le déménagement, qui a retiré les mocks. Tous les tests d'écran doublent désormais le cadre :
+> seul `AppShell.test.tsx` monte le vrai.
+
 > **Tranché en [#624](https://github.com/Cimavia/cimavia/issues/624)** (le journal se range par
 > domaine, et c'est le découpage qui l'allège, pas l'archive) : à 5 574 lignes, les dettes ✅ n'en
 > pesaient que 41 ; les encadrés, 85 %. Sortir les dettes résolues ne gagnait presque rien, et les

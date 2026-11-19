@@ -69,7 +69,7 @@ Outils : **Turborepo + pnpm** (`pnpm@10.34.9`). Lint/format **Biome** (`2.6.6`, 
 6. **i18n dès le départ** : aucune string en dur dans l'UI — tout passe par i18next.
 7. **Médias hors BDD** : photos/vidéos/audio → object storage (URLs signées). Postgres ne stocke que du relationnel.
 
-Les règles **1** (SQL brut), **3**, **4** et **6** sont vérifiées par des plugins Biome (`scripts/lint-rules/`). Une exception se déclare là où elle vit, `// biome-ignore lint/plugin/<règle>: <raison>` — jamais en élargissant le périmètre du plugin.
+Les règles **1** (SQL brut), **3**, **4** et **6** sont vérifiées par des plugins Biome (`scripts/lint-rules/`), comme `shared/` qui n'importe aucune feature (#372). Une exception se déclare là où elle vit, `// biome-ignore lint/plugin/<règle>: <raison>` — jamais en élargissant le périmètre du plugin.
 
 ## Commandes
 
