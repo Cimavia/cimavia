@@ -1,4 +1,5 @@
-import { NotificationType } from "@cmv/shared";
+import type { PersistedNotificationType } from "@cmv/shared";
+import { NotificationEntityType, NotificationType } from "@cmv/shared";
 import type { ConfigService } from "@nestjs/config";
 import { Expo, type ExpoPushTicket } from "expo-server-sdk";
 import type { ClsService } from "nestjs-cls";
@@ -22,6 +23,8 @@ type Setup = {
   tokens?: { id: string; token: string }[];
   tickets?: ExpoPushTicket[];
   userName?: string | null;
+  /** Un nom par compte, quand il faut distinguer l'acteur du sujet ; sinon `userName` pour tous. */
+  names?: Record<string, string>;
   failing?: { persist?: boolean; userName?: boolean; push?: boolean; mail?: boolean };
   emailWanted?: boolean;
   recipient?: { email: string; locale: string } | null;
@@ -36,9 +39,10 @@ function serviceWith(setup: Setup = {}) {
     failing.persist ? Promise.reject(new Error("base injoignable")) : Promise.resolve({}),
   );
   const deleteMany = vi.fn(() => Promise.resolve({ count: 0 }));
-  const findUnique = vi.fn((args: { select: Record<string, boolean> }) => {
+  const findUnique = vi.fn((args: { where: { id: string }; select: Record<string, boolean> }) => {
     if (args.select.name) {
       if (failing.userName) return Promise.reject(new Error("lecture impossible"));
+      if (setup.names) return Promise.resolve({ name: setup.names[args.where.id] ?? null });
       return Promise.resolve(setup.userName === null ? null : { name: setup.userName ?? "Noa" });
     }
     return Promise.resolve(setup.recipient === undefined ? null : setup.recipient);
@@ -200,6 +204,267 @@ describe("NotificationService — push", () => {
         data: { type: NotificationType.REMINDER_DUE, reminderId: "rem_1" },
       }),
     ]);
+  });
+});
+
+/**
+ * Ce que chaque émetteur écrit, au caractère près : la ligne du centre et le push. Les deux portent
+ * le même `type` et la même cible, écrits une seule fois (#351) — et la clé d'id du push est
+ * HISTORIQUE : une app déjà installée lit `planId` ou `scheduledSessionId`, la renommer casserait
+ * sa navigation. Un `null` en trace : l'émetteur pousse sans laisser de ligne.
+ */
+describe("NotificationService — ce que chaque émetteur écrit", () => {
+  const NAMES = { ath_1: "Noa", coach_2: "Camille", org_1: "Club Altitude" };
+  const PLAN_SESSION = { athleteId: "ath_1", planId: "plan_1", sessionTitle: "Bloc force" };
+  const INVITATION = { coachId: "coach_2", athleteId: "ath_1", invitationId: "inv_1" };
+  const toAthlete = (type: PersistedNotificationType, subjectLabel: string | null) => ({
+    recipientId: "ath_1",
+    type,
+    entityType: NotificationEntityType.PLAN,
+    entityId: "plan_1",
+    actorName: null,
+    subjectLabel,
+  });
+  const invitationTo = (
+    recipientId: string,
+    type: PersistedNotificationType,
+    actorName: string,
+    subjectLabel: string | null = null,
+  ) => ({
+    recipientId,
+    type,
+    entityType: NotificationEntityType.INVITATION,
+    entityId: "inv_1",
+    actorName,
+    subjectLabel,
+  });
+
+  const cases: {
+    name: string;
+    emit: (service: NotificationService) => Promise<void>;
+    trace: Record<string, unknown> | null;
+    push: { title: string; body: string; data: Record<string, string> };
+  }[] = [
+    {
+      name: "cycle diffusé",
+      emit: (s) =>
+        s.notifyPlanPublished({ athleteId: "ath_1", planId: "plan_1", planTitle: "Cycle hiver" }),
+      trace: toAthlete(NotificationType.PLAN_PUBLISHED, "Cycle hiver"),
+      push: {
+        title: "Nouvelle planification",
+        body: "Ton coach a diffusé « Cycle hiver ».",
+        data: { type: NotificationType.PLAN_PUBLISHED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "séance modifiée",
+      emit: (s) => s.notifyPlanUpdated(PLAN_SESSION),
+      trace: toAthlete(NotificationType.PLAN_UPDATED, "Bloc force"),
+      push: {
+        title: "Séance modifiée",
+        body: "Ton coach a ajusté « Bloc force ».",
+        data: { type: NotificationType.PLAN_UPDATED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "journée réordonnée",
+      emit: (s) =>
+        s.notifyPlanSessionsReordered({
+          athleteId: "ath_1",
+          planId: "plan_1",
+          isoDate: "2026-11-19",
+        }),
+      trace: toAthlete(NotificationType.PLAN_SESSIONS_REORDERED, "2026-11-19"),
+      push: {
+        title: "Séances réordonnées",
+        body: "Ton coach a changé l'ordre de tes séances de la journée.",
+        data: { type: NotificationType.PLAN_SESSIONS_REORDERED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "séance ajoutée",
+      emit: (s) => s.notifyPlanSessionAdded(PLAN_SESSION),
+      trace: toAthlete(NotificationType.PLAN_SESSION_ADDED, "Bloc force"),
+      push: {
+        title: "Séance ajoutée",
+        body: "Ton coach a ajouté « Bloc force » à ton cycle.",
+        data: { type: NotificationType.PLAN_SESSION_ADDED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "séance retirée",
+      emit: (s) => s.notifyPlanSessionRemoved(PLAN_SESSION),
+      trace: toAthlete(NotificationType.PLAN_SESSION_REMOVED, "Bloc force"),
+      push: {
+        title: "Séance retirée",
+        body: "Ton coach a retiré « Bloc force » de ton cycle.",
+        data: { type: NotificationType.PLAN_SESSION_REMOVED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "débrief reçu",
+      emit: (s) => s.notifyFeedbackReceived(FEEDBACK),
+      trace: {
+        recipientId: "coach_1",
+        type: NotificationType.FEEDBACK_RECEIVED,
+        entityType: NotificationEntityType.SCHEDULED_SESSION,
+        entityId: "ss_1",
+        actorName: "Noa",
+        subjectLabel: "Bloc force",
+      },
+      push: {
+        title: "Nouveau débrief",
+        body: "Noa a débriefé « Bloc force ».",
+        data: { type: NotificationType.FEEDBACK_RECEIVED, scheduledSessionId: "ss_1" },
+      },
+    },
+    {
+      name: "débrief complété",
+      emit: (s) => s.notifyFeedbackCompleted(FEEDBACK),
+      trace: null,
+      push: {
+        title: "Débrief complété",
+        body: "Noa a complété son débrief de « Bloc force ».",
+        data: { type: NotificationType.FEEDBACK_RECEIVED, scheduledSessionId: "ss_1" },
+      },
+    },
+    {
+      name: "message reçu",
+      emit: (s) =>
+        s.notifyMessageReceived(
+          { recipientId: "coach_1", senderId: "ath_1", conversationId: "conv_1" },
+          { push: true, trace: true },
+        ),
+      trace: {
+        recipientId: "coach_1",
+        type: NotificationType.MESSAGE_RECEIVED,
+        entityType: NotificationEntityType.CONVERSATION,
+        entityId: "conv_1",
+        actorName: "Noa",
+        subjectLabel: null,
+      },
+      push: {
+        title: "Noa",
+        body: "Tu as reçu un nouveau message.",
+        data: { type: NotificationType.MESSAGE_RECEIVED, conversationId: "conv_1" },
+      },
+    },
+    {
+      name: "facture émise",
+      emit: (s) => s.notifyInvoiceIssued({ athleteId: "ath_1", invoiceId: "invoice_1" }),
+      trace: {
+        recipientId: "ath_1",
+        type: NotificationType.INVOICE_ISSUED,
+        entityType: NotificationEntityType.INVOICE,
+        entityId: "invoice_1",
+        actorName: null,
+        subjectLabel: null,
+      },
+      push: {
+        title: "Nouvelle facture",
+        body: "Ton coach t'a émis une facture.",
+        data: { type: NotificationType.INVOICE_ISSUED, invoiceId: "invoice_1" },
+      },
+    },
+    {
+      name: "invitation reçue",
+      emit: (s) =>
+        s.notifyInvitationReceived({
+          athleteId: "ath_1",
+          inviterId: "coach_2",
+          invitationId: "inv_1",
+        }),
+      trace: invitationTo("ath_1", NotificationType.INVITATION_RECEIVED, "Camille"),
+      push: {
+        title: "Invitation",
+        body: "Camille t'invite à rejoindre son espace.",
+        data: { type: NotificationType.INVITATION_RECEIVED, invitationId: "inv_1" },
+      },
+    },
+    {
+      name: "invitation d'une entreprise",
+      emit: (s) =>
+        s.notifyOrganizationInvitationReceived({
+          coachId: "coach_2",
+          organizationId: "org_1",
+          invitationId: "inv_1",
+        }),
+      trace: invitationTo(
+        "coach_2",
+        NotificationType.ORGANIZATION_INVITATION_RECEIVED,
+        "Club Altitude",
+      ),
+      push: {
+        title: "Invitation",
+        body: "Club Altitude t'invite à rejoindre son équipe.",
+        data: { type: NotificationType.ORGANIZATION_INVITATION_RECEIVED, invitationId: "inv_1" },
+      },
+    },
+    {
+      name: "coach arrivé par l'entreprise",
+      emit: (s) =>
+        s.notifyOrganizationCoachJoined({
+          athleteId: "ath_1",
+          coachId: "coach_2",
+          organizationId: "org_1",
+          invitationId: "inv_1",
+        }),
+      trace: invitationTo(
+        "ath_1",
+        NotificationType.ORGANIZATION_COACH_JOINED,
+        "Camille",
+        "Club Altitude",
+      ),
+      push: {
+        title: "Nouveau coach",
+        body: "Camille te suit désormais, via Club Altitude.",
+        data: { type: NotificationType.ORGANIZATION_COACH_JOINED, invitationId: "inv_1" },
+      },
+    },
+    {
+      name: "invitation acceptée",
+      emit: (s) => s.notifyInvitationAccepted(INVITATION),
+      trace: invitationTo("coach_2", NotificationType.INVITATION_ACCEPTED, "Noa"),
+      push: {
+        title: "Invitation acceptée",
+        body: "Noa a rejoint ton espace.",
+        data: { type: NotificationType.INVITATION_ACCEPTED, invitationId: "inv_1" },
+      },
+    },
+    {
+      name: "invitation refusée",
+      emit: (s) => s.notifyInvitationDeclined(INVITATION),
+      trace: invitationTo("coach_2", NotificationType.INVITATION_DECLINED, "Noa"),
+      push: {
+        title: "Invitation refusée",
+        body: "Noa a refusé ton invitation.",
+        data: { type: NotificationType.INVITATION_DECLINED, invitationId: "inv_1" },
+      },
+    },
+    {
+      name: "rappel dû",
+      emit: (s) =>
+        s.notifyReminderDue({ coachId: "coach_1", reminderId: "rem_1", label: "Relancer" }),
+      trace: null,
+      push: {
+        title: "Rappel",
+        body: "Relancer",
+        data: { type: NotificationType.REMINDER_DUE, reminderId: "rem_1" },
+      },
+    },
+  ];
+
+  it.each(cases)("$name : la trace et le push, exacts", async (c) => {
+    const { service, create, sendPush } = serviceWith({
+      tokens: [{ id: "tok_1", token: VALID }],
+      names: NAMES,
+    });
+
+    await c.emit(service);
+
+    if (c.trace == null) expect(create).not.toHaveBeenCalled();
+    else expect(create).toHaveBeenCalledExactlyOnceWith({ data: c.trace });
+    expect(sendPush).toHaveBeenCalledExactlyOnceWith([{ to: VALID, sound: "default", ...c.push }]);
   });
 });
 
