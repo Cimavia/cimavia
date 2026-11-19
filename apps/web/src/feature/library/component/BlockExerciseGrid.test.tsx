@@ -3,6 +3,7 @@ import { within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../../../test/render";
+import { describeReorder, dragOnto } from "../../../../test/reorder";
 import { BlockExerciseGrid } from "./BlockExerciseGrid";
 
 const reps: GridMetric = {
@@ -95,18 +96,38 @@ describe("BlockExerciseGrid", () => {
     expect(view.cells()).toHaveLength(4);
   });
 
-  it("déplace une ligne propre au clavier, jamais au-delà des lignes propres", async () => {
+  // Le reste des gestes est éprouvé par `describeReorder` ; seul le fantôme est propre à la grille.
+  it("ne descend pas une ligne propre dans un fantôme", async () => {
     const view = mount(gridOf({ reps: 8 }, { reps: 6 }), 3);
-    const handle = (rank: number) =>
-      view.getByRole("button", { name: `library.builder.grid.moveRow ${rank}` });
 
-    handle(2).focus();
+    view.getByRole("button", { name: "library.builder.grid.moveRow 2" }).focus();
     await view.user.keyboard("{ArrowDown}");
-    expect(view.changes).not.toHaveBeenCalled();
 
-    handle(2).focus();
-    await view.user.keyboard("{ArrowUp}");
-    expect(view.last().rows.map((row) => row.id)).toEqual(["r2", "r1"]);
+    expect(view.changes).not.toHaveBeenCalled();
+  });
+
+  describe("ordre des lignes propres", () => {
+    // Une ligne se reconnaît à ses répétitions : la première colonne de chaque ligne.
+    describeReorder(["8", "6", "4"], () => {
+      const view = mount(gridOf({ reps: 8 }, { reps: 6 }, { reps: 4 }), 3);
+      const handle = (rank: number) =>
+        view.getByRole("button", { name: `library.builder.grid.moveRow ${rank}` });
+      const press = async (rank: number, key: string) => {
+        handle(rank).focus();
+        await view.user.keyboard(key);
+      };
+      return {
+        order: () =>
+          view
+            .cells()
+            .filter((_cell, index) => index % 2 === 0)
+            .map((cell) => (cell as HTMLInputElement).value),
+        moveUp: (rank) => press(rank, "{ArrowUp}"),
+        moveDown: (rank) => press(rank, "{ArrowDown}"),
+        drag: (from, to) => dragOnto(handle(from), handle(to)),
+        writes: () => view.changes.mock.calls.length,
+      };
+    });
   });
 
   it("dit les lignes au-delà des tours, toujours modifiables jusqu'à l'enregistrement", () => {
