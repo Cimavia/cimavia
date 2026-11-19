@@ -1,8 +1,15 @@
-import type { EmailableNotificationType, EnvSchema, PersistedNotificationType } from "@cmv/shared";
+import type {
+  EmailableNotificationType,
+  EnvSchema,
+  NotificationEntityTypeType,
+  PersistedNotificationType,
+  PushPayload,
+} from "@cmv/shared";
 import {
   EMAILABLE_NOTIFICATION_TYPES,
-  NotificationEntityType,
+  NOTIFICATION_ENTITY_TYPE,
   NotificationType,
+  pushPayloadOf,
 } from "@cmv/shared";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -115,31 +122,9 @@ export type ReminderDueEvent = {
   label: string;
 };
 
-/**
- * Ce que le client reçoit dans les données de la notification : de quoi router vers le bon écran à
- * l'ouverture. Le `type` est typé depuis `NotificationType` pour que le push et la ligne persistée
- * ne puissent pas diverger ; les CLÉS d'id, elles, restent telles quelles — une app déjà installée
- * lit `planId`/`scheduledSessionId`, les renommer casserait sa navigation.
- */
-type PushPayload =
-  | { type: typeof NotificationType.PLAN_PUBLISHED; planId: string }
-  | { type: typeof NotificationType.PLAN_UPDATED; planId: string }
-  | { type: typeof NotificationType.PLAN_SESSION_ADDED; planId: string }
-  | { type: typeof NotificationType.PLAN_SESSION_REMOVED; planId: string }
-  | { type: typeof NotificationType.PLAN_SESSIONS_REORDERED; planId: string }
-  | { type: typeof NotificationType.FEEDBACK_RECEIVED; scheduledSessionId: string }
-  | { type: typeof NotificationType.MESSAGE_RECEIVED; conversationId: string }
-  | { type: typeof NotificationType.INVOICE_ISSUED; invoiceId: string }
-  | { type: typeof NotificationType.INVITATION_RECEIVED; invitationId: string }
-  | { type: typeof NotificationType.INVITATION_ACCEPTED; invitationId: string }
-  | { type: typeof NotificationType.INVITATION_DECLINED; invitationId: string }
-  | { type: typeof NotificationType.ORGANIZATION_INVITATION_RECEIVED; invitationId: string }
-  | { type: typeof NotificationType.ORGANIZATION_COACH_JOINED; invitationId: string }
-  // Le seul type poussé SANS ligne en base (#47) : l'entrée du centre reste calculée à la lecture.
-  // Sa clé d'id est `reminderId`, comme les autres sont `planId` ou `invoiceId`.
-  | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
-
-type PushContent = { title: string; body: string; data: PushPayload };
+/** Le texte d'un push. Ses données — de quoi router à l'ouverture — se déduisent du type (#351). */
+type PushText = { title: string; body: string };
+type PushContent = PushText & { data: PushPayload };
 
 /**
  * Les canaux d'une émission (#537). Ils ne suivent pas le même rythme : le push part à chaque
@@ -156,24 +141,40 @@ const ALL_CHANNELS: NotificationChannels = { push: true, trace: true };
 const PUSH_ONLY: NotificationChannels = { push: true, trace: false };
 
 /**
- * Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3).
+ * Ce qu'un émetteur dit d'un événement. Le type n'y est écrit qu'UNE fois (#351) : l'entité de la
+ * ligne et la charge utile du push s'en déduisent (`NOTIFICATION_ENTITY_TYPE`), là où chaque
+ * émetteur les recopiait à la main sans que rien ne les lie.
  *
  * `PersistedNotificationType` et non `NotificationType` : `REMINDER_DUE` (#51) est calculé à la
  * lecture depuis la table `reminder` et n'existe pas dans l'enum Prisma. L'exclusion est portée par
  * le type plutôt que par une garde, pour que la faute se voie à la compilation.
  */
-type NotificationRecord = {
+type NotificationEvent = {
   recipientId: string;
   type: PersistedNotificationType;
-  entityType: NotificationEntityType;
   entityId: string;
   actorName: string | null;
   subjectLabel: string | null;
 };
 
+/** Ce qu'on écrit en base : le libellé n'y est pas — seulement de quoi le rendre (cf. §3). */
+type NotificationRecord = NotificationEvent & { entityType: NotificationEntityTypeType };
+
+/** Un cycle diffusé, ou l'un de ses ajustements : l'athlète en est prévenu, sans nom d'acteur. */
+type PlanChangeType =
+  | typeof NotificationType.PLAN_PUBLISHED
+  | typeof NotificationType.PLAN_UPDATED
+  | typeof NotificationType.PLAN_SESSION_ADDED
+  | typeof NotificationType.PLAN_SESSION_REMOVED
+  | typeof NotificationType.PLAN_SESSIONS_REORDERED;
+
 /**
  * Point d'émission des notifications métier (CDC §12) : nouvelle planif, ajustement de planif,
  * débrief reçu — puis message (P5) et facture (P6).
+ *
+ * Une méthode par événement, et non un `notify(type, …)` unique (#351) : chacune a sa charge, ses
+ * noms à résoudre et ses canaux, et treize appelants les nomment. Ce qu'elles avaient de commun —
+ * l'entité et la charge utile du push — est passé dans `emit`, d'où le type ne peut plus diverger.
  *
  * Trois règles gouvernent ce service :
  *
@@ -212,21 +213,10 @@ export class NotificationService {
 
   async notifyPlanPublished(event: PlanPublishedEvent): Promise<void> {
     this.logger.info({ event: "plan.published", ...event }, "Planification diffusée à l'athlète");
-    await this.emit(
-      {
-        recipientId: event.athleteId,
-        type: NotificationType.PLAN_PUBLISHED,
-        entityType: NotificationEntityType.PLAN,
-        entityId: event.planId,
-        actorName: null,
-        subjectLabel: event.planTitle,
-      },
-      {
-        title: "Nouvelle planification",
-        body: `Ton coach a diffusé « ${event.planTitle} ».`,
-        data: { type: NotificationType.PLAN_PUBLISHED, planId: event.planId },
-      },
-    );
+    await this.emitPlanChange(NotificationType.PLAN_PUBLISHED, event, event.planTitle, {
+      title: "Nouvelle planification",
+      body: `Ton coach a diffusé « ${event.planTitle} ».`,
+    });
   }
 
   // Ajustement en cours de cycle (CDC §5.7) : sans notification, l'athlète s'entraînerait sur
@@ -234,21 +224,10 @@ export class NotificationService {
   // d'ajustement ci-dessous sont distinctes parce que l'athlète n'a pas le même geste à faire.
   async notifyPlanUpdated(event: PlanSessionEvent): Promise<void> {
     this.logger.info({ event: "plan.updated", ...event }, "Planification ajustée par le coach");
-    await this.emit(
-      {
-        recipientId: event.athleteId,
-        type: NotificationType.PLAN_UPDATED,
-        entityType: NotificationEntityType.PLAN,
-        entityId: event.planId,
-        actorName: null,
-        subjectLabel: event.sessionTitle,
-      },
-      {
-        title: "Séance modifiée",
-        body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
-        data: { type: NotificationType.PLAN_UPDATED, planId: event.planId },
-      },
-    );
+    await this.emitPlanChange(NotificationType.PLAN_UPDATED, event, event.sessionTitle, {
+      title: "Séance modifiée",
+      body: `Ton coach a ajusté « ${event.sessionTitle} ».`,
+    });
   }
 
   /**
@@ -262,40 +241,18 @@ export class NotificationService {
       { event: "plan.sessions.reordered", ...event },
       "Journée réordonnée par le coach",
     );
-    await this.emit(
-      {
-        recipientId: event.athleteId,
-        type: NotificationType.PLAN_SESSIONS_REORDERED,
-        entityType: NotificationEntityType.PLAN,
-        entityId: event.planId,
-        actorName: null,
-        subjectLabel: event.isoDate,
-      },
-      {
-        title: "Séances réordonnées",
-        body: "Ton coach a changé l'ordre de tes séances de la journée.",
-        data: { type: NotificationType.PLAN_SESSIONS_REORDERED, planId: event.planId },
-      },
-    );
+    await this.emitPlanChange(NotificationType.PLAN_SESSIONS_REORDERED, event, event.isoDate, {
+      title: "Séances réordonnées",
+      body: "Ton coach a changé l'ordre de tes séances de la journée.",
+    });
   }
 
   async notifyPlanSessionAdded(event: PlanSessionEvent): Promise<void> {
     this.logger.info({ event: "plan.session.added", ...event }, "Séance ajoutée au cycle diffusé");
-    await this.emit(
-      {
-        recipientId: event.athleteId,
-        type: NotificationType.PLAN_SESSION_ADDED,
-        entityType: NotificationEntityType.PLAN,
-        entityId: event.planId,
-        actorName: null,
-        subjectLabel: event.sessionTitle,
-      },
-      {
-        title: "Séance ajoutée",
-        body: `Ton coach a ajouté « ${event.sessionTitle} » à ton cycle.`,
-        data: { type: NotificationType.PLAN_SESSION_ADDED, planId: event.planId },
-      },
-    );
+    await this.emitPlanChange(NotificationType.PLAN_SESSION_ADDED, event, event.sessionTitle, {
+      title: "Séance ajoutée",
+      body: `Ton coach a ajouté « ${event.sessionTitle} » à ton cycle.`,
+    });
   }
 
   // Le titre de la séance retirée est la SEULE trace qu'il en restera : la ligne est supprimée en
@@ -305,20 +262,32 @@ export class NotificationService {
       { event: "plan.session.removed", ...event },
       "Séance retirée du cycle diffusé",
     );
+    await this.emitPlanChange(NotificationType.PLAN_SESSION_REMOVED, event, event.sessionTitle, {
+      title: "Séance retirée",
+      body: `Ton coach a retiré « ${event.sessionTitle} » de ton cycle.`,
+    });
+  }
+
+  /**
+   * Ce que la diffusion d'un cycle et ses quatre ajustements ont en commun : l'athlète est le
+   * destinataire, le cycle la cible, et l'acteur n'est pas nommé — c'est son coach, qu'il connaît.
+   * Seul le sujet change : le titre du cycle, d'une séance, ou le jour réordonné.
+   */
+  private async emitPlanChange(
+    type: PlanChangeType,
+    event: { athleteId: string; planId: string },
+    subjectLabel: string,
+    text: PushText,
+  ): Promise<void> {
     await this.emit(
       {
         recipientId: event.athleteId,
-        type: NotificationType.PLAN_SESSION_REMOVED,
-        entityType: NotificationEntityType.PLAN,
+        type,
         entityId: event.planId,
         actorName: null,
-        subjectLabel: event.sessionTitle,
+        subjectLabel,
       },
-      {
-        title: "Séance retirée",
-        body: `Ton coach a retiré « ${event.sessionTitle} » de ton cycle.`,
-        data: { type: NotificationType.PLAN_SESSION_REMOVED, planId: event.planId },
-      },
+      text,
     );
   }
 
@@ -337,7 +306,7 @@ export class NotificationService {
    *
    * **Push seul** : le centre porte déjà l'entrée « nouveau débrief », qui ouvre l'état courant, et
    * le débrief repasse « à relire » dans la tuile du coach. Une entrée par complément répéterait la
-   * même chose, et l'e-mail avec elle. Même destination que la création, donc même `data`.
+   * même chose, et l'e-mail avec elle. Même destination que la création, donc même type.
    */
   async notifyFeedbackCompleted(event: FeedbackReceivedEvent): Promise<void> {
     this.logger.info({ event: "feedback.completed", ...event }, "Débrief complété par l'athlète");
@@ -356,25 +325,18 @@ export class NotificationService {
   private async emitFeedback(
     event: FeedbackReceivedEvent,
     channels: NotificationChannels,
-    text: (athleteName: string) => { title: string; body: string },
+    text: (athleteName: string) => PushText,
   ): Promise<void> {
     const athleteName = await this.userName(event.athleteId);
     await this.emit(
       {
         recipientId: event.coachId,
         type: NotificationType.FEEDBACK_RECEIVED,
-        entityType: NotificationEntityType.SCHEDULED_SESSION,
         entityId: event.scheduledSessionId,
         actorName: athleteName,
         subjectLabel: event.sessionTitle,
       },
-      {
-        ...text(athleteName ?? "Un de tes athlètes"),
-        data: {
-          type: NotificationType.FEEDBACK_RECEIVED,
-          scheduledSessionId: event.scheduledSessionId,
-        },
-      },
+      text(athleteName ?? "Un de tes athlètes"),
       channels,
     );
   }
@@ -395,7 +357,6 @@ export class NotificationService {
       {
         recipientId: event.recipientId,
         type: NotificationType.MESSAGE_RECEIVED,
-        entityType: NotificationEntityType.CONVERSATION,
         entityId: event.conversationId,
         actorName: senderName,
         subjectLabel: null,
@@ -405,7 +366,6 @@ export class NotificationService {
         // les deux cas c'est l'info utile. Corps générique (le média n'a pas de texte à montrer).
         title: senderName ?? "Nouveau message",
         body: "Tu as reçu un nouveau message.",
-        data: { type: NotificationType.MESSAGE_RECEIVED, conversationId: event.conversationId },
       },
       channels,
     );
@@ -419,16 +379,11 @@ export class NotificationService {
       {
         recipientId: event.athleteId,
         type: NotificationType.INVOICE_ISSUED,
-        entityType: NotificationEntityType.INVOICE,
         entityId: event.invoiceId,
         actorName: null,
         subjectLabel: null,
       },
-      {
-        title: "Nouvelle facture",
-        body: "Ton coach t'a émis une facture.",
-        data: { type: NotificationType.INVOICE_ISSUED, invoiceId: event.invoiceId },
-      },
+      { title: "Nouvelle facture", body: "Ton coach t'a émis une facture." },
     );
   }
 
@@ -447,7 +402,6 @@ export class NotificationService {
       {
         recipientId: event.athleteId,
         type: NotificationType.INVITATION_RECEIVED,
-        entityType: NotificationEntityType.INVITATION,
         entityId: event.invitationId,
         actorName: inviterName,
         subjectLabel: null,
@@ -457,10 +411,6 @@ export class NotificationService {
         // Le nom EST l'information : un athlète non lié n'a aucun contexte qui dise de qui vient
         // cette invitation, contrairement à un cycle diffusé par le coach qu'il a déjà.
         body: `${inviterName ?? "Un coach"} t'invite à rejoindre son espace.`,
-        data: {
-          type: NotificationType.INVITATION_RECEIVED,
-          invitationId: event.invitationId,
-        },
       },
     );
   }
@@ -482,7 +432,6 @@ export class NotificationService {
       {
         recipientId: event.coachId,
         type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
-        entityType: NotificationEntityType.INVITATION,
         entityId: event.invitationId,
         actorName: organizationName,
         subjectLabel: null,
@@ -490,10 +439,6 @@ export class NotificationService {
       {
         title: "Invitation",
         body: `${organizationName ?? "Une entreprise"} t'invite à rejoindre son équipe.`,
-        data: {
-          type: NotificationType.ORGANIZATION_INVITATION_RECEIVED,
-          invitationId: event.invitationId,
-        },
       },
     );
   }
@@ -515,7 +460,6 @@ export class NotificationService {
       {
         recipientId: event.athleteId,
         type: NotificationType.ORGANIZATION_COACH_JOINED,
-        entityType: NotificationEntityType.INVITATION,
         entityId: event.invitationId,
         actorName: coachName,
         subjectLabel: organizationName,
@@ -523,10 +467,6 @@ export class NotificationService {
       {
         title: "Nouveau coach",
         body: `${coachName ?? "Un coach"} te suit désormais, via ${organizationName ?? "ton entreprise"}.`,
-        data: {
-          type: NotificationType.ORGANIZATION_COACH_JOINED,
-          invitationId: event.invitationId,
-        },
       },
     );
   }
@@ -534,25 +474,10 @@ export class NotificationService {
   // L'athlète a rejoint : le coach le verra apparaître dans son tableau de suivi.
   async notifyInvitationAccepted(event: InvitationAnsweredEvent): Promise<void> {
     this.logger.info({ event: "invitation.accepted", ...event }, "Invitation acceptée");
-    const athleteName = await this.userName(event.athleteId);
-    await this.emit(
-      {
-        recipientId: event.coachId,
-        type: NotificationType.INVITATION_ACCEPTED,
-        entityType: NotificationEntityType.INVITATION,
-        entityId: event.invitationId,
-        actorName: athleteName,
-        subjectLabel: null,
-      },
-      {
-        title: "Invitation acceptée",
-        body: `${athleteName ?? "Un athlète"} a rejoint ton espace.`,
-        data: {
-          type: NotificationType.INVITATION_ACCEPTED,
-          invitationId: event.invitationId,
-        },
-      },
-    );
+    await this.emitInvitationAnswer(NotificationType.INVITATION_ACCEPTED, event, (athleteName) => ({
+      title: "Invitation acceptée",
+      body: `${athleteName} a rejoint ton espace.`,
+    }));
   }
 
   /**
@@ -562,24 +487,28 @@ export class NotificationService {
    */
   async notifyInvitationDeclined(event: InvitationAnsweredEvent): Promise<void> {
     this.logger.info({ event: "invitation.declined", ...event }, "Invitation refusée");
+    await this.emitInvitationAnswer(NotificationType.INVITATION_DECLINED, event, (athleteName) => ({
+      title: "Invitation refusée",
+      body: `${athleteName} a refusé ton invitation.`,
+    }));
+  }
+
+  /** La réponse d'un athlète, remontée au coach qui l'a invité : seul le sens de la réponse change. */
+  private async emitInvitationAnswer(
+    type: typeof NotificationType.INVITATION_ACCEPTED | typeof NotificationType.INVITATION_DECLINED,
+    event: InvitationAnsweredEvent,
+    text: (athleteName: string) => PushText,
+  ): Promise<void> {
     const athleteName = await this.userName(event.athleteId);
     await this.emit(
       {
         recipientId: event.coachId,
-        type: NotificationType.INVITATION_DECLINED,
-        entityType: NotificationEntityType.INVITATION,
+        type,
         entityId: event.invitationId,
         actorName: athleteName,
         subjectLabel: null,
       },
-      {
-        title: "Invitation refusée",
-        body: `${athleteName ?? "Un athlète"} a refusé ton invitation.`,
-        data: {
-          type: NotificationType.INVITATION_DECLINED,
-          invitationId: event.invitationId,
-        },
-      },
+      text(athleteName ?? "Un athlète"),
     );
   }
 
@@ -616,12 +545,15 @@ export class NotificationService {
    * « aucun appareil → rien à faire » du push : c'est exactement le compte web-only qui, sans ça,
    * ne recevrait jamais rien.
    *
+   * L'entité de la ligne et les données du push se déduisent ici du type (#351) : un émetteur ne
+   * peut plus annoncer un type et en router un autre.
+   *
    * `channels` retient l'un ou l'autre (#537) ; la garde anti-auto-notification, elle, vaut pour
    * tous — elle passe avant.
    */
   private async emit(
-    record: NotificationRecord,
-    push: PushContent,
+    event: NotificationEvent,
+    text: PushText,
     channels: NotificationChannels = ALL_CHANNELS,
   ): Promise<void> {
     // On ne s'annonce pas à soi-même ce qu'on vient de faire (#14). En auto-coaching, l'émetteur
@@ -636,16 +568,25 @@ export class NotificationService {
     // Hors contexte tenant (aucun acteur), on émet : c'est le cas d'un déclencheur système, où
     // personne n'a « fait » l'action.
     const actor = this.cls.get<TenantContext | undefined>(TENANT_CLS_KEY);
-    if (actor?.userId === record.recipientId) {
+    if (actor?.userId === event.recipientId) {
       this.logger.debug(
-        { recipientId: record.recipientId, type: record.type },
+        { recipientId: event.recipientId, type: event.type },
         "Notification vers soi-même ignorée (auto-coaching)",
       );
       return;
     }
 
+    const record: NotificationRecord = {
+      ...event,
+      entityType: NOTIFICATION_ENTITY_TYPE[event.type],
+    };
     if (channels.trace) await this.persist(record);
-    if (channels.push) await this.push(record.recipientId, push);
+    if (channels.push) {
+      await this.push(event.recipientId, {
+        ...text,
+        data: pushPayloadOf(event.type, event.entityId),
+      });
+    }
     if (channels.trace) await this.email(record);
   }
 
