@@ -17,6 +17,19 @@ export function megabytesOf(bytes: number): number {
   return Math.round(bytes / BYTES_PER_MEGABYTE);
 }
 
+/**
+ * Le poids d'un fichier REFUSÉ pour excès, en Mo, au dixième SUPÉRIEUR.
+ *
+ * Au plus proche, un fichier d'un octet au-delà de 20 Mo s'afficherait « 20 Mo — dépasse la limite
+ * de 20 Mo » : le message se contredirait. Au dixième supérieur, le poids montré dépasse toujours
+ * une limite d'un nombre ENTIER de Mo, telle que `megabytesOf` l'affiche — c'est le cas de tous les
+ * plafonds de `@cmv/shared`. `bytes * 10` d'abord : la division par une puissance de deux reste
+ * alors exacte, sans résidu flottant qui ferait monter d'un dixième de trop.
+ */
+export function exceededMegabytesOf(bytes: number): number {
+  return Math.ceil((bytes * 10) / BYTES_PER_MEGABYTE) / 10;
+}
+
 // Le plafond en minutes, arrondi. Même usage : dire « 5 minutes » plutôt que « 300 secondes ».
 export function minutesOf(seconds: number): number {
   return Math.round(seconds / SECONDS_PER_MINUTE);

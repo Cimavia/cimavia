@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  exceededMegabytesOf,
   fileSizeOf,
   formatMediaDuration,
   formatMmSs,
@@ -21,6 +22,24 @@ describe("megabytesOf", () => {
   it("arrondit plutôt que de tronquer", () => {
     expect(megabytesOf(10.6 * 1024 * 1024)).toBe(11);
     expect(megabytesOf(512 * 1024)).toBe(1);
+  });
+});
+
+describe("exceededMegabytesOf", () => {
+  const MEGABYTE = 1024 * 1024;
+
+  // Le cas qui motive la fonction : au plus proche, ce fichier pèserait « 20 Mo », sa propre limite.
+  it("montre un octet de trop comme un dixième de plus", () => {
+    expect(exceededMegabytesOf(20 * MEGABYTE + 1)).toBe(20.1);
+  });
+
+  it("ne monte pas d'un dixième sur un poids déjà rond", () => {
+    expect(exceededMegabytesOf(21 * MEGABYTE)).toBe(21);
+    expect(exceededMegabytesOf(34.5 * MEGABYTE)).toBe(34.5);
+  });
+
+  it("arrondit vers le haut, jamais au plus proche", () => {
+    expect(exceededMegabytesOf(34 * MEGABYTE + 10_000)).toBe(34.1);
   });
 });
 
