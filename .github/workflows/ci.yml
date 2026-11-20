@@ -347,7 +347,8 @@ jobs:
         uses: $/.github/actions/setup
 
       # La base seule : aucun parcours ne touche aux médias, et l'API démarre sans storage.
-      # `e2e/prepare-database.mjs` y crée sa propre base, `cimavia_db_web_e2e`, avant que l'API démarre.
+      # `packages/e2e/prepare-database.mjs` y crée sa propre base, `cimavia_db_web_e2e`, avant que
+      # l'API démarre.
       - name: Démarre la base e2e jetable (5434)
         if: steps.changes.outputs.web == 'true'
         run: docker compose -f apps/api/docker-compose.test.yml up -d --wait

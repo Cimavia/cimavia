@@ -96,10 +96,10 @@ pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e
 > Les **e2e navigateur** (`apps/web/e2e/`) jouent les parcours du Coach — connexion, diffusion
 > d'un cycle, lecture d'un débrief, facture réglée — contre une vraie API et le bundle de
 > production du web, qu'ils démarrent eux-mêmes. Leur base, `cimavia_db_web_e2e`, est créée puis
-> vidée avant que l'API démarre (`e2e/prepare-database.mjs`) : ils tournent en même temps que les
+> vidée avant que l'API démarre (`packages/e2e/prepare-database.mjs`) : ils tournent en même temps que les
 > e2e de l'API sans les gêner. Un serveur déjà présent sur 3101 ou 4310 n'est jamais réutilisé : la
 > suite échoue en nommant le port.
-> Chaque test pose ses données par l'API (`e2e/support/seed.ts`), sous des adresses à lui, et
+> Chaque test pose ses données par l'API (`@cmv/e2e/seed`), sous des adresses à lui, et
 > cherche ses éléments par leur libellé tiré de `fr.json`, jamais par du texte en dur. Un échec
 > laisse une trace : `pnpm --filter @cmv/web exec playwright show-trace <test-results/…/trace.zip>`.
 > Pourquoi ces choix : « Tranché en #627 ».

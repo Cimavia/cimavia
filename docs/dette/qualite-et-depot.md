@@ -1090,7 +1090,7 @@ liste des domaines vivent dans l'index.
 > depuis #630, d'un worktree à l'autre aussi.
 >
 > **La base avant l'API, pas en `globalSetup`** : Playwright démarre ses `webServer` AVANT le
-> global setup, et l'API serait partie sur une base pas encore créée. `e2e/prepare-database.mjs`
+> global setup, et l'API serait partie sur une base pas encore créée. `prepare-database.mjs`
 > ouvre donc la commande de l'API : `migrate deploy`, qui crée la base au besoin, puis un
 > `TRUNCATE` des tables lues au catalogue. Pas de `migrate reset`, que Prisma refuse quand un
 > agent le lance.
@@ -1102,7 +1102,7 @@ liste des domaines vivent dans l'index.
 > `process.env` l'emporte sur le fichier, même vide, et le schéma lit le vide comme absent. Pas
 > de SILO : aucun parcours ne touche aux médias.
 >
-> **Les données par l'API, jamais par Prisma.** `e2e/support/seed.ts` inscrit, invite, crée,
+> **Les données par l'API, jamais par Prisma.** Le seed (`@cmv/e2e/seed`) inscrit, invite, crée,
 > facture, diffuse et débriefe par les routes : les données franchissent les mêmes règles que
 > dans l'app. Chaque test inscrit ses propres comptes, suffixés d'un identifiant aléatoire — une
 > relance ne heurte pas ses adresses. Le navigateur reçoit la session par son cookie ; seul le

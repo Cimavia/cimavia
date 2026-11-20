@@ -8,8 +8,8 @@ import { currentWorktree, worktreeDatabaseUrl, worktreePort } from "@cmv/e2e";
  * conteneur, lui, est le même (`docker-compose.test.yml`, port 5434) — une base de plus n'y coûte
  * rien, un conteneur de plus si.
  *
- * Aucun secret : ces valeurs décrivent des conteneurs et des processus qui ne vivent que le temps
- * d'une suite, comme `apps/api/.env.test.example`.
+ * L'API elle-même, ses variables et son secret sont ceux de `@cmv/e2e/api-server`, partagés avec
+ * les parcours mobiles (#638) : ce fichier n'en fixe que le port et la base.
  */
 
 /**
@@ -37,9 +37,3 @@ export const DATABASE_URL = worktreeDatabaseUrl(
   "postgresql://cimavia_e2e:cimavia_dev_e2e@localhost:5434/cimavia_db_web_e2e",
   worktree,
 );
-
-/**
- * Le secret Better Auth de l'API de test. Exporté parce que le seed en a besoin (#270) : il fabrique
- * le jeton de vérification d'adresse comme l'API l'aurait mis dans l'e-mail, faute d'en recevoir.
- */
-export const AUTH_SECRET = "test-secret-not-for-production-0123456789abcdef";

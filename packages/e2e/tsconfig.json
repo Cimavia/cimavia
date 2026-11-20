@@ -5,7 +5,12 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    // La source de `@cmv/shared`, comme le web : Playwright lit ces chemins pour charger le seed, et
+    // le `dist` n'existe pas encore quand il charge la config — l'API de test le construit ensuite.
+    "paths": {
+      "@cmv/shared": ["../shared/src/index.ts"]
+    }
   },
   "include": ["src"]
 }
