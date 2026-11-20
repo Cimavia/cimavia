@@ -443,6 +443,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Les dépendances et le cache de build de Gradle. ÉCRIT depuis la PR, et c'est voulu : le job
+      # ne tourne jamais sur `main`, d'où seul un cache se partage entre PR. Celui-ci ne sert qu'aux
+      # runs suivants de la même PR — chaque push sinon repaie la build à froid.
+      - name: Setup Gradle
+        if: steps.changes.outputs.mobile == 'true'
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: false
+
       # L'émulateur accéléré : sans KVM, il démarre en dizaines de minutes.
       - name: Active KVM
         if: steps.changes.outputs.mobile == 'true'

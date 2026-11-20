@@ -1155,8 +1155,9 @@ liste des domaines vivent dans l'index.
 > `<label>`. Il ne sait saisir que de l'ASCII : les textes tapés sont sans accent.
 >
 > **Un job non requis, comme le web**, filtré par étapes, sur les PR qui touchent le mobile, l'API
-> ou leurs paquets. La build release s'y paie à chaque run : pas de cache Gradle, le job ne tourne
-> jamais sur `main` et un cache de PR ne servirait qu'à elle. En local depuis WSL2, l'émulateur
+> ou leurs paquets. La build release s'y paie à chaque run, sur un cache Gradle écrit par la PR :
+> le job ne tourne jamais sur `main`, et seuls les pushs suivants de la même PR en profitent. Le
+> premier run de chaque PR reste à froid. En local depuis WSL2, l'émulateur
 > est celui de Windows : `scripts/dev-portproxy.ps1` relaie son serveur adb vers WSL seulement, et
 > la suite le relaie à son tour sur `localhost:5037`, où Maestro le cherche (`CMV_ADB_SERVER`). Le
 > `prebuild --clean` régénère `apps/mobile/android/`, celui du dev client, qu'un `expo run:android`
