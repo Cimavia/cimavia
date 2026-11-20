@@ -94,8 +94,8 @@ export function MessagesScreen() {
   // Une liste à montrer, donc à chercher : ni en panne, ni vide.
   const hasList = !isError && list.length > 0;
   const refresh = () => {
-    conversations.refetch();
-    candidates.refetch();
+    void conversations.refetch();
+    void candidates.refetch();
   };
 
   return (
@@ -276,7 +276,7 @@ function ConversationRow({
 
       {unread === 0 ? null : (
         <View className="h-6 min-w-6 items-center justify-center rounded-full bg-cmv-accent px-2">
-          <CmvText className="text-cmv-accent-fg text-xs">{unread}</CmvText>
+          <CmvText className="text-cmv-text-hi text-xs">{unread}</CmvText>
         </View>
       )}
     </Pressable>

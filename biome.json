@@ -25,7 +25,8 @@
       "!apps/web/tailwind.config.js",
       "!apps/web/postcss.config.js",
       "!packages/tokens/src/tailwind-preset.js",
-      "!scripts/lint-rules/fixtures"
+      "!scripts/lint-rules/fixtures",
+      "!scripts/tokens/fixtures"
     ]
   },
   "plugins": [

@@ -66,6 +66,7 @@ pnpm check:lint-rules                    # les règles Biome maison mordent enco
 pnpm turbo typecheck test                # (la CI bloque aussi sur les e2e, plus bas)
 pnpm check:i18n                          # clés i18n assemblées (idem — cf. plus bas)
 pnpm check:i18n --strict                 # + les clés mortes — exigé en local, pas en CI
+pnpm check:tokens                        # une classe *-cmv-* que Tailwind ne génère pas (#178)
 pnpm check:dette                         # journal de dette : identifiants, suivi, archive
 pnpm check:migrations                    # squawk sur les migrations de la branche (CONTRIBUTING.md)
 pnpm check:bundle                        # export Expo android + aucun paquet en deux copies dans le bundle (#760)

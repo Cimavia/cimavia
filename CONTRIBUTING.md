@@ -24,7 +24,8 @@ CI (`.github/workflows/`) :
 - `ci.yml`, job **`Lint + Typecheck + Test`** — l'**agrégateur** de quatre jobs parallèles (#683),
   dont il lit le résultat : il échoue si l'un d'eux n'a pas réussi, sauté compris. Les quatre :
   - `Lint + Typecheck` — commitlint sur les commits de la PR (#416), Biome, `check:lint-rules`,
-    `check:dette`, `check:migrations` (squawk, sur les PR — #628), `turbo typecheck`, `check:i18n` ;
+    `check:dette`, `check:migrations` (squawk, sur les PR — #628), `turbo typecheck`, `check:i18n`,
+    `check:tokens` (#178) ;
   - `Tests web`, `Tests mobile` — chacun sa suite Vitest, sur son runner ;
   - `Tests hors web et mobile` — `@cmv/shared`, les tests unitaires de l'API, `@cmv/e2e`. Le
     filtre exclut plutôt qu'il ne liste : un nouveau paquet testé y entre d'office, mais son lcov

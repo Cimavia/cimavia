@@ -112,6 +112,11 @@ jobs:
       - name: Check i18n keys
         run: pnpm check:i18n
 
+      # Une classe vers un token inexistant (`text-cmv-text-low`) ne génère aucune règle, en
+      # silence : ni le typecheck ni les builds ne la voient, le texte sort sans couleur (#178).
+      - name: Check tokens
+        run: pnpm check:tokens
+
   # Les tests unitaires, en trois jobs parallèles (#683). Sous un seul `turbo test`, les quatre
   # suites Vitest se disputaient les 4 vCPU du runner, chacune avec ses propres workers : l'étape
   # prenait 300 à 355 s, quand `SessionBuilderScreen.test.tsx`, le plus lent des fichiers, tient en

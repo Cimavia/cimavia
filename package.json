@@ -29,6 +29,7 @@
     "check:i18n": "node scripts/check-i18n-keys.mjs",
     "check:lint-rules": "node scripts/check-lint-rules.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
+    "check:tokens": "node scripts/check-tokens.mjs",
     "prepare": "husky && node -e \"import('./scripts/worktree-env.mjs').catch((error) => { if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error; })\""
   },
   "devDependencies": {

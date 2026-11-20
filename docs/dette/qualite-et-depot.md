@@ -1300,6 +1300,34 @@ liste des domaines vivent dans l'index.
 > Code à chaque permission accordée, entre au `.gitignore` du dépôt : Biome ne lit pas l'ignore
 > global, et `biome ci .` échouait dessus.
 
+> **Tranché en [#178](https://github.com/Cimavia/cimavia/issues/178)** (une classe vers un token
+> inexistant) : **Tailwind juge, pas une table**. L'issue prévoyait de relire les échelles du preset
+> et d'écrire à la main quel préfixe va avec quelle échelle (`rounded-` → rayons, `text-` →
+> couleurs ∪ tailles…) : c'était recopier Tailwind, et la table se serait périmée à la première
+> extension du preset. `check:tokens` monte plutôt Tailwind avec la vraie config de l'app (preset
+> NativeWind compris) et lui demande, classe par classe, si chaque jeton `*-cmv-*` relevé produit
+> une règle — préfixe inconnu, mauvaise échelle, variantes et opacité compris. Le contrôle vérifie
+> donc que la classe est **générée**, ce que l'issue avait renoncé à faire. Un contexte Tailwind par
+> app, sous la seconde pour les deux.
+>
+> **`getClassOrder`, pas le CSS produit** : un premier jet générait le CSS de toutes les classes
+> d'un coup et relevait les classes de ses sélecteurs. Une classe citée dans la variante arbitraire
+> d'une autre (`[&_.text-cmv-text-low]:p-cmv-sm`) y passait pour générée. `getClassOrder` juge
+> chaque classe seule et rend `null` quand rien n'est produit ; c'est l'API du contexte qu'utilise
+> le plugin Prettier de Tailwind, hors de ses exports publics, mais Tailwind 3 est figé en 3.4 et
+> le banc échouerait si elle changeait.
+>
+> Le relevé suit le **`content`** de chaque config — ce que Tailwind lit est ce qu'on vérifie —,
+> plus les **e2e web**, dont les sélecteurs Playwright visent des classes. **Tests compris** : un
+> `toHaveClass` sur une classe inexistante reste vert. Il lit le texte brut,
+> commentaires compris, plutôt qu'un AST : la prose s'écarte par sa forme (token nu, motif `*`,
+> variable `--cmv-`) et un sélecteur de test se lit comme la classe qu'il vise. Il trouvait à sa
+> naissance, en plus des deux `text-cmv-accent-fg` connus, un `text-cmv-h3` arrivé avec la refonte
+> par blocs : les titres de bloc web n'avaient aucune taille.
+>
+> À la montée vers Tailwind 4 ([#852](https://github.com/Cimavia/cimavia/issues/852)), le script
+> se réécrit : la 4 se pilote par `compile().build(candidates)`, plus direct encore.
+
 > **Tranché en [#838](https://github.com/Cimavia/cimavia/pull/838)** (Biome 2.6) : **le formateur
 > Markdown reste coupé** (`markdown.formatter.enabled: false`). Arrivé actif avec la 2.6, il
 > réécrivait quatorze `.md` d'un coup, et glissait une ligne vide sous le `---` d'ouverture de

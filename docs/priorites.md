@@ -141,7 +141,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #382 | Le test de changement d'heure est vert quelle que soit l'implémentation | 🟡 | ✅ |
 | #351 | Onze `notifyX` recopiés, aucun test sur la partie fragile | 🟡 | ✅ |
 | #638 | Aucun parcours de l'Athlete testé de bout en bout sur mobile | 🟡 | ✅ |
-| #178 | Vérifier les classes Tailwind qui référencent un token | 🟡 | |
+| #178 | Vérifier les classes Tailwind qui référencent un token | 🟡 | ✅ |
 | #355 | 830 lignes de logique pure dans le schéma des blocs | ⚪ | ✅ |
 | #387 | Trois fichiers dépassent nettement 400 lignes | ⚪ | |
 | #360 | Sept copies du même déplacement d'élément | ⚪ | ✅ |

@@ -336,7 +336,7 @@ function CompositionBlock(props: Readonly<CompositionBlockProps>) {
         {number == null ? (
           <span
             className={cn(
-              "text-cmv-h3",
+              "text-cmv-subtitle",
               change == null ? "text-cmv-text-hi" : "text-cmv-text-lo line-through",
             )}
           >
