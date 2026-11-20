@@ -6,13 +6,7 @@ import type {
   UpdateScheduledSessionInput,
   VersionQuery,
 } from "@cmv/shared";
-import {
-  isDateInPlanWeek,
-  PLAN_MAX_WEEKS,
-  PlanStatus,
-  planWeekNumber,
-  ScheduledSessionStatus,
-} from "@cmv/shared";
+import { PLAN_MAX_WEEKS, PlanStatus, planWeekNumber, ScheduledSessionStatus } from "@cmv/shared";
 import {
   BadRequestException,
   ConflictException,
@@ -35,13 +29,14 @@ import {
 } from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
 import { lockWeeksInOrder, touchWeeks } from "../plan-week.version";
+import { assertDateInWeek, assertDayContent } from "../scheduled-day.rules";
 import { buildSessionDraft } from "../scheduled-session.draft";
 import {
   type ScheduledSessionWithExercises,
   SESSION_DETAIL_INCLUDE,
   toScheduledSessionDto,
 } from "../scheduled-session.mapper";
-import { compactDay, type PositionedSession, writeDay } from "../scheduled-session.position";
+import { compactDay, writeDay } from "../scheduled-session.position";
 import { insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
@@ -70,7 +65,7 @@ export class ScheduledSessionService {
   ): Promise<ScheduledSessionDto> {
     const week = await this.plans.getWeekOrThrow(planWeekId);
     const { plan } = await this.plans.getForOrThrow(week.planId, "write");
-    this.assertDateInWeek(plan, week, input.scheduledDate);
+    assertDateInWeek(plan, week, input.scheduledDate);
 
     const draft = await buildSessionDraft(
       { db: this.db, library: this.library, metrics: this.metrics },
@@ -233,7 +228,7 @@ export class ScheduledSessionService {
     // Avant de juger le tableau : fondé sur une grille périmée, il ne correspond plus à la journée,
     // et le refus serait un 400 « contenu invalide » au lieu de proposer de relire (#604).
     assertReadAtVersion(week.updatedAt, expected);
-    this.assertDateInWeek(plan, week, isoDate);
+    assertDateInWeek(plan, week, isoDate);
 
     // Le jour visé, et les séances citées où qu'elles soient dans le CYCLE : une autre journée,
     // une autre semaine (#689). Pas un autre cycle : changer de cycle peut changer d'athlète, donc
@@ -423,16 +418,6 @@ export class ScheduledSessionService {
     return week;
   }
 
-  // Une séance ne peut pas être posée hors de la plage de sa semaine (sinon la vue calendrier
-  // afficherait une séance de la semaine 2 dans la semaine 1).
-  private assertDateInWeek(plan: Plan, week: PlanWeek, date: string): void {
-    if (!isDateInPlanWeek(toIsoDate(plan.startDate), week.weekNumber, date)) {
-      throw new BadRequestException(
-        `La date ${date} ne tombe pas dans la semaine ${week.weekNumber} du cycle`,
-      );
-    }
-  }
-
   /**
    * Position = rang dans la JOURNÉE (plusieurs séances possibles le même jour).
    *
@@ -461,48 +446,4 @@ async function assertDeleted(tx: TenantTx, id: string, count: number): Promise<v
     );
   }
   await assertWrittenAtVersion(count, () => Promise.resolve(current != null), SESSION_NOT_FOUND);
-}
-
-/**
- * Vérifie que `sessionIds` décrit une journée VALIDE, et rend ses séances dans l'ordre demandé.
- *
- * Deux règles, et une seule liberté :
- *  - tout identifiant cité appartient au CYCLE (#689). Un identifiant étranger désigne soit un
- *    autre cycle, soit un autre coach — que le scope tenant a déjà rendu invisible. 400 dans les
- *    deux cas : la demande est mal formée ;
- *  - aucune séance déjà posée ce jour-là n'est OMISE. L'omettre ne dirait pas où elle va : elle
- *    garderait son rang d'avant, donc des doublons et des trous sur
- *    `@@unique([planWeekId, scheduledDate, position])`. Vider une journée se fait en déplaçant ou
- *    en supprimant ses séances, pas en les taisant ;
- *  - en revanche une séance d'un AUTRE jour du cycle peut être citée : elle est déplacée ici, au
- *    rang où le tableau la place. C'est tout l'objet de l'élargissement (#93, puis #689).
- */
-function assertDayContent<T extends PositionedSession>(
-  cycleSessions: readonly T[],
-  sessionIds: readonly string[],
-  date: Date,
-): T[] {
-  const byId = new Map(cycleSessions.map((session) => [session.id, session]));
-  const wanted = new Set(sessionIds);
-
-  if (wanted.size !== sessionIds.length) {
-    throw new BadRequestException("Une séance est citée deux fois dans l'ordre demandé");
-  }
-
-  const missing = cycleSessions.filter(
-    (session) => session.scheduledDate.getTime() === date.getTime() && !wanted.has(session.id),
-  );
-  if (missing.length > 0) {
-    throw new BadRequestException(
-      "L'ordre doit citer TOUTES les séances déjà posées ce jour-là, sans en omettre",
-    );
-  }
-
-  return sessionIds.map((id) => {
-    const session = byId.get(id);
-    if (session == null) {
-      throw new BadRequestException(`La séance ${id} n'appartient pas à ce cycle`);
-    }
-    return session;
-  });
 }
