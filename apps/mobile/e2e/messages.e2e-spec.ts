@@ -1,9 +1,8 @@
 import { expect, loginVars, test } from "./support/fixtures";
 import { label } from "./support/i18n";
-import { runFlow } from "./support/maestro";
 
 test.describe("Messagerie", () => {
-  test("l'Athlete lit le message de son Coach et y répond", async ({ seed }, testInfo) => {
+  test("l'Athlete lit le message de son Coach et y répond", async ({ seed, flow }) => {
     const coach = await seed.coach();
     const athlete = await seed.athlete();
     const athleteId = await seed.link(coach, athlete);
@@ -12,7 +11,7 @@ test.describe("Messagerie", () => {
     // Sans accent : `inputText` de Maestro ne tape que de l'ASCII sur Android.
     const reply = `Oui coach ${athlete.name}`;
 
-    await runFlow(testInfo, "messages.yaml", {
+    await flow("messages.yaml", {
       ...loginVars(athlete),
       MESSAGES_TAB: label("nav.messages"),
       COACH_NAME: coach.name,

@@ -1,10 +1,9 @@
 import { todayInParis } from "@cmv/e2e/seed";
 import { expect, loginVars, test } from "./support/fixtures";
 import { label } from "./support/i18n";
-import { runFlow } from "./support/maestro";
 
 test.describe("Débriefer une séance", () => {
-  test("le débrief écrit sur le téléphone arrive chez le Coach", async ({ seed }, testInfo) => {
+  test("le débrief écrit sur le téléphone arrive chez le Coach", async ({ seed, flow }) => {
     const coach = await seed.coach();
     const athlete = await seed.athlete();
     const athleteId = await seed.link(coach, athlete);
@@ -12,7 +11,7 @@ test.describe("Débriefer une séance", () => {
     // Sans accent : `inputText` de Maestro ne tape que de l'ASCII sur Android.
     const content = `Jambes lourdes sur la fin ${athlete.name}`;
 
-    await runFlow(testInfo, "feedback.yaml", {
+    await flow("feedback.yaml", {
       ...loginVars(athlete),
       SESSION_TITLE: plan.sessionTitle,
       FEEDBACK_OPEN: label("feedback.open"),

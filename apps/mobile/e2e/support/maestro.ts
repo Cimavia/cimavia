@@ -26,11 +26,14 @@ function maestroPath(): string {
  * Les captures et la hiérarchie de l'écran fautif vont dans le dossier du test, que la CI publie
  * sur échec. La sortie de Maestro accompagne l'erreur : sans elle, un échec ne dirait pas à quelle
  * étape du flux il est survenu.
+ *
+ * `signal` arrête Maestro avec son test : les specs passent par la fixture `flow`, qui le pose.
  */
 export async function runFlow(
   testInfo: TestInfo,
   flow: string,
   vars: Record<string, string>,
+  signal: AbortSignal,
 ): Promise<void> {
   const args = [
     "--no-ansi",
@@ -43,6 +46,7 @@ export async function runFlow(
   try {
     await execFileAsync(maestroPath(), args, {
       maxBuffer: 16 * 1024 * 1024,
+      signal,
       // Ni télémétrie, ni invite à la couper : la suite ne parle qu'à l'appareil.
       env: {
         ...process.env,
