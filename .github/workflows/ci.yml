@@ -461,14 +461,15 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       # Une version épinglée, son empreinte vérifiée : le script d'installation officiel tirerait la
-      # dernière, sans contrôle.
+      # dernière, sans contrôle. HTTPS imposé jusqu'au bout des redirections (`-L` : GitHub renvoie
+      # vers son stockage), que curl suivrait sinon aussi en clair.
       - name: Installe Maestro
         if: steps.changes.outputs.mobile == 'true'
         env:
           MAESTRO_VERSION: 2.12.1
           MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          curl -fsSL --proto '=https' --proto-redir '=https' --max-time 120 -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
           echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum --check
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
           echo "MAESTRO_BIN=$RUNNER_TEMP/maestro/bin/maestro" >> "$GITHUB_ENV"
