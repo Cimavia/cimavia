@@ -17,12 +17,13 @@ import { useTranslation } from "react-i18next";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
+import { FeedbackSubmitRail } from "@/feature/feedback/component/FeedbackSubmitRail";
 import { useMyFeedback, useUpsertMyFeedback } from "@/feature/feedback/hook/useMyFeedback";
 import { useConversationWithCoach } from "@/feature/message/hook/useMessages";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { AppShell } from "@/feature/shell";
-import { CmvButton, CmvCard, CmvErrorState, CmvTextArea } from "@/shared/component";
+import { CmvCard, CmvErrorState, CmvTextArea } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { apiErrorMessage } from "@/shared/lib/api";
@@ -211,60 +212,6 @@ function useFeedbackTracking(sessionId: string, session: ScheduledSessionDto | n
 /** Au moins une case cochée quelque part — ce qui distingue « rien envoyé » de « rien coché ». */
 function hasAnyBlockTracking(tracking: BlockSessionTracking): boolean {
   return Object.values(tracking).some((block) => block != null && block.checked.length > 0);
-}
-
-/**
- * Le rail d'envoi : ce qui va partir, puis le bouton pour le faire.
- *
- * La phrase est là pour qu'un débrief vide ne parte pas par accident — mais elle n'EMPÊCHE rien :
- * « séance faite, aucun commentaire, aucun décompte » est une réponse valable, et le bouton reste
- * actif pour la dire.
- */
-function FeedbackSubmitRail({
-  hasContent,
-  hasMedia,
-  hasTracking,
-  canSubmit,
-  isPending,
-  error,
-  saved,
-  onSubmit,
-}: Readonly<{
-  hasContent: boolean;
-  hasMedia: boolean;
-  hasTracking: boolean;
-  canSubmit: boolean;
-  isPending: boolean;
-  error: string | null;
-  saved: boolean;
-  onSubmit: () => void;
-}>) {
-  const { t } = useTranslation();
-  const empty = !hasContent && !hasMedia && !hasTracking;
-
-  return (
-    <aside className="flex min-w-0 flex-col gap-cmv-md xl:sticky xl:top-32 xl:self-start">
-      <CmvCard>
-        <div className="flex flex-col gap-cmv-md">
-          <h2 className="text-cmv-caption text-cmv-text-mid uppercase tracking-wide">
-            {t("feedback.submit.title")}
-          </h2>
-          <p className="text-cmv-body text-cmv-text-mid">
-            {t(empty ? "feedback.submit.empty" : "feedback.submit.filled")}
-          </p>
-
-          <CmvButton disabled={isPending || !canSubmit} onClick={onSubmit}>
-            {isPending ? t("feedback.saving") : t("feedback.submit.action")}
-          </CmvButton>
-
-          {error == null ? null : <span className="text-cmv-body text-cmv-error-on">{error}</span>}
-          {saved ? (
-            <span className="text-cmv-body text-cmv-accent">{t("feedback.saved")}</span>
-          ) : null}
-        </div>
-      </CmvCard>
-    </aside>
-  );
 }
 
 /**
