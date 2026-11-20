@@ -1159,8 +1159,8 @@ liste des domaines vivent dans l'index.
 > jamais sur `main` et un cache de PR ne servirait qu'à elle. En local depuis WSL2, l'émulateur
 > est celui de Windows : `scripts/dev-portproxy.ps1` relaie son serveur adb vers WSL seulement, et
 > la suite le relaie à son tour sur `localhost:5037`, où Maestro le cherche (`CMV_ADB_SERVER`). Le
-> `prebuild --clean` régénère `apps/mobile/android/` : le dev client se refait ensuite par son
-> propre prebuild.
+> `prebuild --clean` régénère `apps/mobile/android/`, celui du dev client, qu'un `expo run:android`
+> ne refait pas : il est mis de côté le temps de la build, puis remis, et l'APK sort avant.
 
 > **Tranché en [#628](https://github.com/Cimavia/cimavia/issues/628)** (une migration destructive
 > signalée en CI) : **squawk 2.67**, sur les seuls `migration.sql` qu'une PR ajoute, modifie ou

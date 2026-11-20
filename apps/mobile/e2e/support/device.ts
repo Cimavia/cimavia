@@ -1,9 +1,27 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createConnection, createServer, type Socket } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { ANDROID_DIR, API_PORT, APK, APP_ID, BUILD_STAMP, DEVICE_API_URL, TIME_ZONE } from "./env";
+import {
+  ANDROID_DIR,
+  API_PORT,
+  APK,
+  APP_ID,
+  BUILD_STAMP,
+  DEVICE_API_URL,
+  MOBILE_DIR,
+  PARKED_ANDROID_DIR,
+  TIME_ZONE,
+} from "./env";
 
 /** Le port du serveur adb, celui que `adb` et Maestro cherchent sur `localhost`. */
 const ADB_PORT = 5037;
@@ -148,10 +166,37 @@ export async function pinTimeZone(): Promise<() => Promise<void>> {
  * La build release de la variante `e2e` : prebuild, puis Gradle. `EXPO_NO_DOTENV` écarte les `.env`
  * du poste — l'URL de l'API, le DSN Sentry : la build ne voit que ce qui est posé ici.
  *
- * Le prebuild `--clean` REGÉNÈRE `android/` : le dev client se reconstruit ensuite par son propre
- * prebuild, comme après tout module natif ajouté.
+ * Le prebuild `--clean` régénère `android/`, celui du DEV CLIENT : un `expo run:android` ne refait
+ * pas son prebuild, et bâtirait ensuite un dev client à l'identifiant e2e, sans Firebase. Il est
+ * donc mis de côté le temps de la build, puis remis ; l'APK sort d'`android/` avant.
  */
 export async function buildApk(): Promise<void> {
+  restoreParkedAndroid();
+  const parked = existsSync(ANDROID_DIR);
+  mkdirSync(dirname(PARKED_ANDROID_DIR), { recursive: true });
+  if (parked) renameSync(ANDROID_DIR, PARKED_ANDROID_DIR);
+  try {
+    await buildE2eAndroid();
+  } finally {
+    rmSync(ANDROID_DIR, { recursive: true, force: true });
+    if (parked) renameSync(PARKED_ANDROID_DIR, ANDROID_DIR);
+  }
+}
+
+/**
+ * Une build interrompue (Ctrl-C, process tué) n'a pas remis l'`android/` du dev client : il l'est
+ * ici, à la build suivante. Celui en place est celui de la build e2e, que rien ne garde.
+ */
+function restoreParkedAndroid(): void {
+  if (!existsSync(PARKED_ANDROID_DIR)) return;
+  console.warn(
+    `android/ du dev client remis depuis ${PARKED_ANDROID_DIR} (build e2e interrompue).`,
+  );
+  rmSync(ANDROID_DIR, { recursive: true, force: true });
+  renameSync(PARKED_ANDROID_DIR, ANDROID_DIR);
+}
+
+async function buildE2eAndroid(): Promise<void> {
   const env = {
     ...process.env,
     APP_VARIANT: "e2e",
@@ -164,11 +209,10 @@ export async function buildApk(): Promise<void> {
     SENTRY_DISABLE_AUTO_UPLOAD: "true",
     NODE_ENV: "production",
   };
-  const mobileDir = join(ANDROID_DIR, "..");
   await run(
     "pnpm",
     ["exec", "expo", "prebuild", "--platform", "android", "--clean", "--no-install"],
-    { cwd: mobileDir, env },
+    { cwd: MOBILE_DIR, env },
   );
   // x86_64 seulement : l'émulateur, ici comme en CI. Toutes les ABI doubleraient le temps de build.
   await run(
@@ -176,6 +220,7 @@ export async function buildApk(): Promise<void> {
     ["assembleRelease", "-PreactNativeArchitectures=x86_64", "--console=plain"],
     { cwd: ANDROID_DIR, env },
   );
+  copyFileSync(join(ANDROID_DIR, "app/build/outputs/apk/release/app-release.apk"), APK);
   writeFileSync(BUILD_STAMP, DEVICE_API_URL);
 }
 

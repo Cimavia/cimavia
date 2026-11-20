@@ -48,10 +48,17 @@ export const TIME_ZONE = "Europe/Paris";
  * `__dirname` et non `import.meta.dirname` : le mobile n'est pas `"type": "module"` (Metro et ses
  * configs `.js` sont en CommonJS), et Playwright charge donc ces fichiers en CommonJS.
  */
-const MOBILE_DIR = resolve(__dirname, "../..");
+export const MOBILE_DIR = resolve(__dirname, "../..");
 export const ANDROID_DIR = resolve(MOBILE_DIR, "android");
-export const APK = resolve(ANDROID_DIR, "app/build/outputs/apk/release/app-release.apk");
 export const FLOWS_DIR = resolve(MOBILE_DIR, "e2e/flows");
+
+/**
+ * Hors de `android/`, que la build rend au dev client : l'APK e2e, et le temps de la build, le
+ * `android/` du dev client mis de côté. Sous `node_modules/.cache`, que git ignore déjà.
+ */
+const CACHE_DIR = resolve(MOBILE_DIR, "node_modules/.cache/cmv-e2e");
+export const APK = resolve(CACHE_DIR, "app-e2e.apk");
+export const PARKED_ANDROID_DIR = resolve(CACHE_DIR, "android-dev-client");
 
 /** Rangé à côté de l'APK : l'URL d'API qu'elle a inlinée, relue avant de l'installer. */
 export const BUILD_STAMP = `${APK}.api-url`;

@@ -112,8 +112,8 @@ pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e
 > débrief, réponse au Coach — dans la build release de la variante `e2e` (`fr.cimavia.app.e2e`),
 > que la suite construit, installe puis retire. Playwright y porte l'API, le seed et le rapport ;
 > l'écran, c'est [Maestro](https://maestro.dev) (`curl -fsSL https://get.maestro.mobile.dev | bash`,
-> ou `MAESTRO_BIN`), sur les flux YAML de `e2e/flows/`. Le build régénère `apps/mobile/android/` :
-> refaire le prebuild du dev client ensuite. Un échec laisse les captures de Maestro dans
+> ou `MAESTRO_BIN`), sur les flux YAML de `e2e/flows/`. Le `android/` du dev client est mis de
+> côté le temps du build, puis remis. Un échec laisse les captures de Maestro dans
 > `apps/mobile/test-results/`. Pourquoi ces choix : « Tranché en #638 ».
 
 > Les e2e tournent contre le **SILO du docker-compose** (bucket `cimavia-media-e2e`) : sans
