@@ -1,6 +1,7 @@
+import type { SessionsSegment } from "@cmv/shared";
 import { createFileRoute } from "@tanstack/react-router";
 import { RoleGate } from "@/feature/auth";
-import { AthleteSessionsScreen, type SessionsSegment } from "@/feature/plan";
+import { AthleteSessionsScreen } from "@/feature/plan";
 
 /**
  * `?segment=upcoming|past` — le segment vit dans l'URL, comme la semaine du planning : revenir

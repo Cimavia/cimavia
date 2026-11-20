@@ -145,7 +145,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #355 | 830 lignes de logique pure dans le schéma des blocs | ⚪ | ✅ |
 | #387 | Trois fichiers dépassent nettement 400 lignes | ⚪ | ✅ |
 | #360 | Sept copies du même déplacement d'élément | ⚪ | ✅ |
-| #376 | Deux dérivations du mobile recopiées | ⚪ | |
+| #376 | Deux dérivations du mobile recopiées | ⚪ | ✅ |
 | #383 | Le web recopie deux formateurs de `@cmv/shared` | ⚪ | |
 | #372 | Un composant du design system importe une feature | ⚪ | ✅ |
 | #375 | Le design system mobile lit le stockage hors-ligne | ⚪ | |

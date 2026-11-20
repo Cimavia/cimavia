@@ -786,6 +786,12 @@ export {
   currentAthletePlan,
   visibleAthleteRows,
 } from "./util/athlete-row.util";
+export type {
+  SessionEntry,
+  SessionsSegment,
+  SessionsSource,
+} from "./util/athlete-sessions.util";
+export { SESSION_SEGMENTS, splitSessionsByDate } from "./util/athlete-sessions.util";
 export { athleteSheetDraft } from "./util/athlete-sheet.util";
 export type {
   AthleteCalendarBounds,

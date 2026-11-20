@@ -1,5 +1,9 @@
-import type { ScheduledSessionSummaryDto } from "@cmv/shared";
-import { todayIsoDate } from "@cmv/shared";
+import {
+  SESSION_SEGMENTS,
+  type SessionsSegment,
+  splitSessionsByDate,
+  todayIsoDate,
+} from "@cmv/shared";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
@@ -13,34 +17,14 @@ import { formatFullDay } from "@/shared/util/date.util";
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values plan.sessions: upcoming, past
 
-type SessionsTab = "upcoming" | "past";
-
-/** Une séance et le cycle d'où elle vient — le nom voyage avec elle, il ne se rejoint pas au rendu. */
-type SessionEntry = { session: ScheduledSessionSummaryDto; planTitle: string };
-
 // Onglet Séances (p3-4) : à venir / passées, dérivées des cycles servis — aucune requête de plus.
 export function SessionsScreen() {
   const { t } = useTranslation();
   const { data: plans, isPending, isError, refetch } = useMyPlans();
-  const [tab, setTab] = useState<SessionsTab>("upcoming");
+  const [tab, setTab] = useState<SessionsSegment>("upcoming");
 
-  const today = todayIsoDate();
-
-  const entries: SessionEntry[] = (plans ?? [])
-    .flatMap((plan) =>
-      plan.weeks.flatMap((week) =>
-        week.sessions.map((session) => ({ session, planTitle: plan.title })),
-      ),
-    )
-    .filter(({ session }) =>
-      tab === "upcoming" ? session.scheduledDate >= today : session.scheduledDate < today,
-    )
-    // À venir : la plus proche d'abord. Passées : la plus récente d'abord.
-    .sort((a, b) =>
-      tab === "upcoming"
-        ? a.session.scheduledDate.localeCompare(b.session.scheduledDate)
-        : b.session.scheduledDate.localeCompare(a.session.scheduledDate),
-    );
+  // La frontière et l'ordre de chaque onglet sont décidés dans `@cmv/shared` (#376), avec le web.
+  const entries = splitSessionsByDate(plans ?? [], todayIsoDate())[tab];
 
   // Le nom du cycle n'apparaît que si l'athlète en suit plusieurs (#172) : répété sur chaque carte
   // d'un cycle unique, il serait du bruit — c'est ce qui DISTINGUE qui mérite d'être écrit.
@@ -51,7 +35,7 @@ export function SessionsScreen() {
       <OfflineBanner />
 
       <View className="flex-row gap-2 p-4">
-        {(["upcoming", "past"] as const).map((value) => (
+        {SESSION_SEGMENTS.map((value) => (
           <Pressable
             key={value}
             onPress={() => setTab(value)}
