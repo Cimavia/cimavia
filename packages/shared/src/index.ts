@@ -448,6 +448,7 @@ export type {
   NotificationFilter,
   NotificationType as NotificationTypeType,
   PersistedNotificationType,
+  PushPayload,
   UnreadCountDto,
   UpdateNotificationEmailPreferencesInput,
 } from "./dto/notification.schema";
@@ -456,6 +457,7 @@ export {
   emailableNotificationTypeSchema,
   NOTIFICATION_CATEGORY,
   NOTIFICATION_CATEGORY_LABEL_KEY,
+  NOTIFICATION_ENTITY_TYPE,
   NOTIFICATION_LABEL_KEY,
   NOTIFICATION_PAGE_SIZE,
   NOTIFICATION_SETTING_LABEL_KEY,
@@ -468,6 +470,7 @@ export {
   notificationEntityTypeSchema,
   notificationFilterSchema,
   notificationTypeSchema,
+  PUSH_ID_KEY,
   unreadCountDtoSchema,
   updateNotificationEmailPreferencesSchema,
 } from "./dto/notification.schema";
@@ -1047,7 +1050,7 @@ export {
   uploadPercentOf,
 } from "./util/multipart-upload.util";
 export { initialsOf, joinNames } from "./util/name.util";
-export type { NotificationFilterChoice } from "./util/notification.util";
+export type { NotificationFilterChoice, PushTarget } from "./util/notification.util";
 export {
   capabilityOfMessage,
   capabilityOfNotification,
@@ -1056,6 +1059,8 @@ export {
   notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
+  pushPayloadOf,
+  pushTargetOf,
 } from "./util/notification.util";
 export type { Page } from "./util/pagination.util";
 export { HISTORY_PAGE_SIZE, pageOf } from "./util/pagination.util";

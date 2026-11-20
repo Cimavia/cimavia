@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { NotificationCategory, NotificationType } from "../dto/notification.schema";
+import {
+  NOTIFICATION_ENTITY_TYPE,
+  NotificationCategory,
+  NotificationEntityType,
+  NotificationType,
+  type PersistedNotificationType,
+} from "../dto/notification.schema";
 import {
   capabilityOfMessage,
   capabilityOfNotification,
@@ -8,6 +14,8 @@ import {
   notificationOpeningCapability,
   notificationSubject,
   notificationTypesOf,
+  pushPayloadOf,
+  pushTargetOf,
 } from "./notification.util";
 
 describe("capabilityOfNotification", () => {
@@ -252,5 +260,85 @@ describe("notificationFilterChoices", () => {
 
   it("ne propose rien à qui n'a rien à filtrer", () => {
     expect(notificationFilterChoices({ ...NONE, isCompany: true })).toEqual([]);
+  });
+});
+
+/**
+ * La charge utile d'un push est un contrat avec des apps DÉJÀ installées (#351) : l'API l'écrit par
+ * `pushPayloadOf`, l'app la relit par `pushTargetOf`. Ce qui part doit revenir à l'identique.
+ */
+describe("pushPayloadOf / pushTargetOf", () => {
+  const persisted = Object.keys(NOTIFICATION_ENTITY_TYPE) as PersistedNotificationType[];
+
+  it.each(persisted)("%s : la cible écrite est la cible relue", (type) => {
+    expect(pushTargetOf(pushPayloadOf(type, "id-1"))).toEqual({
+      type,
+      entityType: NOTIFICATION_ENTITY_TYPE[type],
+      entityId: "id-1",
+    });
+  });
+
+  /**
+   * Les clés que lisent les apps installées, écrites EN LITTÉRAL : l'aller-retour ci-dessus relit
+   * par les mêmes tables qu'il écrit, une erreur symétrique y passerait. Celui-ci ne les consulte
+   * pas — c'est lui qui voit une clé renommée ou un type rattaché à la mauvaise. Le `Record` exige
+   * une ligne par type persisté, celui qu'on ajoutera compris.
+   */
+  const HISTORICAL_ID_KEY: Record<PersistedNotificationType, string> = {
+    PLAN_PUBLISHED: "planId",
+    PLAN_UPDATED: "planId",
+    PLAN_SESSION_ADDED: "planId",
+    PLAN_SESSION_REMOVED: "planId",
+    PLAN_SESSIONS_REORDERED: "planId",
+    FEEDBACK_RECEIVED: "scheduledSessionId",
+    MESSAGE_RECEIVED: "conversationId",
+    INVOICE_ISSUED: "invoiceId",
+    INVITATION_RECEIVED: "invitationId",
+    INVITATION_ACCEPTED: "invitationId",
+    INVITATION_DECLINED: "invitationId",
+    ORGANIZATION_INVITATION_RECEIVED: "invitationId",
+    ORGANIZATION_COACH_JOINED: "invitationId",
+  };
+
+  it.each(persisted)("%s garde sa clé d'id historique", (type) => {
+    expect(pushPayloadOf(type, "id-1")).toEqual({ type, [HISTORICAL_ID_KEY[type]]: "id-1" });
+  });
+
+  it("relit un rappel dû sans sa cible", () => {
+    expect(pushTargetOf({ type: NotificationType.REMINDER_DUE, reminderId: "r-1" })).toEqual({
+      type: NotificationType.REMINDER_DUE,
+      entityType: null,
+      entityId: null,
+    });
+  });
+
+  // Indisponible, pas absente : la messagerie mène encore à la liste des fils.
+  it("rend l'id null quand la charge ne le porte pas, ou sous une autre clé", () => {
+    expect(pushTargetOf({ type: NotificationType.MESSAGE_RECEIVED })).toEqual({
+      type: NotificationType.MESSAGE_RECEIVED,
+      entityType: NotificationEntityType.CONVERSATION,
+      entityId: null,
+    });
+    expect(pushTargetOf({ type: NotificationType.PLAN_PUBLISHED, invoiceId: "i-1" })).toEqual({
+      type: NotificationType.PLAN_PUBLISHED,
+      entityType: NotificationEntityType.PLAN,
+      entityId: null,
+    });
+    expect(pushTargetOf({ type: NotificationType.INVOICE_ISSUED, invoiceId: 42 })).toEqual({
+      type: NotificationType.INVOICE_ISSUED,
+      entityType: NotificationEntityType.INVOICE,
+      entityId: null,
+    });
+  });
+
+  // Une API plus récente que l'app, ou un push qui n'est pas le nôtre : on ne devine rien.
+  it.each([
+    ["un type inconnu", { type: "PLAN_ARCHIVED", planId: "p-1" }],
+    ["une propriété du prototype", { type: "toString" }],
+    ["une charge sans type", { planId: "p-1" }],
+    ["une charge absente", null],
+    ["une charge qui n'est pas un objet", "PLAN_PUBLISHED"],
+  ])("ne relit rien d'%s", (_, data) => {
+    expect(pushTargetOf(data)).toBeNull();
   });
 });

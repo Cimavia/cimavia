@@ -57,8 +57,8 @@ export const NotificationType = {
   /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
-   * (`reminderToNotificationDto`). Aucun push non plus — il n'y a pas de scheduler pour le déclencher
-   * au bon moment (#47).
+   * (`reminderToNotificationDto`). Il est pourtant POUSSÉ, à l'échéance, par le tick des rappels
+   * (#47) — sans ligne, et avec sa propre charge utile (`PushPayload`).
    */
   REMINDER_DUE: "REMINDER_DUE",
 } as const;
@@ -110,9 +110,11 @@ export type EmailableNotificationType = (typeof EMAILABLE_NOTIFICATION_TYPES)[nu
 export const emailableNotificationTypeSchema = z.enum(EMAILABLE_NOTIFICATION_TYPES);
 
 /**
- * Ce que la notification désigne, pour router à l'ouverture. Gardée explicite plutôt que dérivée du
- * `type`, en prévision des rappels — et c'est arrivé (#51) : `REMINDER_DUE` pointe vers un cycle OU
- * une facture, selon ce qu'on rappelle. Aucun `switch` sur le type n'aurait pu le deviner.
+ * Ce que la notification désigne, pour router à l'ouverture. Gardée explicite dans la LIGNE plutôt
+ * que dérivée du `type` à la lecture, en prévision des rappels — et c'est arrivé (#51) :
+ * `REMINDER_DUE` pointe vers un cycle OU une facture, selon ce qu'on rappelle. Aucun `switch` sur le
+ * type n'aurait pu le deviner. Pour un type PERSISTÉ, en revanche, elle ne varie pas : l'API l'en
+ * déduit à l'écriture (`NOTIFICATION_ENTITY_TYPE`, #351).
  */
 export const NotificationEntityType = {
   PLAN: "PLAN",
@@ -129,6 +131,59 @@ export const NotificationEntityType = {
 } as const;
 export type NotificationEntityType = TypesValuesOf<typeof NotificationEntityType>;
 export const notificationEntityTypeSchema = z.enum(NotificationEntityType);
+
+/**
+ * Ce que désigne chaque type PERSISTÉ (#351) — l'`entityType` de sa ligne, et la cible de son push.
+ *
+ * Écrit une fois : chaque émetteur de l'API recopiait l'entité à la main à côté du type, et le
+ * mobile redéclarait la même table pour relire le push — rien ne liait les copies. Pour un type
+ * persisté l'entité ne varie pas : c'est `REMINDER_DUE`, absent d'ici, qui a fait garder
+ * `entityType` explicite dans la ligne (voir `NotificationEntityType`).
+ */
+export const NOTIFICATION_ENTITY_TYPE = {
+  [NotificationType.PLAN_PUBLISHED]: NotificationEntityType.PLAN,
+  [NotificationType.PLAN_UPDATED]: NotificationEntityType.PLAN,
+  [NotificationType.PLAN_SESSION_ADDED]: NotificationEntityType.PLAN,
+  [NotificationType.PLAN_SESSION_REMOVED]: NotificationEntityType.PLAN,
+  [NotificationType.PLAN_SESSIONS_REORDERED]: NotificationEntityType.PLAN,
+  [NotificationType.FEEDBACK_RECEIVED]: NotificationEntityType.SCHEDULED_SESSION,
+  [NotificationType.MESSAGE_RECEIVED]: NotificationEntityType.CONVERSATION,
+  [NotificationType.INVOICE_ISSUED]: NotificationEntityType.INVOICE,
+  [NotificationType.INVITATION_RECEIVED]: NotificationEntityType.INVITATION,
+  [NotificationType.INVITATION_ACCEPTED]: NotificationEntityType.INVITATION,
+  [NotificationType.INVITATION_DECLINED]: NotificationEntityType.INVITATION,
+  [NotificationType.ORGANIZATION_INVITATION_RECEIVED]: NotificationEntityType.INVITATION,
+  [NotificationType.ORGANIZATION_COACH_JOINED]: NotificationEntityType.INVITATION,
+} as const satisfies Record<PersistedNotificationType, NotificationEntityType>;
+
+/**
+ * La clé sous laquelle le push transporte l'id de sa cible, par entité (#351).
+ *
+ * Ces clés sont **HISTORIQUES** : une app déjà installée lit `planId` ou `scheduledSessionId`, en
+ * renommer une casserait sa navigation sans qu'aucun test le voie. Rangées par entité et non par
+ * type : la clé découle de la cible, deux types qui visent la même ne peuvent pas diverger.
+ */
+export const PUSH_ID_KEY = {
+  [NotificationEntityType.PLAN]: "planId",
+  [NotificationEntityType.SCHEDULED_SESSION]: "scheduledSessionId",
+  [NotificationEntityType.CONVERSATION]: "conversationId",
+  [NotificationEntityType.INVOICE]: "invoiceId",
+  [NotificationEntityType.INVITATION]: "invitationId",
+} as const satisfies Record<NotificationEntityType, string>;
+
+type PushIdKeyOf<T extends PersistedNotificationType> =
+  (typeof PUSH_ID_KEY)[(typeof NOTIFICATION_ENTITY_TYPE)[T]];
+
+/**
+ * La charge utile d'un push, dérivée des deux tables : chaque type porte SA clé d'id, et aucune
+ * autre. `REMINDER_DUE` s'y ajoute à part — poussé sans ligne en base (#47), il transporte l'id du
+ * rappel, pas celui de sa cible.
+ */
+export type PushPayload =
+  | {
+      [T in PersistedNotificationType]: { type: T } & Record<PushIdKeyOf<T>, string>;
+    }[PersistedNotificationType]
+  | { type: typeof NotificationType.REMINDER_DUE; reminderId: string };
 
 /**
  * Clé i18n du libellé, par type. Le texte n'est ni stocké ni construit côté API : une notification
