@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderRn } from "@/test/render";
+import { press, renderRn } from "@/test/render";
 import { CmvTextField } from "./CmvTextField";
 
 describe("CmvTextField", () => {
@@ -9,6 +9,22 @@ describe("CmvTextField", () => {
     expect(getByText("E-mail")).toBeTruthy();
     expect(container.querySelector("input")).not.toBeNull();
     expect(container.querySelector("textarea")).toBeNull();
+  });
+
+  it("nomme le champ par le lien vers son libellé, que talkback lit avec la valeur (#638)", () => {
+    const { container, getByText } = renderRn(<CmvTextField label="E-mail" value="ada@x.fr" />);
+    const input = container.querySelector("input");
+
+    expect(input?.getAttribute("aria-labelledby")).toBe(getByText("E-mail").id);
+    expect(input?.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("met le curseur dans le champ quand on appuie sur son libellé (#638)", () => {
+    const { container, getByText } = renderRn(<CmvTextField label="E-mail" value="" />);
+
+    press(getByText("E-mail"));
+
+    expect(document.activeElement).toBe(container.querySelector("input"));
   });
 
   it("devient une zone de texte quand il est multiligne", () => {

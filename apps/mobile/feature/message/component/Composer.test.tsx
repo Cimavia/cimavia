@@ -41,7 +41,10 @@ const base = {
   step: null,
 };
 
-/** Les boutons de la barre n'ont que leur icône pour se distinguer. */
+/**
+ * Un bouton de la barre, par son icône. Envoyer et joindre ont un nom (#377), pas encore le micro
+ * de l'enregistreur (#199) : l'icône reste le repère commun aux trois.
+ */
 function iconButton(container: HTMLElement, name: string): Element | null {
   return container.querySelector(`[data-icon="${name}"]`)?.parentElement ?? null;
 }
@@ -79,6 +82,13 @@ describe("Composer", () => {
     type(container, "salut");
 
     expect(iconButton(container, "send")).not.toBeNull();
+  });
+
+  it("nomme le bouton d'envoi, que son icône seule ne dit pas (#377)", () => {
+    const { container, getByLabelText } = renderRn(<Composer {...base} />);
+    type(container, "salut");
+
+    expect(getByLabelText("messages.send")).toBe(iconButton(container, "send"));
   });
 
   it("ne prend pas des espaces pour un message", () => {
