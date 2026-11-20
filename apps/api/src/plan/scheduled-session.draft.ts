@@ -80,7 +80,7 @@ export async function buildSessionDraft(
           [grid],
           gridCatalogOf(catalogOf, exercise.coachId, template.coachId),
         ),
-        tags: exercise.tags.map((tag) => tag.name).sort(),
+        tags: exercise.tags.map((tag) => tag.name).sort((a, b) => a.localeCompare(b)),
         note: composed.note,
       },
       documents: exercise.documents,
