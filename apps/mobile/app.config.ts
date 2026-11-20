@@ -26,8 +26,9 @@ const VARIANTS = {
 
 /**
  * Autorise le HTTP en clair. Le gabarit Expo ne le pose que dans les manifestes `debug` : une
- * release refuse `http://`, et la build e2e, qui vise une API de test sans TLS (`10.0.2.2`), ne
- * joindrait rien — une erreur réseau, sans un mot sur la cause.
+ * release refuse `http://`, et la build e2e, qui vise une API de test sans TLS (le `localhost` de
+ * l'appareil, relié par `adb reverse`), ne joindrait rien — une erreur réseau, sans un mot sur la
+ * cause.
  */
 export function allowCleartextTraffic(manifest: AndroidManifest): AndroidManifest {
   for (const application of manifest.manifest.application ?? []) {
