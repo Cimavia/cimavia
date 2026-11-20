@@ -1,4 +1,5 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import { type AndroidManifest, withAndroidManifest } from "expo/config-plugins";
 // L'extension est REQUISE : le chargeur de config d'Expo ne résout pas un import TypeScript sans
 // elle (« Cannot find module »), alors que Metro et Vitest s'en passent.
 import { buildIosPermissionLocales } from "./shared/lib/ios-permission-locales.ts";
@@ -11,12 +12,48 @@ import fr from "./shared/locale/fr.json";
  * confonde. Sans APP_VARIANT (expo start / expo run:*), on est en `development`.
  *
  * `slug` et `extra.eas.projectId` restent communs : un seul projet EAS, plusieurs app ids.
+ *
+ * `e2e` est la build que Maestro pilote (#638) : une release locale, jamais distribuée, qui vise
+ * l'API de test. Son scheme n'est PAS dans les origines de confiance de l'API (`MOBILE_SCHEMES`) :
+ * seule l'API de test le reçoit, par `CORS_ORIGINS`.
  */
 const VARIANTS = {
   development: { idSuffix: ".dev", nameSuffix: " (dev)", scheme: "cimavia-dev" },
   preview: { idSuffix: ".preview", nameSuffix: " (preview)", scheme: "cimavia-preview" },
+  e2e: { idSuffix: ".e2e", nameSuffix: " (e2e)", scheme: "cimavia-e2e" },
   production: { idSuffix: "", nameSuffix: "", scheme: "cimavia" },
 } as const;
+
+/**
+ * Autorise le HTTP en clair. Le gabarit Expo ne le pose que dans les manifestes `debug` : une
+ * release refuse `http://`, et la build e2e, qui vise une API de test sans TLS (`10.0.2.2`), ne
+ * joindrait rien — une erreur réseau, sans un mot sur la cause.
+ */
+export function allowCleartextTraffic(manifest: AndroidManifest): AndroidManifest {
+  for (const application of manifest.manifest.application ?? []) {
+    application.$["android:usesCleartextTraffic"] = "true";
+  }
+  return manifest;
+}
+
+/**
+ * Ce qu'une build e2e retire ou ajoute à la config :
+ * - **pas de mise à jour OTA** : l'empreinte de la build peut égaler celle d'un update publié pour
+ *   la preview, qui la ferait viser l'API du NAS ;
+ * - **pas de Firebase** : `google-services.json` ne connaît pas `fr.cimavia.app.e2e`, et Gradle
+ *   refuserait la build. Le push n'est pas dans les parcours ;
+ * - **le HTTP en clair** (`allowCleartextTraffic`).
+ */
+function forE2e(config: ExpoConfig): ExpoConfig {
+  const { googleServicesFile: _firebase, ...android } = config.android ?? {};
+  return withAndroidManifest(
+    { ...config, android, updates: { ...config.updates, enabled: false } },
+    (mod) => {
+      mod.modResults = allowCleartextTraffic(mod.modResults);
+      return mod;
+    },
+  );
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   // Le repli sur `production` est RÉSOLU ici plutôt qu'au moment de lire la table : la variante
@@ -49,7 +86,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const appId = `fr.cimavia.app${idSuffix}`;
 
-  return {
+  const resolved: ExpoConfig = {
     ...config,
     name: `${name}${nameSuffix}`,
     slug,
@@ -78,4 +115,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
      */
     extra: { ...config.extra, appVariant: variant },
   };
+  return variant === "e2e" ? forE2e(resolved) : resolved;
 };

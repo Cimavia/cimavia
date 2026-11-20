@@ -1,6 +1,7 @@
 import type { ConfigContext, ExpoConfig } from "expo/config";
+import type { ExportedConfig } from "expo/config-plugins";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import appConfig from "./app.config";
+import appConfig, { allowCleartextTraffic } from "./app.config";
 import appJson from "./app.json";
 
 const API_URL = "https://api-preview.cimavia.fr";
@@ -67,6 +68,82 @@ describe("app.config — garde des URL publiques", () => {
     });
 
     expect(config.ios?.bundleIdentifier).toBe("fr.cimavia.app.preview");
+  });
+});
+
+describe("app.config — variante e2e (#638)", () => {
+  const E2E = {
+    APP_VARIANT: "e2e",
+    EXPO_PUBLIC_API_URL: "http://10.0.2.2:3151",
+    EXPO_PUBLIC_WEB_URL: "http://10.0.2.2:4360",
+  };
+  const fromAppJson: Partial<ExpoConfig> = {
+    android: { googleServicesFile: "./google-services.json" },
+    updates: { url: "https://u.expo.dev/projet" },
+  };
+
+  it("s'installe à côté des autres builds, sous son propre scheme", () => {
+    const config = evaluate(E2E, fromAppJson);
+
+    expect(config.android?.package).toBe("fr.cimavia.app.e2e");
+    expect(config.scheme).toBe("cimavia-e2e");
+    expect(config.extra?.appVariant).toBe("e2e");
+  });
+
+  it("exige l'url de l'api de test, comme toute build hors développement", () => {
+    expect(() => evaluate({ ...E2E, EXPO_PUBLIC_API_URL: undefined })).toThrow(
+      "La variante e2e exige EXPO_PUBLIC_API_URL",
+    );
+  });
+
+  it("ne tire aucune mise à jour ota, sans perdre l'url du projet", () => {
+    const config = evaluate(E2E, fromAppJson);
+
+    expect(config.updates).toEqual({ url: "https://u.expo.dev/projet", enabled: false });
+  });
+
+  it("se construit sans firebase, qui ne connaît pas son identifiant", () => {
+    const config = evaluate(E2E, fromAppJson);
+
+    expect(config.android).not.toHaveProperty("googleServicesFile");
+  });
+
+  it("modifie le manifeste android, et seulement pour elle", () => {
+    // `ExpoConfig` ne type pas `mods`, que les plugins posent au prebuild.
+    const manifestMod = (config: ExpoConfig) => (config as ExportedConfig).mods?.android?.manifest;
+
+    expect(manifestMod(evaluate(E2E, fromAppJson))).toBeTypeOf("function");
+    expect(manifestMod(evaluate({ ...E2E, APP_VARIANT: "preview" }, fromAppJson))).toBeUndefined();
+  });
+
+  it("garde firebase et les mises à jour aux autres variantes", () => {
+    const config = evaluate({ ...E2E, APP_VARIANT: "preview" }, fromAppJson);
+
+    expect(config.android?.googleServicesFile).toBe("./google-services.json");
+    expect(config.updates).toEqual({ url: "https://u.expo.dev/projet" });
+  });
+});
+
+describe("allowCleartextTraffic", () => {
+  it("autorise le http en clair sur l'application du manifeste", () => {
+    const manifest = allowCleartextTraffic({
+      manifest: {
+        $: { "xmlns:android": "" },
+        queries: [],
+        application: [{ $: { "android:name": ".App" } }],
+      },
+    });
+
+    expect(manifest.manifest.application?.[0]?.$).toEqual({
+      "android:name": ".App",
+      "android:usesCleartextTraffic": "true",
+    });
+  });
+
+  it("laisse intact un manifeste sans application", () => {
+    const manifest = { manifest: { $: { "xmlns:android": "" }, queries: [] } };
+
+    expect(allowCleartextTraffic(manifest)).toEqual(manifest);
   });
 });
 

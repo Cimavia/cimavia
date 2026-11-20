@@ -1,4 +1,4 @@
-import { type AppTier, formatAppVersion } from "@cmv/shared";
+import { formatAppVersion, isAppTier } from "@cmv/shared";
 import Constants from "expo-constants";
 
 /**
@@ -21,8 +21,12 @@ export function currentAppVersion(): string | null {
   return Constants.expoConfig?.version ?? null;
 }
 
+/**
+ * `null` pour une variante qui n'est pas un tier — la build `e2e` (#638) : elle ne vise aucun
+ * environnement, et un numéro nu la ferait passer pour la production.
+ */
 export function appVersionLabel(): string | null {
-  const tier = (Constants.expoConfig?.extra?.appVariant as AppTier | undefined) ?? "development";
+  const variant: unknown = Constants.expoConfig?.extra?.appVariant ?? "development";
 
-  return formatAppVersion(currentAppVersion(), tier);
+  return isAppTier(variant) ? formatAppVersion(currentAppVersion(), variant) : null;
 }
