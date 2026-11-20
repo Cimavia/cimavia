@@ -1,5 +1,11 @@
 import type { MediaBatchStep, MultipartRetry } from "@cmv/shared";
-import { draftAfterSend, MESSAGE_TEXT_MAX_LENGTH, minutesOf, required } from "@cmv/shared";
+import {
+  draftAfterSend,
+  formatMmSs,
+  MESSAGE_TEXT_MAX_LENGTH,
+  minutesOf,
+  required,
+} from "@cmv/shared";
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IoAddCircleOutline, IoMicOutline, IoSend, IoTrashOutline } from "react-icons/io5";
@@ -21,11 +27,6 @@ type ComposerProps = {
   /** Le fichier en cours dans un lot, `null` hors envoi. */
   step: MediaBatchStep<string> | null;
 };
-
-function formatSeconds(total: number): string {
-  const minutes = Math.floor(total / 60);
-  return `${minutes}:${String(total % 60).padStart(2, "0")}`;
-}
 
 /**
  * Barre d'envoi web : texte (Entrée envoie, Maj+Entrée saute une ligne), pièce jointe photo/vidéo,
@@ -94,7 +95,7 @@ export function Composer({
     return (
       <div className="flex items-center gap-cmv-md border-cmv-border border-t p-cmv-md">
         <span className="size-2.5 rounded-full bg-cmv-error" />
-        <span className="flex-1 text-cmv-text-hi">{formatSeconds(recorder.seconds)}</span>
+        <span className="flex-1 text-cmv-text-hi">{formatMmSs(recorder.seconds)}</span>
         <button
           type="button"
           onClick={() => recorder.stop(false)}
