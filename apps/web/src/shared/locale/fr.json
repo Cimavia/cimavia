@@ -372,7 +372,7 @@
         "missing": "Image indisponible",
         "uploading": "Envoi… {{percent}} %",
         "errorType": "Format non accepté : PNG, JPEG ou WebP.",
-        "errorSize": "{{size}} Mo — dépasse la limite de {{limit}} Mo.",
+        "errorSize": "{{size, number}} Mo — dépasse la limite de {{limit, number}} Mo.",
         "width": "Largeur de l'image"
       },
       "grid": {
