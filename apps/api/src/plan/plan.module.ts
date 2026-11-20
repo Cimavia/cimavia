@@ -15,6 +15,7 @@ import { PlanService } from "./service/plan.service";
 import { PlanAccessService } from "./service/plan-access.service";
 import { PlanWeekCopyService } from "./service/plan-week-copy.service";
 import { ScheduledCompositionService } from "./service/scheduled-composition.service";
+import { ScheduledDayService } from "./service/scheduled-day.service";
 import { ScheduledSessionService } from "./service/scheduled-session.service";
 
 // Planifications (P3) : cycles, semaines et séances planifiées (copies éditables des modèles).
@@ -46,6 +47,7 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
     PlanAccessService,
     PlanWeekCopyService,
     ScheduledSessionService,
+    ScheduledDayService,
     ScheduledCompositionService,
     AthletePlanService,
   ],
