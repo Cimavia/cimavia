@@ -124,7 +124,7 @@ export function MessagesScreen() {
           onClose={() => setCreating(false)}
           onOpened={(conversationId) => {
             setCreating(false);
-            select(conversationId, { keepSearch: false });
+            void select(conversationId, { keepSearch: false });
           }}
         />
       ) : null}
