@@ -87,7 +87,7 @@ pnpm --filter @cmv/api exec prisma migrate dev --create-only --name <nom>
 
 ### Porte qualité
 
-Tout doit passer avant de conclure une étape. Ces sept commandes sont celles des jobs CI que
+Tout doit passer avant de conclure une étape. Ces huit commandes sont celles des jobs CI que
 regroupe le check *Lint + Typecheck + Test* (#683), à l'exception du `--strict`, exigé en local et pas en CI :
 
 ```bash
@@ -99,6 +99,7 @@ pnpm check:lint-rules          # les règles Biome maison mordent encore (fixtur
 pnpm turbo typecheck test
 pnpm check:i18n                # doit sortir en 0
 pnpm check:i18n --strict       # + les clés mortes — plus strict que la CI
+pnpm check:tokens              # une classe *-cmv-* que Tailwind ne génère pas (+ son banc)
 pnpm check:dette               # journal de dette : identifiants, suivi, archive
 pnpm check:migrations          # squawk sur les migrations de la branche (+ son banc de fixtures)
 ```

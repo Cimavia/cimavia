@@ -279,8 +279,9 @@ liste des domaines vivent dans l'index.
 > **Deux classes de tokens inexistantes** ont été introduites puis corrigées : `text-cmv-text-low`
 > (le token est `lo`) et `text-cmv-accent-on` sur un fond `accent` plein (c'est `text-cmv-text-hi`,
 > `accent-on` servant sur `accent-soft`). Tailwind ne génère simplement pas une classe inconnue :
-> ni `tsc`, ni `biome`, ni le build ne le voient, et le texte sort sans couleur. Un `grep` sur un
-> token voisin est le seul contrôle qui existe aujourd'hui.
+> ni `tsc`, ni `biome`, ni le build ne le voient, et le texte sort sans couleur. Depuis
+> [#178](https://github.com/Cimavia/cimavia/issues/178), `pnpm check:tokens` (en CI) refuse une
+> classe que Tailwind ne génère pas.
 >
 > **Le piège trouvé en chemin** : les écrans partagés branchaient leur titre, leurs listes vides et
 > leurs boutons sur `useCapabilities().isCoach` — la capacité **possédée**. Un compte cumulant

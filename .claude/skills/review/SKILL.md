@@ -43,6 +43,7 @@ pnpm check:dette
 pnpm check:migrations
 pnpm turbo typecheck test
 pnpm check:i18n --strict          # --strict : clés mortes comprises
+pnpm check:tokens
 
 # SonarCloud — projet public, aucun token nécessaire
 curl -s "https://sonarcloud.io/api/measures/component?component=cimavia&metricKeys=ncloc,coverage,duplicated_lines_density,bugs,vulnerabilities,security_hotspots,code_smells,sqale_index,cognitive_complexity"
