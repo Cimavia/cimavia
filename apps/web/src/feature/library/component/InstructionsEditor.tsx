@@ -1,7 +1,9 @@
 import {
+  exceededMegabytesOf,
   isInstructionImageMime,
   isRichDocumentTooLong,
   MAX_DOCUMENT_SIZE_BYTES,
+  megabytesOf,
   RICH_DOCUMENT_MAX_TEXT_LENGTH,
   type RichDocument,
   richDocumentTextLength,
@@ -223,8 +225,8 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
       // « trop lourde » le laisse deviner s'il doit recadrer ou recompresser.
       setFileError(
         t("library.builder.image.errorSize", {
-          size: formatMegabytes(file.size),
-          limit: formatMegabytes(MAX_DOCUMENT_SIZE_BYTES),
+          size: exceededMegabytesOf(file.size),
+          limit: megabytesOf(MAX_DOCUMENT_SIZE_BYTES),
         }),
       );
       return;
@@ -412,10 +414,4 @@ function LinkField({ value, onChange, onSubmit, onCancel }: Readonly<LinkFieldPr
       </button>
     </div>
   );
-}
-
-const BYTES_PER_MEGABYTE = 1024 * 1024;
-
-function formatMegabytes(bytes: number): string {
-  return (bytes / BYTES_PER_MEGABYTE).toFixed(1).replace(".", ",");
 }

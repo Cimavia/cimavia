@@ -6,7 +6,10 @@ import {
   MAX_DOCUMENT_SIZE_BYTES,
 } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fr from "@/shared/locale/fr.json";
 import { renderWithProviders } from "../../../../test/render";
 import { AttachmentsSection } from "./AttachmentsSection";
 
@@ -120,6 +123,38 @@ describe("AttachmentsSection", () => {
 
       expect(await findByText("library.builder.attachment.errorSize")).toBeInTheDocument();
       expect(onPendingFiles).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Avec le VRAI catalogue, et non `cimode` qui perd les paramètres : le plafond vient de
+     * `MAX_DOCUMENT_SIZE_BYTES`, plus d'un « 20 Mo » écrit dans la phrase (#383). Un paramètre
+     * oublié ou renommé d'un seul côté laisserait « · Mo max », que `check:i18n` ne voit pas.
+     */
+    it("dit le plafond de la constante, dans l'indication comme dans le refus", async () => {
+      const i18n = createInstance();
+      await i18n.init({ lng: "fr", resources: { fr: { translation: fr } } });
+      const { user, container, getByText, findByText } = renderWithProviders(
+        <I18nextProvider i18n={i18n}>
+          <AttachmentsSection
+            exercise={null}
+            pendingFiles={[]}
+            pendingLinks={[]}
+            progress={{}}
+            isSaving={false}
+            onPendingFiles={vi.fn()}
+            onPendingLinks={vi.fn()}
+          />
+        </I18nextProvider>,
+      );
+
+      expect(getByText("PDF, PNG, JPEG, WebP · 20 Mo max")).toBeInTheDocument();
+
+      await user.upload(
+        container.querySelector('input[type="file"]') as HTMLInputElement,
+        fileOfSize("gros.pdf", "application/pdf", MAX_DOCUMENT_SIZE_BYTES + 1),
+      );
+
+      expect(await findByText("Fichier trop lourd : 20 Mo maximum.")).toBeInTheDocument();
     });
 
     it("vide le champ pour qu'un même fichier puisse être rechoisi", async () => {

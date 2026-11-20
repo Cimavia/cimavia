@@ -1002,6 +1002,7 @@ export type {
 } from "./util/media-batch.util";
 export { mediaRecapText, sendMediaBatch } from "./util/media-batch.util";
 export {
+  exceededMegabytesOf,
   FILE_SIZE_LABEL_KEY,
   fileSizeOf,
   formatMediaDuration,

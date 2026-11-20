@@ -1,8 +1,11 @@
 import { MAX_DOCUMENT_SIZE_BYTES, RichBlockType, type RichDocument } from "@cmv/shared";
 import { fireEvent, renderHook } from "@testing-library/react";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { InstructionMedia } from "@/feature/library/hook/useInstructionMedia";
 import { RefusedFieldsContext } from "@/shared/hook/useRefusedFields";
+import fr from "@/shared/locale/fr.json";
 import { installProseMirrorLayout } from "../../../../test/prosemirror";
 import { renderWithProviders } from "../../../../test/render";
 import { InstructionMediaProvider, useInstructionMediaContext } from "./InstructionMediaContext";
@@ -452,6 +455,29 @@ describe("InstructionsEditor — image", () => {
 
     expect(getByText("library.builder.image.errorSize")).toBeInTheDocument();
     expect(media.register).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Avec le VRAI catalogue, et non `cimode` qui perd les paramètres : c'est `{{size, number}}` dans
+   * la phrase qui confie le nombre à `Intl` (#383). Et un octet de trop ne se dit pas « 20 Mo »,
+   * la limite même qu'il dépasse.
+   */
+  it("dit le poids et la limite au format de la langue, le poids au-dessus de la limite", async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: "fr", resources: { fr: { translation: fr } } });
+    const { user, getByText, container } = renderWithProviders(
+      <I18nextProvider i18n={i18n}>
+        <InstructionMediaProvider media={fakeMedia()}>
+          <InstructionsEditor initialValue={null} onChange={vi.fn()} />
+        </InstructionMediaProvider>
+      </I18nextProvider>,
+    );
+    const heavy = png();
+    Object.defineProperty(heavy, "size", { value: MAX_DOCUMENT_SIZE_BYTES + 1 });
+
+    await user.upload(container.querySelector("input[type=file]") as HTMLInputElement, heavy);
+
+    expect(getByText("20,1 Mo — dépasse la limite de 20 Mo.")).toBeInTheDocument();
   });
 
   it("accepte une image au poids maximal exact", async () => {

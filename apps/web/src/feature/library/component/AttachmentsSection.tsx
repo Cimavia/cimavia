@@ -6,6 +6,7 @@ import {
   isAllowedDocumentMime,
   LINK_URL_MAX_LENGTH,
   MAX_DOCUMENT_SIZE_BYTES,
+  megabytesOf,
   required,
 } from "@cmv/shared";
 import { type ChangeEvent, useState } from "react";
@@ -15,6 +16,12 @@ import type { PendingFile } from "@/feature/library/hook/useSaveExercise";
 import { useDeleteDocument } from "@/feature/library/hook/useSaveExercise";
 import { CMV_EDIT, CmvBadge, CmvButton, CmvProgressBar, CmvTextField } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
+
+/**
+ * Le plafond se lit dans la constante, jamais dans le catalogue : écrit « 20 Mo » en dur, il
+ * mentirait au premier ajustement (`architecture-choice.md` §7, #383).
+ */
+const MAX_DOCUMENT_MEGABYTES = megabytesOf(MAX_DOCUMENT_SIZE_BYTES);
 
 type AttachmentsSectionProps = {
   exercise: ExerciseDto | null;
@@ -73,7 +80,7 @@ export function AttachmentsSection({
         return;
       }
       if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
-        setFileError(t("library.builder.attachment.errorSize"));
+        setFileError(t("library.builder.attachment.errorSize", { max: MAX_DOCUMENT_MEGABYTES }));
         return;
       }
       accepted.push({ id: crypto.randomUUID(), file, mimeType: file.type });
@@ -198,7 +205,7 @@ export function AttachmentsSection({
           {t("library.builder.attachment.add")}
         </span>
         <span className="text-cmv-caption text-cmv-text-mid">
-          {t("library.builder.attachment.hint")}
+          {t("library.builder.attachment.hint", { max: MAX_DOCUMENT_MEGABYTES })}
         </span>
         <input
           type="file"
