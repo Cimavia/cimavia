@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * La base des e2e web, mise au dernier schéma puis vidée — AVANT que l'API de test démarre.
+ * La base des parcours (web et mobile), mise au dernier schéma puis vidée — AVANT que l'API de
+ * test démarre.
  *
  * Pas un `globalSetup` Playwright : celui-ci tourne APRÈS les `webServer`. L'API démarrerait donc
  * sur une base que `migrate deploy` n'a pas encore créée, et le `TRUNCATE` passerait sous une API
- * vivante. La config l'enchaîne en tête de la commande de l'API, qui ne part qu'une fois la base
- * prête — et un poste sans conteneur échoue ici, avec la commande à lancer.
+ * vivante. `testApiServer` (`src/api-server.ts`) l'enchaîne en tête de la commande de l'API, qui ne
+ * part qu'une fois la base prête — et un poste sans conteneur échoue ici, avec la commande à lancer.
  *
  * En `.mjs`, comme les scripts de `scripts/` : Node l'exécute tel quel, sans chargeur TypeScript.
  * `DATABASE_URL` vient de l'environnement que la config pose sur la commande.
@@ -15,7 +16,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DISPOSABLE_SUFFIX = "_e2e";
-const API_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../api");
+const API_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../apps/api");
 
 /**
  * Toutes les tables du schéma, lues dans le catalogue plutôt que listées : une table ajoutée par une

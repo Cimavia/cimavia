@@ -73,18 +73,7 @@ test.describe("Le débrief d'un cycle partagé", () => {
 
     // M répond depuis son fil avec l'athlète, rattaché au débrief.
     const [feedback] = await json<{ id: string }[]>(await m.api.get("/feedbacks"), "boîte de M");
-    const thread = await json<{ id: string }>(
-      await m.api.post("/conversations", {
-        data: { participants: [{ userId: athleteId, capability: "athlete" }] },
-      }),
-      "fil de M",
-    );
-    await json(
-      await m.api.post(`/conversations/${thread.id}/messages`, {
-        data: { type: "TEXT", content: "Lève le pied", sessionFeedbackId: feedback?.id },
-      }),
-      "réponse de M",
-    );
+    await seed.message(m, athleteId, "Lève le pied", feedback?.id);
 
     await seed.authenticate(context, c);
     await page.goto("/feedbacks");

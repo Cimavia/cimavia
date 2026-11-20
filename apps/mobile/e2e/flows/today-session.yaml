@@ -1,0 +1,12 @@
+# La séance du jour : au Planning, sous son titre, puis ouverte sur son contenu.
+appId: ${APP_ID}
+---
+- runFlow: common/login.yaml
+- extendedWaitUntil:
+    visible: ${SESSION_TITLE}
+    timeout: 30000
+- tapOn: ${SESSION_TITLE}
+- extendedWaitUntil:
+    visible: ${EXERCISE_TITLE}
+    timeout: 15000
+- assertVisible: ${FEEDBACK_OPEN}

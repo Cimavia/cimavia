@@ -112,6 +112,8 @@ docker compose -f apps/api/docker-compose.test.yml up -d
 docker compose -f apps/api/docker-compose.yml run --rm silo-setup
 pnpm turbo test:e2e --filter=@cmv/api
 pnpm --filter @cmv/web test:e2e:web   # parcours Coach dans Chromium — job CI NON requis (#627)
+pnpm --filter @cmv/mobile test:e2e:mobile   # parcours Athlete, Maestro sur émulateur — NON requis (#638)
+                               #    depuis WSL : CMV_ADB_SERVER=<passerelle>:5037 ; CMV_E2E_SKIP_BUILD=1 garde l'APK
 
 pnpm --filter @cmv/web exec vite build
 pnpm check:bundle              # export Expo android (sourcemaps comprises), puis refuse un paquet

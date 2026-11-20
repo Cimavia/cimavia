@@ -1,0 +1,32 @@
+# Connexion et garde de route : un visiteur tombe sur la connexion, un mauvais mot de passe l'y
+# laisse avec l'erreur, le bon ouvre le Planning — et la session survit à une relance de l'app.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: deny
+- extendedWaitUntil:
+    visible: ${LOGIN_TITLE}
+    timeout: 30000
+- tapOn: ${EMAIL_LABEL}
+- inputText: ${EMAIL}
+- tapOn: ${PASSWORD_LABEL}
+- inputText: ${WRONG_PASSWORD}
+- hideKeyboard
+- tapOn: ${LOGIN_SUBMIT}
+- extendedWaitUntil:
+    visible: ${LOGIN_ERROR}
+    timeout: 15000
+- runFlow: common/login.yaml
+- extendedWaitUntil:
+    visible: ${PLAN_TITLE}
+    timeout: 30000
+# Relancée SANS effacer ses données : la session relue dans SecureStore évite la connexion.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: ${PLAN_TITLE}
+    timeout: 30000
+- assertNotVisible: ${LOGIN_TITLE}

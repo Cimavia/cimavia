@@ -32,6 +32,33 @@ foreach ($port in $PORTS) {
     Write-Host "  0.0.0.0:$port -> ${wslIp}:$port"
 }
 
+# adb (#638) : les parcours e2e mobiles, lances depuis WSL, pilotent l'emulateur de Windows. Son
+# serveur adb n'ecoute que sur 127.0.0.1, que WSL ne voit pas : on le relaie sur l'adresse de
+# Windows VUE DE WSL, et sur elle seule. L'exposer au LAN (`adb -a`, ou 0.0.0.0 ici) donnerait
+# l'appareil a quiconque le joint.
+# Cote WSL, cette adresse est la passerelle par defaut (`ip route show default`) :
+#   CMV_ADB_SERVER=<elle>:5037 pnpm --filter @cmv/mobile test:e2e:mobile
+$ADB_PORT = 5037
+$ADB_RULE = "cimavia - adb depuis WSL"
+$wslHostIp = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias "vEthernet (WSL*)" -ErrorAction SilentlyContinue |
+    Select-Object -First 1).IPAddress
+if ($wslHostIp) {
+    # L'ancienne redirection et l'ancienne regle d'abord : l'adresse peut avoir change.
+    Get-NetFirewallRule -DisplayName $ADB_RULE -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+    foreach ($line in (netsh interface portproxy show v4tov4)) {
+        $fields = $line.Trim() -split "\s+"
+        if ($fields.Count -ge 4 -and $fields[1] -eq "$ADB_PORT" -and $fields[2] -eq "127.0.0.1") {
+            netsh interface portproxy delete v4tov4 listenport=$ADB_PORT listenaddress=$($fields[0]) | Out-Null
+        }
+    }
+    netsh interface portproxy add v4tov4 listenport=$ADB_PORT listenaddress=$wslHostIp connectport=$ADB_PORT connectaddress=127.0.0.1 | Out-Null
+    # Entrant depuis WSL seulement : la regle ne vaut que pour cette adresse locale.
+    New-NetFirewallRule -DisplayName $ADB_RULE -Direction Inbound -Protocol TCP -LocalPort $ADB_PORT -LocalAddress $wslHostIp -Action Allow | Out-Null
+    Write-Host "  ${wslHostIp}:$ADB_PORT -> 127.0.0.1:$ADB_PORT (adb, vu de WSL seulement)"
+} else {
+    Write-Warning "Interface vEthernet (WSL) introuvable : adb n'est pas relaye vers WSL."
+}
+
 Write-Host ""
 Write-Host "Redirections actives :"
 netsh interface portproxy show v4tov4

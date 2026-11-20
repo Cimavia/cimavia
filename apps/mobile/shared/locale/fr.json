@@ -316,6 +316,7 @@
   },
   "messages": {
     "placeholder": "Écris un message…",
+    "send": "Envoyer le message",
     "sendError": "Message non envoyé. Vérifie ta connexion.",
     "empty": {
       "title": "Aucun message",

@@ -140,7 +140,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #668 | Le minuteur d'un toast survit au démontage : CI rouge sur une suite verte | 🟡 | ✅ |
 | #382 | Le test de changement d'heure est vert quelle que soit l'implémentation | 🟡 | ✅ |
 | #351 | Onze `notifyX` recopiés, aucun test sur la partie fragile | 🟡 | ✅ |
-| #638 | Aucun parcours de l'Athlete testé de bout en bout sur mobile | 🟡 | |
+| #638 | Aucun parcours de l'Athlete testé de bout en bout sur mobile | 🟡 | ✅ |
 | #178 | Vérifier les classes Tailwind qui référencent un token | 🟡 | |
 | #355 | 830 lignes de logique pure dans le schéma des blocs | ⚪ | ✅ |
 | #387 | Trois fichiers dépassent nettement 400 lignes | ⚪ | |
@@ -163,7 +163,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #579 | Boutons sans fond ni bordure, lus comme du texte | 🟡 | |
 | #218 | Le DEFAULT des familles d'état employé comme texte (contraste AA) | 🟡 | |
 | #199 | Rôle d'accessibilité sur les composants Cmv du mobile | 🟡 | |
-| #377 | Les boutons de la barre d'envoi n'ont aucun nom accessible | 🟡 | |
+| #377 | Les boutons de la barre d'envoi n'ont aucun nom accessible | 🟡 | ✅ |
 | #650 | Le sélecteur segmenté n'annonce pas l'option choisie | ⚪ | |
 | #217 | Repère de champ obligatoire sur mobile | ⚪ | |
 | #705 | Couleur progressive des compteurs du tableau de suivi | ⚪ | |

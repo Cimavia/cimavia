@@ -57,6 +57,12 @@ describe("appVersionLabel (mobile)", () => {
     expect(appVersionLabel()).toBe("1.2.0 (dev)");
   });
 
+  it("rend null pour une variante qui n'est pas un tier, plutôt qu'un numéro nu (#638)", () => {
+    constants.expoConfig = { version: "1.2.0", extra: { appVariant: "e2e" } };
+
+    expect(appVersionLabel()).toBeNull();
+  });
+
   it("rend null quand app.json n'a pas de version", () => {
     constants.expoConfig = { extra: { appVariant: "production" } };
 

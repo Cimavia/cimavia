@@ -41,7 +41,12 @@ const base = {
   step: null,
 };
 
-/** Les boutons de la barre n'ont que leur icône pour se distinguer. */
+/** Un bouton de la barre, par son nom — ce qu'un lecteur d'écran en annonce (#377). */
+function named(container: HTMLElement, label: string): Element | null {
+  return container.querySelector(`[aria-label="${label}"]`);
+}
+
+/** Par son icône : le micro de l'enregistreur n'a pas encore de nom (#199), ni les choix. */
 function iconButton(container: HTMLElement, name: string): Element | null {
   return container.querySelector(`[data-icon="${name}"]`)?.parentElement ?? null;
 }
@@ -53,7 +58,7 @@ function type(container: HTMLElement, value: string): void {
 }
 
 function pressSend(container: HTMLElement): void {
-  const send = iconButton(container, "send");
+  const send = named(container, "messages.send");
   if (send == null) throw new Error("bouton d'envoi absent");
   press(send);
 }
@@ -74,17 +79,25 @@ describe("Composer", () => {
 
   it("n'offre l'envoi qu'une fois quelque chose écrit", () => {
     const { container } = renderRn(<Composer {...base} />);
-    expect(iconButton(container, "send")).toBeNull();
+    expect(named(container, "messages.send")).toBeNull();
 
     type(container, "salut");
 
-    expect(iconButton(container, "send")).not.toBeNull();
+    expect(named(container, "messages.send")).not.toBeNull();
+  });
+
+  it("nomme envoyer et joindre, que leur icône seule ne dit pas (#377)", () => {
+    const { container } = renderRn(<Composer {...base} />);
+    type(container, "salut");
+
+    expect(named(container, "messages.send")).toBe(iconButton(container, "send"));
+    expect(named(container, "messages.attach")).toBe(iconButton(container, "add-circle-outline"));
   });
 
   it("ne prend pas des espaces pour un message", () => {
     const { container } = renderRn(<Composer {...base} />);
     type(container, "   ");
-    expect(iconButton(container, "send")).toBeNull();
+    expect(named(container, "messages.send")).toBeNull();
   });
 
   it("envoie le texte détouré, puis vide le champ au succès", async () => {
@@ -119,7 +132,7 @@ describe("Composer", () => {
     const { container } = renderRn(<Composer {...base} sending />);
     type(container, "salut");
     // Le micro reprend la place du bouton d'envoi : rien à presser deux fois.
-    expect(iconButton(container, "send")).toBeNull();
+    expect(named(container, "messages.send")).toBeNull();
     expect(iconButton(container, "mic-outline")).not.toBeNull();
   });
 
@@ -127,7 +140,7 @@ describe("Composer", () => {
     const onPickMedia = vi.fn();
     const { container } = renderRn(<Composer {...base} mediaBusy onPickMedia={onPickMedia} />);
 
-    const attach = iconButton(container, "add-circle-outline");
+    const attach = named(container, "messages.attach");
     if (attach == null) throw new Error("bouton de pièce jointe absent");
     press(attach);
 
@@ -143,7 +156,7 @@ describe("Composer", () => {
     const { container } = renderRn(<Composer {...base} onPickMedia={onPickMedia} />);
     expect(iconButton(container, icon)).toBeNull();
 
-    press(iconButton(container, "add-circle-outline") as Element);
+    press(named(container, "messages.attach") as Element);
     press(iconButton(container, icon) as Element);
 
     expect(onPickMedia).toHaveBeenCalledWith(source);
@@ -153,7 +166,7 @@ describe("Composer", () => {
   it("referme le choix au second appui sur joindre, sans rien ouvrir", () => {
     const onPickMedia = vi.fn();
     const { container } = renderRn(<Composer {...base} onPickMedia={onPickMedia} />);
-    const attach = iconButton(container, "add-circle-outline") as Element;
+    const attach = named(container, "messages.attach") as Element;
 
     press(attach);
     press(attach);
@@ -165,7 +178,7 @@ describe("Composer", () => {
   it("ne rouvre pas le choix à la fin d'un enregistrement lancé par-dessus", () => {
     const { container } = renderRn(<Composer {...base} />);
 
-    press(iconButton(container, "add-circle-outline") as Element);
+    press(named(container, "messages.attach") as Element);
     press(iconButton(container, "mic-outline") as Element);
 
     expect(iconButton(container, "images-outline")).toBeNull();
@@ -173,7 +186,7 @@ describe("Composer", () => {
 
   it("referme le choix quand un envoi démarre : il ne resurgit pas à la fin", () => {
     const { container, rerender } = renderRn(<Composer {...base} />);
-    press(iconButton(container, "add-circle-outline") as Element);
+    press(named(container, "messages.attach") as Element);
 
     rerender(<Composer {...base} mediaBusy />);
     expect(iconButton(container, "images-outline")).toBeNull();
@@ -218,7 +231,7 @@ describe("Composer", () => {
 
     press(iconButton(container, "mic-outline") as Element);
 
-    expect(iconButton(container, "add-circle-outline")).toBeNull();
+    expect(named(container, "messages.attach")).toBeNull();
     expect(container.querySelector("textarea, input")).toBeNull();
     expect(iconButton(container, "mic-outline")).not.toBeNull();
   });

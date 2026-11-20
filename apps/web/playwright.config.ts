@@ -1,36 +1,13 @@
-import { envSchema } from "@cmv/shared";
+import { testApiServer } from "@cmv/e2e/api-server";
 import { defineConfig, devices } from "@playwright/test";
-import { API_PORT, API_URL, AUTH_SECRET, DATABASE_URL, WEB_PORT, WEB_URL } from "./e2e/support/env";
+import { API_PORT, API_URL, DATABASE_URL, WEB_PORT, WEB_URL } from "./e2e/support/env";
 
 const CI = process.env.CI != null;
 
 /**
- * Toutes les variables que l'API lit, posées VIDES. `ConfigModule` et `instrument.ts` chargent
- * `apps/api/.env` pour toute variable que le process ne pose pas : sur un poste, l'API de test
- * partirait sinon avec le DSN Sentry, le jeton Axiom et le SMTP du développeur. Une variable vide
- * l'emporte sur le fichier, et le schéma la lit comme absente.
- *
- * Tirées du schéma, pas listées à la main : une variable ajoutée à l'API est neutralisée ici sans
- * que personne ait à y penser.
+ * Comme pour l'API (`testApiServer` les pose vides) : `/config.js` lit `apps/web/.env`, et le build
+ * lirait un jeton Sentry.
  */
-const BLANK_ENV = Object.fromEntries(Object.keys(envSchema.shape).map((key) => [key, ""]));
-
-/** Ce que l'API de test pose vraiment, par-dessus. Aucun secret : rien ne survit à la suite. */
-const API_ENV: Record<string, string> = {
-  ...BLANK_ENV,
-  NODE_ENV: "test",
-  APP_ENV: "development",
-  PORT: String(API_PORT),
-  DATABASE_URL,
-  BETTER_AUTH_SECRET: AUTH_SECRET,
-  BETTER_AUTH_URL: API_URL,
-  CORS_ORIGINS: WEB_URL,
-  // Les parcours inscrivent leurs comptes sans invitation, comme la suite d'isolation. Sans storage
-  // (`S3_*` vides), l'API démarre et ses routes médias répondent 503 : aucun parcours n'en a besoin.
-  SIGNUP_MODE: "open",
-};
-
-/** Même principe côté web : `/config.js` lit `apps/web/.env`, et le build lirait un jeton Sentry. */
 const WEB_ENV: Record<string, string> = {
   CMV_API_URL: API_URL,
   CMV_APP_ENV: "development",
@@ -70,20 +47,8 @@ export default defineConfig({
    * suite en le nommant, ce qui vaut mieux qu'un parcours qui teste autre chose que ce qu'il croit.
    */
   webServer: [
-    {
-      // La base d'abord : l'API ne démarre que sur une base créée, migrée et vidée. Puis le build
-      // par Turbo, qui construit `@cmv/shared` d'abord — l'API le lit depuis son `dist`.
-      command:
-        "node ../web/e2e/prepare-database.mjs && pnpm turbo build --filter=@cmv/api --output-logs=errors-only && node dist/main.js",
-      cwd: "../api",
-      url: `${API_URL}/health`,
-      env: API_ENV,
-      reuseExistingServer: false,
-      timeout: 180_000,
-      // Les logs de l'API dans ceux du job : sans eux, un 500 du jeu de données n'a ni pile ni
-      // contexte. En local, ils noieraient la sortie du reporter.
-      stdout: CI ? "pipe" : "ignore",
-    },
+    // L'API de test : sa base préparée, puis le build de l'API, puis le serveur (`@cmv/e2e`).
+    testApiServer({ port: API_PORT, databaseUrl: DATABASE_URL, origins: [WEB_URL], ci: CI }),
     {
       // Le bundle de PRODUCTION, servi par `vite preview` : ce que nginx sert, pas le serveur de dev.
       command: `pnpm exec vite build && pnpm exec vite preview --port ${WEB_PORT} --strictPort`,

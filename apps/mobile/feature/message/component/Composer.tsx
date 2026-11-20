@@ -156,7 +156,15 @@ export function Composer({
         )}
 
         {!recording && canSendText ? (
-          <Pressable onPress={submitText} hitSlop={8} className="pb-1">
+          <Pressable
+            onPress={submitText}
+            hitSlop={8}
+            className="pb-1"
+            // Sans nom, TalkBack lirait le glyphe de l'icône (#377), et Maestro ne le trouverait
+            // pas (#638).
+            accessibilityRole="button"
+            accessibilityLabel={t("messages.send")}
+          >
             <Ionicons name="send" size={22} color={cmvColors.accent.DEFAULT} />
           </Pressable>
         ) : (
