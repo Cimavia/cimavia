@@ -72,7 +72,7 @@ export function BlockReading({
           le libellé jusqu'à le couper au milieu d'un mot (#584). */}
       <div className="flex flex-wrap items-center gap-cmv-sm">
         {/* Le libellé se coupe, le numéro non : c'est une pastille. */}
-        <h3 className={cn("text-cmv-h3 text-cmv-text-hi", number == null && "wrap-anywhere")}>
+        <h3 className={cn("text-cmv-subtitle text-cmv-text-hi", number == null && "wrap-anywhere")}>
           {number == null ? label : <BlockMark mark={number} kind="block" />}
         </h3>
         {aside}
