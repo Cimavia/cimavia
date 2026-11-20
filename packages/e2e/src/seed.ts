@@ -277,10 +277,15 @@ export class Seed {
   }
 
   /**
-   * Le Coach ouvre la conversation avec son athlète — ou rouvre la leur (#598) — et y écrit.
-   * Rend l'id de la conversation.
+   * Le Coach ouvre la conversation avec son athlète — ou rouvre la leur (#598) — et y écrit, en
+   * réponse à un débrief quand `sessionFeedbackId` le nomme. Rend l'id de la conversation.
    */
-  async message(coach: Account, athleteId: string, content: string): Promise<string> {
+  async message(
+    coach: Account,
+    athleteId: string,
+    content: string,
+    sessionFeedbackId?: string,
+  ): Promise<string> {
     const conversation = await json<{ id: string }>(
       await coach.api.post("/conversations", {
         data: { participants: [{ userId: athleteId, capability: "athlete" }] },
@@ -289,7 +294,7 @@ export class Seed {
     );
     await json(
       await coach.api.post(`/conversations/${conversation.id}/messages`, {
-        data: { type: MessageType.TEXT, content },
+        data: { type: MessageType.TEXT, content, sessionFeedbackId },
       }),
       "message du Coach",
     );

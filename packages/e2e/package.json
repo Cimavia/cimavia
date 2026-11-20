@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./seed": "./src/seed.ts",
-    "./api-server": "./src/api-server.ts"
+    "./api-server": "./src/api-server.ts",
+    "./catalog": "./src/catalog.ts"
   },
   "scripts": {
     "lint": "biome check .",
@@ -16,7 +17,8 @@
   },
   "dependencies": {
     "@cmv/shared": "workspace:*",
-    "better-auth": "1.7.18"
+    "better-auth": "1.7.18",
+    "i18next": "^26.5.3"
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",
