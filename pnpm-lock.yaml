@@ -333,9 +333,15 @@ importers:
       '@babel/plugin-transform-react-jsx':
         specifier: 7.29.7
         version: 7.29.7(@babel/core@7.29.13)
+      '@cmv/e2e':
+        specifier: workspace:*
+        version: link:../../packages/e2e
       '@cmv/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@playwright/test':
+        specifier: 1.65.0
+        version: 1.65.0
       '@sentry/cli':
         specifier: 2.58.4
         version: 2.58.4

@@ -1,0 +1,18 @@
+# Sous-flux : l'app relancée à neuf, puis la connexion par l'écran. Sur mobile, la session vit dans
+# SecureStore (`@better-auth/expo`) : rien ne s'y injecte de l'extérieur, chaque parcours se
+# connecte donc lui-même (#638).
+#
+# Attend : EMAIL, PASSWORD, EMAIL_LABEL, PASSWORD_LABEL, LOGIN_SUBMIT (posés par `loginVars`).
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+    # La demande de permission couvrirait l'écran ; le push n'est pas dans les parcours.
+    permissions:
+      notifications: deny
+- tapOn: ${EMAIL_LABEL}
+- inputText: ${EMAIL}
+- tapOn: ${PASSWORD_LABEL}
+- inputText: ${PASSWORD}
+- hideKeyboard
+- tapOn: ${LOGIN_SUBMIT}
