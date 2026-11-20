@@ -97,9 +97,9 @@ export function MessagesScreen() {
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => {
-            conversations.refetch();
-            candidates.refetch();
-            if (entry.isError) entry.refetch();
+            void conversations.refetch();
+            void candidates.refetch();
+            if (entry.isError) void entry.refetch();
           }}
         />
       ) : null}

@@ -94,8 +94,8 @@ export function MessagesScreen() {
   // Une liste à montrer, donc à chercher : ni en panne, ni vide.
   const hasList = !isError && list.length > 0;
   const refresh = () => {
-    conversations.refetch();
-    candidates.refetch();
+    void conversations.refetch();
+    void candidates.refetch();
   };
 
   return (
