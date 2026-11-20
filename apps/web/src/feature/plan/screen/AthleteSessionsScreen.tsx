@@ -1,5 +1,10 @@
-import type { ScheduledSessionSummaryDto } from "@cmv/shared";
-import { todayIsoDate } from "@cmv/shared";
+import {
+  type ScheduledSessionSummaryDto,
+  type SessionEntry,
+  type SessionsSegment,
+  splitSessionsByDate,
+  todayIsoDate,
+} from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AthleteSessionCard } from "@/feature/plan/component/AthleteSessionCard";
@@ -17,10 +22,7 @@ import { formatDayLabel } from "@/shared/util/date.util";
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
 // i18n-values plan.athlete.sessions: upcoming, past
 
-export type SessionsSegment = "upcoming" | "past";
-
-/** Une séance et le cycle d'où elle vient — le nom voyage avec elle, il ne se rejoint pas au rendu. */
-type SessionEntry = { session: ScheduledSessionSummaryDto; planTitle: string };
+type Entry = SessionEntry<ScheduledSessionSummaryDto>;
 
 const route = getRouteApi("/sessions/");
 
@@ -40,33 +42,14 @@ export function AthleteSessionsScreen() {
   const { segment } = route.useSearch();
   const { data: plans, isPending, isError, refetch } = useMyPlans();
 
-  const today = todayIsoDate();
-
   const options: CmvSegmentedOption<SessionsSegment>[] = [
     { value: "upcoming", label: t("plan.athlete.sessions.upcoming") },
     { value: "past", label: t("plan.athlete.sessions.past") },
   ];
 
-  /**
-   * Le tri s'inverse avec le segment, et ce n'est pas un détail : « à venir » se lit de la plus
-   * proche à la plus lointaine (ce qui arrive d'abord est en tête), « passées » de la plus récente
-   * à la plus ancienne (ce qu'on vient de faire est en tête). Un tri unique mettrait à chaque fois
-   * en tête la ligne dont on se soucie le moins.
-   */
-  const entries = (plans ?? [])
-    .flatMap((plan) =>
-      plan.weeks.flatMap((week) =>
-        week.sessions.map((session) => ({ session, planTitle: plan.title })),
-      ),
-    )
-    .filter(({ session }) =>
-      segment === "upcoming" ? session.scheduledDate >= today : session.scheduledDate < today,
-    )
-    .sort((a, b) =>
-      segment === "upcoming"
-        ? a.session.scheduledDate.localeCompare(b.session.scheduledDate)
-        : b.session.scheduledDate.localeCompare(a.session.scheduledDate),
-    );
+  // La frontière et l'ordre de chaque segment sont décidés dans `@cmv/shared` (#376), avec le
+  // mobile : un même athlète lit les mêmes listes sur ses deux écrans.
+  const entries = splitSessionsByDate(plans ?? [], todayIsoDate())[segment];
 
   // Le nom du cycle n'apparaît que si l'athlète en suit plusieurs (#172) : répété sur chaque carte
   // d'un cycle unique, il serait du bruit — c'est ce qui DISTINGUE qui mérite d'être écrit.
@@ -125,8 +108,8 @@ export function AthleteSessionsScreen() {
 function SessionsByDay({
   entries,
   showPlanTitle,
-}: Readonly<{ entries: SessionEntry[]; showPlanTitle: boolean }>) {
-  const days: { date: string; entries: SessionEntry[] }[] = [];
+}: Readonly<{ entries: Entry[]; showPlanTitle: boolean }>) {
+  const days: { date: string; entries: Entry[] }[] = [];
   for (const entry of entries) {
     const last = days.at(-1);
     if (last?.date === entry.session.scheduledDate) last.entries.push(entry);
