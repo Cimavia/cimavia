@@ -129,12 +129,19 @@ export async function pinTimeZone(): Promise<() => Promise<void>> {
   // Un AVD neuf n'a aucun fuseau enregistré : il tourne alors à GMT, et c'est GMT qui est remis.
   const previousZone = (await adb("shell", "getprop", "persist.sys.timezone")) || "GMT";
   const previousAuto = await adb("shell", "cmd", "time_zone_detector", "is_auto_detection_enabled");
-  await adb("shell", "cmd", "time_zone_detector", "set_auto_detection_enabled", "false");
-  await adb("shell", "cmd", "alarm", "set-timezone", TIME_ZONE);
-  return async () => {
+  const restore = async () => {
     await adb("shell", "cmd", "alarm", "set-timezone", previousZone);
     await adb("shell", "cmd", "time_zone_detector", "set_auto_detection_enabled", previousAuto);
   };
+  try {
+    await adb("shell", "cmd", "time_zone_detector", "set_auto_detection_enabled", "false");
+    await adb("shell", "cmd", "alarm", "set-timezone", TIME_ZONE);
+  } catch (error) {
+    // La détection coupée, le fuseau refusé : l'appelant n'aura pas de quoi la rallumer.
+    await restore().catch(() => undefined);
+    throw error;
+  }
+  return restore;
 }
 
 /**
@@ -173,8 +180,8 @@ export async function buildApk(): Promise<void> {
 }
 
 /**
- * Installe l'APK et relie le `localhost` de l'appareil à l'API de test. Une APK construite pour un
- * autre port — un autre worktree — est refusée : elle viserait une API qui n'est pas celle-ci.
+ * Installe l'APK. Une APK construite pour un autre port — un autre worktree — est refusée : elle
+ * viserait une API qui n'est pas celle-ci.
  */
 export async function installApk(): Promise<void> {
   if (!existsSync(APK) || !existsSync(BUILD_STAMP)) {
@@ -187,11 +194,17 @@ export async function installApk(): Promise<void> {
     );
   }
   await adb("install", "-r", APK);
-  await adb("reverse", `tcp:${API_PORT}`, `tcp:${API_PORT}`);
 }
 
 /** Retire la build e2e : elle n'a rien à faire sur l'appareil après la suite. */
 export async function uninstallApk(): Promise<void> {
-  await adb("reverse", "--remove", `tcp:${API_PORT}`);
   await adb("uninstall", APP_ID);
+}
+
+/** Relie le `localhost` de l'appareil à l'API de test, et rend de quoi défaire le lien. */
+export async function reverseApiPort(): Promise<() => Promise<void>> {
+  await adb("reverse", `tcp:${API_PORT}`, `tcp:${API_PORT}`);
+  return async () => {
+    await adb("reverse", "--remove", `tcp:${API_PORT}`);
+  };
 }

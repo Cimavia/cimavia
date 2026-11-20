@@ -4,6 +4,7 @@ import {
   installApk,
   pinTimeZone,
   relayAdbServer,
+  reverseApiPort,
   uninstallApk,
 } from "./device";
 
@@ -42,6 +43,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     // Inscrit AVANT l'installation : une installation interrompue se retire aussi.
     undo.push(uninstallApk);
     await installApk();
+    undo.push(await reverseApiPort());
   } catch (error) {
     // L'erreur du setup est celle qui compte : celles du nettoyage n'y ajoutent que du bruit.
     await teardown().catch(() => undefined);
