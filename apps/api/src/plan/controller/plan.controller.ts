@@ -10,6 +10,7 @@ import { PublishPlanDto } from "../dto/publish-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
 import { PlanService } from "../service/plan.service";
 import { PlanAccessService } from "../service/plan-access.service";
+import { PlanWeekService } from "../service/plan-week.service";
 
 @ApiTags("plans")
 @RequireCapability("coach")
@@ -18,6 +19,7 @@ export class PlanController {
   constructor(
     private readonly plans: PlanService,
     private readonly planAccess: PlanAccessService,
+    private readonly weeks: PlanWeekService,
   ) {}
 
   @Post()
@@ -66,7 +68,7 @@ export class PlanController {
   // n'a pas à recomposer l'arbre côté client).
   @Post(":id/weeks")
   addWeek(@Param("id") id: string, @Body() dto: AddPlanWeekDto) {
-    return this.plans.addWeek(id, dto);
+    return this.weeks.addWeek(id, dto);
   }
 
   // Diffusion : le cycle devient visible de l'athlète, qui reçoit une notification. Elle cite la
