@@ -1119,7 +1119,48 @@ liste des domaines vivent dans l'index.
 > l'API sont dans ceux du job. Le job est filtré
 > par étapes, comme *Builds de production*, pour pouvoir devenir requis sans changer de forme.
 > Le mobile (Maestro) n'est pas dans ce lot : il demande un émulateur, cassé sous WSL2 et coûteux
-> en CI — suivi en [#638](https://github.com/Cimavia/cimavia/issues/638).
+> en CI — suivi en [#638](https://github.com/Cimavia/cimavia/issues/638), livré depuis (encadré
+> suivant). L'émulateur de WSL2 n'était cassé que pour la vidéo, qu'aucun parcours ne joue.
+
+> **Tranché en [#638](https://github.com/Cimavia/cimavia/issues/638)** (les parcours de l'Athlete
+> sur le mobile) : **Maestro**, dans `apps/mobile/e2e/`, sur quatre parcours — connexion (refus,
+> puis session gardée à la relance), séance du jour ouverte, débrief enregistré, réponse au Coach
+> dans la messagerie. Maestro joue la build release en boîte noire, sans instrumenter l'app :
+> Detox demanderait son propre build de test et un pont natif à tenir à chaque montée d'Expo.
+>
+> **Playwright reste le runner, sans navigateur.** Il porte ce que #627 a déjà réglé : l'API de
+> test et sa base (`@cmv/e2e/api-server`, partagé avec le web), le seed (`@cmv/e2e/seed`), les
+> relances et le rapport. Chaque test pose ses données par l'API, puis lance un flux YAML
+> (`e2e/flows/`) ; les assertions sur ce que l'écran a écrit se font ensuite par l'API. La base est
+> à eux, `cimavia_db_mobile_e2e`, l'API sur 3151 (décalé par worktree, comme le reste).
+>
+> **Une variante de build, `e2e`.** Son propre identifiant (`fr.cimavia.app.e2e`) : elle cohabite
+> sur l'appareil avec le dev client et la preview. Les mises à jour OTA coupées — une mise à jour
+> remplacerait le bundle testé —, pas de Firebase, et le trafic en clair permis : l'API de test
+> parle HTTP. L'appareil la joint par **son propre `localhost`**, que `adb reverse` relie à la
+> machine du serveur adb : le même chemin vaut pour la CI, WSL et un téléphone en USB, là où
+> `10.0.2.2` ne vaut que pour un émulateur local. L'URL est inlinée dans le bundle : une empreinte
+> rangée à côté de l'APK refuse d'installer une build faite pour un autre worktree.
+>
+> **Le fuseau de l'appareil est posé**, et remis après la suite : la séance « du jour » est datée
+> à Paris par le seed, l'app la cherche dans le jour de l'appareil, et un émulateur neuf est à GMT.
+>
+> **Les sélecteurs par libellé, tirés de `fr.json`** comme pour le web, passés à Maestro en
+> variables (`-e`) : un flux ne contient aucun texte en dur. Deux contrôles n'avaient aucun nom —
+> les champs de `CmvTextField`, dont le libellé est un texte voisin, et le bouton d'envoi de la
+> messagerie, une icône seule. Nommés dans ce lot, pour TalkBack et VoiceOver d'abord. Le champ
+> l'est par un **lien** vers son libellé (`aria-labelledby`), pas par un `accessibilityLabel` :
+> sur Android, c'est un `contentDescription`, que TalkBack lirait à la place de la valeur saisie.
+> Maestro ne lit pas ce lien : il touche le libellé, qui met le curseur dans le champ comme un
+> `<label>`. Il ne sait saisir que de l'ASCII : les textes tapés sont sans accent.
+>
+> **Un job non requis, comme le web**, filtré par étapes, sur les PR qui touchent le mobile, l'API
+> ou leurs paquets. La build release s'y paie à chaque run : pas de cache Gradle, le job ne tourne
+> jamais sur `main` et un cache de PR ne servirait qu'à elle. En local depuis WSL2, l'émulateur
+> est celui de Windows : `scripts/dev-portproxy.ps1` relaie son serveur adb vers WSL seulement, et
+> la suite le relaie à son tour sur `localhost:5037`, où Maestro le cherche (`CMV_ADB_SERVER`). Le
+> `prebuild --clean` régénère `apps/mobile/android/` : le dev client se refait ensuite par son
+> propre prebuild.
 
 > **Tranché en [#628](https://github.com/Cimavia/cimavia/issues/628)** (une migration destructive
 > signalée en CI) : **squawk 2.67**, sur les seuls `migration.sql` qu'une PR ajoute, modifie ou

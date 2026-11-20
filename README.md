@@ -82,6 +82,10 @@ pnpm turbo test:e2e --filter=@cmv/api
 # Parcours du Coach dans un navigateur (Playwright) — base à eux sur le même conteneur 5434, sans SILO
 pnpm --filter @cmv/web exec playwright install chromium   # une fois, puis à chaque montée de Playwright
 pnpm --filter @cmv/web test:e2e:web             # lance lui-même une API (3101) et le web (4310), décalés dans un worktree
+# Parcours de l'Athlete sur un émulateur Android (Maestro) — un seul appareil démarré, Maestro installé
+pnpm --filter @cmv/mobile test:e2e:mobile       # API (3151), build release `e2e` (5 à 10 min), installation, 4 flux
+CMV_E2E_SKIP_BUILD=1 pnpm --filter @cmv/mobile test:e2e:mobile   # réinstalle la dernière build : flux ou seed seuls changés
+CMV_ADB_SERVER=$(ip route show default | awk '{print $3}'):5037 pnpm --filter @cmv/mobile test:e2e:mobile   # WSL2, émulateur de Windows (après scripts/dev-portproxy.ps1)
 # Mutation testing (Stryker) — rapport HTML dans <paquet>/reports/mutation/mutation.html
 pnpm turbo test:mutation --filter=@cmv/shared   # ~4 min, puis incrémental : seul ce qui a changé repasse
 pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e : mêmes conteneurs, 3 workers, ~1 h 30
@@ -103,6 +107,14 @@ pnpm turbo test:mutation --filter=@cmv/api      # la tenancy, jugée par les e2e
 > cherche ses éléments par leur libellé tiré de `fr.json`, jamais par du texte en dur. Un échec
 > laisse une trace : `pnpm --filter @cmv/web exec playwright show-trace <test-results/…/trace.zip>`.
 > Pourquoi ces choix : « Tranché en #627 ».
+
+> Les **e2e mobiles** (`apps/mobile/e2e/`) jouent ceux de l'Athlete — connexion, séance du jour,
+> débrief, réponse au Coach — dans la build release de la variante `e2e` (`fr.cimavia.app.e2e`),
+> que la suite construit, installe puis retire. Playwright y porte l'API, le seed et le rapport ;
+> l'écran, c'est [Maestro](https://maestro.dev) (`curl -fsSL https://get.maestro.mobile.dev | bash`,
+> ou `MAESTRO_BIN`), sur les flux YAML de `e2e/flows/`. Le build régénère `apps/mobile/android/` :
+> refaire le prebuild du dev client ensuite. Un échec laisse les captures de Maestro dans
+> `apps/mobile/test-results/`. Pourquoi ces choix : « Tranché en #638 ».
 
 > Les e2e tournent contre le **SILO du docker-compose** (bucket `cimavia-media-e2e`) : sans
 > storage réel, le flux d'upload des médias ne serait pas couvert. Le cas « storage non
