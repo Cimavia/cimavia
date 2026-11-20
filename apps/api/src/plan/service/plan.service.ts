@@ -39,7 +39,7 @@ import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
-import { shiftDbDate, toDbDate, toIsoDate } from "../../util/date.util";
+import { toDbDate, toIsoDate } from "../../util/date.util";
 import {
   assertReadAtVersion,
   deleteAtVersion,
@@ -54,6 +54,7 @@ import {
   toPlanSummaryDto,
 } from "../plan.mapper";
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
+import { createWeeks, shiftSessions } from "../plan-week.writer";
 import { PlanAccessService, settledOrganizations } from "./plan-access.service";
 
 /** Un cycle lu avec de quoi dire qui le possède, et ce que l'acteur peut en faire (#607). */
@@ -97,7 +98,7 @@ export class PlanService {
           "coachId"
         > as Prisma.PlanUncheckedCreateInput,
       });
-      await this.createWeeks(tx, created.id, athleteId, input.weeks, 1);
+      await createWeeks(tx, created.id, athleteId, input.weeks, 1);
       await this.planAccess.grantDefault(tx, created.id, opened);
       return created;
     });
@@ -204,7 +205,7 @@ export class PlanService {
         // Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les
         // semaines d'abord, puis leurs séances — l'ordre des verrous de `touchWeeks`.
         await touchWeeks(tx, { planId: id });
-        await this.shiftSessions(tx, { planId: id }, shiftDays);
+        await shiftSessions(tx, { planId: id }, shiftDays);
       }
       if (reassigned) {
         await this.propagateAthlete(tx, id, input.athleteId ?? null);
@@ -440,7 +441,7 @@ export class PlanService {
     // Sans version (#604) : deux ajouts simultanés visent le même numéro, et le second, refusé
     // par l'unicité, reçoit le 409 d'une grille périmée plutôt qu'un 500.
     await staleOnCollision(() =>
-      this.createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1),
+      createWeeks(this.db, planId, plan.athleteId, [input], weekCount + 1),
     );
     return this.getDto(planId, this.db, context);
   }
@@ -505,7 +506,7 @@ export class PlanService {
           where: { id: next.id },
           data: { weekNumber: next.weekNumber - 1 },
         });
-        await this.shiftSessions(tx, { planWeekId: next.id }, -DAYS_PER_WEEK);
+        await shiftSessions(tx, { planWeekId: next.id }, -DAYS_PER_WEEK);
       }
     });
 
@@ -610,50 +611,6 @@ export class PlanService {
    */
   private isSelfCoaching(plan: { coachId: string; athleteId: string | null }): boolean {
     return plan.athleteId != null && plan.coachId === plan.athleteId;
-  }
-
-  // Insère des semaines consécutives à partir de `firstWeekNumber` (athleteId dénormalisé
-  // explicitement : l'extension n'injecte que le propriétaire, coachId, repris du plan — #603).
-  private async createWeeks(
-    tx: TenantTx | TenantPrisma,
-    planId: string,
-    athleteId: string | null,
-    weeks: PlanWeekInput[],
-    firstWeekNumber: number,
-  ): Promise<void> {
-    if (weeks.length === 0) return;
-    await tx.planWeek.createMany({
-      data: weeks.map((week, index) => ({
-        planId,
-        athleteId,
-        weekNumber: firstWeekNumber + index,
-        type: week.type,
-        note: week.note ?? null,
-      })) satisfies Omit<
-        Prisma.PlanWeekUncheckedCreateInput,
-        "coachId"
-      >[] as Prisma.PlanWeekUncheckedCreateInput[],
-    });
-  }
-
-  /**
-   * Décale les séances visées d'un nombre de jours. Le décalage est TOUJOURS un multiple de 7
-   * (les dates de début sont des lundis, une semaine dure 7 jours) : une séance ne peut donc
-   * jamais atterrir sur la date d'une autre séance de la même semaine, et l'unicité
-   * (planWeekId, scheduledDate, position) tient même pendant la suite de mises à jour.
-   */
-  private async shiftSessions(
-    tx: TenantTx,
-    where: Prisma.ScheduledSessionWhereInput,
-    days: number,
-  ): Promise<void> {
-    const sessions = await tx.scheduledSession.findMany({ where });
-    for (const session of sessions) {
-      await tx.scheduledSession.update({
-        where: { id: session.id },
-        data: { scheduledDate: shiftDbDate(session.scheduledDate, days) },
-      });
-    }
   }
 }
 
