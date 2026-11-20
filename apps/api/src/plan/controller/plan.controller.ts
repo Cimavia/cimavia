@@ -10,6 +10,7 @@ import { PublishPlanDto } from "../dto/publish-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
 import { PlanService } from "../service/plan.service";
 import { PlanAccessService } from "../service/plan-access.service";
+import { PlanPublishService } from "../service/plan-publish.service";
 import { PlanWeekService } from "../service/plan-week.service";
 
 @ApiTags("plans")
@@ -20,6 +21,7 @@ export class PlanController {
     private readonly plans: PlanService,
     private readonly planAccess: PlanAccessService,
     private readonly weeks: PlanWeekService,
+    private readonly publication: PlanPublishService,
   ) {}
 
   @Post()
@@ -76,6 +78,6 @@ export class PlanController {
   @Post(":id/publish")
   @HttpCode(200)
   publish(@Param("id") id: string, @Body() dto: PublishPlanDto) {
-    return this.plans.publish(id, dto);
+    return this.publication.publish(id, dto);
   }
 }
