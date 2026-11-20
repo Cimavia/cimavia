@@ -394,6 +394,114 @@ jobs:
         if: failure()
         run: docker compose -f apps/api/docker-compose.test.yml logs --tail=50
 
+  # Les parcours de l'Athlete dans la vraie app, sur un émulateur, contre une vraie API (#638) :
+  # connexion, séance du jour, débrief, messagerie. Maestro pilote l'écran, Playwright porte l'API
+  # de test, le seed et le rapport — sans navigateur.
+  #
+  # PAS un check requis, comme « E2E web » : un émulateur flake plus qu'un navigateur, et la build
+  # release se paie à chaque run. Sa stabilité se juge avant de lui confier une porte.
+  #
+  # Filtré par ÉTAPES, pour la même raison que les deux jobs voisins.
+  e2e-mobile:
+    name: E2E mobile (parcours Athlete)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    # La build release (prebuild + Gradle, x86_64 seul) à froid, puis l'émulateur et quatre flux.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Le mobile et ce qu'il consomme, plus l'API que les parcours traversent.
+      - name: Ce que la PR touche
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files="$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")"
+          common='^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|turbo\.json|\.nvmrc|\.github/workflows/ci\.yml|\.github/actions/)'
+          if grep -qE -e "$common" -e '^(apps/(mobile|api)/|packages/(shared|tokens|tsconfig|e2e)/)' <<<"$files"; then
+            echo "mobile=true"
+          else
+            echo "mobile=false"
+          fi | tee -a "$GITHUB_OUTPUT"
+
+      - name: Setup
+        if: steps.changes.outputs.mobile == 'true'
+        uses: $/.github/actions/setup
+
+      # Le JDK que React Native documente pour sa toolchain Android.
+      - name: Setup Java
+        if: steps.changes.outputs.mobile == 'true'
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # L'émulateur accéléré : sans KVM, il démarre en dizaines de minutes.
+      - name: Active KVM
+        if: steps.changes.outputs.mobile == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Une version épinglée, son empreinte vérifiée : le script d'installation officiel tirerait la
+      # dernière, sans contrôle.
+      - name: Installe Maestro
+        if: steps.changes.outputs.mobile == 'true'
+        env:
+          MAESTRO_VERSION: 2.12.1
+          MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/maestro.zip" "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "MAESTRO_BIN=$RUNNER_TEMP/maestro/bin/maestro" >> "$GITHUB_ENV"
+
+      # La base seule, comme pour le web : `prepare-database.mjs` y crée `cimavia_db_mobile_e2e`.
+      - name: Démarre la base e2e jetable (5434)
+        if: steps.changes.outputs.mobile == 'true'
+        run: docker compose -f apps/api/docker-compose.test.yml up -d --wait
+
+      # L'émulateur démarré, la suite fait le reste (`global-setup.ts`) : fuseau, build, installation,
+      # `adb reverse` vers l'API de test. Le fuseau est aussi posé ici, pour le démarrage.
+      #
+      # La build tourne émulateur démarré, et lui dispute le runner. Assumé tant que le job tient
+      # ses 45 minutes sans flake : la sortir dans une étape d'avant demanderait un point d'entrée
+      # de plus que la suite elle-même.
+      - name: E2E mobile
+        if: steps.changes.outputs.mobile == 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -timezone Europe/Paris
+          disable-animations: true
+          script: pnpm --filter @cmv/mobile test:e2e:mobile
+
+      # Le rapport, et dans `test-results` la sortie de Maestro : captures et hiérarchie de l'écran
+      # au moment de l'échec.
+      - name: Rapport Playwright et Maestro (si échec)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-mobile-report
+          path: |
+            apps/mobile/playwright-report
+            apps/mobile/test-results
+          retention-days: 7
+
+      - name: Logs de la base (si échec)
+        if: failure()
+        run: docker compose -f apps/api/docker-compose.test.yml logs --tail=50
+
   # Le build de PRODUCTION des trois apps, avant le merge (#414). Le typecheck ne voit pas ce qu'un
   # build voit : un fichier exclu par `.dockerignore`, une dépendance que `pnpm deploy --prod`
   # retire, un `turbo prune` qui ne suit plus le graphe, un import que Rollup ou Metro ne résout
