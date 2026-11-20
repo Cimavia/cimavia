@@ -6,6 +6,7 @@ import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CreateScheduledSessionDto } from "../dto/create-scheduled-session.dto";
 import { ReorderPlanDayDto } from "../dto/reorder-plan-day.dto";
 import { UpdateScheduledSessionDto } from "../dto/update-scheduled-session.dto";
+import { ScheduledDayService } from "../service/scheduled-day.service";
 import { ScheduledSessionService } from "../service/scheduled-session.service";
 
 // Routes coach de la séance planifiée. La création est rattachée à sa semaine (elle n'existe pas
@@ -14,7 +15,10 @@ import { ScheduledSessionService } from "../service/scheduled-session.service";
 @RequireCapability("coach")
 @Controller()
 export class ScheduledSessionController {
-  constructor(private readonly sessions: ScheduledSessionService) {}
+  constructor(
+    private readonly sessions: ScheduledSessionService,
+    private readonly days: ScheduledDayService,
+  ) {}
 
   @Post("plan-weeks/:planWeekId/sessions")
   create(@Param("planWeekId") planWeekId: string, @Body() dto: CreateScheduledSessionDto) {
@@ -31,7 +35,7 @@ export class ScheduledSessionController {
     @Param("date") date: string,
     @Body() dto: ReorderPlanDayDto,
   ) {
-    return this.sessions.reorderDay(planWeekId, date, dto);
+    return this.days.reorderDay(planWeekId, date, dto);
   }
 
   @Get("scheduled-sessions/:id")

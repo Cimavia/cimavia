@@ -10,7 +10,7 @@ import { InvoiceService } from "../service/invoice.service";
 /**
  * Termes de facturation d'un cycle (section « Facturation » du builder). Édite la facture DRAFT du
  * plan — COACH seul. Diffuser le cycle exige que ces termes soient saisis (gating dans
- * PlanService.publish). Route sous /plans même si servie par InvoiceService : c'est la facturation
+ * PlanPublishService.publish). Route sous /plans même si servie par InvoiceService : c'est la facturation
  * DU cycle, éditée là où on le construit.
  */
 @ApiTags("invoices")

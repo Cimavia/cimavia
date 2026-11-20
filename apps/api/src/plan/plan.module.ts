@@ -13,8 +13,11 @@ import { ScheduledSessionController } from "./controller/scheduled-session.contr
 import { AthletePlanService } from "./service/athlete-plan.service";
 import { PlanService } from "./service/plan.service";
 import { PlanAccessService } from "./service/plan-access.service";
+import { PlanPublishService } from "./service/plan-publish.service";
+import { PlanWeekService } from "./service/plan-week.service";
 import { PlanWeekCopyService } from "./service/plan-week-copy.service";
 import { ScheduledCompositionService } from "./service/scheduled-composition.service";
+import { ScheduledDayService } from "./service/scheduled-day.service";
 import { ScheduledSessionService } from "./service/scheduled-session.service";
 
 // Planifications (P3) : cycles, semaines et séances planifiées (copies éditables des modèles).
@@ -44,8 +47,11 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
   providers: [
     PlanService,
     PlanAccessService,
+    PlanPublishService,
+    PlanWeekService,
     PlanWeekCopyService,
     ScheduledSessionService,
+    ScheduledDayService,
     ScheduledCompositionService,
     AthletePlanService,
   ],

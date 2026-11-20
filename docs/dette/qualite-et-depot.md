@@ -360,6 +360,23 @@ liste des domaines vivent dans l'index.
 > - **Les cinq autres copies** de l'issue étaient parties avec la refonte par blocs, avec le second
 >   point (partager deux grilles qu'une seule a remplacées).
 
+> **Tranché en [#387](https://github.com/Cimavia/cimavia/issues/387)** (400 lignes est un signal,
+> pas une règle) : aucune garde ne compte les lignes d'un fichier, et vingt-huit fichiers de code
+> hors tests le dépassent encore, ce découpage fait (2026-11-20). Le seuil invite à relire, pas à
+> découper.
+>
+> - **On découpe par responsabilité**, quand on touche un chemin fragile, jamais pour passer sous
+>   le seuil. Un service se coupe au long de ses gestes : la diffusion d'un cycle, ses semaines, la
+>   journée d'un planning. Un écran se coupe au long de ses sections.
+> - **Ce que #387 a sorti** :
+>   - côté séance planifiée : la copie de la séance-type (`scheduled-session.draft.ts`), le contenu
+>     d'une journée (`ScheduledDayService`) et ses deux gardes (`scheduled-day.rules.ts`) ;
+>   - côté cycle : `PlanWeekService`, `PlanPublishService`, les écritures du calendrier
+>     (`plan-week.writer.ts`) et la propagation du destinataire (`plan.recipient.ts`) ;
+>   - côté web : la section médias et le rail d'envoi du débrief athlète.
+> - **Pas de garde automatique** : elle ferait découper vingt-huit fichiers d'un coup, ou les
+>   exempter un par un, sans qu'aucun ne soit plus lisible pour autant.
+
 ---
 
 ## Post-MVP — Protections du dépôt public ([#397](https://github.com/Cimavia/cimavia/issues/397) · [#398](https://github.com/Cimavia/cimavia/issues/398))

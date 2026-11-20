@@ -45,8 +45,8 @@ import { toInvoiceDto } from "../invoice.mapper";
  * Facturation (CDC §5.10), liée 1:1 à un cycle. Trois temps :
  * 1. Le coach saisit les termes dans le builder → facture DRAFT (`saveDraft`), invisible de
  *    l'athlète.
- * 2. Le cycle est diffusé → `issueForPlan` (appelé par PlanService dans SA transaction) passe la
- *    facture en PENDING et pose `issuedAt`.
+ * 2. Le cycle est diffusé → `issueForPlan` (appelé par PlanPublishService dans SA transaction)
+ *    passe la facture en PENDING et pose `issuedAt`.
  * 3. Le coach marque payé/impayé (`updateStatus`), ou annule (`cancel`, terminal).
  *
  * Les lectures `list`/`get` ne servent QUE des factures émises (DRAFT exclu — il ne vit que dans le
@@ -203,10 +203,11 @@ export class InvoiceService {
   }
 
   /**
-   * Émission au `publish` du cycle : DRAFT → PENDING, `issuedAt` posé. Appelé par PlanService DANS
-   * sa transaction (le plan passe PUBLISHED et la facture est émise atomiquement). Lève si aucun
-   * terme de facturation n'a été saisi — c'est le gating de la diffusion (« remplis la facturation
-   * avant de diffuser »). Retourne la facture émise pour que l'appelant notifie l'athlète.
+   * Émission au `publish` du cycle : DRAFT → PENDING, `issuedAt` posé. Appelé par
+   * PlanPublishService DANS sa transaction (le plan passe PUBLISHED et la facture est émise
+   * atomiquement). Lève si aucun terme de facturation n'a été saisi — c'est le gating de la
+   * diffusion (« remplis la facturation avant de diffuser »). Retourne la facture émise pour que
+   * l'appelant notifie l'athlète.
    *
    * Refuse aussi d'émettre un justificatif dont la clé est segmentée sous un AUTRE athlète que la
    * facture (#472) : c'est la trace d'un PDF rédigé pour lui, qui a suivi une réaffectation

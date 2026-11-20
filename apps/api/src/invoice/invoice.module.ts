@@ -13,7 +13,8 @@ import { InvoiceService } from "./service/invoice.service";
 // StorageModule : justificatif PDF servi en URL GET signée (bucket privé).
 // ReminderModule : payer ou annuler une facture clôt son rappel « en retard » (#349).
 // AccessModule : la facture suit son cycle — la gérer demande d'y avoir l'Écriture (#607).
-// InvoiceService est exporté : PlanService l'appelle au publish pour émettre la facture.
+// InvoiceService est exporté : PlanPublishService l'appelle pour émettre la facture à la diffusion,
+// PlanService pour la faire suivre le destinataire du cycle.
 // NotificationService (push) et ClsService (acteur courant) sont globaux — pas d'import ici.
 @Module({
   imports: [AccessModule, AccountModule, StorageModule, ReminderModule],

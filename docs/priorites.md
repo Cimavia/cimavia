@@ -143,7 +143,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #638 | Aucun parcours de l'Athlete testé de bout en bout sur mobile | 🟡 | ✅ |
 | #178 | Vérifier les classes Tailwind qui référencent un token | 🟡 | ✅ |
 | #355 | 830 lignes de logique pure dans le schéma des blocs | ⚪ | ✅ |
-| #387 | Trois fichiers dépassent nettement 400 lignes | ⚪ | |
+| #387 | Trois fichiers dépassent nettement 400 lignes | ⚪ | ✅ |
 | #360 | Sept copies du même déplacement d'élément | ⚪ | ✅ |
 | #376 | Deux dérivations du mobile recopiées | ⚪ | |
 | #383 | Le web recopie deux formateurs de `@cmv/shared` | ⚪ | |
