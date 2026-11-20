@@ -228,7 +228,7 @@ export class Seed {
   /**
    * Un cycle d'une semaine et d'une séance, facturé puis diffusé à l'athlète. La séance naît de
    * `template` quand le parcours en compose une ; sinon d'une séance-type d'un exercice nu. Elle
-   * tombe le lundi, sauf `scheduledDate` — un jour de la semaine en cours, que le cycle couvre.
+   * tombe le lundi, sauf `scheduledDate` — dont le cycle prend alors la semaine.
    */
   async publishedPlan(
     coach: Account,
@@ -236,7 +236,12 @@ export class Seed {
     template?: { id: string; title: string },
     scheduledDate?: string,
   ): Promise<PublishedPlan> {
-    const monday = mondayOfThisWeek();
+    // Le lundi de LA date reçue, pas recalculé : passé minuit le dimanche, « cette semaine »
+    // aurait changé entre l'appelant et ici, et la séance serait tombée avant son cycle.
+    const monday =
+      scheduledDate == null
+        ? mondayOfThisWeek()
+        : required(mondayOfIsoWeek(scheduledDate) ?? undefined, "lundi de la séance");
     const title = `Cycle ${this.run}`;
 
     const plan = await json<{ id: string; updatedAt: string; weeks: { id: string }[] }>(
