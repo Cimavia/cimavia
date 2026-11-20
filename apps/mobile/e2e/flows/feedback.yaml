@@ -1,0 +1,17 @@
+# Le débrief texte : depuis la séance, écrit, enregistré. Le spec vérifie ensuite qu'il est arrivé
+# chez le Coach.
+appId: ${APP_ID}
+---
+- runFlow: common/login.yaml
+- extendedWaitUntil:
+    visible: ${SESSION_TITLE}
+    timeout: 30000
+- tapOn: ${SESSION_TITLE}
+- tapOn: ${FEEDBACK_OPEN}
+- tapOn: ${FEEDBACK_PLACEHOLDER}
+- inputText: ${FEEDBACK_TEXT}
+- hideKeyboard
+- tapOn: ${FEEDBACK_SAVE}
+- extendedWaitUntil:
+    visible: ${FEEDBACK_SAVED}
+    timeout: 15000

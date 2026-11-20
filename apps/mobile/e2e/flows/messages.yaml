@@ -1,0 +1,22 @@
+# La messagerie : le message du Coach lu dans sa conversation, puis la réponse envoyée. Le spec
+# vérifie ensuite que le Coach l'a reçue.
+appId: ${APP_ID}
+---
+- runFlow: common/login.yaml
+- extendedWaitUntil:
+    visible: ${MESSAGES_TAB}
+    timeout: 30000
+- tapOn: ${MESSAGES_TAB}
+- tapOn: ${COACH_NAME}
+- extendedWaitUntil:
+    visible: ${COACH_MESSAGE}
+    timeout: 15000
+- tapOn: ${COMPOSER_PLACEHOLDER}
+- inputText: ${REPLY}
+- tapOn: ${SEND}
+# Le champ garde le texte jusqu'à la réponse de l'API, et le rend sur un échec (#339) : c'est son
+# retour au vide — le placeholder revenu — qui dit l'envoi accepté, pas la réponse visible.
+- extendedWaitUntil:
+    visible: ${COMPOSER_PLACEHOLDER}
+    timeout: 15000
+- assertVisible: ${REPLY}

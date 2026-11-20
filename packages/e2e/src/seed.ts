@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  MessageType,
   mondayOfIsoWeek,
   PlanWeekType,
   required,
@@ -41,8 +42,12 @@ export type PublishedPlan = {
  * Calculé dans celui du runner, il désignerait la semaine d'avant le lundi entre minuit et 2 h.
  */
 export function mondayOfThisWeek(): string {
-  const today = required(todayIsoDateIn("Europe/Paris") ?? undefined, "date du jour à Paris");
-  return required(mondayOfIsoWeek(today) ?? undefined, "lundi de la semaine");
+  return required(mondayOfIsoWeek(todayInParis()) ?? undefined, "lundi de la semaine");
+}
+
+/** Aujourd'hui, à Paris : la séance « du jour » des parcours mobiles y est datée. */
+export function todayInParis(): string {
+  return required(todayIsoDateIn("Europe/Paris") ?? undefined, "date du jour à Paris");
 }
 
 /**
@@ -222,12 +227,14 @@ export class Seed {
 
   /**
    * Un cycle d'une semaine et d'une séance, facturé puis diffusé à l'athlète. La séance naît de
-   * `template` quand le parcours en compose une ; sinon d'une séance-type d'un exercice nu.
+   * `template` quand le parcours en compose une ; sinon d'une séance-type d'un exercice nu. Elle
+   * tombe le lundi, sauf `scheduledDate` — un jour de la semaine en cours, que le cycle couvre.
    */
   async publishedPlan(
     coach: Account,
     athleteId: string,
     template?: { id: string; title: string },
+    scheduledDate?: string,
   ): Promise<PublishedPlan> {
     const monday = mondayOfThisWeek();
     const title = `Cycle ${this.run}`;
@@ -243,7 +250,7 @@ export class Seed {
     const source = template ?? (await this.sessionType(coach, `Séance ${this.run}`));
     const session = await json<{ id: string }>(
       await coach.api.post(`/plan-weeks/${week.id}/sessions`, {
-        data: { sourceSessionId: source.id, scheduledDate: monday },
+        data: { sourceSessionId: source.id, scheduledDate: scheduledDate ?? monday },
       }),
       "création de la séance",
     );
@@ -262,6 +269,26 @@ export class Seed {
     );
 
     return { planId: plan.id, title, sessionId: session.id, sessionTitle: source.title };
+  }
+
+  /**
+   * Le Coach ouvre la conversation avec son athlète — ou rouvre la leur (#598) — et y écrit.
+   * Rend l'id de la conversation.
+   */
+  async message(coach: Account, athleteId: string, content: string): Promise<string> {
+    const conversation = await json<{ id: string }>(
+      await coach.api.post("/conversations", {
+        data: { participants: [{ userId: athleteId, capability: "athlete" }] },
+      }),
+      "conversation avec l'athlète",
+    );
+    await json(
+      await coach.api.post(`/conversations/${conversation.id}/messages`, {
+        data: { type: MessageType.TEXT, content },
+      }),
+      "message du Coach",
+    );
+    return conversation.id;
   }
 
   /** L'athlète débriefe la séance : c'est ce qui la fait remonter chez son coach. */
