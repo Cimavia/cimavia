@@ -2,9 +2,12 @@ import {
   INVOICE_NOTE_MAX_LENGTH,
   type InvoiceDto,
   MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+  megabytesOf,
 } from "@cmv/shared";
 import { act, fireEvent } from "@testing-library/react";
+import { createInstance } from "i18next";
 import { useState } from "react";
+import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PlanBillingSection } from "@/feature/invoice/component/PlanBillingSection";
 import {
@@ -13,6 +16,7 @@ import {
   useSavePlanBilling,
 } from "@/feature/invoice/hook/useInvoices";
 import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
+import fr from "@/shared/locale/fr.json";
 import { renderInRoute } from "../../../../test/render";
 
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
@@ -221,7 +225,7 @@ describe("PlanBillingSection — le justificatif", () => {
 
     pick(container, [file]);
 
-    expect(attach.mutate).toHaveBeenCalledWith(file);
+    expect(attach.mutate).toHaveBeenCalledWith({ file, mimeType: "application/pdf" });
   });
 
   it("ne fait rien quand le choix est abandonné", async () => {
@@ -250,6 +254,41 @@ describe("PlanBillingSection — le justificatif", () => {
 
     expect(await findByRole("status")).toHaveTextContent(message);
     expect(attach.mutate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Avec le VRAI catalogue, et non `cimode` qui perd les paramètres : le plafond vient de
+   * `MAX_INVOICE_DOCUMENT_SIZE_BYTES`, plus d'un « 10 Mo » écrit dans la phrase (#368). Attendu
+   * depuis la constante : relevée, elle fait rougir un catalogue resté en dur. Un paramètre oublié
+   * laisserait « {{max}} » à l'écran, que `check:i18n` ne voit pas.
+   */
+  it("dit le plafond de la constante, dans l'indication comme dans le refus", async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: "fr", resources: { fr: { translation: fr } } });
+    const { container, getByText, findByRole } = await renderInRoute(
+      <I18nextProvider i18n={i18n}>
+        <PlanBillingSection
+          planId="pln_1"
+          isPublished={false}
+          hasAthlete={true}
+          billing={DRAFT}
+          readOnly={false}
+          onUnsavedChange={onUnsavedChange}
+        />
+      </I18nextProvider>,
+      { path: "/plans/$planId", params: { planId: "pln_1" }, links: ["/invoices"] },
+    );
+
+    const max = megabytesOf(MAX_INVOICE_DOCUMENT_SIZE_BYTES);
+    expect(
+      getByText(`PDF, ${max} Mo max. Envoyé à l'athlète avec la facture.`),
+    ).toBeInTheDocument();
+
+    pick(container, [pdf(MAX_INVOICE_DOCUMENT_SIZE_BYTES + 1)]);
+
+    expect(await findByRole("status")).toHaveTextContent(
+      `Fichier trop volumineux (${max} Mo max).`,
+    );
   });
 
   it("dit l'envoi en cours, gestes éteints", async () => {

@@ -131,7 +131,7 @@ export const requestFeedbackUploadUrlSchema = z.discriminatedUnion("type", [
       fileName: uploadFileNameSchema,
       mimeType: feedbackVideoMimeTypeSchema,
       size: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_SIZE_BYTES),
-      // Déclarée par le client (le serveur ne décode pas le fichier) : la borne des 60 s est
+      // Déclarée par le client (le serveur ne décode pas le fichier) : la borne de durée est
       // donc déclarative. La taille, elle, est vérifiée par le storage à l'upload.
       durationSeconds: z.number().int().positive().max(MAX_FEEDBACK_VIDEO_DURATION_SECONDS),
     })

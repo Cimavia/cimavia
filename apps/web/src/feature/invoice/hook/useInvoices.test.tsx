@@ -234,7 +234,7 @@ describe("useAttachInvoiceDocument", () => {
     vi.mocked(attachInvoiceDocument).mockResolvedValue(invoice(InvoiceStatus.DRAFT));
     const { result, invalidate } = mountMutation(() => useAttachInvoiceDocument("p-1"));
 
-    act(() => result.current.mutate(pdf));
+    act(() => result.current.mutate({ file: pdf, mimeType: "application/pdf" }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const document = { fileName: "facture.pdf", mimeType: "application/pdf", size: pdf.size };
@@ -256,7 +256,7 @@ describe("useAttachInvoiceDocument", () => {
     vi.mocked(uploadToSignedUrl).mockRejectedValueOnce(new Error("403"));
     const { result } = mountMutation(() => useAttachInvoiceDocument("p-1"));
 
-    act(() => result.current.mutate(pdf));
+    act(() => result.current.mutate({ file: pdf, mimeType: "application/pdf" }));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(attachInvoiceDocument).not.toHaveBeenCalled();

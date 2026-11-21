@@ -1,4 +1,9 @@
-import type { InvoiceDto, PlanBillingInput, UpdateInvoiceStatusInput } from "@cmv/shared";
+import type {
+  InvoiceDocumentMimeType,
+  InvoiceDto,
+  PlanBillingInput,
+  UpdateInvoiceStatusInput,
+} from "@cmv/shared";
 import { InvoiceStatus, notificationKeys, reminderKeys } from "@cmv/shared";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -37,9 +42,9 @@ export function useInvoices() {
  * dans ce cas : décider ici quelle transition touche un rappel recopierait une règle du serveur.
  */
 function invalidateAfterInvoiceTransition(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-  queryClient.invalidateQueries({ queryKey: reminderKeys.all });
-  queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+  void queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+  void queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
 }
 
 export function useUpdateInvoiceStatus() {
@@ -100,14 +105,20 @@ export function useSavePlanBilling(planId: string) {
   return useMutation({
     mutationFn: (input: PlanBillingInput) => savePlanBilling(planId, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       // Le compteur de complétude du cycle (gating de la diffusion) dépend de la facturation.
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
       toast.onSuccess("invoice.toast.billingSaved");
     },
     onError: toast.onError,
   });
 }
+
+/**
+ * Le justificatif choisi, avec son type DÉJÀ vérifié : le hook n'affirme plus un type qu'il n'a
+ * pas lu (#368), c'est l'appelant qui doit l'avoir établi pour le passer.
+ */
+export type PickedInvoiceDocument = { file: File; mimeType: InvoiceDocumentMimeType };
 
 // Joint (ou remplace) le justificatif PDF de la facture DRAFT : URL signée → PUT direct vers le
 // storage → rattachement. Le binaire ne transite jamais par l'API (règle 7).
@@ -116,22 +127,22 @@ export function useAttachInvoiceDocument(planId: string) {
   const toast = useMutationToast();
 
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, mimeType }: PickedInvoiceDocument) => {
       const { uploadUrl, storagePath } = await requestInvoiceDocumentUploadUrl(planId, {
         fileName: file.name,
-        mimeType: "application/pdf",
+        mimeType,
         size: file.size,
       });
       await uploadToSignedUrl(uploadUrl, file, () => {});
       return attachInvoiceDocument(planId, {
         storagePath,
         fileName: file.name,
-        mimeType: "application/pdf",
+        mimeType,
         size: file.size,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       toast.onSuccess("invoice.toast.documentAttached");
     },
     onError: toast.onError,
@@ -145,7 +156,7 @@ export function useRemoveInvoiceDocument(planId: string) {
   return useMutation({
     mutationFn: () => removeInvoiceDocument(planId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       toast.onSuccess("invoice.toast.documentRemoved");
     },
     onError: toast.onError,

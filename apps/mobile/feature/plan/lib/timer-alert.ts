@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import i18n from "i18next";
 import { Platform, Vibration } from "react-native";
 
 /** Trois vibrations courtes : reconnaissable sans regarder, et distinct d'une notification reçue. */
@@ -104,8 +105,12 @@ async function ensureChannel(): Promise<void> {
   // Pas de `sound` : sur un canal, la valeur attendue est un NOM DE FICHIER embarqué dans l'app,
   // et « default » y était pris pour un son maison introuvable. Omettre le champ laisse le son
   // système, qui est exactement ce qu'on veut.
+  //
+  // Le nom se lit dans Réglages › Cimavia › Notifications. Reposé à chaque programmation, il suit
+  // la langue de l'app : Android renomme un canal existant, il ne garde que son importance.
+  // L'instance d'`i18next` et non `@/shared/lib/i18n`, pour la même raison que `apiErrorMessage`.
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: "Minuteurs",
+    name: i18n.t("plan.timer.channelName"),
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: PATTERN,
   });

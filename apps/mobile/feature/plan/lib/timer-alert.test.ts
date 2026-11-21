@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform, Vibration } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@/shared/lib/i18n";
 import { cancelTimerEnd, scheduleTimerEnd, vibrateTimerDone } from "./timer-alert";
 
 const NOW = 1_000_000;
@@ -121,6 +122,26 @@ describe("scheduleTimerEnd — Android", () => {
         trigger: expect.objectContaining({ channelId: "cimavia-timer" }),
       }),
     );
+  });
+
+  /**
+   * Son nom se lit dans Réglages › Cimavia › Notifications : il suit le catalogue, plus une chaîne
+   * en dur (#348). La traduction est changée le temps du cas — « Minuteurs » écrit dans le code
+   * donnerait le même texte que le catalogue français, et le cas passerait sans rien prouver.
+   */
+  it("nomme le canal dans la langue de l'app", async () => {
+    onPlatform("android");
+    const original = i18n.t("plan.timer.channelName");
+    i18n.addResource("fr", "translation", "plan.timer.channelName", "Rest timers");
+
+    try {
+      await scheduleTimerEnd(NOW + 60_000, "Repos", "Série 2");
+    } finally {
+      i18n.addResource("fr", "translation", "plan.timer.channelName", original);
+    }
+
+    expect(setChannel.mock.calls[0]?.[1].name).toBe("Rest timers");
+    expect(original).toBe("Minuteurs");
   });
 
   it("ne crée aucun canal ailleurs", async () => {

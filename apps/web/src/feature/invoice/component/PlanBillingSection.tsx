@@ -1,8 +1,11 @@
 import {
   draftAfterLoad,
+  INVOICE_DOCUMENT_MIME_TYPES,
   INVOICE_NOTE_MAX_LENGTH,
   type InvoiceDto,
+  isAllowedInvoiceDocumentMime,
   MAX_INVOICE_DOCUMENT_SIZE_BYTES,
+  megabytesOf,
   required,
 } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
@@ -17,6 +20,9 @@ import { CmvButton, CmvCard, CmvTextArea, CmvTextField, useToast } from "@/share
 import { useCheckedSave } from "@/shared/hook/useCheckedSave";
 import type { SaveBeforeLeaving } from "@/shared/hook/useLeaveGuard";
 import { useReportUnsaved } from "@/shared/hook/useReportUnsaved";
+
+/** Le plafond dit au coach vient de la constante que l'API applique (#368), jamais du catalogue. */
+const MAX_DOCUMENT_MEGABYTES = megabytesOf(MAX_INVOICE_DOCUMENT_SIZE_BYTES);
 
 type PlanBillingSectionProps = {
   planId: string;
@@ -310,15 +316,15 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
     // Réinitialise pour pouvoir resélectionner le même fichier après un retrait.
     event.target.value = "";
     if (file == null) return;
-    if (file.type !== "application/pdf") {
+    if (!isAllowedInvoiceDocumentMime(file.type)) {
       toast.error(t("invoice.billing.documentPdfOnly"));
       return;
     }
     if (file.size > MAX_INVOICE_DOCUMENT_SIZE_BYTES) {
-      toast.error(t("invoice.billing.documentTooBig"));
+      toast.error(t("invoice.billing.documentTooBig", { max: MAX_DOCUMENT_MEGABYTES }));
       return;
     }
-    attach.mutate(file);
+    attach.mutate({ file, mimeType: file.type });
   }
 
   const busy = attach.isPending || remove.isPending;
@@ -328,7 +334,7 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf"
+        accept={INVOICE_DOCUMENT_MIME_TYPES.join(",")}
         className="hidden"
         onChange={onPick}
       />
@@ -340,7 +346,9 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
               ? t("invoice.billing.documentUploading")
               : t("invoice.billing.documentAdd")}
           </CmvButton>
-          <p className="text-cmv-caption text-cmv-text-lo">{t("invoice.billing.documentHint")}</p>
+          <p className="text-cmv-caption text-cmv-text-lo">
+            {t("invoice.billing.documentHint", { max: MAX_DOCUMENT_MEGABYTES })}
+          </p>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-cmv-sm">
