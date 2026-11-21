@@ -225,7 +225,7 @@ describe("PlanBillingSection — le justificatif", () => {
 
     pick(container, [file]);
 
-    expect(attach.mutate).toHaveBeenCalledWith(file);
+    expect(attach.mutate).toHaveBeenCalledWith({ file, mimeType: "application/pdf" });
   });
 
   it("ne fait rien quand le choix est abandonné", async () => {

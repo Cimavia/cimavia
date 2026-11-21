@@ -1,7 +1,9 @@
 import {
   draftAfterLoad,
+  INVOICE_DOCUMENT_MIME_TYPES,
   INVOICE_NOTE_MAX_LENGTH,
   type InvoiceDto,
+  isAllowedInvoiceDocumentMime,
   MAX_INVOICE_DOCUMENT_SIZE_BYTES,
   megabytesOf,
   required,
@@ -314,7 +316,7 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
     // Réinitialise pour pouvoir resélectionner le même fichier après un retrait.
     event.target.value = "";
     if (file == null) return;
-    if (file.type !== "application/pdf") {
+    if (!isAllowedInvoiceDocumentMime(file.type)) {
       toast.error(t("invoice.billing.documentPdfOnly"));
       return;
     }
@@ -322,7 +324,7 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
       toast.error(t("invoice.billing.documentTooBig", { max: MAX_DOCUMENT_MEGABYTES }));
       return;
     }
-    attach.mutate(file);
+    attach.mutate({ file, mimeType: file.type });
   }
 
   const busy = attach.isPending || remove.isPending;
@@ -332,7 +334,7 @@ function BillingDocument({ planId, billing }: Readonly<{ planId: string; billing
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf"
+        accept={INVOICE_DOCUMENT_MIME_TYPES.join(",")}
         className="hidden"
         onChange={onPick}
       />
