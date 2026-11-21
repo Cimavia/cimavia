@@ -741,10 +741,9 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | IOS-4 | **La chaîne micro est écrite DEUX fois** — `expo-image-picker` et `expo-audio`, même valeur au caractère près — et une troisième dans `fr.json` depuis #254. Les désynchroniser ferait dépendre le texte affiché de l'ordre du tableau de plugins. Depuis #254, `ios-permission-locales.test.ts` échoue si l'une des valeurs de base d'`app.json` s'écarte du catalogue français. L'encadré ci-dessous dit pourquoi la couper d'un côté était pire. | 🟢 | — *(déclencheur : aucun ; duplication assumée)* |
-| IOS-5 | **Le code écrit pour iOS n'a jamais tourné** : `openOnIos` (documents du Plan et PDF des messages), HEIC → JPEG, `video/quicktime`, la notification `timeSensitive` du minuteur, l'enregistrement écran verrouillé et son relais (#619, #856), les demandes de permission en français (#254). Aucun test ne peut les couvrir — seule une recette sur iPhone réel le peut. `playsInSilentMode`, premier de la liste, a cassé en bêta puis a été vu réparé (#393). | 🟡 | [#394](https://github.com/Cimavia/cimavia/issues/394) |
 | IOS-7 | **`eas-cli` est épinglé à la main dans `promote-preview.yml`** (`pnpm dlx eas-cli@X.Y.Z`), hors lockfile : Dependabot ne le monte pas, et ses dépendances transitives se résolvent au lancement, dans un job qui tient `EXPO_TOKEN`. Le déclarer par `@cmv/mobile` coûtait 3 000 lignes de lockfile et six alertes `pnpm audit` (encadré « Tranché le 2026-11-11 »). Le jeton est celui d'un robot qui ne fait que lancer des builds. | 🟢 | — *(déclencheur : une alerte de sécurité sur `eas-cli`, un build qui casse sur une version trop ancienne, ou un `eas-cli` dont l'arbre ne rouvre aucune alerte)* |
 
-*Résolues, à l'[archive](archive.md) : IOS-1, IOS-2, IOS-3, IOS-6.*
+*Résolues, à l'[archive](archive.md) : IOS-1, IOS-2, IOS-3, IOS-5, IOS-6.*
 
 > **Tranché en #134** (TestFlight interne plutôt qu'ad hoc — arbitrage RENVERSÉ en cours de PR) :
 > la bêta passait d'abord par la distribution `internal`, qui signe le binaire pour une liste
@@ -854,8 +853,8 @@ liste des domaines vivent dans l'index.
 > Le générateur d'Expo écrit `clé = "valeur";` sans échapper : `buildIosPermissionLocales` refuse
 > un guillemet droit ou une barre oblique inverse plutôt que de produire un `InfoPlist.strings`
 > invalide sans erreur de build. Vérifié par un prebuild iOS : `fr.lproj` et `en.lproj` portent les
-> deux clés, l'`Info.plist` porte `CFBundleDevelopmentRegion = fr` et plus de clé Face ID. Rien de
-> tout cela n'a encore été vu sur un iPhone (IOS-5).
+> deux clés, l'`Info.plist` porte `CFBundleDevelopmentRegion = fr` et plus de clé Face ID. Vu depuis
+> sur l'iPhone du Coach bêta ([#394](https://github.com/Cimavia/cimavia/issues/394)).
 
 ---
 
