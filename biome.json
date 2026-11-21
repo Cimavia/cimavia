@@ -51,6 +51,10 @@
       "includes": ["**/apps/web/src/shared/**", "**/apps/mobile/shared/**", "!**/*.test.*"]
     },
     {
+      "path": "./scripts/lint-rules/noStateColorAsText.grit",
+      "includes": ["**/apps/web/src/**", "**/apps/mobile/**", "!**/*.test.*", "!**/test/**"]
+    },
+    {
       "path": "./scripts/lint-rules/noRawSql.grit",
       "includes": ["**", "!**/*.test.ts", "!**/*.e2e-spec.ts", "!**/test/**"]
     }

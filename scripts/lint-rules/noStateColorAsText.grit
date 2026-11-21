@@ -1,0 +1,18 @@
+language js
+
+// Le DEFAULT d'une famille d'état (`accent`, `success`, `warning`, `error`, `info`) est un aplat,
+// jamais du texte : `accent` et `error` tombent sous AA (4.5:1) sur `surface` et `surface-hi`, là
+// où vivent cartes, panneaux et formulaires. Le texte prend la nuance `-on` (tailwind-preset.js,
+// #218). Une règle sans exception de fond : la tenir couple par couple supposerait de remonter le
+// fond effectif à travers le JSX, ce qu'aucun lint ne sait faire.
+//
+// `text-cmv-accent-on`, `-hi`, `bg-cmv-accent`, `border-cmv-error` restent libres ; `hover:` et
+// les autres préfixes sont visés comme la classe nue.
+or {
+  JsStringLiteralExpression(),
+  JsxString(),
+  JsTemplateChunkElement()
+} as $literal where {
+  $literal <: r"(?s)(?:.*[^\w-])?text-cmv-(?:accent|success|warning|error|info)(?:[^\w-].*)?",
+  register_diagnostic(span=$literal, message="Couleur d'état DEFAULT écrite en texte : sous AA sur une carte. Le texte prend la nuance -on (#218).", severity="error")
+}
