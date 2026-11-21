@@ -79,19 +79,12 @@ export function press(element: Element): void {
 }
 
 /**
- * Presse le bouton portant ce libellé.
- *
- * L'index `[0]` n'est pas un tâtonnement : un `CmvButton` rend un `Pressable` qui CONTIENT son
- * `Text`, si bien que les deux nœuds ont le même `textContent` et que Testing Library les remonte
- * tous les deux, ancêtre d'abord. Presser le `Text` ne déclencherait rien — c'est le `Pressable`
- * qui porte le handler. Le jour où `CmvButton` déclarera `accessibilityRole="button"`, cette
- * fonction devient `getByRole("button", { name })` et l'index disparaît.
+ * Presse le bouton portant ce nom accessible — `CmvButton`, `CmvConfirmButton`, ou toute cible qui
+ * déclare `accessibilityRole="button"` (#199). Une cible qui n'annonce pas « bouton » n'est pas
+ * trouvée, et c'est voulu : le test échoue là où TalkBack et VoiceOver se tairaient.
  */
 export function pressButton(container: HTMLElement, label: string): void {
-  // `getAllByText` lève quand la liste est vide, donc l'élément 0 existe forcément ici — ce que
-  // `noUncheckedIndexedAccess` ne peut pas déduire.
-  const [pressable] = within(container).getAllByText(label) as [HTMLElement, ...HTMLElement[]];
-  press(pressable);
+  press(within(container).getByRole("button", { name: label }));
 }
 
 /**

@@ -23,6 +23,7 @@ export function CmvButton({
 }: Readonly<CmvButtonProps>) {
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
       className={`w-full rounded-lg px-4 py-3 ${VARIANT_CLASSES[variant]} ${disabled === true ? "opacity-50" : ""}`}

@@ -90,6 +90,7 @@ export function CmvConfirmButton({
   if (!armed) {
     return (
       <Pressable
+        accessibilityRole="button"
         onPress={() => setArmed(true)}
         disabled={disabled}
         className={`rounded-lg px-4 py-3 ${REST_CLASSES[variant]} ${dimmed}`}
@@ -108,6 +109,7 @@ export function CmvConfirmButton({
       )}
       <View className="flex-row gap-2">
         <Pressable
+          accessibilityRole="button"
           onPress={() => {
             setArmed(false);
             onConfirm();
@@ -118,6 +120,7 @@ export function CmvConfirmButton({
           <CmvText className={`text-center ${CONFIRM_TEXT[variant]}`}>{confirmLabel}</CmvText>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
           onPress={() => setArmed(false)}
           disabled={disabled}
           className={`flex-1 rounded-lg border border-cmv-border px-4 py-3 ${dimmed}`}
