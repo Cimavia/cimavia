@@ -11,7 +11,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). **Même angle mort depuis #536** : `accessibilityActions`/`onAccessibilityAction` ne passent pas non plus — le pas d'accessibilité de `CmvSeekBar` s'éprouve en fonction pure (`nudge`), son câblage non. Sa valeur, elle, passe par `aria-value*`, rendues. | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
-| Q-8 | **Une quinzaine de `Pressable` de feature n'annoncent pas « bouton »** (#199) : rappels, notifications, lignes de facture, pièce jointe. Leurs tests les pressent par `pressText()`, l'ancien geste par le texte, puisque `pressButton()` exige désormais le rôle. Chaque appel de `pressText` est une ligne de la dette. | 🟢 | [#896](https://github.com/Cimavia/cimavia/issues/896) |
+| Q-8 | **35 `Pressable` de feature, dans 22 fichiers, n'annoncent pas « bouton »** (#199) : rappels, notifications, factures, mais aussi les liens de l'auth, « Retirer » d'un média, les cartes de séance, de conversation et d'athlète. L'inventaire vit dans l'issue, pas dans les tests : beaucoup n'en ont pas. Ceux qui en ont un sont pressés par `pressText()`, l'ancien geste par le texte, puisque `pressButton()` exige désormais le rôle. | 🟢 | [#896](https://github.com/Cimavia/cimavia/issues/896) |
 
 *Résolues, à l'[archive](archive.md) : Q-1, Q-2, Q-3, Q-4, Q-5.*
 
@@ -120,9 +120,12 @@ liste des domaines vivent dans l'index.
 >   `CmvVideoLink` est devenu la pastille sans vignette de `CmvVideoPlayer` (rôle seul, son texte
 >   la nomme). Les icônes seules prennent un nom : lecture/pause du lecteur audio (il suit le
 >   prochain geste), micro, corbeille et envoi de l'enregistreur.
-> - **Le fond plein écran de `CmvImageViewer` sort de l'arbre d'accessibilité**
->   (`accessible={false}`) : il ferme toujours d'un tap, mais un plein écran annoncé « bouton » se
->   lit mal. La croix, auparavant une simple `View`, devient le vrai bouton de fermeture nommé,
+> - **Le fond plein écran de `CmvImageViewer` sort de l'arbre d'accessibilité** : il ferme
+>   toujours d'un tap, mais un plein écran annoncé « bouton » se lit mal. `accessible={false}` ne
+>   suffit que sur iOS : sur Android, `Pressable` repasse `focusable` à vrai et la vue redevient
+>   cliquable, un arrêt TalkBack sans nom. D'où `focusable={false}` et
+>   `importantForAccessibility="no"`, vérifiés dans l'arbre natif de l'émulateur. Un test jsdom
+>   ne peut pas le voir, puisque `react-native-web` ignore les deux props. La croix, auparavant une simple `View`, devient le vrai bouton de fermeture nommé,
 >   comme celle de la vidéo, et la vignette se nomme « Agrandir la photo ».
 > - **`pressButton()` exige le rôle, et ce n'était pas gratuit** : environ 70 appels visaient des
 >   cibles de feature sans rôle, ou d'un autre rôle. Les cibles d'un autre rôle passent à
@@ -130,6 +133,11 @@ liste des domaines vivent dans l'index.
 >   sans rôle passent à `pressText()` (Q-8, [#896](https://github.com/Cimavia/cimavia/issues/896)).
 >   Un `Pressable` qui contient un titre et une description a pour nom les deux, lus d'un
 >   tenant : son test le presse par un nom partiel (« Mes coachs », les casquettes du profil).
+> - **Deux annonces fausses corrigées à la revue de la PR** : sans durée connue, le lecteur audio
+>   affichait `0:00` et faisait dire « sur 0:00 ». Il rend désormais `—` (règle dure n°5) et
+>   n'annonce que la position. La vignette vidéo s'annonçait « Vidéo » et taisait la durée
+>   dessinée dessus : elle se nomme « Vidéo, 0:42 », comme la pastille sans vignette le dit par
+>   son texte.
 
 > **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
 > couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction
