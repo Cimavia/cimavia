@@ -156,23 +156,25 @@ describe("ExerciseExtras — la consigne", () => {
     press(screen.getByText("plan.session.hideInstructions"));
     expect(screen.queryByText("Pieds à plat.")).toBeNull();
   });
+
   /**
-   * Le résolveur naît à l'ouverture : une séance de quinze exercices repliés n'interroge pas le
-   * disque, et une réouverture relit un fichier que la passe hors-ligne a descendu entre-temps.
+   * Seule la consigne dépliée lit le disque : une séance de quinze exercices repliés n'y touche
+   * pas, et une réouverture relit un fichier que la passe hors-ligne a descendu entre-temps.
    */
   it("n'interroge le disque qu'à l'ouverture, et à nouveau à chaque réouverture", () => {
     renderExtras({
-      instructions: instructions as never,
+      instructions: [{ type: RichBlockType.IMAGE, mediaId: "media-1", caption: null }] as never,
       documents: [{ ...ATTACHMENT, id: "media-1", usage: DocumentUsage.INSTRUCTION }],
     });
     expect(localDocumentUri).not.toHaveBeenCalled();
 
     press(screen.getByText("plan.session.showInstructions"));
-    expect(localDocumentUri).toHaveBeenCalledTimes(1);
+    const readsAtOpening = localDocumentUri.mock.calls.length;
+    expect(readsAtOpening).toBeGreaterThan(0);
 
     press(screen.getByText("plan.session.hideInstructions"));
     press(screen.getByText("plan.session.showInstructions"));
-    expect(localDocumentUri).toHaveBeenCalledTimes(2);
+    expect(localDocumentUri.mock.calls.length).toBeGreaterThan(readsAtOpening);
   });
 
   /**

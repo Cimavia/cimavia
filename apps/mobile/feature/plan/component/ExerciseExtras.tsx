@@ -30,8 +30,8 @@ function ExerciseInstructions({
   planId,
 }: Readonly<Pick<ExerciseExtrasProps, "exercise" | "planId">>) {
   const resolveImage = useMemo(
-    () => instructionImageResolver(planId, exercise.documents),
-    [planId, exercise.documents],
+    () => instructionImageResolver(planId, exercise.instructions, exercise.documents),
+    [planId, exercise.instructions, exercise.documents],
   );
   return <CmvRichDocument blocks={exercise.instructions} resolveImage={resolveImage} />;
 }
