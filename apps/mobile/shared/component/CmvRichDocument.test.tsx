@@ -147,6 +147,26 @@ describe("CmvRichDocument — image de consigne", () => {
 });
 
 describe("CmvRichDocument — source de l'image", () => {
+  /**
+   * Une URL re-signée (séance rechargée, consigne restée ouverte) est une AUTRE image : elle
+   * repart de « loading ». L'échec de l'ancienne ne doit pas rester affiché sur elle.
+   */
+  it("oublie l'échec de l'ancienne source quand l'url change", async () => {
+    stubImageLoading("error");
+    const blocks: RichBlock[] = [{ type: RichBlockType.IMAGE, mediaId: "media-1", caption: null }];
+    const { container, rerender } = renderRn(
+      <CmvRichDocument blocks={blocks} resolveImage={resolverOf({ "media-1": nextImageUri() })} />,
+    );
+    expect(await screen.findByText("common.imageUnavailable")).toBeTruthy();
+
+    stubImageLoading("load");
+    const fresh = nextImageUri();
+    rerender(<CmvRichDocument blocks={blocks} resolveImage={resolverOf({ "media-1": fresh })} />);
+
+    expect(screen.queryByText("common.imageUnavailable")).toBeNull();
+    expect(renderedSource(container)).toBe(fresh);
+  });
+
   /** Le design system affiche ce que l'écran résout, sans y retoucher : URL signée ou fichier. */
   it("affiche l'uri que rend le résolveur", () => {
     stubImageLoading("load");

@@ -88,8 +88,13 @@ function Block({
       </View>
     );
   }
-  if (resolveImage == null) return null;
-  return <ImageBlock block={block} resolveImage={resolveImage} />;
+  // Média introuvable, ou écran sans images : rien. Pas de cadre cassé — la consigne se lit sans.
+  const source = resolveImage?.(block.mediaId) ?? null;
+  if (source == null) return null;
+  // La clé est la SOURCE : chaque image a son propre état de chargement. Une URL re-signée ou un
+  // fichier descendu repart de « loading » — c'est un vrai rechargement, le spinner dit vrai —
+  // et l'échec de l'ancienne URL, ou le succès d'une autre image au même index, ne la suit pas.
+  return <ImageBlock key={source} block={block} source={source} />;
 }
 
 /**
@@ -102,15 +107,11 @@ function Block({
  */
 function ImageBlock({
   block,
-  resolveImage,
-}: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; resolveImage: ResolveImage }>) {
+  source,
+}: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; source: string }>) {
   const { t } = useTranslation();
   const network = useNetworkState();
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
-  const source = resolveImage(block.mediaId);
-
-  // Média introuvable : rien. Pas de cadre cassé — la consigne se lit sans lui.
-  if (source == null) return null;
 
   return (
     <View className="gap-1">
