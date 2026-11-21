@@ -56,6 +56,17 @@ liste des domaines vivent dans l'index.
 > précis, les maquettes ne font donc plus référence. Les statuts de facture, eux, restent
 > conformes — le DS les colore déjà (`success`/`warning`/`error`).
 
+> **Tranché en #570** (la réussite ne se dit pas en terracotta) : « Débrief enregistré » et le
+> statut « Fait » étaient en `accent`, presque la teinte du rouge d'erreur — une réussite se lisait
+> comme un échec. Le statut de séance passe en **pastille** (`CmvBadge`), comme sur les maquettes :
+> `success` pour « Fait », **neutre** pour « À faire » et « Sautée ». La table vit dans
+> `@cmv/shared` (`SESSION_STATUS_BADGE`), lue par les quatre écrans des deux apps. Deux écarts aux
+> maquettes : la web peint « À faire » en terracotta (on suit l'arbitrage ci-dessus, pas elle), et
+> la coche devant « Fait » n'est pas reprise (`CmvBadge` n'a pas d'icône). La confirmation du
+> débrief part en **toast** sur le web, comme tout enregistrement, mais reste **en place, en
+> `success-on`**, sur le mobile, qui n'a pas de toast. Sur le web, l'échec d'envoi reste sous le
+> bouton : il doit se lire jusqu'au nouvel essai, et un toast s'efface seul.
+
 ---
 
 ## Post-MVP — Parité multi-plateforme ([#20](https://github.com/Cimavia/cimavia/issues/20))
