@@ -1602,9 +1602,9 @@
       "documentReplace": "Remplacer",
       "documentRemove": "Retirer",
       "documentUploading": "Envoi…",
-      "documentHint": "PDF, 10 Mo max. Envoyé à l'athlète avec la facture.",
+      "documentHint": "PDF, {{max}} Mo max. Envoyé à l'athlète avec la facture.",
       "documentPdfOnly": "Seuls les PDF sont acceptés.",
-      "documentTooBig": "Fichier trop volumineux (10 Mo max)."
+      "documentTooBig": "Fichier trop volumineux ({{max}} Mo max)."
     },
     "toast": {
       "billingSaved": "Facturation enregistrée.",
