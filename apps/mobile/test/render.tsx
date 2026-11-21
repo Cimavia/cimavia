@@ -92,9 +92,10 @@ export function pressButton(container: HTMLElement, label: string): void {
  * qui n'annonce pas encore « bouton » (#896). Le jour où il le déclare, son test passe à
  * `pressButton`, et cette fonction disparaît avec le dernier appel.
  *
- * L'index `[0]` n'est pas un tâtonnement : le `Pressable` CONTIENT son `Text`, si bien que les deux
- * nœuds ont le même `textContent` et que Testing Library les remonte tous les deux, ancêtre
- * d'abord. Presser le `Text` ne déclencherait rien : c'est le `Pressable` qui porte le handler.
+ * `getAllByText` ne retient que l'élément qui porte LUI-MÊME le texte : c'est le `Text`, pas le
+ * `Pressable` qui l'enveloppe. Le presser suffit, parce que le `click` remonte jusqu'au `Pressable`,
+ * qui porte le handler. `[0]` prend la première occurrence dans l'ordre du document, quand le même
+ * libellé apparaît plusieurs fois.
  */
 export function pressText(container: HTMLElement, label: string): void {
   // `getAllByText` lève quand la liste est vide, donc l'élément 0 existe forcément ici — ce que
