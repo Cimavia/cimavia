@@ -11,7 +11,9 @@ import type { Theme } from "@react-navigation/native";
 export const navigationTheme: Theme = {
   dark: true,
   colors: {
-    primary: cmvColors.accent.DEFAULT,
+    // `primary` teinte du TEXTE (retour d'en-tête sur iOS) : la nuance `on`, comme tout texte d'état
+    // (#218). `notification` est un aplat (pastille), il garde le DEFAULT.
+    primary: cmvColors.accent.on,
     background: cmvColors.bg["0"],
     card: cmvColors.bg["1"],
     text: cmvColors.text.hi,
@@ -26,9 +28,10 @@ export const navigationTheme: Theme = {
   },
 };
 
-// Couleurs de la barre d'onglets (mêmes tokens, API impérative de React Navigation).
+// Couleurs de la barre d'onglets (mêmes tokens, API impérative de React Navigation). L'onglet actif
+// colore son LIBELLÉ : la nuance `on`, le DEFAULT tombant sous AA sur `bg-1` (#218).
 export const tabBarTheme = {
-  activeTintColor: cmvColors.accent.DEFAULT,
+  activeTintColor: cmvColors.accent.on,
   inactiveTintColor: cmvColors.text.mid,
   backgroundColor: cmvColors.bg["1"],
   borderColor: cmvColors.border.DEFAULT,

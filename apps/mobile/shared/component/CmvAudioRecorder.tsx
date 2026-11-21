@@ -198,7 +198,7 @@ function RecordingBanner({
           accessibilityRole="button"
           accessibilityLabel={t("messages.audio.send")}
         >
-          <Ionicons name="send" size={22} color={cmvColors.accent.DEFAULT} />
+          <Ionicons name="send" size={22} color={cmvColors.accent.on} />
         </Pressable>
       </View>
       {relayed > 0 ? (

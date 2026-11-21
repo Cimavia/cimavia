@@ -165,7 +165,7 @@ export function Composer({
             accessibilityRole="button"
             accessibilityLabel={t("messages.send")}
           >
-            <Ionicons name="send" size={22} color={cmvColors.accent.DEFAULT} />
+            <Ionicons name="send" size={22} color={cmvColors.accent.on} />
           </Pressable>
         ) : (
           recorder

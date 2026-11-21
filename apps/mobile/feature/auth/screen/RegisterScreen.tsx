@@ -124,7 +124,7 @@ export function RegisterScreen() {
               <Ionicons
                 name={checked ? "checkbox" : "square-outline"}
                 size={18}
-                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+                color={checked ? cmvColors.accent.on : cmvColors.border.hi}
               />
               <CmvText className={checked ? "text-cmv-text-hi" : "text-cmv-text-mid"}>
                 {t(labelKey)}
@@ -179,7 +179,7 @@ export function RegisterScreen() {
               <Ionicons
                 name={checked ? "checkmark-circle" : "ellipse-outline"}
                 size={18}
-                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+                color={checked ? cmvColors.accent.on : cmvColors.border.hi}
               />
             </Pressable>
             {/* Sur mobile, les cases s'insèrent sous la carte choisie, avant « Entreprise ». */}

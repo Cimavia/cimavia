@@ -208,7 +208,7 @@ function CandidateSections({
                   <Ionicons
                     name={checked ? "checkbox" : "square-outline"}
                     size={22}
-                    color={checked ? cmvColors.accent.DEFAULT : cmvColors.text.lo}
+                    color={checked ? cmvColors.accent.on : cmvColors.text.lo}
                   />
                   <CmvAvatar name={row.name} />
                   <View className="flex-1 gap-1">
