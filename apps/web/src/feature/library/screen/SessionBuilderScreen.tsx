@@ -119,7 +119,7 @@ export function SessionBuilderScreen({
   useEffect(() => {
     if (sessionId == null || addExerciseId == null || !addSettled) return;
     if (added.isError) toast.error(t("library.session.addCreatedFailed"));
-    navigate({
+    void navigate({
       to: "/library/sessions/$sessionId",
       params: { sessionId },
       search: {},
@@ -316,7 +316,7 @@ function SessionBuilder({
     const saved = await creation.save("library.session.savedBeforeExercise");
     if (saved == null) return;
     guard.release();
-    navigate({
+    void navigate({
       to: "/library/exercises/new",
       search: {
         title,

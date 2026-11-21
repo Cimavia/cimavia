@@ -60,7 +60,7 @@ export function LoginScreen() {
       // ici sans qu'aucune déconnexion soit passée, et le cache du précédent serait resservi.
       // AVANT la navigation : l'écran d'arrivée lirait sinon ce qui restait du compte précédent.
       resetAccountData(queryClient);
-      navigate(destination);
+      void navigate(destination);
     } catch {
       // Échec réseau / CORS : la promesse rejette → on affiche une erreur générique.
       setError(t("auth.errors.generic"));

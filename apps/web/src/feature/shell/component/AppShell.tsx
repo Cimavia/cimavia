@@ -165,7 +165,7 @@ export function AppShell({
     // sur les athlètes, débriefs et factures du précédent — et sur son presse-papier de semaine,
     // qui vit dans `sessionStorage` et survit donc même au F5 (#341).
     resetAccountData(queryClient);
-    navigate({ to: "/login" });
+    void navigate({ to: "/login" });
   }
 
   return (

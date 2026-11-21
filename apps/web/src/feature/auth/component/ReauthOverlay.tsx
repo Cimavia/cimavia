@@ -52,7 +52,7 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
    */
   function leaveForLogin() {
     resetAccountData(queryClient);
-    navigate({ to: "/login", replace: true, ignoreBlocker: true });
+    void navigate({ to: "/login", replace: true, ignoreBlocker: true });
   }
 
   // Le choix du coach, lui, demande AVANT de purger : sa saisie se reprend en se reconnectant.

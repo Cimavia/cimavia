@@ -33,7 +33,7 @@ export function LibraryScreen() {
   const { data: structures } = useStructureLibrary();
 
   function openTab(next: LibraryTab) {
-    navigate({
+    void navigate({
       to: "/library",
       search: next === LibraryTab.EXERCISES ? {} : { tab: next },
       replace: true,
@@ -48,7 +48,7 @@ export function LibraryScreen() {
   }
 
   function openDuplicate(source: StructureSource) {
-    navigate({
+    void navigate({
       to: "/library/structures/new",
       search: "preset" in source ? { from: source.preset } : { from: source.structureId },
     });

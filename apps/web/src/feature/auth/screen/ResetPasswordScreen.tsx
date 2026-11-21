@@ -55,7 +55,7 @@ export function ResetPasswordScreen() {
   useEffect(() => {
     if (tokenInUrl !== undefined) {
       const search = linkError === undefined ? {} : { error: linkError };
-      navigate({ to: "/reset-password", search, replace: true });
+      void navigate({ to: "/reset-password", search, replace: true });
     }
   }, [tokenInUrl, linkError, navigate]);
 

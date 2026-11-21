@@ -117,7 +117,7 @@ export function PlanBuilderActions({
             removePlan.mutate(atVersion, {
               onSuccess: () => {
                 onDeleted();
-                navigate({
+                void navigate({
                   to: "/plans",
                   search: { q: undefined, state: undefined, athlete: undefined },
                 });
