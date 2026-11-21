@@ -304,7 +304,7 @@ function ExerciseBuilder({
                   requiredMark={!readOnly}
                 />
                 {titleMissing ? (
-                  <p className="text-cmv-caption text-cmv-error">
+                  <p className="text-cmv-caption text-cmv-error-on">
                     {t("library.builder.titleRequired")}
                   </p>
                 ) : null}

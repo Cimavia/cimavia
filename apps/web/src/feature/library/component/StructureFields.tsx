@@ -45,7 +45,9 @@ export function StructureFields({
           required
           requiredMark
         />
-        {nameError == null ? null : <p className="text-cmv-caption text-cmv-error">{nameError}</p>}
+        {nameError == null ? null : (
+          <p className="text-cmv-caption text-cmv-error-on">{nameError}</p>
+        )}
         <p className="text-cmv-caption text-cmv-text-lo">{t("common.requiredLegend")}</p>
       </div>
 

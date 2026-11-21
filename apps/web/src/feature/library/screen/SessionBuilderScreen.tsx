@@ -381,7 +381,7 @@ function SessionBuilder({
                   requiredMark={!readOnly}
                 />
                 {titleMissing || creation.titleMissing ? (
-                  <p className="text-cmv-caption text-cmv-error">
+                  <p className="text-cmv-caption text-cmv-error-on">
                     {t("library.session.titleRequired")}
                   </p>
                 ) : null}

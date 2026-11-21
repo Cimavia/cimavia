@@ -154,7 +154,7 @@ function ResetPasswordForm({
         onChange={(event) => setPassword(event.target.value)}
       />
       {error != null && (
-        <p role="alert" className="text-sm text-cmv-error">
+        <p role="alert" className="text-sm text-cmv-error-on">
           {error}
         </p>
       )}

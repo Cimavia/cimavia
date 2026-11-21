@@ -14,7 +14,7 @@ export function TrackedBlockList({ blocks }: Readonly<{ blocks: readonly Tracked
 
   return (
     <section className="flex flex-col gap-cmv-xs">
-      <h4 className="text-cmv-caption text-cmv-accent uppercase tracking-wide">
+      <h4 className="text-cmv-caption text-cmv-accent-on uppercase tracking-wide">
         {t("feedback.detail.tracking")}
       </h4>
       <ul className="flex flex-col gap-cmv-xs">

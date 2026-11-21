@@ -11,7 +11,7 @@ const VARIANT_CLASSES: Record<CmvButtonVariant, string> = {
   change:
     "border border-cmv-border bg-cmv-surface-hi text-cmv-accent-on hover:border-cmv-border-hi",
   ghost: "text-cmv-text-mid hover:bg-cmv-surface-hi hover:text-cmv-text-hi",
-  danger: "text-cmv-error hover:bg-cmv-surface-hi",
+  danger: "text-cmv-error-on hover:bg-cmv-surface-hi",
 };
 
 type CmvButtonProps = Pick<

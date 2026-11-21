@@ -24,7 +24,7 @@ export function AccountDeletedScreen() {
   return (
     <AuthLayout title={t("account.deleted.title")}>
       <output className="block text-cmv-text-mid text-sm">{t("account.deleted.message")}</output>
-      <Link to="/login" className="mt-4 block text-cmv-accent text-sm hover:text-cmv-accent-hi">
+      <Link to="/login" className="mt-4 block text-cmv-accent-on text-sm hover:underline">
         {t("account.deleted.toLogin")}
       </Link>
     </AuthLayout>

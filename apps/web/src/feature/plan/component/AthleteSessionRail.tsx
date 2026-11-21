@@ -58,7 +58,7 @@ export function AthleteSessionRail({
             as: "athlete",
             q: undefined,
           }}
-          className="text-cmv-caption text-cmv-accent hover:underline"
+          className="text-cmv-caption text-cmv-accent-on hover:underline"
         >
           {t("plan.athlete.contactCoach", { name: session.coachName })}
         </Link>

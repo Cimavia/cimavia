@@ -38,7 +38,7 @@ export function NotificationEmailSection() {
       <p className="text-cmv-caption text-cmv-text-mid">{t("notification.setting.description")}</p>
 
       {isPending && <p className="text-cmv-caption text-cmv-text-mid">{t("common.loading")}</p>}
-      {isError && <p className="text-cmv-caption text-cmv-error">{t("common.error")}</p>}
+      {isError && <p className="text-cmv-caption text-cmv-error-on">{t("common.error")}</p>}
 
       {grid != null && (
         <div className="flex flex-col gap-cmv-sm">

@@ -96,7 +96,9 @@ export function AthleteWeekGrid({ week, today, planningFrom }: Readonly<AthleteW
                 {formatWeekday(day)} {formatDayNumber(day)}
               </span>
               {isToday ? (
-                <span className="text-cmv-caption text-cmv-accent">{t("plan.athlete.today")}</span>
+                <span className="text-cmv-caption text-cmv-accent-on">
+                  {t("plan.athlete.today")}
+                </span>
               ) : null}
             </div>
 

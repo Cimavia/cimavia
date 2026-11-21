@@ -38,7 +38,7 @@ type FeedbackReadingPaneProps = {
  * Les intertitres du débrief, en ACCENT : le volet empile trois sections de même poids
  * typographique, et un gris de plus les faisait disparaître dans le texte qu'elles annoncent.
  */
-const SECTION_TITLE = "text-cmv-caption text-cmv-accent uppercase tracking-wide";
+const SECTION_TITLE = "text-cmv-caption text-cmv-accent-on uppercase tracking-wide";
 
 export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<FeedbackReadingPaneProps>) {
   const { t } = useTranslation();

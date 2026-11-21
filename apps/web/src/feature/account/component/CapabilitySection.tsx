@@ -69,7 +69,7 @@ export function CapabilitySection() {
         <CmvWarningNotice>{t("account.capabilities.warnCoach")}</CmvWarningNotice>
       )}
       {!isCoach && !isAthlete && (
-        <p className="text-cmv-caption text-cmv-error">{t("account.capabilities.atLeastOne")}</p>
+        <p className="text-cmv-caption text-cmv-error-on">{t("account.capabilities.atLeastOne")}</p>
       )}
 
       <div>

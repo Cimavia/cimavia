@@ -189,7 +189,7 @@ export function PlanBillingSection({
           <Link
             to="/invoices"
             search={{ as: "coach", q: undefined, situation: undefined, athlete: undefined }}
-            className="text-cmv-caption text-cmv-accent hover:underline"
+            className="text-cmv-caption text-cmv-accent-on hover:underline"
           >
             {t("invoice.billing.trackLink")}
           </Link>
@@ -297,7 +297,7 @@ function DocumentLink({ url, fileName }: Readonly<{ url: string; fileName: strin
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-cmv-body text-cmv-accent hover:underline"
+      className="text-cmv-body text-cmv-accent-on hover:underline"
     >
       {fileName}
     </a>

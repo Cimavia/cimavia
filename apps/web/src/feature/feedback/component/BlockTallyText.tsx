@@ -21,8 +21,8 @@ export function BlockTallyText({ tally }: Readonly<{ tally: BlockTally | null }>
     <span
       className={
         tally.state === BlockTallyState.DONE
-          ? "shrink-0 text-cmv-caption text-cmv-success"
-          : "shrink-0 text-cmv-caption text-cmv-accent"
+          ? "shrink-0 text-cmv-caption text-cmv-success-on"
+          : "shrink-0 text-cmv-caption text-cmv-accent-on"
       }
     >
       {text([tally.label])}

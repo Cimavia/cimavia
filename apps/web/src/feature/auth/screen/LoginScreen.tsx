@@ -90,7 +90,7 @@ export function LoginScreen() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
-        {error != null && <p className="text-sm text-cmv-error">{error}</p>}
+        {error != null && <p className="text-sm text-cmv-error-on">{error}</p>}
         <CmvButton type="submit" disabled={submitting} fullWidth>
           {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
         </CmvButton>
@@ -101,7 +101,7 @@ export function LoginScreen() {
         </Link>
         <span>
           {t("auth.login.noAccount")}{" "}
-          <Link to="/register" className="text-cmv-accent hover:text-cmv-accent-hi">
+          <Link to="/register" className="text-cmv-accent-on hover:underline">
             {t("auth.login.toRegister")}
           </Link>
         </span>

@@ -200,6 +200,6 @@ describe("AthleteWeekGrid", () => {
       getByText(`plan.athlete.sessionStatus.${key}`).closest('[class*="text-cmv-"]');
     expect(pill(ScheduledSessionStatus.DONE)).toHaveClass("text-cmv-success-on");
     expect(pill(ScheduledSessionStatus.PLANNED)).toHaveClass("text-cmv-text-mid");
-    expect(pill(ScheduledSessionStatus.PLANNED)).not.toHaveClass("text-cmv-accent");
+    expect(pill(ScheduledSessionStatus.PLANNED)).not.toHaveClass("text-cmv-accent-on");
   });
 });

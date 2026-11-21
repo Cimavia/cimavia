@@ -33,7 +33,7 @@ export function VerificationSent({ email }: Readonly<{ email: string }>) {
         </output>
       )}
       {resend === "failed" && (
-        <p role="alert" className="text-cmv-error text-sm">
+        <p role="alert" className="text-cmv-error-on text-sm">
           {t("auth.errors.generic")}
         </p>
       )}
@@ -44,7 +44,7 @@ export function VerificationSent({ email }: Readonly<{ email: string }>) {
       </CmvButton>
       <Link
         to="/login"
-        className="text-center font-semibold text-cmv-accent text-sm hover:text-cmv-accent-hi"
+        className="text-center font-semibold text-cmv-accent-on text-sm hover:underline"
       >
         {t("auth.verificationSent.toLogin")}
       </Link>

@@ -50,7 +50,7 @@ export function FileMessage({ media, resolveUrl }: Readonly<FileMessageProps>) {
       title={t("messages.file.open", { fileName: media.fileName })}
       className="flex w-52 max-w-full items-center gap-cmv-md text-left disabled:cursor-progress"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-cmv-md bg-cmv-error-soft text-cmv-error">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-cmv-md bg-cmv-error-soft text-cmv-error-on">
         <IoDocumentTextOutline size={18} />
       </span>
       <span className="flex min-w-0 flex-col">
