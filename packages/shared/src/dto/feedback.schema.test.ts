@@ -48,7 +48,7 @@ describe("requestFeedbackUploadUrlSchema", () => {
     expect(requestFeedbackUploadUrlSchema.safeParse(video).success).toBe(true);
   });
 
-  it("refuse une vidéo de plus de 60 s", () => {
+  it("refuse une vidéo plus longue que la borne", () => {
     const result = requestFeedbackUploadUrlSchema.safeParse({
       ...video,
       durationSeconds: MAX_FEEDBACK_VIDEO_DURATION_SECONDS + 1,
@@ -56,12 +56,24 @@ describe("requestFeedbackUploadUrlSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("refuse une vidéo de plus de 50 Mo", () => {
+  it("refuse une vidéo plus lourde que la borne", () => {
     const result = requestFeedbackUploadUrlSchema.safeParse({
       ...video,
       size: MAX_FEEDBACK_VIDEO_SIZE_BYTES + 1,
     });
     expect(result.success).toBe(false);
+  });
+
+  /**
+   * Valeur LITTÉRALE : les cas ci-dessus lisent la constante, et resteraient verts si elle
+   * retombait à 60 s. C'est cette valeur restée à 60 s qui refusait les vidéos de plus de 50 Mo
+   * une fois la taille relevée, une minute de vidéo dépassant presque toujours ce poids (#386).
+   */
+  it("laisse une vidéo durer trois minutes", () => {
+    expect(MAX_FEEDBACK_VIDEO_DURATION_SECONDS).toBe(180);
+    expect(
+      requestFeedbackUploadUrlSchema.safeParse({ ...video, durationSeconds: 180 }).success,
+    ).toBe(true);
   });
 
   it("refuse un mime vidéo non supporté", () => {
