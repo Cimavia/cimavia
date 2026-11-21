@@ -75,7 +75,7 @@ services:
   # jamais. Aucun compte cloud, et surtout aucun risque d'écrire à une vraie adresse depuis une
   # base de test — même portabilité que SILO, seules les variables SMTP_* changent en prod.
   mailpit:
-    image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     container_name: cimavia_mailpit
     restart: unless-stopped
     ports:
