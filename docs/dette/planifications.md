@@ -930,7 +930,7 @@ liste des domaines vivent dans l'index.
 >
 > - **`Intl.DateTimeFormat.prototype.formatRange` est écarté**, alors qu'il ferait ce travail ET
 >   l'ordre propre à chaque langue (**DR-1**) : son support par Hermes n'est pas vérifié, et la
->   recette iPhone ([#394](https://github.com/Cimavia/cimavia/issues/394)) n'est pas faite. Le
+>   recette iPhone ([#394](https://github.com/Cimavia/cimavia/issues/394)) ne l'a pas couvert. Le
 >   composer dans `@cmv/shared` garde au mobile exactement le rendu que testent les tests Node.
 
 ---
