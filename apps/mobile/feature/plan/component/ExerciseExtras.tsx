@@ -1,9 +1,10 @@
 import { DocumentUsage, type ScheduledSessionExerciseDto } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNetworkState } from "expo-network";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
+import { instructionImageResolver } from "@/feature/plan/lib/instruction-images";
 import {
   freshDocumentUrl,
   type OpenDocumentOutcome,
@@ -18,6 +19,22 @@ type ExerciseExtrasProps = {
   /** La séance qui le porte : c'est elle qu'on recharge quand l'URL d'un document a expiré. */
   sessionId: string;
 };
+
+/**
+ * La consigne dépliée. Composant à part pour que le résolveur d'images naisse À L'OUVERTURE : il
+ * interroge le disque, ce qu'aucune consigne repliée ne doit payer, et une réouverture relit un
+ * fichier descendu entre-temps par la passe hors-ligne (#95).
+ */
+function ExerciseInstructions({
+  exercise,
+  planId,
+}: Readonly<Pick<ExerciseExtrasProps, "exercise" | "planId">>) {
+  const resolveImage = useMemo(
+    () => instructionImageResolver(planId, exercise.documents),
+    [planId, exercise.documents],
+  );
+  return <CmvRichDocument blocks={exercise.instructions} resolveImage={resolveImage} />;
+}
 
 /**
  * La consigne d'un exercice et ses pièces jointes, sous son dosage. La consigne est REPLIÉE par
@@ -53,13 +70,7 @@ export function ExerciseExtras({ exercise, planId, sessionId }: Readonly<Exercis
         </Pressable>
       ) : null}
 
-      {open ? (
-        <CmvRichDocument
-          blocks={exercise.instructions}
-          documents={exercise.documents}
-          planId={planId}
-        />
-      ) : null}
+      {open ? <ExerciseInstructions exercise={exercise} planId={planId} /> : null}
 
       {attachments.map((document) => (
         <View key={document.id} className="gap-1">

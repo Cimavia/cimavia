@@ -11,7 +11,7 @@ export { CmvConfirmButton } from "./CmvConfirmButton";
 export { CmvCrashScreen } from "./CmvCrashScreen";
 export { CmvErrorState } from "./CmvErrorState";
 export { CmvImageViewer } from "./CmvImageViewer";
-export { CmvRichDocument } from "./CmvRichDocument";
+export { CmvRichDocument, type ResolveImage } from "./CmvRichDocument";
 export { CmvScreen } from "./CmvScreen";
 export { CmvText } from "./CmvText";
 export { CmvToggleChip } from "./CmvToggleChip";

@@ -1,26 +1,14 @@
-import {
-  DocumentType,
-  DocumentUsage,
-  type ExerciseDocumentDto,
-  InlineMark,
-  type RichBlock,
-  RichBlockType,
-} from "@cmv/shared";
+import { InlineMark, type RichBlock, RichBlockType } from "@cmv/shared";
 import { screen } from "@testing-library/react";
 import { Linking } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { press, renderRn } from "../../test/render";
-import { CmvRichDocument } from "./CmvRichDocument";
+import { CmvRichDocument, type ResolveImage } from "./CmvRichDocument";
 
 /**
  * Le réseau est piloté PAR TEST, contrairement au harnais global qui le fige à « connecté » :
  * tout l'objet de ces cas est de séparer les deux causes d'échec d'une image.
  */
-const localDocumentUri = vi.fn<() => string | null>(() => null);
-vi.mock("@/shared/lib/document-cache", () => ({
-  localDocumentUri: () => localDocumentUri(),
-}));
-
 let reachable: boolean | null = true;
 vi.mock("expo-network", () => ({
   useNetworkState: () => ({ isConnected: true, isInternetReachable: reachable }),
@@ -51,30 +39,29 @@ function stubImageLoading(outcome: "load" | "error") {
 // L'URI change à chaque cas : `ImageUriCache` de react-native-web est un cache de MODULE, et une
 // URI déjà vue court-circuiterait le chargement du cas suivant.
 let uriSequence = 0;
-function instructionImage(): ExerciseDocumentDto {
+function nextImageUri(): string {
   uriSequence += 1;
-  return {
-    id: "media-1",
-    type: DocumentType.FILE,
-    usage: DocumentUsage.INSTRUCTION,
-    url: `https://storage.test/instruction-${uriSequence}.png`,
-    fileName: "prise.png",
-    mimeType: "image/png",
-    createdAt: "2026-01-01T00:00:00.000Z",
-  };
+  return `https://storage.test/instruction-${uriSequence}.png`;
+}
+
+const paragraph = (text: string): RichBlock => ({
+  type: RichBlockType.PARAGRAPH,
+  content: [{ text }],
+});
+
+/** Le résolveur de l'écran, réduit à une table : le design system ne sait rien d'autre de lui. */
+function resolverOf(uriById: Record<string, string>): ResolveImage {
+  return (mediaId) => uriById[mediaId] ?? null;
 }
 
 function renderImageBlock(
-  document: ExerciseDocumentDto,
-  mediaId = "media-1",
-  planId: string | null = "plan-1",
+  resolveImage: ResolveImage = resolverOf({ "media-1": nextImageUri() }),
   caption: string | null = "Position basse",
 ) {
   return renderRn(
     <CmvRichDocument
-      blocks={[{ type: RichBlockType.IMAGE, mediaId, caption }]}
-      documents={[document]}
-      planId={planId}
+      blocks={[{ type: RichBlockType.IMAGE, mediaId: "media-1", caption }]}
+      resolveImage={resolveImage}
     />,
   );
 }
@@ -85,7 +72,6 @@ function renderedSource(container: HTMLElement): string | null {
 
 beforeEach(() => {
   reachable = true;
-  localDocumentUri.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -102,7 +88,7 @@ describe("CmvRichDocument — image de consigne", () => {
     reachable = false;
     stubImageLoading("error");
 
-    renderImageBlock(instructionImage());
+    renderImageBlock();
 
     expect(await screen.findByText("common.imageOffline")).toBeTruthy();
   });
@@ -115,7 +101,7 @@ describe("CmvRichDocument — image de consigne", () => {
   it("ne parle pas de réseau quand l'image échoue en ligne", async () => {
     stubImageLoading("error");
 
-    renderImageBlock(instructionImage());
+    renderImageBlock();
 
     expect(await screen.findByText("common.imageUnavailable")).toBeTruthy();
     expect(screen.queryByText("common.imageOffline")).toBeNull();
@@ -124,7 +110,7 @@ describe("CmvRichDocument — image de consigne", () => {
   it("n'affiche aucun message quand l'image se charge", async () => {
     stubImageLoading("load");
 
-    renderImageBlock(instructionImage());
+    renderImageBlock();
 
     expect(await screen.findByText("Position basse")).toBeTruthy();
     expect(screen.queryByText("common.imageUnavailable")).toBeNull();
@@ -139,7 +125,7 @@ describe("CmvRichDocument — image de consigne", () => {
     reachable = false;
     stubImageLoading("error");
 
-    renderImageBlock(instructionImage());
+    renderImageBlock();
 
     expect(await screen.findByText("common.imageOffline")).toBeTruthy();
     expect(screen.getByText("Position basse")).toBeTruthy();
@@ -149,10 +135,10 @@ describe("CmvRichDocument — image de consigne", () => {
    * Média introuvable : RIEN, pas de cadre cassé ni de message (règle dure n°5 — l'absence
    * légitime ne se commente pas). C'est un cas différent de l'échec de chargement.
    */
-  it("ne rend rien quand le média référencé est absent des documents", () => {
+  it("ne rend rien quand le média référencé est introuvable", () => {
     stubImageLoading("error");
 
-    renderImageBlock(instructionImage(), "media-inconnu");
+    renderImageBlock(resolverOf({}));
 
     expect(screen.queryByText("common.imageOffline")).toBeNull();
     expect(screen.queryByText("common.imageUnavailable")).toBeNull();
@@ -160,43 +146,33 @@ describe("CmvRichDocument — image de consigne", () => {
   });
 });
 
-describe("CmvRichDocument — image descendue sur l'appareil", () => {
-  /**
-   * Tout l'objet de #95 : l'image lue depuis le disque ne périme pas et ne demande aucun réseau.
-   * Elle passe donc devant l'URL signée même EN LIGNE — l'aller-retour au storage n'apporterait
-   * rien de plus qu'une latence.
-   */
-  it("préfère le fichier local à l'url signée", () => {
-    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/media-1.png");
+describe("CmvRichDocument — source de l'image", () => {
+  /** Le design system affiche ce que l'écran résout, sans y retoucher : URL signée ou fichier. */
+  it("affiche l'uri que rend le résolveur", () => {
     stubImageLoading("load");
 
-    const { container } = renderImageBlock(instructionImage());
+    const { container } = renderImageBlock(
+      resolverOf({ "media-1": "file:///documents/plan-documents/plan-1/media-1.png" }),
+    );
 
     expect(renderedSource(container)).toBe("file:///documents/plan-documents/plan-1/media-1.png");
   });
 
-  it("retombe sur l'url signée tant que le fichier n'est pas descendu", () => {
+  /** Sans résolveur, l'image n'est pas rendue — légende comprise — et le texte reste lisible. */
+  it("ne rend pas l'image sans résolveur, et garde le texte", () => {
     stubImageLoading("load");
-    const document = instructionImage();
 
-    const { container } = renderImageBlock(document);
+    const { container } = renderRn(
+      <CmvRichDocument
+        blocks={[
+          { type: RichBlockType.IMAGE, mediaId: "media-1", caption: "Position basse" },
+          paragraph("Pieds à plat."),
+        ]}
+      />,
+    );
 
-    expect(renderedSource(container)).toBe(document.url);
-  });
-
-  /**
-   * Hors de tout cycle — une consigne de bibliothèque — il n'y a pas de magasin où chercher :
-   * `null` dit l'absence de cycle, pas l'absence de fichier.
-   */
-  it("ne consulte pas le magasin sans cycle", () => {
-    localDocumentUri.mockReturnValue("file:///documents/plan-documents/plan-1/media-1.png");
-    stubImageLoading("load");
-    const document = instructionImage();
-
-    const { container } = renderImageBlock(document, "media-1", null);
-
-    expect(localDocumentUri).not.toHaveBeenCalled();
-    expect(renderedSource(container)).toBe(document.url);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toBe("Pieds à plat.");
   });
 });
 
@@ -208,19 +184,14 @@ describe("CmvRichDocument — légende d'image", () => {
   ])("n'ajoute aucun texte quand elle est %s", (_, caption) => {
     stubImageLoading("load");
 
-    const { container } = renderImageBlock(instructionImage(), "media-1", "plan-1", caption);
+    const { container } = renderImageBlock(resolverOf({ "media-1": nextImageUri() }), caption);
 
     expect(container.textContent).toBe("");
   });
 });
 
-const paragraph = (text: string): RichBlock => ({
-  type: RichBlockType.PARAGRAPH,
-  content: [{ text }],
-});
-
 function renderBlocks(blocks: RichBlock[] | null) {
-  return renderRn(<CmvRichDocument blocks={blocks} documents={[]} planId={null} />);
+  return renderRn(<CmvRichDocument blocks={blocks} />);
 }
 
 /** Le texte de chaque bloc de premier niveau, dans l'ordre du document. */
@@ -339,7 +310,7 @@ describe("CmvRichDocument — des frères identiques", () => {
       paragraph("Respirer."),
     ]);
 
-    rerender(<CmvRichDocument blocks={[paragraph("Respirer.")]} documents={[]} planId={null} />);
+    rerender(<CmvRichDocument blocks={[paragraph("Respirer.")]} />);
 
     expect(blockTexts(container)).toEqual(["Respirer."]);
   });

@@ -17,6 +17,12 @@ vi.mock("@/feature/plan/lib/open-document", () => ({
   freshDocumentUrl: (...args: unknown[]) => freshDocumentUrl(...args),
 }));
 
+/** Le disque est espionné : c'est le coût que la consigne repliée ne doit pas payer. */
+const localDocumentUri = vi.fn<(...args: unknown[]) => string | null>(() => null);
+vi.mock("@/shared/lib/document-cache", () => ({
+  localDocumentUri: (...args: unknown[]) => localDocumentUri(...args),
+}));
+
 const { ExerciseExtras } = await import("./ExerciseExtras");
 
 type Exercise = Pick<ScheduledSessionExerciseDto, "id" | "instructions" | "documents">;
@@ -149,5 +155,48 @@ describe("ExerciseExtras — la consigne", () => {
 
     press(screen.getByText("plan.session.hideInstructions"));
     expect(screen.queryByText("Pieds à plat.")).toBeNull();
+  });
+  /**
+   * Le résolveur naît à l'ouverture : une séance de quinze exercices repliés n'interroge pas le
+   * disque, et une réouverture relit un fichier que la passe hors-ligne a descendu entre-temps.
+   */
+  it("n'interroge le disque qu'à l'ouverture, et à nouveau à chaque réouverture", () => {
+    renderExtras({
+      instructions: instructions as never,
+      documents: [{ ...ATTACHMENT, id: "media-1", usage: DocumentUsage.INSTRUCTION }],
+    });
+    expect(localDocumentUri).not.toHaveBeenCalled();
+
+    press(screen.getByText("plan.session.showInstructions"));
+    expect(localDocumentUri).toHaveBeenCalledTimes(1);
+
+    press(screen.getByText("plan.session.hideInstructions"));
+    press(screen.getByText("plan.session.showInstructions"));
+    expect(localDocumentUri).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * L'image de la consigne se résout parmi les documents de l'exercice : sans fichier descendu
+   * sur l'appareil, c'est l'URL signée du document INSTRUCTION qui s'affiche.
+   */
+  it("affiche l'image de la consigne depuis le document qui la porte", () => {
+    const image = {
+      ...ATTACHMENT,
+      id: "media-1",
+      usage: DocumentUsage.INSTRUCTION,
+      url: "https://storage.test/prise.png",
+      fileName: "prise.png",
+      mimeType: "image/png",
+    };
+    const { container } = renderExtras({
+      instructions: [{ type: RichBlockType.IMAGE, mediaId: "media-1", caption: null }] as never,
+      documents: [image],
+    });
+
+    press(screen.getByText("plan.session.showInstructions"));
+
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "https://storage.test/prise.png",
+    );
   });
 });
