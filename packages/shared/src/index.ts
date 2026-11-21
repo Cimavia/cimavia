@@ -1099,6 +1099,7 @@ export {
   planWeekDays,
   planWeekNumber,
   planWeekRange,
+  SESSION_STATUS_BADGE,
   selectCurrentPlan,
   selectVisiblePlans,
   weekSessionProgress,
