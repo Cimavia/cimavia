@@ -117,7 +117,7 @@ export function NotificationBell() {
       >
         <IoNotificationsOutline size={20} />
         {hasUnread ? (
-          <span className="-right-0.5 -top-0.5 absolute min-w-4 rounded-cmv-pill bg-cmv-accent px-1 text-cmv-bg-0 text-cmv-caption leading-4">
+          <span className="-right-0.5 -top-0.5 absolute min-w-4 rounded-cmv-pill bg-cmv-accent-fill px-1 text-cmv-text-on-fill text-cmv-caption leading-4">
             {unreadCount > BADGE_MAX ? `${BADGE_MAX}+` : unreadCount}
           </span>
         ) : null}

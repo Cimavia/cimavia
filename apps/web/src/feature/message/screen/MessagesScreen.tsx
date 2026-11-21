@@ -276,7 +276,7 @@ function NoConversation({
       action={
         <Link
           to="/my-coach"
-          className="inline-flex items-center rounded-cmv-md bg-cmv-accent px-cmv-lg py-cmv-sm text-cmv-bg-0 text-cmv-body transition-colors hover:bg-cmv-accent-hi"
+          className="inline-flex items-center rounded-cmv-md bg-cmv-accent-fill px-cmv-lg py-cmv-sm text-cmv-text-on-fill text-cmv-body transition-colors hover:bg-cmv-accent-fill-hover"
         >
           {t("messages.athlete.noCoach.action")}
         </Link>

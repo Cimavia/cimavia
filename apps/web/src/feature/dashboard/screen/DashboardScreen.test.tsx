@@ -521,7 +521,7 @@ describe("DashboardScreen — une entreprise m'invite (#601)", () => {
     const view = await mount();
 
     expect(view.queryByText("coach.organizationInvitation.title")).toBeNull();
-    expect(view.getByRole("button", { name: "athlete.invite" })).toHaveClass("bg-cmv-accent");
+    expect(view.getByRole("button", { name: "athlete.invite" })).toHaveClass("bg-cmv-accent-fill");
   });
 
   // L'absence d'invitation est le cas ordinaire : une panne ici ne mérite pas le bandeau.
