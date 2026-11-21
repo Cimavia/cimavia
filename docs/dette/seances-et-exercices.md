@@ -214,7 +214,10 @@ liste des domaines vivent dans l'index.
 > **Angle mort non traité ici** : `text-cmv-error` est employé comme texte à **quarante autres
 > endroits**, messages `titleRequired` des deux constructeurs compris, tous sous AA. Même famille
 > que [#178](https://github.com/Cimavia/cimavia/issues/178) — là un token *inexistant*, ici un token
-> du *mauvais rôle*, et aucune porte ne voit ni l'un ni l'autre.
+> du *mauvais rôle*, et aucune porte ne voit ni l'un ni l'autre. **Levé en
+> [#218](https://github.com/Cimavia/cimavia/issues/218)** : tout texte d'état passe à `-on`, et le
+> plugin `noStateColorAsText` refuse désormais le `DEFAULT` en texte (« Tranché en #218 »,
+> `interface-et-i18n.md`).
 
 > **Tranché en #97** (le mobile sort du périmètre, faute de quoi le porter) : son `CmvTextField`
 > n'a ni `required` ni repère, son `<Text>` de label n'est **pas associé** au `TextInput` — RN n'a

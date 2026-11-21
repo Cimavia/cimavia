@@ -67,6 +67,27 @@ liste des domaines vivent dans l'index.
 > `success-on`**, sur le mobile, qui n'a pas de toast. Sur le web, l'échec d'envoi reste sous le
 > bouton : il doit se lire jusqu'au nouvel essai, et un toast s'efface seul.
 
+> **Tranché en [#218](https://github.com/Cimavia/cimavia/issues/218)** (le `DEFAULT` d'une famille
+> d'état n'est jamais du texte, quel que soit le fond) : `accent` et `error` tombaient sous AA sur
+> `surface` et `surface-hi` (4.08 et 4.20:1), là où vivent cartes, panneaux et formulaires, mais
+> `accent` passait sur `bg-0` (4.61) et `warning` partout. Ne corriger que les fonds fautifs
+> aurait gardé l'aspect et laissé deux règles, avec un couple à recalculer à chaque carte. Tout
+> texte d'état passe donc à `-on` sur les deux apps : liens, titres de section, « Aujourd'hui »,
+> messages d'erreur, `danger` au repos. **Le terracotta du texte s'éclaircit** (`#C2603A` →
+> `#E8966F`), comme sur les maquettes, qui dessinaient déjà les erreurs en `error-on`. Trois
+> conséquences :
+>
+> - **Survol des liens** : `hover:underline`, comme les liens `accent-on` déjà en place.
+>   `accent-hi` aurait *assombri* le lien au survol. Les deux icônes du `Composer` web passent à
+>   `text-hi`.
+> - **Un contrôle devient possible** : l'issue le jugeait hors de portée, parce qu'elle raisonnait
+>   couple par couple, et remonter le fond à travers le JSX est hors d'atteinte d'un lint. Avec une
+>   règle sans exception de fond, il suffit d'une regex : `noStateColorAsText` (plugin Biome,
+>   tests exclus) refuse `text-cmv-{accent,success,warning,error,info}` nu, préfixes compris.
+> - **Hors périmètre** : les icônes colorées par `cmvColors.accent.DEFAULT` (onglets, `tintColor`,
+>   bouton d'envoi). Un élément non textuel se juge à 3:1 (WCAG 1.4.11), et `accent` y tient
+>   partout (≥ 3.67:1).
+
 ---
 
 ## Post-MVP — Parité multi-plateforme ([#20](https://github.com/Cimavia/cimavia/issues/20))
