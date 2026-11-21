@@ -95,6 +95,22 @@ export function pressButton(container: HTMLElement, label: string): void {
 }
 
 /**
+ * Presse une cible SANS rôle d'accessibilité, retrouvée par son texte : un `Pressable` de feature
+ * qui n'annonce pas encore « bouton » (#896). Le jour où il le déclare, son test passe à
+ * `pressButton`, et cette fonction disparaît avec le dernier appel.
+ *
+ * L'index `[0]` n'est pas un tâtonnement : le `Pressable` CONTIENT son `Text`, si bien que les deux
+ * nœuds ont le même `textContent` et que Testing Library les remonte tous les deux, ancêtre
+ * d'abord. Presser le `Text` ne déclencherait rien : c'est le `Pressable` qui porte le handler.
+ */
+export function pressText(container: HTMLElement, label: string): void {
+  // `getAllByText` lève quand la liste est vide, donc l'élément 0 existe forcément ici — ce que
+  // `noUncheckedIndexedAccess` ne peut pas déduire.
+  const [pressable] = within(container).getAllByText(label) as [HTMLElement, ...HTMLElement[]];
+  press(pressable);
+}
+
+/**
  * Pose un doigt sur une vue qui gère elle-même ses gestes (props `onStartShouldSetResponder`…) —
  * le curseur audio, par exemple —, puis le fait glisser, le relâche ou voit son geste repris.
  *

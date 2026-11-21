@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { reminderApi } from "@/feature/reminder/api";
 import { RemindersScreen } from "@/feature/reminder/screen/RemindersScreen";
 import { ApiError } from "@/shared/lib/api";
-import { press, pressButton, renderRn } from "@/test/render";
+import { press, pressButton, pressText, renderRn } from "@/test/render";
 
 // Seuls les appels sont remplacés : les hooks, leurs clés et leurs invalidations restent les VRAIS.
 vi.mock("@/feature/reminder/api", async (importOriginal) => {
@@ -59,7 +59,7 @@ describe("RemindersScreen — les deux vues", () => {
     const { container, findByText, queryByText } = renderRn(<RemindersScreen />);
     await findByText("Relancer Léa");
 
-    pressButton(container, "reminder.segment.HANDLED");
+    pressText(container, "reminder.segment.HANDLED");
 
     expect(queryByText("Envoyer le cycle")).not.toBeNull();
     expect(queryByText("Relancer Léa")).toBeNull();
@@ -73,7 +73,7 @@ describe("RemindersScreen — les deux vues", () => {
     const { container, findByText } = renderRn(<RemindersScreen />);
     await waitFor(() => expect(list).toHaveBeenCalled());
 
-    if (segment != null) pressButton(container, segment);
+    if (segment != null) pressText(container, segment);
 
     expect(await findByText(empty)).toBeTruthy();
   });
@@ -87,9 +87,9 @@ describe("RemindersScreen — les gestes", () => {
   ])("marque le rappel %s", async (_, label, status, segment) => {
     const { container, findByText } = renderRn(<RemindersScreen />);
     await findByText("Relancer Léa");
-    if (segment != null) pressButton(container, segment);
+    if (segment != null) pressText(container, segment);
 
-    pressButton(container, label);
+    pressText(container, label);
 
     const id = segment == null ? "r-1" : "r-2";
     await waitFor(() => expect(reminderApi.updateStatus).toHaveBeenCalledWith(id, { status }));

@@ -1,5 +1,5 @@
 import { CapabilityBlocker, ProblemType } from "@cmv/shared";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { capabilityApi } from "@/feature/account/api";
@@ -9,7 +9,7 @@ import { SessionGuardContext } from "@/shared/hook/useSessionGuard";
 import { resetAccountData } from "@/shared/lib/account-reset";
 import { ApiError } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
-import { pressButton, renderRn } from "../../../test/render";
+import { press, pressButton, renderRn } from "../../../test/render";
 
 /**
  * Les gestes de la déconnexion écrivent dans UN journal : c'est leur ORDRE que #345 garde, et des
@@ -61,6 +61,10 @@ const refetch = vi.fn();
 const SAVE = "common.save";
 const OPTION_COACH = "account.capabilities.option.coach";
 const OPTION_ATHLETE = "account.capabilities.option.athlete";
+
+/** Coche ou décoche une casquette. Sa case a pour nom son titre PUIS son explication : on n'en exige que le début. */
+const tick = (container: HTMLElement, option: string) =>
+  press(within(container).getByRole("checkbox", { name: (name) => name.startsWith(option) }));
 
 function signedIn(user: { isCoach?: boolean; isAthlete?: boolean } | null): void {
   vi.mocked(authClient.useSession).mockReturnValue({
@@ -127,7 +131,8 @@ describe("ProfileScreen", () => {
   it("mène un athlète à ses coachs", () => {
     renderRn(<ProfileScreen />);
 
-    pressButton(document.body, "account.coaches.title");
+    // Le nom de la ligne est son titre SUIVI de sa description : la regex n'en exige que le début.
+    press(within(document.body).getByRole("button", { name: /^account\.coaches\.title/ }));
 
     expect(router.push).toHaveBeenCalledWith("/join");
   });
@@ -252,7 +257,7 @@ describe("ProfileScreen — les casquettes", () => {
   it("enregistre la casquette ajoutée, puis redemande la session", async () => {
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     pressButton(container, SAVE);
 
     await waitFor(() => expect(refetch).toHaveBeenCalled());
@@ -263,7 +268,7 @@ describe("ProfileScreen — les casquettes", () => {
     update.mockReturnValue(new Promise(() => undefined));
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     pressButton(container, SAVE);
 
     expect(await screen.findByText("common.saving")).toBeTruthy();
@@ -272,7 +277,7 @@ describe("ProfileScreen — les casquettes", () => {
   it("refuse de tout retirer, sans rien envoyer", () => {
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_ATHLETE);
+    tick(container, OPTION_ATHLETE);
     pressButton(container, SAVE);
 
     expect(screen.getByText("account.capabilities.atLeastOne")).toBeTruthy();
@@ -284,10 +289,10 @@ describe("ProfileScreen — les casquettes", () => {
     signedIn({ isCoach: true, isAthlete: true });
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     expect(screen.getByText("account.capabilities.warnCoach")).toBeTruthy();
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     expect(screen.queryByText("account.capabilities.warnCoach")).toBeNull();
   });
 
@@ -307,7 +312,7 @@ describe("ProfileScreen — les casquettes", () => {
     update.mockRejectedValue(new ApiError(409, "Refus", null, true, type));
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     pressButton(container, SAVE);
 
     expect(await screen.findByText(message)).toBeTruthy();
@@ -318,7 +323,7 @@ describe("ProfileScreen — les casquettes", () => {
     update.mockRejectedValue(new Error("réseau coupé"));
     const { container } = renderRn(<ProfileScreen />);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     pressButton(container, SAVE);
 
     expect(await screen.findByText("common.error")).toBeTruthy();
@@ -328,12 +333,12 @@ describe("ProfileScreen — les casquettes", () => {
     signedIn({ isCoach: true, isAthlete: true });
     update.mockRejectedValue(new ApiError(409, "Refus", null, true, ProblemType.ACTIVE_ATHLETES));
     const { container } = renderRn(<ProfileScreen />);
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
     pressButton(container, SAVE);
     const refusal = `account.capabilities.blocked.${CapabilityBlocker.ACTIVE_ATHLETES}`;
     await screen.findByText(refusal);
 
-    pressButton(container, OPTION_COACH);
+    tick(container, OPTION_COACH);
 
     expect(screen.queryByText(refusal)).toBeNull();
   });

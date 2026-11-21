@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReminderCard } from "@/feature/reminder/component/ReminderCard";
 import { withSelectorOn } from "@/test/capability";
-import { pressButton, renderRn } from "@/test/render";
+import { pressText, renderRn } from "@/test/render";
 
 // Sans session par défaut : la carte d'un compte mono-capacité n'a aucun titre à basculer.
 const { session } = vi.hoisted(() => ({
@@ -107,8 +107,8 @@ describe("ReminderCard — les gestes", () => {
   it("offre de faire, repousser ou abandonner un rappel à traiter", () => {
     const { container, onMarkDone, onDismiss, onReopen } = renderCard(reminder());
 
-    pressButton(container, "reminder.markDone");
-    pressButton(container, "reminder.dismiss");
+    pressText(container, "reminder.markDone");
+    pressText(container, "reminder.dismiss");
 
     expect(onMarkDone).toHaveBeenCalledOnce();
     expect(onDismiss).toHaveBeenCalledOnce();
@@ -121,7 +121,7 @@ describe("ReminderCard — les gestes", () => {
   it("n'offre que de rouvrir un rappel traité", () => {
     const { container, onReopen } = renderCard(reminder({ status: ReminderStatus.DONE }));
 
-    pressButton(container, "reminder.reopen");
+    pressText(container, "reminder.reopen");
 
     expect(onReopen).toHaveBeenCalledOnce();
     expect(container.textContent).not.toContain("reminder.markDone");
@@ -141,7 +141,7 @@ describe("ReminderCard — la cible", () => {
   it("mène une facture à l'écran des factures", () => {
     const { container } = renderCard(reminder());
 
-    pressButton(container, "reminder.targetLine");
+    pressText(container, "reminder.targetLine");
 
     expect(router.push).toHaveBeenCalledWith("/invoices");
   });
@@ -158,7 +158,7 @@ describe("ReminderCard — la cible", () => {
     );
     await waitFor(() => expect(getByTestId("exercised").textContent).toBe("athlete"));
 
-    pressButton(container, "reminder.targetLine");
+    pressText(container, "reminder.targetLine");
 
     expect(getByTestId("exercised").textContent).toBe("coach");
     expect(router.push).toHaveBeenCalledWith("/invoices");

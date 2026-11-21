@@ -1,6 +1,6 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { pressButton, renderRn } from "../../test/render";
+import { press, renderRn } from "../../test/render";
 import { CmvToggleChip } from "./CmvToggleChip";
 
 describe("CmvToggleChip", () => {
@@ -13,7 +13,7 @@ describe("CmvToggleChip", () => {
     expect(screen.getByRole("radio", { name: "Débriefs" }).getAttribute("aria-checked")).toBe(
       String(pressed),
     );
-    pressButton(container, "Débriefs");
+    press(within(container).getByRole("radio", { name: "Débriefs" }));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

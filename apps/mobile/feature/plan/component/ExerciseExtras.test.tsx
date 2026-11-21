@@ -2,7 +2,7 @@ import type { ScheduledSessionExerciseDto } from "@cmv/shared";
 import { DocumentType, DocumentUsage, RichBlockType } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { press, pressButton, renderRn } from "../../../test/render";
+import { press, pressText, renderRn } from "../../../test/render";
 
 let reachable: boolean | null = true;
 vi.mock("expo-network", () => ({
@@ -52,7 +52,7 @@ describe("ExerciseExtras — pièces jointes", () => {
   it("ouvre la pièce jointe avec le cycle et l'état du réseau", async () => {
     const { container } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     await waitFor(() => expect(openDocument).toHaveBeenCalledTimes(1));
     expect(openDocument).toHaveBeenCalledWith(
@@ -67,7 +67,7 @@ describe("ExerciseExtras — pièces jointes", () => {
   it("re-signe le document tapé dans la séance affichée", async () => {
     const { container, queryClient } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     await waitFor(() => expect(openDocument).toHaveBeenCalledTimes(1));
     const freshUrl = openDocument.mock.calls[0]?.[3] as () => Promise<string | null>;
@@ -78,7 +78,7 @@ describe("ExerciseExtras — pièces jointes", () => {
   it("ne dit rien quand la pièce jointe s'ouvre", async () => {
     const { container } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     await waitFor(() => expect(openDocument).toHaveBeenCalled());
     expect(screen.queryByText("plan.session.documentOffline")).toBeNull();
@@ -94,7 +94,7 @@ describe("ExerciseExtras — pièces jointes", () => {
     openDocument.mockResolvedValue("offline");
     const { container } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     expect(await screen.findByText("plan.session.documentOffline")).toBeTruthy();
   });
@@ -103,7 +103,7 @@ describe("ExerciseExtras — pièces jointes", () => {
     openDocument.mockResolvedValue("failed");
     const { container } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     expect(await screen.findByText("plan.session.documentUnavailable")).toBeTruthy();
     expect(screen.queryByText("plan.session.documentOffline")).toBeNull();
@@ -117,11 +117,11 @@ describe("ExerciseExtras — pièces jointes", () => {
     openDocument.mockResolvedValue("offline");
     const { container } = renderExtras();
 
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
     expect(await screen.findByText("plan.session.documentOffline")).toBeTruthy();
 
     openDocument.mockResolvedValue("opened");
-    pressButton(container, "progression.pdf");
+    pressText(container, "progression.pdf");
 
     await waitFor(() => expect(screen.queryByText("plan.session.documentOffline")).toBeNull());
   });

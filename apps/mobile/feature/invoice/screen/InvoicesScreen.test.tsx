@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { InvoicesScreen } from "@/feature/invoice/screen/InvoicesScreen";
 import { useActingCapability } from "@/shared/hook/useExercisedCapability";
-import { press, pressButton, renderRn } from "@/test/render";
+import { press, pressButton, pressText, renderRn } from "@/test/render";
 
 /**
  * Ce qui s'éprouve ici est ce que l'ÉCRAN décide : à quel titre on lit, laquelle des deux vues est
@@ -150,7 +150,7 @@ describe("InvoicesScreen", () => {
 
     expect(screen.queryByText("invoice.panel.dueDate")).toBeNull();
 
-    pressButton(container, "Prépa bloc hiver");
+    pressText(container, "Prépa bloc hiver");
     expect(screen.getByText("invoice.panel.dueDate")).toBeTruthy();
   });
 

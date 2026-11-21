@@ -11,7 +11,7 @@ import {
   useExercisedCapability,
 } from "@/shared/hook/useExercisedCapability";
 import { ApiError } from "@/shared/lib/api";
-import { press, pressButton, renderRn } from "@/test/render";
+import { press, pressButton, pressText, renderRn } from "@/test/render";
 
 // Seuls les appels sont remplacés : les hooks, leurs clés et leurs invalidations restent les VRAIS.
 vi.mock("@/feature/notification/api", async (importOriginal) => {
@@ -243,7 +243,7 @@ describe("NotificationsScreen — les gestes", () => {
     const { container, findByText } = renderRn(<Screen />);
     await findByText("notification.markAllRead");
 
-    pressButton(container, "notification.markAllRead");
+    pressText(container, "notification.markAllRead");
 
     await waitFor(() => expect(notificationApi.markAllRead).toHaveBeenCalled());
   });
@@ -272,10 +272,10 @@ describe("NotificationsScreen — le filtre par catégorie (#694)", () => {
     const { container, findByText } = renderRn(<Screen />);
     await findByText("notification.category.billing");
 
-    pressButton(container, "notification.category.billing");
+    pressText(container, "notification.category.billing");
     await waitFor(() => expect(list).toHaveBeenLastCalledWith("BILLING"));
     await findByText("notification.markAllRead");
-    pressButton(container, "notification.markAllRead");
+    pressText(container, "notification.markAllRead");
 
     await waitFor(() =>
       expect(notificationApi.markAllRead).toHaveBeenCalledWith("BILLING", expect.anything()),
@@ -287,7 +287,7 @@ describe("NotificationsScreen — le filtre par catégorie (#694)", () => {
     await findByText("notification.category.billing");
     list.mockResolvedValue([]);
 
-    pressButton(container, "notification.category.billing");
+    pressText(container, "notification.category.billing");
 
     expect(await findByText("notification.empty.category")).toBeTruthy();
     expect(queryByText("notification.empty.description")).toBeNull();
