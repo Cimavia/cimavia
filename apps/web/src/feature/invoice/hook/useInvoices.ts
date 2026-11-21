@@ -42,9 +42,9 @@ export function useInvoices() {
  * dans ce cas : décider ici quelle transition touche un rappel recopierait une règle du serveur.
  */
 function invalidateAfterInvoiceTransition(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-  queryClient.invalidateQueries({ queryKey: reminderKeys.all });
-  queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+  void queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+  void queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
 }
 
 export function useUpdateInvoiceStatus() {
@@ -105,9 +105,9 @@ export function useSavePlanBilling(planId: string) {
   return useMutation({
     mutationFn: (input: PlanBillingInput) => savePlanBilling(planId, input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       // Le compteur de complétude du cycle (gating de la diffusion) dépend de la facturation.
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
       toast.onSuccess("invoice.toast.billingSaved");
     },
     onError: toast.onError,
@@ -142,7 +142,7 @@ export function useAttachInvoiceDocument(planId: string) {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       toast.onSuccess("invoice.toast.documentAttached");
     },
     onError: toast.onError,
@@ -156,7 +156,7 @@ export function useRemoveInvoiceDocument(planId: string) {
   return useMutation({
     mutationFn: () => removeInvoiceDocument(planId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.billing(planId) });
       toast.onSuccess("invoice.toast.documentRemoved");
     },
     onError: toast.onError,
