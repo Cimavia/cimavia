@@ -11,6 +11,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | Q-6 | **`accessibilityState` est invisible du harnais de rendu mobile** : `react-native-web` ne mappe PAS cette prop React Native héritée sur un attribut ARIA, là où `aria-checked` moderne passe. Le rendu **natif** l'honore — ce n'est donc pas un défaut d'accessibilité de l'app —, mais aucun test ne peut l'affirmer : `TrackingList` s'éprouve sur le « ✓ » que l'athlète voit. Trois autres composants en portent un (`RegisterScreen`, `ProfileScreen`, `CmvCapabilitySwitch`). **Même angle mort depuis #536** : `accessibilityActions`/`onAccessibilityAction` ne passent pas non plus — le pas d'accessibilité de `CmvSeekBar` s'éprouve en fonction pure (`nudge`), son câblage non. Sa valeur, elle, passe par `aria-value*`, rendues. | 🟢 | — *(déclencheur : un test qui voudrait affirmer sur l'état ARIA d'un composant mobile — la sortie est de passer ces quatre composants aux props modernes)* |
 | Q-7 | **Le harnais de test mobile ne charge pas `@testing-library/jest-dom`**, là où celui du web le fait (`apps/web/vitest.setup.ts`) : ni `toBeDisabled`, ni `toHaveAttribute`, ni les autres matchers DOM. Un test qui veut affirmer sur l'état d'un bouton interroge donc `aria-disabled` à la main (`PlanningScreen.test.tsx`, #236). | 🟢 | — *(déclencheur : un deuxième fichier qui recopie le contournement — la sortie est la dépendance plus son import dans `test/setup.ts`, deux lignes)* |
+| Q-8 | **Une quinzaine de `Pressable` de feature n'annoncent pas « bouton »** (#199) : rappels, notifications, lignes de facture, pièce jointe. Leurs tests les pressent par `pressText()`, l'ancien geste par le texte, puisque `pressButton()` exige désormais le rôle. Chaque appel de `pressText` est une ligne de la dette. | 🟢 | [#896](https://github.com/Cimavia/cimavia/issues/896) |
 
 *Résolues, à l'[archive](archive.md) : Q-1, Q-2, Q-3, Q-4, Q-5.*
 
@@ -103,7 +104,32 @@ liste des domaines vivent dans l'index.
 >
 > Angle mort assumé : `cimode` PERD les paramètres d'interpolation (même prix qu'au web, #188), et
 > `CmvButton` n'ayant pas de `accessibilityRole`, `pressButton()` doit prendre le premier des deux
-> nœuds que `getAllByText` remonte. L'index disparaîtra le jour où le rôle sera posé.
+> nœuds que `getAllByText` remonte. L'index disparaîtra le jour où le rôle sera posé. *Levé en
+> #199 pour les composants partagés : `pressButton()` cherche par rôle. L'index survit dans
+> `pressText()`, pour les cibles de feature encore sans rôle (Q-8).*
+
+> **Tranché en [#199](https://github.com/Cimavia/cimavia/issues/199)** (le rôle d'accessibilité
+> sur les composants partagés du mobile) : `CmvButton`, `CmvConfirmButton` et les cibles média
+> annoncent désormais « bouton ». Quatre écarts à l'issue :
+>
+> - **`accessibilityRole` et non `role`** : le dilemme n'existait pas. Dans `react-native-web`
+>   0.21.2, le `warnOnce` de `accessibilityRole`, comme celui de `accessibilityLabel`, est **en
+>   commentaire** (`createDOMProps`). Les props ne produisent aucun avertissement, et la
+>   convention des 33 sites existants tient.
+> - **L'inventaire était incomplet** : `CmvConfirmButton` (3 `Pressable` nus) manquait, et
+>   `CmvVideoLink` est devenu la pastille sans vignette de `CmvVideoPlayer` (rôle seul, son texte
+>   la nomme). Les icônes seules prennent un nom : lecture/pause du lecteur audio (il suit le
+>   prochain geste), micro, corbeille et envoi de l'enregistreur.
+> - **Le fond plein écran de `CmvImageViewer` sort de l'arbre d'accessibilité**
+>   (`accessible={false}`) : il ferme toujours d'un tap, mais un plein écran annoncé « bouton » se
+>   lit mal. La croix, auparavant une simple `View`, devient le vrai bouton de fermeture nommé,
+>   comme celle de la vidéo, et la vignette se nomme « Agrandir la photo ».
+> - **`pressButton()` exige le rôle, et ce n'était pas gratuit** : environ 70 appels visaient des
+>   cibles de feature sans rôle, ou d'un autre rôle. Les cibles d'un autre rôle passent à
+>   `press(getByRole(…))` (`radio` pour `CmvToggleChip`, `checkbox` pour les casquettes). Celles
+>   sans rôle passent à `pressText()` (Q-8, [#896](https://github.com/Cimavia/cimavia/issues/896)).
+>   Un `Pressable` qui contient un titre et une description a pour nom les deux, lus d'un
+>   tenant : son test le presse par un nom partiel (« Mes coachs », les casquettes du profil).
 
 > **Tranché en #58** (mesurer une couche à moitié, c'est la remettre hors de vue) : le périmètre de
 > couverture du web est **tout `src/`**, et non sa seule couche `util/` + `hook/`. La restriction
