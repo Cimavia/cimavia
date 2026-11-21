@@ -1,17 +1,9 @@
-import {
-  DocumentUsage,
-  type ExerciseDocumentDto,
-  type InlineNode,
-  type RichBlock,
-  RichBlockType,
-  type RichDocument,
-} from "@cmv/shared";
+import { type InlineNode, type RichBlock, RichBlockType, type RichDocument } from "@cmv/shared";
 import { useNetworkState } from "expo-network";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Image, Linking, Text, View } from "react-native";
 import { CmvText } from "@/shared/component/CmvText";
-import { localDocumentUri } from "@/shared/lib/document-cache";
 
 /**
  * Rendu NATIF d'une consigne structurée — le pendant React Native de `CmvRichDocument` côté web.
@@ -57,12 +49,16 @@ function inlineContent(nodes: readonly InlineNode[]) {
   return nodes.map((node, index) => <Inline key={index} node={node} />);
 }
 
-type ResolveImage = (mediaId: string) => string | null;
+/**
+ * Où lire l'image d'un bloc, ou `null` quand son média est introuvable. C'est l'écran qui le sait —
+ * URL signée, fichier descendu sur l'appareil — pas le design system.
+ */
+export type ResolveImage = (mediaId: string) => string | null;
 
 function Block({
   block,
   resolveImage,
-}: Readonly<{ block: RichBlock; resolveImage: ResolveImage }>) {
+}: Readonly<{ block: RichBlock; resolveImage: ResolveImage | null }>) {
   if (block.type === RichBlockType.HEADING) {
     return (
       <CmvText className="font-cmv-display text-base text-cmv-text-hi">
@@ -92,7 +88,13 @@ function Block({
       </View>
     );
   }
-  return <ImageBlock block={block} resolveImage={resolveImage} />;
+  // Média introuvable, ou écran sans images : rien. Pas de cadre cassé — la consigne se lit sans.
+  const source = resolveImage?.(block.mediaId) ?? null;
+  if (source == null) return null;
+  // La clé est la SOURCE : chaque image a son propre état de chargement. Une URL re-signée ou un
+  // fichier descendu repart de « loading » — c'est un vrai rechargement, le spinner dit vrai —
+  // et l'échec de l'ancienne URL, ou le succès d'une autre image au même index, ne la suit pas.
+  return <ImageBlock key={source} block={block} source={source} />;
 }
 
 /**
@@ -105,15 +107,11 @@ function Block({
  */
 function ImageBlock({
   block,
-  resolveImage,
-}: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; resolveImage: ResolveImage }>) {
+  source,
+}: Readonly<{ block: Extract<RichBlock, { type: "IMAGE" }>; source: string }>) {
   const { t } = useTranslation();
   const network = useNetworkState();
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
-  const source = resolveImage(block.mediaId);
-
-  // Média introuvable : rien. Pas de cadre cassé — la consigne se lit sans lui.
-  if (source == null) return null;
 
   return (
     <View className="gap-1">
@@ -151,39 +149,14 @@ function ImageBlock({
 
 type CmvRichDocumentProps = {
   blocks: RichDocument | null;
-  /** Les documents de l'exercice — c'est parmi eux que les `mediaId` se résolvent. */
-  documents: readonly ExerciseDocumentDto[];
   /**
-   * Le cycle dont cette consigne est une copie diffusée, ou `null` hors de tout cycle (une
-   * consigne de bibliothèque, qu'aucune lecture hors-ligne ne concerne). Il désigne le magasin où
-   * chercher l'image sur l'appareil — sans lui, il n'y a que l'URL signée.
+   * `null` = les images ne sont pas rendues, le texte reste lisible. Obligatoire et jamais
+   * optionnel : un écran qui renonce aux images l'ÉCRIT, un écran qui l'oublie ne compile pas.
    */
-  planId: string | null;
+  resolveImage: ResolveImage | null;
 };
 
-export function CmvRichDocument({ blocks, documents, planId }: Readonly<CmvRichDocumentProps>) {
-  /**
-   * Le document ne stocke qu'un `mediaId` (règle dure n°7) : l'URL est signée et expire, la graver
-   * ferait afficher des images mortes trois mois plus tard. On la retrouve à chaque lecture parmi
-   * les documents d'usage INSTRUCTION.
-   *
-   * Le FICHIER LOCAL passe devant quand il est là (#95) : il ne périme pas, ne demande pas de
-   * réseau, et évite l'aller-retour au storage même en ligne. L'URL signée reste le repli — elle
-   * seule existe tant que la passe de téléchargement n'a pas eu lieu.
-   */
-  const urlById = useMemo(
-    () =>
-      new Map(
-        documents
-          .filter((document) => document.usage === DocumentUsage.INSTRUCTION)
-          .map((document) => [
-            document.id,
-            (planId == null ? null : localDocumentUri(planId, document)) ?? document.url,
-          ]),
-      ),
-    [documents, planId],
-  );
-
+export function CmvRichDocument({ blocks, resolveImage }: Readonly<CmvRichDocumentProps>) {
   // Une consigne absente n'affiche RIEN — pas de « aucune consigne », qui serait du bruit sur une
   // absence légitime (règle nullable n°5).
   if (blocks == null || blocks.length === 0) return null;
@@ -191,7 +164,7 @@ export function CmvRichDocument({ blocks, documents, planId }: Readonly<CmvRichD
   return (
     <View className="gap-2">
       {blocks.map((block, index) => (
-        <Block key={index} block={block} resolveImage={(id) => urlById.get(id) ?? null} />
+        <Block key={index} block={block} resolveImage={resolveImage} />
       ))}
     </View>
   );
