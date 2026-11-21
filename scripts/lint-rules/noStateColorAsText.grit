@@ -1,29 +1,48 @@
 language js
 
-// Le DEFAULT d'une famille d'état (`accent`, `success`, `warning`, `error`, `info`) est un aplat,
-// jamais du texte : `accent` et `error` tombent sous AA (4.5:1) sur `surface` et `surface-hi`, là
-// où vivent cartes, panneaux et formulaires, et `accent` déjà sur `bg-1`. Le texte prend la
-// nuance `-on` (tailwind-preset.js, #218). Une règle sans exception de fond : la tenir couple par couple
-// supposerait de remonter le fond effectif à travers le JSX, ce qu'aucun lint ne sait faire.
+// Une couleur d'état (`accent`, `success`, `warning`, `error`, `info`) n'écrit du texte que dans
+// sa nuance `-on` (tailwind-preset.js, #218). Le DEFAULT est un aplat : `accent` et `error` tombent
+// sous AA (4.5:1) sur `surface` et `surface-hi`, là où vivent cartes, panneaux et formulaires, et
+// `accent` déjà sur `bg-1`. `accent-hi` est le survol d'un aplat (4.45:1 sur `surface-hi`), `-soft`
+// et `-line` des teintes à 16-34 % d'opacité, `-fill` l'aplat qui porte un texte blanc. Une règle sans exception de fond : la tenir couple
+// par couple supposerait de remonter le fond effectif à travers le JSX, ce qu'aucun lint ne sait
+// faire.
 //
-// `text-cmv-accent-on`, `-hi`, `bg-cmv-accent`, `border-cmv-error` restent libres ; `hover:` et
-// les autres préfixes sont visés comme la classe nue, et `placeholder-cmv-*` comme `text-cmv-*`.
-// Une chaîne est lue où qu'elle soit : attribut, littéral, morceau de gabarit, clé d'objet
+// `text-cmv-accent-on`, `bg-cmv-accent`, `border-cmv-error` restent libres ; `hover:` et les autres
+// préfixes sont visés comme la classe nue, et `placeholder-cmv-*` comme `text-cmv-*`. Une chaîne
+// est lue où qu'elle soit : attribut, littéral, morceau de gabarit, clé d'objet
 // (`cn({ "text-cmv-error": on })`), type littéral TS.
+//
+// Côté mobile, une icône ou un texte coloré en natif (`color={cmvColors.error.DEFAULT}`, `style={{
+// color: … }}`) suit la même règle. Seul le nom `color` est visé : `tintColor`, `thumbColor` teintent
+// un contrôle natif (spinner, interrupteur), pas du texte, et gardent le DEFAULT.
 //
 // Limites assumées :
 // - Une classe COUPÉE par une expression de gabarit est signalée (`text-cmv-error${suffixe}`), et
 //   une classe CONSTRUITE (`text-cmv-${ton}`) passe. Les deux sont déjà fautives ailleurs : Tailwind
 //   ne lit que des classes écrites en entier, et ne générerait ni l'une ni l'autre. Écrire la classe
 //   complète dans chaque branche suffit à les deux.
+// - Les suffixes interdits sont énumérés (`hi`, `soft`, `line`, `fill`, `fill-hover`), le moteur
+//   de regex ne sachant pas exclure le seul `-on`. Un suffixe ajouté à une famille d'état dans
+//   `palette.json` s'ajoute ici, ou il passerait en texte sans que rien le signale.
+// - Une couleur native passée par une variable (`const c = cmvColors.error.DEFAULT`) passe.
 // - Le CSS n'est pas lu (`language js`) : aucun `@apply` d'une couleur d'état aujourd'hui.
 or {
-  JsStringLiteralExpression(),
-  JsxString(),
-  JsTemplateChunkElement(),
-  JsLiteralMemberName(),
-  TsStringLiteralType()
-} as $literal where {
-  $literal <: r"(?s)(?:.*[^\w-])?(?:text|placeholder)-cmv-(?:accent|success|warning|error|info)(?:[^\w-].*)?",
-  register_diagnostic(span=$literal, message="Couleur d'état DEFAULT écrite en texte : sous AA sur une carte. Le texte prend la nuance -on (#218).", severity="error")
+  or {
+    JsStringLiteralExpression(),
+    JsxString(),
+    JsTemplateChunkElement(),
+    JsLiteralMemberName(),
+    TsStringLiteralType()
+  } as $literal where {
+    $literal <: r"(?s)(?:.*[^\w-])?(?:text|placeholder)-cmv-(?:accent|success|warning|error|info)(?:-(?:hi|soft|line|fill(?:-hover)?))?(?:[^\w-].*)?",
+    register_diagnostic(span=$literal, message="Couleur d'état écrite en texte hors de sa nuance -on : sous AA sur une carte (#218).", severity="error")
+  },
+  or {
+    JsxAttribute(),
+    JsPropertyObjectMember()
+  } as $native where {
+    $native <: r"(?s)color\s*[=:].*\bcmvColors\.(?:accent|success|warning|error|info)\.(?:DEFAULT|hi|soft|line|fill)\b.*",
+    register_diagnostic(span=$native, message="Couleur d'état écrite en texte hors de sa nuance -on : sous AA sur une carte (#218).", severity="error")
+  }
 }
