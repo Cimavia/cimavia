@@ -58,7 +58,7 @@ export type ResolveImage = (mediaId: string) => string | null;
 function Block({
   block,
   resolveImage,
-}: Readonly<{ block: RichBlock; resolveImage: ResolveImage | undefined }>) {
+}: Readonly<{ block: RichBlock; resolveImage: ResolveImage | null }>) {
   if (block.type === RichBlockType.HEADING) {
     return (
       <CmvText className="font-cmv-display text-base text-cmv-text-hi">
@@ -148,8 +148,11 @@ function ImageBlock({
 
 type CmvRichDocumentProps = {
   blocks: RichDocument | null;
-  /** Absent = les images ne sont pas rendues. Le texte, lui, reste lisible. */
-  resolveImage?: ResolveImage;
+  /**
+   * `null` = les images ne sont pas rendues, le texte reste lisible. Obligatoire et jamais
+   * optionnel : un écran qui renonce aux images l'ÉCRIT, un écran qui l'oublie ne compile pas.
+   */
+  resolveImage: ResolveImage | null;
 };
 
 export function CmvRichDocument({ blocks, resolveImage }: Readonly<CmvRichDocumentProps>) {

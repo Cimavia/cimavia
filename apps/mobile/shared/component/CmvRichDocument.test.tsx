@@ -158,8 +158,8 @@ describe("CmvRichDocument — source de l'image", () => {
     expect(renderedSource(container)).toBe("file:///documents/plan-documents/plan-1/media-1.png");
   });
 
-  /** Sans résolveur, l'image n'est pas rendue — légende comprise — et le texte reste lisible. */
-  it("ne rend pas l'image sans résolveur, et garde le texte", () => {
+  /** Résolveur `null`, l'image n'est pas rendue — légende comprise — et le texte reste lisible. */
+  it("ne rend pas l'image quand l'écran renonce aux images, et garde le texte", () => {
     stubImageLoading("load");
 
     const { container } = renderRn(
@@ -168,6 +168,7 @@ describe("CmvRichDocument — source de l'image", () => {
           { type: RichBlockType.IMAGE, mediaId: "media-1", caption: "Position basse" },
           paragraph("Pieds à plat."),
         ]}
+        resolveImage={null}
       />,
     );
 
@@ -191,7 +192,7 @@ describe("CmvRichDocument — légende d'image", () => {
 });
 
 function renderBlocks(blocks: RichBlock[] | null) {
-  return renderRn(<CmvRichDocument blocks={blocks} />);
+  return renderRn(<CmvRichDocument blocks={blocks} resolveImage={null} />);
 }
 
 /** Le texte de chaque bloc de premier niveau, dans l'ordre du document. */
@@ -310,7 +311,7 @@ describe("CmvRichDocument — des frères identiques", () => {
       paragraph("Respirer."),
     ]);
 
-    rerender(<CmvRichDocument blocks={[paragraph("Respirer.")]} />);
+    rerender(<CmvRichDocument blocks={[paragraph("Respirer.")]} resolveImage={null} />);
 
     expect(blockTexts(container)).toEqual(["Respirer."]);
   });
