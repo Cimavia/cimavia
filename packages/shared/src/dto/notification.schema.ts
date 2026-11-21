@@ -246,8 +246,8 @@ export const notificationCategorySchema = z.enum(NotificationCategory);
 
 /**
  * La catégorie de chaque type. Une TABLE et non un `switch` à branche `default` (le motif que #359
- * réclame pour `capabilityOfNotification`) : un type ajouté sans catégorie ne compile plus, au lieu
- * de disparaître de tous les filtres sans que rien ne le dise.
+ * a étendu au titre, `capabilityOfNotification`) : un type ajouté sans catégorie ne compile plus, au
+ * lieu de disparaître de tous les filtres sans que rien ne le dise.
  *
  * « Invitations » réunit les deux côtés de la relation : l'invitation reçue se lit en athlète, ses
  * réponses en coach. C'est un même fil, vu de part et d'autre — les séparer ferait deux pastilles
