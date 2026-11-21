@@ -180,7 +180,7 @@ export function RegisterScreen() {
                     />
                     <span
                       aria-hidden="true"
-                      className={`flex size-[18px] shrink-0 items-center justify-center rounded-[5px] ${checked ? "bg-cmv-accent text-cmv-text-hi" : "border border-cmv-border-hi"}`}
+                      className={`flex size-[18px] shrink-0 items-center justify-center rounded-[5px] ${checked ? "bg-cmv-accent text-cmv-bg-0" : "border border-cmv-border-hi"}`}
                     >
                       {checked && <IoCheckmark size={12} />}
                     </span>

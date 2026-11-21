@@ -64,7 +64,7 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
             segment.kind === "work" ? (
               <span
                 key={`work-${segment.position}`}
-                className="flex flex-[3] items-center justify-center bg-cmv-accent text-cmv-caption text-cmv-text-hi tabular-nums"
+                className="flex flex-[3] items-center justify-center bg-cmv-accent text-cmv-bg-0 text-cmv-caption tabular-nums"
               >
                 {segment.round}
               </span>

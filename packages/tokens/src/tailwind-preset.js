@@ -16,13 +16,16 @@
  *
  * Familles d'état (`accent`, `success`, `warning`, `error`, `info`) — quatre nuances, un seul rôle
  * chacune, pour que la pastille d'état se compose sans jamais choisir un hex :
- *   DEFAULT -> aplat (bandeau, barre de toast, point, bouton plein) — JAMAIS du texte.
+ *   DEFAULT -> aplat (bandeau, barre de toast, point, bouton plein) — JAMAIS du texte. Le texte
+ *              POSÉ sur l'aplat est sombre (`text-cmv-bg-0`, ≥ 4.6:1 sur chaque DEFAULT) : le
+ *              clair (`text-hi`) y tombe à 3.5 sur `accent`.
  *   soft    -> fond de la pastille (teinte à 16 % sur le fond sombre).
  *   line    -> bordure de la pastille (même teinte à 34 %).
  *   on      -> TOUT texte d'état : message d'erreur, lien, titre de section, et texte posé sur
  *              `soft`. La nuance claire, ≥ 6.4:1 sur chacun de nos fonds.
  * Le DEFAULT en texte passe ou non AA selon le fond : `accent` et `error` tombent sous 4.5:1 sur
- * `surface` et `surface-hi`, `warning` passe partout. La règle ne dépend pas du fond, pour qu'on
+ * `surface` (4.08 et 4.20) et `surface-hi` (3.67 et 3.78), `accent` déjà sur `bg-1` (4.44) ; seul
+ * `bg-0` leur laisse AA, et `warning` passe partout. La règle ne dépend pas du fond, pour qu'on
  * n'ait pas à recalculer un couple à chaque carte (#218) : le plugin Biome `noStateColorAsText`
  * la tient. `hi` garde son sens habituel (variante plus claire du DEFAULT, survol d'un aplat) et
  * n'existe que sur `accent`.

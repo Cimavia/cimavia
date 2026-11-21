@@ -10,7 +10,7 @@ type CmvButtonVariant = "primary" | "secondary" | "change" | "ghost" | "danger";
  * bordure de `danger` reste neutre : le texte porte déjà le danger.
  */
 const VARIANT_CLASSES: Record<CmvButtonVariant, string> = {
-  primary: "border-transparent bg-cmv-accent text-cmv-text-hi hover:bg-cmv-accent-hi",
+  primary: "border-transparent bg-cmv-accent text-cmv-bg-0 hover:bg-cmv-accent-hi",
   secondary: "border-cmv-border bg-cmv-surface-hi text-cmv-text-hi hover:border-cmv-border-hi",
   // Un secondaire qui dit un changement : le texte prend l'orange des informations de changement.
   change: "border-cmv-border bg-cmv-surface-hi text-cmv-accent-on hover:border-cmv-border-hi",

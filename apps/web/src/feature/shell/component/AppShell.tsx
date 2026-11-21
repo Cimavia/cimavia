@@ -58,7 +58,7 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
             aria-selected={current}
             className={
               current
-                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-hi"
+                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent px-cmv-sm py-cmv-xs text-cmv-bg-0 text-cmv-caption"
                 : "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:text-cmv-text-hi"
             }
           >
