@@ -997,3 +997,22 @@ describe("CmvAudioPlayer — un lecteur natif seulement à l'engagement (#712)",
     expect(player.replace).not.toHaveBeenCalled();
   });
 });
+
+describe("CmvAudioPlayer — accessibilité (#199)", () => {
+  /**
+   * Une icône seule ne dit rien à TalkBack ni à VoiceOver : le bouton annonce son rôle, et son nom
+   * suit ce qu'il fera au prochain appui.
+   */
+  it("annonce un bouton « écouter » au repos, « pause » pendant la lecture", async () => {
+    const view = setup();
+
+    press(view.getByRole("button", { name: "media.audio.play" }));
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    view.push({ playing: true });
+
+    expect(view.getByRole("button", { name: "media.audio.pause" })).toBe(
+      playButton(view.container),
+    );
+    expect(view.queryByRole("button", { name: "media.audio.play" })).toBeNull();
+  });
+});

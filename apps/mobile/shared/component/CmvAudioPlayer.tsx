@@ -79,7 +79,12 @@ function CmvAudioPlayerView({
   return (
     <View className="gap-1">
       <View className="min-w-[160px] flex-row items-center gap-2">
-        <Pressable onPress={onToggle} hitSlop={8}>
+        <Pressable
+          onPress={onToggle}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t(playing ? "media.audio.pause" : "media.audio.play")}
+        >
           <Ionicons name={playing ? "pause" : "play"} size={22} color={cmvColors.text.hi} />
         </Pressable>
         <CmvSeekBar

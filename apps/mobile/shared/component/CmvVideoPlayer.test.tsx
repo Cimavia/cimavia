@@ -124,6 +124,15 @@ describe("CmvVideoPlayer", () => {
     expect(videoView()).toBeNull();
   });
 
+  // Sans vignette, la pastille se nomme par son texte (libellé puis durée) : seul le rôle manquait.
+  it("annonce sa pastille comme un bouton (#199)", () => {
+    const view = setup();
+
+    expect(view.getByRole("button", { name: (name) => name.startsWith("media.video.label") })).toBe(
+      view.pill(),
+    );
+  });
+
   // Durée non mesurée à l'envoi : rien plutôt qu'un « 0:00 » qui mentirait.
   it("n'affiche aucune durée quand elle est inconnue", () => {
     const { container, getByText } = renderRn(

@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { press, renderRn } from "@/test/render";
 import { CmvImageViewer } from "./CmvImageViewer";
@@ -53,6 +53,28 @@ describe("CmvImageViewer", () => {
     const fullscreen = openFullscreen();
 
     press(fullscreen);
+    finishFade(fullscreen);
+
+    expect(images()).toEqual([URL]);
+  });
+
+  it("nomme la vignette, que TalkBack annonce comme un bouton (#199)", () => {
+    const { getByRole } = renderRn(<CmvImageViewer url={URL} />);
+
+    expect(getByRole("button", { name: "media.image.open" })).toBe(
+      pressableOf(document.querySelector("img") ?? undefined),
+    );
+  });
+
+  /**
+   * Un lecteur d'écran ne « tape pas n'importe où » : la croix est un vrai bouton nommé, et le fond
+   * plein écran n'est pas annoncé comme tel (#199).
+   */
+  it("referme le plein écran par sa croix, seul bouton du plein écran", () => {
+    const fullscreen = openFullscreen();
+    expect(fullscreen.getAttribute("role")).toBeNull();
+
+    press(screen.getByRole("button", { name: "media.image.close" }));
     finishFade(fullscreen);
 
     expect(images()).toEqual([URL]);

@@ -106,7 +106,12 @@ export function CmvVideoPlayer({
   return (
     <View className="gap-1">
       {thumbnail == null ? (
-        <Pressable onPress={open} disabled={opening} className={containerClassName}>
+        <Pressable
+          onPress={open}
+          disabled={opening}
+          accessibilityRole="button"
+          className={containerClassName}
+        >
           {opening ? (
             <ActivityIndicator color={cmvColors.text.hi} />
           ) : (

@@ -1300,3 +1300,22 @@ describe("CmvAudioRecorder — relais au plafond (#856)", () => {
     expect(view.onError).not.toHaveBeenCalled();
   });
 });
+
+describe("CmvAudioRecorder — accessibilité (#199)", () => {
+  // Trois icônes seules : sans nom, un lecteur d'écran annoncerait trois boutons muets.
+  it("nomme le micro, puis la corbeille et l'envoi du bandeau", async () => {
+    const view = setup();
+    expect(view.getByRole("button", { name: "messages.audio.record" })).toBe(
+      icon(view.container, "mic-outline"),
+    );
+
+    await startCapture(view);
+
+    expect(view.getByRole("button", { name: "messages.audio.discard" })).toBe(
+      icon(view.container, "trash-outline"),
+    );
+    expect(view.getByRole("button", { name: "messages.audio.send" })).toBe(
+      icon(view.container, "send"),
+    );
+  });
+});
