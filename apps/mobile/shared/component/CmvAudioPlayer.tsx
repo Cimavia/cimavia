@@ -47,6 +47,16 @@ async function resumeAt(player: AudioPlayer, resume: Resume): Promise<void> {
 }
 
 /**
+ * Le compteur : la position dès que la note a commencé, sa durée avant. Une durée que personne ne
+ * connaît encore se rend `—`, pas `0:00` (règle dure n°5) : une note de durée nulle n'existe pas.
+ * Le lecteur d'écran, lui, n'annonce alors que la position, sans « sur 0:00 ».
+ */
+function counterText(started: boolean, position: number, total: number | null): string {
+  if (started) return formatMmSs(position);
+  return total == null ? "—" : formatMmSs(total);
+}
+
+/**
  * Ce que montre une note, jouée ou non : bouton lecture/pause, curseur, compteur. Aucun lecteur
  * natif ici — l'enveloppe et le corps vivant lui passent ce qu'ils savent.
  */
@@ -92,15 +102,19 @@ function CmvAudioPlayerView({
           total={total}
           disabled={disabled}
           label={t("media.audio.seek")}
-          valueText={t("media.audio.position", {
-            current: formatMmSs(position),
-            total: formatMmSs(total ?? 0),
-          })}
+          valueText={
+            total == null
+              ? formatMmSs(position)
+              : t("media.audio.position", {
+                  current: formatMmSs(position),
+                  total: formatMmSs(total),
+                })
+          }
           onScrub={onScrub}
           onSeek={onSeek}
         />
         <CmvText className="text-cmv-text-hi text-xs">
-          {formatMmSs(playing || started ? position : (total ?? 0))}
+          {counterText(playing || started, position, total)}
         </CmvText>
       </View>
       {unavailable ? (
