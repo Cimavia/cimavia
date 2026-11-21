@@ -106,8 +106,9 @@ export class NotificationFeedService {
     for (const row of unread) {
       const capability = capabilityOfNotification(row.type);
       if (capability == null) {
-        // Tout type dont le titre est indécidable : `MESSAGE_RECEIVED` (traité juste après) et
-        // tout type inconnu d'une API plus récente. Compté dans le total, rangé nulle part.
+        // `MESSAGE_RECEIVED`, seul type dont le titre est indécidable (traité juste après) : la table
+        // de `capabilityOfNotification` ne compile plus sans le titre des autres (#359). Compté
+        // dans le total, rangé nulle part.
         ambiguous += row._count._all;
       } else {
         byCapability[capability] += row._count._all;

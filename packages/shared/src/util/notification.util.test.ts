@@ -79,6 +79,24 @@ describe("capabilityOfNotification", () => {
   it("ne range nulle part un type qu'elle ne connaît pas", () => {
     expect(capabilityOfNotification("SOMETHING_NEW" as NotificationType)).toBeNull();
   });
+
+  // Un nom hérité du prototype n'est pas un type : une lecture nue de la table le prendrait pour
+  // une entrée et rendrait une fonction.
+  it("ne prend pas un nom du prototype pour un type", () => {
+    expect(capabilityOfNotification("toString" as NotificationType)).toBeNull();
+  });
+
+  /**
+   * Le balayage de l'enum (#359) : le message est le SEUL type sans titre. Un type ajouté à la table
+   * avec `null` pour faire compiler tomberait dans `ambiguous`, sur aucune pastille par espace — ce
+   * test le refuse. Un type absent de la table, lui, est refusé par le typecheck.
+   */
+  it("donne un titre à chaque type sauf le message", () => {
+    const untitled = Object.values(NotificationType).filter(
+      (type) => capabilityOfNotification(type) == null,
+    );
+    expect(untitled).toEqual([NotificationType.MESSAGE_RECEIVED]);
+  });
 });
 
 describe("notificationOpeningCapability", () => {

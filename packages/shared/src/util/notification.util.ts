@@ -60,6 +60,36 @@ export function notificationSubject(
 }
 
 /**
+ * Le titre de chaque type. Une TABLE et non un `switch` à branche `default` (#359) : un type ajouté
+ * sans son titre faisait passer typecheck et tests, et tombait dans `ambiguous` — sur aucune
+ * pastille par espace (#176).
+ */
+const NOTIFICATION_CAPABILITY = {
+  // Tout ce qui concerne un cycle est reçu par celui qui s'entraîne dessus.
+  [NotificationType.PLAN_PUBLISHED]: "athlete",
+  [NotificationType.PLAN_UPDATED]: "athlete",
+  [NotificationType.PLAN_SESSION_ADDED]: "athlete",
+  [NotificationType.PLAN_SESSION_REMOVED]: "athlete",
+  [NotificationType.PLAN_SESSIONS_REORDERED]: "athlete",
+  [NotificationType.INVOICE_ISSUED]: "athlete",
+  // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
+  // d'exercer, et la seule qui puisse l'accepter.
+  [NotificationType.INVITATION_RECEIVED]: "athlete",
+  // Le Coach qui rejoint une entreprise (#602) suit désormais l'athlète : c'est lui qu'on prévient.
+  [NotificationType.ORGANIZATION_COACH_JOINED]: "athlete",
+  // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
+  [NotificationType.FEEDBACK_RECEIVED]: "coach",
+  [NotificationType.REMINDER_DUE]: "coach",
+  // Les deux réponses à une invitation reviennent à celui qui l'a émise, donc au coach.
+  [NotificationType.INVITATION_ACCEPTED]: "coach",
+  [NotificationType.INVITATION_DECLINED]: "coach",
+  // L'invitation d'une entreprise ne s'accepte qu'en Coach (#601).
+  [NotificationType.ORGANIZATION_INVITATION_RECEIVED]: "coach",
+  // Les deux côtés d'un fil en reçoivent : seul type indécidable sur son type seul.
+  [NotificationType.MESSAGE_RECEIVED]: null,
+} as const satisfies Record<NotificationType, TrainingCapability | null>;
+
+/**
  * À quel TITRE une notification est reçue — la capacité sous laquelle son destinataire la lit
  * (#176).
  *
@@ -71,38 +101,16 @@ export function notificationSubject(
  * `null` pour `MESSAGE_RECEIVED`, seul type ambigu : les deux côtés d'un fil en reçoivent, et
  * seule la conversation dirait lequel. Le résoudre demanderait de charger chaque fil cité —
  * l'appelant le fait s'il en a besoin, plutôt que de le supposer ici (`capabilityOfMessage`).
+ *
+ * `null` aussi pour un type INCONNU — fail closed : une API plus récente que ce client (une app
+ * mobile pas encore mise à jour, via `notificationOpeningCapability`) ne se range dans aucun espace
+ * plutôt que d'être comptée du mauvais côté. La table, elle, ne laisse aucun type CONNU tomber dans
+ * ce repli : un type ajouté sans titre ne compile plus (#359).
  */
 export function capabilityOfNotification(type: NotificationType): TrainingCapability | null {
-  switch (type) {
-    // Tout ce qui concerne un cycle est reçu par celui qui s'entraîne dessus.
-    case NotificationType.PLAN_PUBLISHED:
-    case NotificationType.PLAN_UPDATED:
-    case NotificationType.PLAN_SESSION_ADDED:
-    case NotificationType.PLAN_SESSION_REMOVED:
-    case NotificationType.PLAN_SESSIONS_REORDERED:
-    case NotificationType.INVOICE_ISSUED:
-    // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
-    // d'exercer, et la seule qui puisse l'accepter.
-    case NotificationType.INVITATION_RECEIVED:
-    // Le Coach qui rejoint une entreprise (#602) suit désormais l'athlète : c'est lui qu'on prévient.
-    case NotificationType.ORGANIZATION_COACH_JOINED:
-      return "athlete";
-    // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
-    case NotificationType.FEEDBACK_RECEIVED:
-    case NotificationType.REMINDER_DUE:
-    // Les deux réponses à une invitation reviennent à celui qui l'a émise, donc au coach.
-    case NotificationType.INVITATION_ACCEPTED:
-    case NotificationType.INVITATION_DECLINED:
-    // L'invitation d'une entreprise ne s'accepte qu'en Coach (#601).
-    case NotificationType.ORGANIZATION_INVITATION_RECEIVED:
-      return "coach";
-    case NotificationType.MESSAGE_RECEIVED:
-      return null;
-    default:
-      // Fail closed : un type qu'on ne connaît pas (API plus récente que ce client) ne se range
-      // dans aucun espace plutôt que d'être compté du mauvais côté.
-      return null;
-  }
+  // `Object.hasOwn` et non une lecture nue : celle-ci rendrait `undefined` sur un type inconnu, et
+  // `"toString"` remonterait le prototype.
+  return Object.hasOwn(NOTIFICATION_CAPABILITY, type) ? NOTIFICATION_CAPABILITY[type] : null;
 }
 
 /**
