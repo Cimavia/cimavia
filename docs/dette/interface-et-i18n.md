@@ -383,3 +383,26 @@ liste des domaines vivent dans l'index.
 >   faire défiler la page. Un `truncate` voulu (le rail) n'y compte pas.
 > - **Le mobile n'a pas changé** : `Text` coupe un mot trop long de lui-même. Reste à le constater
 >   sur un téléphone.
+
+## Post-MVP — Un bouton sans fond garde une bordure ([#579](https://github.com/Cimavia/cimavia/issues/579))
+
+> **Tranché en [#579](https://github.com/Cimavia/cimavia/issues/579)** (toutes les variantes de
+> `CmvButton` web sont bordées) : `ghost` (~55 emplois) et `danger` n'avaient que du texte.
+> « Annuler », « Tout réinitialiser » et « Supprimer la séance » se lisaient comme des libellés.
+> **Écart à la maquette** : elle dessine « Annuler » en texte seul, et son design system ne connaît
+> que le primaire et le secondaire bordé. Les quatre questions de l'issue sont tranchées sur des
+> captures avant/après (panneau de séance planifiée, constructeur de séance, menu de colonne) :
+>
+> - **La bordure de `danger` est neutre** (`border-cmv-border`). Le texte en `error-on` porte déjà
+>   le danger, et une bordure rouge à côté du primaire alourdirait le pied de page.
+> - **`primary` garde une bordure transparente** : `border` vit dans la base du composant, et c'est
+>   ce qui donne la même hauteur à « Annuler » et « Enregistrer » dans un même pied de page.
+> - **`ghost` et `secondary` restent deux variantes** : le fond `surface-hi` et le texte `hi` les
+>   distinguent encore, à côté l'un de l'autre (« Annuler » / « Remplacer »).
+> - **Les boutons-icônes gardent la bordure** (corbeille de `MetricPicker` et de la grille), pour
+>   une seule règle. Dans le menu de colonne, les remplissages deviennent des boîtes, nettement
+>   détachées de leur titre de section : celui-ci n'a pas eu besoin de passer à
+>   `CMV_TABLE.headLabel`, que l'issue prévoyait en repli.
+>
+> C'est un essai : si un écran dense en souffre, le retour en arrière se limite à `VARIANT_CLASSES`.
+> Le mobile n'est pas concerné, son `CmvButton` est plein.
