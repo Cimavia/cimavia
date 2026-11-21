@@ -63,7 +63,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | M-2 | **Pas de note vocale de débrief sur Firefox** : `FEEDBACK_AUDIO_MIME_TYPES` n'accepte pas `audio/webm`, seul format que Firefox sache produire. Le bouton disparaît, avec un message. Texte, photos et vidéos restent disponibles. | 🟢 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
-| M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#82](https://github.com/Cimavia/cimavia/issues/82) |
+| M-3 | **Lecture iOS d'une note vocale web non vérifiée** : Chrome produit désormais du `audio/mp4` (le webm ne part plus), mais aucun iPhone réel n'a testé la lecture. Risque faible — mp4/AAC est le format natif d'iOS — mais non mesuré. | 🟡 | [#394](https://github.com/Cimavia/cimavia/issues/394) |
 
 *Résolues, à l'[archive](archive.md) : M-1, M-4, M-5.*
 > **Corrigé en #194, trouvé par accident** : `useUnreadNotificationCount` et `useUnreadByCapability`
