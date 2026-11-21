@@ -197,7 +197,8 @@
       "notArmed": "Le minuteur ne sonnera pas téléphone rangé : autorise les notifications.",
       "stop": "Arrêter",
       "nextBody": "{{segment}} · {{duration}}",
-      "awaiting": "Le chrono repart quand tu auras terminé."
+      "awaiting": "Le chrono repart quand tu auras terminé.",
+      "channelName": "Minuteurs"
     },
     "cycle": {
       "week": "S{{number}}/{{total}} · {{type}}",
