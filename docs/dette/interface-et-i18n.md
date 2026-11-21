@@ -85,9 +85,13 @@ liste des domaines vivent dans l'index.
 >   couple par couple, et remonter le fond à travers le JSX est hors d'atteinte d'un lint. Avec une
 >   règle sans exception de fond, une regex suffit sur les classes écrites en entier, les seules
 >   que Tailwind génère : `noStateColorAsText` (plugin Biome, tests exclus) refuse
->   `text-cmv-{accent,success,warning,error,info}` et `placeholder-cmv-…` nus, préfixes compris,
->   dans un littéral, un gabarit, une clé d'objet ou un type TS. Une classe construite
->   (`text-cmv-${ton}`) lui échappe, mais Tailwind ne la générerait pas non plus.
+>   `text-cmv-{accent,success,warning,error,info}` et `placeholder-cmv-…`, préfixes compris,
+>   dans un littéral, un gabarit, une clé d'objet ou un type TS. Seule la nuance `-on` passe :
+>   `accent-hi` est un survol d'aplat (4.45:1 sur `surface-hi`), `-soft` et `-line` des teintes
+>   translucides. Côté mobile, elle lit aussi la prop `color` d'une icône ou d'un style
+>   (`cmvColors.error.DEFAULT`), et laisse `tintColor` et `thumbColor` aux contrôles natifs. Une
+>   classe construite (`text-cmv-${ton}`) lui échappe, mais Tailwind ne la générerait pas non
+>   plus ; une couleur native passée par une variable aussi.
 > - **Icônes et onglets** : une icône d'état prend `-on` comme le texte, sur les deux apps. Sur le
 >   web, elle hérite de la couleur du texte, si bien que le lint l'impose déjà. Le mobile suit
 >   (pièce jointe PDF, coches de l'inscription et de la nouvelle conversation, bouton d'envoi),
@@ -95,24 +99,28 @@ liste des domaines vivent dans l'index.
 >   d'en-tête passent aussi à `on`, parce qu'ils colorent un libellé (4.44:1 sur `bg-1`). Le
 >   second reste lettre morte pour l'instant : le `ThemeProvider` importé de
 >   `@react-navigation/native` n'atteint pas la copie de React Navigation qu'embarque expo-router
->   56, si bien que le thème entier est ignoré (la pastille d'onglet garde le rouge par défaut).
->   Ce défaut est antérieur à #218 et suivi à part (issue proposée). Seuls les
->   contrôles natifs teintés gardent le `DEFAULT` (spinner du rafraîchissement, curseur de
->   l'interrupteur, pastille de notification) : un élément non textuel se juge à 3:1 (WCAG
->   1.4.11), et `accent` y tient partout (≥ 3.67:1).
-> - **Texte posé sur un aplat : sombre** (`text-cmv-bg-0`), trouvé à la revue de la PR. Le clair
->   (`text-hi`) tombait sous AA sur chaque `DEFAULT` : 3.52 sur `accent`, 2.90 au survol, 3.42 sur
->   `error`. Deux couples tenaient AA : texte sombre sur l'aplat actuel (≥ 4.61, survol 5.59), ou
->   aplat assombri d'un nouveau token sous un texte clair (4.86). Le premier garde le terracotta
->   de marque, et le bandeau hors ligne le faisait déjà sur `warning`. Il vaut pour les boutons
->   pleins, `CmvConfirmButton` armé, les bulles de ses propres messages, l'espace actif de la
->   navigation web comme du sélecteur mobile, le compteur de non-lus, les badges (onglet compris,
->   qui choisissait seul un texte blanc, sous AA) et l'aperçu de structure. Reste les médias d'une
->   bulle à soi (CE-1).
+>   56, si bien que le thème entier est ignoré (la pastille d'onglet tombait sur le rouge par
+>   défaut, d'où sa couleur posée par `tabBarBadgeStyle`). Ce défaut est antérieur à #218 et
+>   suivi à part (issue proposée). Seuls les contrôles natifs teintés gardent le `DEFAULT`
+>   (spinner du rafraîchissement, curseur de l'interrupteur) : un élément non textuel se juge à
+>   3:1 (WCAG 1.4.11), et `accent` y tient partout (≥ 3.67:1).
+> - **Texte posé sur un aplat : blanc, sur un aplat foncé de 5 %** (`accent-fill`, `error-fill`,
+>   `text-on-fill`), trouvé à la revue de la PR. Le clair (`text-hi`) tombait sous AA sur chaque
+>   `DEFAULT` : 3.52 sur `accent`, 2.90 au survol, 3.42 sur `error`. Le texte sombre sur l'aplat
+>   actuel tenait AA (4.61) et a été livré d'abord, mais, vu dans l'application, il éteignait le
+>   bouton : Kylian a préféré l'aspect d'avant. Le blanc sur un aplat à peine plus sombre le
+>   retrouve à 4.58 et 4.61:1. Le survol fonce au lieu d'éclaircir (`accent-fill-hover`, 5.19),
+>   puisque `hi` ferait retomber le blanc sous AA. Un aplat plus sombre encore, brique sous `text-hi`
+>   (4.86), changeait la couleur de marque. Il vaut pour les boutons pleins, `CmvConfirmButton`
+>   armé, les bulles de ses propres messages, l'espace actif de la navigation web comme du
+>   sélecteur mobile, le compteur de non-lus, les badges (onglet compris, dont l'aplat et le texte
+>   sont posés à la main, faute du thème) et l'aperçu de structure. Un aplat SANS texte (point,
+>   barre de progression, barre de toast) garde le `DEFAULT`, et le bandeau `warning`, clair, son
+>   texte sombre. Reste les médias d'une bulle à soi (CE-1).
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| CE-1 | **Le texte d'un média dans une bulle à soi reste clair sur l'aplat `accent`** (3.52:1) : compteur du lecteur audio, nom et taille d'un fichier, pastille vidéo sans vignette, « format non pris en charge » et les erreurs de lecture. Ces composants fixent leurs couleurs eux-mêmes, et le mobile n'hérite d'aucune couleur : il leur faut une variante « sur aplat », sur les deux apps. Le texte d'une bulle, lui, est passé au sombre. | 🟡 | — *(issue proposée à la revue de la PR de #218)* |
+| CE-1 | **Le texte d'un média dans une bulle à soi garde ses couleurs de carte sur l'aplat `accent-fill`** : `text-hi` à 3.85:1, `text-mid` à 2.22, `error-on` à 1.91. Sont touchés le compteur du lecteur audio, la taille d'un fichier, la pastille vidéo sans vignette, « format non pris en charge » et les erreurs de lecture. Le **nom** d'un fichier diverge : sur le web il ne fixe pas de couleur et hérite du blanc de la bulle (4.58, il passe), sur le mobile, qui n'hérite d'aucune couleur, il reste en `text-hi`. Il faut à ces composants une variante « sur aplat », sur les deux apps. Le texte d'une bulle, lui, est passé au blanc. | 🟡 | — *(issue proposée à la revue de la PR de #218)* |
 
 ---
 
