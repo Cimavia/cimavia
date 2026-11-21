@@ -35,4 +35,8 @@ export const tabBarTheme = {
   inactiveTintColor: cmvColors.text.mid,
   backgroundColor: cmvColors.bg["1"],
   borderColor: cmvColors.border.DEFAULT,
+  // Le badge choisit seul son texte, blanc sur un fond qu'il juge sombre : sous AA sur `accent`
+  // (4.18:1) comme sur le rouge par défaut de React Navigation (3.55:1). Texte sombre, comme tout
+  // texte posé sur un aplat d'état (#218) : ≥ 4.6:1 sur l'un comme sur l'autre.
+  badgeTextColor: cmvColors.bg["0"],
 };

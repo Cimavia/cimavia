@@ -38,7 +38,7 @@ const CONFIRM_CLASSES: Record<CmvConfirmVariant, string> = {
 };
 
 const CONFIRM_TEXT: Record<CmvConfirmVariant, string> = {
-  danger: "text-cmv-text-hi",
+  danger: "text-cmv-bg-0",
   secondary: "text-cmv-text-hi",
   ghost: "text-cmv-error-on",
 };

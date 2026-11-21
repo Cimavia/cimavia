@@ -48,6 +48,7 @@ export default function AppTabsLayout() {
         // (tirées de @cmv/tokens — aucun hex ici, règle dure n°3).
         tabBarActiveTintColor: tabBarTheme.activeTintColor,
         tabBarInactiveTintColor: tabBarTheme.inactiveTintColor,
+        tabBarBadgeStyle: { color: tabBarTheme.badgeTextColor },
         tabBarStyle: {
           backgroundColor: tabBarTheme.backgroundColor,
           borderTopColor: tabBarTheme.borderColor,

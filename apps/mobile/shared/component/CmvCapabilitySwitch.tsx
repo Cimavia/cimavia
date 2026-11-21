@@ -69,9 +69,9 @@ export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProp
               name={icon}
               size={14}
               // Couleur native : le composant vient d'une lib tierce et ignore les className.
-              color={active ? cmvColors.text.hi : cmvColors.text.mid}
+              color={active ? cmvColors.bg["0"] : cmvColors.text.mid}
             />
-            <CmvText className={active ? "text-cmv-text-hi text-sm" : "text-cmv-text-mid text-sm"}>
+            <CmvText className={active ? "text-cmv-bg-0 text-sm" : "text-cmv-text-mid text-sm"}>
               {t(`nav.space.${capability}`)}
             </CmvText>
             {/* Pastille sur l'espace INACTIF seulement : sur celui qu'on regarde, le badge

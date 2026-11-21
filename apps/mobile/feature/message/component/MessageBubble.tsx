@@ -207,7 +207,7 @@ export function MessageBubble({
       )}
 
       {message.content != null ? (
-        <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
+        <CmvText className={mine ? "text-cmv-bg-0" : "text-cmv-text-hi"}>{message.content}</CmvText>
       ) : (
         <MediaContent
           message={message}

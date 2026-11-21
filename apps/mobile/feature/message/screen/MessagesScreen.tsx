@@ -276,7 +276,7 @@ function ConversationRow({
 
       {unread === 0 ? null : (
         <View className="h-6 min-w-6 items-center justify-center rounded-full bg-cmv-accent px-2">
-          <CmvText className="text-cmv-text-hi text-xs">{unread}</CmvText>
+          <CmvText className="text-cmv-bg-0 text-xs">{unread}</CmvText>
         </View>
       )}
     </Pressable>
