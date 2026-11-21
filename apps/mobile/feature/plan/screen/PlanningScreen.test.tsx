@@ -203,6 +203,26 @@ describe("PlanWeekList", () => {
     const { getAllByText } = renderRn(<PlanWeekList week={weekOf([BLOC])} today={MONDAY} />);
     expect(getAllByText("plan.rest")).toHaveLength(6);
   });
+
+  /**
+   * #570 : « Fait » s'affichait en terracotta, presque la teinte du rouge d'erreur — une séance
+   * réussie se lisait comme un échec. Seule la séance faite se colore ; « à faire » reste neutre.
+   */
+  it("pose « Fait » en pastille verte et laisse « À faire » en neutre", () => {
+    const done = {
+      ...session("ss_done", "Voie longue", WEDNESDAY),
+      status: ScheduledSessionStatus.DONE,
+    };
+    const week = weekOf([
+      plan("p_bloc", "Cycle Bloc", [session("ss_bloc", "Force max", WEDNESDAY), done]),
+    ]);
+    const { getByText } = renderRn(<PlanWeekList week={week} today={MONDAY} />);
+
+    const variant = (key: string) =>
+      getByText(`plan.sessionStatus.${key}`).getAttribute("data-variant");
+    expect(variant(ScheduledSessionStatus.DONE)).toBe("success");
+    expect(variant(ScheduledSessionStatus.PLANNED)).toBe("neutral");
+  });
 });
 
 /**
