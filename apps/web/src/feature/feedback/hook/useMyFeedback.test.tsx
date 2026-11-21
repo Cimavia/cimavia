@@ -5,7 +5,11 @@ import { ApiError } from "@/shared/lib/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useUpsertMyFeedback } from "./useMyFeedback";
 
-const { upsertMock } = vi.hoisted(() => ({ upsertMock: vi.fn() }));
+const { upsertMock, toastMock } = vi.hoisted(() => ({
+  upsertMock: vi.fn(),
+  toastMock: { onSuccess: vi.fn(), onError: vi.fn() },
+}));
+vi.mock("@/shared/hook/useMutationToast", () => ({ useMutationToast: () => toastMock }));
 
 vi.mock("@/feature/feedback/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/feedback/api")>()),
@@ -42,6 +46,8 @@ describe("useUpsertMyFeedback — un refus", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myPlanKeys.session("s-1") });
     // Le suivi local n'est vidé qu'au succès : un refus ne coûte aucune coche.
     expect(onSaved).not.toHaveBeenCalled();
+    // Et rien ne se confirme : l'échec reste sous le bouton, l'écran l'affiche.
+    expect(toastMock.onSuccess).not.toHaveBeenCalled();
   });
 
   it("une autre panne ne relit rien : la séance n'y est pour rien", async () => {
@@ -101,6 +107,20 @@ describe("useUpsertMyFeedback — la séance en cache suit l'envoi", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(myPlanKeys.session("s-1"))).toBeUndefined();
+  });
+
+  /** #570 : la réussite se confirme par un toast, une fois par envoi, comme tout le web. */
+  it("confirme chaque envoi réussi d'un toast, un seul", async () => {
+    upsertMock.mockResolvedValue({ id: "f-1" });
+    const { result } = setup();
+
+    act(() => result.current.mutate({ content: "Bien tenu" }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(toastMock.onSuccess).toHaveBeenCalledTimes(1);
+    expect(toastMock.onSuccess).toHaveBeenCalledWith("feedback.saved");
+
+    act(() => result.current.mutate({ content: "Bien tenu, et long" }));
+    await waitFor(() => expect(toastMock.onSuccess).toHaveBeenCalledTimes(2));
   });
 
   it("un envoi sans suivi ne touche pas au cache", async () => {

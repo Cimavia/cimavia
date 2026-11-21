@@ -15,7 +15,6 @@ export function FeedbackSubmitRail({
   canSubmit,
   isPending,
   error,
-  saved,
   onSubmit,
 }: Readonly<{
   hasContent: boolean;
@@ -24,7 +23,6 @@ export function FeedbackSubmitRail({
   canSubmit: boolean;
   isPending: boolean;
   error: string | null;
-  saved: boolean;
   onSubmit: () => void;
 }>) {
   const { t } = useTranslation();
@@ -46,9 +44,6 @@ export function FeedbackSubmitRail({
           </CmvButton>
 
           {error == null ? null : <span className="text-cmv-body text-cmv-error-on">{error}</span>}
-          {saved ? (
-            <span className="text-cmv-body text-cmv-accent">{t("feedback.saved")}</span>
-          ) : null}
         </div>
       </CmvCard>
     </aside>

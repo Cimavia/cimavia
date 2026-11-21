@@ -169,7 +169,6 @@ function FeedbackBody({
           canSubmit={canSubmit}
           isPending={upsert.isPending}
           error={upsert.isError ? (apiErrorMessage(upsert.error) ?? t("feedback.saveError")) : null}
-          saved={upsert.isSuccess && !canSubmit}
           onSubmit={() =>
             upsert.mutate({ content: content.length === 0 ? null : content, ...tracking.payload() })
           }
