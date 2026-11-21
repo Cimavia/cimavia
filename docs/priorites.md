@@ -93,7 +93,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #772 | Restauration du README cassée, et un silo-setup en échec ignoré par la promotion | 🟠 | ✅ |
 | #760 | Une bibliothèque en deux copies dans le bundle mobile passe la CI | 🟠 | ✅ |
 | #290 | L'app web ne prend une nouvelle version qu'après un rechargement forcé | 🟠 | ✅ |
-| #394 | Recette sur iPhone réel du code écrit pour iOS | 🟠 | |
+| #394 | Recette sur iPhone réel du code écrit pour iOS | 🟠 | ✅ |
 | #255 | Le profil EAS production n'a pas d'URL d'API | 🟠 | |
 | #800 | Une version plus récente de SILO est disponible | 🟠 | |
 | #784 | Personne n'est prévenu quand l'API ou le stockage de preview tombe | 🟡 | |
