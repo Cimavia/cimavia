@@ -149,7 +149,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #383 | Le web recopie deux formateurs de `@cmv/shared` | ⚪ | ✅ |
 | #372 | Un composant du design system importe une feature | ⚪ | ✅ |
 | #375 | Le design system mobile lit le stockage hors-ligne | ⚪ | ✅ |
-| #359 | Un type de notification oublié disparaît des pastilles | ⚪ | |
+| #359 | Un type de notification oublié disparaît des pastilles | ⚪ | ✅ |
 | #386 | Commentaire et cahier des charges à 60 s au lieu de 180 s | ⚪ | |
 | #342 | Le bouton de fermeture du panneau porte un libellé en dur | ⚪ | ✅ |
 | #348 | Le nom du canal de notification Android est écrit en dur | ⚪ | |
