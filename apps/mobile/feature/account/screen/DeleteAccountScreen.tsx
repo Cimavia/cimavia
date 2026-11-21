@@ -167,7 +167,7 @@ export function DeleteAccountScreen() {
               </CmvText>
             )}
             {failure != null && (
-              <CmvText className="text-cmv-error text-sm">
+              <CmvText className="text-cmv-error-on text-sm">
                 {t(`account.delete.failure.${failure}`)}
               </CmvText>
             )}

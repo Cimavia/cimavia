@@ -147,7 +147,7 @@ export function CmvVideoPlayer({
       )}
 
       {failure == null ? null : (
-        <CmvText className="text-cmv-error text-xs">
+        <CmvText className="text-cmv-error-on text-xs">
           {failure === "refresh" ? t("media.video.refreshError") : t("media.video.openError")}
         </CmvText>
       )}

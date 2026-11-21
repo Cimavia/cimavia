@@ -35,7 +35,7 @@ export function VerificationSent({ email }: Readonly<{ email: string }>) {
         <CmvText className="text-cmv-text-mid">{t("auth.verificationSent.resent")}</CmvText>
       )}
       {resend === "failed" && (
-        <CmvText className="text-cmv-error">{t("auth.errors.generic")}</CmvText>
+        <CmvText className="text-cmv-error-on">{t("auth.errors.generic")}</CmvText>
       )}
       <CmvButton
         label={
@@ -47,7 +47,7 @@ export function VerificationSent({ email }: Readonly<{ email: string }>) {
         disabled={resend === "sending"}
       />
       <Pressable onPress={() => router.push("/login")} className="items-center py-2">
-        <CmvText className="font-semibold text-cmv-accent">
+        <CmvText className="font-semibold text-cmv-accent-on">
           {t("auth.verificationSent.toLogin")}
         </CmvText>
       </Pressable>

@@ -16,7 +16,7 @@ export function TrackedBlockList({ blocks }: Readonly<{ blocks: readonly Tracked
 
   return (
     <View className="gap-2">
-      <CmvText className="text-cmv-accent text-xs uppercase">
+      <CmvText className="text-cmv-accent-on text-xs uppercase">
         {t("feedback.detail.tracking")}
       </CmvText>
 

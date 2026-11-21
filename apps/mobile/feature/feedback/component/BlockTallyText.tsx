@@ -20,8 +20,8 @@ export function BlockTallyText({ tally }: Readonly<{ tally: BlockTally | null }>
     <CmvText
       className={
         tally.state === BlockTallyState.DONE
-          ? "text-cmv-success text-xs"
-          : "text-cmv-accent text-xs"
+          ? "text-cmv-success-on text-xs"
+          : "text-cmv-accent-on text-xs"
       }
     >
       {text([tally.label])}

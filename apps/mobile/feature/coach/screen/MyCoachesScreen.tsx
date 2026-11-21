@@ -141,7 +141,7 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
         </View>
       </View>
       {open.isError ? (
-        <CmvText className="text-cmv-error text-sm">{t("coach.messageError")}</CmvText>
+        <CmvText className="text-cmv-error-on text-sm">{t("coach.messageError")}</CmvText>
       ) : null}
       <CmvButton label={t("coach.message")} onPress={openThread} disabled={open.isPending} />
     </View>

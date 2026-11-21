@@ -137,7 +137,7 @@ function FeedbackRow({
       </CmvText>
 
       {feedback.mediaCount === 0 ? null : (
-        <CmvText className="text-cmv-accent text-xs">
+        <CmvText className="text-cmv-accent-on text-xs">
           {t("feedback.coach.mediaCount", { count: feedback.mediaCount })}
         </CmvText>
       )}

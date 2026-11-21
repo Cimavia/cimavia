@@ -35,7 +35,7 @@ function Inline({ node }: Readonly<{ node: InlineNode }>) {
   }
   return (
     <Text
-      className={`text-cmv-accent underline ${className}`}
+      className={`text-cmv-accent-on underline ${className}`}
       onPress={() => Linking.openURL(node.href as string)}
     >
       {node.text}

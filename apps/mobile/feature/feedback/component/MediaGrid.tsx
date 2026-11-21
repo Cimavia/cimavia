@@ -57,7 +57,7 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
               )}
 
               <Pressable onPress={() => onRemove(item.id)} disabled={isRemoving}>
-                <CmvText className="text-center text-cmv-error text-xs">
+                <CmvText className="text-center text-cmv-error-on text-xs">
                   {t("feedback.media.remove")}
                 </CmvText>
               </Pressable>
@@ -80,7 +80,7 @@ export function MediaGrid({ media, sessionId, onRemove, isRemoving }: Readonly<M
             />
           </View>
           <Pressable onPress={() => onRemove(item.id)} disabled={isRemoving}>
-            <CmvText className="text-cmv-error text-xs">{t("feedback.media.remove")}</CmvText>
+            <CmvText className="text-cmv-error-on text-xs">{t("feedback.media.remove")}</CmvText>
           </Pressable>
         </View>
       ))}

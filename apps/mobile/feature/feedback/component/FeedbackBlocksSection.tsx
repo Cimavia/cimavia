@@ -60,7 +60,7 @@ export function FeedbackBlocksSection({
                 {block.name}
               </CmvText>
               <BlockTallyText tally={sessionBlockTally(block, tracking)} />
-              <CmvText className="text-cmv-accent text-xs">
+              <CmvText className="text-cmv-accent-on text-xs">
                 {t(isEditing ? "feedback.tracking.close" : "feedback.tracking.open")}
               </CmvText>
             </Pressable>

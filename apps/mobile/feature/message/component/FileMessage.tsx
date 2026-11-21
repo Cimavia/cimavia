@@ -73,7 +73,7 @@ export function FileMessage({ messageId, media, resolveUrl }: Readonly<FileMessa
 
       {/* L'échec se dit SOUS la bulle : le mobile n'a pas de toasts. */}
       {failure == null ? null : (
-        <CmvText className="text-cmv-error text-xs">
+        <CmvText className="text-cmv-error-on text-xs">
           {failure === "offline" ? t("messages.file.offline") : t("messages.file.openError")}
         </CmvText>
       )}

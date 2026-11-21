@@ -31,7 +31,7 @@ export function CompanyScreen() {
             void Linking.openURL(WEB_URL);
           }}
         >
-          <CmvText className="font-cmv-mono text-cmv-accent">{address}</CmvText>
+          <CmvText className="font-cmv-mono text-cmv-accent-on">{address}</CmvText>
         </Pressable>
         <CmvButton label={t("common.logout")} onPress={logout} />
         {/* Elle peut s'inscrire depuis l'app et n'a pas de Profil : la règle Apple vaut ici (#796). */}

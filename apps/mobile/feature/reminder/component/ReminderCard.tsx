@@ -135,7 +135,7 @@ function ReminderTarget({ reminder }: Readonly<{ reminder: ReminderDto }>) {
 
   return (
     <Pressable onPress={() => openAsCoach("/invoices")}>
-      <CmvText className="text-cmv-accent text-xs">{line}</CmvText>
+      <CmvText className="text-cmv-accent-on text-xs">{line}</CmvText>
     </Pressable>
   );
 }

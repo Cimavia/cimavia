@@ -82,7 +82,7 @@ export function BlockTimerOverlay({
       </View>
 
       <View className="flex-1 items-center justify-center gap-3">
-        <CmvText className="font-cmv-display text-2xl text-cmv-accent uppercase tracking-wide">
+        <CmvText className="font-cmv-display text-2xl text-cmv-accent-on uppercase tracking-wide">
           {t(`plan.clock.title.${step.kind}`)}
         </CmvText>
         {awaiting ? null : <ClockFace step={step} remaining={remaining} total={total} />}

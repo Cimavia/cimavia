@@ -22,7 +22,7 @@ const REST_CLASSES: Record<CmvConfirmVariant, string> = {
 };
 
 const REST_TEXT: Record<CmvConfirmVariant, string> = {
-  danger: "text-cmv-error",
+  danger: "text-cmv-error-on",
   secondary: "text-cmv-text-hi",
   ghost: "text-cmv-text-mid",
 };

@@ -99,7 +99,7 @@ function CmvAudioPlayerView({
         </CmvText>
       </View>
       {unavailable ? (
-        <CmvText className="text-cmv-error text-xs">{t("media.audio.unavailable")}</CmvText>
+        <CmvText className="text-cmv-error-on text-xs">{t("media.audio.unavailable")}</CmvText>
       ) : null}
     </View>
   );

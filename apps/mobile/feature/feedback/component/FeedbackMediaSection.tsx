@@ -114,7 +114,7 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
       />
 
       {removeError == null ? null : (
-        <CmvText className="text-cmv-error text-sm">{removeError}</CmvText>
+        <CmvText className="text-cmv-error-on text-sm">{removeError}</CmvText>
       )}
 
       <MediaPicker
@@ -145,14 +145,14 @@ export function FeedbackMediaSection({ sessionId, feedback }: Readonly<FeedbackM
           {/* La clé est le RANG DU MÉDIA dans la sélection, porté par la ligne : deux médias
               peuvent avoir le même nom, mais jamais le même rang. */}
           {recap.map((entry) => (
-            <CmvText key={entry.id} className="text-cmv-error text-sm">
+            <CmvText key={entry.id} className="text-cmv-error-on text-sm">
               {`${entry.fileName ?? t("feedback.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
             </CmvText>
           ))}
         </View>
       )}
 
-      {error == null ? null : <CmvText className="text-cmv-error text-sm">{error}</CmvText>}
+      {error == null ? null : <CmvText className="text-cmv-error-on text-sm">{error}</CmvText>}
     </View>
   );
 }

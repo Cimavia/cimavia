@@ -134,7 +134,7 @@ export function RegisterScreen() {
         })}
       </View>
       {noCapability && (
-        <CmvText className="text-cmv-error text-sm">{t("auth.errors.noCapability")}</CmvText>
+        <CmvText className="text-cmv-error-on text-sm">{t("auth.errors.noCapability")}</CmvText>
       )}
     </View>
   );
@@ -212,7 +212,7 @@ export function RegisterScreen() {
             secureTextEntry
             autoComplete="new-password"
           />
-          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          {error != null && <CmvText className="text-cmv-error-on">{error}</CmvText>}
           <CmvButton
             label={submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             onPress={onSubmit}
@@ -224,7 +224,7 @@ export function RegisterScreen() {
         </>
       )}
       <Pressable onPress={() => router.push("/login")} className="items-center py-2">
-        <CmvText className="font-semibold text-cmv-accent">{t("auth.register.toLogin")}</CmvText>
+        <CmvText className="font-semibold text-cmv-accent-on">{t("auth.register.toLogin")}</CmvText>
       </Pressable>
     </ScrollView>
   );
