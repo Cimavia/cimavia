@@ -32,13 +32,13 @@ const REST_TEXT: Record<CmvConfirmVariant, string> = {
  * jamais au DEFAULT en texte, qui ne passe pas AA sur nos fonds.
  */
 const CONFIRM_CLASSES: Record<CmvConfirmVariant, string> = {
-  danger: "bg-cmv-error",
+  danger: "bg-cmv-error-fill",
   secondary: "border border-cmv-border-hi bg-cmv-surface-hi",
   ghost: "border border-cmv-error-line bg-cmv-error-soft",
 };
 
 const CONFIRM_TEXT: Record<CmvConfirmVariant, string> = {
-  danger: "text-cmv-bg-0",
+  danger: "text-cmv-text-on-fill",
   secondary: "text-cmv-text-hi",
   ghost: "text-cmv-error-on",
 };
