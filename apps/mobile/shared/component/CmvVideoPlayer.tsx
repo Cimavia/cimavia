@@ -106,7 +106,12 @@ export function CmvVideoPlayer({
   return (
     <View className="gap-1">
       {thumbnail == null ? (
-        <Pressable onPress={open} disabled={opening} className={containerClassName}>
+        <Pressable
+          onPress={open}
+          disabled={opening}
+          accessibilityRole="button"
+          className={containerClassName}
+        >
           {opening ? (
             <ActivityIndicator color={cmvColors.text.hi} />
           ) : (
@@ -122,7 +127,13 @@ export function CmvVideoPlayer({
           onPress={open}
           disabled={opening}
           accessibilityRole="button"
-          accessibilityLabel={t("media.video.label")}
+          // La durée dessinée sur la vignette s'annonce aussi : la pastille sans vignette la dit
+          // par son texte, et la même vidéo ne doit pas perdre sa durée en gagnant une image.
+          accessibilityLabel={
+            duration == null
+              ? t("media.video.label")
+              : t("media.video.labelWithDuration", { duration })
+          }
           className={thumbnailClassName}
         >
           {/* `cover` : une vignette sert à RECONNAÎTRE la vidéo, pas à la voir entière — le plein
@@ -147,7 +158,7 @@ export function CmvVideoPlayer({
       )}
 
       {failure == null ? null : (
-        <CmvText className="text-cmv-error text-xs">
+        <CmvText className="text-cmv-error-on text-xs">
           {failure === "refresh" ? t("media.video.refreshError") : t("media.video.openError")}
         </CmvText>
       )}

@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { press, renderRn } from "@/test/render";
 import { CmvImageViewer } from "./CmvImageViewer";
@@ -53,6 +53,31 @@ describe("CmvImageViewer", () => {
     const fullscreen = openFullscreen();
 
     press(fullscreen);
+    finishFade(fullscreen);
+
+    expect(images()).toEqual([URL]);
+  });
+
+  it("nomme la vignette, que TalkBack annonce comme un bouton (#199)", () => {
+    const { getByRole } = renderRn(<CmvImageViewer url={URL} />);
+
+    expect(getByRole("button", { name: "media.image.open" })).toBe(
+      pressableOf(document.querySelector("img") ?? undefined),
+    );
+  });
+
+  /**
+   * Un lecteur d'écran ne « tape pas n'importe où » : la croix est un vrai bouton nommé (#199).
+   *
+   * Que le fond sorte de l'arbre d'accessibilité, ce test ne peut pas le dire : react-native-web
+   * pose `tabIndex=0` sur tout `Pressable` et ignore `focusable` comme `importantForAccessibility`.
+   * Seul l'arbre natif d'Android le montre (vue ni cliquable ni focalisable), vérifié à
+   * l'émulateur en #199.
+   */
+  it("referme le plein écran par sa croix", () => {
+    const fullscreen = openFullscreen();
+
+    press(screen.getByRole("button", { name: "media.image.close" }));
     finishFade(fullscreen);
 
     expect(images()).toEqual([URL]);

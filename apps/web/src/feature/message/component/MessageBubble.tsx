@@ -210,7 +210,7 @@ export function MessageBubble({
       className={cn(
         "flex max-w-[70%] flex-col rounded-cmv-lg px-cmv-md py-cmv-sm",
         mine
-          ? "self-end bg-cmv-accent text-cmv-text-hi"
+          ? "self-end bg-cmv-accent-fill text-cmv-text-on-fill"
           : "self-start bg-cmv-surface text-cmv-text-hi",
       )}
     >

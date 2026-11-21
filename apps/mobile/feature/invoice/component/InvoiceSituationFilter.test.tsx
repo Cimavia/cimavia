@@ -1,8 +1,8 @@
 import type { InvoiceRowFilter } from "@cmv/shared";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { InvoiceSituationFilter } from "@/feature/invoice/component/InvoiceSituationFilter";
-import { pressButton, renderRn } from "@/test/render";
+import { press, renderRn } from "@/test/render";
 
 const COUNTS: Record<InvoiceRowFilter, number> = { ALL: 6, OVERDUE: 2, DUE: 2, UP_TO_DATE: 2 };
 
@@ -30,7 +30,7 @@ describe("InvoiceSituationFilter", () => {
   it("remonte la situation touchée", () => {
     const { onChange, container } = setup();
 
-    pressButton(container, "invoice.coach.situationFilter.OVERDUE");
+    press(within(container).getByRole("radio", { name: "invoice.coach.situationFilter.OVERDUE" }));
     expect(onChange).toHaveBeenCalledWith("OVERDUE");
   });
 
@@ -47,7 +47,9 @@ describe("InvoiceSituationFilter", () => {
     (value) => {
       const { onChange, container } = setup("ALL");
 
-      pressButton(container, `invoice.coach.situationFilter.${value}`);
+      press(
+        within(container).getByRole("radio", { name: `invoice.coach.situationFilter.${value}` }),
+      );
       expect(onChange).toHaveBeenCalledWith(value);
     },
   );

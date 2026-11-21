@@ -124,6 +124,15 @@ describe("CmvVideoPlayer", () => {
     expect(videoView()).toBeNull();
   });
 
+  // Sans vignette, la pastille se nomme par son texte (libellé puis durée) : seul le rôle manquait.
+  it("annonce sa pastille comme un bouton (#199)", () => {
+    const view = setup();
+
+    expect(view.getByRole("button", { name: (name) => name.startsWith("media.video.label") })).toBe(
+      view.pill(),
+    );
+  });
+
   // Durée non mesurée à l'envoi : rien plutôt qu'un « 0:00 » qui mentirait.
   it("n'affiche aucune durée quand elle est inconnue", () => {
     const { container, getByText } = renderRn(
@@ -349,7 +358,7 @@ describe("CmvVideoPlayer — vignette", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(THUMB);
     expect(container.querySelector('[data-icon="play"]')).not.toBeNull();
     expect(container.querySelector('[data-icon="play-circle"]')).toBeNull();
-    expect(getByLabelText("media.video.label")).toBeTruthy();
+    expect(getByLabelText("media.video.labelWithDuration")).toBeTruthy();
     expect(getByText("1:30")).toBeTruthy();
     expect(useVideoThumbnail).toHaveBeenCalledWith("msg-1", expect.any(Function), 90);
   });
@@ -369,10 +378,25 @@ describe("CmvVideoPlayer — vignette", () => {
     expect(container.textContent).toBe("");
   });
 
+  /** La durée dessinée s'annonce, comme la pastille la dit par son texte ; inconnue, elle se tait. */
+  it("met la durée dans le nom de la vignette quand elle est connue, et seulement alors", () => {
+    expect(setup().getByRole("button", { name: "media.video.labelWithDuration" })).toBeTruthy();
+
+    const unknown = renderRn(
+      <CmvVideoPlayer
+        mediaId="msg-2"
+        durationSeconds={null}
+        sizeBytes={null}
+        resolveUrl={vi.fn(async () => FIRST)}
+      />,
+    );
+    expect(unknown.getByRole("button", { name: "media.video.label" })).toBeTruthy();
+  });
+
   it("ouvre le plein écran au tap sur la vignette", async () => {
     const { getByLabelText, resolveUrl } = setup();
 
-    press(getByLabelText("media.video.label"));
+    press(getByLabelText("media.video.labelWithDuration"));
 
     await waitFor(() => expect(videoView()).not.toBeNull());
     expect(resolveUrl).toHaveBeenCalledTimes(1);
@@ -384,7 +408,7 @@ describe("CmvVideoPlayer — vignette", () => {
       vi.fn(() => new Promise<string | null>(() => undefined)),
     );
 
-    press(getByLabelText("media.video.label"));
+    press(getByLabelText("media.video.labelWithDuration"));
 
     await waitFor(() => expect(container.querySelector('[data-icon="play"]')).toBeNull());
     expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
@@ -393,7 +417,7 @@ describe("CmvVideoPlayer — vignette", () => {
   it("dit l'échec sous la vignette comme sous la pastille", async () => {
     const { getByLabelText, findByText } = setup(vi.fn(async () => null));
 
-    press(getByLabelText("media.video.label"));
+    press(getByLabelText("media.video.labelWithDuration"));
 
     expect(await findByText("media.video.refreshError")).toBeTruthy();
   });

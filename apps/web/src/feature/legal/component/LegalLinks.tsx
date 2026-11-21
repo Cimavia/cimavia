@@ -23,7 +23,7 @@ function LegalAnchor({ document, className, children }: Readonly<LegalAnchorProp
       href={legalDocumentUrl("", document, i18n.language)}
       target="_blank"
       rel="noopener noreferrer"
-      className={className ?? "text-cmv-accent hover:text-cmv-accent-hi"}
+      className={className ?? "text-cmv-accent-on hover:underline"}
     >
       {children}
     </a>

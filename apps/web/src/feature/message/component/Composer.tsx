@@ -108,7 +108,7 @@ export function Composer({
           type="button"
           onClick={() => recorder.stop(true)}
           title={t("messages.send")}
-          className="text-cmv-accent transition-colors hover:text-cmv-accent-hi"
+          className="text-cmv-accent-on transition-colors hover:text-cmv-text-hi"
         >
           <IoSend size={22} />
         </button>
@@ -152,7 +152,7 @@ export function Composer({
             type="button"
             onClick={submitText}
             title={t("messages.send")}
-            className="pb-1 text-cmv-accent transition-colors hover:text-cmv-accent-hi"
+            className="pb-1 text-cmv-accent-on transition-colors hover:text-cmv-text-hi"
           >
             <IoSend size={22} />
           </button>

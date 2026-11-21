@@ -22,7 +22,7 @@ export function CmvErrorState({
 }: Readonly<CmvErrorStateProps>) {
   return (
     <div className="flex flex-col items-center gap-cmv-sm rounded-cmv-lg border border-cmv-error bg-cmv-bg-1 p-cmv-2xl text-center">
-      <p className="text-cmv-subtitle text-cmv-error">{title}</p>
+      <p className="text-cmv-subtitle text-cmv-error-on">{title}</p>
       <p className="max-w-sm text-cmv-caption text-cmv-text-mid">{description}</p>
       <CmvButton variant="secondary" onClick={onRetry}>
         {retryLabel}

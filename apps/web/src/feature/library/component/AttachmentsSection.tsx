@@ -131,7 +131,7 @@ export function AttachmentsSection({
             href={document.url}
             target="_blank"
             rel="noreferrer"
-            className="truncate text-cmv-body text-cmv-text-hi hover:text-cmv-accent"
+            className="truncate text-cmv-body text-cmv-text-hi hover:text-cmv-accent-on"
           >
             {document.fileName ?? document.url}
           </a>
@@ -235,8 +235,8 @@ export function AttachmentsSection({
         </CmvButton>
       </div>
 
-      {linkError == null ? null : <p className="text-cmv-caption text-cmv-error">{linkError}</p>}
-      {fileError == null ? null : <p className="text-cmv-caption text-cmv-error">{fileError}</p>}
+      {linkError == null ? null : <p className="text-cmv-caption text-cmv-error-on">{linkError}</p>}
+      {fileError == null ? null : <p className="text-cmv-caption text-cmv-error-on">{fileError}</p>}
     </section>
   );
 }

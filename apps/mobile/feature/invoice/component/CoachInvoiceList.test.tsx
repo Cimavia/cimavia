@@ -8,7 +8,7 @@ import {
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CoachInvoiceList } from "@/feature/invoice/component/CoachInvoiceList";
-import { pressButton, renderRn } from "@/test/render";
+import { pressText, renderRn } from "@/test/render";
 
 // « (moi) » lit la session : hors sujet ici, et il tirerait tout le contexte d'authentification.
 vi.mock("@/shared/hook/useAthleteLabel", () => ({
@@ -89,10 +89,10 @@ describe("CoachInvoiceList", () => {
   it("déplie l'historique de l'athlète touché, et le referme au second appui", () => {
     const { baseElement } = setup(rowsOf([LEA, LEA_JUILLET]));
 
-    pressButton(baseElement, "Léa Bonnet");
+    pressText(baseElement, "Léa Bonnet");
     expect(screen.getByText("août 2026")).toBeTruthy();
 
-    pressButton(baseElement, "Léa Bonnet");
+    pressText(baseElement, "Léa Bonnet");
     expect(screen.queryByText("août 2026")).toBeNull();
   });
 
@@ -103,10 +103,10 @@ describe("CoachInvoiceList", () => {
   it("referme l'athlète précédent quand un autre s'ouvre", () => {
     const { baseElement } = setup(rowsOf([LEA, SARAH]));
 
-    pressButton(baseElement, "Léa Bonnet");
+    pressText(baseElement, "Léa Bonnet");
     expect(screen.getByText("août 2026")).toBeTruthy();
 
-    pressButton(baseElement, "Sarah Nguyen");
+    pressText(baseElement, "Sarah Nguyen");
     // Une seule facture d'historique rendue : celle de Sarah, pas les deux.
     expect(screen.getAllByText("août 2026")).toHaveLength(1);
   });
@@ -114,8 +114,8 @@ describe("CoachInvoiceList", () => {
   it("mène au détail depuis une facture de l'historique", () => {
     const { onOpenInvoice, baseElement } = setup(rowsOf([LEA]));
 
-    pressButton(baseElement, "Léa Bonnet");
-    pressButton(baseElement, "août 2026");
+    pressText(baseElement, "Léa Bonnet");
+    pressText(baseElement, "août 2026");
     expect(onOpenInvoice).toHaveBeenCalledWith("i-1");
   });
 });

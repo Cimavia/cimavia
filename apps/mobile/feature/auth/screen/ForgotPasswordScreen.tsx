@@ -70,7 +70,7 @@ export function ForgotPasswordScreen() {
             autoCapitalize="none"
             autoComplete="email"
           />
-          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          {error != null && <CmvText className="text-cmv-error-on">{error}</CmvText>}
           <CmvButton
             label={submitting ? t("auth.forgot.submitting") : t("auth.forgot.submit")}
             onPress={onSubmit}
@@ -79,7 +79,7 @@ export function ForgotPasswordScreen() {
         </>
       )}
       <Pressable onPress={() => router.push("/login")}>
-        <CmvText className="text-cmv-accent">{t("auth.forgot.back")}</CmvText>
+        <CmvText className="text-cmv-accent-on">{t("auth.forgot.back")}</CmvText>
       </Pressable>
     </View>
   );

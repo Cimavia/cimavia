@@ -64,7 +64,7 @@ export function ExerciseExtras({ exercise, planId, sessionId }: Readonly<Exercis
     <>
       {hasInstructions ? (
         <Pressable onPress={() => setOpen((current) => !current)} hitSlop={8}>
-          <CmvText className="text-cmv-accent text-sm">
+          <CmvText className="text-cmv-accent-on text-sm">
             {t(open ? "plan.session.hideInstructions" : "plan.session.showInstructions")}
           </CmvText>
         </Pressable>

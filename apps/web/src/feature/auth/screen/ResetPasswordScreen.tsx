@@ -55,7 +55,7 @@ export function ResetPasswordScreen() {
   useEffect(() => {
     if (tokenInUrl !== undefined) {
       const search = linkError === undefined ? {} : { error: linkError };
-      navigate({ to: "/reset-password", search, replace: true });
+      void navigate({ to: "/reset-password", search, replace: true });
     }
   }, [tokenInUrl, linkError, navigate]);
 
@@ -154,7 +154,7 @@ function ResetPasswordForm({
         onChange={(event) => setPassword(event.target.value)}
       />
       {error != null && (
-        <p role="alert" className="text-sm text-cmv-error">
+        <p role="alert" className="text-sm text-cmv-error-on">
           {error}
         </p>
       )}

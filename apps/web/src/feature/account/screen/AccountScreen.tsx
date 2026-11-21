@@ -48,7 +48,7 @@ export function AccountScreen() {
         <section className="flex max-w-xl flex-col gap-cmv-md">
           <h2 className="text-cmv-subtitle text-cmv-text-hi">{t("account.delete.title")}</h2>
           <p className="text-cmv-caption text-cmv-text-mid">{t("account.delete.entry")}</p>
-          <Link to="/account/delete" className="text-cmv-caption text-cmv-error hover:underline">
+          <Link to="/account/delete" className="text-cmv-caption text-cmv-error-on hover:underline">
             {t("account.delete.title")}
           </Link>
         </section>

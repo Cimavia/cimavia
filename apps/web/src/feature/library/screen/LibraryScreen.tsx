@@ -33,7 +33,7 @@ export function LibraryScreen() {
   const { data: structures } = useStructureLibrary();
 
   function openTab(next: LibraryTab) {
-    navigate({
+    void navigate({
       to: "/library",
       search: next === LibraryTab.EXERCISES ? {} : { tab: next },
       replace: true,
@@ -42,13 +42,13 @@ export function LibraryScreen() {
 
   // Exercice, séance comme structure : une PAGE, pas un tiroir (#163, #165, #717).
   function openCreate() {
-    if (tab === LibraryTab.STRUCTURES) navigate({ to: "/library/structures/new" });
-    else if (tab === LibraryTab.SESSIONS) navigate({ to: "/library/sessions/new" });
-    else navigate({ to: "/library/exercises/new" });
+    if (tab === LibraryTab.STRUCTURES) void navigate({ to: "/library/structures/new" });
+    else if (tab === LibraryTab.SESSIONS) void navigate({ to: "/library/sessions/new" });
+    else void navigate({ to: "/library/exercises/new" });
   }
 
   function openDuplicate(source: StructureSource) {
-    navigate({
+    void navigate({
       to: "/library/structures/new",
       search: "preset" in source ? { from: source.preset } : { from: source.structureId },
     });

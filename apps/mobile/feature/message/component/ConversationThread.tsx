@@ -178,20 +178,20 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
         )}
 
         {send.isError ? (
-          <CmvText className="px-4 pb-1 text-cmv-error text-sm">
+          <CmvText className="px-4 pb-1 text-cmv-error-on text-sm">
             {apiErrorMessage(send.error) ?? t("messages.sendError")}
           </CmvText>
         ) : null}
 
         {mediaError != null ? (
-          <CmvText className="px-4 pb-1 text-cmv-error text-sm">{mediaError}</CmvText>
+          <CmvText className="px-4 pb-1 text-cmv-error-on text-sm">{mediaError}</CmvText>
         ) : null}
 
         {/* Une ligne PAR fichier : « 2 sur 5 n'ont pas pu partir » ne dirait pas lesquels, ce qui
             laisserait la sélection entière à refaire. La clé est le rang du fichier dans la
             sélection, porté par la ligne. */}
         {recap.map((entry) => (
-          <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error text-sm">
+          <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error-on text-sm">
             {`${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
           </CmvText>
         ))}

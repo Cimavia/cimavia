@@ -63,7 +63,7 @@ export function OrganizationInvitationCard({
       {/* Le mobile n'a pas de toasts : l'échec se dit sur place, sinon le bouton repasse à son
           libellé et rien d'autre ne se passe (#365). */}
       {failure == null ? null : (
-        <CmvText className="text-cmv-error text-sm">
+        <CmvText className="text-cmv-error-on text-sm">
           {apiErrorMessage(failure) ?? t("coach.organizationInvitation.error")}
         </CmvText>
       )}

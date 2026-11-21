@@ -66,7 +66,7 @@ export function FeedbackTextSection({
       />
 
       {upsert.isError ? (
-        <CmvText className="text-cmv-error text-sm">
+        <CmvText className="text-cmv-error-on text-sm">
           {apiErrorMessage(upsert.error) ?? t("feedback.saveError")}
         </CmvText>
       ) : null}

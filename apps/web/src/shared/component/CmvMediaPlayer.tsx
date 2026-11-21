@@ -160,7 +160,7 @@ export function CmvMediaPlayer({
         </video>
       )}
       {unavailable ? (
-        <p className="text-cmv-caption text-cmv-error">{t("common.mediaUnavailable")}</p>
+        <p className="text-cmv-caption text-cmv-error-on">{t("common.mediaUnavailable")}</p>
       ) : null}
     </>
   );

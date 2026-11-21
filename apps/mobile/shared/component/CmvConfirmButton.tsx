@@ -22,7 +22,7 @@ const REST_CLASSES: Record<CmvConfirmVariant, string> = {
 };
 
 const REST_TEXT: Record<CmvConfirmVariant, string> = {
-  danger: "text-cmv-error",
+  danger: "text-cmv-error-on",
   secondary: "text-cmv-text-hi",
   ghost: "text-cmv-text-mid",
 };
@@ -32,13 +32,13 @@ const REST_TEXT: Record<CmvConfirmVariant, string> = {
  * jamais au DEFAULT en texte, qui ne passe pas AA sur nos fonds.
  */
 const CONFIRM_CLASSES: Record<CmvConfirmVariant, string> = {
-  danger: "bg-cmv-error",
+  danger: "bg-cmv-error-fill",
   secondary: "border border-cmv-border-hi bg-cmv-surface-hi",
   ghost: "border border-cmv-error-line bg-cmv-error-soft",
 };
 
 const CONFIRM_TEXT: Record<CmvConfirmVariant, string> = {
-  danger: "text-cmv-text-hi",
+  danger: "text-cmv-text-on-fill",
   secondary: "text-cmv-text-hi",
   ghost: "text-cmv-error-on",
 };
@@ -90,6 +90,7 @@ export function CmvConfirmButton({
   if (!armed) {
     return (
       <Pressable
+        accessibilityRole="button"
         onPress={() => setArmed(true)}
         disabled={disabled}
         className={`rounded-lg px-4 py-3 ${REST_CLASSES[variant]} ${dimmed}`}
@@ -108,6 +109,7 @@ export function CmvConfirmButton({
       )}
       <View className="flex-row gap-2">
         <Pressable
+          accessibilityRole="button"
           onPress={() => {
             setArmed(false);
             onConfirm();
@@ -118,6 +120,7 @@ export function CmvConfirmButton({
           <CmvText className={`text-center ${CONFIRM_TEXT[variant]}`}>{confirmLabel}</CmvText>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
           onPress={() => setArmed(false)}
           disabled={disabled}
           className={`flex-1 rounded-lg border border-cmv-border px-4 py-3 ${dimmed}`}

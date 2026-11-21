@@ -124,7 +124,7 @@ export function RegisterScreen() {
               <Ionicons
                 name={checked ? "checkbox" : "square-outline"}
                 size={18}
-                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+                color={checked ? cmvColors.accent.on : cmvColors.border.hi}
               />
               <CmvText className={checked ? "text-cmv-text-hi" : "text-cmv-text-mid"}>
                 {t(labelKey)}
@@ -134,7 +134,7 @@ export function RegisterScreen() {
         })}
       </View>
       {noCapability && (
-        <CmvText className="text-cmv-error text-sm">{t("auth.errors.noCapability")}</CmvText>
+        <CmvText className="text-cmv-error-on text-sm">{t("auth.errors.noCapability")}</CmvText>
       )}
     </View>
   );
@@ -179,7 +179,7 @@ export function RegisterScreen() {
               <Ionicons
                 name={checked ? "checkmark-circle" : "ellipse-outline"}
                 size={18}
-                color={checked ? cmvColors.accent.DEFAULT : cmvColors.border.hi}
+                color={checked ? cmvColors.accent.on : cmvColors.border.hi}
               />
             </Pressable>
             {/* Sur mobile, les cases s'insèrent sous la carte choisie, avant « Entreprise ». */}
@@ -212,7 +212,7 @@ export function RegisterScreen() {
             secureTextEntry
             autoComplete="new-password"
           />
-          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          {error != null && <CmvText className="text-cmv-error-on">{error}</CmvText>}
           <CmvButton
             label={submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             onPress={onSubmit}
@@ -224,7 +224,7 @@ export function RegisterScreen() {
         </>
       )}
       <Pressable onPress={() => router.push("/login")} className="items-center py-2">
-        <CmvText className="font-semibold text-cmv-accent">{t("auth.register.toLogin")}</CmvText>
+        <CmvText className="font-semibold text-cmv-accent-on">{t("auth.register.toLogin")}</CmvText>
       </Pressable>
     </ScrollView>
   );

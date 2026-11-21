@@ -4,7 +4,7 @@ import { Linking } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvoiceDetail } from "@/feature/invoice/component/InvoiceDetail";
 import { useCancelInvoice, useUpdateInvoiceStatus } from "@/feature/invoice/hook/useInvoices";
-import { pressButton, renderRn } from "@/test/render";
+import { pressButton, pressText, renderRn } from "@/test/render";
 
 // Les mutations ont leurs propres tests : ce qui s'éprouve ici est CE QUI les déclenche.
 vi.mock("@/feature/invoice/hook/useInvoices", () => ({
@@ -111,7 +111,7 @@ describe("InvoiceDetail", () => {
       invoice({ documentUrl: "https://s3/x.pdf", documentFileName: null }),
     );
 
-    pressButton(baseElement, "invoice.viewDocument");
+    pressText(baseElement, "invoice.viewDocument");
 
     expect(open).toHaveBeenCalledWith("https://s3/x.pdf");
   });

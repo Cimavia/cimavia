@@ -33,7 +33,7 @@ export function ExerciseList() {
   const change = useChangeExerciseAccess();
 
   function open(exerciseId: string) {
-    navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId } });
+    void navigate({ to: "/library/exercises/$exerciseId", params: { exerciseId } });
   }
 
   /**

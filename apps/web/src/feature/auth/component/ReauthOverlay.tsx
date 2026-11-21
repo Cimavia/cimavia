@@ -52,7 +52,7 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
    */
   function leaveForLogin() {
     resetAccountData(queryClient);
-    navigate({ to: "/login", replace: true, ignoreBlocker: true });
+    void navigate({ to: "/login", replace: true, ignoreBlocker: true });
   }
 
   // Le choix du coach, lui, demande AVANT de purger : sa saisie se reprend en se reconnectant.
@@ -146,7 +146,7 @@ export function ReauthOverlay({ owner }: Readonly<ReauthOverlayProps>) {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          {error != null && <p className="text-sm text-cmv-error">{error}</p>}
+          {error != null && <p className="text-sm text-cmv-error-on">{error}</p>}
           <CmvButton type="submit" disabled={submitting} fullWidth>
             {submitting ? t("auth.login.submitting") : t("auth.reauth.submit")}
           </CmvButton>

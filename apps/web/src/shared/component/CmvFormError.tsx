@@ -30,5 +30,5 @@ export function CmvFormError({ error, message }: Readonly<CmvFormErrorProps>) {
     (isStaleWriteError(error)
       ? t("common.staleWrite")
       : (apiErrorMessage(error) ?? t("common.error")));
-  return <p className="text-cmv-caption text-cmv-error">{shown}</p>;
+  return <p className="text-cmv-caption text-cmv-error-on">{shown}</p>;
 }

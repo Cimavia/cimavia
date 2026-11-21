@@ -3,7 +3,7 @@ import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reminderApi } from "@/feature/reminder/api";
 import { SnoozeReminderButton } from "@/feature/reminder/component/SnoozeReminderButton";
-import { pressButton, renderRn } from "@/test/render";
+import { pressText, renderRn } from "@/test/render";
 
 // Seul l'appel est remplacé : le hook de report et ce qu'il fait au cache restent les VRAIS.
 vi.mock("@/feature/reminder/api", async (importOriginal) => {
@@ -34,8 +34,8 @@ describe("SnoozeReminderButton", () => {
   it("repousse à l'échéance choisie, calculée à l'instant du tap, puis se replie", async () => {
     const { container } = renderRn(<SnoozeReminderButton reminderId="r-1" />);
 
-    pressButton(container, "reminder.snooze.label");
-    pressButton(container, "reminder.snooze.TOMORROW");
+    pressText(container, "reminder.snooze.label");
+    pressText(container, "reminder.snooze.TOMORROW");
 
     await waitFor(() =>
       expect(reminderApi.update).toHaveBeenCalledWith("r-1", {
@@ -49,8 +49,8 @@ describe("SnoozeReminderButton", () => {
   it("se replie sans rien envoyer quand le coach se ravise", () => {
     const { container } = renderRn(<SnoozeReminderButton reminderId="r-1" />);
 
-    pressButton(container, "reminder.snooze.label");
-    pressButton(container, "common.cancel");
+    pressText(container, "reminder.snooze.label");
+    pressText(container, "common.cancel");
 
     expect(container.textContent).toBe("reminder.snooze.label");
     expect(reminderApi.update).not.toHaveBeenCalled();
@@ -60,8 +60,8 @@ describe("SnoozeReminderButton", () => {
     vi.mocked(reminderApi.update).mockReturnValue(new Promise(() => undefined));
     const { container } = renderRn(<SnoozeReminderButton reminderId="r-1" />);
 
-    pressButton(container, "reminder.snooze.label");
-    pressButton(container, "reminder.snooze.NEXT_WEEK");
+    pressText(container, "reminder.snooze.label");
+    pressText(container, "reminder.snooze.NEXT_WEEK");
 
     await waitFor(() =>
       expect(container.querySelector('[aria-disabled="true"]')?.textContent).toBe(

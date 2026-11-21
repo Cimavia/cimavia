@@ -125,10 +125,10 @@ export function ExerciseBuilderScreen({
   // retour arrière rouvrirait le formulaire d'un exercice déjà créé.
   function leave(saved: ExerciseDto | null) {
     if (fromSessionId == null) {
-      navigate({ to: "/library" });
+      void navigate({ to: "/library" });
       return;
     }
-    navigate({
+    void navigate({
       to: "/library/sessions/$sessionId",
       params: { sessionId: fromSessionId },
       search:
@@ -304,7 +304,7 @@ function ExerciseBuilder({
                   requiredMark={!readOnly}
                 />
                 {titleMissing ? (
-                  <p className="text-cmv-caption text-cmv-error">
+                  <p className="text-cmv-caption text-cmv-error-on">
                     {t("library.builder.titleRequired")}
                   </p>
                 ) : null}

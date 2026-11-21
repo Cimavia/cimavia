@@ -119,7 +119,7 @@ function InstructionImageView({
               onClick={deleteNode}
               aria-label={t("library.builder.image.remove")}
               title={t("library.builder.image.remove")}
-              className="rounded-cmv-sm px-cmv-xs py-cmv-xs text-cmv-text-mid hover:text-cmv-error"
+              className="rounded-cmv-sm px-cmv-xs py-cmv-xs text-cmv-text-mid hover:text-cmv-error-on"
             >
               <IoTrashOutline />
             </button>

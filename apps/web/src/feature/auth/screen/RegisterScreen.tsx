@@ -135,7 +135,7 @@ export function RegisterScreen() {
                   />
                   <Mark
                     aria-hidden="true"
-                    className={`absolute top-cmv-md right-cmv-md ${checked ? "text-cmv-accent" : "text-cmv-border-hi"}`}
+                    className={`absolute top-cmv-md right-cmv-md ${checked ? "text-cmv-accent-on" : "text-cmv-border-hi"}`}
                   />
                   <Icon
                     aria-hidden="true"
@@ -180,7 +180,7 @@ export function RegisterScreen() {
                     />
                     <span
                       aria-hidden="true"
-                      className={`flex size-[18px] shrink-0 items-center justify-center rounded-[5px] ${checked ? "bg-cmv-accent text-cmv-text-hi" : "border border-cmv-border-hi"}`}
+                      className={`flex size-[18px] shrink-0 items-center justify-center rounded-[5px] ${checked ? "bg-cmv-accent-fill text-cmv-text-on-fill" : "border border-cmv-border-hi"}`}
                     >
                       {checked && <IoCheckmark size={12} />}
                     </span>
@@ -190,7 +190,7 @@ export function RegisterScreen() {
               })}
             </div>
             {noCapability && (
-              <p role="alert" className="mt-cmv-sm text-sm text-cmv-error">
+              <p role="alert" className="mt-cmv-sm text-sm text-cmv-error-on">
                 {t("auth.errors.noCapability")}
               </p>
             )}
@@ -229,7 +229,7 @@ export function RegisterScreen() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            {error != null && <p className="text-sm text-cmv-error">{error}</p>}
+            {error != null && <p className="text-sm text-cmv-error-on">{error}</p>}
             <CmvButton type="submit" disabled={submitting} fullWidth>
               {submitting ? t("auth.register.submitting") : t("auth.register.submit")}
             </CmvButton>
@@ -240,7 +240,7 @@ export function RegisterScreen() {
         )}
       </form>
       <div className="mt-cmv-xl text-center text-sm">
-        <Link to="/login" className="font-semibold text-cmv-accent hover:text-cmv-accent-hi">
+        <Link to="/login" className="font-semibold text-cmv-accent-on hover:underline">
           {t("auth.register.toLogin")}
         </Link>
       </div>

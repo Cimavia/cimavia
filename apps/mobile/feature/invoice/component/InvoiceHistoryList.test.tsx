@@ -2,7 +2,7 @@ import { type InvoiceDto, InvoiceStatus, MyAccessLevel, sortAthleteInvoices } fr
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { InvoiceHistoryList } from "@/feature/invoice/component/InvoiceHistoryList";
-import { pressButton, renderRn } from "@/test/render";
+import { pressText, renderRn } from "@/test/render";
 
 /**
  * L'ordre vient de `@cmv/shared` et y est mesuré. Ce qui s'éprouve ici est ce que la liste AJOUTE :
@@ -106,7 +106,7 @@ describe("InvoiceHistoryList", () => {
     expect(screen.getAllByText(/invoice\.coach\.history\.paidOn/)).toHaveLength(5);
     expect(screen.getByText(/invoice\.coach\.history\.range/)).toBeTruthy();
 
-    pressButton(container, "2");
+    pressText(container, "2");
     // Neuf factures, cinq par page : la seconde en porte les quatre restantes.
     expect(screen.getAllByText(/invoice\.coach\.history\.paidOn/)).toHaveLength(4);
   });
@@ -114,7 +114,7 @@ describe("InvoiceHistoryList", () => {
   it("mène au détail de la facture touchée", () => {
     const { onOpenInvoice, container } = setup([invoice({ id: "i-1" })]);
 
-    pressButton(container, "août 2026");
+    pressText(container, "août 2026");
     expect(onOpenInvoice).toHaveBeenCalledWith("i-1");
   });
 

@@ -96,7 +96,7 @@ export function ReauthOverlay({ owner }: Readonly<{ owner: SessionOwner }>) {
             secureTextEntry
             autoComplete="current-password"
           />
-          {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+          {error != null && <CmvText className="text-cmv-error-on">{error}</CmvText>}
           <CmvButton
             label={submitting ? t("auth.login.submitting") : t("auth.reauth.submit")}
             onPress={onSubmit}

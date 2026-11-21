@@ -124,11 +124,11 @@ export function ProfileScreen() {
             <CmvWarningNotice>{t("account.capabilities.warnCoach")}</CmvWarningNotice>
           )}
           {!isCoach && !isAthlete && (
-            <CmvText className="text-cmv-error text-sm">
+            <CmvText className="text-cmv-error-on text-sm">
               {t("account.capabilities.atLeastOne")}
             </CmvText>
           )}
-          {error != null && <CmvText className="text-cmv-error text-sm">{error}</CmvText>}
+          {error != null && <CmvText className="text-cmv-error-on text-sm">{error}</CmvText>}
 
           <CmvButton
             label={update.isPending ? t("common.saving") : t("common.save")}

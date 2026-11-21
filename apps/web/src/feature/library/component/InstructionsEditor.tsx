@@ -138,7 +138,7 @@ export function InstructionsEditor({
         />
       )}
       {tooLong ? (
-        <p className="text-cmv-caption text-cmv-error">
+        <p className="text-cmv-caption text-cmv-error-on">
           {t("library.builder.instructionsTooLong", { max: RICH_DOCUMENT_MAX_TEXT_LENGTH })}
         </p>
       ) : null}
@@ -321,7 +321,7 @@ function EditorToolbar({ editor }: Readonly<{ editor: Editor }>) {
         </ToolButton>
       </div>
 
-      {fileError == null ? null : <p className="text-cmv-caption text-cmv-error">{fileError}</p>}
+      {fileError == null ? null : <p className="text-cmv-caption text-cmv-error-on">{fileError}</p>}
 
       {linkDraft == null ? null : (
         <LinkField
@@ -399,7 +399,7 @@ function LinkField({ value, onChange, onSubmit, onCancel }: Readonly<LinkFieldPr
         onClick={onSubmit}
         disabled={!isValid}
         aria-label={t("library.builder.tool.linkApply")}
-        className="rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-accent disabled:text-cmv-text-lo"
+        className="rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-accent-on disabled:text-cmv-text-lo"
       >
         <IoCheckmark />
       </button>

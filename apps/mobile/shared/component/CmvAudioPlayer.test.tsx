@@ -394,13 +394,25 @@ describe("CmvAudioPlayer — durée affichée au repos", () => {
     expect(getByText("1:15")).toBeTruthy();
   });
 
-  /** Sans durée connue, 0:00 et non une barre qui déborde ou un NaN : rien n'est encore joué. */
-  it("affiche 0:00 quand personne ne la connaît encore", () => {
+  /**
+   * Sans durée connue, `—` (règle dure n°5) : ni `0:00`, qui dirait une note vide, ni une barre
+   * qui déborde ou un NaN. Le lecteur d'écran n'annonce que la position, sans « sur 0:00 ».
+   */
+  it("rend « — » quand personne ne la connaît encore, et n'annonce pas de durée", () => {
     setStatus({ duration: 0, isLoaded: false });
 
-    const { getByText } = renderWithoutServerDuration();
+    const { getByText, getByRole } = renderWithoutServerDuration();
 
-    expect(getByText("0:00")).toBeTruthy();
+    expect(getByText("—")).toBeTruthy();
+    expect(getByRole("slider").getAttribute("aria-valuetext")).toBe("0:00");
+  });
+
+  it("annonce la position sur la durée quand elle est connue", () => {
+    const { getByRole } = renderRn(
+      <CmvAudioPlayer url={FIRST} durationSeconds={75} resolveUrl={vi.fn()} />,
+    );
+
+    expect(getByRole("slider").getAttribute("aria-valuetext")).toBe("media.audio.position");
   });
 
   it("ne relance pas depuis le début une note inconnue qu'on met en lecture", async () => {
@@ -995,5 +1007,24 @@ describe("CmvAudioPlayer — un lecteur natif seulement à l'engagement (#712)",
     await act(async () => settle(FRESH));
 
     expect(player.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("CmvAudioPlayer — accessibilité (#199)", () => {
+  /**
+   * Une icône seule ne dit rien à TalkBack ni à VoiceOver : le bouton annonce son rôle, et son nom
+   * suit ce qu'il fera au prochain appui.
+   */
+  it("annonce un bouton « écouter » au repos, « pause » pendant la lecture", async () => {
+    const view = setup();
+
+    press(view.getByRole("button", { name: "media.audio.play" }));
+    await waitFor(() => expect(player.play).toHaveBeenCalledTimes(1));
+    view.push({ playing: true });
+
+    expect(view.getByRole("button", { name: "media.audio.pause" })).toBe(
+      playButton(view.container),
+    );
+    expect(view.queryByRole("button", { name: "media.audio.play" })).toBeNull();
   });
 });

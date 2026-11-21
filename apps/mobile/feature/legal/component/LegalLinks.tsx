@@ -24,7 +24,7 @@ function LegalLink({ document, className, children }: Readonly<LegalLinkProps>) 
   return (
     <Text
       accessibilityRole="link"
-      className={className ?? "text-cmv-accent"}
+      className={className ?? "text-cmv-accent-on"}
       onPress={() => {
         // Aucun navigateur pour l'ouvrir : rare, mais le lien resterait muet — Sentry le dira.
         Linking.openURL(legalDocumentUrl(WEB_URL, document, i18n.language)).catch(

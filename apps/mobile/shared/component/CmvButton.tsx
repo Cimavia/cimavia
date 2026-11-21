@@ -3,8 +3,8 @@ import { Pressable, Text } from "react-native";
 type CmvButtonVariant = "primary" | "danger";
 
 const VARIANT_CLASSES: Record<CmvButtonVariant, string> = {
-  primary: "bg-cmv-accent",
-  danger: "bg-cmv-error",
+  primary: "bg-cmv-accent-fill",
+  danger: "bg-cmv-error-fill",
 };
 
 type CmvButtonProps = {
@@ -23,11 +23,12 @@ export function CmvButton({
 }: Readonly<CmvButtonProps>) {
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={onPress}
       disabled={disabled}
       className={`w-full rounded-lg px-4 py-3 ${VARIANT_CLASSES[variant]} ${disabled === true ? "opacity-50" : ""}`}
     >
-      <Text className="text-center text-cmv-text-hi">{label}</Text>
+      <Text className="text-center text-cmv-text-on-fill">{label}</Text>
     </Pressable>
   );
 }

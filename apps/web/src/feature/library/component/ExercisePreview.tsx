@@ -135,7 +135,7 @@ function PreviewAttachments({
           href={document.url}
           target="_blank"
           rel="noreferrer"
-          className="truncate text-cmv-caption text-cmv-accent hover:underline"
+          className="truncate text-cmv-caption text-cmv-accent-on hover:underline"
         >
           {document.fileName ??
             (document.type === DocumentType.LINK

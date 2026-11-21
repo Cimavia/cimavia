@@ -11,12 +11,15 @@ import type { Theme } from "@react-navigation/native";
 export const navigationTheme: Theme = {
   dark: true,
   colors: {
-    primary: cmvColors.accent.DEFAULT,
+    // `primary` teinte du TEXTE (retour d'en-tête sur iOS) : la nuance `on`, comme tout texte d'état
+    // (#218). `notification` est l'aplat de la pastille, qui porte un chiffre : `fill`, sous un texte
+    // blanc.
+    primary: cmvColors.accent.on,
     background: cmvColors.bg["0"],
     card: cmvColors.bg["1"],
     text: cmvColors.text.hi,
     border: cmvColors.border.DEFAULT,
-    notification: cmvColors.accent.DEFAULT,
+    notification: cmvColors.accent.fill,
   },
   fonts: {
     regular: { fontFamily: "System", fontWeight: "400" },
@@ -26,10 +29,17 @@ export const navigationTheme: Theme = {
   },
 };
 
-// Couleurs de la barre d'onglets (mêmes tokens, API impérative de React Navigation).
+// Couleurs de la barre d'onglets (mêmes tokens, API impérative de React Navigation). L'onglet actif
+// colore son LIBELLÉ : la nuance `on`, le DEFAULT tombant sous AA sur `bg-1` (#218).
 export const tabBarTheme = {
-  activeTintColor: cmvColors.accent.DEFAULT,
+  activeTintColor: cmvColors.accent.on,
   inactiveTintColor: cmvColors.text.mid,
   backgroundColor: cmvColors.bg["1"],
   borderColor: cmvColors.border.DEFAULT,
+  // La pastille porte un chiffre : l'aplat `fill` sous un texte blanc, comme tout texte posé sur un
+  // aplat d'état (4.58:1, #218). Les deux sont posés par `tabBarBadgeStyle`, sans attendre
+  // `notification` : faute du thème, la pastille tombait sur le rouge par défaut de React
+  // Navigation, où le blanc ne tient que 3.55:1.
+  badgeBackgroundColor: cmvColors.accent.fill,
+  badgeTextColor: cmvColors.text["on-fill"],
 };

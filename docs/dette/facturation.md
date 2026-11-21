@@ -201,7 +201,8 @@ liste des domaines vivent dans l'index.
 > (`danger` par défaut et inchangé, `secondary`, `ghost`), qui laisse un pied de page hiérarchiser
 > trois actions. `ghost` armé emploie `error.soft` / `line` / `on` — un `text-cmv-error` de moins,
 > mais [#218](https://github.com/Cimavia/cimavia/issues/218) reste ouverte pour les autres, dont
-> celui que `danger` conserve.
+> celui que `danger` conserve. *Levé en #218 : `danger` au repos écrit en `error-on`, comme tout
+> texte d'état.*
 
 > **Écart assumé en #224** (pas de recherche par nom sur mobile) : c'est un confort de web, sur une
 > liste que le coach parcourt des yeux — les chips de situation suffisent à trancher. À reprendre le

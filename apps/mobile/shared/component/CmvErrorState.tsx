@@ -18,7 +18,7 @@ export function CmvErrorState({ onRetry }: Readonly<CmvErrorStateProps>) {
 
   return (
     <View className="gap-3 rounded-lg border border-cmv-error p-6">
-      <CmvText className="text-cmv-error">{t("common.errorTitle")}</CmvText>
+      <CmvText className="text-cmv-error-on">{t("common.errorTitle")}</CmvText>
       <CmvText className="text-cmv-text-mid text-sm">{t("common.errorDescription")}</CmvText>
       <CmvButton label={t("common.retry")} onPress={onRetry} />
     </View>

@@ -38,7 +38,7 @@ function InlineText({ node }: Readonly<{ node: InlineNode }>) {
       href={node.href}
       target="_blank"
       rel="noreferrer"
-      className={cn("text-cmv-accent underline", className)}
+      className={cn("text-cmv-accent-on underline", className)}
     >
       {node.text}
     </a>

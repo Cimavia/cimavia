@@ -3,15 +3,21 @@ import { cn } from "@/shared/util/cn.util";
 
 type CmvButtonVariant = "primary" | "secondary" | "change" | "ghost" | "danger";
 
+/**
+ * Toutes les variantes portent une bordure (`border` dans la base) : sans elle, `ghost` et `danger`
+ * se lisaient comme un libellé, et le Coach ne savait pas ce qui se clique (#579). `primary` la
+ * garde transparente, sinon il perdrait 2 px sur un voisin bordé d'un même pied de page. La
+ * bordure de `danger` reste neutre : le texte porte déjà le danger.
+ */
 const VARIANT_CLASSES: Record<CmvButtonVariant, string> = {
-  primary: "bg-cmv-accent text-cmv-text-hi hover:bg-cmv-accent-hi",
-  secondary:
-    "border border-cmv-border bg-cmv-surface-hi text-cmv-text-hi hover:border-cmv-border-hi",
+  primary:
+    "border-transparent bg-cmv-accent-fill text-cmv-text-on-fill hover:bg-cmv-accent-fill-hover",
+  secondary: "border-cmv-border bg-cmv-surface-hi text-cmv-text-hi hover:border-cmv-border-hi",
   // Un secondaire qui dit un changement : le texte prend l'orange des informations de changement.
-  change:
-    "border border-cmv-border bg-cmv-surface-hi text-cmv-accent-on hover:border-cmv-border-hi",
-  ghost: "text-cmv-text-mid hover:bg-cmv-surface-hi hover:text-cmv-text-hi",
-  danger: "text-cmv-error hover:bg-cmv-surface-hi",
+  change: "border-cmv-border bg-cmv-surface-hi text-cmv-accent-on hover:border-cmv-border-hi",
+  ghost:
+    "border-cmv-border text-cmv-text-mid hover:border-cmv-border-hi hover:bg-cmv-surface-hi hover:text-cmv-text-hi",
+  danger: "border-cmv-border text-cmv-error-on hover:border-cmv-border-hi hover:bg-cmv-surface-hi",
 };
 
 type CmvButtonProps = Pick<
@@ -45,7 +51,7 @@ export function CmvButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "max-w-full break-words rounded-cmv-md px-cmv-lg py-cmv-sm text-cmv-caption transition-colors disabled:opacity-50",
+        "max-w-full break-words rounded-cmv-md border px-cmv-lg py-cmv-sm text-cmv-caption transition-colors disabled:opacity-50",
         VARIANT_CLASSES[variant],
         fullWidth && "w-full",
       )}

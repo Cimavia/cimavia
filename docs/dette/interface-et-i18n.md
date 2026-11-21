@@ -67,6 +67,61 @@ liste des domaines vivent dans l'index.
 > `success-on`**, sur le mobile, qui n'a pas de toast. Sur le web, l'échec d'envoi reste sous le
 > bouton : il doit se lire jusqu'au nouvel essai, et un toast s'efface seul.
 
+> **Tranché en [#218](https://github.com/Cimavia/cimavia/issues/218)** (le `DEFAULT` d'une famille
+> d'état n'est jamais du texte, quel que soit le fond) : `accent` et `error` tombaient sous AA sur
+> `surface` (4.08 et 4.20:1) et `surface-hi` (3.67 et 3.78:1), là où vivent cartes, panneaux et
+> formulaires, et `accent` déjà sur `bg-1` (4.44). Seul `bg-0` leur laissait AA (4.61 et 4.74), et
+> `warning` passait partout. Ne corriger que les fonds fautifs
+> aurait gardé l'aspect et laissé deux règles, avec un couple à recalculer à chaque carte. Tout
+> texte d'état passe donc à `-on` sur les deux apps : liens, titres de section, « Aujourd'hui »,
+> messages d'erreur, `danger` au repos. **Le terracotta du texte s'éclaircit** (`#C2603A` →
+> `#E8966F`), comme sur les maquettes, qui dessinaient déjà les erreurs en `error-on`. Trois
+> conséquences :
+>
+> - **Survol des liens** : `hover:underline`, comme les liens `accent-on` déjà en place.
+>   `accent-hi` aurait *assombri* le lien au survol. Les deux icônes du `Composer` web passent à
+>   `text-hi`.
+> - **Un contrôle devient possible** : l'issue le jugeait hors de portée, parce qu'elle raisonnait
+>   couple par couple, et remonter le fond à travers le JSX est hors d'atteinte d'un lint. Avec une
+>   règle sans exception de fond, une regex suffit sur les classes écrites en entier, les seules
+>   que Tailwind génère : `noStateColorAsText` (plugin Biome, tests exclus) refuse
+>   `text-cmv-{accent,success,warning,error,info}` et `placeholder-cmv-…`, préfixes compris,
+>   dans un littéral, un gabarit, une clé d'objet ou un type TS. Seule la nuance `-on` passe :
+>   `accent-hi` est un survol d'aplat (4.45:1 sur `surface-hi`), `-soft` et `-line` des teintes
+>   translucides. Côté mobile, elle lit aussi la prop `color` d'une icône ou d'un style
+>   (`cmvColors.error.DEFAULT`), et laisse `tintColor` et `thumbColor` aux contrôles natifs. Une
+>   classe construite (`text-cmv-${ton}`) lui échappe, mais Tailwind ne la générerait pas non
+>   plus ; une couleur native passée par une variable aussi.
+> - **Icônes et onglets** : une icône d'état prend `-on` comme le texte, sur les deux apps. Sur le
+>   web, elle hérite de la couleur du texte, si bien que le lint l'impose déjà. Le mobile suit
+>   (pièce jointe PDF, coches de l'inscription et de la nouvelle conversation, bouton d'envoi),
+>   pour qu'un même élément ait la même nuance des deux côtés. L'onglet actif et le retour
+>   d'en-tête passent aussi à `on`, parce qu'ils colorent un libellé (4.44:1 sur `bg-1`). Le
+>   second reste lettre morte pour l'instant : le `ThemeProvider` importé de
+>   `@react-navigation/native` n'atteint pas la copie de React Navigation qu'embarque expo-router
+>   56, si bien que le thème entier est ignoré (la pastille d'onglet tombait sur le rouge par
+>   défaut, d'où sa couleur posée par `tabBarBadgeStyle`). Ce défaut est antérieur à #218 et
+>   suivi à part (issue proposée). Seuls les contrôles natifs teintés gardent le `DEFAULT`
+>   (spinner du rafraîchissement, curseur de l'interrupteur) : un élément non textuel se juge à
+>   3:1 (WCAG 1.4.11), et `accent` y tient partout (≥ 3.67:1).
+> - **Texte posé sur un aplat : blanc, sur un aplat foncé de 5 %** (`accent-fill`, `error-fill`,
+>   `text-on-fill`), trouvé à la revue de la PR. Le clair (`text-hi`) tombait sous AA sur chaque
+>   `DEFAULT` : 3.52 sur `accent`, 2.90 au survol, 3.42 sur `error`. Le texte sombre sur l'aplat
+>   actuel tenait AA (4.61) et a été livré d'abord, mais, vu dans l'application, il éteignait le
+>   bouton : Kylian a préféré l'aspect d'avant. Le blanc sur un aplat à peine plus sombre le
+>   retrouve à 4.58 et 4.61:1. Le survol fonce au lieu d'éclaircir (`accent-fill-hover`, 5.19),
+>   puisque `hi` ferait retomber le blanc sous AA. Un aplat plus sombre encore, brique sous `text-hi`
+>   (4.86), changeait la couleur de marque. Il vaut pour les boutons pleins, `CmvConfirmButton`
+>   armé, les bulles de ses propres messages, l'espace actif de la navigation web comme du
+>   sélecteur mobile, le compteur de non-lus, les badges (onglet compris, dont l'aplat et le texte
+>   sont posés à la main, faute du thème) et l'aperçu de structure. Un aplat SANS texte (point,
+>   barre de progression, barre de toast) garde le `DEFAULT`, et le bandeau `warning`, clair, son
+>   texte sombre. Reste les médias d'une bulle à soi (CE-1).
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| CE-1 | **Le texte d'un média dans une bulle à soi garde ses couleurs de carte sur l'aplat `accent-fill`** : `text-hi` à 3.85:1, `text-mid` à 2.22, `error-on` à 1.91. Sont touchés le compteur du lecteur audio, la taille d'un fichier, la pastille vidéo sans vignette, « format non pris en charge » et les erreurs de lecture. Le **nom** d'un fichier diverge : sur le web il ne fixe pas de couleur et hérite du blanc de la bulle (4.58, il passe), sur le mobile, qui n'hérite d'aucune couleur, il reste en `text-hi`. Il faut à ces composants une variante « sur aplat », sur les deux apps. Le texte d'une bulle, lui, est passé au blanc. | 🟡 | — *(issue proposée à la revue de la PR de #218)* |
+
 ---
 
 ## Post-MVP — Parité multi-plateforme ([#20](https://github.com/Cimavia/cimavia/issues/20))
@@ -362,3 +417,26 @@ liste des domaines vivent dans l'index.
 >   faire défiler la page. Un `truncate` voulu (le rail) n'y compte pas.
 > - **Le mobile n'a pas changé** : `Text` coupe un mot trop long de lui-même. Reste à le constater
 >   sur un téléphone.
+
+## Post-MVP — Un bouton sans fond garde une bordure ([#579](https://github.com/Cimavia/cimavia/issues/579))
+
+> **Tranché en [#579](https://github.com/Cimavia/cimavia/issues/579)** (toutes les variantes de
+> `CmvButton` web sont bordées) : `ghost` (~55 emplois) et `danger` n'avaient que du texte.
+> « Annuler », « Tout réinitialiser » et « Supprimer la séance » se lisaient comme des libellés.
+> **Écart à la maquette** : elle dessine « Annuler » en texte seul, et son design system ne connaît
+> que le primaire et le secondaire bordé. Les quatre questions de l'issue sont tranchées sur des
+> captures avant/après (panneau de séance planifiée, constructeur de séance, menu de colonne) :
+>
+> - **La bordure de `danger` est neutre** (`border-cmv-border`). Le texte en `error-on` porte déjà
+>   le danger, et une bordure rouge à côté du primaire alourdirait le pied de page.
+> - **`primary` garde une bordure transparente** : `border` vit dans la base du composant, et c'est
+>   ce qui donne la même hauteur à « Annuler » et « Enregistrer » dans un même pied de page.
+> - **`ghost` et `secondary` restent deux variantes** : le fond `surface-hi` et le texte `hi` les
+>   distinguent encore, à côté l'un de l'autre (« Annuler » / « Remplacer »).
+> - **Les boutons-icônes gardent la bordure** (corbeille de `MetricPicker` et de la grille), pour
+>   une seule règle. Dans le menu de colonne, les remplissages deviennent des boîtes, nettement
+>   détachées de leur titre de section : celui-ci n'a pas eu besoin de passer à
+>   `CMV_TABLE.headLabel`, que l'issue prévoyait en repli.
+>
+> C'est un essai : si un écran dense en souffre, le retour en arrière se limite à `VARIANT_CLASSES`.
+> Le mobile n'est pas concerné, son `CmvButton` est plein.

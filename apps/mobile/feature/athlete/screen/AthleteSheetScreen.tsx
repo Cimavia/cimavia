@@ -160,7 +160,7 @@ function SheetNote({ athleteId }: Readonly<{ athleteId: string }>) {
             </View>
           </View>
           {save.isError && !isStale ? (
-            <CmvText className="text-cmv-error text-sm">{t("athlete.sheet.error")}</CmvText>
+            <CmvText className="text-cmv-error-on text-sm">{t("athlete.sheet.error")}</CmvText>
           ) : null}
         </>
       )}

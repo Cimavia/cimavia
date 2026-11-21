@@ -58,7 +58,7 @@ function SpaceSwitcher({ active }: Readonly<{ active: CapabilityName }>) {
             aria-selected={current}
             className={
               current
-                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-hi"
+                ? "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm bg-cmv-accent-fill px-cmv-sm py-cmv-xs text-cmv-text-on-fill text-cmv-caption"
                 : "flex flex-1 items-center justify-center gap-cmv-xs rounded-cmv-sm px-cmv-sm py-cmv-xs text-cmv-caption text-cmv-text-mid transition-colors hover:text-cmv-text-hi"
             }
           >
@@ -165,7 +165,7 @@ export function AppShell({
     // sur les athlètes, débriefs et factures du précédent — et sur son presse-papier de semaine,
     // qui vit dans `sessionStorage` et survit donc même au F5 (#341).
     resetAccountData(queryClient);
-    navigate({ to: "/login" });
+    void navigate({ to: "/login" });
   }
 
   return (

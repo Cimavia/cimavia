@@ -105,19 +105,19 @@ export function FeedbackReplyComposer({
       {/* L'échec de RÉSOLUTION du fil se dit à part : il ne vient pas de ce qu'on a écrit, et
           masquer la barre sans rien dire laisserait croire qu'on n'a pas le droit de répondre. */}
       {reply.hasThreadError ? (
-        <CmvText className="px-4 pb-1 text-cmv-error text-sm">
+        <CmvText className="px-4 pb-1 text-cmv-error-on text-sm">
           {t("feedback.reply.threadError")}
         </CmvText>
       ) : null}
 
       {mediaError == null ? null : (
-        <CmvText className="px-4 pb-1 text-cmv-error text-sm">{mediaError}</CmvText>
+        <CmvText className="px-4 pb-1 text-cmv-error-on text-sm">{mediaError}</CmvText>
       )}
 
       {/* Une ligne PAR fichier : « 2 sur 5 n'ont pas pu partir » ne dirait pas lesquels, ce qui
           laisserait la sélection entière à refaire. */}
       {recap.map((entry) => (
-        <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error text-sm">
+        <CmvText key={entry.id} className="px-4 pb-1 text-cmv-error-on text-sm">
           {`${entry.fileName ?? t("messages.media.unnamedFile")} — ${mediaRecapText(entry.reason, t)}`}
         </CmvText>
       ))}

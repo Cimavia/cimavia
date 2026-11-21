@@ -128,7 +128,7 @@ export function NewConversationScreen() {
 
         <View className="gap-2 border-cmv-border border-t p-4">
           {create.isError ? (
-            <CmvText className="text-cmv-error text-sm">{t("messages.new.createError")}</CmvText>
+            <CmvText className="text-cmv-error-on text-sm">{t("messages.new.createError")}</CmvText>
           ) : null}
           <CmvText className="text-cmv-text-lo text-xs">{t("messages.new.fixed")}</CmvText>
           <CmvButton
@@ -208,7 +208,7 @@ function CandidateSections({
                   <Ionicons
                     name={checked ? "checkbox" : "square-outline"}
                     size={22}
-                    color={checked ? cmvColors.accent.DEFAULT : cmvColors.text.lo}
+                    color={checked ? cmvColors.accent.on : cmvColors.text.lo}
                   />
                   <CmvAvatar name={row.name} />
                   <View className="flex-1 gap-1">

@@ -7,7 +7,7 @@ type AuthLinkTarget = "/login" | "/forgot-password";
 /** Le lien sous le formulaire d'une page d'authentification : retour à la connexion, ou la suite. */
 export function AuthLink({ to, children }: Readonly<{ to: AuthLinkTarget; children: ReactNode }>) {
   return (
-    <Link to={to} className="mt-4 block text-cmv-accent text-sm hover:text-cmv-accent-hi">
+    <Link to={to} className="mt-4 block text-cmv-accent-on text-sm hover:underline">
       {children}
     </Link>
   );

@@ -182,11 +182,23 @@ function RecordingBanner({
       <View className="flex-row items-center gap-3">
         <View className="h-2.5 w-2.5 rounded-full bg-cmv-error" />
         <CmvText className="flex-1 text-cmv-text-hi">{formatMmSs(durationMillis / 1000)}</CmvText>
-        <Pressable onPress={() => onFinish(false)} disabled={busy} hitSlop={8}>
+        <Pressable
+          onPress={() => onFinish(false)}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t("messages.audio.discard")}
+        >
           <Ionicons name="trash-outline" size={22} color={cmvColors.text.mid} />
         </Pressable>
-        <Pressable onPress={() => onFinish(true)} disabled={busy} hitSlop={8}>
-          <Ionicons name="send" size={22} color={cmvColors.accent.DEFAULT} />
+        <Pressable
+          onPress={() => onFinish(true)}
+          disabled={busy}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t("messages.audio.send")}
+        >
+          <Ionicons name="send" size={22} color={cmvColors.accent.on} />
         </Pressable>
       </View>
       {relayed > 0 ? (
@@ -221,6 +233,7 @@ export function CmvAudioRecorder({
   notesLeft,
   onLimitReached,
 }: Readonly<CmvAudioRecorderProps>) {
+  const { t } = useTranslation();
   /**
    * La fin que le natif annonce : au plafond, il s'arrête SEUL. expo-audio n'abonne l'écouteur
    * qu'une fois, au montage : il lit donc la version courante par ref, comme les lecteurs
@@ -564,6 +577,8 @@ export function CmvAudioRecorder({
       onPress={start}
       disabled={disabled}
       hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={t("messages.audio.record")}
       className={disabled === true ? "opacity-50" : ""}
     >
       <Ionicons name="mic-outline" size={24} color={cmvColors.text.mid} />

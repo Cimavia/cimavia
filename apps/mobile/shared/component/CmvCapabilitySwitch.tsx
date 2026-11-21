@@ -61,7 +61,7 @@ export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProp
             accessibilityState={{ selected: active }}
             className={
               active
-                ? "flex-row items-center gap-1 rounded-full bg-cmv-accent px-3 py-1"
+                ? "flex-row items-center gap-1 rounded-full bg-cmv-accent-fill px-3 py-1"
                 : "flex-row items-center gap-1 rounded-full px-3 py-1"
             }
           >
@@ -69,9 +69,11 @@ export function CmvCapabilitySwitch({ unread }: Readonly<CmvCapabilitySwitchProp
               name={icon}
               size={14}
               // Couleur native : le composant vient d'une lib tierce et ignore les className.
-              color={active ? cmvColors.text.hi : cmvColors.text.mid}
+              color={active ? cmvColors.text["on-fill"] : cmvColors.text.mid}
             />
-            <CmvText className={active ? "text-cmv-text-hi text-sm" : "text-cmv-text-mid text-sm"}>
+            <CmvText
+              className={active ? "text-cmv-text-on-fill text-sm" : "text-cmv-text-mid text-sm"}
+            >
               {t(`nav.space.${capability}`)}
             </CmvText>
             {/* Pastille sur l'espace INACTIF seulement : sur celui qu'on regarde, le badge

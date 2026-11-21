@@ -88,7 +88,7 @@ export function LoginScreen() {
         secureTextEntry
         autoComplete="current-password"
       />
-      {error != null && <CmvText className="text-cmv-error">{error}</CmvText>}
+      {error != null && <CmvText className="text-cmv-error-on">{error}</CmvText>}
       <CmvButton
         label={submitting ? t("auth.login.submitting") : t("auth.login.submit")}
         onPress={onSubmit}
@@ -100,7 +100,7 @@ export function LoginScreen() {
       <View className="flex-row gap-1">
         <CmvText className="text-cmv-text-mid">{t("auth.login.noAccount")}</CmvText>
         <Pressable onPress={() => router.push("/register")}>
-          <CmvText className="text-cmv-accent">{t("auth.login.toRegister")}</CmvText>
+          <CmvText className="text-cmv-accent-on">{t("auth.login.toRegister")}</CmvText>
         </Pressable>
       </View>
     </View>

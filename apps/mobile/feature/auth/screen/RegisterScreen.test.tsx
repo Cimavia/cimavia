@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegisterScreen } from "@/feature/auth/screen/RegisterScreen";
@@ -138,14 +138,14 @@ describe("RegisterScreen (mobile)", () => {
 
     // Athlète est cochée au départ (le cas le plus courant : un athlète invité par son coach
     // n'a rien à toucher). La décocher ne laisse aucune capacité.
-    pressButton(container, ATHLETE);
+    press(within(container).getByRole("checkbox", { name: ATHLETE }));
     pressButton(container, SUBMIT);
 
     await vi.waitFor(() => expect(queryByText("auth.errors.noCapability")).not.toBeNull());
     expect(signUp).not.toHaveBeenCalled();
 
     // Le message s'efface dès qu'une case est cochée, sans attendre un nouvel envoi.
-    pressButton(container, COACH);
+    press(within(container).getByRole("checkbox", { name: COACH }));
     expect(queryByText("auth.errors.noCapability")).toBeNull();
   });
 

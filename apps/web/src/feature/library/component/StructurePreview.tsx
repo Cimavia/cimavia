@@ -64,7 +64,7 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
             segment.kind === "work" ? (
               <span
                 key={`work-${segment.position}`}
-                className="flex flex-[3] items-center justify-center bg-cmv-accent text-cmv-caption text-cmv-text-hi tabular-nums"
+                className="flex flex-[3] items-center justify-center bg-cmv-accent-fill text-cmv-text-on-fill text-cmv-caption tabular-nums"
               >
                 {segment.round}
               </span>
@@ -82,7 +82,7 @@ export function StructurePreview({ settings }: Readonly<{ settings: StructureSet
                   aria-hidden
                   className={cn(
                     "h-2 w-3 rounded-cmv-sm",
-                    item.rest ? "bg-cmv-surface-hi" : "bg-cmv-accent",
+                    item.rest ? "bg-cmv-surface-hi" : "bg-cmv-accent-fill",
                   )}
                 />
                 {item.label}

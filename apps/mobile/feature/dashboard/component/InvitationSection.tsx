@@ -67,7 +67,7 @@ export function InvitationSection() {
       />
 
       {create.isError ? (
-        <CmvText className="text-cmv-error text-sm">
+        <CmvText className="text-cmv-error-on text-sm">
           {apiErrorMessage(create.error) ?? t("athlete.invite.error")}
         </CmvText>
       ) : null}
@@ -112,7 +112,7 @@ function PendingInvitationRow({ invitation }: Readonly<{ invitation: InvitationD
         onConfirm={() => revoke.mutate(invitation.id)}
       />
       {revoke.isError ? (
-        <CmvText className="text-cmv-error text-sm">
+        <CmvText className="text-cmv-error-on text-sm">
           {apiErrorMessage(revoke.error) ?? t("athlete.invite.revokeError")}
         </CmvText>
       ) : null}

@@ -3,7 +3,7 @@ import { fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reminderApi } from "@/feature/reminder/api";
 import { ScheduleReminderButton } from "@/feature/reminder/component/ScheduleReminderButton";
-import { pressButton, renderRn } from "@/test/render";
+import { pressButton, pressText, renderRn } from "@/test/render";
 
 // Seul l'appel est remplacé : le hook de création et ce qu'il fait au cache restent les VRAIS.
 vi.mock("@/feature/reminder/api", async (importOriginal) => {
@@ -31,7 +31,7 @@ function openForm() {
       targetLabel="Facture de septembre"
     />,
   );
-  pressButton(result.container, "reminder.schedule");
+  pressText(result.container, "reminder.schedule");
   const body = result.baseElement as HTMLElement;
   const note = body.querySelector("textarea");
   if (note == null) throw new Error("formulaire introuvable");
@@ -86,7 +86,7 @@ describe("ScheduleReminderButton", () => {
     const { body, note } = openForm();
 
     fireEvent.change(note, { target: { value: "Relancer Léa" } });
-    pressButton(body, "reminder.snooze.TOMORROW");
+    pressText(body, "reminder.snooze.TOMORROW");
     pressButton(body, "reminder.form.submit");
 
     await waitFor(() =>
@@ -115,7 +115,8 @@ describe("ScheduleReminderButton", () => {
     const { body, note } = openForm();
     fireEvent.change(note, { target: { value: "Relancer Léa" } });
 
-    pressButton(body, send ? "reminder.form.submit" : "common.cancel");
+    if (send) pressButton(body, "reminder.form.submit");
+    else pressText(body, "common.cancel");
     if (send) await waitFor(() => expect(reminderApi.create).toHaveBeenCalled());
     await waitFor(() => {
       finishFade(note);
@@ -127,13 +128,13 @@ describe("ScheduleReminderButton", () => {
   it("repart d'une note vide à la réouverture", async () => {
     const { container, body, note } = openForm();
     fireEvent.change(note, { target: { value: "Relancer Léa" } });
-    pressButton(body, "common.cancel");
+    pressText(body, "common.cancel");
     await waitFor(() => {
       finishFade(note);
       expect(body.querySelector("textarea")).toBeNull();
     });
 
-    pressButton(container, "reminder.schedule");
+    pressText(container, "reminder.schedule");
 
     expect(body.querySelector("textarea")?.value).toBe("");
   });

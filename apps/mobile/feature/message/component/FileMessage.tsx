@@ -56,9 +56,9 @@ export function FileMessage({ messageId, media, resolveUrl }: Readonly<FileMessa
       >
         <View className="h-9 w-9 items-center justify-center rounded-lg bg-cmv-error-soft">
           {opening ? (
-            <ActivityIndicator color={cmvColors.error.DEFAULT} />
+            <ActivityIndicator color={cmvColors.error.on} />
           ) : (
-            <Ionicons name="document-text-outline" size={18} color={cmvColors.error.DEFAULT} />
+            <Ionicons name="document-text-outline" size={18} color={cmvColors.error.on} />
           )}
         </View>
         <View className="min-w-0 flex-1">
@@ -73,7 +73,7 @@ export function FileMessage({ messageId, media, resolveUrl }: Readonly<FileMessa
 
       {/* L'échec se dit SOUS la bulle : le mobile n'a pas de toasts. */}
       {failure == null ? null : (
-        <CmvText className="text-cmv-error text-xs">
+        <CmvText className="text-cmv-error-on text-xs">
           {failure === "offline" ? t("messages.file.offline") : t("messages.file.openError")}
         </CmvText>
       )}

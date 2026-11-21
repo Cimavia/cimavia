@@ -30,11 +30,13 @@ export function PlanWeekList({ week, today }: Readonly<PlanWeekListProps>) {
         return (
           <View key={day} className="flex-row gap-3">
             <View className="w-12 items-center">
-              <CmvText className={isToday ? "text-cmv-accent text-xs" : "text-cmv-text-lo text-xs"}>
+              <CmvText
+                className={isToday ? "text-cmv-accent-on text-xs" : "text-cmv-text-lo text-xs"}
+              >
                 {formatWeekday(day)}
               </CmvText>
               <CmvText
-                className={isToday ? "text-cmv-accent text-lg" : "text-cmv-text-mid text-lg"}
+                className={isToday ? "text-cmv-accent-on text-lg" : "text-cmv-text-mid text-lg"}
               >
                 {formatDayNumber(day)}
               </CmvText>

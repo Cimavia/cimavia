@@ -191,7 +191,7 @@ export function MessageBubble({
   return (
     <View
       className={`max-w-[80%] rounded-2xl px-3 py-2 ${
-        mine ? "self-end bg-cmv-accent" : "self-start bg-cmv-surface"
+        mine ? "self-end bg-cmv-accent-fill" : "self-start bg-cmv-surface"
       }`}
     >
       {author == null ? null : (
@@ -207,7 +207,9 @@ export function MessageBubble({
       )}
 
       {message.content != null ? (
-        <CmvText className="text-cmv-text-hi">{message.content}</CmvText>
+        <CmvText className={mine ? "text-cmv-text-on-fill" : "text-cmv-text-hi"}>
+          {message.content}
+        </CmvText>
       ) : (
         <MediaContent
           message={message}

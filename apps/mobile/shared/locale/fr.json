@@ -237,10 +237,17 @@
     "audio": {
       "unavailable": "Impossible de lire la note vocale. Vérifie ta connexion, puis appuie sur lecture.",
       "seek": "Position dans la note vocale",
-      "position": "{{current}} sur {{total}}"
+      "position": "{{current}} sur {{total}}",
+      "play": "Écouter la note vocale",
+      "pause": "Mettre la note vocale en pause"
+    },
+    "image": {
+      "open": "Agrandir la photo",
+      "close": "Fermer la photo"
     },
     "video": {
       "label": "Vidéo",
+      "labelWithDuration": "Vidéo, {{duration}}",
       "close": "Fermer la vidéo",
       "openError": "La lecture de la vidéo a échoué. Vérifie ta connexion, puis rouvre-la.",
       "refreshError": "Impossible d'ouvrir la vidéo. Vérifie ta connexion et réessaie."
@@ -352,7 +359,10 @@
       "recordError": "L'enregistrement a échoué. Réessaie.",
       "foregroundOnly": "Notifications désactivées : la note se met en pause écran verrouillé.",
       "relayed": "Note {{index}} envoyée, l'enregistrement continue.",
-      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté."
+      "limitReached": "Durée maximale de {{max}} min atteinte : l'enregistrement s'est arrêté.",
+      "record": "Enregistrer une note vocale",
+      "discard": "Supprimer l'enregistrement",
+      "send": "Envoyer la note vocale"
     },
     "title": "Messages",
     "search": {

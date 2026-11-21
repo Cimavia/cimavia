@@ -62,7 +62,7 @@ export function FeedbackReplyThread({
   if (isSelf) {
     return (
       <section className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-lg">
-        <h4 className="text-cmv-caption text-cmv-accent uppercase tracking-wide">
+        <h4 className="text-cmv-caption text-cmv-accent-on uppercase tracking-wide">
           {t("feedback.reply.title")}
         </h4>
         <p className="text-cmv-body text-cmv-text-mid">{t("feedback.reply.self")}</p>
@@ -72,7 +72,7 @@ export function FeedbackReplyThread({
 
   return (
     <section className="flex flex-col gap-cmv-sm border-cmv-border border-t pt-cmv-lg">
-      <h4 className="text-cmv-caption text-cmv-accent uppercase tracking-wide">
+      <h4 className="text-cmv-caption text-cmv-accent-on uppercase tracking-wide">
         {t("feedback.reply.title")}
       </h4>
 
