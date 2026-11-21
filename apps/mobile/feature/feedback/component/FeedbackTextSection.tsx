@@ -71,8 +71,10 @@ export function FeedbackTextSection({
         </CmvText>
       ) : null}
 
+      {/* En vert : le terracotta se lisait comme le rouge de l'erreur juste au-dessus (#570). Le
+          message reste en place — le mobile n'a pas de toast, il dit tout sur place. */}
       {upsert.isSuccess && !canSubmit ? (
-        <CmvText className="text-cmv-accent text-sm">{t("feedback.saved")}</CmvText>
+        <CmvText className="text-cmv-success-on text-sm">{t("feedback.saved")}</CmvText>
       ) : null}
     </>
   );
