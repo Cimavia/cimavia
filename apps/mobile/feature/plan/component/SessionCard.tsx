@@ -1,8 +1,9 @@
 import type { ScheduledSessionSummaryDto } from "@cmv/shared";
+import { SESSION_STATUS_BADGE } from "@cmv/shared";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
-import { CmvText } from "@/shared/component";
+import { CmvBadge, CmvText } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -40,9 +41,12 @@ export function SessionCard({ session, planLabel = null }: Readonly<SessionCardP
         <CmvText className="text-cmv-text-lo text-xs">
           {t("plan.session.exerciseCount", { count: session.exerciseCount })}
         </CmvText>
-        <CmvText className="text-cmv-accent text-xs">
-          {t(`plan.sessionStatus.${session.status}`)}
-        </CmvText>
+        {/* Seule la séance faite se colore, en vert : le terracotta se lisait comme une erreur
+            (#570). La couleur se décide dans @cmv/shared, une fois pour les deux apps. */}
+        <CmvBadge
+          label={t(`plan.sessionStatus.${session.status}`)}
+          variant={SESSION_STATUS_BADGE[session.status]}
+        />
       </View>
     </Pressable>
   );

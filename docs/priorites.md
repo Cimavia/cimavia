@@ -159,7 +159,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 
 | Issue | Nom | Prio | Fermée |
 |---|---|---|---|
-| #570 | « Débrief enregistré » et « Fait » en terracotta, lus comme une erreur | 🟡 | |
+| #570 | « Débrief enregistré » et « Fait » en terracotta, lus comme une erreur | 🟡 | ✅ |
 | #579 | Boutons sans fond ni bordure, lus comme du texte | 🟡 | |
 | #218 | Le DEFAULT des familles d'état employé comme texte (contraste AA) | 🟡 | |
 | #199 | Rôle d'accessibilité sur les composants Cmv du mobile | 🟡 | |

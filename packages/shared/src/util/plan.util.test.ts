@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlanStatus } from "../dto/plan.schema";
+import { PlanStatus, ScheduledSessionStatus } from "../dto/plan.schema";
 import { shiftIsoDate } from "./date.util";
 import {
   isDateInPlanWeek,
@@ -15,6 +15,7 @@ import {
   planWeekDays,
   planWeekNumber,
   planWeekRange,
+  SESSION_STATUS_BADGE,
   selectCurrentPlan,
   selectVisiblePlans,
   weekSessionProgress,
@@ -632,5 +633,13 @@ describe("planState", () => {
   it("chaque état a sa couleur, et « en cours » porte l'accent", () => {
     expect(PLAN_STATE_BADGE.ONGOING).toBe("accent");
     for (const state of PLAN_STATES) expect(PLAN_STATE_BADGE[state]).toBeTruthy();
+  });
+});
+
+describe("SESSION_STATUS_BADGE", () => {
+  it("seule la séance faite se colore, en vert et jamais en terracotta", () => {
+    expect(SESSION_STATUS_BADGE[ScheduledSessionStatus.DONE]).toBe("success");
+    expect(SESSION_STATUS_BADGE[ScheduledSessionStatus.PLANNED]).toBe("neutral");
+    expect(SESSION_STATUS_BADGE[ScheduledSessionStatus.SKIPPED]).toBe("neutral");
   });
 });

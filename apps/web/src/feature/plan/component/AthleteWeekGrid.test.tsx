@@ -183,4 +183,23 @@ describe("AthleteWeekGrid", () => {
 
     expect(queryByText("Cycle Bloc")).toBeNull();
   });
+
+  /**
+   * #570 : « Fait » s'affichait en terracotta, presque la teinte du rouge d'erreur — une séance
+   * réussie se lisait comme un échec. Seule la séance faite se colore, en vert ; « à faire » est
+   * l'état ordinaire et reste neutre (arbitrage #37). La classe est la seule trace de la couleur.
+   */
+  it("pose « Fait » en pastille verte et laisse « À faire » en neutre", async () => {
+    const done = { ...session("ss_1", "Force max", 0), status: ScheduledSessionStatus.DONE };
+    const { getByText } = await mount(
+      calendarWeek([plan("p_1", "Cycle Bloc", [done, session("ss_2", "Footing", 1)])]),
+    );
+
+    // La pastille est l'ancêtre qui porte la couleur, quel que soit son balisage interne.
+    const pill = (key: string) =>
+      getByText(`plan.athlete.sessionStatus.${key}`).closest('[class*="text-cmv-"]');
+    expect(pill(ScheduledSessionStatus.DONE)).toHaveClass("text-cmv-success-on");
+    expect(pill(ScheduledSessionStatus.PLANNED)).toHaveClass("text-cmv-text-mid");
+    expect(pill(ScheduledSessionStatus.PLANNED)).not.toHaveClass("text-cmv-accent");
+  });
 });

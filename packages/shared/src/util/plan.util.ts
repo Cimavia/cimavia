@@ -484,3 +484,19 @@ export const PLAN_STATE_BADGE = {
   ONGOING: "accent",
   ENDED: "neutral",
 } as const satisfies Record<PlanState, "neutral" | "info" | "accent">;
+
+/**
+ * La pastille du statut d'une séance, côté athlète (#570) : seule la séance faite se colore. Les
+ * deux clients la rendaient en terracotta, qui se lit comme le rouge d'erreur — une réussite
+ * passait pour un échec. Tenue ici pour la même raison que `PLAN_STATE_BADGE` : le web et le
+ * mobile la rendent sur deux écrans chacun.
+ *
+ * La couleur marque l'exception (arbitrage #37) : « à faire » est l'état ordinaire, il reste
+ * neutre — contre la maquette web, qui le peint en terracotta. `SKIPPED` aussi : aucune transition
+ * n'y mène encore, et une séance sautée n'a rien à célébrer.
+ */
+export const SESSION_STATUS_BADGE = {
+  [ScheduledSessionStatus.PLANNED]: "neutral",
+  [ScheduledSessionStatus.DONE]: "success",
+  [ScheduledSessionStatus.SKIPPED]: "neutral",
+} as const satisfies Record<ScheduledSessionStatus, "neutral" | "success">;

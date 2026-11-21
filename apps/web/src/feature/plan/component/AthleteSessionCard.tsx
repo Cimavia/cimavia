@@ -1,6 +1,8 @@
 import type { ScheduledSessionSummaryDto } from "@cmv/shared";
+import { SESSION_STATUS_BADGE } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { CmvBadge } from "@/shared/component";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -63,9 +65,12 @@ export function AthleteSessionCard({
       {/* `mt-auto` colle le statut au BAS de la carte, et n'agit que là où il y a de la hauteur en
           trop à distribuer — la grille de semaine, qui étire ses cartes (#206). Dans la liste
           verticale, la carte fait la taille de son texte : la marge vaut alors zéro. C'est ce qui
-          aligne les « Fait » d'une même rangée sans donner deux rendus à un seul composant. */}
-      <span className="mt-auto text-cmv-caption text-cmv-accent">
-        {t(`plan.athlete.sessionStatus.${session.status}`)}
+          aligne les « Fait » d'une même rangée sans donner deux rendus à un seul composant.
+          `self-start` : sans lui, la colonne flex étirerait la pastille sur toute la largeur. */}
+      <span className="mt-auto self-start">
+        <CmvBadge variant={SESSION_STATUS_BADGE[session.status]}>
+          {t(`plan.athlete.sessionStatus.${session.status}`)}
+        </CmvBadge>
       </span>
     </Link>
   );

@@ -1,4 +1,4 @@
-import { readScheduledBlocks, type ScheduledSessionDto } from "@cmv/shared";
+import { readScheduledBlocks, type ScheduledSessionDto, SESSION_STATUS_BADGE } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -51,7 +51,11 @@ export function AthleteSessionScreen() {
       ? {}
       : {
           subtitle: formatDate(session.scheduledDate),
-          actions: <CmvBadge>{t(`plan.athlete.sessionStatus.${session.status}`)}</CmvBadge>,
+          actions: (
+            <CmvBadge variant={SESSION_STATUS_BADGE[session.status]}>
+              {t(`plan.athlete.sessionStatus.${session.status}`)}
+            </CmvBadge>
+          ),
         };
 
   return (

@@ -205,6 +205,10 @@ describe("AthleteSessionScreen", () => {
 
     expect(await findByRole("button", { name: "feedback.openDone" })).toBeInTheDocument();
     expect(getByText("Écoute tes doigts")).toBeInTheDocument();
+    // #570 : la pastille de l'en-tête dit la réussite en vert, comme la carte du planning.
+    expect(
+      getByText("plan.athlete.sessionStatus.DONE").closest('[class*="text-cmv-"]'),
+    ).toHaveClass("text-cmv-success-on");
   });
 
   /** #722 : une séance composée par blocs se lit bloc par bloc, et se coche dans le rail. */

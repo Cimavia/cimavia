@@ -1,4 +1,8 @@
-import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
+import {
+  type ScheduledSessionDto,
+  ScheduledSessionStatus,
+  SESSION_STATUS_BADGE,
+} from "@cmv/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { type ReactNode, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +10,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-nativ
 import { SessionBlocks } from "@/feature/plan/component/SessionBlocks";
 import { useBlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
-import { CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { CmvBadge, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -91,9 +95,10 @@ function SessionContent({
           {formatFullDay(session.scheduledDate)}
         </CmvText>
         <CmvText className="font-cmv-display text-cmv-text-hi text-xl">{session.title}</CmvText>
-        <CmvText className="text-cmv-accent text-xs">
-          {t(`plan.sessionStatus.${session.status}`)}
-        </CmvText>
+        <CmvBadge
+          label={t(`plan.sessionStatus.${session.status}`)}
+          variant={SESSION_STATUS_BADGE[session.status]}
+        />
       </View>
 
       {session.notes == null ? null : (

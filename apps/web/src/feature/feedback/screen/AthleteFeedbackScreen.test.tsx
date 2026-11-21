@@ -311,6 +311,21 @@ describe("AthleteFeedbackScreen", () => {
       );
     });
 
+    /**
+     * #570 : la réussite s'affichait sous le bouton, en terracotta — presque la teinte du rouge
+     * d'erreur. Elle part en toast, comme tout enregistrement du web, et n'a plus de place dans
+     * le rail : celui-ci ne garde que l'échec, qui doit rester lisible jusqu'au nouvel essai.
+     */
+    it("confirme l'envoi par un toast, hors du rail", async () => {
+      const { user, findByRole, findByText, getByRole } = await setup();
+
+      await user.click(await findByRole("button", { name: SUBMIT }));
+
+      const toast = await findByText("feedback.saved");
+      expect(toast.closest("[aria-live]")).not.toBeNull();
+      expect(getByRole("complementary")).not.toHaveTextContent("feedback.saved");
+    });
+
     it("dit l'envoi en cours, bouton éteint", async () => {
       upsertMock.mockReturnValue(new Promise(() => {}));
       const { user, findByRole } = await setup();

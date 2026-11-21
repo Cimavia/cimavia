@@ -16,6 +16,17 @@ vi.mock("@/shared/component/OfflineBanner", () => ({
     savedAt == null ? null : <span>{`offline-saved-at:${savedAt}`}</span>,
 }));
 
+/**
+ * La pastille expose sa VARIANTE : NativeWind ne transforme pas `className` sous le harnais, et le
+ * statut ne se distingue qu'à sa couleur (#570). Le libellé reste rendu, comme le vrai.
+ */
+vi.mock("@/shared/component", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/shared/component")>()),
+  CmvBadge: ({ label, variant }: Readonly<{ label: string; variant: string }>) => (
+    <span data-variant={variant}>{label}</span>
+  ),
+}));
+
 const SESSION_ID = "ss-1";
 
 function session(overrides: Partial<ScheduledSessionDto> = {}): ScheduledSessionDto {
@@ -107,9 +118,11 @@ describe("SessionDetailScreen", () => {
   // qu'on écrase. Jamais la composition : c'est l'erreur que #276 corrige.
   it("dit que le débrief existe déjà, même sans exercice", async () => {
     loaded({ exercises: [], status: ScheduledSessionStatus.DONE });
-    const { findByText } = renderRn(<SessionDetailScreen />);
+    const { findByText, getByText } = renderRn(<SessionDetailScreen />);
 
     expect(await findByText("feedback.openDone")).toBeTruthy();
+    // #570 : la pastille de l'en-tête dit la réussite en vert, comme la carte du planning.
+    expect(getByText("plan.sessionStatus.DONE").getAttribute("data-variant")).toBe("success");
   });
 
   /** #722 : une séance composée par blocs se lit bloc par bloc, plus exercice par exercice. */
