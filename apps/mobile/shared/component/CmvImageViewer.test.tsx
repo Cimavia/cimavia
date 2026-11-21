@@ -67,12 +67,15 @@ describe("CmvImageViewer", () => {
   });
 
   /**
-   * Un lecteur d'écran ne « tape pas n'importe où » : la croix est un vrai bouton nommé, et le fond
-   * plein écran n'est pas annoncé comme tel (#199).
+   * Un lecteur d'écran ne « tape pas n'importe où » : la croix est un vrai bouton nommé (#199).
+   *
+   * Que le fond sorte de l'arbre d'accessibilité, ce test ne peut pas le dire : react-native-web
+   * pose `tabIndex=0` sur tout `Pressable` et ignore `focusable` comme `importantForAccessibility`.
+   * Seul l'arbre natif d'Android le montre (vue ni cliquable ni focalisable), vérifié à
+   * l'émulateur en #199.
    */
-  it("referme le plein écran par sa croix, seul bouton du plein écran", () => {
+  it("referme le plein écran par sa croix", () => {
     const fullscreen = openFullscreen();
-    expect(fullscreen.getAttribute("role")).toBeNull();
 
     press(screen.getByRole("button", { name: "media.image.close" }));
     finishFade(fullscreen);

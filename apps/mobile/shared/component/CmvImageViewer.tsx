@@ -16,9 +16,12 @@ type CmvImageViewerProps = {
  * Une photo : vignette au repos, plein écran au tap (Modal in-app, pas d'ouverture navigateur).
  * Fermeture par tap n'importe où ou bouton retour (Android).
  *
- * Le fond qui ferme d'un tap reste HORS de l'arbre d'accessibilité (`accessible={false}`) : un
- * plein écran annoncé « bouton » se lit mal, et TalkBack l'aurait lu d'un bloc. C'est la croix,
- * vrai bouton nommé, qui porte la fermeture pour un lecteur d'écran (#199), comme sur la vidéo.
+ * Le fond qui ferme d'un tap reste HORS de l'arbre d'accessibilité : un plein écran annoncé
+ * « bouton » se lit mal, et TalkBack l'aurait lu d'un bloc. C'est la croix, vrai bouton nommé, qui
+ * porte la fermeture pour un lecteur d'écran (#199), comme sur la vidéo. `accessible={false}` n'y
+ * suffit que sur iOS : sur Android, `Pressable` repasse `focusable` à vrai, ce qui rend la vue
+ * cliquable et focalisable. D'où `focusable={false}` et `importantForAccessibility="no"` — `no`
+ * et non `no-hide-descendants`, qui cacherait aussi la croix.
  *
  * Partagé messagerie ET débrief. Il ne servait que la messagerie jusqu'ici, ce qui laissait les
  * photos de débrief inagrandissables sur mobile alors que le web les ouvre en pleine taille —
@@ -51,6 +54,8 @@ export function CmvImageViewer({
         <Pressable
           onPress={() => setExpanded(false)}
           accessible={false}
+          focusable={false}
+          importantForAccessibility="no"
           className="flex-1 items-center justify-center bg-cmv-bg-0"
         >
           {/* `contain` et non `cover` : agrandir sert à VOIR le geste, un recadrage rognerait
