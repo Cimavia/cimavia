@@ -42,9 +42,9 @@ export function LibraryScreen() {
 
   // Exercice, séance comme structure : une PAGE, pas un tiroir (#163, #165, #717).
   function openCreate() {
-    if (tab === LibraryTab.STRUCTURES) navigate({ to: "/library/structures/new" });
-    else if (tab === LibraryTab.SESSIONS) navigate({ to: "/library/sessions/new" });
-    else navigate({ to: "/library/exercises/new" });
+    if (tab === LibraryTab.STRUCTURES) void navigate({ to: "/library/structures/new" });
+    else if (tab === LibraryTab.SESSIONS) void navigate({ to: "/library/sessions/new" });
+    else void navigate({ to: "/library/exercises/new" });
   }
 
   function openDuplicate(source: StructureSource) {
