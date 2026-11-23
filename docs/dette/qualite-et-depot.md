@@ -925,8 +925,8 @@ liste des domaines vivent dans l'index.
 > du code a suivi son domaine, sauf celui de la migration `20260824070000_…`, qui ne se modifie plus
 > une fois jouée : il mène à l'index, qui mène au domaine.
 >
-> L'archive trie par **statut**, jamais par identifiant barré : `~~P2-1~~ / ~~P3-2~~` existe en 🟡,
-> un « nouveau cas » ouvert d'une dette déjà close. Le domaine garde, sous le tableau qu'une dette
+> L'archive trie par **statut**, jamais par identifiant barré : `~~P2-1~~ / ~~P3-2~~` a existé en 🟡,
+> un « nouveau cas » ouvert d'une dette déjà close, jusqu'à son archivage en #213. Le domaine garde, sous le tableau qu'une dette
 > a quitté, la ligne « *Résolues, à l'archive : …* » qui la nomme.
 >
 > La liste des dettes sans issue n'est **plus écrite** : `pnpm check:dette` la calcule. Elle avait
