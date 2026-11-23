@@ -22,7 +22,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { type CatalogOf, gridCatalogOf } from "../../custom-metric/custom-metric.mapper";
 import { CustomMetricService } from "../../custom-metric/service/custom-metric.service";
-import type { LibraryExercise } from "../../exercise/exercise.mapper";
+import { type LibraryExercise, tagNamesOf } from "../../exercise/exercise.mapper";
 import { ExerciseService } from "../../exercise/service/exercise.service";
 import { NotificationService } from "../../notification/notification.service";
 import {
@@ -300,7 +300,7 @@ export class ScheduledCompositionService {
                 frozen,
                 gridCatalogOf(library.catalogOf, exercise.coachId, copy.coachId),
               ),
-              tags: exercise.tags.map((tag) => tag.name).sort(),
+              tags: tagNamesOf(exercise.tags),
               note: row.note,
             },
             documents: exercise.documents,
