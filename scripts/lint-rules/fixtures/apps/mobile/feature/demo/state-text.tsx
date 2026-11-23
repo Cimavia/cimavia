@@ -8,6 +8,7 @@ export const icon = <Icon color={cmvColors.error.DEFAULT} />; // ✗ noStateColo
 export const iconHi = (on: boolean) => <Icon color={on ? cmvColors.accent.hi : cmvColors.text.lo} />; // ✗ noStateColorAsText
 export const styled = <Icon style={{ color: cmvColors.warning.DEFAULT }} />; // ✗ noStateColorAsText
 export const iconFill = <Icon color={cmvColors.accent.fill} />; // ✗ noStateColorAsText
+export const iconViolet = <Icon color={cmvColors.violet.DEFAULT} />; // ✗ noStateColorAsText
 
 // La nuance -on écrit le texte ; un contrôle natif teinté garde le DEFAULT.
 export const on = <CmvText className="text-cmv-accent-on text-xs"/>;

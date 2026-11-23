@@ -12,6 +12,7 @@ export const accentHi = "text-cmv-accent-hi"; // ✗ noStateColorAsText
 export const softText = "hover:text-cmv-error-soft"; // ✗ noStateColorAsText
 export const lineText = "text-cmv-info-line/50"; // ✗ noStateColorAsText
 export const fillText = "text-cmv-accent-fill hover:text-cmv-accent-fill-hover"; // ✗ noStateColorAsText
+export const violet = "font-cmv-display text-cmv-violet"; // ✗ noStateColorAsText
 
 // Seule la nuance -on écrit du texte ; aplats et bordures restent libres, survol compris.
 export const on = <p className="text-cmv-error-on"/>;
@@ -21,3 +22,4 @@ export const fill = <span className="bg-cmv-accent border-cmv-error text-cmv-tex
 export const soft = "bg-cmv-error-soft text-cmv-error-on";
 export const keyOn = { "text-cmv-error-on": true };
 export const placeholderOn = "placeholder-cmv-info-on";
+export const violetOn = "text-cmv-violet-on hover:underline";

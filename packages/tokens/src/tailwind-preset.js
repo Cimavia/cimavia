@@ -14,8 +14,10 @@
  * La palette elle-même vit dans `palette.json` : c'est la SEULE source des hex, lisible par ce
  * preset (JS) comme par le code applicatif (TS) qui doit thémer la navigation native.
  *
- * Familles d'état (`accent`, `success`, `warning`, `error`, `info`) — quatre nuances, un seul rôle
- * chacune, pour que la pastille d'état se compose sans jamais choisir un hex :
+ * Familles d'état (`accent`, `success`, `warning`, `error`, `info`, `violet`) — quatre nuances, un
+ * seul rôle chacune, pour que la pastille d'état se compose sans jamais choisir un hex. `violet`
+ * n'a pas de sens d'état propre : c'est le palier au-delà du rouge d'une échelle (compteurs non
+ * lus du tableau de suivi, #705), et il porte le même trio pour que rien ne s'y écrive à part.
  *   DEFAULT -> aplat sans texte (bandeau, barre de toast, point, barre de progression) — JAMAIS
  *              du texte, ni sous du texte clair : `text-hi` y tombe à 3.5:1 sur `accent`, le blanc
  *              à 4.2. Le bandeau `warning`, clair, porte un texte sombre (`text-cmv-bg-0`).
