@@ -700,8 +700,9 @@ liste des domaines vivent dans l'index.
 | MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 | MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
-| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. Pour la rupture, c'est tranché ([#213](https://github.com/Cimavia/cimavia/issues/213)) : le fil `DIRECT` du couple passe en lecture seule ; les fils de groupe restent tels quels. | 🟢 | [#909](https://github.com/Cimavia/cimavia/issues/909) — *pour les fils de groupe, déclencheur : une route pour quitter une entreprise ; décider alors si la conversation se ferme, se quitte ou reste en lecture* |
+| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore de quitter une entreprise. La rupture d'un lien, elle, ferme le fil `DIRECT` du couple en lecture ([#909](https://github.com/Cimavia/cimavia/issues/909)), et laisse les fils de groupe tels quels (tranché en [#213](https://github.com/Cimavia/cimavia/issues/213)). | 🟢 | — *(déclencheur : une route pour quitter une entreprise ; décider alors si la conversation de groupe se ferme, se quitte ou reste en lecture)* |
 | MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
+| MC-20 | **Une écriture qui croise la rupture à la milliseconde peut échouer en 500, ou ne rien écrire** ([#909](https://github.com/Cimavia/cimavia/issues/909)) : le refus 409 lit la fin du suivi sans verrou, puis l'écriture passe sous un scope que la rupture vient de fermer. Selon le chemin, l'enfant créé sous un parent fermé lève (500), ou un `updateMany` ne touche rien et répond 200 — un décompte d'exercices perdu, sur un suivi de toute façon terminé. Seules la création d'un cycle et sa réaffectation prennent le lien en `FOR SHARE` : ce sont elles qui, sans verrou, laisseraient un cycle ouvert dans un couple rompu, et pour toujours. | 🟢 | — *(déclencheur : un 500 ou une perte rapportés au moment d'une rupture ; la sortie serait `holdActiveLink` en tête de chaque transaction d'écriture du couple, ou un 0 ligne écrite traduit en 409)* |
 
 *Résolues, à l'[archive](archive.md) : MC-1, MC-2, MC-8, MC-13, MC-17.*
 
@@ -776,6 +777,42 @@ liste des domaines vivent dans l'index.
 >   pas son athlète.
 > - **Conséquence** : rien ne devient orphelin. N-4 et R-4 passent en 🟢, la ligne P2-1 / P3-2 du
 >   domaine messagerie part à l'archive, et #74 (qui avait absorbé #108) est sans objet.
+
+> **Tranché en [#909](https://github.com/Cimavia/cimavia/issues/909)** (l'API de la rupture,
+> décision de Kylian du 2026-11-23 pour le premier point) : ce que #213 laissait ouvert.
+>
+> - **Fermé à tous** : quand le lien du propriétaire d'un cycle est rompu, plus personne n'y
+>   écrit — ni lui, ni un autre Coach qui avait l'Écriture et suit encore l'athlète, ni l'athlète.
+>   Écarté : laisser l'autre Coach continuer seul un cycle dont l'auteur est parti.
+> - **Une copie sur le Plan** : Prisma ne compare pas les colonnes de deux tables, le scope ne peut
+>   donc pas exiger « le lien de CE couple est `ACTIVE` ». La rupture copie sa date de fin sur les
+>   cycles du couple (`Plan.followEndedAt`), dans sa transaction ; la réactivation l'efface. Le
+>   scope ferme l'écriture de ce qui pend d'un cycle où elle n'est pas nulle (`closedUnless`).
+> - **Un verrou contre la course** : créer un cycle pour un athlète, ou le lui réaffecter, prend
+>   `SELECT … FOR SHARE` sur le lien (`holdActiveLink`) ; la rupture l'écrit sous condition
+>   `ACTIVE`. L'une attend l'autre : jamais un cycle ouvert dans un couple rompu.
+> - **409 `FOLLOW_ENDED`, pas 403** : refusé après le 404 (illisible) et le 403 (droit
+>   insuffisant). Les services le lèvent avant d'écrire : le scope seul répondrait par un 500 ou
+>   par une écriture qui ne touche rien.
+> - **Ce qui reste permis** : relire tout ; supprimer un cycle, gérer ses accès ; régler ou annuler
+>   une facture déjà émise (pas en saisir les termes) ; marquer lu un fil fermé ; renoncer à la
+>   capacité athlète ou Coach, le lien rompu ne retenant plus.
+> - **Fils** : seul le `DIRECT` coach↔athlète du couple se ferme. Un fil à plusieurs reste ouvert
+>   (MC-18).
+> - **Tick** : ni « fin de cycle » ni « facture en retard » pour un couple rompu ; ceux d'avant la
+>   rupture passent à `DISMISSED` au passage suivant, sous l'acteur du Coach (même motif que
+>   MC-14 : la rupture, que l'athlète peut faire, n'écrit pas dans ses rappels).
+> - **La copie fait avancer la version du cycle** (`@updatedAt`) : un éditeur ouvert sur l'instant
+>   prend un 409 « modifié » et recharge — voulu, l'état du cycle a changé.
+> - **Course** : seules la création et la réaffectation d'un cycle sont verrouillées ; une autre
+>   écriture qui croise la rupture peut échouer en 500 (MC-20).
+> - **Réactivation** : l'invitation nominative du même Coach rouvre le lien, sans provenance
+>   d'entreprise, et rouvre ses cycles — si elle a été émise **après** la rupture : une invitation
+>   d'avant, restée en attente, la déferait sans l'accord de qui l'a voulue (409). Celle d'une
+>   entreprise laisse un lien rompu tel quel.
+> - **Notifications** : l'autre partie est prévenue (`RELATION_ENDED_BY_COACH` /
+>   `_BY_ATHLETE`, entité `COACH_ATHLETE`). Une seconde rupture ne redate rien et ne renotifie
+>   personne.
 
 > **Tranché en [#598](https://github.com/Cimavia/cimavia/issues/598)** (relecture de la maquette de
 > messagerie, 2026-10-07) : trois règles que la planche ne tranchait pas, reportées dans #611 et
