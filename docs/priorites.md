@@ -164,9 +164,9 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #218 | Le DEFAULT des familles d'état employé comme texte (contraste AA) | 🟡 | ✅ |
 | #199 | Rôle d'accessibilité sur les composants Cmv du mobile | 🟡 | ✅ |
 | #377 | Les boutons de la barre d'envoi n'ont aucun nom accessible | 🟡 | ✅ |
-| #650 | Le sélecteur segmenté n'annonce pas l'option choisie | ⚪ | |
-| #217 | Repère de champ obligatoire sur mobile | ⚪ | |
-| #705 | Couleur progressive des compteurs du tableau de suivi | ⚪ | |
+| #650 | Le sélecteur segmenté n'annonce pas l'option choisie | ⚪ | ✅ |
+| #217 | Repère de champ obligatoire sur mobile | ⚪ | ✅ |
+| #705 | Couleur progressive des compteurs du tableau de suivi | ⚪ | ✅ |
 | #1 | Thème clair | ⚪ | |
 
 ## Cohérence des données et stockage
