@@ -173,7 +173,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 
 | Issue | Nom | Prio | Fermée |
 |---|---|---|---|
-| #72 | Tâche de purge des objets sans ligne en base | 🟡 | |
+| #72 | Tâche de purge des objets sans ligne en base | 🟡 | ✅ |
 | #108 | Purger les rappels d'une cible disparue *(avec #213)* | 🟡 | |
 | #73 | Purger le PDF à la suppression d'un cycle brouillon | ⚪ | |
 | #75 | Suppression d'un document : rollback si la ligne ne part pas | ⚪ | |
