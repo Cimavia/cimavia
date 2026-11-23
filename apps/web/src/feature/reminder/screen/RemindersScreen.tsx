@@ -65,7 +65,12 @@ export function RemindersScreen() {
 
       {!isPending && !isError && reminders != null ? (
         <div className="flex flex-col gap-cmv-lg">
-          <CmvSegmented options={options} value={segment} onChange={setSegment} />
+          <CmvSegmented
+            ariaLabel={t("reminder.segmentLabel")}
+            options={options}
+            value={segment}
+            onChange={setSegment}
+          />
 
           {shown.length === 0 ? (
             <CmvEmptyState

@@ -549,6 +549,7 @@
       "mine": "Les miens",
       "shared": "Partagés avec moi"
     },
+    "scopeLabel": "Provenance",
     "picker": {
       "shown": "Exercices proposés",
       "shared": "Partagés",
@@ -712,6 +713,7 @@
         "title": "Mes séances",
         "upcoming": "À venir",
         "past": "Passées",
+        "periodLabel": "Période",
         "empty": "Aucune séance",
         "emptyHint": "Rien à afficher dans cette période.",
         "cycleCount": "{{count}} cycle en cours",
@@ -786,6 +788,7 @@
     },
     "week": {
       "number": "Semaine {{number}}",
+      "typeLabel": "Type de semaine",
       "sessionCount": "{{count}} séance(s)",
       "addSession": "+ Séance",
       "moveSession": "Déplacer la séance",
@@ -1143,6 +1146,7 @@
       "PENDING": "À traiter ({{count}})",
       "HANDLED": "Traités ({{count}})"
     },
+    "segmentLabel": "Rappels affichés",
     "markDone": "Marquer fait",
     "dismiss": "Abandonner",
     "reopen": "Rouvrir",
@@ -1374,6 +1378,7 @@
         "ENDED_PLAN": "Cycle terminé",
         "NO_PLAN": "Sans plan"
       },
+      "filterLabel": "Filtrer par cycle",
       "matchCount": "{{count}} athlète",
       "matchCount_other": "{{count}} athlètes",
       "noMatch": {
@@ -1479,6 +1484,7 @@
         "all": "Tous",
         "unread": "Non lus"
       },
+      "filterLabel": "Débriefs affichés",
       "allRead": {
         "title": "Tout est lu !",
         "description": "Aucun débrief en attente. Les nouveaux débriefs de tes athlètes apparaîtront ici."

@@ -76,6 +76,7 @@ export function FeedbackInboxList({
           {t("feedback.inbox.unreadCount", { count: unreadCount })}
         </p>
         <CmvSegmented
+          ariaLabel={t("feedback.inbox.filterLabel")}
           options={FILTERS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
           value={filter}
           onChange={onFilter}

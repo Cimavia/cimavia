@@ -124,6 +124,7 @@ export function PlanWeekCard({
         </span>
 
         <CmvSegmented<PlanWeekType>
+          ariaLabel={t("plan.week.typeLabel")}
           value={week.type}
           disabled={isBusy || readOnly}
           onChange={(type) =>

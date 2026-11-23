@@ -66,6 +66,7 @@ export function AthleteSessionsScreen() {
     >
       <div className="flex flex-col gap-cmv-lg">
         <CmvSegmented
+          ariaLabel={t("plan.athlete.sessions.periodLabel")}
           options={options}
           value={segment}
           onChange={(value) =>

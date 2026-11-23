@@ -62,6 +62,7 @@ export function AthleteTrackingToolbar({
 
       {canFilterByPlan ? (
         <CmvSegmented<AthleteRowFilter>
+          ariaLabel={t("dashboard.table.filterLabel")}
           options={options}
           value={filter}
           onChange={onFilterChange}

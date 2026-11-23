@@ -80,11 +80,12 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
         <td colSpan={slots.length} className="px-cmv-sm pb-cmv-sm">
           {/* Une seule ligne : le pas et d'où il part, puis les gestes, poussés à droite. */}
           <div className="flex flex-wrap items-center gap-x-cmv-md gap-y-cmv-sm">
-            <fieldset aria-labelledby={directionId} className="flex items-center gap-cmv-sm">
+            <div className="flex items-center gap-cmv-sm">
               <span id={directionId} className="text-cmv-caption text-cmv-text-mid">
                 {t("plan.dosage.progression.direction")}
               </span>
               <CmvSegmented
+                ariaLabelledBy={directionId}
                 value={direction}
                 onChange={setDirection}
                 options={[
@@ -95,7 +96,7 @@ export function DosageProgressionRow(props: Readonly<DosageProgressionRowProps>)
                   },
                 ]}
               />
-            </fieldset>
+            </div>
             <div className="flex items-center gap-cmv-sm">
               <label htmlFor={stepId} className="text-cmv-caption text-cmv-text-mid">
                 {t("plan.dosage.progression.step")}
