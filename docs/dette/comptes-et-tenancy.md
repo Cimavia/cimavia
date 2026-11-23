@@ -700,7 +700,7 @@ liste des domaines vivent dans l'index.
 | MC-14 | **Une facture réglée par un autre Coach laisse le rappel « en retard » du propriétaire ouvert jusqu'au tick suivant** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : la transaction du Coach qui règle ne voit que ses rappels, et `closeSettledOverdue` clôt celui du propriétaire au passage suivant du tick. Écrire le rappel d'un autre depuis cette transaction aurait demandé le client de base. Le délai est celui du cron, quelques minutes. | 🟢 | — *(déclencheur : un Coach qui voit dans son centre le retard d'une facture déjà réglée ; le push, lui, ne part pas : la clôture passe avant lui dans le tick. La sortie serait de clore le rappel du propriétaire par le client de base, dans la transaction, sur l'id de la facture seul)* |
 | MC-15 | **La note « par défaut » du panneau des accès d'un cycle reconnaît l'entreprise par son NOM** ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachAthleteDto` porte `organizationName` et pas `organizationId`, et le web rapproche ce nom des entreprises éligibles pour dire « F reçoit l'Écriture par défaut ». Deux entreprises du même nom feraient annoncer le défaut pour la mauvaise. Seule la phrase en dépend : l'API pose le droit par l'id du lien (`defaultPlanGrant`). | 🟢 | — *(déclencheur : deux entreprises homonymes chez un même Coach ; la sortie serait d'ajouter `organizationId` à `CoachAthleteDto`)* |
 | MC-16 | **Fermer un exercice n'est pas sérialisé avec sa composition** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : la réduction lit les Coachs qui citent l'exercice, puis écrit droits et copies figées dans une transaction `READ COMMITTED`. Une séance de M qui cite l'exercice entre les deux ne reçoit pas de copie : elle continue de le citer en direct, et de le montrer par l'`include` ancré de sa ligne, alors que M ne le lit plus. La suppression, elle, est tenue par la clé étrangère `Restrict` : la séance arrivée entre-temps la fait échouer, et C lit « réessaie la suppression ». | 🟢 | — *(déclencheur : une séance qui cite un exercice que son Coach ne lit plus, rapportée en bêta ; la sortie serait de verrouiller l'exercice (`SELECT … FOR UPDATE`) dans la réduction ET dans l'écriture d'une séance qui le cite)* |
-| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. | 🟢 | [#213](https://github.com/Cimavia/cimavia/issues/213) · [#285](https://github.com/Cimavia/cimavia/issues/285) — *à leur livraison, décider si la conversation se ferme, se quitte ou reste en lecture* |
+| MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore ni de quitter une entreprise ni de rompre un lien en libre-service. Pour la rupture, c'est tranché ([#213](https://github.com/Cimavia/cimavia/issues/213)) : le fil `DIRECT` du couple passe en lecture seule ; les fils de groupe restent tels quels. | 🟢 | [#909](https://github.com/Cimavia/cimavia/issues/909) — *pour les fils de groupe, déclencheur : une route pour quitter une entreprise ; décider alors si la conversation se ferme, se quitte ou reste en lecture* |
 | MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
 
 *Résolues, à l'[archive](archive.md) : MC-1, MC-2, MC-8, MC-13, MC-17.*
@@ -751,6 +751,30 @@ liste des domaines vivent dans l'index.
 >   certains Coachs seulement, ce que voit le compte Entreprise, partager hors de ses entreprises,
 >   une fiche athlète commune, modifier les participants d'une conversation. Rangés en v1.x au §4
 >   du cahier des charges.
+
+> **Tranché en [#213](https://github.com/Cimavia/cimavia/issues/213)** (cadrage de la rupture d'un
+> lien coach↔athlète, décisions de Kylian du 2026-11-23 ; livré par
+> [#909](https://github.com/Cimavia/cimavia/issues/909) à
+> [#911](https://github.com/Cimavia/cimavia/issues/911)) : rompre, c'est **archiver en lecture**,
+> pas effacer. Depuis #144, le scope filtre sur les colonnes dénormalisées, jamais sur
+> `CoachAthlete` : supprimer la ligne ne retirait rien à personne.
+>
+> - **Les deux côtés rompent** : l'Athlete quitte son Coach, le Coach détache un Athlete. Retirer
+>   quelqu'un d'une entreprise reste hors périmètre (MC-11).
+> - **Statut `ENDED` et date de fin**, pas de suppression : la date de rattachement reste, et la
+>   ligne dit « ce couple ne s'écrit plus ». Une invitation nominative la **réactive** (un lien par
+>   couple) ; le rattachement automatique d'une entreprise, non — rompre est le choix d'une
+>   personne.
+> - **Archive en lecture** : chacun garde son historique, plus aucune écriture du couple. La garde
+>   vit **dans le scope**, pas dans les services : le propriétaire d'un Plan n'y écrit que si son
+>   lien avec l'athlète est `ACTIVE` (modèles et auto-coaching exclus) ; le droit d'un autre Coach
+>   tombe déjà, `coachesOfPlanAthlete` exigeant `ACTIVE`. Le fil `DIRECT` passe en lecture seule
+>   (MC-18) ; le tick ne génère plus de rappel ; l'autre partie est notifiée.
+> - **La facture due reste due** : visible des deux côtés, réglable ou annulable par l'ex-Coach,
+>   qui ne peut plus en émettre. Rien ne bloque le départ — un Coach qui ne solde pas ne retient
+>   pas son athlète.
+> - **Conséquence** : rien ne devient orphelin. N-4 et R-4 passent en 🟢, la ligne P2-1 / P3-2 du
+>   domaine messagerie part à l'archive, et #74 (qui avait absorbé #108) est sans objet.
 
 > **Tranché en [#598](https://github.com/Cimavia/cimavia/issues/598)** (relecture de la maquette de
 > messagerie, 2026-10-07) : trois règles que la planche ne tranchait pas, reportées dans #611 et
