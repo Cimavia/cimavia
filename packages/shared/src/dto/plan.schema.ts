@@ -254,6 +254,11 @@ export const scheduledSessionDtoSchema = scheduledSessionSummaryDtoSchema.extend
    */
   coachId: z.string(),
   coachName: z.string(),
+  /**
+   * Celle de son cycle (#909) : une séance dont le suivi est terminé se lit, ne se débriefe plus.
+   * Portée par le détail, que l'écran de débrief ouvre sans le cycle.
+   */
+  followEndedAt: z.iso.datetime().nullable(),
   exercises: z.array(scheduledSessionExerciseDtoSchema),
   /**
    * La composition par blocs (#716), lue IMBRIQUÉE dans la séance : un exercice de bloc n'a de
@@ -310,6 +315,12 @@ export const planSummaryDtoSchema = z.object({
   startDate: z.iso.date(),
   status: planStatusSchema,
   publishedAt: z.iso.datetime().nullable(),
+  /**
+   * Le suivi du couple est terminé depuis cette date (#909) : le cycle est une archive, lisible et
+   * fermé en écriture à tous — son Coach, ceux à qui il est ouvert, l'athlète qui le débriefe.
+   * `null` = suivi en cours, ou cycle sans athlète : ce n'est pas une donnée indisponible.
+   */
+  followEndedAt: z.iso.datetime().nullable(),
   weekCount: z.number().int(),
   sessionCount: z.number().int(),
   createdAt: z.iso.datetime(),

@@ -207,13 +207,17 @@ model Verification {
 // ─────────────────────────────────────────────────────────────────────────────
 // Métier — fondation multi-tenant (P1).
 // Un athlète a 0..N coachs, un lien par couple (#599) ; 1 coach = N athlètes.
-// La relation est une table à part : absence de ligne = athlète autonome (v1.0) ;
-// suppression = redevient autonome. Réversible par construction, sans refonte.
+// La relation est une table à part : absence de ligne = athlète autonome (v1.0). Rompre un lien
+// ne supprime pas la ligne, il la passe à ENDED (#213) : l'historique du couple reste lisible.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ENDED (#909) : le lien est rompu, par l'un ou l'autre. Le couple ne s'écrit plus — ses cycles
+// sont fermés par `Plan.followEndedAt`, son fil DIRECT en lecture seule —, mais tout reste lisible.
+// Seule une invitation nominative le ramène à ACTIVE ; le rattachement d'une entreprise, non.
 enum CoachAthleteStatus {
   PENDING
   ACTIVE
+  ENDED
 }
 
 // DECLINED est une valeur À PART, jamais un REVOKED réutilisé (#146) : « le coach a annulé » et
@@ -247,6 +251,9 @@ model CoachAthlete {
   // l'entreprise arrive le reste. `SetNull` : supprimer l'entreprise ne coupe pas le suivi.
   organizationId String?
   organization   Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  // La date de la rupture (#909). `null` = lien jamais rompu, ou réactivé depuis : la date d'un
+  // suivi en cours n'existe pas, ce n'est pas une donnée manquante.
+  endedAt        DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -642,24 +649,32 @@ enum ScheduledSessionStatus {
 }
 
 model Plan {
-  id          String     @id @default(cuid())
-  coachId     String
-  coach       User       @relation("CoachPlans", fields: [coachId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  coachId       String
+  coach         User       @relation("CoachPlans", fields: [coachId], references: [id], onDelete: Cascade)
   /// `null` = cycle en construction dont le destinataire n'est pas encore choisi (#144). Un
   /// `NULL` ne satisfait jamais le filtre tenant `where: { athleteId }` : un tel brouillon est
   /// donc invisible de TOUS les athlètes par construction, et non par une règle applicative.
   /// Obligatoire à la DIFFUSION, en revanche — le verrou s'est déplacé, il n'a pas disparu.
-  athleteId   String?
-  athlete     User?      @relation("AthletePlans", fields: [athleteId], references: [id], onDelete: Cascade)
-  title       String
-  description String? // description du cycle — nullable, pas de fallback
+  athleteId     String?
+  athlete       User?      @relation("AthletePlans", fields: [athleteId], references: [id], onDelete: Cascade)
+  title         String
+  description   String? // description du cycle — nullable, pas de fallback
   // Date civile (pas d'horaire, pas de fuseau) : toujours un LUNDI (planStartDateSchema).
   // Les dates des semaines s'en déduisent (planWeekRange) — rien n'est stocké sur PlanWeek.
-  startDate   DateTime   @db.Date
-  status      PlanStatus @default(DRAFT)
-  publishedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  startDate     DateTime   @db.Date
+  status        PlanStatus @default(DRAFT)
+  publishedAt   DateTime?
+  /// Le suivi du couple (coachId, athleteId) est terminé depuis cette date (#909) : le cycle est
+  /// une ARCHIVE, que personne n'écrit plus — ni son propriétaire, ni un Coach à qui il est ouvert,
+  /// ni l'athlète qui le débrieferait. `null` = suivi en cours, ou cycle sans athlète.
+  ///
+  /// Une COPIE de `CoachAthlete.endedAt`, posée à la rupture et effacée à la réactivation, dans la
+  /// même transaction : le scope ne sait pas lire le lien du propriétaire quand c'est un autre Coach
+  /// qui écrit (Prisma ne compare pas une colonne d'une table à celle d'une autre).
+  followEndedAt DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   weeks             PlanWeek[]
   scheduledSessions ScheduledSession[]

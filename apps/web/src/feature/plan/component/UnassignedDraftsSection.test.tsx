@@ -16,6 +16,7 @@ function draft(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): Plan
     startDate: "2026-10-05",
     status: PlanStatus.DRAFT,
     publishedAt: null,
+    followEndedAt: null,
     weekCount: 8,
     sessionCount: 32,
     createdAt: "2026-09-01T10:00:00Z",

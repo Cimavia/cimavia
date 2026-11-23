@@ -57,6 +57,8 @@ export class RelationService {
       // date du jour laisserait croire à un événement qui n'a pas eu lieu.
       invitedAt: new Date(0).toISOString(),
       joinedAt: null,
+      // On ne rompt pas avec soi-même : ce suivi-là n'a pas de fin.
+      endedAt: null,
       // Aucune entreprise : on se coache soi-même, en direct.
       organizationName: null,
       isSelf: true,

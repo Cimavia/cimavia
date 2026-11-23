@@ -80,6 +80,7 @@ function plan(
     startDate,
     status: PlanStatus.PUBLISHED,
     publishedAt: "2026-10-01T10:00:00Z",
+    followEndedAt: null,
     weekCount,
     sessionCount: sessions.length,
     createdAt: "2026-10-01T10:00:00Z",

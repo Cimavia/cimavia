@@ -25,6 +25,7 @@ export function toCoachAthleteDto(
     status: relation.status,
     invitedAt: relation.invitedAt.toISOString(),
     joinedAt: relation.joinedAt?.toISOString() ?? null,
+    endedAt: relation.endedAt?.toISOString() ?? null,
     organizationName:
       relation.organizationId == null
         ? null
