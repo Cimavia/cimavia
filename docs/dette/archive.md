@@ -144,12 +144,19 @@ l'[index](../dette-technique.md).
 | ~~P5-4~~ | ~~**Throttle push « first-unread » sans reprise temporelle** : une rafale de messages = 1 push, sans rappel.~~ | ✅ | résolue pour le push en [#539](https://github.com/Cimavia/cimavia/issues/539) — un push par message ; la trace garde le throttle (**N-3**, **N-8**) |
 | ~~P5-5~~ | ~~**Préparation média dupliquée** entre `feature/feedback` et `feature/message` (mobile)~~. La moitié mobile↔web n'a jamais été une dette : elle s'est réglée en promotion **intra-app** côté web (#26), ce que la ligne d'origine annonçait à tort comme un partage à faire. | ✅ | résolue en [#96](https://github.com/Cimavia/cimavia/issues/96) — `shared/util/media.util.ts` paramétré par un `MediaProfile`, le déclencheur ayant fini par survenir : les deux copies contrôlaient les plafonds à deux endroits différents |
 
+### Post-MVP — Centre de notifications ([#39](https://github.com/Cimavia/cimavia/issues/39))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~N-2~~ | ~~**Aucune rétention ni purge** : la table `notification` grossit indéfiniment.~~ | ✅ | résolue en **#76** (avec #107) — les lues partent six mois après leur lecture, au tick ; une non-lue reste |
+
 ### Post-MVP — Rappels ([#38](https://github.com/Cimavia/cimavia/issues/38))
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~R-1~~ | ~~**Aucun push quand un rappel devient dû**~~ : sans scheduler, il n'apparaissait qu'au prochain chargement du centre. | ✅ | résolu en **#47** — tick externe horaire (`POST /internal/reminders/tick`), push idempotent via `pushedAt` |
 | ~~R-3~~ | ~~**Pas de report d'échéance ni d'édition**~~ : reprogrammer un rappel demandait de le traiter puis d'en créer un autre — deux gestes, et un historique de doublons. | ✅ | résolu en **#105** — `PATCH /reminders/:id` (échéance et/ou note) + bouton « Repousser » sur l'écran **et** dans le centre de notifications |
+| ~~R-5~~ | ~~**Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2).~~ | ✅ | résolue en **#107** — purgés six mois après leur dernière retouche, au tick ; un rappel à faire reste. La fenêtre de génération de 30 jours empêche un rappel généré purgé de renaître |
 
 ### Post-MVP — Messagerie sans interlocuteur ([#198](https://github.com/Cimavia/cimavia/issues/198))
 

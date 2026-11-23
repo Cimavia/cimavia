@@ -47,7 +47,6 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
-| N-2 | **Aucune rétention ni purge** : la table `notification` grossit indéfiniment. | 🟢 | [#76](https://github.com/Cimavia/cimavia/issues/76) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
 | N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256) ; la suppression d'une relation, non, et attend le flux de rupture (#213). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
@@ -55,8 +54,11 @@ liste des domaines vivent dans l'index.
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
 | N-8 | **L'e-mail suit le rythme de la trace** (N-3) : une rafale de messages produit UN e-mail, qui annonce « un message » là où il y en a cinq. La relance attendue de #91 n'a plus d'objet depuis #537 : le push prévient de chaque message. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-9 | **Aucun lien vers l'entité dans l'e-mail de notification** : seul le pied « gérer mes notifications » est cliquable. Ouvrir le cycle ou la conversation demande de retrouver l'application à la main. | 🟢 | — *(déclencheur : un retour beta disant que l'e-mail ne sert à rien sans lien — voir « Tranché en #65 »)* |
-| N-10 | **Le filtre par catégorie n'a pas d'index dédié** (#694) : `type IN (…)` trié par date parcourt l'index `(recipientId, createdAt)` jusqu'à trouver 50 lignes du type demandé. Pour une catégorie rare chez un destinataire qui a beaucoup reçu, c'est toutes ses lignes — quelques milliers au plus aujourd'hui, la table n'ayant ni purge (N-2) ni volume. | 🟢 | — *(déclencheur : une lecture filtrée lente en observabilité, ou la rétention de [#76](https://github.com/Cimavia/cimavia/issues/76) qui trancherait le volume ; la sortie est un index `(recipientId, type, createdAt)`)* |
+| N-10 | **Le filtre par catégorie n'a pas d'index dédié** (#694) : `type IN (…)` trié par date parcourt l'index `(recipientId, createdAt)` jusqu'à trouver 50 lignes du type demandé. Pour une catégorie rare chez un destinataire qui a beaucoup reçu, c'est toutes ses lignes — quelques milliers au plus aujourd'hui, et la purge des lues à six mois ([#76](https://github.com/Cimavia/cimavia/issues/76)) borne désormais ce qu'il garde. | 🟢 | — *(déclencheur : une lecture filtrée lente en observabilité ; la sortie est un index `(recipientId, type, createdAt)`)* |
 | N-11 | **Le push Android s'affiche sous un canal nommé en anglais** (règle dure n°6) : l'API n'envoie pas de `channelId`, et `expo-notifications` range la notification dans son canal de repli, « Miscellaneous » — le nom que montre Réglages › Cimavia › Notifications, à côté de « Minuteurs ». Trouvé en #348, même famille que NV-1, mais ici le canal est à nous. | 🟢 | [#891](https://github.com/Cimavia/cimavia/issues/891) |
+| N-12 | **La purge des notifications lues parcourt toute la table** (#76) : `readAt < seuil`, chez tous les destinataires, ne s'appuie sur aucun index — `(recipientId, readAt)` commence par le destinataire. Un parcours séquentiel par tick horaire, sans conséquence au volume de la bêta. | 🟢 | — *(déclencheur : un tick qui ralentit, ou une table `notification` volumineuse ; la sortie est un index partiel sur `readAt` des seules lues)* |
+
+*Résolues, à l'[archive](archive.md) : N-2.*
 
 > **Tranché en #537** (le push suit chaque envoi, la trace chaque série) : retour du Coach bêta,
 > sur iPhone — des messages et des compléments de débrief qui ne le prévenaient pas. Le throttle
@@ -220,9 +222,9 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
 | R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts ; l'effacement d'un compte, lui, purge les siens (#256). | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
-| R-5 | **Aucune rétention** des rappels `DONE`/`DISMISSED` : la table grossit indéfiniment (même famille que N-2). | 🟢 | [#107](https://github.com/Cimavia/cimavia/issues/107) |
+| R-6 | **Les rappels traités d'un ancien coach ne sont plus purgés** (#107) : la purge passe par le client scopé, dans le contexte de chaque coach balayé, et le tick ne balaie que les comptes `isCoach`. Un compte qui a rendu sa capacité coach garde donc ses rappels traités — sans croissance, puisqu'il n'en crée plus. | 🟢 | — *(déclencheur : aucun en vue ; la sortie serait de balayer aussi les comptes qui ont des rappels sans être coach)* |
 
-*Résolues, à l'[archive](archive.md) : R-1, R-3.*
+*Résolues, à l'[archive](archive.md) : R-1, R-3, R-5.*
 
 > **Tranché en #44** (le modèle) : un rappel est l'**outil privé du coach** — la seule entité métier
 > scopée `coachId` **seul**, qu'aucun athlète ne voit sous aucune forme. Quatre conséquences
@@ -338,6 +340,37 @@ liste des domaines vivent dans l'index.
 > devrait savoir quelle transition touche un rappel, et cette règle est au serveur. La
 > suppression d'un cycle, qui purge ses rappels (**R-4**), périme les mêmes caches côté web
 > (le mobile ne supprime pas de cycle).
+
+> **Tranché en [#107](https://github.com/Cimavia/cimavia/issues/107)** (la rétention des rappels traités, et celle des notifications lues de
+> [#76](https://github.com/Cimavia/cimavia/issues/76)) : six mois, au passage du tick existant — pas de second cron.
+>
+> - **Une durée pour les deux tables**, `HANDLED_RETENTION_DAYS` (180 jours de 24 h) : elles
+>   répondent à la même question, combien de temps garder ce que son destinataire a déjà vu ou
+>   réglé. Ce qui n'est pas traité — rappel `PENDING`, notification non lue — n'est **jamais**
+>   purgé : son ancienneté est le signal.
+> - **Rappels : `updatedAt` fait foi**, faute de date de traitement. C'est le dernier geste du
+>   coach ; une retouche après coup repousse la purge, le sens sûr. Les statuts purgés sont nommés
+>   (`DONE`, `DISMISSED`) : un statut ajouté demain ne partira pas sans décision.
+> - **Notifications : `readAt` fait foi**, pas `createdAt` — six mois depuis la lecture.
+> - **Rappels par le client scopé**, coach par coach (d'où **R-6**), dans une seconde passe une
+>   fois les rappels de tous les coachs partis : une purge qui lève n'en prive aucun ; **notifications par le
+>   client de base**, chez tous les destinataires : le scope `recipientId` suppose un acteur, et en
+>   ouvrir un par compte n'ajouterait rien à un prédicat qui ne dépend d'aucun tenant (**N-12**).
+> - **Une fenêtre de génération de 30 jours**, et c'est le point qui ne se voit pas. « Traité n'est
+>   jamais régénéré » (#47, #349) tenait à l'index unique, donc à la ligne : purgée, rien
+>   n'empêchait plus un cycle diffusé — candidat à vie, `PlanStatus` n'a pas d'état « terminé » —
+>   de relancer le coach au tick suivant. Le tick ne génère donc plus que si l'échéance dérivée
+>   **ou** l'émission de la cible (`publishedAt`, `issuedAt`, posés une seule fois) date de moins de
+>   30 jours. Les deux précèdent la création du rappel, qui précède sa dernière retouche : un
+>   rappel purgé est hors fenêtre tant qu'elle reste plus courte que la rétention, ce qu'un test
+>   vérifie. L'émission compte pour la facture de rattrapage, échue avant même d'être émise : l'écran
+>   des factures la dit en retard, la liste des rappels ne doit pas se taire.
+> - **Une échéance qui bouge fait naître un nouveau rappel**, une fois l'ancien purgé : un cycle
+>   diffusé qu'on allonge, une facture dont on reporte l'échéance. C'est une nouvelle fin, ou un
+>   nouveau retard ; tant que l'ancienne ligne existe, l'index l'empêche encore. La différence
+>   tient au délai de rétention, et elle est assumée.
+> - **Contrepartie assumée** : un tick en panne plus de 30 jours perd les rappels de cette période.
+>   Sa panne est bruyante — le job rouge à chaque passage horaire — bien avant.
 
 > **Appris en construisant #44/#51** (le coût réel d'un scope à un seul rôle) : un modèle absent de
 > `TENANT_SCOPES` **pour un rôle** est refusé par une *erreur*, pas par un 403 ni par une liste vide.
