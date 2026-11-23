@@ -4,6 +4,7 @@ import {
   CreateMultipartUploadCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -375,6 +376,106 @@ describe("StorageService — réponses du storage", () => {
         input: { Bucket: "bucket-test", Key: "media.mp4", ContentType: "video/mp4" },
       },
     ]);
+  });
+  /** Le contenu du bucket pour le balayage des orphelins (#72), page par page. */
+  describe("listObjects", () => {
+    const pagesOf = async (storage: StorageService, prefix?: string) => {
+      const pages = [];
+      for await (const page of storage.listObjects({ prefix, pageSize: 2 })) pages.push(page);
+      return pages;
+    };
+
+    // Une page oubliée laisserait ses orphelins au bucket ; un jeton mal repris relirait la même.
+    it("suit le jeton de continuation jusqu'à la dernière page", async () => {
+      const day = new Date("2026-11-01T00:00:00Z");
+      const { storage, sent } = storageAnswering(
+        {
+          Contents: [
+            { Key: "a", LastModified: day, Size: 10 },
+            { Key: "b", LastModified: day, Size: 20 },
+          ],
+          IsTruncated: true,
+          NextContinuationToken: "page-2",
+        },
+        { Contents: [{ Key: "c", LastModified: day, Size: 30 }], IsTruncated: false },
+      );
+
+      await expect(pagesOf(storage)).resolves.toEqual([
+        [
+          { key: "a", lastModified: day, size: 10 },
+          { key: "b", lastModified: day, size: 20 },
+        ],
+        [{ key: "c", lastModified: day, size: 30 }],
+      ]);
+      expect(sent.map((call) => call.name)).toEqual([
+        ListObjectsV2Command.name,
+        ListObjectsV2Command.name,
+      ]);
+      expect(sent[0]?.input).toEqual({
+        Bucket: "bucket-test",
+        Prefix: undefined,
+        MaxKeys: 2,
+        ContinuationToken: undefined,
+      });
+      expect(sent[1]?.input).toMatchObject({ ContinuationToken: "page-2" });
+    });
+
+    it("restreint la liste au préfixe demandé, sur chaque page", async () => {
+      const { storage, sent } = storageAnswering(
+        { Contents: [], IsTruncated: true, NextContinuationToken: "page-2" },
+        { Contents: [] },
+      );
+
+      await pagesOf(storage, "conversation/");
+
+      expect(sent.map((call) => call.input.Prefix)).toEqual(["conversation/", "conversation/"]);
+    });
+
+    it("lit mille clés par page par défaut", async () => {
+      const { storage, sent } = storageAnswering({});
+
+      await storage.listObjects().next();
+
+      expect(sent[0]?.input).toMatchObject({ MaxKeys: 1000 });
+    });
+
+    // Tronquée sans jeton : rien ne dit où reprendre. S'arrêter ferait passer la liste partielle
+    // pour le bucket entier ; relire depuis le début bouclerait.
+    it("lève sur une page tronquée qui ne dit pas où reprendre", async () => {
+      const { storage, sent } = storageAnswering({ Contents: [], IsTruncated: true });
+
+      await expect(pagesOf(storage)).rejects.toThrow("tronquée sans jeton de reprise");
+      expect(sent).toHaveLength(1);
+    });
+
+    // Une date ou une taille tue reste inconnue : ni « ancien », ni « vide ».
+    it("rend null une date ou une taille absente, et écarte une entrée sans clé", async () => {
+      const { storage } = storageAnswering({ Contents: [{ Key: "a" }, { Size: 5 }] });
+
+      await expect(pagesOf(storage)).resolves.toEqual([
+        [{ key: "a", lastModified: null, size: null }],
+      ]);
+    });
+
+    it("lit un bucket vide comme une page vide", async () => {
+      const { storage } = storageAnswering({});
+
+      await expect(pagesOf(storage)).resolves.toEqual([[]]);
+    });
+
+    // Le refus de la clé d'API (#267) remonte tel quel : c'est à la commande de l'expliquer.
+    it("laisse remonter le refus de lister", async () => {
+      const denied = Object.assign(new Error("denied"), { name: "AccessDenied" });
+      const { storage } = storageAnswering(denied);
+
+      await expect(pagesOf(storage)).rejects.toBe(denied);
+    });
+
+    it("répond 503 sans storage configuré", async () => {
+      await expect(storageWith({}).listObjects().next()).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
   });
 });
 
