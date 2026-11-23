@@ -37,9 +37,9 @@ import {
 function useInvalidateFeedback(sessionId: string) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-    queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
+    void queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
+    void queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+    void queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
   };
 }
 

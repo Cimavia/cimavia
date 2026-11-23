@@ -29,7 +29,7 @@ export function useDeclineOrganizationInvitation() {
   return useMutation({
     mutationFn: (invitationId: string) => organizationApi.declineInvitation(invitationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: organizationKeys.all });
     },
   });
 }

@@ -39,7 +39,7 @@ export function useMarkFeedbackRead() {
   return useMutation({
     mutationFn: (id: string) => coachFeedbackApi.markRead(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
+      void queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
     },
     onError: toast.onError,
   });

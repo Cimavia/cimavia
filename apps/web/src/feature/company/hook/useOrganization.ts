@@ -54,7 +54,7 @@ function useOrganizationMutation<TInput>(
   return useMutation({
     mutationFn,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: organizationKeys.all });
       toast.onSuccess(successKey);
     },
     onError: toast.onError,
@@ -129,7 +129,7 @@ export function useDeclineOrganizationInvitation() {
   return useMutation({
     mutationFn: (invitationId: string) => organizationApi.declineInvitation(invitationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: organizationKeys.all });
       toast.onSuccess("coach.organizationInvitation.toast.declined");
     },
     onError: toast.onError,

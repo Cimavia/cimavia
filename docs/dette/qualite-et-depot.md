@@ -339,6 +339,19 @@ liste des domaines vivent dans l'index.
 >   promesse, que son type exige. Le refus part par `throw`, que le `await` de l'appelant reçoit
 >   comme un rejet : les e2e de #310 le couvrent.
 
+> **Tranché en [#901](https://github.com/Cimavia/cimavia/issues/901)** (le gate de `main` rouge
+> sur la release 1.19.0) : 54 S9383 sur du code d'août à novembre, que **aucune PR n'avait vues**.
+> Une analyse de PR ne juge que ses lignes, et `main` n'est analysé qu'au commit de release
+> (#318) : une règle élargie par SonarSource entre deux releases ne se révèle qu'à la release
+> suivante, sur un commit qu'aucune relance ne repeint. Même scénario qu'en #504.
+>
+> - **Les 54 marquées `void`, sans changement de comportement** : 48 `invalidateQueries`, 5
+>   `refetch` et un `navigate`. TanStack Query ne rejette ni l'un ni l'autre par défaut
+>   (`throwOnError: false`), la navigation était déjà marquée ainsi en #897.
+> - **Commits en `fix`**, pour que release-please ouvre la 1.19.1 : la 1.19.0 n'est pas promue.
+> - **Biome `nursery/noFloatingPromises` en voit 49** (pas les `refetch`) : l'activer dans la porte
+>   locale est une décision distincte, non prise ici.
+
 > **Tranché en [#512](https://github.com/Cimavia/cimavia/issues/512)** (supprimer les gardes
 > mortes recensées par #506 à #509, une fois toute l'application couverte) : un invariant se
 > prouve par le TYPE quand il le peut, sinon il LÈVE — jamais un repli qui le déguiserait.

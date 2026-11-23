@@ -33,9 +33,9 @@ export function useInvoices(pinned?: TrainingCapability) {
  * dans ce cas : décider ici quelle transition touche un rappel recopierait une règle du serveur.
  */
 function invalidateAfterInvoiceTransition(queryClient: QueryClient) {
-  queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
-  queryClient.invalidateQueries({ queryKey: reminderKeys.all });
-  queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+  void queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+  void queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+  void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
 }
 
 /**

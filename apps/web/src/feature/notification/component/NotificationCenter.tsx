@@ -83,9 +83,9 @@ export function NotificationCenter({
   function onSelect(notification: NotificationDto) {
     onClose();
     if (notification.readAt == null) markRead.mutate(notification.id);
-    queryClient.invalidateQueries();
+    void queryClient.invalidateQueries();
     const target = routeForNotification(notification, capabilities, acting);
-    if (target != null) navigate(target);
+    if (target != null) void navigate(target);
   }
 
   // Sous un filtre, le badge global ne dit plus rien de la liste : le bouton suit ce qu'elle montre,
