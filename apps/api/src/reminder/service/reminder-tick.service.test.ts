@@ -350,6 +350,86 @@ describe("ReminderTickService — clôture des retards réglés ailleurs", () =>
   });
 });
 
+describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909)", () => {
+  type IdWhere = { where: { id?: { in: string[] } } };
+  function buildEnded(pending: { entityType: ReminderEntityType; entityId: string }[]) {
+    const updateMany = vi.fn();
+    // Seules les lectures par id viennent de la clôture ; la génération lit sans, et ne trouve rien.
+    const endedOnly = (ids: string[]) =>
+      vi.fn(async ({ where }: IdWhere) =>
+        (where.id?.in ?? []).filter((id) => ids.includes(id)).map((id) => ({ id })),
+      );
+    const planFindMany = endedOnly(["pln-fini"]);
+    const invoiceFindMany = endedOnly(["inv-fini"]);
+    const db = {
+      plan: { findMany: planFindMany },
+      planWeek: { groupBy: vi.fn().mockResolvedValue([]) },
+      invoice: { findMany: invoiceFindMany },
+      reminder: {
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([]) // les retards réglés ailleurs : aucun
+          .mockResolvedValueOnce(pending)
+          .mockResolvedValue([]),
+        createMany: vi.fn(),
+        updateMany,
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as unknown as TenantPrisma;
+    const service = new ReminderTickService(
+      { user: { findMany: vi.fn().mockResolvedValue([{ id: "c1" }]) } } as unknown as PrismaService,
+      db,
+      { run: (fn: () => unknown) => fn(), set: vi.fn() } as unknown as ClsService,
+      { notifyReminderDue: vi.fn() } as unknown as NotificationService,
+    );
+    return { service, updateMany, planFindMany, invoiceFindMany };
+  }
+
+  it("écarte la fin de cycle et le retard d'un couple rompu, pas ceux d'un suivi en cours", async () => {
+    const { service, updateMany } = buildEnded([
+      { entityType: ReminderEntityType.PLAN, entityId: "pln-fini" },
+      { entityType: ReminderEntityType.PLAN, entityId: "pln-en-cours" },
+      { entityType: ReminderEntityType.INVOICE, entityId: "inv-fini" },
+      { entityType: ReminderEntityType.INVOICE, entityId: "inv-en-cours" },
+    ]);
+
+    await service.run(NOW);
+
+    expect(updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        status: ReminderStatus.PENDING,
+        reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
+        entityId: { in: ["pln-fini", "inv-fini"] },
+      },
+      data: { status: ReminderStatus.DISMISSED },
+    });
+  });
+
+  it("ne lit ni cycle ni facture sans rappel généré en attente", async () => {
+    const { service, updateMany, planFindMany, invoiceFindMany } = buildEnded([]);
+
+    await service.run(NOW);
+
+    expect(planFindMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: expect.anything() }) }),
+    );
+    expect(invoiceFindMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: expect.anything() }) }),
+    );
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("ne touche à rien quand tous ses suivis continuent", async () => {
+    const { service, updateMany } = buildEnded([
+      { entityType: ReminderEntityType.PLAN, entityId: "pln-en-cours" },
+    ]);
+
+    await service.run(NOW);
+
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
 /**
  * La rétention des rappels traités (#107). Le `where` est lu tel quel : c'est lui qui décide ce
  * qui part — l'e2e vérifie qu'il est bien appliqué par la base.
