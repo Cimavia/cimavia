@@ -10,7 +10,7 @@ import {
   required,
 } from "@cmv/shared";
 import { ConflictException, Inject, Injectable } from "@nestjs/common";
-import type { Invitation, Prisma } from "@prisma/client";
+import type { CoachAthlete, Invitation, Prisma } from "@prisma/client";
 import { InvitationMailer } from "../../infra/mail/invitation.mailer";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { NotificationService } from "../../notification/notification.service";
@@ -251,6 +251,12 @@ export class InvitationService {
    *
    * Rend une LISTE depuis #602 : l'invitation d'une entreprise le lie à chacun de ses Coachs — et
    * à aucun si elle n'en a pas encore. Celle d'un Coach en rend un seul.
+   *
+   * L'invitation d'un Coach dont le lien est rompu (#909) le RÉACTIVE plutôt que d'en créer un
+   * second (un lien par couple) : le suivi reprend, et avec lui l'écriture dans ses cycles — si
+   * elle a été émise après la rupture. Celle
+   * d'une entreprise, non — son rattachement saute les liens existants, rompus compris : quitter un
+   * Coach ne s'annule pas parce qu'une entreprise invite.
    */
   async accept(athlete: { id: string; email: string }, id: string): Promise<CoachAthleteDto[]> {
     const invitation = await this.findActionable(athlete, id);
@@ -266,8 +272,13 @@ export class InvitationService {
     const existing = await this.prisma.coachAthlete.findUnique({
       where: { coachId_athleteId: { coachId, athleteId: athlete.id } },
     });
-    if (existing) {
+    if (existing != null && existing.status !== CoachAthleteStatus.ENDED) {
       throw new ConflictException("Tu es déjà suivi par ce coach");
+    }
+    // Seule une invitation émise APRÈS la fin du suivi le rouvre : une invitation d'avant, restée
+    // en attente, annulerait sans son accord la rupture voulue par l'un ou l'autre.
+    if (existing?.endedAt != null && invitation.createdAt <= existing.endedAt) {
+      throw new ConflictException("Cette invitation précède la fin du suivi");
     }
     // Accepter exige la capacité athlète : seul un compte qui CUMULE peut présenter la sienne
     // (#9/#10). Ce refus-là n'est pas une boucle, il a son propre message.
@@ -276,23 +287,27 @@ export class InvitationService {
     }
     await this.graph.assertNoCycle([coachId], [athlete.id]);
 
-    const [relation] = await this.prisma.$transaction([
-      this.prisma.coachAthlete.create({
-        data: {
-          coachId,
-          athleteId: athlete.id,
-          status: CoachAthleteStatus.ACTIVE,
-          joinedAt: new Date(),
-        },
-      }),
-      this.prisma.invitation.update({
+    const relation = await this.prisma.$transaction(async (tx) => {
+      const joined =
+        existing == null
+          ? await tx.coachAthlete.create({
+              data: {
+                coachId,
+                athleteId: athlete.id,
+                status: CoachAthleteStatus.ACTIVE,
+                joinedAt: new Date(),
+              },
+            })
+          : await reopenLink(tx, existing.id);
+      await tx.invitation.update({
         where: { id: invitation.id },
         data: {
           status: InvitationStatus.ACCEPTED,
           acceptedById: athlete.id,
         },
-      }),
-    ]);
+      });
+      return joined;
+    });
     await this.notifications.notifyInvitationAccepted({
       coachId,
       athleteId: athlete.id,
@@ -301,4 +316,35 @@ export class InvitationService {
 
     return withNames(this.users, [relation]);
   }
+}
+
+/**
+ * Le lien rompu, rendu ACTIF (#909) — et les cycles du couple rouverts, dans la même transaction
+ * que la rupture les avait fermés. Il reprend comme un lien neuf : rejoint aujourd'hui, et DIRECT —
+ * c'est le Coach qui l'a réinvité, plus l'entreprise dont il était peut-être né.
+ *
+ * Conditionné sur ENDED : une seconde acceptation concurrente ne trouve plus rien à rouvrir, et
+ * reçoit le refus d'un lien déjà actif.
+ */
+async function reopenLink(tx: Prisma.TransactionClient, id: string): Promise<CoachAthlete> {
+  const { count } = await tx.coachAthlete.updateMany({
+    where: { id, status: CoachAthleteStatus.ENDED },
+    data: {
+      status: CoachAthleteStatus.ACTIVE,
+      endedAt: null,
+      joinedAt: new Date(),
+      organizationId: null,
+    },
+  });
+  if (count === 0) throw new ConflictException("Tu es déjà suivi par ce coach");
+  const relation = await tx.coachAthlete.findUniqueOrThrow({ where: { id } });
+  await tx.plan.updateMany({
+    where: {
+      coachId: relation.coachId,
+      athleteId: relation.athleteId,
+      followEndedAt: { not: null },
+    },
+    data: { followEndedAt: null },
+  });
+  return relation;
 }
