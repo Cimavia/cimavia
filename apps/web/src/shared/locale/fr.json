@@ -1647,6 +1647,8 @@
       "invitationDeclined": "{{actor}} a refusé ton invitation",
       "organizationInvitationReceived": "{{actor}} t'invite à rejoindre son équipe",
       "organizationCoachJoined": "{{actor}} te suit désormais, via {{subject}}",
+      "relationEndedByAthlete": "{{actor}} a quitté ton espace",
+      "relationEndedByCoach": "{{actor}} a mis fin à ton suivi",
       "reminderDue": "Rappel : {{subject}}"
     },
     "setting": {

@@ -77,6 +77,9 @@ const NOTIFICATION_CAPABILITY = {
   [NotificationType.INVITATION_RECEIVED]: "athlete",
   // Le Coach qui rejoint une entreprise (#602) suit désormais l'athlète : c'est lui qu'on prévient.
   [NotificationType.ORGANIZATION_COACH_JOINED]: "athlete",
+  // Le Coach qui met fin au suivi (#909) : c'est son athlète qu'on prévient, et l'inverse.
+  [NotificationType.RELATION_ENDED_BY_COACH]: "athlete",
+  [NotificationType.RELATION_ENDED_BY_ATHLETE]: "coach",
   // Le débrief est écrit par l'athlète et lu par son coach ; le rappel est un outil du coach.
   [NotificationType.FEEDBACK_RECEIVED]: "coach",
   [NotificationType.REMINDER_DUE]: "coach",

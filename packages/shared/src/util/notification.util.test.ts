@@ -316,6 +316,8 @@ describe("pushPayloadOf / pushTargetOf", () => {
     INVITATION_DECLINED: "invitationId",
     ORGANIZATION_INVITATION_RECEIVED: "invitationId",
     ORGANIZATION_COACH_JOINED: "invitationId",
+    RELATION_ENDED_BY_ATHLETE: "relationId",
+    RELATION_ENDED_BY_COACH: "relationId",
   };
 
   it.each(persisted)("%s garde sa clé d'id historique", (type) => {

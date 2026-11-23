@@ -50,6 +50,11 @@ export async function readErasureFootprint(
   const invoices = await readInvoices(tx, userId);
   const conversations = await readConversations(tx, userId);
   const invitationIds = await readInvitationIds(tx, userId, email);
+  // Ses liens, des deux côtés : la notification d'une rupture (#909) porte son nom chez l'autre.
+  const links = [
+    ...(await tx.coachAthlete.findMany({ where: { coachId: userId }, select: ID_ONLY })),
+    ...(await tx.coachAthlete.findMany({ where: { athleteId: userId }, select: ID_ONLY })),
+  ];
   const invoiceIds = [...invoices.leaving.map((invoice) => invoice.id), ...invoices.retainedIds];
 
   return {
@@ -65,6 +70,7 @@ export async function readErasureFootprint(
       // Les groupes aussi : un aperçu y porte le nom de l'expéditeur, et rien d'autre ne l'identifie.
       CONVERSATION: [...conversations.direct, ...conversations.group],
       INVITATION: invitationIds,
+      COACH_ATHLETE: idsOf(links),
     },
     reminders: { PLAN: planIds, INVOICE: invoiceIds },
   };

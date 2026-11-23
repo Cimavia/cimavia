@@ -43,34 +43,48 @@ function conversationTarget(entityId: string | null): Href {
   return entityId == null ? "/messages" : `/messages?conversation=${entityId}`;
 }
 
+/**
+ * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part : `INVOICE` (#32),
+ * `SCHEDULED_SESSION` (#33) et `CONVERSATION` (#34). `PLAN` reste `null` définitivement — le
+ * builder est web-only (#20), il n'y a pas d'écran mobile à viser.
+ */
+function coachTargetFor(
+  entityType: NotificationEntityTypeType | null,
+  entityId: string | null,
+): Href | null {
+  switch (entityType) {
+    case NotificationEntityType.INVOICE:
+      return "/invoices";
+    // Une invitation à laquelle on a répondu ramène le coach à son tableau de bord : c'est là que
+    // le nouvel athlète apparaît, et c'est ce qu'on vient de lui annoncer (#146).
+    case NotificationEntityType.INVITATION:
+    // Un athlète qui a quitté le coach (#909) : son tableau de bord, là où le suivi a pris fin.
+    case NotificationEntityType.COACH_ATHLETE:
+      return "/dashboard";
+    // Le coach reçoit `SCHEDULED_SESSION` pour un débrief reçu : on ouvre CE débrief, pas la liste.
+    case NotificationEntityType.SCHEDULED_SESSION:
+      return entityId == null ? null : `/feedbacks/${entityId}`;
+    case NotificationEntityType.CONVERSATION:
+      return conversationTarget(entityId);
+    default:
+      return null;
+  }
+}
+
 function targetFor(
   entityType: NotificationEntityTypeType | null,
   entityId: string | null,
   capability: TrainingCapability,
 ): Href | null {
-  /**
-   * Côté coach, seules les cibles qui ONT un écran mobile mènent quelque part : `INVOICE` (#32),
-   * `SCHEDULED_SESSION` (#33) et `CONVERSATION` (#34). `PLAN` reste `null` définitivement — le
-   * builder est web-only (#20), il n'y a pas d'écran mobile à viser.
-   */
-  if (capability === "coach") {
-    if (entityType === NotificationEntityType.INVOICE) return "/invoices";
-    // Une invitation à laquelle on a répondu ramène le coach à son tableau de bord : c'est là que
-    // le nouvel athlète apparaît, et c'est ce qu'on vient de lui annoncer (#146).
-    if (entityType === NotificationEntityType.INVITATION) return "/dashboard";
-    // Le coach reçoit `SCHEDULED_SESSION` pour un débrief reçu : on ouvre CE débrief, pas la liste.
-    if (entityType === NotificationEntityType.SCHEDULED_SESSION) {
-      return entityId == null ? null : `/feedbacks/${entityId}`;
-    }
-    if (entityType === NotificationEntityType.CONVERSATION) return conversationTarget(entityId);
-    return null;
-  }
+  if (capability === "coach") return coachTargetFor(entityType, entityId);
 
   switch (entityType) {
     case NotificationEntityType.PLAN:
       return "/planning";
     // L'écran où l'invitation s'accepte — ou se refuse (#146).
     case NotificationEntityType.INVITATION:
+    // « Mes coachs » vit sur le même écran : celui qui a mis fin au suivi y est rangé (#909).
+    case NotificationEntityType.COACH_ATHLETE:
       return "/join";
     case NotificationEntityType.SCHEDULED_SESSION:
       return entityId == null ? null : `/session/${entityId}`;

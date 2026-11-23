@@ -166,8 +166,12 @@ export function routeForNotification(
      * son tableau de bord, celle d'un athlète (#602) dans « Mes coachs », comme l'arrivée d'un Coach
      * de l'entreprise qui le suit désormais. Sur un compte à double capacité, c'est le type qui
      * tranche (#344) : l'invitation reçue se lit en athlète, la réponse en coach.
+     *
+     * La fin d'un lien (#909) mène au même endroit : c'est là que l'autre partie a disparu des
+     * suivis en cours.
      */
     case NotificationEntityType.INVITATION:
+    case NotificationEntityType.COACH_ATHLETE:
       return isCoach ? COACH_HOME : { to: "/my-coach" };
     default:
       return null;

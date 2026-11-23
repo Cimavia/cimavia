@@ -1195,6 +1195,10 @@ enum NotificationType {
   ORGANIZATION_INVITATION_RECEIVED
   // Un Coach rejoint une entreprise, et suit désormais ses athlètes (#602) : chacun l'apprend.
   ORGANIZATION_COACH_JOINED
+  // Un lien rompu (#909), appris par l'autre partie : deux types, un par côté, pour que le titre
+  // sous lequel on la lit se déduise du type seul.
+  RELATION_ENDED_BY_ATHLETE
+  RELATION_ENDED_BY_COACH
 }
 
 // Ce que la notification désigne, pour router à l'ouverture. Aujourd'hui dérivable du `type` — on
@@ -1208,6 +1212,8 @@ enum NotificationEntityType {
   // L'invitation elle-même (#146). Première cible dont aucun écran n'affiche l'entité : les deux
   // destinations dépendent de la capacité du destinataire, pas de `entityId`.
   INVITATION
+  // Le lien coach↔athlète lui-même (#909) : celui qu'une rupture vient de passer à ENDED.
+  COACH_ATHLETE
 }
 
 model Notification {

@@ -422,6 +422,52 @@ describe("NotificationService — ce que chaque émetteur écrit", () => {
       },
     },
     {
+      name: "suivi terminé par le coach",
+      emit: (s) =>
+        s.notifyRelationEnded({
+          relationId: "rel_1",
+          coachId: "coach_2",
+          athleteId: "ath_1",
+          endedBy: "coach",
+        }),
+      trace: {
+        recipientId: "ath_1",
+        type: NotificationType.RELATION_ENDED_BY_COACH,
+        entityType: NotificationEntityType.COACH_ATHLETE,
+        entityId: "rel_1",
+        actorName: "Camille",
+        subjectLabel: null,
+      },
+      push: {
+        title: "Suivi terminé",
+        body: "Camille a mis fin à ton suivi.",
+        data: { type: NotificationType.RELATION_ENDED_BY_COACH, relationId: "rel_1" },
+      },
+    },
+    {
+      name: "suivi quitté par l'athlète",
+      emit: (s) =>
+        s.notifyRelationEnded({
+          relationId: "rel_1",
+          coachId: "coach_2",
+          athleteId: "ath_1",
+          endedBy: "athlete",
+        }),
+      trace: {
+        recipientId: "coach_2",
+        type: NotificationType.RELATION_ENDED_BY_ATHLETE,
+        entityType: NotificationEntityType.COACH_ATHLETE,
+        entityId: "rel_1",
+        actorName: "Noa",
+        subjectLabel: null,
+      },
+      push: {
+        title: "Suivi terminé",
+        body: "Noa a quitté ton espace.",
+        data: { type: NotificationType.RELATION_ENDED_BY_ATHLETE, relationId: "rel_1" },
+      },
+    },
+    {
       name: "invitation acceptée",
       emit: (s) => s.notifyInvitationAccepted(INVITATION),
       trace: invitationTo("coach_2", NotificationType.INVITATION_ACCEPTED, "Noa"),
@@ -681,6 +727,30 @@ describe("NotificationService — acteur sans nom", () => {
         }),
       title: "Nouveau coach",
       body: "Un coach te suit désormais, via ton entreprise.",
+    },
+    {
+      name: "suivi terminé par le coach",
+      emit: (service: NotificationService) =>
+        service.notifyRelationEnded({
+          relationId: "rel_1",
+          coachId: "other",
+          athleteId: "coach_1",
+          endedBy: "coach",
+        }),
+      title: "Suivi terminé",
+      body: "Ton coach a mis fin à ton suivi.",
+    },
+    {
+      name: "suivi quitté par l'athlète",
+      emit: (service: NotificationService) =>
+        service.notifyRelationEnded({
+          relationId: "rel_1",
+          coachId: "coach_1",
+          athleteId: "other",
+          endedBy: "athlete",
+        }),
+      title: "Suivi terminé",
+      body: "Un athlète a quitté ton espace.",
     },
   ];
 
