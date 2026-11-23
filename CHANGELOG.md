@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.19.1](https://github.com/Cimavia/cimavia/compare/v1.19.0...v1.19.1) (2026-11-23)
+
+
+### Corrections
+
+* **mobile:** 24 promesses de requête marquées void, sonar s9383 bloquait la 1.19.0 ([c8ef7d5](https://github.com/Cimavia/cimavia/commit/c8ef7d5aca7e00f8f35315083ce3e931514fb263))
+* **web:** 30 promesses de requête et de navigation marquées void, s9383 bloquait la 1.19.0 ([655cf23](https://github.com/Cimavia/cimavia/commit/655cf2331bf8d185558d8b8b45f1a27cfc134df5))
+
 ## [1.19.0](https://github.com/Cimavia/cimavia/compare/v1.18.0...v1.19.0) (2026-11-23)
 
 
