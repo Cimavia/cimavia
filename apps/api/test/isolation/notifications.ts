@@ -5,6 +5,7 @@ import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import {
   type Agent,
   billAndPublish,
+  idOf,
   inviteFor,
   openWith,
   required,
@@ -894,5 +895,64 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
     expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
     expect(sentMails).toEqual([]);
+  });
+});
+
+/**
+ * La rétention des notifications lues (#76, dette N-2), au passage du tick. Six mois après la
+ * LECTURE, une notification part ; une non-lue reste, quelle que soit son ancienneté. Le temps ne
+ * se simule pas : les lignes sont posées en base avec leurs dates, la purge ne regarde que `readAt`.
+ */
+describe("Rétention des notifications lues (#76)", () => {
+  const prisma = () => app.get(PrismaService);
+  const ids = { oldRead: "", oldUnread: "", recentRead: "", oldCreatedRecentlyRead: "" };
+  let purged: number;
+
+  beforeAll(async () => {
+    const athlete = await signUp("retention-athlete@cmv.test", Role.ATHLETE);
+    const recipientId = await idOf(athlete);
+    const sevenMonthsAgo = new Date(Date.now() - 210 * 86_400_000);
+    const yesterday = new Date(Date.now() - 86_400_000);
+    const rows = {
+      oldRead: { createdAt: sevenMonthsAgo, readAt: sevenMonthsAgo },
+      oldUnread: { createdAt: sevenMonthsAgo, readAt: null },
+      recentRead: { createdAt: yesterday, readAt: yesterday },
+      // Reçue il y a sept mois, ouverte hier : les six mois courent depuis la lecture.
+      oldCreatedRecentlyRead: { createdAt: sevenMonthsAgo, readAt: yesterday },
+    };
+    for (const [key, dates] of Object.entries(rows)) {
+      const row = await prisma().notification.create({
+        data: {
+          recipientId,
+          type: "PLAN_PUBLISHED",
+          entityType: "PLAN",
+          entityId: `retention-${key}`,
+          ...dates,
+        },
+      });
+      ids[key as keyof typeof ids] = row.id;
+    }
+
+    const res = await request(baseURL)
+      .post("/internal/reminders/tick")
+      .set("x-cimavia-tick-secret", "e2e-tick-secret-not-for-production");
+    expect(res.status).toBe(200);
+    purged = res.body.purgedNotifications;
+  });
+
+  const exists = async (id: string) => (await prisma().notification.count({ where: { id } })) === 1;
+
+  it("purge une notification lue depuis plus de six mois", async () => {
+    expect(await exists(ids.oldRead)).toBe(false);
+    expect(purged).toBeGreaterThanOrEqual(1);
+  });
+
+  it("garde une notification non lue, même reçue il y a plus de six mois", async () => {
+    expect(await exists(ids.oldUnread)).toBe(true);
+  });
+
+  it("garde une notification lue récemment, même reçue il y a longtemps", async () => {
+    expect(await exists(ids.recentRead)).toBe(true);
+    expect(await exists(ids.oldCreatedRecentlyRead)).toBe(true);
   });
 });

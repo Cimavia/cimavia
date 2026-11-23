@@ -213,6 +213,8 @@ export const reminderTickResultDtoSchema = z.object({
   purgedReminders: z.number().int().min(0),
   /** Objets retirés du stockage, dont ceux qu'un passage précédent n'avait pas pu retirer (#256). */
   purgedObjects: z.number().int().min(0),
+  /** Notifications lues depuis plus de six mois, purgées (#76). Une non-lue ne l'est jamais. */
+  purgedNotifications: z.number().int().min(0),
 });
 export type ReminderTickResultDto = z.infer<typeof reminderTickResultDtoSchema>;
 

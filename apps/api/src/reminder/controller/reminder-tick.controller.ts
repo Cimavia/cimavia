@@ -3,6 +3,7 @@ import { Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/commo
 import { ApiTags } from "@nestjs/swagger";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
+import { NotificationRetentionService } from "../../notification/service/notification-retention.service";
 import { NoRateLimit } from "../../rate-limit/rate-limit.policy";
 import { ReminderTickGuard } from "../guard/reminder-tick.guard";
 import { ReminderTickService } from "../service/reminder-tick.service";
@@ -35,6 +36,7 @@ export class ReminderTickController {
   constructor(
     private readonly tick: ReminderTickService,
     private readonly purge: ObjectPurgeService,
+    private readonly notificationRetention: NotificationRetentionService,
   ) {}
 
   /**
@@ -49,11 +51,18 @@ export class ReminderTickController {
    * l'API, et un second cron n'apporterait qu'une chose de plus à configurer sur chaque hébergeur.
    * Avant les rappels, et sans pouvoir échouer : un rappel qui lève à chaque passage ne doit pas
    * bloquer indéfiniment le retrait des fichiers d'un compte supprimé.
+   *
+   * La rétention des notifications lues (#76) passe en dernier : les rappels sont déjà partis
+   * quand elle s'exécute. Elle peut échouer, elle — le job rouge le dira au passage suivant, sans
+   * qu'aucun rappel n'ait attendu une purge.
    */
   @Post("tick")
   @HttpCode(HttpStatus.OK)
   async run(): Promise<ReminderTickResultDto> {
+    const now = new Date();
     const purgedObjects = await this.purge.drainSafely();
-    return { ...(await this.tick.run(new Date())), purgedObjects };
+    const reminders = await this.tick.run(now);
+    const purgedNotifications = await this.notificationRetention.purgeRead(now);
+    return { ...reminders, purgedObjects, purgedNotifications };
   }
 }

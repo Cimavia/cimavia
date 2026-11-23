@@ -123,7 +123,9 @@ export class ReminderTickService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async run(now: Date): Promise<Omit<ReminderTickResultDto, "purgedObjects">> {
+  async run(
+    now: Date,
+  ): Promise<Omit<ReminderTickResultDto, "purgedObjects" | "purgedNotifications">> {
     // `isCoach` et non `role` : depuis #9, un compte peut coacher SANS avoir COACH pour persona
     // (il porte les deux capacités et atterrit côté athlète). Filtrer sur le rôle l'aurait laissé
     // hors du balayage — pas d'erreur, juste des rappels qui n'arrivent plus.
