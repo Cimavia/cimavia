@@ -12,9 +12,8 @@ liste des domaines vivent dans l'index.
 | P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : l'enregistreur web demande l'AAC en MP4, lu sur iPhone depuis Chrome (#394). Restent deux cas que la recette n'a pas vus : un Chromium sans encodeur AAC (Linux, sans doute Android) met de l'**Opus dans le MP4**, dont la lecture sur iOS n'est pas vérifiée ; Firefox n'a que le webm, refusé au débrief mais accepté en messagerie, où l'app iOS affiche la note « indisponible ». | 🟢 | — *(déclencheur : une note « indisponible » signalée sur iPhone, ou un Coach qui enregistre depuis Firefox ou Chromium sous Linux)* |
-| ~~P2-1~~ / ~~P3-2~~ | **Nouveau cas** : supprimer une relation `CoachAthlete` ne cascade **rien** (aucune clé étrangère n’y mène : `Conversation`, `Plan`, `Invoice`… portent `coachId`/`athleteId` vers `User`), et les objets S3 de ce suivi seraient **orphelins en masse**. Bloquée par le flux de rupture ([#213](https://github.com/Cimavia/cimavia/issues/213)). Le balayage de [#72](https://github.com/Cimavia/cimavia/issues/72) les ramasserait, mais à la main. | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
 
-*Résolues, à l'[archive](archive.md) : P5-4, P5-5.*
+*Résolues, à l'[archive](archive.md) : P5-4, P5-5, P2-1 / P3-2.*
 
 > **Tranché en #190** (répondre à un débrief) : la réponse est un **`Message` rattaché**
 > (`Message.sessionFeedbackId`), pas une entité nouvelle — le champ était au schéma et validé
@@ -48,7 +47,7 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | N-1 | **Pas de pagination** : `GET /me/notifications` renvoie les 50 plus récentes, sans moyen de remonter au-delà. Depuis #694 la borne tombe **après** le filtre `?category=` : le curseur devra se composer avec lui. | 🟢 | [#78](https://github.com/Cimavia/cimavia/issues/78) |
 | N-3 | **Une entrée par rafale de messages**, pas une par message : la trace garde le throttle « first-unread » que le push a quitté en #537. | 🟢 | — *(comportement voulu, déclencheur : aucun)* |
-| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256) ; la suppression d'une relation, non, et attend le flux de rupture (#213). | 🟡 | [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| N-4 | **`entityId` sans clé étrangère** : la cible est polymorphe, rien ne garantit qu'elle existe encore. L'effacement d'un compte purge les siennes (#256), et la rupture d'un lien ne supprime rien (Tranché en [#213](https://github.com/Cimavia/cimavia/issues/213)) : aucun chemin connu ne laisse de notification orpheline. | 🟢 | — *(déclencheur : un nouveau chemin qui supprime un cycle, une facture, un débrief ou un fil ; il purge alors ses notifications dans sa transaction)* |
 | N-5 | **Réglage limité au canal e-mail** : l'épic [#61](https://github.com/Cimavia/cimavia/issues/61) a livré l'opt-in par type et ses deux écrans, **pour l'e-mail seul**. Le push et le centre restent non réglables — on ne peut ni couper un type en push, ni se taire complètement. Un utilisateur qui coupe tout par e-mail continue donc de recevoir les push. | 🟡 | — *(déclencheur : un retour beta demandant à couper le push ; l'ouvrir demanderait un second axe dans le modèle, `channel` en plus de `type`)* |
 | N-6 | **Aucun groupement des ajustements de cycle** : ajouter trois séances à un cycle diffusé produit trois notifications. | 🟢 | [#98](https://github.com/Cimavia/cimavia/issues/98) |
 | N-7 | **Les receipts Expo ne sont pas relus** : un échec de livraison **tardif** n'est jamais remonté. | 🟢 | [#99](https://github.com/Cimavia/cimavia/issues/99) |
@@ -221,7 +220,7 @@ liste des domaines vivent dans l'index.
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | R-2 | **Pas de pagination** sur `GET /reminders` : deux segments bornés à 100 (à traiter / traités). | 🟢 | [#106](https://github.com/Cimavia/cimavia/issues/106) |
-| R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture** ; les autres chemins de disparition (suppression d'une relation coach↔athlète) restent découverts ; l'effacement d'un compte, lui, purge les siens (#256). | 🟡 | [#108](https://github.com/Cimavia/cimavia/issues/108) · [#74](https://github.com/Cimavia/cimavia/issues/74) |
+| R-4 | **`entityId` sans clé étrangère**, comme N-4. La purge couvre la suppression d'un cycle **et de sa facture**, l'effacement d'un compte purge les siens (#256), et la rupture d'un lien ne supprime rien (Tranché en [#213](https://github.com/Cimavia/cimavia/issues/213)) : aucun chemin connu ne laisse de rappel orphelin. | 🟢 | — *(déclencheur : un nouveau chemin qui supprime un cycle ou une facture ; il purge alors ses rappels dans sa transaction, comme `PlanService.delete`)* |
 | R-6 | **Les rappels traités d'un ancien coach ne sont plus purgés** (#107) : la purge passe par le client scopé, dans le contexte de chaque coach balayé, et le tick ne balaie que les comptes `isCoach`. Un compte qui a rendu sa capacité coach garde donc ses rappels traités — sans croissance, puisqu'il n'en crée plus. | 🟢 | — *(déclencheur : aucun en vue ; la sortie serait de balayer aussi les comptes qui ont des rappels sans être coach)* |
 
 *Résolues, à l'[archive](archive.md) : R-1, R-3, R-5.*
