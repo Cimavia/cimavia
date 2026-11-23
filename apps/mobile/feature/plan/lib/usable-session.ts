@@ -55,7 +55,7 @@ export function usableSession(
     return Promise.resolve(cached);
   }
 
-  return queryClient.fetchQuery<ScheduledSessionDto>({
+  return queryClient.query<ScheduledSessionDto>({
     queryKey,
     queryFn: () => athletePlanApi.session(sessionId),
     staleTime: 0,

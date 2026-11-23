@@ -128,7 +128,7 @@ describe("réaction à un 401", () => {
 
   it("fait relire la session, sur une lecture", async () => {
     await mountedClient()
-      .fetchQuery({ queryKey: ["401", "read"], queryFn: failingWith(unauthorized), retry: false })
+      .query({ queryKey: ["401", "read"], queryFn: failingWith(unauthorized), retry: false })
       .catch(() => {});
 
     expect(recheckSession).toHaveBeenCalledTimes(1);
@@ -149,7 +149,7 @@ describe("réaction à un 401", () => {
   // Hors-ligne en salle : confondre ça avec une session perdue demanderait un mot de passe pour rien.
   it("ne touche pas à la session sur une panne réseau", async () => {
     await mountedClient()
-      .fetchQuery({
+      .query({
         queryKey: ["401", "network"],
         queryFn: failingWith(new TypeError("Network request failed")),
         retry: false,
@@ -186,7 +186,7 @@ describe("signalement à Sentry", () => {
     const proxyPage = new ApiError(502, "Erreur 502", null, false);
 
     await mountedClient()
-      .fetchQuery({ queryKey: ["sentry", "read"], queryFn: failing(proxyPage), retry: false })
+      .query({ queryKey: ["sentry", "read"], queryFn: failing(proxyPage), retry: false })
       .catch(() => {});
 
     expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(proxyPage);
@@ -207,7 +207,7 @@ describe("signalement à Sentry", () => {
 
   it("ne reprend pas la réponse que l'API a écrite : elle l'a déjà capturée (#697)", async () => {
     await mountedClient()
-      .fetchQuery({
+      .query({
         queryKey: ["sentry", "api-written"],
         queryFn: failing(new ApiError(500, "Boum", null, true)),
         retry: false,
@@ -222,7 +222,7 @@ describe("signalement à Sentry", () => {
     onlineManager.setOnline(false);
 
     await mountedClient()
-      .fetchQuery({
+      .query({
         queryKey: ["sentry", "offline"],
         queryFn: failing(new TypeError("Network request failed")),
         retry: false,

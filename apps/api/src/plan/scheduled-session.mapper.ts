@@ -4,6 +4,7 @@ import {
   type ScheduledSessionExerciseDto,
 } from "@cmv/shared";
 import type { Prisma } from "@prisma/client";
+import { tagNamesOf } from "../exercise/exercise.mapper";
 import { toDocumentDto } from "../infra/storage/document.mapper";
 import type { StorageService } from "../infra/storage/storage.service";
 import {
@@ -34,7 +35,7 @@ async function toExerciseDto(
 ): Promise<ScheduledSessionExerciseDto> {
   const documents = await Promise.all(
     exercise.documents
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((doc) => toDocumentDto(doc, storage)),
   );
   return {
@@ -43,7 +44,7 @@ async function toExerciseDto(
     title: exercise.title,
     description: exercise.description,
     instructions: parseInstructions(exercise.instructions),
-    tags: exercise.tags.map((tag) => tag.name).sort(),
+    tags: tagNamesOf(exercise.tags),
     note: exercise.note,
     customMetrics: parseCustomMetrics(exercise.customMetrics),
     position: exercise.position,

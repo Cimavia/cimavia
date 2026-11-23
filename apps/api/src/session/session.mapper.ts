@@ -6,7 +6,7 @@ import {
   citedCustomMetrics,
   gridCatalogOf,
 } from "../custom-metric/custom-metric.mapper";
-import { FROZEN_FROM_INCLUDE, toFrozenFrom } from "../exercise/exercise.mapper";
+import { FROZEN_FROM_INCLUDE, tagNamesOf, toFrozenFrom } from "../exercise/exercise.mapper";
 import { parseGrid } from "../util/block-json.util";
 import { SESSION_BLOCKS_INCLUDE, toSessionBlockDto } from "./session-block.mapper";
 
@@ -64,8 +64,7 @@ export function toSessionDto(
         [parseGrid(composed.grid)],
         gridCatalogOf(catalogOf, composed.exercise.coachId, session.coachId),
       ),
-      // Triés, comme partout ailleurs : l'ordre d'insertion n'a aucun sens pour un tag.
-      tags: composed.exercise.tags.map((tag) => tag.name).sort(),
+      tags: tagNamesOf(composed.exercise.tags),
       frozenFrom: toFrozenFrom(composed.exercise),
     })),
     blocks: session.blocks.map(toSessionBlockDto),

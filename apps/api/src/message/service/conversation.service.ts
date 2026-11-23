@@ -238,7 +238,7 @@ export class ConversationService {
       return {
         id: conversation.id,
         kind: conversation.kind,
-        participants: participants.sort(byName),
+        participants: participants.toSorted(byName),
         lastReadAt: iso(mine(conversation).lastReadAt),
         lastMessageAt: iso(conversation.lastMessageAt),
         lastMessageSenderId: last?.senderId ?? null,

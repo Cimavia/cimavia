@@ -74,6 +74,16 @@ export type ExerciseWithDocuments = Prisma.ExerciseGetPayload<{
 }>;
 
 /**
+ * Les noms de tags, triés : l'ordre d'insertion n'a aucun sens pour un tag, et une liste stable
+ * évite un faux diff à chaque relecture côté client. `localeCompare`, pas le tri par défaut : lui
+ * compare des unités UTF-16 et rangerait « échauffement » après « vitesse ». Un seul tri pour la
+ * bibliothèque, la séance et la planification, qui en avaient deux.
+ */
+export function tagNamesOf(tags: readonly { name: string }[]): string[] {
+  return tags.map((tag) => tag.name).sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Ce qu'un exercice cite du catalogue de son propriétaire : ses métriques suggérées (#718).
  * L'écriture le vérifie, le DTO le résout, la copie l'adopte : une seule règle pour les trois.
  */
@@ -96,7 +106,7 @@ export async function toExerciseDto(
   // Documents ordonnés par ancienneté ; chaque FILE reçoit une URL GET signée.
   const documents = await Promise.all(
     exercise.documents
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((doc) => toDocumentDto(doc, storage)),
   );
   return {
@@ -108,9 +118,7 @@ export async function toExerciseDto(
     instructions: parseInstructions(exercise.instructions),
     suggestedMetrics,
     customMetrics: citedCustomMetrics(metricCitationsOf(suggestedMetrics), catalog),
-    // Triés : l'ordre d'insertion n'a aucun sens pour un tag, et une liste stable évite un
-    // faux diff à chaque relecture côté client.
-    tags: exercise.tags.map((tag) => tag.name).sort(),
+    tags: tagNamesOf(exercise.tags),
     usedInSessionCount: citations.sessionCount,
     foreignSessionCount:
       context.actorId === exercise.coachId ? citations.foreignSessionCount : null,

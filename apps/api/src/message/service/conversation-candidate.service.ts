@@ -94,7 +94,7 @@ export class ConversationCandidateService {
         followedAthleteIds: null,
       }),
     );
-    return { athletes: [], coaches: coaches.sort(byName) };
+    return { athletes: [], coaches: coaches.toSorted(byName) };
   }
 
   /**

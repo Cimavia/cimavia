@@ -3,6 +3,7 @@ import { CompositionOrigin, required } from "@cmv/shared";
 import { BadRequestException } from "@nestjs/common";
 import { citedCustomMetrics, gridCatalogOf } from "../custom-metric/custom-metric.mapper";
 import type { CustomMetricService } from "../custom-metric/service/custom-metric.service";
+import { tagNamesOf } from "../exercise/exercise.mapper";
 import type { ExerciseService } from "../exercise/service/exercise.service";
 import { receivedBlockOf, SESSION_BLOCKS_INCLUDE } from "../session/session-block.mapper";
 import type { TenantPrisma } from "../tenancy/tenancy.extension";
@@ -80,7 +81,7 @@ export async function buildSessionDraft(
           [grid],
           gridCatalogOf(catalogOf, exercise.coachId, template.coachId),
         ),
-        tags: exercise.tags.map((tag) => tag.name).sort((a, b) => a.localeCompare(b)),
+        tags: tagNamesOf(exercise.tags),
         note: composed.note,
       },
       documents: exercise.documents,
