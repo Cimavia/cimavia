@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import {
   assertOneDevice,
   buildApk,
@@ -31,7 +32,17 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         failures.push(error);
       }
     }
-    if (failures.length > 0) throw new AggregateError(failures, "teardown e2e mobile incomplet");
+    // Les erreurs vont dans le message : le rapport de Playwright n'affiche que lui, et un
+    // `AggregateError` nu ne dirait pas quelle étape n'a pas été défaite (#899).
+    if (failures.length > 0) {
+      const causes = failures.map((failure) =>
+        failure instanceof Error ? failure.message : inspect(failure),
+      );
+      throw new AggregateError(
+        failures,
+        `teardown e2e mobile incomplet :\n- ${causes.join("\n- ")}`,
+      );
+    }
   };
 
   try {

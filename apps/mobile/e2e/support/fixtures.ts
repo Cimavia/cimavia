@@ -1,5 +1,6 @@
 import { type Account, PASSWORD, Seed } from "@cmv/e2e/seed";
 import { test as base } from "@playwright/test";
+import { linkApiPort } from "./device";
 import { API_URL } from "./env";
 import { label } from "./i18n";
 import { runFlow } from "./maestro";
@@ -22,10 +23,17 @@ export const test = base.extend<{ seed: Seed; flow: Flow }>({
   },
   // Le flux meurt avec son test. Un test expiré, Playwright passe à la relance ou au suivant : un
   // Maestro resté vivant y piloterait encore l'appareil, deux flux sur un écran.
+  //
+  // Le lien vers l'API est reposé avant chaque flux : une connexion adb qui saute en cours de suite
+  // l'emporte, et tous les parcours suivants échoueraient sur l'écran de connexion, retry compris
+  // (#899). Le global setup garde le sien, qui porte le nettoyage.
   // biome-ignore lint/correctness/noEmptyPattern: Playwright exige un premier argument déstructuré.
   flow: async ({}, use, testInfo) => {
     const controller = new AbortController();
-    await use((flow, vars) => runFlow(testInfo, flow, vars, controller.signal));
+    await use(async (flow, vars) => {
+      await linkApiPort();
+      await runFlow(testInfo, flow, vars, controller.signal);
+    });
     controller.abort();
   },
 });

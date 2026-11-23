@@ -246,9 +246,18 @@ export async function uninstallApk(): Promise<void> {
   await adb("uninstall", APP_ID);
 }
 
-/** Relie le `localhost` de l'appareil à l'API de test, et rend de quoi défaire le lien. */
-export async function reverseApiPort(): Promise<() => Promise<void>> {
+/**
+ * Relie le `localhost` de l'appareil à l'API de test. Le lien vit avec la connexion adb de
+ * l'appareil : qu'elle saute, et il disparaît avec elle (#899). Le reposer remplace celui en place,
+ * s'il y en a un : l'appel se refait sans risque.
+ */
+export async function linkApiPort(): Promise<void> {
   await adb("reverse", `tcp:${API_PORT}`, `tcp:${API_PORT}`);
+}
+
+/** Pose le lien de `linkApiPort`, et rend de quoi le défaire. */
+export async function reverseApiPort(): Promise<() => Promise<void>> {
+  await linkApiPort();
   return async () => {
     await adb("reverse", "--remove", `tcp:${API_PORT}`);
   };

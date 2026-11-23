@@ -1191,7 +1191,11 @@ liste des domaines vivent dans l'index.
 > parle HTTP. L'appareil la joint par **son propre `localhost`**, que `adb reverse` relie à la
 > machine du serveur adb : le même chemin vaut pour la CI, WSL et un téléphone en USB, là où
 > `10.0.2.2` ne vaut que pour un émulateur local. L'URL est inlinée dans le bundle : une empreinte
-> rangée à côté de l'APK refuse d'installer une build faite pour un autre worktree.
+> rangée à côté de l'APK refuse d'installer une build faite pour un autre worktree. Le lien est
+> **reposé avant chaque flux** ([#899](https://github.com/Cimavia/cimavia/issues/899)) : il vit avec
+> la connexion adb, que l'émulateur du runner perd parfois en cours de suite, et tous les parcours
+> suivants échouaient alors sur l'écran de connexion. Une coupure en plein flux fait encore échouer
+> cet essai, mais son retry repart avec un lien neuf.
 >
 > **Le fuseau de l'appareil est posé**, et remis après la suite : la séance « du jour » est datée
 > à Paris par le seed, l'app la cherche dans le jour de l'appareil, et un émulateur neuf est à GMT.
