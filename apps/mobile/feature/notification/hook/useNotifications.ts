@@ -64,7 +64,7 @@ export function useMarkNotificationRead() {
   return useMutation({
     mutationFn: notificationApi.markRead,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
 }
@@ -76,7 +76,7 @@ export function useMarkAllNotificationsRead() {
   return useMutation({
     mutationFn: notificationApi.markAllRead,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
 }

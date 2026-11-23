@@ -52,7 +52,7 @@ export function usePushToken() {
       // Le cache est PERSISTÉ et frais 5 min : arriver par un push sans invalider afficherait la
       // version d'avant l'événement qu'on vient d'annoncer. Même geste qu'au toucher d'une ligne
       // du centre — les deux portes d'entrée doivent se comporter pareil.
-      queryClient.invalidateQueries();
+      void queryClient.invalidateQueries();
       setTouched({ data: response.notification.request.content.data });
     });
     return () => subscription.remove();

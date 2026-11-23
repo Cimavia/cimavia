@@ -42,8 +42,8 @@ function useReminderMutation<TInput>(mutationFn: (input: TInput) => Promise<Remi
   return useMutation({
     mutationFn,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: reminderKeys.all });
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
 }

@@ -32,7 +32,7 @@ function useInvitationMutation<TInput>(mutationFn: (input: TInput) => Promise<un
   return useMutation({
     mutationFn,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: invitationKeys.all });
     },
   });
 }

@@ -191,10 +191,10 @@ export function useSendMessage(conversationId: string, options?: SendMessageOpti
     mutationFn: (input: SendMessageInput) =>
       messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
       // La liste des fils porte l'aperçu du dernier message : sans ça, le coach revient sur une
       // liste qui date d'avant son propre envoi (#309).
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }
@@ -213,7 +213,7 @@ export function useMarkRead(conversationId: string | undefined) {
   return useMutation({
     mutationFn: () => messageApi.markRead(conversationId as string, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }

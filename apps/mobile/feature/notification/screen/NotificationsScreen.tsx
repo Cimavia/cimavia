@@ -96,7 +96,7 @@ export function NotificationsScreen() {
    */
   function onSelect(notification: NotificationDto) {
     if (notification.readAt == null) markRead.mutate(notification.id);
-    queryClient.invalidateQueries();
+    void queryClient.invalidateQueries();
     openDestination(routeForNotification(notification, capabilities, acting), capabilitySwitch);
   }
 

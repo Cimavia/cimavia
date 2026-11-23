@@ -92,7 +92,7 @@ export function CoachDashboardScreen() {
   // Ne rejoue QUE ce qui a échoué : réinterroger les sources saines gaspillerait des requêtes.
   const retry = () => {
     for (const source of sources) {
-      if (source.isError) source.refetch();
+      if (source.isError) void source.refetch();
     }
   };
 
@@ -100,9 +100,9 @@ export function CoachDashboardScreen() {
   // explicitement de l'à-jour, pas une reprise après panne.
   const refreshAll = () => {
     for (const source of sources) {
-      source.refetch();
+      void source.refetch();
     }
-    organizationInvitations.refetch();
+    void organizationInvitations.refetch();
   };
 
   return (
