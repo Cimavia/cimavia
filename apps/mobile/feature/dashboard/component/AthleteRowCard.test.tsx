@@ -1,7 +1,7 @@
 import { type AthleteRow, InvoiceState } from "@cmv/shared";
 import { router } from "expo-router";
 import { createInstance } from "i18next";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AthleteRowCard } from "@/feature/dashboard/component/AthleteRowCard";
@@ -12,14 +12,17 @@ vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: { user: { id: session.userId } } }) },
 }));
 
-// La pastille rend sa variante sans classe lisible dans le DOM (NativeWind) : on la double pour
-// que l'état choisi — ce que la ligne DÉCIDE — reste observable.
+// La pastille et le texte rendent leur couleur sans classe lisible dans le DOM (NativeWind) : on
+// les double pour que l'état choisi — ce que la ligne DÉCIDE — reste observable.
 vi.mock("@/shared/component", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/shared/component")>();
   return {
     ...original,
     CmvBadge: ({ label, variant }: Readonly<{ label: string; variant: string }>) => (
       <span data-variant={variant}>{label}</span>
+    ),
+    CmvText: ({ className, children }: Readonly<{ className?: string; children?: ReactNode }>) => (
+      <span data-class={className}>{children}</span>
     ),
   };
 });
@@ -35,7 +38,7 @@ function withCounts(ui: ReactElement) {
     resources: {
       test: {
         translation: {
-          dashboard: { row: { pending: "{{feedbacks}} débriefs · {{messages}} messages" } },
+          dashboard: { row: { pending: "<feedbacks/> débriefs · <messages/> messages" } },
           athlete: { self: "{{name}} (moi)" },
         },
       },
@@ -83,9 +86,32 @@ describe("AthleteRowCard", () => {
     [{ unreadFeedbacks: null, unreadMessages: 0 }, "— débriefs · 0 messages"],
     [{ unreadFeedbacks: 0, unreadMessages: null }, "0 débriefs · — messages"],
   ])("distingue un compteur indisponible d'un compteur à zéro (%o)", (counts, text) => {
-    const { queryByText } = renderRn(withCounts(<AthleteRowCard row={row(counts)} />));
+    // Chaque compteur est un texte imbriqué dans la phrase : on lit la phrase entière.
+    const { container } = renderRn(withCounts(<AthleteRowCard row={row(counts)} />));
 
-    expect(queryByText(text)).not.toBeNull();
+    expect(container.textContent).toContain(text);
+  });
+
+  /** Les bornes vivent dans `unreadCountTone` (@cmv/shared) ; ici, que chaque palier ait sa couleur. */
+  it.each([
+    [0, "text-cmv-success-on"],
+    [12, "text-cmv-warning-on"],
+    [25, "text-cmv-error-on"],
+    [45, "text-cmv-violet-on"],
+  ])("écrit %i messages non lus dans la couleur de leur palier (%s)", (count, tone) => {
+    const { getByText } = renderRn(
+      withCounts(<AthleteRowCard row={row({ unreadFeedbacks: 3, unreadMessages: count })} />),
+    );
+
+    expect(getByText(String(count)).getAttribute("data-class")).toContain(tone);
+  });
+
+  it("laisse « — » dans le gris de la phrase : une liste indisponible n'a pas de palier", () => {
+    const { getByText } = renderRn(
+      withCounts(<AthleteRowCard row={row({ unreadFeedbacks: null, unreadMessages: 1 })} />),
+    );
+
+    expect(getByText("—").getAttribute("data-class")).toBe("text-cmv-text-lo");
   });
 
   it("ouvre la fiche de l'athlète au tap", () => {

@@ -1,6 +1,6 @@
 language js
 
-// Une couleur d'état (`accent`, `success`, `warning`, `error`, `info`) n'écrit du texte que dans
+// Une couleur d'état (`accent`, `success`, `warning`, `error`, `info`, `violet`) n'écrit du texte que dans
 // sa nuance `-on` (tailwind-preset.js, #218). Le DEFAULT est un aplat : `accent` et `error` tombent
 // sous AA (4.5:1) sur `surface` et `surface-hi`, là où vivent cartes, panneaux et formulaires, et
 // `accent` déjà sur `bg-1`. `accent-hi` est le survol d'un aplat (4.45:1 sur `surface-hi`), `-soft`
@@ -35,14 +35,14 @@ or {
     JsLiteralMemberName(),
     TsStringLiteralType()
   } as $literal where {
-    $literal <: r"(?s)(?:.*[^\w-])?(?:text|placeholder)-cmv-(?:accent|success|warning|error|info)(?:-(?:hi|soft|line|fill(?:-hover)?))?(?:[^\w-].*)?",
+    $literal <: r"(?s)(?:.*[^\w-])?(?:text|placeholder)-cmv-(?:accent|success|warning|error|info|violet)(?:-(?:hi|soft|line|fill(?:-hover)?))?(?:[^\w-].*)?",
     register_diagnostic(span=$literal, message="Couleur d'état écrite en texte hors de sa nuance -on : sous AA sur une carte (#218).", severity="error")
   },
   or {
     JsxAttribute(),
     JsPropertyObjectMember()
   } as $native where {
-    $native <: r"(?s)color\s*[=:].*\bcmvColors\.(?:accent|success|warning|error|info)\.(?:DEFAULT|hi|soft|line|fill)\b.*",
+    $native <: r"(?s)color\s*[=:].*\bcmvColors\.(?:accent|success|warning|error|info|violet)\.(?:DEFAULT|hi|soft|line|fill)\b.*",
     register_diagnostic(span=$native, message="Couleur d'état écrite en texte hors de sa nuance -on : sous AA sur une carte (#218).", severity="error")
   }
 }

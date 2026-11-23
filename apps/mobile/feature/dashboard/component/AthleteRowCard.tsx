@@ -1,6 +1,12 @@
-import { type AthleteRow, INVOICE_STATE_BADGE, initialsOf } from "@cmv/shared";
+import {
+  type AthleteRow,
+  INVOICE_STATE_BADGE,
+  initialsOf,
+  type UnreadCountTone,
+  unreadCountTone,
+} from "@cmv/shared";
 import { router } from "expo-router";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Pressable, View } from "react-native";
 import { CmvBadge, CmvText } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
@@ -55,10 +61,13 @@ export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
         {/* `null` = liste indisponible → « — ». `0` = tout est lu. Les deux ne disent pas la même
             chose, et un compteur muet ne dirait ni l'un ni l'autre. */}
         <CmvText className="text-cmv-text-lo text-xs">
-          {t("dashboard.row.pending", {
-            feedbacks: row.unreadFeedbacks ?? "—",
-            messages: row.unreadMessages ?? "—",
-          })}
+          <Trans
+            i18nKey="dashboard.row.pending"
+            components={{
+              feedbacks: <UnreadCount count={row.unreadFeedbacks} />,
+              messages: <UnreadCount count={row.unreadMessages} />,
+            }}
+          />
         </CmvText>
       </View>
 
@@ -67,4 +76,23 @@ export function AthleteRowCard({ row }: Readonly<AthleteRowCardProps>) {
       )}
     </Pressable>
   );
+}
+
+/** Classes écrites en entier : Tailwind ne génère pas une classe assemblée à partir du palier. */
+const COUNT_TONE_CLASS: Record<UnreadCountTone, string> = {
+  success: "text-cmv-success-on",
+  warning: "text-cmv-warning-on",
+  error: "text-cmv-error-on",
+  violet: "text-cmv-violet-on",
+};
+
+/**
+ * Un compteur de la phrase, dans la couleur de son palier — `0` compris, comme sur le tableau du
+ * web (`unreadCountTone`, #705). « — » reste dans le gris de la phrase : une liste indisponible n'a
+ * pas de palier.
+ */
+function UnreadCount({ count }: Readonly<{ count: number | null }>) {
+  const tone = unreadCountTone(count);
+  if (tone == null) return <CmvText className="text-cmv-text-lo">—</CmvText>;
+  return <CmvText className={`font-cmv-display ${COUNT_TONE_CLASS[tone]}`}>{count}</CmvText>;
 }

@@ -779,11 +779,13 @@ export type {
   AthleteRowPlan,
   AthleteRowQuery,
   AthleteRowsInput,
+  UnreadCountTone,
 } from "./util/athlete-row.util";
 export {
   ATHLETE_ROW_FILTERS,
   buildAthleteRows,
   currentAthletePlan,
+  unreadCountTone,
   visibleAthleteRows,
 } from "./util/athlete-row.util";
 export type {

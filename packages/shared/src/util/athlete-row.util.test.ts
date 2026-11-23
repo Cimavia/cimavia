@@ -8,6 +8,7 @@ import {
   type AthleteRowsInput,
   buildAthleteRows,
   currentAthletePlan,
+  unreadCountTone,
   visibleAthleteRows,
 } from "./athlete-row.util";
 import { InvoiceState } from "./invoice.util";
@@ -481,5 +482,24 @@ describe("visibleAthleteRows", () => {
     const rows = [rowOf("Zoé Martin"), rowOf("Alice Dupont")];
     visibleAthleteRows(rows, QUERY);
     expect(rows.map((row) => row.athleteName)).toEqual(["Zoé Martin", "Alice Dupont"]);
+  });
+});
+
+describe("unreadCountTone (#705)", () => {
+  it.each([
+    [0, "success"],
+    [9, "success"],
+    [10, "warning"],
+    [19, "warning"],
+    [20, "error"],
+    [39, "error"],
+    [40, "violet"],
+    [250, "violet"],
+  ] as const)("%i non lu(s) → %s", (count, tone) => {
+    expect(unreadCountTone(count)).toBe(tone);
+  });
+
+  it("une liste indisponible n'a pas de palier : elle ne passe pas pour « tout est lu »", () => {
+    expect(unreadCountTone(null)).toBeNull();
   });
 });

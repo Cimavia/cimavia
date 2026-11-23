@@ -21,7 +21,7 @@ import {
 } from "@cmv/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { CmvButton, CmvFormError, CmvPanel, CmvSegmented, useToast } from "@/shared/component";
@@ -341,6 +341,9 @@ function AccessRow<S extends Segment | CoachSegment>({
   note?: string | null;
 }>) {
   const { t } = useTranslation();
+  // Le nom du bénéficiaire nomme aussi son sélecteur : sans lui, dix rangées de « Hérité · Lecture
+  // · Aucun » s'annonceraient pareil (#650).
+  const nameId = useId();
   return (
     <div
       className={cn(
@@ -349,11 +352,14 @@ function AccessRow<S extends Segment | CoachSegment>({
       )}
     >
       <div className="flex flex-col">
-        <span className="text-cmv-body text-cmv-text-hi">{name}</span>
+        <span id={nameId} className="text-cmv-body text-cmv-text-hi">
+          {name}
+        </span>
         <span className="text-cmv-caption text-cmv-text-mid">{caption}</span>
       </div>
       <div className="flex flex-col items-end gap-cmv-xs">
         <CmvSegmented
+          ariaLabelledBy={nameId}
           value={value}
           disabled={disabled}
           onChange={onChange}

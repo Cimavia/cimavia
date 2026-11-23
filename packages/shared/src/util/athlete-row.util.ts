@@ -342,3 +342,26 @@ function groupBy<T, K>(items: readonly T[], keyOf: (item: T) => K): (key: K) => 
   }
   return (key) => groups.get(key) ?? [];
 }
+
+/**
+ * La famille de couleur qui écrit un compteur de non-lus du tableau de suivi (#705) — le nom d'une
+ * famille de `@cmv/tokens`, que chaque app traduit en sa classe `-on`.
+ */
+export type UnreadCountTone = "success" | "warning" | "error" | "violet";
+
+/**
+ * Le palier d'un compteur « Débriefs » ou « Messages » : vert de 0 à 9, orange (`warning`) de 10 à
+ * 19, rouge de 20 à 39, violet dès 40. Des paliers et non un dégradé : chacun se lit d'un coup
+ * d'œil, et son contraste se vérifie une fois pour toutes.
+ *
+ * `0` est vert, à la demande du Coach bêta : tout est lu, et ça se dit — c'est une dérogation
+ * assumée à « la couleur marque l'exception » (#37). `null` (liste indisponible) n'a pas de palier :
+ * il se rend « — », sans couleur, plutôt que de passer pour un « tout est lu ».
+ */
+export function unreadCountTone(count: number | null): UnreadCountTone | null {
+  if (count == null) return null;
+  if (count >= 40) return "violet";
+  if (count >= 20) return "error";
+  if (count >= 10) return "warning";
+  return "success";
+}

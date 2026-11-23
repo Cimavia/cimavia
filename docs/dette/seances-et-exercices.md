@@ -226,6 +226,17 @@ liste des domaines vivent dans l'index.
 > décoratif, sans la contrepartie sémantique qui rend le geste correct sur le web. C'est le terrain
 > de [#199](https://github.com/Cimavia/cimavia/issues/199), qui traite déjà l'accessibilité des
 > composants partagés du mobile.
+>
+> **Tranché en [#217](https://github.com/Cimavia/cimavia/issues/217)** (le mobile n'a toujours pas
+> de repère, et c'est la règle qui le dit) : #199 a relié l'étiquette au champ (`nativeID` +
+> `aria-labelledby` sur Android, `accessibilityLabel` sur iOS) — le préalable est levé. Mais la
+> règle des formulaires MIXTES ne laisse rien à marquer : sur les treize `CmvTextField` du mobile,
+> chacun est soit un champ seul (recherche, débrief, fiche athlète, invitation, mot de passe de
+> réauthentification ou de suppression), soit un formulaire où tout est requis (inscription,
+> connexion, mot de passe oublié). Ni `requiredMark` ni légende : ils arriveront avec le premier
+> formulaire mobile qui mélange obligatoire et facultatif, en recopiant le patron du web, sans
+> oublier que RN n'a pas d'état `required` — l'obligation devra alors passer dans le libellé
+> accessible.
 
 > **Tranché en #97** (une légende par SURFACE, pas par composant) : `common.requiredLegend` remplace
 > les deux clés dupliquées `invoice.billing.requiredLegend` et `plan.header.requiredLegend`. Trois

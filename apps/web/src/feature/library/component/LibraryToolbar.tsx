@@ -96,6 +96,7 @@ export function LibraryToolbar({ scope, onScope, ...bar }: Readonly<LibraryToolb
     <LibraryFilterBar name="search" {...bar}>
       {scope == null ? null : (
         <CmvSegmented
+          ariaLabel={t("library.scopeLabel")}
           value={scope}
           onChange={onScope}
           options={Object.values(LibraryScope).map((value) => ({

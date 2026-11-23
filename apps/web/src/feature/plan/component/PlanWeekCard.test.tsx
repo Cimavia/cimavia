@@ -283,6 +283,17 @@ describe("PlanWeekCard — la semaine", () => {
     );
   });
 
+  // Avant #650, l'option choisie ne se lisait qu'à sa classe : la recette de #604 en était réduite
+  // à lire du CSS.
+  it("annonce le type de la semaine : son groupe nommé, l'option choisie pressée", () => {
+    const { target } = mount(busy);
+
+    const group = target.getByRole("group", { name: "plan.week.typeLabel" });
+    expect(within(group).getByRole("button", { pressed: true })).toHaveAccessibleName(
+      `plan.weekType.${PlanWeekType.TRAINING}`,
+    );
+  });
+
   it("change le type de la semaine", async () => {
     const { user, target } = mount(busy);
 
