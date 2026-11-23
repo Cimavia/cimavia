@@ -756,8 +756,9 @@ liste des domaines vivent dans l'index.
 > lien coach↔athlète, décisions de Kylian du 2026-11-23 ; livré par
 > [#909](https://github.com/Cimavia/cimavia/issues/909) à
 > [#911](https://github.com/Cimavia/cimavia/issues/911)) : rompre, c'est **archiver en lecture**,
-> pas effacer. Depuis #144, le scope filtre sur les colonnes dénormalisées, jamais sur
-> `CoachAthlete` : supprimer la ligne ne retirait rien à personne.
+> pas effacer. Depuis #144, le scope du **propriétaire** filtre sur les colonnes dénormalisées,
+> jamais sur `CoachAthlete` : supprimer la ligne ne lui retirait rien. Seul le droit d'un autre
+> Coach sur un Plan (#607) passe par le lien, et exige `ACTIVE`.
 >
 > - **Les deux côtés rompent** : l'Athlete quitte son Coach, le Coach détache un Athlete. Retirer
 >   quelqu'un d'une entreprise reste hors périmètre (MC-11).
