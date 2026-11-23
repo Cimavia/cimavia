@@ -32,8 +32,8 @@ describe("toReminderDto — libellé de la cible", () => {
   });
 
   /**
-   * `entityId` n'a pas de clé étrangère (N-4, #108) : une cible disparue par un chemin que la purge
-   * ne couvre pas encore laisse un rappel sans libellé. Il reste lisible, et le rendu affiche « — »
+   * `entityId` n'a pas de clé étrangère (R-4) : une cible disparue par un chemin qui oublierait de
+   * purger ses rappels laisserait un rappel sans libellé. Il reste lisible, et le rendu affiche « — »
    * — pas un libellé inventé, pas une erreur qui viderait toute la liste.
    */
   it("rend null quand la cible a disparu", () => {
