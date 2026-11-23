@@ -177,12 +177,11 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #108 | Purger les rappels d'une cible disparue *(avec #213)* | 🟡 | |
 | #73 | Purger le PDF à la suppression d'un cycle brouillon | ⚪ | |
 | #75 | Suppression d'un document : rollback si la ligne ne part pas | ⚪ | |
-| #76 | Rétention des notifications lues *(doublon de #101)* | ⚪ | |
-| #101 | Purge et rétention des notifications *(doublon de #76)* | ⚪ | |
-| #107 | Rétention des rappels traités | ⚪ | |
+| #76 | Rétention des notifications lues *(doublon de #101)* | ⚪ | ✅ |
+| #101 | Purge et rétention des notifications *(doublon de #76)* | ⚪ | ✅ |
+| #107 | Rétention des rappels traités | ⚪ | ✅ |
 
 ## Notes
 
 - **#809 → #80** : la cause de #809 n'est pas établie, mais l'issue cite l'absence de transcodage
   (vidéos jusqu'à 1 Go, dette P4-1). Si l'enquête la confirme, #80 monte avec elle.
-- **Doublon à fermer** : #76 et #101 portent la même dette N-2.

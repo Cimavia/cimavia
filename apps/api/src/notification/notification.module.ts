@@ -7,6 +7,7 @@ import { PushTokenController } from "./controller/push-token.controller";
 import { NotificationService } from "./notification.service";
 import { NotificationEmailPreferenceService } from "./service/notification-email-preference.service";
 import { NotificationFeedService } from "./service/notification-feed.service";
+import { NotificationRetentionService } from "./service/notification-retention.service";
 import { PushTokenService } from "./service/push-token.service";
 
 // Global : toute feature qui déclenche un événement métier (planif diffusée, débrief reçu,
@@ -26,8 +27,10 @@ import { PushTokenService } from "./service/push-token.service";
     NotificationService,
     NotificationFeedService,
     NotificationEmailPreferenceService,
+    NotificationRetentionService,
     PushTokenService,
   ],
-  exports: [NotificationService],
+  // La rétention est exportée pour le tick des rappels (#76) : c'est lui, le déclencheur récurrent.
+  exports: [NotificationService, NotificationRetentionService],
 })
 export class NotificationModule {}

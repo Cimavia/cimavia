@@ -209,8 +209,12 @@ export const reminderTickResultDtoSchema = z.object({
   createdReminders: z.number().int().min(0),
   /** Rappels devenus dus dont le push est parti. */
   pushedReminders: z.number().int().min(0),
+  /** Rappels traités depuis plus de six mois, purgés (#107). Un rappel à faire ne l'est jamais. */
+  purgedReminders: z.number().int().min(0),
   /** Objets retirés du stockage, dont ceux qu'un passage précédent n'avait pas pu retirer (#256). */
   purgedObjects: z.number().int().min(0),
+  /** Notifications lues depuis plus de six mois, purgées (#76). Une non-lue ne l'est jamais. */
+  purgedNotifications: z.number().int().min(0),
 });
 export type ReminderTickResultDto = z.infer<typeof reminderTickResultDtoSchema>;
 

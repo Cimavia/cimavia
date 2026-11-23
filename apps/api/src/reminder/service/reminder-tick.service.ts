@@ -17,12 +17,39 @@ import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { runAsCoach } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, startOfProductDay, toDbDate, toIsoDate } from "../../util/date.util";
+import { retentionCutoff } from "../../util/retention.util";
 
 /**
  * Combien de jours AVANT la fin d'un cycle le rappel de renouvellement devient dû. Une semaine :
  * assez tôt pour composer la suite, assez tard pour que la question soit d'actualité.
  */
 const PLAN_ENDING_LEAD_DAYS = 7;
+
+/**
+ * Jusqu'où, en arrière, un rappel peut encore naître (#107). Il se compte depuis le plus tardif de
+ * deux instants : l'échéance dérivée, ou l'émission de la cible (diffusion du cycle, émission de la
+ * facture). Au-delà, le tick l'ignore : un cycle fini depuis des mois n'a plus de renouvellement à
+ * proposer.
+ *
+ * L'émission compte, parce qu'une facture de rattrapage peut naître déjà échue depuis longtemps :
+ * l'écran des factures la dit en retard dès son émission, la liste des rappels doit le dire aussi.
+ *
+ * C'est surtout ce qui rend la purge des rappels traités sans danger. L'index unique empêche la
+ * régénération tant que la ligne existe ; une fois purgée, plus rien ne l'empêcherait, et un cycle
+ * diffusé reste candidat pour toujours (`PlanStatus` n'a pas d'état « terminé »). Or les deux
+ * instants précèdent la création du rappel — l'échéance est atteinte, la cible émise —, et une
+ * ligne purgée n'a plus bougé depuis la rétention : tant que la fenêtre est plus courte que la
+ * rétention, ils sont hors fenêtre. L'émission ne bouge pas : `publishedAt` et `issuedAt` ne sont
+ * posés qu'une fois.
+ *
+ * L'échéance, elle, peut bouger : un cycle diffusé qu'on allonge, une facture dont on reporte
+ * l'échéance. Si le rappel traité a déjà été purgé, la nouvelle échéance en fait naître un autre —
+ * voulu : c'est une nouvelle fin, ou un nouveau retard. Tant que la ligne existe, l'index unique
+ * l'empêche encore ; la différence tient au délai de rétention, et elle est assumée.
+ */
+export const REMINDER_GENERATION_WINDOW_DAYS = 30;
+
+const DAY_MS = 86_400_000;
 
 /**
  * Libellé FRANÇAIS d'un motif, pour le corps du push — et uniquement pour lui.
@@ -72,6 +99,12 @@ const REASON_PUSH_LABEL: Record<ReminderReason, string> = {
  * le propriétaire qui renouvelle et qui relance. Et quand un autre Coach règle une facture, le
  * rappel du propriétaire se clôt au passage suivant (`closeSettledOverdue`).
  *
+ * ## Une fenêtre, pas tout l'historique (#107)
+ *
+ * Seule une cible échue ou émise dans les `REMINDER_GENERATION_WINDOW_DAYS` derniers jours engendre
+ * un rappel. Une panne du tick plus longue que la fenêtre en perdrait donc : elle serait bruyante
+ * bien avant (le job rouge à chaque passage).
+ *
  * Les conversions passent par `util/date.util` (`toDbDate`, `shiftDbDate`, `toIsoDate`), qui fait
  * déjà le pont entre les colonnes `@db.Date` et les dates civiles de `@cmv/shared` : `Plan.startDate`
  * et `Invoice.dueDate` sont des dates SANS heure, ancrées à minuit UTC en base.
@@ -90,7 +123,9 @@ export class ReminderTickService {
     private readonly notifications: NotificationService,
   ) {}
 
-  async run(now: Date): Promise<Omit<ReminderTickResultDto, "purgedObjects">> {
+  async run(
+    now: Date,
+  ): Promise<Omit<ReminderTickResultDto, "purgedObjects" | "purgedNotifications">> {
     // `isCoach` et non `role` : depuis #9, un compte peut coacher SANS avoir COACH pour persona
     // (il porte les deux capacités et atterrit côté athlète). Filtrer sur le rôle l'aurait laissé
     // hors du balayage — pas d'erreur, juste des rappels qui n'arrivent plus.
@@ -110,7 +145,15 @@ export class ReminderTickService {
       pushedReminders += result.pushed;
     }
 
-    return { scannedCoaches: coaches.length, createdReminders, pushedReminders };
+    // La purge dans une SECONDE passe, une fois les rappels de TOUS les coachs générés et poussés :
+    // une suppression qui lève chez l'un ne doit priver aucun autre de ses rappels. Le tick rend
+    // alors une erreur — le job rouge —, mais après que tout ce qui comptait est parti.
+    let purgedReminders = 0;
+    for (const coach of coaches) {
+      purgedReminders += await runAsCoach(this.cls, coach.id, () => this.purgeHandled(now));
+    }
+
+    return { scannedCoaches: coaches.length, createdReminders, pushedReminders, purgedReminders };
   }
 
   /**
@@ -239,12 +282,40 @@ export class ReminderTickService {
   }
 
   /**
+   * La rétention des rappels traités (#107, dette R-5) : un rappel fait ou écarté que personne n'a
+   * retouché depuis `HANDLED_RETENTION_DAYS` est supprimé. `DISMISSED` étant la suppression douce,
+   * c'est ici que le rappel écarté quitte vraiment la base.
+   *
+   * - **`PENDING` jamais**, quelle que soit son ancienneté : un rappel en retard depuis six mois
+   *   reste un rappel en retard. Les statuts traités sont NOMMÉS plutôt que « tout sauf PENDING » :
+   *   un statut ajouté demain ne sera pas purgé sans qu'on l'ait décidé.
+   * - **`updatedAt`, faute de date de traitement** : c'est le dernier geste du coach (statut, note,
+   *   lecture). Toute retouche après coup repousse donc la purge — le sens sûr.
+   * - **Par le client scopé**, dans le contexte de CE coach : la purge ne peut pas franchir sa
+   *   frontière, et n'a demandé aucune exception au scope.
+   * - **Sans renaissance** : le rappel généré, une fois purgé, n'est plus protégé par l'index
+   *   unique ; c'est la fenêtre de génération, plus courte que la rétention, qui l'empêche de
+   *   revenir (`REMINDER_GENERATION_WINDOW_DAYS`).
+   */
+  private async purgeHandled(now: Date): Promise<number> {
+    const { count } = await this.db.reminder.deleteMany({
+      where: {
+        status: { in: [ReminderStatus.DONE, ReminderStatus.DISMISSED] },
+        updatedAt: { lt: retentionCutoff(now) },
+      },
+    });
+    return count;
+  }
+
+  /**
    * « Le cycle se termine » — sur les cycles DIFFUSÉS dont la dernière semaine approche.
    *
    * L'échéance du rappel est la fin du cycle **moins une semaine**, donc une valeur dérivée du
    * cycle : le rappel se range dans le centre au moment où il commence à compter, et deux ticks
    * successifs calculent la même. Ne sont retenus que ceux dont cette échéance est déjà atteinte —
-   * générer plus tôt remplirait la liste de rappels qui ne veulent encore rien dire.
+   * générer plus tôt remplirait la liste de rappels qui ne veulent encore rien dire. Et seulement
+   * si elle tombe dans la fenêtre de génération : sans elle, tout cycle diffusé resterait candidat
+   * à vie (#107).
    *
    * Les cycles DRAFT sont ignorés : un cycle jamais diffusé n'a pas de renouvellement à proposer.
    */
@@ -258,7 +329,7 @@ export class ReminderTickService {
     const [plans, weekCounts] = await Promise.all([
       this.db.plan.findMany({
         where: { ...ownedBy(coachId), status: PlanStatus.PUBLISHED },
-        select: { id: true, startDate: true },
+        select: { id: true, startDate: true, publishedAt: true },
       }),
       this.db.planWeek.groupBy({ by: ["planId"], where: ownedBy(coachId), _count: { _all: true } }),
     ]);
@@ -271,7 +342,7 @@ export class ReminderTickService {
       if (endDate == null) return [];
 
       const dueAt = startOfProductDay(shiftDbDate(toDbDate(endDate), -PLAN_ENDING_LEAD_DAYS));
-      if (dueAt > now) return [];
+      if (!inGenerationWindow(dueAt, plan.publishedAt, now)) return [];
 
       return [
         {
@@ -299,7 +370,7 @@ export class ReminderTickService {
     const invoices = await this.db.invoice.findMany({
       // Un athlète qui a supprimé son compte ne se relance plus (#256) : le statut reste au coach.
       where: { ...ownedBy(coachId), status: InvoiceStatus.PENDING, erasedAthleteName: null },
-      select: { id: true, dueDate: true },
+      select: { id: true, dueDate: true, issuedAt: true },
     });
 
     return invoices.flatMap((invoice) => {
@@ -308,7 +379,8 @@ export class ReminderTickService {
       // `OVERDUE`. Les deux moitiés doivent s'accorder, sinon la liste des rappels annoncerait un
       // retard que l'écran des factures ne montre pas. `now` vient de l'appelant, jamais de
       // `new Date()` ici : le service reste testable sans horloge, comme `ReminderService.summary`.
-      if (dueAt > now) return [];
+      // Échue ET émise depuis plus longtemps que la fenêtre : on ne relance plus (#107).
+      if (!inGenerationWindow(dueAt, invoice.issuedAt, now)) return [];
 
       return [
         {
@@ -322,6 +394,19 @@ export class ReminderTickService {
       ];
     });
   }
+}
+
+/**
+ * L'échéance est atteinte, et elle ou l'émission de la cible tombe dans la fenêtre de génération.
+ * Bornes incluses. La fenêtre se compte en heures (30 × 24 h), pas en jours civils : un changement
+ * d'heure la décale d'une heure, sans conséquence sur ce qu'elle protège.
+ *
+ * `issuedAt` à `null` (cible jamais émise, ou donnée d'avant le champ) : seule l'échéance compte.
+ */
+function inGenerationWindow(dueAt: Date, issuedAt: Date | null, now: Date): boolean {
+  if (dueAt > now) return false;
+  const oldest = now.getTime() - REMINDER_GENERATION_WINDOW_DAYS * DAY_MS;
+  return Math.max(dueAt.getTime(), issuedAt?.getTime() ?? 0) >= oldest;
 }
 
 // Une ligne à insérer, SANS son tenant : `coachId` est ajouté par l'extension Prisma. Le type le dit
