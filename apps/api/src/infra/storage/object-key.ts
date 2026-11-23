@@ -28,7 +28,15 @@ export function buildObjectKey(prefix: string, fileName: string): string {
  * exige donc la forme EXACTE du suffixe, qui exclut tout `/`.
  */
 export function assertKeyUnder(prefix: string, key: string): void {
-  if (!key.startsWith(prefix) || !KEY_SUFFIX.test(key.slice(prefix.length))) {
+  if (!isKeyUnder(prefix, key)) {
     throw new ForbiddenException("Ce chemin de storage n'appartient pas à ce périmètre");
   }
+}
+
+/**
+ * La même vérification, sans lever : la clé est-elle de celles que `buildObjectKey` produit sous
+ * ce préfixe ? Le balayage des orphelins (#72) ne touche qu'à ces clés-là.
+ */
+export function isKeyUnder(prefix: string, key: string): boolean {
+  return key.startsWith(prefix) && KEY_SUFFIX.test(key.slice(prefix.length));
 }
