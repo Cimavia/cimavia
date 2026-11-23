@@ -33,7 +33,7 @@ export function useStaleReload(
         exact: true,
         refetchType: "none",
       });
-      return queryClient.fetchQuery({ ...query, staleTime: 0 });
+      return queryClient.query({ ...query, staleTime: 0 });
     },
   });
 

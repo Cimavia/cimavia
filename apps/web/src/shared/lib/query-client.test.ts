@@ -24,7 +24,7 @@ describe("createQueryClient", () => {
     const { client, onUnauthorized } = setup();
 
     await client
-      .fetchQuery({ queryKey: ["athletes"], queryFn: () => Promise.reject(unauthorized()) })
+      .query({ queryKey: ["athletes"], queryFn: () => Promise.reject(unauthorized()) })
       .catch(() => {});
 
     // Sans ce signal, la garde laisse passer une session morte tant que l'onglet garde le focus :
@@ -64,7 +64,7 @@ describe("createQueryClient", () => {
     const { client, onUnauthorized } = setup();
 
     await client
-      .fetchQuery({
+      .query({
         queryKey: ["plan"],
         queryFn: () => Promise.reject(new ApiError(403, "Forbidden", null)),
         retry: false,
@@ -105,7 +105,7 @@ describe("createQueryClient", () => {
       const proxyPage = new ApiError(502, "Erreur 502", null, false);
 
       await client
-        .fetchQuery({ queryKey: ["athletes"], queryFn: failing(proxyPage), retry: false })
+        .query({ queryKey: ["athletes"], queryFn: failing(proxyPage), retry: false })
         .catch(() => {});
 
       expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(proxyPage);
@@ -125,7 +125,7 @@ describe("createQueryClient", () => {
       const { client } = setup();
 
       await client
-        .fetchQuery({
+        .query({
           queryKey: ["plan"],
           queryFn: failing(new ApiError(500, "Boum", null, true)),
           retry: false,
@@ -140,7 +140,7 @@ describe("createQueryClient", () => {
       const { client } = setup();
 
       await client
-        .fetchQuery({
+        .query({
           queryKey: ["athletes"],
           queryFn: failing(new TypeError("Failed to fetch")),
           retry: false,
@@ -155,7 +155,7 @@ describe("createQueryClient", () => {
       const { client, onUnauthorized } = setup();
 
       await client
-        .fetchQuery({ queryKey: ["athletes"], queryFn: failing(unauthorized()), retry: false })
+        .query({ queryKey: ["athletes"], queryFn: failing(unauthorized()), retry: false })
         .catch(() => {});
 
       expect(onUnauthorized).toHaveBeenCalledOnce();
