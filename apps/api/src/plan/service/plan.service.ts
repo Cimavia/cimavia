@@ -23,13 +23,14 @@ import {
   toAccessView,
 } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
+import { holdActiveLink } from "../../account/coach-athlete.lock";
 import { InvoiceService } from "../../invoice/service/invoice.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
 import { toDbDate, toIsoDate } from "../../util/date.util";
-import { assertFollowOngoing } from "../../util/follow-ended.util";
+import { assertFollowOngoing, FollowEndedException } from "../../util/follow-ended.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
   COACH_PLAN_COUNTS_INCLUDE,
@@ -71,6 +72,8 @@ export class PlanService {
     }
 
     const plan = await this.db.$transaction(async (tx) => {
+      // Le lien, revu sous verrou : une rupture concurrente ne laisse pas naître un cycle ouvert.
+      if (athleteId != null) await holdActiveLink(tx, currentActor(this.cls).userId, athleteId);
       // coachId injecté par le tenancy layer (extension Prisma) — d'où le cast.
       const created = await tx.plan.create({
         data: {
@@ -185,6 +188,10 @@ export class PlanService {
     if (Object.keys(data).length === 0) return this.getDto(id, this.db, context);
 
     return this.db.$transaction(async (tx) => {
+      // Même verrou qu'à la création : le nouveau destinataire, revu actif sous verrou partagé.
+      if (athleteChanged && input.athleteId != null) {
+        await holdActiveLink(tx, plan.coachId, input.athleteId);
+      }
       await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
       if (shiftDays !== 0) {
         // Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les
@@ -347,7 +354,8 @@ export class PlanService {
 
   /**
    * La relation coach→athlète est scopée par le tenancy layer : un athlète qui n'est pas le sien
-   * (ou une relation inactive) ne remonte pas. La FK, elle, n'impose rien — d'où ce contrôle.
+   * ne remonte pas. La FK, elle, n'impose rien — d'où ce contrôle. Un lien rompu (#909) remonte, et
+   * répond 409 `FOLLOW_ENDED` : l'athlète est bien le sien, c'est le suivi qui a pris fin.
    *
    * **Soi-même est le seul athlète sans relation** (auto-coaching, #14) : un coach qui se coache
    * n'a pas de ligne `CoachAthlete`, et ne peut pas en avoir (CHECK `coach_athlete_not_self`, #11).
@@ -364,11 +372,13 @@ export class PlanService {
     }
 
     const relation = await this.db.coachAthlete.findFirst({
-      where: { athleteId, status: CoachAthleteStatus.ACTIVE },
+      where: { athleteId },
+      select: { status: true },
     });
     if (relation == null) {
       throw new BadRequestException("Athlète inconnu");
     }
+    if (relation.status !== CoachAthleteStatus.ACTIVE) throw new FollowEndedException();
   }
 }
 
