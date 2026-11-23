@@ -9,7 +9,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) · [#72](https://github.com/Cimavia/cimavia/issues/72) |
+| P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. Le balayage de [#72](https://github.com/Cimavia/cimavia/issues/72) le ramasse, mais à la main. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) |
 
 *Résolues, à l'[archive](archive.md) : P6-1, P6-3.*
 

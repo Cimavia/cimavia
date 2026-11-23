@@ -9,10 +9,9 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P3-2 | **Objets S3 orphelins après suppression d'une planif** : une copie de document partage la clé objet de la bibliothèque. | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
 | P3-5 | **Écart aux maquettes assumé** : pas de durée de séance (« 75 min » en pd-7/pd-9). Le glisser-déposer, lui, n'en est plus un — cf. ~~P2-3~~. | 🟢 | [#94](https://github.com/Cimavia/cimavia/issues/94) |
 
-*Résolues, à l'[archive](archive.md) : P3-1, P3-3, P3-4, P3-6.*
+*Résolues, à l'[archive](archive.md) : P3-1, P3-2, P3-3, P3-4, P3-6.*
 
 ---
 
@@ -22,9 +21,7 @@ liste des domaines vivent dans l'index.
 
 ## Post-MVP — Copie d'une semaine ([#4](https://github.com/Cimavia/cimavia/issues/4))
 
-| # | Dette | Statut | Suivi |
-|---|---|---|---|
-| ~~P2-1~~ / ~~P3-2~~ | **Nouveau déclencheur** : vider la semaine cible cascade ses `ScheduledSessionExerciseDocument` **sans** passer par `deleteObjectIfUnreferenced`. Si la cible portait la dernière copie d'une clé dont l'exercice de bibliothèque est déjà supprimé, l'objet reste orphelin. Le *collage*, lui, va dans le sens sûr (plus de copies = plus de références = objet retenu, jamais purgé pendant qu'il sert). | 🟡 | [#72](https://github.com/Cimavia/cimavia/issues/72) |
+*Résolues, à l'[archive](archive.md) : P2-1 / P3-2.*
 
 > **Tranché en #4** (ce que la copie emporte, et ce qu'elle laisse) : elle reproduit ce que le
 > **coach a composé** — type et note de semaine, séances, consignes, exercices, documents — et laisse

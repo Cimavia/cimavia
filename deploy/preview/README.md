@@ -501,9 +501,10 @@ comm -13 /tmp/paths.txt /tmp/objects.txt | wc -l   # objets non référencés : 
 ```
 
 **Un chemin sans objet est une sauvegarde incomplète** : elle ne vaut rien tant que ce n'est pas
-compris. Des **objets non référencés**, en revanche, sont normaux — ce sont les envois abandonnés
-que personne ne ramasse (dette **U-6**). Leur nombre dit ce que cette dette coûte : 19 sur un poste
-de développement au 2026-09-20, pour 101 chemins référencés.
+compris. Des **objets non référencés**, en revanche, sont normaux — des envois jamais rattachés, ou
+laissés par une suppression (dette P2-1, archivée) : le balayage du § suivant les ramasse. Les envois
+découpés **inachevés** n'y figurent pas, `mc ls` ne les montre pas (dette **U-6**). 19 sur un poste de
+développement au 2026-09-20, pour 101 chemins référencés.
 
 **Puis dans l'app — en lecture seule.** La base restaurée porte les tokens push des **vrais
 téléphones** de la bêta, et l'API n'a aucun interrupteur : un message, un Feedback ou une diffusion
@@ -534,6 +535,40 @@ docker exec cimavia_postgres dropdb -U cimavia cimavia_restore
 docker compose -f <…>/cimavia/apps/api/docker-compose.yml run --rm -T --no-deps --entrypoint sh silo-setup -c \
   "mc alias set s http://silo:9000 cimavia cimavia_dev_secret >/dev/null && mc rb --force s/cimavia-restore"
 ```
+
+## Balayer les objets orphelins (#72)
+
+Un objet sans ligne en base reste au bucket : envoi jamais rattaché, document dont la dernière copie
+est partie, cycle brouillon supprimé avec son justificatif. Personne ne le voit, il coûte du stockage.
+La commande `sweep-orphans.cli` les trouve — **à la main**, rien ne la lance seule (dette BO-1).
+
+Elle **liste** le bucket, ce que la clé de l'API ne peut pas faire (§ *Deux identités pour le
+stockage*) : elle tourne dans le conteneur de l'API, sous l'identité **root**, passée pour cet appel
+seulement. Sans elle, le stockage répond `AccessDenied` et la commande le dit.
+
+```bash
+sudo -i
+cd /volume1/<…>/cimavia-preview                       # le dossier qui contient le .env
+val() { grep -E "^$1=" .env | tail -n1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//'; }
+sweep() {
+  docker exec -e S3_ACCESS_KEY_ID="$(val S3_ROOT_USER)" -e S3_SECRET_ACCESS_KEY="$(val S3_ROOT_PASSWORD)" \
+    cimavia_preview_api node dist/infra/storage/sweep-orphans.cli "$@"
+}
+sweep                       # SIMULATION : rapporte, ne supprime rien
+sweep --delete              # supprime les orphelins trouvés À CE MOMENT, et les liste
+sweep --prefix conversation/   # restreint à une branche du bucket (se combine avec --delete)
+```
+
+**Relire la simulation avant `--delete`** : elle liste chaque clé qui partirait. Un objet n'y figure
+que si aucune ligne ne le cite — documents, copies de cycle, médias de débrief et de messagerie,
+justificatifs —, qu'il a plus de **7 jours**, et qu'il a la forme d'une clé construite par l'API. Les
+« clés de forme inconnue » ne sont jamais supprimées : un objet déposé à la main reste.
+
+`--delete` refait le balayage : il ne rejoue pas la simulation. Un objet devenu orphelin entre les
+deux part aussi — c'est la liste imprimée par `--delete` qui fait foi, pas celle de la simulation.
+
+Après un `--delete`, ouvrir dans l'app une séance avec ses documents et un fil avec ses médias :
+rien ne doit manquer. Un second `sweep` ne doit plus rien trouver.
 
 ## App mobile de test (beta)
 

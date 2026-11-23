@@ -42,6 +42,12 @@ l'[index](../dette-technique.md).
 | ~~MC-13~~ | ~~**La boîte des débriefs reste celle du propriétaire du cycle**~~ ([#607](https://github.com/Cimavia/cimavia/issues/607)) : `CoachFeedbackService` filtre `GET /feedbacks` et « marquer lu » sur le `coachId` du débrief. Un Coach à qui le cycle est ouvert lit le débrief dans le cycle, pas dans sa boîte, et n'en est pas notifié. « Lu » est un état unique sur le débrief, que deux lecteurs se disputeraient. | ✅ | résolue en [#610](https://github.com/Cimavia/cimavia/issues/610) — `SessionFeedbackRead` par Coach, boîte ouverte aux cycles lus, avis et notification à chaque Coach qui lit, « Répondu par M » |
 | ~~MC-17~~ | ~~**Effacer un compte bute sur les séances des autres Coachs** ([#609](https://github.com/Cimavia/cimavia/issues/609)) : `User → Exercise` est en `Cascade`, mais `SessionExercise.exerciseId` en `Restrict` — effacer C, dont un exercice est cité par une séance de M, échouerait. L'effacement devra d'abord passer par `ExerciseCopyService.freezeFor` pour chaque Coach citant, comme la suppression d'un exercice. Les copies déjà gardées survivent, elles : `frozenFromCoachId` passe à `NULL` et le badge dit « Copie figée » seul.~~ **Résolu en #256** : l'effacement fige ces citations d'abord, et supprime ses propres séances avant le compte — une séance citant son propre exercice bloquait aussi, ce que cette ligne sous-estimait. | ✅ | [#256](https://github.com/Cimavia/cimavia/issues/256) |
 
+### Post-MVP — Suppression de compte ([#256](https://github.com/Cimavia/cimavia/issues/256))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~SC-5~~ | ~~**Un objet sans ligne survit à l'effacement**~~ : envoi jamais rattaché (P2-1, U-5), ou ligne créée pendant les quelques secondes de l'effacement — la clé n'est lue que depuis les lignes. Un préfixe les atteindrait pour les médias d'athlète, mais pas sans risque pour les clés partagées. | ✅ | résolue en [#72](https://github.com/Cimavia/cimavia/issues/72) — le balayage part de la liste du bucket, pas des lignes lues à l'effacement : il trouve ces objets sans préfixe de compte, et sans risque pour les clés partagées, qu'il compte |
+
 ## Débrief et médias
 
 ### P4 — Débrief & Médias
@@ -168,6 +174,13 @@ l'[index](../dette-technique.md).
 | ~~P3-3~~ | ~~**Documents non lisibles hors-ligne**~~ : servis par des URLs signées à TTL court (5 min). | ✅ | résolue en [#95](https://github.com/Cimavia/cimavia/issues/95) — documents ET déroulé descendus sur l'appareil à la première ouverture en ligne. Le TTL, lui, n'a pas bougé : c'est le CLIENT qui a changé |
 | ~~P3-4~~ | ~~**Écrans coach de P1 jamais construits**~~ (nav, liste d'athlètes, invitation, fiche). | ✅ | résolu en **p3-8** — `CmvAppShell`, `/athletes`, invitation, fiche athlète |
 | ~~P3-6~~ | ~~**Tuile « Factures en attente » non branchée**~~ : affichait `—`, marquée `// MOCKED`. | ✅ | résolue en **P6** — branchée sur `pendingCount(invoices)` |
+| ~~P3-2~~ | ~~**Objets S3 orphelins après suppression d'une planif**~~ : une copie de document partage la clé objet de la bibliothèque. | ✅ | résolue en [#72](https://github.com/Cimavia/cimavia/issues/72) — le balayage compte toutes les colonnes de clé, copies comprises (`referencedObjectKeys`) : une copie qui cite encore la clé retient l'objet, la dernière partie le libère |
+
+### Post-MVP — Copie d'une semaine ([#4](https://github.com/Cimavia/cimavia/issues/4))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| ~~P2-1~~ / ~~P3-2~~ | ~~**Nouveau déclencheur**~~ : vider la semaine cible cascade ses `ScheduledSessionExerciseDocument` **sans** passer par `deleteObjectIfUnreferenced`. Si la cible portait la dernière copie d'une clé dont l'exercice de bibliothèque est déjà supprimé, l'objet reste orphelin. Le *collage*, lui, va dans le sens sûr (plus de copies = plus de références = objet retenu, jamais purgé pendant qu'il sert). | ✅ | résolue en [#72](https://github.com/Cimavia/cimavia/issues/72) — l'objet que la dernière copie laisse est ramassé par le balayage |
 
 ## Qualité et dépôt
 
@@ -195,6 +208,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~P2-3~~ | ~~**Pas de drag & drop** dans le SessionBuilder~~ : réordonnancement par boutons ↑/↓. | ✅ | jamais vraie pour le `SessionBuilder`, qui a le glisser **depuis son commit de création** — [#165](https://github.com/Cimavia/cimavia/issues/165) l'annonçait (« absorbe #93 ») sans que #93 soit fermée. [#93](https://github.com/Cimavia/cimavia/issues/93), recyclée, a couvert les **deux surfaces qui manquaient** : la séance planifiée et les séances d'une journée |
+| ~~P2-1~~ | ~~**Objets orphelins en object storage**~~ : upload réussi mais `POST /documents` échoué → fichier dans le bucket sans ligne en base. | ✅ | résolue en [#72](https://github.com/Cimavia/cimavia/issues/72) — `sweep-orphans.cli`, un balayage lancé à la main sous l'identité root du stockage, en simulation par défaut. L'automatiser reste ouvert : BO-1 |
 
 ### Post-MVP — Quitter une saisie non enregistrée ([#327](https://github.com/Cimavia/cimavia/issues/327))
 
