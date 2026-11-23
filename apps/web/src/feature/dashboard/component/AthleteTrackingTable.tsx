@@ -1,4 +1,11 @@
-import { type AthleteRow, type AthleteRowPlan, INVOICE_STATE_BADGE, required } from "@cmv/shared";
+import {
+  type AthleteRow,
+  type AthleteRowPlan,
+  INVOICE_STATE_BADGE,
+  required,
+  type UnreadCountTone,
+  unreadCountTone,
+} from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { SharedByLine } from "@/feature/library/component/SharedByLine";
@@ -229,22 +236,28 @@ type CountCellProps =
       search: { feedback: string | undefined; session: string | undefined };
     };
 
+/** Classes écrites en entier : Tailwind ne génère pas une classe assemblée à partir du palier. */
+const COUNT_TONE_CLASS: Record<UnreadCountTone, string> = {
+  success: "text-cmv-success-on",
+  warning: "text-cmv-warning-on",
+  error: "text-cmv-error-on",
+  violet: "text-cmv-violet-on",
+};
+
 /**
  * Un compteur cliquable. `null` = source indisponible → « — » **sans lien** : proposer d'ouvrir ce
- * qu'on n'a pas pu lire serait mentir deux fois. Un `0` connu reste cliquable mais discret.
+ * qu'on n'a pas pu lire serait mentir deux fois. Un nombre connu prend la couleur de son palier,
+ * `0` compris (`unreadCountTone`, #705).
  */
 function CountCell({ count, to, search }: Readonly<CountCellProps>) {
-  if (count == null) return <span className="text-cmv-text-lo">—</span>;
+  const tone = unreadCountTone(count);
+  if (tone == null) return <span className="text-cmv-text-lo">—</span>;
 
   return (
     <Link
       to={to}
       search={search}
-      className={
-        count > 0
-          ? "font-cmv-display text-cmv-accent-on text-cmv-subtitle hover:underline"
-          : "text-cmv-text-lo hover:underline"
-      }
+      className={`font-cmv-display text-cmv-subtitle hover:underline ${COUNT_TONE_CLASS[tone]}`}
     >
       {count}
     </Link>

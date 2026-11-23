@@ -296,6 +296,29 @@ describe("DashboardScreen — le tableau de suivi", () => {
     expect(view.getByText("dashboard.table.weekProgress")).toBeInTheDocument();
   });
 
+  // Les bornes vivent dans `unreadCountTone` (@cmv/shared) ; ici, que chaque palier ait sa couleur.
+  it.each([
+    [12, "text-cmv-warning-on"],
+    [25, "text-cmv-error-on"],
+    [45, "text-cmv-violet-on"],
+  ])("écrit %i messages non lus dans la couleur de leur palier (%s)", async (count, tone) => {
+    const view = await mount({ conversations: [{ ...CONVERSATION, unreadCount: count }] });
+
+    await view.findByText("Léa Moreau");
+    expect(view.getByRole("link", { name: String(count) })).toHaveClass(tone);
+  });
+
+  // Le Coach bêta veut voir que tout est lu (#705) : `0` est vert — dérogation assumée à #37.
+  it("écrit en vert le peu ou rien à lire, 0 compris", async () => {
+    const view = await mount();
+
+    await view.findByText("Léa Moreau");
+    expect(view.getByRole("link", { name: "1" })).toHaveClass("text-cmv-success-on");
+    const zeros = view.getAllByRole("link", { name: "0" });
+    expect(zeros).toHaveLength(2);
+    for (const zero of zeros) expect(zero).toHaveClass("text-cmv-success-on");
+  });
+
   // Proposer d'ouvrir ce qu'on n'a pas pu lire serait mentir deux fois : « — », et aucun lien.
   it("tait sans lien la colonne dont la source est en panne", async () => {
     const view = await mount({ conversations: new Error("réseau") });
