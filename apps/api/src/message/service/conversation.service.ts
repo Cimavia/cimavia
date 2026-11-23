@@ -11,13 +11,20 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Conversation, ConversationParticipant, Prisma } from "@prisma/client";
+import {
+  type Conversation,
+  ConversationKind,
+  type ConversationParticipant,
+  type Prisma,
+} from "@prisma/client";
 import { ClsService } from "nestjs-cls";
+import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor, type TenantContext } from "../../tenancy/tenant-context.type";
+import { assertFollowOngoing } from "../../util/follow-ended.util";
 import {
   actorMemberOf,
   byName,
@@ -49,6 +56,7 @@ export class ConversationService {
     private readonly users: UserDirectoryService,
     private readonly candidates: ConversationCandidateService,
     private readonly cls: ClsService,
+    @InjectPinoLogger(ConversationService.name) private readonly logger: PinoLogger,
   ) {}
 
   /**
@@ -58,6 +66,10 @@ export class ConversationService {
    * Deux refus, deux états (#198). Se nommer soi-même est **impossible** — on ne s'écrit pas, et
    * l'auto-coaching n'a pas de lien : 409. Nommer quelqu'un que l'acteur ne peut pas réunir reste
    * un 400 « inconnu », qui dit vrai : un lien ABSENT, qui apparaîtra le jour où il existe.
+   *
+   * Un fil qui existe déjà se rend à qui y participe, sans redemander qui il peut réunir : le fil
+   * direct d'un lien rompu se relit (#909), et c'est par ici que les apps l'ouvrent. Le scope ne
+   * le rend qu'à un participant ; l'écriture, elle, est refusée par `getWritableOrThrow`.
    */
   async create(input: CreateConversationInput): Promise<ConversationDto> {
     const actor = currentActor(this.cls);
@@ -70,11 +82,13 @@ export class ConversationService {
     if (others.some((other) => other.userId === actor.userId)) {
       throw new ConflictException("Tu ne peux pas ouvrir un fil avec toi-même");
     }
-    if (!(await this.candidates.reachesAll(others))) {
+    const members = [actorMemberOf(actor), ...others];
+    const existing = await this.findByKey(participantKeyOf(members));
+    if (existing == null && !(await this.candidates.reachesAll(others))) {
       throw new BadRequestException("Participant inconnu");
     }
 
-    const conversation = await this.ensureFor([actorMemberOf(actor), ...others]);
+    const conversation = existing ?? (await this.ensureFor(members));
     const [dto] = await this.toDtos([conversation], actor);
     return required(dto, "[message] conversation créée mais non mappable");
   }
@@ -107,6 +121,18 @@ export class ConversationService {
     }
     const [joined] = await this.withParticipants([conversation]);
     return required(joined, `[message] conversation ${conversationId} sans participants`);
+  }
+
+  /**
+   * La conversation où l'acteur participe ET où il peut encore écrire : 409 `FOLLOW_ENDED` sur le
+   * fil direct d'un Coach et d'un athlète dont le lien est rompu (#909). Le scope y ferme déjà
+   * l'écriture d'un message ; ce refus le dit avant, au lieu d'un 500 sur l'enfant créé.
+   */
+  async getWritableOrThrow(conversationId: string): Promise<JoinedConversation> {
+    const conversation = await this.getJoinedOrThrow(conversationId);
+    const ends = await this.followEndsOf([conversation]);
+    assertFollowOngoing(ends.get(conversation.id) ?? null);
+    return conversation;
   }
 
   /** Le fil direct d'un Coach et d'un athlète, s'il existe — sans le créer. */
@@ -177,6 +203,39 @@ export class ConversationService {
     }));
   }
 
+  /**
+   * La fin du suivi de chaque fil direct Coach↔athlète (#909), lue sur le lien du couple — que le
+   * scope rend à l'un comme à l'autre, rompu compris. Un fil d'une autre forme (deux Coachs, un
+   * groupe, un participant parti avec son compte) n'en a pas : absent de la table.
+   *
+   * Un couple sans lien ne devrait pas exister : un lien rompu passe à ENDED, il ne s'efface pas.
+   * S'il en reste un (une donnée d'avant #909, un nettoyage à la main), il est signalé et son fil
+   * reste ouvert, comme avant — lever ferait tomber toute la messagerie des deux participants.
+   */
+  private async followEndsOf(
+    conversations: readonly JoinedConversation[],
+  ): Promise<Map<string, Date | null>> {
+    const pairs = conversations.flatMap((conversation) => {
+      const pair = coachAthletePairOf(conversation);
+      return pair == null ? [] : [{ conversationId: conversation.id, ...pair }];
+    });
+    if (pairs.length === 0) return new Map();
+    const links = await this.db.coachAthlete.findMany({
+      where: { OR: pairs.map(({ coachId, athleteId }) => ({ coachId, athleteId })) },
+      select: { coachId: true, athleteId: true, endedAt: true },
+    });
+    const endOf = new Map(links.map((link) => [`${link.coachId}:${link.athleteId}`, link.endedAt]));
+    return new Map(
+      pairs.map(({ conversationId, coachId, athleteId }) => {
+        const key = `${coachId}:${athleteId}`;
+        if (!endOf.has(key)) {
+          this.logger.warn({ conversationId }, "[message] fil direct sans lien coach-athlète");
+        }
+        return [conversationId, endOf.get(key) ?? null];
+      }),
+    );
+  }
+
   private async toDtos(
     conversations: JoinedConversation[],
     actor: TenantContext,
@@ -220,9 +279,12 @@ export class ConversationService {
     // Un seul aller-retour pour les noms des autres (User est hors scope tenant).
     const others = (conversation: JoinedConversation) =>
       conversation.participants.filter((participant) => participant.userId !== actor.userId);
-    const names = await this.users.namesByIds(
-      conversations.flatMap((conversation) => others(conversation).map((p) => p.userId)),
-    );
+    const [names, followEnds] = await Promise.all([
+      this.users.namesByIds(
+        conversations.flatMap((conversation) => others(conversation).map((p) => p.userId)),
+      ),
+      this.followEndsOf(conversations),
+    ]);
 
     return conversations.map((conversation) => {
       const last = lastByConversation.get(conversation.id) ?? null;
@@ -247,7 +309,20 @@ export class ConversationService {
         lastMessagePreview: last?.type === MessageType.TEXT ? last.content : null,
         unreadCount: unreadByConversation.get(conversation.id) ?? 0,
         createdAt: conversation.createdAt.toISOString(),
+        followEndedAt: iso(followEnds.get(conversation.id) ?? null),
       };
     });
   }
+}
+
+/** Le Coach et l'athlète d'un fil direct qui les réunit tous deux ; `null` pour une autre forme. */
+function coachAthletePairOf(
+  conversation: JoinedConversation,
+): { coachId: string; athleteId: string } | null {
+  if (conversation.kind !== ConversationKind.DIRECT) return null;
+  const coach = conversation.participants.find((p) => p.capability === "COACH");
+  const athlete = conversation.participants.find((p) => p.capability === "ATHLETE");
+  return coach == null || athlete == null
+    ? null
+    : { coachId: coach.userId, athleteId: athlete.userId };
 }

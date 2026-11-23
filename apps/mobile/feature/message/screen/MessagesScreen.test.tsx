@@ -41,6 +41,7 @@ function conversation(overrides: Partial<ConversationDto> = {}): ConversationDto
     lastMessageType: MessageType.TEXT,
     lastMessagePreview: "Je t'ai mis la mobilité en fin de séance.",
     unreadCount: 0,
+    followEndedAt: null,
     createdAt: "2026-10-01T10:00:00.000Z",
     ...overrides,
   };

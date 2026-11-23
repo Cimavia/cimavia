@@ -65,7 +65,7 @@ export class MessageService {
   // Envoi d'un message (texte ou média déjà uploadé). Le média a transité par l'object storage via
   // une URL PUT signée ; ici on ne persiste que la clé + les métadonnées, jamais le binaire.
   async send(conversationId: string, input: SendMessageInput): Promise<MessageDto> {
-    const conversation = await this.conversations.getJoinedOrThrow(conversationId);
+    const conversation = await this.conversations.getWritableOrThrow(conversationId);
     const actor = currentActor(this.cls);
     // La clé du média vient du client : elle doit désigner un objet de CE fil (#293), puis cet
     // objet doit être celui que le ticket a signé — type et taille relus au storage (#317, #468).

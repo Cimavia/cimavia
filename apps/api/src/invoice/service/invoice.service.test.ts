@@ -1,3 +1,4 @@
+import { ProblemType } from "@cmv/shared";
 import { BadRequestException, ConflictException, ForbiddenException } from "@nestjs/common";
 import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
@@ -43,13 +44,15 @@ const INVOICE = {
   updatedAt: new Date("2026-10-01"),
 };
 
-function build(setup: { draft?: { documentPath: string | null } | null } = {}) {
+function build(
+  setup: { draft?: { documentPath: string | null } | null; plan?: Record<string, unknown> } = {},
+) {
   const draft = setup.draft === undefined ? { documentPath: null } : setup.draft;
   const assertAttachable = vi.fn().mockResolvedValue(undefined);
   const deleteObject = vi.fn().mockResolvedValue(undefined);
   const update = vi.fn().mockResolvedValue(INVOICE);
   const db = {
-    plan: { findFirst: vi.fn().mockResolvedValue(PLAN) },
+    plan: { findFirst: vi.fn().mockResolvedValue({ ...PLAN, ...setup.plan }) },
     invoice: {
       findFirst: vi.fn().mockResolvedValue(draft == null ? null : { id: "i1", ...draft }),
       update,
@@ -121,6 +124,21 @@ describe("InvoiceService.attachDocument", () => {
 
     await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toThrow(ForbiddenException);
 
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // On n'émet plus rien au nom d'un couple rompu (#909) : refusé avant le storage.
+  it("refuse sur un cycle dont le suivi est terminé, sans rien relire (409)", async () => {
+    const { service, assertAttachable, update } = build({
+      plan: { followEndedAt: new Date("2026-11-20") },
+    });
+
+    await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toMatchObject({
+      status: 409,
+      problemType: ProblemType.FOLLOW_ENDED,
+    });
+
+    expect(assertAttachable).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
 

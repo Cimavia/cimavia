@@ -78,7 +78,7 @@ export class FeedbackService {
     const blockTracking = input.blockTracking ?? {};
     // La garde de séance passe en premier, et une seule fois : la séance d'un autre reste un 404,
     // pas un 400 de suivi qui dirait qu'elle existe.
-    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    const session = await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
     await this.assertTrackedBlocksFit(scheduledSessionId, blockTracking);
     const writable = await this.writableOf(session);
     await this.db.sessionFeedback.update({
@@ -188,7 +188,9 @@ export class FeedbackService {
    * tenant (son `where` unique créerait un angle mort de scope).
    */
   async getOrCreateWritable(scheduledSessionId: string): Promise<WritableFeedback> {
-    return this.writableOf(await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId));
+    return this.writableOf(
+      await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId),
+    );
   }
 
   /** `getOrCreateWritable` pour une séance dont la garde est déjà passée. */

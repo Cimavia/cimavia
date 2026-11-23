@@ -71,6 +71,7 @@ function conversation(overrides: Partial<ConversationDto> = {}): ConversationDto
     lastMessageType: null,
     lastMessagePreview: null,
     unreadCount: 0,
+    followEndedAt: null,
     createdAt: READ_AT,
     ...overrides,
   };

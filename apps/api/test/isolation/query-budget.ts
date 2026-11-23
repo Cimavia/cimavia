@@ -138,8 +138,9 @@ describe("Requêtes SQL des listes du Coach : 1 athlète puis 4 (#629)", () => {
       // +5 (#607) : le même droit, lu sur le cycle de chaque facture — et son propriétaire.
       // +1 (#608) : le Coach de chaque ligne.
       "/invoices": 11,
-      // +1 (#611) : les participants de toutes les conversations, en un lot.
-      "/conversations": 7,
+      // +1 (#611) : les participants de toutes les conversations, en un lot. +1 (#909) : la fin du
+      // lien de chaque fil direct, en un lot aussi.
+      "/conversations": 8,
       "/reminders": 5,
       "/reminders/summary": 4,
       "/me/notifications": 4,
@@ -174,8 +175,9 @@ describe("Requêtes SQL des listes de l'athlète : 1 Coach puis 4 (#629)", () =>
       "/me/coaches": 4,
       "/invitations/for-me": 5,
       "/invoices": 5,
-      // +1 (#611) : les participants de toutes les conversations, en un lot.
-      "/conversations": 7,
+      // +1 (#611) : les participants de toutes les conversations, en un lot. +1 (#909) : la fin du
+      // lien de chaque fil direct, en un lot aussi.
+      "/conversations": 8,
       "/me/notifications": 3,
     },
     async () => {

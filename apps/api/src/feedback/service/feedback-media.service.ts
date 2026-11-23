@@ -53,7 +53,7 @@ export class FeedbackMediaService {
     scheduledSessionId: string,
     input: RequestFeedbackUploadUrlInput,
   ): Promise<MediaUploadTicketDto> {
-    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    const session = await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
     await this.assertQuotaLeft(scheduledSessionId, input.type);
 
     const storagePath = buildMediaKey(session.athleteId, scheduledSessionId, input.fileName);
@@ -140,7 +140,7 @@ export class FeedbackMediaService {
   }
 
   async remove(scheduledSessionId: string, mediaId: string): Promise<void> {
-    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
     const media = await this.db.feedbackMedia.findFirst({
       where: { id: mediaId, sessionFeedback: { scheduledSessionId } },
     });

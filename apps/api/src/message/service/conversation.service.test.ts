@@ -1,6 +1,7 @@
-import { MessageType } from "@cmv/shared";
+import { MessageType, ProblemType } from "@cmv/shared";
 import { type Conversation, type ConversationParticipant, Prisma } from "@prisma/client";
 import type { ClsService } from "nestjs-cls";
+import type { PinoLogger } from "nestjs-pino";
 import { describe, expect, it, vi } from "vitest";
 import type { UserDirectoryService } from "../../account/service/user-directory.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -58,7 +59,11 @@ type Rows = {
   participants?: ConversationParticipant[];
   lastMessages?: unknown[];
   unread?: { conversationId: string; _count: { _all: number } }[];
+  links?: { coachId: string; athleteId: string; endedAt: Date | null }[];
 };
+
+/** Le lien du couple c1↔a1, qui tient : celui des fils directs de ces tests. */
+const ONGOING = [{ coachId: "c1", athleteId: "a1", endedAt: null }];
 
 /** Un faux client tenant : il rend ce qu'on lui donne, et l'on regarde ce qu'on lui demande. */
 function build(rows: Rows = {}, options: { reachable?: boolean } = {}) {
@@ -79,15 +84,18 @@ function build(rows: Rows = {}, options: { reachable?: boolean } = {}) {
       findMany: vi.fn().mockResolvedValue(rows.lastMessages ?? []),
       groupBy: vi.fn().mockResolvedValue(rows.unread ?? []),
     },
+    coachAthlete: { findMany: vi.fn().mockResolvedValue(rows.links ?? ONGOING) },
   };
   const reachesAll = vi.fn().mockResolvedValue(options.reachable ?? true);
+  const logger = { warn: vi.fn() };
   const service = new ConversationService(
     db as unknown as TenantPrisma,
     { namesByIds: vi.fn().mockResolvedValue(NAMES) } as unknown as UserDirectoryService,
     { reachesAll } as unknown as ConversationCandidateService,
     { get: () => COACH } as unknown as ClsService,
+    logger as unknown as PinoLogger,
   );
-  return { service, db, reachesAll };
+  return { service, db, reachesAll, logger };
 }
 
 describe("ConversationService.create", () => {
@@ -109,11 +117,25 @@ describe("ConversationService.create", () => {
     expect(db.conversation.create).not.toHaveBeenCalled();
   });
 
+  it("rend le fil qui existe déjà sans redemander qui l'acteur réunit : un lien rompu le relit (#909)", async () => {
+    const { service, reachesAll, db } = build(
+      { conversations: [conversation("c1")], participants: [participant("c1", "c1", "COACH")] },
+      { reachable: false },
+    );
+
+    await expect(
+      service.create({ participants: [{ userId: "a1", capability: "athlete" }] }),
+    ).resolves.toMatchObject({ id: "c1" });
+    expect(reachesAll).not.toHaveBeenCalled();
+    expect(db.conversation.create).not.toHaveBeenCalled();
+  });
+
   it("vérifie chaque participant à son titre", async () => {
-    const { service, reachesAll } = build({
-      conversations: [conversation("g1")],
+    const { service, reachesAll, db } = build({
       participants: [participant("g1", "c1", "COACH")],
     });
+    db.conversation.findUnique.mockResolvedValue(null);
+    db.conversation.create.mockResolvedValue(conversation("g1", { kind: "GROUP" }));
 
     await service.create({
       participants: [
@@ -215,6 +237,7 @@ describe("ConversationService — vue de l'acteur", () => {
       lastMessagePreview: "On cale ça ?",
       unreadCount: 2,
       createdAt: "2026-10-01T08:00:00.000Z",
+      followEndedAt: null,
     });
   });
 
@@ -316,6 +339,87 @@ describe("ConversationService.getJoinedOrThrow", () => {
   });
 });
 
+/** Le fil direct d'un couple dont le lien est rompu se relit, et ne s'écrit plus (#909). */
+describe("ConversationService — suivi terminé (#909)", () => {
+  const ENDED_AT = new Date("2026-11-20T08:00:00Z");
+  const DIRECT_PARTICIPANTS = [
+    participant("d1", "c1", "COACH"),
+    participant("d1", "a1", "ATHLETE"),
+  ];
+
+  it("date la fin du suivi d'un fil direct dont le lien est rompu", async () => {
+    const { service, db } = build({
+      conversations: [conversation("d1")],
+      participants: DIRECT_PARTICIPANTS,
+      links: [{ coachId: "c1", athleteId: "a1", endedAt: ENDED_AT }],
+    });
+
+    const [dto] = await service.list();
+
+    expect(dto?.followEndedAt).toBe(ENDED_AT.toISOString());
+    expect(db.coachAthlete.findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { OR: [{ coachId: "c1", athleteId: "a1" }] },
+      select: { coachId: true, athleteId: true, endedAt: true },
+    });
+  });
+
+  // Deux Coachs, ou un groupe : aucun lien ne les fonde, rien à relire.
+  it("ne cherche aucun lien pour un fil qui ne réunit pas un Coach et un athlète", async () => {
+    const { service, db } = build({
+      conversations: [conversation("cc"), conversation("g1", { kind: "GROUP" })],
+      participants: [
+        participant("cc", "c1", "COACH"),
+        participant("cc", "m1", "COACH"),
+        participant("g1", "c1", "COACH"),
+        participant("g1", "a1", "ATHLETE"),
+      ],
+    });
+
+    const dtos = await service.list();
+
+    expect(dtos.map((dto) => dto.followEndedAt)).toEqual([null, null]);
+    expect(db.coachAthlete.findMany).not.toHaveBeenCalled();
+  });
+
+  it("signale un couple sans lien, sans faire tomber la liste : son fil reste ouvert", async () => {
+    const { service, logger } = build({
+      conversations: [conversation("d1")],
+      participants: DIRECT_PARTICIPANTS,
+      links: [],
+    });
+
+    await expect(service.list()).resolves.toEqual([
+      expect.objectContaining({ id: "d1", followEndedAt: null }),
+    ]);
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { conversationId: "d1" },
+      "[message] fil direct sans lien coach-athlète",
+    );
+  });
+
+  it("refuse d'écrire dans le fil d'un suivi terminé (409)", async () => {
+    const { service } = build({
+      conversations: [conversation("d1")],
+      participants: DIRECT_PARTICIPANTS,
+      links: [{ coachId: "c1", athleteId: "a1", endedAt: ENDED_AT }],
+    });
+
+    await expect(service.getWritableOrThrow("d1")).rejects.toMatchObject({
+      status: 409,
+      problemType: ProblemType.FOLLOW_ENDED,
+    });
+  });
+
+  it("rend le fil d'un suivi qui continue", async () => {
+    const { service } = build({
+      conversations: [conversation("d1")],
+      participants: DIRECT_PARTICIPANTS,
+    });
+
+    await expect(service.getWritableOrThrow("d1")).resolves.toMatchObject({ id: "d1" });
+  });
+});
+
 describe("ConversationService.findDirect", () => {
   it("cherche le fil direct par sa clé, sans le créer", async () => {
     const { service, db } = build();
@@ -414,6 +518,7 @@ describe("ConversationService.candidatesOf", () => {
       {} as UserDirectoryService,
       { list: vi.fn().mockResolvedValue(candidates) } as unknown as ConversationCandidateService,
       {} as ClsService,
+      {} as PinoLogger,
     );
 
     await expect(service.candidatesOf()).resolves.toBe(candidates);

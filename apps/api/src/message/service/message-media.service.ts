@@ -42,7 +42,7 @@ export class MessageMediaService {
     conversationId: string,
     input: RequestMessageUploadUrlInput,
   ): Promise<MediaUploadTicketDto> {
-    await this.conversations.getJoinedOrThrow(conversationId);
+    await this.conversations.getWritableOrThrow(conversationId);
 
     const storagePath = buildMessageMediaKey(conversationId, input.fileName);
     return this.storage.createUploadTicket(storagePath, input.mimeType, input.size);

@@ -29,6 +29,7 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
 import { toDbDate, toIsoDate } from "../../util/date.util";
+import { assertFollowOngoing } from "../../util/follow-ended.util";
 import { assertReadAtVersion, deleteAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import {
   COACH_PLAN_COUNTS_INCLUDE,
@@ -286,12 +287,17 @@ export class PlanService {
    * Le cycle, si le droit de l'acteur couvre le geste : 404 illisible, 403 lisible sans plus. À
    * appeler AVANT toute écriture dans le cycle ou ses enfants : l'extension refuserait sinon
    * l'écriture d'un lecteur par un 500 (enfant créé) ou par une écriture qui ne touche rien.
+   *
+   * Puis 409 `FOLLOW_ENDED` sur un cycle dont le suivi est terminé (#909), quel que soit le droit
+   * de l'acteur : l'écriture y est fermée à tous. Le partage et la suppression d'un brouillon
+   * restent au propriétaire — ils ne réécrivent rien de ce que le couple a produit.
    */
   async getForOrThrow(
     id: string,
     gesture: AccessGesture,
   ): Promise<{ plan: PlanWithAccess; context: AccessContext }> {
     const { row, context } = await this.access.loadFor(this.getReadableOrThrow(id), gesture);
+    if (gesture === "write" || gesture === "reassign") assertFollowOngoing(row.followEndedAt);
     return { plan: row, context };
   }
 

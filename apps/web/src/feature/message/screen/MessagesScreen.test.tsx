@@ -61,6 +61,7 @@ const conversation = (over: Partial<ConversationDto> = {}): ConversationDto => (
   lastMessageType: null,
   lastMessagePreview: null,
   unreadCount: 0,
+  followEndedAt: null,
   createdAt: "2026-10-05T08:00:00.000Z",
   ...over,
 });

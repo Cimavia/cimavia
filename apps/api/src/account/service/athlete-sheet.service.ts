@@ -6,6 +6,7 @@ import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor } from "../../tenancy/tenant-context.type";
+import { assertFollowOngoing } from "../../util/follow-ended.util";
 import { StaleWriteException } from "../../util/stale-write.util";
 import { toAthleteSheetDto } from "../athlete-sheet.mapper";
 
@@ -24,22 +25,27 @@ export class AthleteSheetService {
    * l'entrée. Sans ce cas, la fiche de la ligne « (moi) » répondait 404 — masqué par le panneau
    * web jusqu'à #301, qui rendait l'échec comme une fiche vierge. Même garde que les cycles : la
    * capacité athlète est exigée, un coach pur n'est pas son propre athlète.
+   *
+   * Un lien rompu (#909) garde sa fiche en LECTURE : l'archive du suivi la comprend. L'écrire, en
+   * revanche, répond 409 `FOLLOW_ENDED` — le scope la fermerait sinon par une écriture sans effet.
    */
-  private async assertOwnedAthlete(athleteId: string): Promise<void> {
+  private async assertOwnedAthlete(athleteId: string, gesture: "read" | "write"): Promise<void> {
     const actor = currentActor(this.cls);
     if (athleteId === actor.userId && actor.capabilities.isAthlete) return;
 
     const relation = await this.db.coachAthlete.findFirst({
       where: { athleteId },
+      select: { endedAt: true },
     });
     if (relation == null) {
       throw new NotFoundException("Athlète introuvable parmi les vôtres");
     }
+    if (gesture === "write") assertFollowOngoing(relation.endedAt);
   }
 
   // Coach : lit la fiche de son athlète (null si pas encore rédigée — pas de fallback).
   async get(athleteId: string): Promise<AthleteSheetDto | null> {
-    await this.assertOwnedAthlete(athleteId);
+    await this.assertOwnedAthlete(athleteId, "read");
     const sheet = await this.db.athleteSheet.findFirst({
       where: { athleteId },
     });
@@ -57,7 +63,7 @@ export class AthleteSheetService {
    *   cette version — elle a changé, ou n'existe pas — et rien n'est écrit.
    */
   async upsert(athleteId: string, input: UpdateAthleteSheetInput): Promise<AthleteSheetDto> {
-    await this.assertOwnedAthlete(athleteId);
+    await this.assertOwnedAthlete(athleteId, "write");
     const { content, expectedUpdatedAt } = input;
 
     if (expectedUpdatedAt == null) return toAthleteSheetDto(await this.create(athleteId, content));
