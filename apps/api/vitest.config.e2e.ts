@@ -86,6 +86,7 @@ export default defineConfig({
         // compter ferait mentir le chiffre autant que de les ignorer à tort.
         "src/main.ts",
         "src/erasure/erase-account.cli.ts",
+        "src/infra/storage/sweep-orphans.cli.ts",
         "src/instrument.ts",
       ],
       // Répertoire distinct de `coverage/` (tests unitaires) : Vitest nettoie son

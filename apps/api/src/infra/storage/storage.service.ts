@@ -6,6 +6,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -44,6 +45,12 @@ const UNCONFIRMED_UPLOAD = "Le storage n'a pas pu confirmer la réception du fic
  * envoi presque terminé. Une heure couvre un gros fichier sur une 4G médiocre depuis une salle.
  */
 export const MULTIPART_SIGNED_URL_TTL_SECONDS = 3600;
+
+/**
+ * Un objet du bucket, tel que la liste le décrit. Date et taille nullables : un storage peut les
+ * taire, et une absence ne se lit ni comme « ancien » ni comme « vide ».
+ */
+export type StoredObject = { key: string; lastModified: Date | null; size: number | null };
 
 type S3Config = {
   endpoint: string;
@@ -428,5 +435,55 @@ export class StorageService {
   async deleteObject(key: string): Promise<void> {
     const { client, bucket } = this.require();
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+  }
+
+  /**
+   * Le contenu du bucket, page par page, pour le balayage des objets orphelins (#72).
+   *
+   * ⚠️ Exige le droit de LISTER, que la clé d'API n'a pas et ne doit pas avoir (« Tranché en
+   * #267 ») : sous elle, le storage répond `AccessDenied`. Seule la commande de balayage l'appelle,
+   * lancée à la main sous l'identité root du stockage — l'API, elle, n'énumère jamais le bucket.
+   *
+   * Une page à la fois : le balayage confronte chaque page à la base avant de lire la suivante.
+   * Une entrée sans clé ne désigne rien : écartée. `prefix` restreint la liste à une branche du
+   * bucket (`conversation/`, un compte…).
+   *
+   * Une page tronquée qui ne dit pas où reprendre lève : s'arrêter là ferait passer une liste
+   * partielle pour le bucket entier, et un « plus rien à balayer » pour vrai.
+   */
+  async *listObjects({
+    prefix,
+    pageSize = 1000,
+  }: {
+    prefix?: string | undefined;
+    pageSize?: number;
+  } = {}): AsyncGenerator<StoredObject[]> {
+    const { client, bucket } = this.require();
+    let continuationToken: string | undefined;
+    do {
+      const page = await client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          MaxKeys: pageSize,
+          ContinuationToken: continuationToken,
+        }),
+      );
+      yield (page.Contents ?? []).flatMap((object) =>
+        object.Key == null
+          ? []
+          : [
+              {
+                key: object.Key,
+                lastModified: object.LastModified ?? null,
+                size: object.Size ?? null,
+              },
+            ],
+      );
+      if (page.IsTruncated && page.NextContinuationToken == null) {
+        throw new Error("Liste du bucket tronquée sans jeton de reprise : balayage incomplet");
+      }
+      continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (continuationToken != null);
   }
 }

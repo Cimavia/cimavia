@@ -934,3 +934,50 @@ liste des domaines vivent dans l'index.
 >
 > ⚠️ **Écart de maquette** : le cadre **11c · SANS RÉSEAU** de `athlete_seance_lecture.dc.html`
 > n'affiche que « Hors ligne », sans date.
+
+---
+
+## v1.0 — Balayage des objets orphelins ([#72](https://github.com/Cimavia/cimavia/issues/72))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| BO-1 | **Le balayage est manuel** : rien ne le lance sans opérateur, et entre deux passages les orphelins s'accumulent — cycle brouillon supprimé (P6-2), relation rompue ([#74](https://github.com/Cimavia/cimavia/issues/74)), rattachement refusé (S-2). L'automatiser demande une identité qui liste le bucket, ce que la clé d'API ne fait pas (« Tranché en #267 »). | 🟢 | — *(déclencheur : le choix de l'hébergement de production ([#259](https://github.com/Cimavia/cimavia/issues/259)), ou un bucket qui grossit entre deux passages ; la sortie serait une identité de maintenance — lister et supprimer, rien d'autre — appelée par le cron externe)* |
+| BO-2 | **Les préfixes des familles de clés sont recopiés** dans `orphan-sweep.ts` : l'infra n'importe pas les features. Un préfixe changé dans son service rend ses nouvelles clés « de forme inconnue » — signalées et jamais supprimées, le sens sûr, mais plus balayées. | 🟢 | — *(déclencheur : des clés de forme inconnue au rapport d'un balayage)* |
+| BO-3 | **Quatre des colonnes de clé n'ont pas d'index** (`storagePath` d'`ExerciseDocument`, de `FeedbackMedia` et de `Message`, `documentPath` d'`Invoice`) : chaque page du balayage les lit en parcours séquentiel. Seules les copies (`ScheduledSessionExerciseDocument`) et la file de retrait en ont un. Sans conséquence au volume de la bêta ; c'est `message` qui grossira le plus vite. | 🟢 | — *(déclencheur : un balayage qui s'éternise, ou une table `message` volumineuse ; la sortie est un index sur chacune de ces colonnes)* |
+
+> **Tranché en [#72](https://github.com/Cimavia/cimavia/issues/72)** (un balayage lancé à la main, sous l'identité root, qui ne supprime que ce
+> qu'il reconnaît) :
+>
+> - **Une commande, pas une route.** Lister le bucket est le droit que « Tranché en #267 » refuse à
+>   la clé d'API : `sweep-orphans.cli` tourne dans le conteneur de l'API, avec les identifiants root
+>   passés pour cet appel seulement, comme `backup.sh`. Sous la clé d'API, le storage répond
+>   `AccessDenied` et la commande le dit — l'e2e vérifie ce refus. Le tick récurrent
+>   (`POST /internal/reminders/tick`) existait déjà : la rétention des notifications et des rappels
+>   (#76, #107) s'y branche sans attendre ce balayage.
+> - **Simulation par défaut**, `--delete` pour supprimer. La simulation liste les clés qui
+>   partiraient, sur le terminal de l'opérateur seulement : une clé porte le nom du fichier, elle
+>   ne va ni dans Pino ni dans Axiom.
+> - **Toutes les colonnes de clé, chez tous les tenants** (`OBJECT_KEY_COLUMNS`), par le client de
+>   base. La liste est vérifiée contre le schéma : un test échoue sur toute colonne `…Path` qui n'y
+>   figure pas. Une clé en file de retrait (`PendingObjectDeletion`, #256) compte comme prise en
+>   charge : la file la retirera, le balayage ne la double pas.
+> - **Sept jours de grâce**, et non les 24 h de l'issue. Un envoi se rattache dans l'heure (URLs de
+>   parts à 1 h, aucune mutation mobile persistée) : la marge ne protège de rien de connu, mais ne
+>   coûte qu'une semaine de stockage, et c'est la durée de la règle `AbortIncompleteMultipartUpload`.
+>   Un objet dont le storage tait la date n'est jamais balayé.
+> - **Ce qu'il ne reconnaît pas reste** : seule une clé de la forme `buildObjectKey`, sous l'un des
+>   quatre préfixes de l'API, peut partir. Un objet déposé par un autre outil est signalé.
+> - **Page par page, dans un instantané** : chaque page de la liste est confrontée à la base puis
+>   purgée avant de lire la suivante — pas sur une photo du bucket entier. Les six colonnes d'une
+>   page se lisent dans UNE transaction `RepeatableRead` : lues une à une, une copie créée puis sa
+>   source supprimée entre deux lectures feraient passer la clé pour orpheline. Reste une course :
+>   une copie qui s'écrit pendant que la dernière source part, sur une clé de plus de sept jours —
+>   le balayage est manuel, l'opérateur choisit son moment.
+> - **`--delete` liste ce qu'il a supprimé**, et ce qui a résisté. Interrompu, il imprime ce qu'il
+>   a déjà fait avant de rendre l'erreur.
+
+> **Appris en [#72](https://github.com/Cimavia/cimavia/issues/72)** (ce que coûtait la dette) : la première simulation sur un poste de
+> développement, le 2026-11-23, trouvait **26 orphelins sur 165 objets**, 97 Mo dont 86 de médias de
+> débrief — recoupés un à un par la requête SQL de la procédure de restauration
+> (`deploy/preview/README.md`), sans écart dans un sens ni dans l'autre. Supprimés, puis un second
+> passage n'en trouvait plus aucun.
