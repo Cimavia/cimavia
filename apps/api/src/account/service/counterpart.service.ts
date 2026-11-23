@@ -4,6 +4,9 @@ import { ClsService } from "nestjs-cls";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { currentActor } from "../../tenancy/tenant-context.type";
 
+/** Les liens qui laissent quelqu'un en face : en cours, ou rompus avec leur fil archivé (#909). */
+const FOLLOWED = [CoachAthleteStatus.ACTIVE, CoachAthleteStatus.ENDED];
+
 /**
  * A-t-on quelqu'un en face, de chaque côté ? (#198)
  *
@@ -25,8 +28,9 @@ export class CounterpartService {
   ) {}
 
   /**
-   * Les relations ACTIVES seulement : une invitation en attente n'ouvre pas encore de fil, et
-   * afficher l'entrée avant l'acceptation mènerait à une messagerie que l'API refuse.
+   * Les relations ACTIVES, et celles qui ont pris fin : une invitation en attente n'ouvre pas encore
+   * de fil, et afficher l'entrée avant l'acceptation mènerait à une messagerie que l'API refuse. Un
+   * lien rompu (#909), lui, laisse un fil à relire — en lecture seule, mais l'entrée doit y mener.
    *
    * L'auto-coaching ne peut pas compter : le CHECK `coach_athlete_not_self` (#11) interdit la ligne
    * `coachId === athleteId`, et l'entrée synthétique de `GET /athletes` (#14) est fabriquée
@@ -40,7 +44,7 @@ export class CounterpartService {
     const { userId } = currentActor(this.cls);
     const [athletes, colleagues, coaches] = await Promise.all([
       this.prisma.coachAthlete.count({
-        where: { coachId: userId, status: CoachAthleteStatus.ACTIVE },
+        where: { coachId: userId, status: { in: FOLLOWED } },
       }),
       this.prisma.organizationCoach.count({
         where: {
@@ -49,7 +53,7 @@ export class CounterpartService {
         },
       }),
       this.prisma.coachAthlete.count({
-        where: { athleteId: userId, status: CoachAthleteStatus.ACTIVE },
+        where: { athleteId: userId, status: { in: FOLLOWED } },
       }),
     ]);
     return { asCoach: athletes + colleagues > 0, asAthlete: coaches > 0 };

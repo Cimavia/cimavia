@@ -1,22 +1,34 @@
+import { CoachAthleteStatus } from "@cmv/shared";
 import { ConflictException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
 import type { PrismaService } from "../../infra/prisma/prisma.service";
 import { CoachGraphService } from "./coach-graph.service";
 
-type Link = { coachId: string; athleteId: string };
+type Link = { coachId: string; athleteId: string; status: CoachAthleteStatus };
+
+type LinkWhere = { athleteId: { in: string[] }; status: { not: CoachAthleteStatus } };
 
 /** Une base réduite aux liens `coach → athlète`, que la remontée lit niveau par niveau. */
 function serviceOver(links: Link[]) {
   const prisma = {
     coachAthlete: {
-      findMany: ({ where }: { where: { athleteId: { in: string[] } } }) =>
-        Promise.resolve(links.filter((link) => where.athleteId.in.includes(link.athleteId))),
+      findMany: ({ where }: { where: LinkWhere }) =>
+        Promise.resolve(
+          links.filter(
+            (link) =>
+              where.athleteId.in.includes(link.athleteId) && link.status !== where.status.not,
+          ),
+        ),
     },
   } as unknown as PrismaService;
   return new CoachGraphService(prisma);
 }
 
-const link = (coachId: string, athleteId: string): Link => ({ coachId, athleteId });
+const link = (
+  coachId: string,
+  athleteId: string,
+  status: CoachAthleteStatus = CoachAthleteStatus.ACTIVE,
+): Link => ({ coachId, athleteId, status });
 
 /**
  * La garde anti-boucle, à plusieurs liens d'un coup (#602). Le cas d'un seul lien est éprouvé en
@@ -43,6 +55,14 @@ describe("CoachGraphService.assertNoCycle", () => {
     await expect(graph.assertNoCycle(["m"], ["ti", "te"])).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  // TI a quitté M (#909) : le lien rompu ne coache plus personne. S'il revit, c'est par une
+  // invitation, qui repasse par cette garde.
+  it("ne compte pas un lien rompu", async () => {
+    const graph = serviceOver([link("ti", "m", CoachAthleteStatus.ENDED)]);
+
+    await expect(graph.assertNoCycle(["c", "m"], ["ti"])).resolves.toBeUndefined();
   });
 
   it("dit le refus avec le message de l'appelant", async () => {

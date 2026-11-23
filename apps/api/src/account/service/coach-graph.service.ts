@@ -1,3 +1,4 @@
+import { CoachAthleteStatus } from "@cmv/shared";
 import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { hasCoachCycle } from "../coach-graph";
@@ -58,6 +59,9 @@ export class CoachGraphService {
    * entreprises.
    *
    * Termine même sur une base qui boucle : un compte n'entre qu'une fois dans la frontière.
+   *
+   * Un lien rompu (#909) ne compte pas : il ne coache plus personne. Il ne revit que par une
+   * invitation, qui repasse par cette garde avant de le réactiver.
    */
   private async coachesAbove(coachIds: readonly string[]): Promise<Map<string, string[]>> {
     const coaches = new Map<string, string[]>();
@@ -65,7 +69,7 @@ export class CoachGraphService {
 
     while (frontier.length > 0) {
       const links = await this.prisma.coachAthlete.findMany({
-        where: { athleteId: { in: frontier } },
+        where: { athleteId: { in: frontier }, status: { not: CoachAthleteStatus.ENDED } },
         select: { coachId: true, athleteId: true },
       });
       for (const account of frontier) coaches.set(account, []);
