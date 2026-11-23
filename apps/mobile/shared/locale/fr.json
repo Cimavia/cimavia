@@ -680,7 +680,7 @@
       "remindersHint": "Échéance passée, à traiter."
     },
     "row": {
-      "pending": "{{feedbacks}} débrief(s) · {{messages}} message(s) non lus"
+      "pending": "<feedbacks/> débrief(s) · <messages/> message(s) non lus"
     }
   },
   "athlete": {
