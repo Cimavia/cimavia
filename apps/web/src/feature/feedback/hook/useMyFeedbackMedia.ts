@@ -40,11 +40,11 @@ import {
 function useInvalidateFeedback(sessionId: string) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
-    queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
-    queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
+    void queryClient.invalidateQueries({ queryKey: myFeedbackKeys.detail(sessionId) });
+    void queryClient.invalidateQueries({ queryKey: myPlanKeys.session(sessionId) });
+    void queryClient.invalidateQueries({ queryKey: myPlanKeys.visible() });
     // Idem : en auto-coaching, l'auteur est aussi le lecteur (#14).
-    queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
+    void queryClient.invalidateQueries({ queryKey: coachFeedbackKeys.all });
   };
 }
 

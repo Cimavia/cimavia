@@ -89,8 +89,8 @@ export function CompanyMembersPage<T>({
           description={t("common.errorDescription")}
           retryLabel={t("common.retry")}
           onRetry={() => {
-            if (members.isError) members.refetch();
-            if (invitations.isError) invitations.refetch();
+            if (members.isError) void members.refetch();
+            if (invitations.isError) void invitations.refetch();
           }}
         />
       ) : null}

@@ -67,8 +67,8 @@ export function useSendMessageMedia(
 
   const attachment = options?.attachment;
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
-    queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     options?.onSent?.();
   };
 

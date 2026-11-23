@@ -63,7 +63,7 @@ export function useDeclineInvitation() {
   return useMutation({
     mutationFn: (invitationId: string) => accountApi.declineInvitation(invitationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: invitationKeys.all });
       toast.onSuccess("coach.invitation.toast.declined");
     },
     onError: toast.onError,

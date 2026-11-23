@@ -23,7 +23,7 @@ export function useCreatePlan() {
   return useMutation({
     mutationFn: (input: CreatePlanInput) => createPlan(input),
     onSuccess: (plan) => {
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
       toast.onSuccess("plan.toast.created", { title: plan.title });
     },
     onError: toast.onError,
@@ -55,15 +55,15 @@ export function useDeletePlan() {
     onSuccess: (_result, { planId }) => {
       // Une semaine copiée dans ce cycle ne peut plus se coller nulle part (#341).
       forgetPlanClipboardSource({ planId });
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
       // La facture du cycle part en cascade (FK ON DELETE CASCADE) : rafraîchir la liste des
       // factures, sinon /invoices afficherait une facture qui n'existe plus en base.
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       // Les rappels du cycle et de sa facture sont purgés dans la même transaction (pas de FK, la
       // référence est polymorphe) : sans ces deux invalidations, la liste, la tuile « à traiter »
       // et le badge garderaient un rappel qui n'existe plus jusqu'au polling suivant (#485).
-      queryClient.invalidateQueries({ queryKey: reminderKeys.all });
-      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: reminderKeys.all });
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
       toast.onSuccess("plan.toast.deleted");
     },
     onError,
@@ -78,14 +78,14 @@ export function usePublishPlan() {
   return useMutation({
     mutationFn: ({ planId, ...input }: PlanAtVersion) => publishPlan(planId, input),
     onSuccess: (plan) => {
-      queryClient.invalidateQueries({ queryKey: planKeys.all });
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
       // La diffusion émet la facture (DRAFT → PENDING) : rafraîchir la liste des factures et le
       // brouillon du cycle, sinon /invoices resterait vide jusqu'à un rechargement manuel.
-      queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
+      void queryClient.invalidateQueries({ queryKey: invoiceKeys.all });
       // Le cycle diffusé se lit par les routes ATHLÈTE, et en auto-coaching c'est le MÊME cache
       // (#14) : sans cette invalidation, le compte bascule côté athlète et n'y voit rien pendant
       // une minute (`staleTime`). Sans effet pour un coach pur, dont le cache n'a pas cette clé.
-      queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
+      void queryClient.invalidateQueries({ queryKey: myPlanKeys.all });
       toast.onSuccess("plan.toast.published", { title: plan.title });
     },
     onError,

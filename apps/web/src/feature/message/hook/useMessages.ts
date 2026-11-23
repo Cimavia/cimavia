@@ -138,8 +138,8 @@ export function useSendMessage(conversationId: string, attachment?: { sessionFee
     mutationFn: (input: SendMessageInput) =>
       messageApi.sendMessage(conversationId, { ...input, ...attachment }, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId, as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
     onError: toast.onError,
   });
@@ -155,7 +155,7 @@ export function useMarkRead(conversationId: string | undefined) {
   return useMutation({
     mutationFn: () => messageApi.markRead(conversationId as string, as),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
     },
   });
 }

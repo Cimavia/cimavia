@@ -66,7 +66,7 @@ function useInvitationMutation<TInput>(
   return useMutation({
     mutationFn,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.all });
+      void queryClient.invalidateQueries({ queryKey: invitationKeys.all });
       toast.onSuccess(successKey);
     },
     onError: toast.onError,
