@@ -35,6 +35,7 @@ export default defineConfig({
         "src/**/*.test.ts",
         "src/main.ts",
         "src/erasure/erase-account.cli.ts",
+        "src/infra/storage/sweep-orphans.cli.ts",
         "src/**/*.module.ts",
         "src/**/*.dto.ts",
         "src/generated/**",
