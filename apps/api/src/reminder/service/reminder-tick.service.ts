@@ -17,6 +17,7 @@ import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { runAsCoach } from "../../tenancy/tenant-context.type";
 import { shiftDbDate, startOfProductDay, toDbDate, toIsoDate } from "../../util/date.util";
+import { retentionCutoff } from "../../util/retention.util";
 
 /**
  * Combien de jours AVANT la fin d'un cycle le rappel de renouvellement devient dû. Une semaine :
@@ -142,7 +143,15 @@ export class ReminderTickService {
       pushedReminders += result.pushed;
     }
 
-    return { scannedCoaches: coaches.length, createdReminders, pushedReminders };
+    // La purge dans une SECONDE passe, une fois les rappels de TOUS les coachs générés et poussés :
+    // une suppression qui lève chez l'un ne doit priver aucun autre de ses rappels. Le tick rend
+    // alors une erreur — le job rouge —, mais après que tout ce qui comptait est parti.
+    let purgedReminders = 0;
+    for (const coach of coaches) {
+      purgedReminders += await runAsCoach(this.cls, coach.id, () => this.purgeHandled(now));
+    }
+
+    return { scannedCoaches: coaches.length, createdReminders, pushedReminders, purgedReminders };
   }
 
   /**
@@ -268,6 +277,32 @@ export class ReminderTickService {
       data: { pushedAt: now },
     });
     return pushable.length;
+  }
+
+  /**
+   * La rétention des rappels traités (#107, dette R-5) : un rappel fait ou écarté que personne n'a
+   * retouché depuis `HANDLED_RETENTION_DAYS` est supprimé. `DISMISSED` étant la suppression douce,
+   * c'est ici que le rappel écarté quitte vraiment la base.
+   *
+   * - **`PENDING` jamais**, quelle que soit son ancienneté : un rappel en retard depuis six mois
+   *   reste un rappel en retard. Les statuts traités sont NOMMÉS plutôt que « tout sauf PENDING » :
+   *   un statut ajouté demain ne sera pas purgé sans qu'on l'ait décidé.
+   * - **`updatedAt`, faute de date de traitement** : c'est le dernier geste du coach (statut, note,
+   *   lecture). Toute retouche après coup repousse donc la purge — le sens sûr.
+   * - **Par le client scopé**, dans le contexte de CE coach : la purge ne peut pas franchir sa
+   *   frontière, et n'a demandé aucune exception au scope.
+   * - **Sans renaissance** : le rappel généré, une fois purgé, n'est plus protégé par l'index
+   *   unique ; c'est la fenêtre de génération, plus courte que la rétention, qui l'empêche de
+   *   revenir (`REMINDER_GENERATION_WINDOW_DAYS`).
+   */
+  private async purgeHandled(now: Date): Promise<number> {
+    const { count } = await this.db.reminder.deleteMany({
+      where: {
+        status: { in: [ReminderStatus.DONE, ReminderStatus.DISMISSED] },
+        updatedAt: { lt: retentionCutoff(now) },
+      },
+    });
+    return count;
   }
 
   /**

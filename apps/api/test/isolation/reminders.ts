@@ -975,6 +975,72 @@ describe("Génération automatique des rappels (#47)", () => {
       expect(await pushedBy()).toBe(0);
     });
   });
+  /**
+   * La rétention des rappels traités (#107, dette R-5). Six mois sans retouche, et un rappel fait
+   * ou écarté quitte la base ; un rappel à faire, jamais. Le temps ne se simule pas : on recule
+   * `updatedAt` en base, la seule date que la purge regarde.
+   */
+  describe("rétention des rappels traités (#107)", () => {
+    const ids: Record<"oldDone" | "oldDismissed" | "oldPending" | "recentDone", string> = {
+      oldDone: "",
+      oldDismissed: "",
+      oldPending: "",
+      recentDone: "",
+    };
+    let purged: number;
+
+    beforeAll(async () => {
+      for (const key of Object.keys(ids) as (keyof typeof ids)[]) {
+        const created = await coachG.post("/reminders").send({
+          entityType: "PLAN",
+          entityId: planId,
+          dueAt: inPast(2),
+          note: `Rétention ${key}`,
+        });
+        ids[key] = created.body.id;
+      }
+      const statusOf = { oldDone: "DONE", oldDismissed: "DISMISSED", recentDone: "DONE" };
+      for (const [key, status] of Object.entries(statusOf)) {
+        const res = await coachG
+          .patch(`/reminders/${ids[key as keyof typeof ids]}/status`)
+          .send({ status });
+        expect(res.status).toBe(200);
+      }
+
+      // Sept mois sans retouche : au-delà des six de la rétention. Poussés à l'époque, aussi : sans
+      // quoi le tick pousserait le rappel en retard, et son estampille le rajeunirait.
+      const sevenMonthsAgo = new Date(Date.now() - 210 * 86_400_000);
+      await app.get(PrismaService).reminder.updateMany({
+        where: { id: { in: [ids.oldDone, ids.oldDismissed, ids.oldPending] } },
+        data: { updatedAt: sevenMonthsAgo, pushedAt: sevenMonthsAgo },
+      });
+
+      const res = await tick(SECRET);
+      expect(res.status).toBe(200);
+      purged = res.body.purgedReminders;
+    });
+
+    it("purge les rappels faits ou écartés depuis plus de six mois", async () => {
+      const left = (await reminders(coachG)).map((r) => r.id);
+
+      expect(left).not.toContain(ids.oldDone);
+      expect(left).not.toContain(ids.oldDismissed);
+      // D'autres blocs peuvent avoir laissé les leurs : au moins ces deux-là.
+      expect(purged).toBeGreaterThanOrEqual(2);
+    });
+
+    it("garde un rappel à faire, même intouché depuis plus de six mois", async () => {
+      const pending = (await reminders(coachG)).find((r) => r.id === ids.oldPending);
+
+      expect(pending?.status).toBe("PENDING");
+    });
+
+    it("garde un rappel traité récemment", async () => {
+      const recent = (await reminders(coachG)).find((r) => r.id === ids.recentDone);
+
+      expect(recent?.status).toBe("DONE");
+    });
+  });
 });
 
 /**

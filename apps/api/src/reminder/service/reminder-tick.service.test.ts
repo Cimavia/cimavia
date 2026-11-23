@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../../infra/prisma/prisma.service";
 import type { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
+import { HANDLED_RETENTION_DAYS, retentionCutoff } from "../../util/retention.util";
 import { REMINDER_GENERATION_WINDOW_DAYS, ReminderTickService } from "./reminder-tick.service";
 
 const NOW = new Date("2026-10-04T09:00:00.000Z");
@@ -45,6 +46,7 @@ function build(rows: Row[], onPush?: (reminderId: string) => void) {
       updateMany: vi.fn(async ({ where, data }: { where: StampWhere; data: Partial<Row> }) => {
         for (const row of rows) if (matches(row, where)) Object.assign(row, data);
       }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
   } as unknown as TenantPrisma;
 
@@ -143,6 +145,7 @@ function buildGeneration(source: {
       createMany,
       findMany: vi.fn().mockResolvedValue([]),
       updateMany: vi.fn(),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
   } as unknown as TenantPrisma;
 
@@ -305,6 +308,7 @@ describe("ReminderTickService — clôture des retards réglés ailleurs", () =>
           .mockResolvedValue([]),
         createMany: vi.fn(),
         updateMany,
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
     } as unknown as TenantPrisma;
     const service = new ReminderTickService(
@@ -343,5 +347,66 @@ describe("ReminderTickService — clôture des retards réglés ailleurs", () =>
     await service.run(NOW);
 
     expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * La rétention des rappels traités (#107). Le `where` est lu tel quel : c'est lui qui décide ce
+ * qui part — l'e2e vérifie qu'il est bien appliqué par la base.
+ */
+describe("ReminderTickService — rétention des rappels traités", () => {
+  function buildPurge(purgedCount: number) {
+    const deleteMany = vi.fn().mockResolvedValue({ count: purgedCount });
+    const planFindMany = vi.fn().mockResolvedValue([]);
+    const db = {
+      plan: { findMany: planFindMany },
+      planWeek: { groupBy: vi.fn().mockResolvedValue([]) },
+      invoice: { findMany: vi.fn().mockResolvedValue([]) },
+      reminder: { findMany: vi.fn().mockResolvedValue([]), deleteMany },
+    } as unknown as TenantPrisma;
+    const service = new ReminderTickService(
+      {
+        user: { findMany: vi.fn().mockResolvedValue([{ id: "c1" }, { id: "c2" }]) },
+      } as unknown as PrismaService,
+      db,
+      { run: (fn: () => unknown) => fn(), set: vi.fn() } as unknown as ClsService,
+      { notifyReminderDue: vi.fn() } as unknown as NotificationService,
+    );
+    return { service, deleteMany, planFindMany };
+  }
+
+  it("purge, coach par coach, les rappels faits ou écartés que personne n'a retouchés", async () => {
+    const { service, deleteMany } = buildPurge(2);
+
+    const result = await service.run(NOW);
+
+    expect(deleteMany).toHaveBeenCalledTimes(2);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        status: { in: [ReminderStatus.DONE, ReminderStatus.DISMISSED] },
+        updatedAt: { lt: retentionCutoff(NOW) },
+      },
+    });
+    expect(result.purgedReminders).toBe(4);
+  });
+
+  // La purge passe APRÈS les rappels de tous les coachs : un échec chez l'un ne prive personne.
+  it("génère pour tous les coachs avant de purger, même si la purge échoue", async () => {
+    const { service, deleteMany, planFindMany } = buildPurge(0);
+    deleteMany.mockRejectedValueOnce(new Error("lock timeout"));
+
+    await expect(service.run(NOW)).rejects.toThrow("lock timeout");
+
+    expect(planFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * L'invariant dont dépend la purge : un rappel généré, purgé, ne renaît que si sa cible tombe
+   * encore dans la fenêtre de génération. Elle doit donc rester plus courte que la rétention —
+   * allonger l'une ou raccourcir l'autre sans le voir ferait relancer le coach sur ce qu'il a déjà
+   * réglé.
+   */
+  it("garde la fenêtre de génération plus courte que la rétention", () => {
+    expect(REMINDER_GENERATION_WINDOW_DAYS).toBeLessThan(HANDLED_RETENTION_DAYS);
   });
 });
