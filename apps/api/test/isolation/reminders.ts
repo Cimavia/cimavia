@@ -663,6 +663,8 @@ describe("Génération automatique des rappels (#47)", () => {
   let planId: string;
   let quietPlanId: string;
   let quietInvoiceId: string;
+  let stalePlanId: string;
+  let staleInvoiceId: string;
 
   const monday = mondayOfCurrentWeek();
 
@@ -700,7 +702,8 @@ describe("Génération automatique des rappels (#47)", () => {
     /**
      * Un cycle d'UNE semaine démarrant ce lundi : sa fin tombe dimanche, donc l'échéance du rappel
      * (fin moins sept jours) est déjà passée. `billAndPublish` l'assortit d'une facture à échéance
-     * 2026-01-05, largement dépassée — les deux motifs sont donc exerçables d'un seul cycle.
+     * 2026-01-05, largement dépassée — les deux motifs sont donc exerçables d'un seul cycle. Elle
+     * reste dans la fenêtre de génération (#107) parce qu'elle est ÉMISE aujourd'hui, à la diffusion.
      */
     const plan = await coachG.post("/plans").send({
       athleteId: accepted.body[0].athleteId,
@@ -731,6 +734,30 @@ describe("Génération automatique des rappels (#47)", () => {
     expect((await publishAtLatest(coachG, quietPlanId)).status).toBe(200);
     await app.get(PrismaService).$executeRaw`DELETE FROM plan_week WHERE "planId" = ${quietPlanId}`;
     expect((await coachG.get(`/plans/${quietPlanId}`)).body.weeks).toEqual([]);
+
+    /**
+     * Le cycle trop ANCIEN (#107) : fini en décembre 2025, facturé au 5 janvier 2026, diffusé et
+     * émis à l'époque. Ses deux échéances sont atteintes, mais hors de la fenêtre de génération —
+     * c'est elle qui empêche un rappel traité, une fois purgé, de renaître au passage suivant.
+     * Diffusé AUJOURD'HUI, il serait relancé (facturation de rattrapage) : la diffusion et
+     * l'émission sont donc reculées en base, comme les aurait laissées un cycle de l'époque.
+     */
+    const stale = await coachG.post("/plans").send({
+      athleteId: accepted.body[0].athleteId,
+      title: "Cycle fini depuis longtemps",
+      startDate: "2025-12-01",
+      weeks: [{ type: "TRAINING" }],
+    });
+    stalePlanId = stale.body.id;
+    const staleBilling = await coachG
+      .put(`/plans/${stalePlanId}/billing`)
+      .send({ amountCents: 5000, dueDate: "2026-01-05" });
+    staleInvoiceId = staleBilling.body.id;
+    expect((await publishAtLatest(coachG, stalePlanId)).status).toBe(200);
+    const longAgo = new Date("2025-12-01T09:00:00.000Z");
+    const prisma = app.get(PrismaService);
+    await prisma.plan.update({ where: { id: stalePlanId }, data: { publishedAt: longAgo } });
+    await prisma.invoice.update({ where: { id: staleInvoiceId }, data: { issuedAt: longAgo } });
   });
 
   /**
@@ -792,6 +819,14 @@ describe("Génération automatique des rappels (#47)", () => {
 
     expect(entities).not.toContain(quietPlanId);
     expect(entities).not.toContain(quietInvoiceId);
+  });
+
+  // Échu, mais depuis plus longtemps que la fenêtre de génération (#107) : plus rien à relancer.
+  it("ne génère rien pour un cycle ni une facture échus depuis plus de 30 jours", async () => {
+    const entities = (await reminders(coachG)).map((r) => r.entityId);
+
+    expect(entities).not.toContain(stalePlanId);
+    expect(entities).not.toContain(staleInvoiceId);
   });
 
   /**
@@ -868,6 +903,9 @@ describe("Génération automatique des rappels (#47)", () => {
    * Un rappel généré puis TRAITÉ n'est jamais régénéré, même si la condition persiste — la facture
    * reste impayée. C'est la conséquence assumée de l'index unique : le coach a tranché, on ne le
    * relance pas. Sans ce test, quelqu'un « corrigerait » un jour l'index en croyant à un oubli.
+   * L'index n'en répond que tant que la ligne existe ; purgée (#107), c'est la fenêtre de génération
+   * qui prend le relais — cf. « ne génère rien pour un cycle ni une facture échus depuis plus de 30
+   * jours ».
    */
   it("ne régénère pas un rappel que le coach a traité", async () => {
     const invoiceReminder = required(

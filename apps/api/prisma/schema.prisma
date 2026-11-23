@@ -1334,7 +1334,9 @@ model Reminder {
   //
   // Conséquence assumée : un rappel généré puis TRAITÉ n'est jamais régénéré, même si la condition
   // persiste (facture toujours impayée le mois suivant). C'est voulu — le coach a tranché, on ne le
-  // relance pas.
+  // relance pas. L'index n'en est le garant que tant que la ligne existe : une fois le rappel
+  // traité purgé (#107), c'est la fenêtre de génération du tick qui l'empêche de renaître
+  // (`REMINDER_GENERATION_WINDOW_DAYS`, plus courte que la rétention).
   @@unique([coachId, entityType, entityId, reason])
   @@index([coachId, status, dueAt]) // liste « mes rappels » + sélection des rappels dus
   @@index([coachId, status, readAt]) // compteur de rappels dus non lus (badge)

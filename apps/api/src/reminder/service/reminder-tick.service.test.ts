@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../../infra/prisma/prisma.service";
 import type { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
-import { ReminderTickService } from "./reminder-tick.service";
+import { REMINDER_GENERATION_WINDOW_DAYS, ReminderTickService } from "./reminder-tick.service";
 
 const NOW = new Date("2026-10-04T09:00:00.000Z");
 const YESTERDAY = new Date("2026-10-03T09:00:00.000Z");
@@ -126,8 +126,8 @@ describe("ReminderTickService — push à l'échéance", () => {
  * capturé pour lire ce qui serait inséré — l'unicité, elle, est l'affaire de la base.
  */
 function buildGeneration(source: {
-  plans?: { id: string; startDate: Date; weekCount: number }[];
-  invoices?: { id: string; dueDate: Date }[];
+  plans?: { id: string; startDate: Date; weekCount: number; publishedAt?: Date }[];
+  invoices?: { id: string; dueDate: Date; issuedAt?: Date }[];
 }) {
   const plans = source.plans ?? [];
   const createMany = vi.fn(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
@@ -139,7 +139,11 @@ function buildGeneration(source: {
         .mockResolvedValue(plans.map((p) => ({ planId: p.id, _count: { _all: p.weekCount } }))),
     },
     invoice: { findMany: vi.fn().mockResolvedValue(source.invoices ?? []) },
-    reminder: { createMany, findMany: vi.fn().mockResolvedValue([]), updateMany: vi.fn() },
+    reminder: {
+      createMany,
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn(),
+    },
   } as unknown as TenantPrisma;
 
   const service = new ReminderTickService(
@@ -202,6 +206,80 @@ describe("ReminderTickService — échéances à l'heure du produit", () => {
         dueAt: new Date("2026-10-03T22:00:00.000Z"),
       }),
     ]);
+  });
+});
+
+/**
+ * La fenêtre de génération (#107) : une cible échue ET émise depuis plus longtemps que
+ * `REMINDER_GENERATION_WINDOW_DAYS` n'engendre plus rien. C'est ce qui empêche un rappel traité,
+ * une fois purgé, de renaître au tick suivant — un cycle diffusé reste candidat à vie.
+ */
+describe("ReminderTickService — fenêtre de génération", () => {
+  const WINDOW_MS = REMINDER_GENERATION_WINDOW_DAYS * 86_400_000;
+  const after = (instant: Date, ms: number) => new Date(instant.getTime() + ms);
+
+  // Facture échue le 4 octobre : son retard commence le 4 à 22 h UTC (minuit à Paris).
+  const INVOICE = { id: "inv1", dueDate: new Date("2026-10-04T00:00:00.000Z") };
+  const OVERDUE_AT = new Date("2026-10-04T22:00:00.000Z");
+
+  // Cycle de trois semaines parti le 21/09 : le rappel de fin tombe le 3 à 22 h UTC.
+  const PLAN = { id: "pln1", startDate: new Date("2026-09-21T00:00:00.000Z"), weekCount: 3 };
+  const ENDING_AT = new Date("2026-10-03T22:00:00.000Z");
+
+  it("relance encore une facture échue depuis exactement la fenêtre", async () => {
+    const { service, inserted } = buildGeneration({ invoices: [INVOICE] });
+
+    await service.run(after(OVERDUE_AT, WINDOW_MS));
+
+    expect(inserted()).toEqual([expect.objectContaining({ entityId: "inv1" })]);
+  });
+
+  it("ne relance plus une facture échue depuis plus longtemps que la fenêtre", async () => {
+    const { service, inserted } = buildGeneration({ invoices: [INVOICE] });
+
+    const result = await service.run(after(OVERDUE_AT, WINDOW_MS + 1));
+
+    expect(result.createdReminders).toBe(0);
+    expect(inserted()).toEqual([]);
+  });
+
+  // Une facture de rattrapage : déjà vieille quand elle est émise. L'écran des factures la dit en
+  // retard dès l'émission — la liste des rappels ne doit pas se taire.
+  it("relance une facture émise récemment, même échue depuis longtemps", async () => {
+    const now = after(OVERDUE_AT, 3 * WINDOW_MS);
+    const issued = { ...INVOICE, issuedAt: after(now, -86_400_000) };
+    const { service, inserted } = buildGeneration({ invoices: [issued] });
+
+    await service.run(now);
+
+    expect(inserted()).toEqual([expect.objectContaining({ entityId: "inv1" })]);
+  });
+
+  it("annonce encore la fin d'un cycle dont l'échéance date d'exactement la fenêtre", async () => {
+    const { service, inserted } = buildGeneration({ plans: [PLAN] });
+
+    await service.run(after(ENDING_AT, WINDOW_MS));
+
+    expect(inserted()).toEqual([expect.objectContaining({ entityId: "pln1" })]);
+  });
+
+  it("n'annonce plus la fin d'un cycle dont l'échéance a passé la fenêtre", async () => {
+    const { service, inserted } = buildGeneration({ plans: [PLAN] });
+
+    await service.run(after(ENDING_AT, WINDOW_MS + 1));
+
+    expect(inserted()).toEqual([]);
+  });
+
+  it("annonce la fin d'un cycle diffusé récemment, même fini depuis longtemps", async () => {
+    const now = after(ENDING_AT, 3 * WINDOW_MS);
+    const { service, inserted } = buildGeneration({
+      plans: [{ ...PLAN, publishedAt: after(now, -86_400_000) }],
+    });
+
+    await service.run(now);
+
+    expect(inserted()).toEqual([expect.objectContaining({ entityId: "pln1" })]);
   });
 });
 
