@@ -118,6 +118,22 @@ liste des domaines vivent dans l'index.
 >   barre de progression, barre de toast) garde le `DEFAULT`, et le bandeau `warning`, clair, son
 >   texte sombre. Reste les médias d'une bulle à soi (CE-1).
 
+> **Tranché en [#705](https://github.com/Cimavia/cimavia/issues/705)** (les compteurs du suivi
+> prennent la couleur de leur palier, `0` compris) : « Débriefs » et « Messages » non lus passent du
+> vert (0 à 9) à l'orange (10 à 19), au rouge (20 à 39) puis au violet (dès 40), sur le tableau du
+> web comme sur la carte d'athlète du mobile. Les bornes vivent dans `unreadCountTone`
+> (`@cmv/shared`) ; chaque app traduit le palier en sa classe `-on`. Trois écarts assumés :
+>
+> - **Le `0` vert déroge à l'arbitrage de #37**, où la couleur marquait l'exception et un zéro
+>   restait neutre : le Coach bêta veut voir d'un coup d'œil que tout est lu. Les tuiles du tableau
+>   de bord, elles, restent neutres à zéro. `null` (liste indisponible) reste « — » sans couleur :
+>   un vert y passerait pour un « tout est lu ».
+> - **L'orange est l'ambre `warning`, pas le terracotta** : `accent-on` (`#E8966F`) et `error-on`
+>   (`#E89089`) sont trop proches, un 10 et un 25 ne se distingueraient plus.
+> - **`violet` entre dans `@cmv/tokens`** comme une famille d'état, au même quatuor (`DEFAULT`,
+>   `soft`, `line`, `on`) et sous la même règle de lint, sans sens d'état propre : il prolonge
+>   l'échelle au-delà du rouge. `violet-on` (`#C2ADEB`) tient 7.65:1 sur `surface-hi`.
+
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | CE-1 | **Le texte d'un média dans une bulle à soi garde ses couleurs de carte sur l'aplat `accent-fill`** : `text-hi` à 3.85:1, `text-mid` à 2.22, `error-on` à 1.91. Sont touchés le compteur du lecteur audio, la taille d'un fichier, la pastille vidéo sans vignette, « format non pris en charge » et les erreurs de lecture. Le **nom** d'un fichier diverge : sur le web il ne fixe pas de couleur et hérite du blanc de la bulle (4.58, il passe), sur le mobile, qui n'hérite d'aucune couleur, il reste en `text-hi`. Il faut à ces composants une variante « sur aplat », sur les deux apps. Le texte d'une bulle, lui, est passé au blanc. | 🟡 | — *(issue proposée à la revue de la PR de #218)* |
@@ -440,3 +456,17 @@ liste des domaines vivent dans l'index.
 >
 > C'est un essai : si un écran dense en souffre, le retour en arrière se limite à `VARIANT_CLASSES`.
 > Le mobile n'est pas concerné, son `CmvButton` est plein.
+
+---
+
+## Post-MVP — Le sélecteur segmenté s'annonce ([#650](https://github.com/Cimavia/cimavia/issues/650))
+
+> **Tranché en [#650](https://github.com/Cimavia/cimavia/issues/650)** (des boutons à bascule
+> dans un groupe nommé, pas un `radiogroup`) : `CmvSegmented` pose `aria-pressed` sur chaque option
+> — le contrat de `CmvToggleChip` — plutôt que `role="radio"` + `aria-checked`. Le patron radio est
+> celui d'un choix exclusif, mais il exige la navigation aux flèches et un seul arrêt de
+> tabulation, pour des groupes de deux à quatre options. Le groupe est un `fieldset` (rôle `group`
+> implicite), et son nom est **imposé par le type** : `label` (libellé visible, qui le nomme),
+> `ariaLabelledBy` (libellé visible posé ailleurs par l'appelant, comme le nom d'un bénéficiaire
+> sur sa rangée d'accès) ou `ariaLabel`. Un sélecteur sans nom ne compile plus. Le mobile n'a pas
+> de sélecteur segmenté.
