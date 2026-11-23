@@ -190,7 +190,7 @@ Cinq règles à connaître :
 
 `ReminderEntityType` est **volontairement plus étroit** que `NotificationEntityType` : ici on décrit ce que le produit permet de *rappeler*, là ce vers quoi une notification peut *pointer*. Le pont est la table `REMINDER_TARGET_ENTITY_TYPE` (`@cmv/shared`).
 
-Comme pour `Notification`, `entityId` **n'a pas de clé étrangère**. Différence qui compte : un cycle `DRAFT` se supprime vraiment, donc les rappels qui le visaient (et ceux de sa facture) sont **purgés dans la transaction de suppression** — là où les notifications, elles, restent (dette N-4).
+Comme pour `Notification`, `entityId` **n'a pas de clé étrangère**. Différence qui compte : un cycle `DRAFT` se supprime vraiment, donc les rappels qui le visaient (et ceux de sa facture) sont **purgés dans la transaction de suppression**. Ses notifications, elles, n'ont rien à purger : un brouillon n'en a jamais émis, la première part à la diffusion (dette N-4).
 
 ### Notification
 Trace **persistée** d'un événement adressé à un `User` : cycle diffusé, séance **modifiée / ajoutée / retirée**, débrief reçu, message reçu, facture émise. Écrite par `NotificationService` **aux mêmes déclencheurs que le push, en plus de lui et jamais à sa place** — le push est éphémère (téléphone éteint, permission refusée, ou compte qui n'a jamais ouvert le mobile : c'est le cas du coach sur web), la `Notification` est ce qui reste à consulter.
