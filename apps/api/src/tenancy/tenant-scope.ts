@@ -169,6 +169,58 @@ export function coachesOfPlanAthlete(actorId: string): TenantFilter {
 }
 
 /**
+ * Un cycle dont le suivi n'est PAS terminé (#909) : ni son lien rompu, ni archivé. Une copie de
+ * l'état du lien du propriétaire, posée sur le cycle à la rupture : le scope ne sait pas lire ce
+ * lien quand c'est un autre Coach qui écrit — Prisma ne compare pas `CoachAthlete.coachId` à
+ * `Plan.coachId`.
+ */
+export const FOLLOW_ONGOING: TenantFilter = { followEndedAt: null };
+
+/**
+ * Un scope fermé en ÉCRITURE dès que `open` ne tient plus (#909) : la lecture n'en dit rien,
+ * l'administration non plus — un brouillon d'un suivi terminé se supprime encore, et un cycle
+ * diffusé ne se supprime déjà pas. Sous `AND`, pour la même raison que `sharedRoot`.
+ */
+export function closedUnless(scope: CapabilityScope, open: TenantFilter): CapabilityScope {
+  return {
+    ...scope,
+    where: (actorId, operation) =>
+      operation === "write"
+        ? { AND: [scope.where(actorId, operation), open] }
+        : scope.where(actorId, operation),
+  };
+}
+
+/**
+ * Ce que l'athlète écrit sur son entraînement — le débrief, son suivi, ses médias : sa colonne, et
+ * en écriture un cycle dont le suivi continue (#909), atteint par `toPlan`. Lire reste permis : son
+ * historique est à lui.
+ */
+function athleteTraining(toPlan: (plan: TenantFilter) => TenantFilter): CapabilityScope {
+  return closedUnless(column("athleteId"), toPlan(FOLLOW_ONGOING));
+}
+
+/**
+ * Un fil `DIRECT` du couple se ferme en écriture avec le lien (#909, MC-18) : l'acteur n'y écrit
+ * plus dès que l'interlocuteur de l'autre côté n'est plus lié à lui par un lien actif. Ses fils de
+ * GROUPE ne bougent pas, ni un fil `DIRECT` entre deux Coachs d'une entreprise, qui n'a pas de
+ * participant de l'autre côté du lien.
+ */
+function directClosed(actorId: string, capability: ParticipantCapability): TenantFilter {
+  const counterpart =
+    capability === "COACH"
+      ? {
+          capability: "ATHLETE",
+          user: { athleteRelations: { none: { coachId: actorId, status: "ACTIVE" } } },
+        }
+      : {
+          capability: "COACH",
+          user: { coachRelations: { none: { athleteId: actorId, status: "ACTIVE" } } },
+        };
+  return { kind: "DIRECT", participants: { some: counterpart } };
+}
+
+/**
  * Un enfant d'élément partageable (#605) : filtré à travers sa racine, créé avec le propriétaire de
  * son parent. Documents et tags suivent l'exercice, exercices de séance suivent la séance, et tout
  * ce que porte une planification la suit (#607) — un rédacteur y écrit, la ligne reste chez le
@@ -212,10 +264,16 @@ export function optionalChild(
  *
  * Aucune colonne ne dit à qui est la conversation : elle se crée avec ses participants, et la
  * création doit compter l'acteur parmi eux (`membership`).
+ *
+ * L'écriture exige en plus que le fil ne soit pas celui d'un couple rompu (#909) : il se relit, il
+ * ne s'écrit plus.
  */
 export function participation(capability: ParticipantCapability): CapabilityScope {
   return {
-    where: (actorId) => ({ participants: { some: { userId: actorId, capability } } }),
+    where: (actorId, operation) => {
+      const member = { participants: { some: { userId: actorId, capability } } };
+      return operation === "read" ? member : { ...member, NOT: directClosed(actorId, capability) };
+    },
     owner: null,
     parent: null,
     // La clé et la nature disent QUI participe : elles se figent avec les participants.
@@ -299,7 +357,11 @@ const athleteParticipation = participation("ATHLETE");
 // athlète (#607).
 const sharedExercise = sharedRoot("coachId");
 const sharedSession = sharedRoot("coachId");
-const sharedPlan = sharedRoot("coachId", coachesOfPlanAthlete);
+// Une planification se ferme en écriture à TOUS quand le suivi de son couple prend fin (#909).
+// La facture, elle, la lit sans cette garde : due, elle se règle ou s'annule encore — mais elle ne
+// s'émet plus, sa création vérifiant la planification par le scope de `Plan`.
+const billedPlan = sharedRoot("coachId", coachesOfPlanAthlete);
+const sharedPlan = closedUnless(billedPlan, FOLLOW_ONGOING);
 const ofExercise = sharedChild("exercise", sharedExercise, {
   model: "Exercise",
   key: "exerciseId",
@@ -317,6 +379,34 @@ const ofScheduledExercise = sharedChild("scheduledSessionExercise", ofScheduledS
 // Le débrief et ses médias, créés par l'athlète : le Coach les lit à travers la séance, ne les
 // crée pas (`owner` à `null`).
 const feedbackOfSession = throughRoot("scheduledSession", ofPlan);
+// Ce que l'athlète écrit, fermé avec le suivi (#909) : la séance passée en faite, son suivi par
+// exercice et par bloc, le débrief et ses médias. Le débrief et le média vérifient leur parent à la
+// création — sans quoi l'un naîtrait sur une séance archivée, l'autre sur un débrief archivé.
+const athleteSession = athleteTraining((plan) => ({ plan }));
+const athleteOfSession = athleteTraining((plan) => ({ scheduledSession: { plan } }));
+const athleteFeedback: CapabilityScope = {
+  ...athleteOfSession,
+  parent: { model: "ScheduledSession", key: "scheduledSessionId", checkOnly: true },
+};
+const athleteFeedbackMedia: CapabilityScope = {
+  ...athleteTraining((plan) => ({ sessionFeedback: { scheduledSession: { plan } } })),
+  parent: { model: "SessionFeedback", key: "sessionFeedbackId", checkOnly: true },
+};
+// La fiche d'un athlète ne s'écrit plus quand son lien est rompu (#909) ; la sienne propre, en
+// auto-coaching, n'a pas de lien et reste ouverte.
+const athleteSheet: CapabilityScope = {
+  ...coachOwner,
+  where: (actorId, operation) =>
+    operation === "read"
+      ? { coachId: actorId }
+      : {
+          coachId: actorId,
+          OR: [
+            { athleteId: actorId },
+            { athlete: { athleteRelations: { some: { coachId: actorId, status: "ACTIVE" } } } },
+          ],
+        },
+};
 
 /**
  * Le MÊME scope pour les deux capacités : c'est ce qui ouvre le modèle à une route sans capacité
@@ -340,7 +430,7 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   CoachAthlete: { coach: coachOwner, athlete: athleteOwner },
   // Émise par un Coach (vers un athlète) ou par une entreprise (vers un Coach, #601).
   Invitation: { coach: coachOwner, company: issuingOrganization },
-  AthleteSheet: { coach: coachOwner },
+  AthleteSheet: { coach: athleteSheet },
   Exercise: { coach: sharedExercise, root: true },
   ExerciseDocument: { coach: ofExercise },
   ExerciseTag: { coach: ofExercise },
@@ -357,19 +447,19 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   AccessGrant: { coach: column("ownerId") },
   Plan: { coach: sharedPlan, athlete: athleteOwner, root: true },
   PlanWeek: { coach: ofPlan },
-  ScheduledSession: { coach: ofPlan, athlete: athleteOwner },
-  ScheduledSessionExercise: { coach: ofScheduledSession, athlete: athleteOwner },
+  ScheduledSession: { coach: ofPlan, athlete: athleteSession },
+  ScheduledSessionExercise: { coach: ofScheduledSession, athlete: athleteOfSession },
   // L'athlète LIT ses blocs imbriqués dans sa séance, mais le débrief écrit leur suivi à plat, bloc
   // par bloc, comme celui des exercices : c'est cette route qui ouvre la clé (#626, #716).
-  ScheduledSessionBlock: { coach: ofScheduledSession, athlete: athleteOwner },
+  ScheduledSessionBlock: { coach: ofScheduledSession, athlete: athleteOfSession },
   ScheduledSessionExerciseDocument: { coach: ofScheduledExercise },
   ScheduledSessionExerciseTag: { coach: ofScheduledExercise },
-  SessionFeedback: { coach: feedbackOfSession, athlete: athleteOwner },
+  SessionFeedback: { coach: feedbackOfSession, athlete: athleteFeedback },
   // Le coach lit les médias IMBRIQUÉS dans le débrief, jamais à plat : sa clé ne sert à aucune
   // route, mais un modèle d'entraînement en porte une par construction (`TenantScope`).
   FeedbackMedia: {
     coach: throughRoot("sessionFeedback", feedbackOfSession),
-    athlete: athleteOwner,
+    athlete: athleteFeedbackMedia,
   },
   // La lecture d'un débrief par UN Coach (#610) : chacun pose et lit les siennes. L'athlète les
   // atteint à travers son débrief, pour les effacer quand il le complète — il n'en crée aucune.
@@ -389,7 +479,7 @@ export const TENANT_SCOPES: Record<string, TenantScope> = {
   Message: { coach: messageOf(coachParticipation), athlete: messageOf(athleteParticipation) },
   // La facture suit sa planification ; sans elle, elle reste privée à qui l'émet (#593, #607).
   Invoice: {
-    coach: optionalChild("plan", sharedPlan, { model: "Plan", key: "planId", optional: true }),
+    coach: optionalChild("plan", billedPlan, { model: "Plan", key: "planId", optional: true }),
     athlete: athleteOwner,
   },
   PushToken: sameForBoth(column("userId")),

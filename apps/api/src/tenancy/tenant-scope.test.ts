@@ -4,8 +4,10 @@ import {
   actorJoinsOrThrow,
   type CapabilityScope,
   childOf,
+  closedUnless,
   coachesOfPlanAthlete,
   column,
+  FOLLOW_ONGOING,
   grantedTo,
   membershipFrozenOrThrow,
   type OperationClass,
@@ -166,6 +168,55 @@ describe("coachesOfPlanAthlete", () => {
   });
 });
 
+describe("closedUnless", () => {
+  const scope = closedUnless(column("coachId"), { open: true });
+
+  // Seule l'écriture se ferme (#909) : l'archive se lit, et un brouillon se supprime encore.
+  it("ajoute la condition à l'écriture seule", () => {
+    expect(scope.where(ACTOR, "write")).toEqual({ AND: [{ coachId: ACTOR }, { open: true }] });
+    expect(scope.where(ACTOR, "read")).toEqual({ coachId: ACTOR });
+    expect(scope.where(ACTOR, "admin")).toEqual({ coachId: ACTOR });
+  });
+
+  it("garde la colonne et le parent de son scope", () => {
+    expect(scope.owner).toBe("coachId");
+    expect(scope.parent).toBeNull();
+  });
+});
+
+describe("une planification dont le suivi est terminé (#909)", () => {
+  const root = sharedRoot("coachId", coachesOfPlanAthlete);
+
+  it("se ferme en écriture à tous, propriétaire et droits compris", () => {
+    expect(scopeOf("Plan").coach?.where(ACTOR, "write")).toEqual({
+      AND: [root.where(ACTOR, "write"), FOLLOW_ONGOING],
+    });
+    expect(FOLLOW_ONGOING).toEqual({ followEndedAt: null });
+  });
+
+  it("se lit et se supprime comme avant", () => {
+    for (const operation of ["read", "admin"] as const) {
+      expect(scopeOf("Plan").coach?.where(ACTOR, operation)).toEqual(root.where(ACTOR, operation));
+    }
+  });
+
+  // Ce que la planification porte la suit : semaines, séances, débriefs que le Coach écrirait.
+  it.each(["PlanWeek", "ScheduledSession"])("%s se ferme avec elle", (model) => {
+    expect(scopeOf(model).coach?.where(ACTOR, "write")).toEqual({
+      plan: { AND: [root.where(ACTOR, "write"), FOLLOW_ONGOING] },
+    });
+  });
+
+  // Due, la facture se règle ou s'annule encore ; elle ne s'émet plus, sa création vérifiant la
+  // planification par le scope de `Plan`.
+  it("laisse la facture s'écrire, pas se créer", () => {
+    expect(scopeOf("Invoice").coach?.where(ACTOR, "write")).toEqual({
+      AND: [{ OR: [{ planId: null, coachId: ACTOR }, { plan: root.where(ACTOR, "write") }] }],
+    });
+    expect(scopeOf("Invoice").coach?.parent?.model).toBe("Plan");
+  });
+});
+
 describe("optionalChild", () => {
   const root = sharedRoot("coachId", coachesOfPlanAthlete);
   const parent = { model: "Plan", key: "planId", optional: true } as const;
@@ -245,7 +296,7 @@ describe("childOf", () => {
   });
 
   it.each(["Exercise", "Session", "Plan", "SessionFeedback", "FeedbackMedia"])(
-    "%s se crée avec l'acteur",
+    "%s se crée avec l'acteur, au titre de Coach",
     (model) => {
       expect(scopeOf(model).coach?.parent).toBeNull();
     },
@@ -282,15 +333,40 @@ describe("parentIdsOrThrow", () => {
 
 describe("participation", () => {
   it.each(["COACH", "ATHLETE"] as const)(
-    "ouvre ce à quoi l'acteur participe, à ce titre seul (%s)",
+    "ouvre en lecture ce à quoi l'acteur participe, à ce titre seul (%s)",
     (capability) => {
-      for (const operation of CLASSES) {
-        expect(participation(capability).where(ACTOR, operation)).toEqual({
-          participants: { some: { userId: ACTOR, capability } },
-        });
-      }
+      expect(participation(capability).where(ACTOR, "read")).toEqual({
+        participants: { some: { userId: ACTOR, capability } },
+      });
     },
   );
+
+  // Le fil DIRECT d'un couple rompu se relit, ne s'écrit plus (#909) : l'interlocuteur n'est plus
+  // lié à l'acteur par un lien actif. Les fils de groupe, et le DIRECT de deux Coachs, sans
+  // participant de l'autre côté du lien, restent ouverts.
+  it.each([
+    [
+      "COACH",
+      {
+        capability: "ATHLETE",
+        user: { athleteRelations: { none: { coachId: ACTOR, status: "ACTIVE" } } },
+      },
+    ],
+    [
+      "ATHLETE",
+      {
+        capability: "COACH",
+        user: { coachRelations: { none: { athleteId: ACTOR, status: "ACTIVE" } } },
+      },
+    ],
+  ] as const)("ferme en écriture le fil DIRECT d'un lien rompu (%s)", (capability, counterpart) => {
+    for (const operation of ["write", "admin"] as const) {
+      expect(participation(capability).where(ACTOR, operation)).toEqual({
+        participants: { some: { userId: ACTOR, capability } },
+        NOT: { kind: "DIRECT", participants: { some: counterpart } },
+      });
+    }
+  });
 
   // Aucune colonne ne dit à qui est une conversation : elle se crée avec ses participants.
   it("ne se crée qu'en comptant l'acteur parmi ses participants", () => {
@@ -487,17 +563,50 @@ describe("scopeFor", () => {
   });
 
   // L'athlète lit ce qui lui est diffusé, quel que soit l'auteur : sa colonne, sans droit.
-  it.each([
-    "Plan",
-    "ScheduledSession",
-    "ScheduledSessionExercise",
-    "SessionFeedback",
-    "FeedbackMedia",
-    "Invoice",
-  ])("%s reste sur la colonne de l'athlète", (model) => {
+  it.each(["Plan", "Invoice"])("%s reste sur la colonne de l'athlète", (model) => {
     for (const operation of CLASSES) {
       expect(whereOf(scopeOf(model), "athlete", operation)).toEqual({ athleteId: ACTOR });
     }
+  });
+
+  // Ce qu'il écrit se ferme avec le suivi (#909) ; il le relit toujours.
+  it.each([
+    ["ScheduledSession", { plan: FOLLOW_ONGOING }],
+    ["ScheduledSessionExercise", { scheduledSession: { plan: FOLLOW_ONGOING } }],
+    ["ScheduledSessionBlock", { scheduledSession: { plan: FOLLOW_ONGOING } }],
+    ["SessionFeedback", { scheduledSession: { plan: FOLLOW_ONGOING } }],
+    ["FeedbackMedia", { sessionFeedback: { scheduledSession: { plan: FOLLOW_ONGOING } } }],
+  ])("%s ne s'écrit par l'athlète que pendant le suivi", (model, open) => {
+    const scope = scopeOf(model);
+    expect(whereOf(scope, "athlete", "read")).toEqual({ athleteId: ACTOR });
+    expect(whereOf(scope, "athlete", "admin")).toEqual({ athleteId: ACTOR });
+    expect(whereOf(scope, "athlete", "write")).toEqual({ AND: [{ athleteId: ACTOR }, open] });
+    expect(scope.athlete?.owner).toBe("athleteId");
+  });
+
+  // Sans parent vérifié, un débrief naîtrait sur une séance archivée, un média sur un débrief
+  // archivé : la création n'a pas de `where`.
+  it.each([
+    ["SessionFeedback", "ScheduledSession", "scheduledSessionId"],
+    ["FeedbackMedia", "SessionFeedback", "sessionFeedbackId"],
+  ])("%s ne se crée par l'athlète que sous un %s ouvert", (model, parent, key) => {
+    expect(scopeOf(model).athlete?.parent).toEqual({ model: parent, key, checkOnly: true });
+  });
+
+  // Sa fiche, le Coach la relit ; il ne l'écrit qu'avec un lien actif, ou pour lui-même (#909).
+  it("la fiche d'un athlète ne s'écrit que tant qu'on le suit", () => {
+    const scope = scopeOf("AthleteSheet");
+    expect(whereOf(scope, "coach", "read")).toEqual({ coachId: ACTOR });
+    for (const operation of ["write", "admin"] as const) {
+      expect(whereOf(scope, "coach", operation)).toEqual({
+        coachId: ACTOR,
+        OR: [
+          { athleteId: ACTOR },
+          { athlete: { athleteRelations: { some: { coachId: ACTOR, status: "ACTIVE" } } } },
+        ],
+      });
+    }
+    expect(scope.coach?.owner).toBe("coachId");
   });
 
   // « Lu » est à chaque Coach (#610) : le sien, jamais celui d'un autre lecteur du même débrief.
@@ -516,6 +625,8 @@ describe("scopeFor", () => {
    * que les siens.
    */
   const OWN_WRITES = ["Message", "ConversationParticipant"];
+  // Ce qui se ferme en écriture avec un lien rompu (#909), hors modèles partageables.
+  const CLOSED_WHEN_ENDED = ["Conversation", "AthleteSheet"];
 
   it.each([
     ["coach", "COACH"],
@@ -524,9 +635,7 @@ describe("scopeFor", () => {
     "une conversation se lit par participation, au titre exercé (%s)",
     (capability, title) => {
       const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
-      for (const operation of CLASSES) {
-        expect(whereOf(scopeOf("Conversation"), capability, operation)).toEqual(conversation);
-      }
+      expect(whereOf(scopeOf("Conversation"), capability)).toEqual(conversation);
       expect(whereOf(scopeOf("Message"), capability)).toEqual({ conversation });
       expect(whereOf(scopeOf("ConversationParticipant"), capability)).toEqual({ conversation });
     },
@@ -536,8 +645,9 @@ describe("scopeFor", () => {
     ["coach", "COACH"],
     ["athlete", "ATHLETE"],
   ] as const)("l'acteur n'écrit que ses messages et sa participation (%s)", (capability, title) => {
-    const conversation = { participants: { some: { userId: ACTOR, capability: title } } };
     for (const operation of ["write", "admin"] as const) {
+      // La conversation au filtre d'ÉCRITURE : on n'écrit pas dans le fil d'un couple rompu.
+      const conversation = participation(title).where(ACTOR, operation);
       expect(whereOf(scopeOf("Message"), capability, operation)).toEqual({
         senderId: ACTOR,
         conversation,
@@ -566,7 +676,10 @@ describe("scopeFor", () => {
 
   it.each(
     Object.entries(TENANT_SCOPES).filter(
-      ([model]) => !SHARED.includes(model) && !OWN_WRITES.includes(model),
+      ([model]) =>
+        !SHARED.includes(model) &&
+        !OWN_WRITES.includes(model) &&
+        !CLOSED_WHEN_ENDED.includes(model),
     ),
   )("%s pose le même filtre pour les trois classes", (_, scope) => {
     for (const capability of ["coach", "athlete", "company", null] as const) {
