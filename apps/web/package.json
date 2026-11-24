@@ -24,7 +24,7 @@
     "@tiptap/react": "3.33.0",
     "@tiptap/starter-kit": "3.33.0",
     "better-auth": "1.7.18",
-    "i18next": "^26.5.3",
+    "i18next": "^27.1.5",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-i18next": "^16.6.6",
