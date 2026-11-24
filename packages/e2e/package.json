@@ -17,17 +17,17 @@
   },
   "dependencies": {
     "@cmv/shared": "workspace:*",
-    "better-auth": "1.7.18",
+    "better-auth": "1.7.25",
     "i18next": "^26.5.3"
   },
   "devDependencies": {
     "@cmv/tsconfig": "workspace:*",
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@types/node": "22.20.0",
     "typescript": "6.0.3",
     "vitest": "5.1.0"
   },
   "peerDependencies": {
-    "@playwright/test": "1.65.0"
+    "@playwright/test": "1.65.1"
   }
 }
