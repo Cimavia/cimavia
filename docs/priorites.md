@@ -111,7 +111,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 |---|---|---|---|
 | #771 | Joindre un PDF dans une conversation | 🟠 | ✅ |
 | #5 | Duplication d'une planification | 🟠 | |
-| #213 | Cadrage : rompre une relation coach↔athlète | 🟠 | |
+| #213 | Cadrage : rompre une relation coach↔athlète | 🟠 | ✅ |
 | #231 | Reporter un cycle diffusé | 🟡 | |
 | #202 | Le segment « À traiter » | 🟡 | |
 | #565 | Copier le texte d'un message sur téléphone | 🟡 | |
