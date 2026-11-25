@@ -5,6 +5,7 @@ import type {
   SessionFeedbackDto,
 } from "@cmv/shared";
 import {
+  canDebrief,
   draftAfterLoad,
   FEEDBACK_CONTENT_MAX_LENGTH,
   feedbackTrackingInput,
@@ -15,16 +16,19 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
+import { FeedbackMediaGallery } from "@/feature/feedback/component/FeedbackMediaGallery";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { FeedbackSubmitRail } from "@/feature/feedback/component/FeedbackSubmitRail";
+import { TrackedBlockList } from "@/feature/feedback/component/TrackedBlockList";
 import { useMyFeedback, useUpsertMyFeedback } from "@/feature/feedback/hook/useMyFeedback";
 import { useConversationWithCoach } from "@/feature/message/hook/useMessages";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useMyScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { AppShell } from "@/feature/shell";
-import { CmvCard, CmvErrorState, CmvTextArea } from "@/shared/component";
+import { CmvCard, CmvErrorState, CmvReadOnlyBanner, CmvTextArea } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { apiErrorMessage } from "@/shared/lib/api";
 
@@ -46,6 +50,9 @@ export function AthleteFeedbackScreen() {
   const { from } = route.useSearch();
   const session = useMyScheduledSession(sessionId);
   const { data: feedback, isPending, isError, refetch } = useMyFeedback(sessionId);
+  // Suivi terminé (#910) : le débrief se relit, plus rien ne s'y écrit. La séance le dit ; tant
+  // qu'elle n'est pas lue, le formulaire reste, et l'API refuserait l'envoi.
+  const closed = session.data != null && !canDebrief(session.data) ? session.data : null;
 
   return (
     <AppShell
@@ -72,7 +79,7 @@ export function AthleteFeedbackScreen() {
 
       {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe jamais
           dans un autre, même quand la route garde l'écran monté. */}
-      {isPending || isError ? null : (
+      {isPending || isError || closed != null ? null : (
         <FeedbackBody
           key={sessionId}
           sessionId={sessionId}
@@ -80,7 +87,69 @@ export function AthleteFeedbackScreen() {
           feedback={feedback ?? null}
         />
       )}
+      {isPending || isError || closed == null ? null : (
+        <ClosedFeedback sessionId={sessionId} session={closed} feedback={feedback ?? null} />
+      )}
     </AppShell>
+  );
+}
+
+/**
+ * Le débrief d'une séance dont le suivi a pris fin (#910), en lecture : ce qui a été envoyé, et les
+ * réponses échangées. Ni champ, ni ajout, ni retrait, ni composeur — et le bandeau dit pourquoi.
+ */
+function ClosedFeedback({
+  sessionId,
+  session,
+  feedback,
+}: Readonly<{
+  sessionId: string;
+  session: ScheduledSessionDto;
+  feedback: SessionFeedbackDto | null;
+}>) {
+  const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
+  const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(sessionId));
+  const ended = followEndedText(session.followEndedAt);
+
+  return (
+    <div className="flex max-w-3xl flex-col gap-cmv-lg">
+      <CmvReadOnlyBanner message={t("feedback.followEnded", { ended })} />
+
+      {feedback == null ? (
+        <p className="text-cmv-body text-cmv-text-mid">{t("feedback.followEndedEmpty")}</p>
+      ) : (
+        <>
+          <TrackedBlockList blocks={feedback.trackedBlocks} title={t("feedback.tracking.title")} />
+          <CmvCard>
+            <div className="flex flex-col gap-cmv-xs">
+              <span className="text-cmv-caption text-cmv-text-mid">
+                {t("feedback.contentLabel")}
+              </span>
+              {/* Un débrief peut n'être que des médias : pas de texte inventé (règle nullable). */}
+              <p className="whitespace-pre-wrap text-cmv-body text-cmv-text-hi">
+                {feedback.content ?? "—"}
+              </p>
+            </div>
+          </CmvCard>
+          <FeedbackMediaGallery
+            media={feedback.media}
+            onRemove={null}
+            isRemoving={false}
+            resolveMediaUrl={freshMediaUrl}
+          />
+          <FeedbackReplyThread
+            feedbackId={feedback.id}
+            messages={feedback.messages}
+            conversationId={undefined}
+            isThreadError={false}
+            closedNote={t("feedback.reply.followEnded", { ended })}
+            onSent={() => undefined}
+            resolveMediaUrl={freshMediaUrl}
+          />
+        </>
+      )}
+    </div>
   );
 }
 

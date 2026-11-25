@@ -363,6 +363,49 @@ describe("AthleteFeedbackScreen", () => {
   });
 
   /** Le suivi se rappelle et part bloc par bloc (#722), sous sa clé locale. */
+  /** #910 : le suivi a pris fin. Le débrief se relit — rien ne s'y écrit, rien ne s'y joint. */
+  describe("un suivi terminé", () => {
+    beforeEach(() => {
+      getSessionMock.mockResolvedValue({ ...session(), followEndedAt: "2026-11-20T09:00:00.000Z" });
+    });
+
+    it("relit le débrief envoyé, sans champ, ni ajout, ni retrait, ni composeur", async () => {
+      getFeedbackMock.mockResolvedValue(
+        feedback({
+          content: "Bonne séance",
+          trackedBlocks: [],
+          media: [
+            {
+              id: "md-1",
+              type: MediaType.IMAGE,
+              url: "https://cdn.test/a.jpg",
+              fileName: "a.jpg",
+            },
+          ] as never,
+        }),
+      );
+      const { findByText, getByText, queryByLabelText, queryByRole, queryByText } = await setup();
+
+      expect(await findByText("feedback.followEnded")).toBeInTheDocument();
+      expect(getByText("Bonne séance")).toBeInTheDocument();
+      expect(getByText("feedback.reply.followEnded")).toBeInTheDocument();
+      expect(queryByLabelText(CONTENT)).toBeNull();
+      expect(queryByRole("button", { name: SUBMIT })).toBeNull();
+      expect(queryByRole("button", { name: "feedback.media.addFile" })).toBeNull();
+      expect(queryByRole("button", { name: "feedback.media.remove" })).toBeNull();
+      expect(queryByText("feedback.reply.threadError")).toBeNull();
+      // Aucun fil ouvert : il ne s'écrit plus, et l'ouvrir pourrait être refusé.
+      expect(createConversationMock).not.toHaveBeenCalled();
+    });
+
+    it("dit qu'il n'y a rien à relire sur une séance jamais débriefée", async () => {
+      const { findByText, queryByLabelText } = await setup();
+
+      expect(await findByText("feedback.followEndedEmpty")).toBeInTheDocument();
+      expect(queryByLabelText(CONTENT)).toBeNull();
+    });
+  });
+
   describe("le suivi local", () => {
     it("rappelle les blocs, et envoie leur suivi sans un bloc que le coach a retiré", async () => {
       window.localStorage.setItem(

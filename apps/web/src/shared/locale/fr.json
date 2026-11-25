@@ -1431,6 +1431,8 @@
     },
     "openDone": "Voir / modifier mon débrief",
     "openRead": "Relire mon débrief",
+    "followEnded": "{{ended}} : ce débrief se relit, il ne se complète plus.",
+    "followEndedEmpty": "Cette séance n'a pas été débriefée avant la fin du suivi.",
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",
@@ -1506,7 +1508,8 @@
     "reply": {
       "title": "Réponses",
       "threadError": "Impossible d'ouvrir la conversation. Réessaie dans un instant.",
-      "self": "Ce débrief est le tien : il n'y a personne à qui répondre."
+      "self": "Ce débrief est le tien : il n'y a personne à qui répondre.",
+      "followEnded": "{{ended}} : les réponses se relisent, on n'y répond plus."
     }
   },
   "invoice": {

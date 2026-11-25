@@ -5,9 +5,16 @@ import { BlockMark } from "@/feature/library/component/BlockMark";
 
 /**
  * Le décompte d'une séance par blocs tel que le COACH le lit (#722) : un bloc par ligne, en
- * lecture, sans jugement.
+ * lecture, sans jugement. L'athlète le relit de même sur un débrief qui ne s'écrit plus (#910).
  */
-export function TrackedBlockList({ blocks }: Readonly<{ blocks: readonly TrackedBlockDto[] }>) {
+export function TrackedBlockList({
+  blocks,
+  title,
+}: Readonly<{
+  blocks: readonly TrackedBlockDto[];
+  /** L'athlète relit SON décompte (#910) : « ce que l'athlète a coché » ne lui parle pas. */
+  title?: string;
+}>) {
   const { t } = useTranslation();
   if (blocks.length === 0) return null;
   const numbers = blockNumbers(blocks);
@@ -15,7 +22,7 @@ export function TrackedBlockList({ blocks }: Readonly<{ blocks: readonly Tracked
   return (
     <section className="flex flex-col gap-cmv-xs">
       <h4 className="text-cmv-caption text-cmv-accent-on uppercase tracking-wide">
-        {t("feedback.detail.tracking")}
+        {title ?? t("feedback.detail.tracking")}
       </h4>
       <ul className="flex flex-col gap-cmv-xs">
         {blocks.map((block, index) => {

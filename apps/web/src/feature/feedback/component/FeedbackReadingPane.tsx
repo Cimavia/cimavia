@@ -1,17 +1,20 @@
 import {
   type CoachFeedbackSummaryDto,
   coachFeedbackKeys,
+  isEndedLink,
   MediaType,
   nextVoiceNoteInFeedback,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { FeedbackReplyThread } from "@/feature/feedback/component/FeedbackReplyThread";
 import { TrackedBlockList } from "@/feature/feedback/component/TrackedBlockList";
 import { useSessionFeedback } from "@/feature/feedback/hook/useFeedbacks";
 import { useConversationWith } from "@/feature/message/hook/useMessages";
 import { CmvAvatar, CmvButton, CmvMediaPlayer } from "@/shared/component";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { formatDate } from "@/shared/util/date.util";
@@ -49,7 +52,14 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
   // Get-or-create, idempotent et stable : ouvrir un débrief ne crée pas un fil de plus.
   // `null` sur son PROPRE débrief : le `enabled` du hook coupe la requête, qui prendrait un 409
   // (#198) affiché en « réessaie dans un instant » — une panne passagère qui n'en est pas une.
-  const conversation = useConversationWith(isSelf ? null : feedback.athleteId);
+  //
+  // `null` aussi sur un suivi terminé (#910), et tant qu'on ne sait pas s'il l'est : le fil ne
+  // s'écrit plus, et s'il n'existe pas, le get-or-create refuserait de l'ouvrir — encore une fausse
+  // panne passagère.
+  const closed = useClosedReply(feedback.athleteId);
+  const conversation = useConversationWith(
+    isSelf || !closed.isKnown || closed.note != null ? null : feedback.athleteId,
+  );
   const queryClient = useQueryClient();
   // La liste ENTIÈRE et pas seulement ce débrief : `firstReply` y vit aussi, et c'est lui qui pose
   // le badge « répondu » sur la ligne qu'on vient de traiter.
@@ -157,10 +167,30 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
           conversationId={conversation.data?.id}
           isThreadError={conversation.isError}
           isSelf={isSelf}
+          closedNote={closed.note}
           onSent={refreshFeedbacks}
           resolveMediaUrl={freshMediaUrl}
         />
       </div>
     </div>
   );
+}
+
+/**
+ * Le suivi de CE Coach avec l'athlète a-t-il pris fin (#910) ? `note` est ce que le fil de réponse
+ * dit alors à la place du composeur, `null` sinon. `isKnown` reste faux tant que ses liens ne sont
+ * pas lus : le composeur se montre, fermé, sans fil demandé. C'est son lien qui compte, pas le
+ * cycle : un débrief d'un cycle partagé (#610) se répond par le fil de chaque Coach avec l'athlète.
+ */
+function useClosedReply(athleteId: string): { isKnown: boolean; note: string | null } {
+  const { t } = useTranslation();
+  const { data: links } = useAthletes();
+  const followEndedText = useFollowEndedText();
+  if (links == null) return { isKnown: false, note: null };
+  const link = links.find((candidate) => candidate.athleteId === athleteId);
+  if (link == null || !isEndedLink(link)) return { isKnown: true, note: null };
+  return {
+    isKnown: true,
+    note: t("feedback.reply.followEnded", { ended: followEndedText(link.endedAt) }),
+  };
 }

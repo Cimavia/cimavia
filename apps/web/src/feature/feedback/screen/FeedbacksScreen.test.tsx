@@ -1,5 +1,5 @@
 import type { CoachFeedbackSummaryDto, SessionFeedbackDto } from "@cmv/shared";
-import { coachFeedbackKeys } from "@cmv/shared";
+import { CoachAthleteStatus, coachFeedbackKeys } from "@cmv/shared";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -21,7 +21,9 @@ vi.mock("@/feature/feedback/hook/useFeedbacks", () => ({
   useMarkFeedbackRead: vi.fn(),
   useSessionFeedback: vi.fn(),
 }));
-const { conversationWith, freshMediaUrl, reply } = vi.hoisted(() => ({
+const { athleteLinks, conversationWith, freshMediaUrl, reply } = vi.hoisted(() => ({
+  // Les liens du Coach (#910) : un suivi terminé ferme la réponse. Aucun par défaut.
+  athleteLinks: { current: [] as unknown[] | undefined },
   reply: { onSent: (): unknown => undefined },
   conversationWith: vi.fn((_athleteId: string | null) => ({ data: { id: "c-1" }, isError: false })),
   freshMediaUrl: vi.fn(async (_mediaId: string) => null),
@@ -53,8 +55,7 @@ vi.mock("@/shared/lib/auth", () => ({
   },
 }));
 vi.mock("@/feature/athlete/hook/useAthletes", () => ({
-  // La fiche lit les liens du Coach (#910) : aucun ici, le suivi ne s'y joue pas.
-  useAthletes: () => ({ data: [] }),
+  useAthletes: () => ({ data: athleteLinks.current }),
   useAthleteSheet: () => ({ data: null, isPending: false }),
   useSaveAthleteSheet: () => ({ mutate: vi.fn(), isPending: false }),
 }));
@@ -112,6 +113,7 @@ function open(feedbackId?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  athleteLinks.current = [];
   mockList({});
   vi.mocked(useMarkFeedbackRead).mockReturnValue({ mutate: markRead } as unknown as ReturnType<
     typeof useMarkFeedbackRead
@@ -300,6 +302,33 @@ describe("FeedbacksScreen", () => {
 
     expect(conversationWith).toHaveBeenCalledWith(null);
     expect(conversationWith).not.toHaveBeenCalledWith("coach-1");
+  });
+
+  it("ferme la réponse d'un suivi terminé (#910), sans ouvrir de fil", async () => {
+    athleteLinks.current = [
+      { athleteId: "a-1", status: CoachAthleteStatus.ENDED, endedAt: "2026-11-20T09:00:00.000Z" },
+    ];
+    const { findByText, queryByRole } = await open("f-1");
+
+    expect(await findByText("feedback.reply.followEnded")).toBeInTheDocument();
+    expect(queryByRole("textbox")).toBeNull();
+    expect(conversationWith).toHaveBeenCalledWith(null);
+    expect(conversationWith).not.toHaveBeenCalledWith("a-1");
+  });
+
+  it("ne demande aucun fil tant que ses liens ne disent pas si le suivi court", async () => {
+    athleteLinks.current = undefined;
+    await open("f-1");
+
+    expect(conversationWith).toHaveBeenCalledWith(null);
+    expect(conversationWith).not.toHaveBeenCalledWith("a-1");
+  });
+
+  it("demande le fil d'un suivi qui court", async () => {
+    athleteLinks.current = [{ athleteId: "a-1", status: CoachAthleteStatus.ACTIVE, endedAt: null }];
+    await open("f-1");
+
+    expect(conversationWith).toHaveBeenCalledWith("a-1");
   });
 
   it("dit qu'il charge la liste", async () => {
