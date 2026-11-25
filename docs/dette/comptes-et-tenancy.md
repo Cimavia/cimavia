@@ -703,6 +703,7 @@ liste des domaines vivent dans l'index.
 | MC-18 | **Une participation survit à ce qui l'a permise** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : on ne réunit que ses athlètes actifs et les Coachs de ses entreprises, mais cela ne se vérifie qu'à la création. Un lien rompu ou une entreprise quittée laissent chacun dans ses conversations, à lire et à écrire — comme le fil coach ↔ athlète d'avant, que la fin d'un lien ne fermait pas. Un compte effacé emporte sa ligne de participant et ses messages : la conversation de groupe reste aux autres, un fil `DIRECT` part entier (#256). Rien ne permet encore de quitter une entreprise. La rupture d'un lien, elle, ferme le fil `DIRECT` du couple en lecture ([#909](https://github.com/Cimavia/cimavia/issues/909)), et laisse les fils de groupe tels quels (tranché en [#213](https://github.com/Cimavia/cimavia/issues/213)). | 🟢 | — *(déclencheur : une route pour quitter une entreprise ; décider alors si la conversation de groupe se ferme, se quitte ou reste en lecture)* |
 | MC-19 | **Deux envois simultanés peuvent faire lire un message jamais vu** ([#611](https://github.com/Cimavia/cimavia/issues/611)) : `markRead` pose la marque sur le `createdAt` du dernier message visible. Si A, créé avant B, est validé après lui, un lecteur qui n'a vu que B marque lu jusqu'à B — et A, plus ancien, passe pour lu. Il faut deux messages dans la même fraction de seconde, dans la même conversation. | 🟢 | — *(déclencheur : un message rapporté comme jamais signalé ; la sortie serait une marque posée sur l'id du dernier message vu, ou une séquence par conversation)* |
 | MC-20 | **Une écriture qui croise la rupture à la milliseconde peut échouer en 500, ou ne rien écrire** ([#909](https://github.com/Cimavia/cimavia/issues/909)) : le refus 409 lit la fin du suivi sans verrou, puis l'écriture passe sous un scope que la rupture vient de fermer. Selon le chemin, l'enfant créé sous un parent fermé lève (500), ou un `updateMany` ne touche rien et répond 200 — un décompte d'exercices perdu, sur un suivi de toute façon terminé. Seules la création d'un cycle et sa réaffectation prennent le lien en `FOR SHARE` : ce sont elles qui, sans verrou, laisseraient un cycle ouvert dans un couple rompu, et pour toujours. | 🟢 | — *(déclencheur : un 500 ou une perte rapportés au moment d'une rupture ; la sortie serait `holdActiveLink` en tête de chaque transaction d'écriture du couple, ou un 0 ligne écrite traduit en 409)* |
+| MC-21 | **Un mobile d'avant [#911](https://github.com/Cimavia/cimavia/issues/911) montre un lien rompu comme actif** ([#909](https://github.com/Cimavia/cimavia/issues/909)) : `listAthletes` et `myCoaches` renvoient désormais les liens `ENDED`, que seul un client à jour range à part. Sur un APK déjà installé, « Mes coachs » garde l'ancien Coach, et chaque geste vers lui finit en 409 `FOLLOW_ENDED` affiché comme une erreur générique. Le web, déployé avec l'API, n'est pas concerné. Écarté : un paramètre `?include=ended` que seuls les clients à jour enverraient — aucune rupture n'est possible avant qu'une interface la propose, et la bêta compte une poignée d'appareils, que l'on met à jour. | 🟢 | — *(déclencheur : une rupture faite depuis le web promu avant #911, ou un appareil de la bêta resté sur un ancien APK ; la sortie serait le paramètre écarté. Contrainte tenue d'ici là : #910 ne se promeut qu'avec #911)* |
 
 *Résolues, à l'[archive](archive.md) : MC-1, MC-2, MC-8, MC-13, MC-17.*
 
@@ -796,20 +797,28 @@ liste des domaines vivent dans l'index.
 >   par une écriture qui ne touche rien.
 > - **Ce qui reste permis** : relire tout ; supprimer un cycle, gérer ses accès ; régler ou annuler
 >   une facture déjà émise (pas en saisir les termes) ; marquer lu un fil fermé ; renoncer à la
->   capacité athlète ou Coach, le lien rompu ne retenant plus.
-> - **Fils** : seul le `DIRECT` coach↔athlète du couple se ferme. Un fil à plusieurs reste ouvert
->   (MC-18).
+>   capacité athlète ou Coach, le lien rompu ne retenant plus ; abandonner un envoi découpé. Le
+>   recoller, lui, est refusé : l'objet assemblé resterait sans débrief ni message.
+> - **Fils** : seul le `DIRECT` coach↔athlète du couple se ferme, et seulement sur un lien rompu
+>   qui existe. Un couple sans lien du tout (donnée incohérente) garde son fil ouvert : le scope et
+>   `followEndsOf` disent la même chose, sinon le fil s'annoncerait ouvert et refuserait l'envoi.
+>   Un fil à plusieurs reste ouvert (MC-18).
 > - **Tick** : ni « fin de cycle » ni « facture en retard » pour un couple rompu ; ceux d'avant la
->   rupture passent à `DISMISSED` au passage suivant, sous l'acteur du Coach (même motif que
->   MC-14 : la rupture, que l'athlète peut faire, n'écrit pas dans ses rappels).
+>   rupture sont supprimés au passage suivant, sous l'acteur du Coach (même motif que MC-14 : la
+>   rupture, que l'athlète peut faire, n'écrit pas dans ses rappels). Supprimés et non `DISMISSED`,
+>   que l'index d'unicité garderait : le suivi repris, la facture toujours impayée est relancée.
+>   Sauf ceux que le Coach a annotés, que la note lui approprie (#105) : ils restent, comme un
+>   rappel saisi à la main.
 > - **La copie fait avancer la version du cycle** (`@updatedAt`) : un éditeur ouvert sur l'instant
 >   prend un 409 « modifié » et recharge — voulu, l'état du cycle a changé.
 > - **Course** : seules la création et la réaffectation d'un cycle sont verrouillées ; une autre
 >   écriture qui croise la rupture peut échouer en 500 (MC-20).
 > - **Réactivation** : l'invitation nominative du même Coach rouvre le lien, sans provenance
 >   d'entreprise, et rouvre ses cycles — si elle a été émise **après** la rupture : une invitation
->   d'avant, restée en attente, la déferait sans l'accord de qui l'a voulue (409). Celle d'une
->   entreprise laisse un lien rompu tel quel.
+>   d'avant, restée en attente, la déferait sans l'accord de qui l'a voulue. La rupture retire
+>   donc les invitations en attente du couple (`REVOKED`), et l'acceptation réserve la sienne sous
+>   condition `PENDING`, le lien verrouillé d'abord comme dans la rupture : pas de date à comparer,
+>   et les deux ne s'interbloquent pas. Celle d'une entreprise laisse un lien rompu tel quel.
 > - **Notifications** : l'autre partie est prévenue (`RELATION_ENDED_BY_COACH` /
 >   `_BY_ATHLETE`, entité `COACH_ATHLETE`). Une seconde rupture ne redate rien et ne renotifie
 >   personne.
