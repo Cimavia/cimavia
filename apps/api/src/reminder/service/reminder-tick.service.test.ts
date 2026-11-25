@@ -350,10 +350,17 @@ describe("ReminderTickService — clôture des retards réglés ailleurs", () =>
   });
 });
 
+// La purge de rétention passe aussi par `deleteMany` : la clôture est celle qui vise des entités.
+function closings(deleteMany: ReturnType<typeof vi.fn>): unknown[] {
+  return deleteMany.mock.calls
+    .map(([args]) => args as { where: { entityId?: unknown } })
+    .filter((args) => args.where.entityId !== undefined);
+}
+
 describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909)", () => {
   type IdWhere = { where: { id?: { in: string[] } } };
   function buildEnded(pending: { entityType: ReminderEntityType; entityId: string }[]) {
-    const updateMany = vi.fn();
+    const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
     // Seules les lectures par id viennent de la clôture ; la génération lit sans, et ne trouve rien.
     const endedOnly = (ids: string[]) =>
       vi.fn(async ({ where }: IdWhere) =>
@@ -372,8 +379,8 @@ describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909
           .mockResolvedValueOnce(pending)
           .mockResolvedValue([]),
         createMany: vi.fn(),
-        updateMany,
-        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        updateMany: vi.fn(),
+        deleteMany,
       },
     } as unknown as TenantPrisma;
     const service = new ReminderTickService(
@@ -382,11 +389,11 @@ describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909
       { run: (fn: () => unknown) => fn(), set: vi.fn() } as unknown as ClsService,
       { notifyReminderDue: vi.fn() } as unknown as NotificationService,
     );
-    return { service, updateMany, planFindMany, invoiceFindMany };
+    return { service, deleteMany, planFindMany, invoiceFindMany };
   }
 
-  it("écarte la fin de cycle et le retard d'un couple rompu, pas ceux d'un suivi en cours", async () => {
-    const { service, updateMany } = buildEnded([
+  it("efface la fin de cycle et le retard d'un couple rompu, pas ceux d'un suivi en cours", async () => {
+    const { service, deleteMany } = buildEnded([
       { entityType: ReminderEntityType.PLAN, entityId: "pln-fini" },
       { entityType: ReminderEntityType.PLAN, entityId: "pln-en-cours" },
       { entityType: ReminderEntityType.INVOICE, entityId: "inv-fini" },
@@ -395,18 +402,22 @@ describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909
 
     await service.run(NOW);
 
-    expect(updateMany).toHaveBeenCalledExactlyOnceWith({
-      where: {
-        status: ReminderStatus.PENDING,
-        reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
-        entityId: { in: ["pln-fini", "inv-fini"] },
+    // Supprimés, pas écartés : un `DISMISSED` survivrait à la réactivation (index d'unicité).
+    expect(closings(deleteMany)).toEqual([
+      {
+        where: {
+          status: ReminderStatus.PENDING,
+          reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
+          // Annoté, le rappel est au Coach (#105) : effacé, sa note serait perdue.
+          note: null,
+          entityId: { in: ["pln-fini", "inv-fini"] },
+        },
       },
-      data: { status: ReminderStatus.DISMISSED },
-    });
+    ]);
   });
 
   it("ne lit ni cycle ni facture sans rappel généré en attente", async () => {
-    const { service, updateMany, planFindMany, invoiceFindMany } = buildEnded([]);
+    const { service, deleteMany, planFindMany, invoiceFindMany } = buildEnded([]);
 
     await service.run(NOW);
 
@@ -416,17 +427,17 @@ describe("ReminderTickService — clôture des rappels d'un suivi terminé (#909
     expect(invoiceFindMany).not.toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: expect.anything() }) }),
     );
-    expect(updateMany).not.toHaveBeenCalled();
+    expect(closings(deleteMany)).toEqual([]);
   });
 
   it("ne touche à rien quand tous ses suivis continuent", async () => {
-    const { service, updateMany } = buildEnded([
+    const { service, deleteMany } = buildEnded([
       { entityType: ReminderEntityType.PLAN, entityId: "pln-en-cours" },
     ]);
 
     await service.run(NOW);
 
-    expect(updateMany).not.toHaveBeenCalled();
+    expect(closings(deleteMany)).toEqual([]);
   });
 });
 

@@ -183,11 +183,11 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
     expectFollowEnded(created);
   });
 
-  it("le tick écarte la relance de la facture d'un athlète parti, et n'en crée plus", async () => {
+  it("le tick efface la relance de la facture d'un athlète parti, et n'en crée plus", async () => {
     expect((await tick()).status).toBe(200);
-    expect(await overdueOf(world.c)).toEqual([
-      expect.objectContaining({ status: ReminderStatus.DISMISSED }),
-    ]);
+    expect(await overdueOf(world.c)).toEqual([]);
+    expect((await tick()).status).toBe(200);
+    expect(await overdueOf(world.c)).toEqual([]);
   });
 
   it("la facture déjà émise se règle encore ; ses termes ne se réécrivent plus", async () => {
@@ -279,6 +279,17 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
     ).toBe(200);
     expect((await send(world.ti, "Me revoilà")).status).toBe(201);
     expect((await threadOf(world.c))?.followEndedAt).toBeNull();
+
+    // Réglée par erreur pendant la rupture, la facture repasse impayée : sa relance, effacée à la
+    // rupture, renaît au premier tick du suivi repris — un `DISMISSED` l'en aurait empêchée.
+    const unpaid = await world.c
+      .patch(`/invoices/${invoiceId}/status`)
+      .send({ status: InvoiceStatus.PENDING });
+    expect(unpaid.status).toBe(200);
+    expect((await tick()).status).toBe(200);
+    expect(await overdueOf(world.c)).toEqual([
+      expect.objectContaining({ status: ReminderStatus.PENDING }),
+    ]);
   });
 
   /**

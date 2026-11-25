@@ -231,19 +231,27 @@ export class ReminderTickService {
   /**
    * Les rappels générés d'un suivi terminé (#909) : « fin de cycle » sur un cycle du couple,
    * « facture en retard » sur une facture de ce cycle. Le tick n'en génère plus ; ceux d'avant la
-   * rupture se closent ici, sous l'acteur du Coach, comme `closeSettledOverdue` — la rupture, que
+   * rupture s'effacent ici, sous l'acteur du Coach, comme `closeSettledOverdue` — la rupture, que
    * l'athlète peut faire, n'écrit pas dans les rappels du Coach.
    *
-   * `DISMISSED` et non `DONE` : rien n'a été fait, c'est le suivi qui s'est arrêté. Une
-   * réactivation ne les rouvre pas : un rappel généré puis traité ne renaît pas (index d'unicité).
-   * Le rappel saisi à la main reste au Coach.
+   * Supprimés, et non écartés : un rappel généré puis traité ne renaît pas (index d'unicité). Un
+   * `DISMISSED` survivrait donc à une réactivation, et la facture toujours impayée du suivi repris
+   * ne serait plus relancée. Supprimé, il renaît au tick qui suit la reprise, dans la fenêtre de
+   * génération — comme s'il n'avait jamais été vu. Rien n'est perdu : c'est le tick qui l'avait
+   * écrit, pas le Coach.
+   *
+   * Sauf celui que le Coach a annoté : la note le lui approprie (#105), comme un rappel saisi à la
+   * main, et l'effacer la perdrait. Il reste, et part à son échéance. Une échéance repoussée sans
+   * note ne se distingue pas de celle du tick : effacée, elle renaît à la date générée.
    */
   private async closeEndedFollow(): Promise<void> {
+    const generated = {
+      status: ReminderStatus.PENDING,
+      reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
+      note: null,
+    };
     const reminders = await this.db.reminder.findMany({
-      where: {
-        status: ReminderStatus.PENDING,
-        reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
-      },
+      where: generated,
       select: { entityType: true, entityId: true },
     });
     const idsOf = (entityType: ReminderEntityType) =>
@@ -267,14 +275,7 @@ export class ReminderTickService {
     const endedIds = [...plans, ...invoices].map((row) => row.id);
     if (endedIds.length === 0) return;
 
-    await this.db.reminder.updateMany({
-      where: {
-        status: ReminderStatus.PENDING,
-        reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
-        entityId: { in: endedIds },
-      },
-      data: { status: ReminderStatus.DISMISSED },
-    });
+    await this.db.reminder.deleteMany({ where: { ...generated, entityId: { in: endedIds } } });
   }
 
   /**
