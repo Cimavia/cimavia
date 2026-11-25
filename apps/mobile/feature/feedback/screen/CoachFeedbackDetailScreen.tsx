@@ -31,6 +31,7 @@ import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useLatch } from "@/shared/hook/useLatch";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -208,18 +209,24 @@ function ReplyFloor({
 
 /**
  * Le suivi de CE Coach avec l'athlète a-t-il pris fin (#911, pendant du web de #910) ? Rend ce qui
- * se dit alors à la place du composeur, `null` sur un suivi qui court, et `undefined` tant que ses
- * liens se chargent : ni composeur ni fil demandé. Illisibles, ils ne tranchent plus
- * rien (`null`) : le fil se demande comme avant, et l'API refuse en 409 l'envoi d'un suivi terminé
- * — mieux qu'un composeur éteint sans raison ni relance. C'est le lien qui compte, pas le cycle :
- * un débrief d'un cycle partagé (#610) se répond par le fil de chaque Coach avec l'athlète.
+ * se dit alors à la place du composeur, `null` sur un suivi qui court, et `undefined` tant qu'on ne
+ * le sait pas : ni composeur ni fil demandé. On ne le sait pas tant que le résumé n'a pas dit QUEL
+ * athlète, ni tant que ses liens se lisent pour la première fois.
+ *
+ * Illisibles, ou en pause hors ligne sans cache, les liens ne tranchent plus rien (`null`) : le fil
+ * se demande comme avant, et l'API refuse en 409 l'envoi d'un suivi terminé — mieux qu'un plancher
+ * vide sans raison ni relance. Une fois su, ça ne se désapprend pas sur une relance : TanStack
+ * remet une liste sans donnée en `pending` à chaque relecture, et le composeur partirait avec sa
+ * frappe. C'est le lien qui compte, pas le cycle : un débrief d'un cycle partagé (#610) se répond
+ * par le fil de chaque Coach avec l'athlète.
  */
 function useClosedReplyNote(athleteId: string | null): string | null | undefined {
   const { t } = useTranslation();
-  const { data: links, isError } = useAthletes();
+  const { data: links, isError, fetchStatus } = useAthletes();
   const followEndedText = useFollowEndedText();
-  if (links == null) return isError ? null : undefined;
-  const link = links.find((candidate) => candidate.athleteId === athleteId);
+  const settled = useLatch(athleteId ?? "", links != null || isError || fetchStatus === "paused");
+  if (athleteId == null || !settled) return undefined;
+  const link = links?.find((candidate) => candidate.athleteId === athleteId);
   if (link == null || !isEndedLink(link)) return null;
   return t("feedback.reply.followEnded", { ended: followEndedText(link.endedAt) });
 }

@@ -496,6 +496,37 @@ describe("CoachFeedbackDetailScreen — suivi terminé (#911)", () => {
     expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith("a-1");
   });
 
+  // Hors ligne et sans cache, la liste est en pause pour de bon : un plancher vide ne dirait rien.
+  it("pose la barre quand la liste est en pause hors ligne, comme si elle était illisible", () => {
+    mockLinks({ data: undefined, fetchStatus: "paused" });
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(composer(container)).not.toBeNull();
+    expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith("a-1");
+  });
+
+  // TanStack remet une liste sans donnée en `pending` à chaque relance : la barre posée reste.
+  it("garde la barre posée quand la liste illisible est relancée", () => {
+    mockLinks({ data: undefined, isError: true });
+    const { container, rerender } = renderRn(<CoachFeedbackDetailScreen />);
+    expect(composer(container)).not.toBeNull();
+
+    mockLinks({ data: undefined, isError: false, fetchStatus: "fetching" });
+    rerender(<CoachFeedbackDetailScreen />);
+
+    expect(composer(container)).not.toBeNull();
+  });
+
+  // Sans résumé, on ignore QUEL athlète : la barre offerte puis retirée emporterait la frappe.
+  it("ne pose pas la barre tant que le résumé ne dit pas l'athlète", () => {
+    vi.mocked(useCoachFeedbacks).mockReturnValue({ data: undefined } as unknown as ReturnType<
+      typeof useCoachFeedbacks
+    >);
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(composer(container)).toBeNull();
+  });
+
   it("demande le fil de l'athlète sur un suivi qui court", () => {
     renderRn(<CoachFeedbackDetailScreen />);
 

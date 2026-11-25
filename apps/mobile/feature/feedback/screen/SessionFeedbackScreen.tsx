@@ -26,6 +26,7 @@ import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
+import { useLatch } from "@/shared/hook/useLatch";
 import { authClient } from "@/shared/lib/auth";
 
 /**
@@ -125,19 +126,25 @@ export function SessionFeedbackScreen() {
  * est la séance dont le suivi a pris fin (#911), `null` tant qu'elle se débriefe — ou qu'elle n'est
  * pas lue.
  *
- * La séance ne fait attendre que tant qu'elle est en vol : hors ligne et sans cache, sa lecture est
- * en pause pour de bon, et l'attendre laisserait l'écran sur un spinner. Le formulaire s'offre
- * alors comme si elle avait échoué.
+ * La séance ne fait attendre que sa PREMIÈRE lecture, et seulement en vol : hors ligne et sans
+ * cache, elle est en pause pour de bon, et l'attendre laisserait l'écran sur un spinner — le
+ * formulaire s'offre alors comme si elle avait échoué. Offert, il ne se retire plus pour une
+ * relance : TanStack remet une séance sans donnée en `pending` à chaque relecture (retour au
+ * premier plan, réseau revenu, invalidation après un média), et la frappe partirait avec lui.
  */
 function useFeedbackState(id: string) {
   const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
   const session = useScheduledSession(id);
+  const sessionKnown = useLatch(id, !session.isPending || session.fetchStatus === "paused");
+  const failed = isError && feedback === undefined;
   return {
     feedback,
     refetch,
     session,
-    isLoading: isPending || (session.isPending && session.fetchStatus !== "paused"),
-    failed: isError && feedback === undefined,
+    // Jamais avec `failed` : la séance peut être encore en vol quand le débrief a déjà échoué, et
+    // l'écran montrerait à la fois l'attente et la panne.
+    isLoading: !failed && (isPending || !sessionKnown),
+    failed,
     closed: session.data != null && !canDebrief(session.data) ? session.data : null,
   };
 }
@@ -280,9 +287,9 @@ function Replies({
  * seul bouton pour les deux — deux boutons feraient croire qu'on peut envoyer l'un sans l'autre,
  * alors que le décompte accompagne le ressenti.
  *
- * Le décompte n'attend PAS la séance pour laisser écrire : si elle tarde ou échoue, le texte et les
- * médias restent accessibles, seul le rappel des coches manque — et aucun décompte ne part, plutôt
- * qu'un objet vide qui écraserait le suivi.
+ * Le décompte n'attend PAS la séance pour laisser écrire : si elle échoue, ou reste en pause hors
+ * ligne, le texte et les médias restent accessibles, seul le rappel des coches manque — et aucun
+ * décompte ne part, plutôt qu'un objet vide qui écraserait le suivi.
  */
 function WritingSections({
   sessionId,

@@ -187,6 +187,35 @@ describe("SessionFeedbackScreen — suivi terminé (#911)", () => {
     expect(FeedbackTextSection).toHaveBeenCalled();
   });
 
+  /**
+   * TanStack remet une séance sans donnée en `pending` à chaque relance (retour au premier plan,
+   * réseau revenu, invalidation après un média) : le formulaire déjà offert ne se retire pas.
+   */
+  it.each([
+    ["après un échec", { isError: true }],
+    ["après une pause hors ligne", { isPending: true, fetchStatus: "paused" as const }],
+  ])("garde le formulaire quand la séance est relancée %s", (_, before) => {
+    mockSession(undefined, before);
+    const { container, rerender } = renderRn(<SessionFeedbackScreen />);
+    expect(FeedbackTextSection).toHaveBeenCalled();
+    vi.mocked(FeedbackTextSection).mockClear();
+
+    mockSession(undefined, { isPending: true, fetchStatus: "fetching" });
+    rerender(<SessionFeedbackScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    expect(FeedbackTextSection).toHaveBeenCalled();
+  });
+
+  it("dit la panne du débrief sans spinner, la séance encore en vol", () => {
+    mockFeedback({ data: undefined, isError: true });
+    mockSession(undefined, { isPending: true, fetchStatus: "fetching" });
+    const { container, getByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(getByText("common.retry")).toBeTruthy();
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
   it("ne demande pas le fil d'une séance close, où rien ne s'écrira", () => {
     mockSession(ENDED_SESSION);
     renderRn(<SessionFeedbackScreen />);
