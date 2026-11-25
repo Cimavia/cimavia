@@ -1200,6 +1200,7 @@
     "attach": "Joindre des photos, des vidéos ou des PDF",
     "record": "Enregistrer un message vocal",
     "loadError": "Impossible de charger la conversation.",
+    "followEnded": "{{ended}} : ce fil se relit, on n'y écrit plus.",
     "media": {
       "uploading": "Envoi en cours… {{percent}} %",
       "retrying": "Connexion interrompue — nouvelle tentative {{attempt}}/{{max}}…",

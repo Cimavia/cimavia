@@ -213,6 +213,16 @@ describe("MessageThread — barre d'envoi", () => {
     renderWithProviders(<MessageThread {...props} />);
     expect(composerProps()).toMatchObject({ sending: true });
   });
+
+  // #910 : le fil direct d'un suivi terminé se relit ; l'API refuserait l'envoi en 409.
+  it("cède la place à une phrase sur un fil dont le suivi a pris fin", () => {
+    const { getByText } = renderWithProviders(
+      <MessageThread conversation={conversation({ followEndedAt: "2026-11-20T09:00:00.000Z" })} />,
+    );
+
+    expect(getByText("messages.followEnded")).toBeInTheDocument();
+    expect(Composer).not.toHaveBeenCalled();
+  });
 });
 
 describe("MessageThread — en-tête (#612)", () => {
