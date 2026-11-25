@@ -316,7 +316,8 @@ liste des domaines vivent dans l'index.
 > libellés redeviendront des instructions le jour où il existera. C'est fait en
 > [#910](https://github.com/Cimavia/cimavia/issues/910) sur le web : ils nomment le geste et où il
 > se fait (la fiche de l'athlète, « Mes coachs »). Le mobile suit en
-> [#911](https://github.com/Cimavia/cimavia/issues/911), avec ses propres chaînes.
+> [#911](https://github.com/Cimavia/cimavia/issues/911), avec ses propres chaînes : « Mes coachs »
+> y est le vrai recours, et la fiche renvoie au web, seul à offrir de mettre fin à un suivi.
 
 ---
 
