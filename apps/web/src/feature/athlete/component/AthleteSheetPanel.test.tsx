@@ -303,17 +303,39 @@ describe("AthleteSheetPanel — la fin du suivi (#910)", () => {
 
     await user.click(screen.getByRole("button", { name: "follow.end.coach.confirm" }));
 
-    expect(await screen.findByText("follow.endedOn")).toBeInTheDocument();
+    expect(await screen.findByText("athlete.sheet.followEnded")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeDisabled();
     expect(submitButton()).toBeNull();
     expect(endButton()).toBeNull();
+    // Plus rien à annuler : le panneau se ferme.
+    // La croix du panneau, et le pied qui ne dit plus « Annuler ».
+    expect(screen.getAllByRole("button", { name: "common.close" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "common.cancel" })).toBeNull();
+  });
+
+  // Rompre grise le champ et retire l'enregistrement : la saisie resterait affichée comme partie.
+  it("ne rompt pas sur une saisie de la fiche non enregistrée, et dit quoi faire d'abord", async () => {
+    const { user } = render();
+    const field = await screen.findByRole("textbox");
+    await user.type(field, " Genou.");
+
+    expect(screen.getByText("follow.end.coach.unsavedSheet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.action" }));
+    expect(screen.queryByRole("button", { name: "follow.end.coach.confirm" })).toBeNull();
+
+    // Revenue à la version enregistrée, la saisie n'a plus rien à perdre : le geste se rouvre.
+    await user.clear(field);
+    await user.type(field, SHEET.content);
+    expect(screen.queryByText("follow.end.coach.unsavedSheet")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.action" }));
+    expect(screen.getByRole("button", { name: "follow.end.coach.confirm" })).toBeInTheDocument();
   });
 
   it("ouvre en lecture la fiche d'un suivi déjà terminé", async () => {
     listAthletes.mockResolvedValue([ENDED_LINK]);
     render();
 
-    expect(await screen.findByText("follow.endedOn")).toBeInTheDocument();
+    expect(await screen.findByText("athlete.sheet.followEnded")).toBeInTheDocument();
     expect(await screen.findByText(SHEET.content)).toBeDisabled();
     expect(submitButton()).toBeNull();
     expect(endButton()).toBeNull();

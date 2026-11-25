@@ -69,7 +69,11 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
    * la citer ferait passer le brouillon par-dessus sans un mot.
    */
   const [draft, setDraft] = useState<UpdateAthleteSheetInput | null>(null);
-  const current = draft ?? athleteSheetDraft(sheet ?? null);
+  const saved = athleteSheetDraft(sheet ?? null);
+  const current = draft ?? saved;
+  // Rompre grise le champ et retire l'enregistrement : une saisie qui n'est pas partie y resterait
+  // affichée comme si elle l'était, puis disparaîtrait à la fermeture. Elle part, ou s'efface, avant.
+  const hasUnsavedSheet = draft != null && draft.content !== saved.content;
   const isStale = isStaleWriteError(saveSheet.error);
 
   function onSubmit(event: SyntheticEvent) {
@@ -93,21 +97,21 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
       description={t("athlete.sheet.description")}
       onClose={onClose}
       footer={
-        <>
-          <CmvButton variant="ghost" onClick={onClose} disabled={saveSheet.isPending}>
-            {t("common.cancel")}
-          </CmvButton>
-          {canSave ? (
-            <CmvButton type="submit" onClick={onSubmit} disabled={saveSheet.isPending}>
-              {saveSheet.isPending ? t("athlete.sheet.submitting") : t("athlete.sheet.submit")}
-            </CmvButton>
-          ) : null}
-        </>
+        <SheetFooter
+          canSave={canSave}
+          isSaving={saveSheet.isPending}
+          onClose={onClose}
+          onSubmit={onSubmit}
+        />
       }
     >
       {isReceived ? (
         <form onSubmit={onSubmit} className="flex flex-col gap-cmv-md">
-          {followEnded ? <CmvReadOnlyBanner message={followEndedText(link.endedAt)} /> : null}
+          {followEnded ? (
+            <CmvReadOnlyBanner
+              message={t("athlete.sheet.followEnded", { ended: followEndedText(link.endedAt) })}
+            />
+          ) : null}
           {isStale ? (
             <CmvStaleBanner
               message={t("athlete.sheet.stale")}
@@ -129,7 +133,9 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
       ) : (
         <SheetUnavailable isError={isError} onRetry={() => refetch()} />
       )}
-      {link == null || followEnded || link.isSelf ? null : <EndFollow link={link} />}
+      {link == null || followEnded || link.isSelf ? null : (
+        <EndFollow link={link} hasUnsavedSheet={hasUnsavedSheet} />
+      )}
     </CmvPanel>
   );
 }
@@ -139,14 +145,22 @@ export function AthleteSheetPanel({ athlete, onClose }: Readonly<AthleteSheetPan
  * réglage de la fiche, c'est la fin du couple. En deux temps, et l'avertissement dit ce qui reste
  * et ce qui cesse au moment de confirmer. Rien pour l'auto-coaching : il n'a pas de lien à rompre.
  */
-function EndFollow({ link }: Readonly<{ link: CoachAthleteDto }>) {
+function EndFollow({
+  link,
+  hasUnsavedSheet,
+}: Readonly<{ link: CoachAthleteDto; hasUnsavedSheet: boolean }>) {
   const { t } = useTranslation();
   const end = useEndFollow("coach", accountApi);
+  // Dite en clair sous le bouton, pas seulement au survol : c'est le geste à faire d'abord.
+  const unsaved = hasUnsavedSheet ? t("follow.end.coach.unsavedSheet") : undefined;
 
   return (
     <section className="mt-cmv-xl flex flex-col items-start gap-cmv-sm border-cmv-border border-t pt-cmv-lg">
-      <p className="text-cmv-caption text-cmv-text-mid">{t("follow.end.coach.description")}</p>
+      <p className="text-cmv-caption text-cmv-text-mid">
+        {unsaved ?? t("follow.end.coach.description")}
+      </p>
       <CmvConfirmButton
+        disabledReason={unsaved}
         label={t("follow.end.coach.action")}
         confirmLabel={t("follow.end.coach.confirm")}
         cancelLabel={t("common.cancel")}
@@ -155,6 +169,34 @@ function EndFollow({ link }: Readonly<{ link: CoachAthleteDto }>) {
         onConfirm={() => end.mutate(link.athleteId)}
       />
     </section>
+  );
+}
+
+/** Sans enregistrement — fiche non reçue, ou suivi terminé —, il n'y a rien à annuler : on ferme. */
+function SheetFooter({
+  canSave,
+  isSaving,
+  onClose,
+  onSubmit,
+}: Readonly<{
+  canSave: boolean;
+  isSaving: boolean;
+  onClose: () => void;
+  onSubmit: (event: SyntheticEvent) => void;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <CmvButton variant="ghost" onClick={onClose} disabled={isSaving}>
+        {canSave ? t("common.cancel") : t("common.close")}
+      </CmvButton>
+      {canSave ? (
+        <CmvButton type="submit" onClick={onSubmit} disabled={isSaving}>
+          {isSaving ? t("athlete.sheet.submitting") : t("athlete.sheet.submit")}
+        </CmvButton>
+      ) : null}
+    </>
   );
 }
 

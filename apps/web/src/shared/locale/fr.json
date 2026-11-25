@@ -1344,6 +1344,7 @@
       "label": "Notes",
       "placeholder": "Ex. Objectif 8a en salle d'ici juin. Épaule droite sensible — surveiller le volume de tractions.",
       "stale": "Cette fiche a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "followEnded": "{{ended}} : cette fiche se relit, elle ne se modifie plus.",
       "submit": "Enregistrer la fiche",
       "submitting": "Enregistrement…"
     },
@@ -1995,6 +1996,7 @@
     "end": {
       "coach": {
         "description": "Mettre fin au suivi range cet athlète dans tes suivis terminés.",
+        "unsavedSheet": "Ta saisie de la fiche n'est pas enregistrée : enregistre-la avant de mettre fin au suivi.",
         "action": "Mettre fin au suivi",
         "confirm": "Confirmer la fin du suivi",
         "hint": "Ses cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune diffusion, ni débrief, ni message avec {{name}}.",
