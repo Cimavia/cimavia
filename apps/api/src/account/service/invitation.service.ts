@@ -13,6 +13,7 @@ import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { CoachAthlete, Invitation, Prisma } from "@prisma/client";
 import { InvitationMailer } from "../../infra/mail/invitation.mailer";
 import { PrismaService } from "../../infra/prisma/prisma.service";
+import { isUniqueViolation } from "../../infra/prisma/prisma-error";
 import { NotificationService } from "../../notification/notification.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -29,6 +30,8 @@ import { issuerOf, toInvitationDto, toPendingInvitationDto } from "../invitation
 import { CoachGraphService } from "./coach-graph.service";
 import { OrganizationLinkService } from "./organization-link.service";
 import { UserDirectoryService } from "./user-directory.service";
+
+const ALREADY_FOLLOWED = "Tu es déjà suivi par ce coach";
 
 /**
  * Le Coach d'une invitation créée par CE service : la route `POST /invitations` est gardée
@@ -205,8 +208,14 @@ export class InvitationService {
    * L'invitation que désigne `id`, si CET athlète peut encore l'accepter ou la refuser — voir
    * `assertActionable`. Client de BASE : l'athlète n'est pas l'acteur du scope de `Invitation`.
    */
-  private async findActionable(athlete: { email: string }, id: string) {
-    const found = await this.prisma.invitation.findUnique({ where: { id } });
+  // `db` : la transaction qui la relit, quand elle tient déjà une connexion et un verrou —
+  // repasser par le pool attendrait une seconde connexion sous ce verrou.
+  private async findActionable(
+    athlete: { email: string },
+    id: string,
+    db: Pick<Prisma.TransactionClient, "invitation"> = this.prisma,
+  ) {
+    const found = await db.invitation.findUnique({ where: { id } });
     const invitation = assertActionable(found, {
       email: athlete.email,
       role: InvitationRole.ATHLETE,
@@ -273,7 +282,7 @@ export class InvitationService {
       where: { coachId_athleteId: { coachId, athleteId: athlete.id } },
     });
     if (existing != null && existing.status !== CoachAthleteStatus.ENDED) {
-      throw new ConflictException("Tu es déjà suivi par ce coach");
+      throw new ConflictException(ALREADY_FOLLOWED);
     }
     // Accepter exige la capacité athlète : seul un compte qui CUMULE peut présenter la sienne
     // (#9/#10). Ce refus-là n'est pas une boucle, il a son propre message.
@@ -288,14 +297,7 @@ export class InvitationService {
       // elle.
       const joined =
         existing == null
-          ? await tx.coachAthlete.create({
-              data: {
-                coachId,
-                athleteId: athlete.id,
-                status: CoachAthleteStatus.ACTIVE,
-                joinedAt: new Date(),
-              },
-            })
+          ? await createLink(tx, coachId, athlete.id)
           : await reopenLink(tx, existing.id);
       // L'invitation se RÉSERVE sous condition qu'elle soit encore en attente : une rupture
       // concurrente l'a peut-être retirée, et une invitation d'avant la rupture ne la défait pas.
@@ -305,7 +307,7 @@ export class InvitationService {
       });
       if (claimed.count === 0) {
         // Le refus que mérite son état : retirée (410), déjà utilisée, expirée.
-        await this.findActionable(athlete, invitation.id);
+        await this.findActionable(athlete, invitation.id, tx);
         throw new ConflictException("Invitation déjà utilisée");
       }
       return joined;
@@ -317,6 +319,25 @@ export class InvitationService {
     });
 
     return withNames(this.users, [relation]);
+  }
+}
+
+/**
+ * Le premier lien du couple. Deux invitations du même Coach acceptées ensemble le créent chacune :
+ * la seconde bute sur l'unicité du couple, et reçoit le refus d'un lien déjà actif plutôt qu'un 500.
+ */
+async function createLink(
+  tx: Prisma.TransactionClient,
+  coachId: string,
+  athleteId: string,
+): Promise<CoachAthlete> {
+  try {
+    return await tx.coachAthlete.create({
+      data: { coachId, athleteId, status: CoachAthleteStatus.ACTIVE, joinedAt: new Date() },
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new ConflictException(ALREADY_FOLLOWED);
+    throw error;
   }
 }
 
@@ -338,7 +359,7 @@ async function reopenLink(tx: Prisma.TransactionClient, id: string): Promise<Coa
       organizationId: null,
     },
   });
-  if (count === 0) throw new ConflictException("Tu es déjà suivi par ce coach");
+  if (count === 0) throw new ConflictException(ALREADY_FOLLOWED);
   const relation = await tx.coachAthlete.findUniqueOrThrow({ where: { id } });
   await tx.plan.updateMany({
     where: {
