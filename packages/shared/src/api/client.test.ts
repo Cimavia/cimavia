@@ -5,6 +5,7 @@ import {
   apiErrorMessage,
   createApiClient,
   createApiErrorMessage,
+  isFollowEndedError,
   isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
@@ -63,6 +64,31 @@ describe("isUnauthorizedError", () => {
     // Le message est celui de l'API, donc traduisible et changeant ; le statut est le contrat.
     expect(isUnauthorizedError(new ApiError(401, "Session expirée", null))).toBe(true);
     expect(isUnauthorizedError(new ApiError(400, "Unauthorized", null))).toBe(false);
+  });
+});
+
+describe("isFollowEndedError", () => {
+  // Contrat sur le fil, comme `STALE_WRITE` : une app installée compare ce type au sien.
+  it("garde le type que les apps installées attendent", () => {
+    expect(ProblemType.FOLLOW_ENDED).toBe("urn:cimavia:problem:follow-ended");
+  });
+
+  it("reconnaît le 409 d'une écriture dans un suivi terminé", () => {
+    expect(
+      isFollowEndedError(
+        new ApiError(409, "Ce suivi est terminé", null, true, ProblemType.FOLLOW_ENDED),
+      ),
+    ).toBe(true);
+  });
+
+  it("ne prend ni un autre 409, ni un autre statut, pour un suivi terminé", () => {
+    expect(
+      isFollowEndedError(new ApiError(409, "Refus", null, true, ProblemType.STALE_WRITE)),
+    ).toBe(false);
+    expect(
+      isFollowEndedError(new ApiError(400, "Refus", null, true, ProblemType.FOLLOW_ENDED)),
+    ).toBe(false);
+    expect(isFollowEndedError(new TypeError("Failed to fetch"))).toBe(false);
   });
 });
 

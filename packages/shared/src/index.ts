@@ -38,6 +38,7 @@ export {
   ApiError,
   createApiClient,
   createApiErrorMessage,
+  isFollowEndedError,
   isRateLimitedError,
   isStaleWriteError,
   isUnauthorizedError,
