@@ -1979,7 +1979,9 @@
     "archive": {
       "athletes": "Suivi terminé ({{count}})",
       "athletes_other": "Suivis terminés ({{count}})",
-      "thread": "Relire le fil"
+      "thread": "Relire le fil",
+      "coaches": "Ancien coach ({{count}})",
+      "coaches_other": "Anciens coachs ({{count}})"
     },
     "end": {
       "coach": {
@@ -1990,6 +1992,9 @@
         "done": "Suivi de {{name}} terminé"
       },
       "athlete": {
+        "action": "Quitter",
+        "confirm": "Confirmer le départ",
+        "hint": "Tes cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune séance, ni débrief, ni message avec {{name}}.",
         "done": "Tu as quitté {{name}}"
       }
     }

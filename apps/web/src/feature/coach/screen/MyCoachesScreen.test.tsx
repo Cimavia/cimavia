@@ -1,4 +1,4 @@
-import type { CoachAthleteDto, PendingInvitationDto } from "@cmv/shared";
+import type { CoachAthleteDto, ConversationDto, PendingInvitationDto } from "@cmv/shared";
 import { ApiError } from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,8 @@ vi.mock("@/feature/coach/api", async () => {
       myInvitations: vi.fn(),
       acceptInvitation: vi.fn(),
       declineInvitation: vi.fn(),
+      leaveCoach: vi.fn(),
+      endWithAthlete: vi.fn(),
     },
     coachKeys: shared.coachKeys,
     invitationKeys: shared.invitationKeys,
@@ -39,6 +41,11 @@ vi.mock("@/shared/lib/auth", () => ({
   },
 }));
 
+vi.mock("@/feature/message/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/feature/message/api")>();
+  return { ...actual, messageApi: { ...actual.messageApi, listConversations: vi.fn() } };
+});
+
 vi.mock("@/feature/shell", async () => ({
   AppShell: (await import("../../../../test/app-shell")).StubAppShell,
 }));
@@ -48,6 +55,9 @@ const myCoaches = vi.mocked(accountApi.myCoaches);
 const myInvitations = vi.mocked(accountApi.myInvitations);
 const acceptInvitation = vi.mocked(accountApi.acceptInvitation);
 const declineInvitation = vi.mocked(accountApi.declineInvitation);
+const leaveCoach = vi.mocked(accountApi.leaveCoach);
+const { messageApi } = await import("@/feature/message/api");
+const listConversations = vi.mocked(messageApi.listConversations);
 
 const INVITATION = {
   id: "inv_1",
@@ -111,6 +121,7 @@ beforeEach(() => {
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue([RELATION]);
   declineInvitation.mockResolvedValue(undefined);
+  listConversations.mockResolvedValue([]);
 });
 
 describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
@@ -339,5 +350,76 @@ describe("MyCoachesScreen — aucun coach (#390)", () => {
     await render();
 
     expect(await screen.findByText("—")).toBeInTheDocument();
+  });
+});
+
+// Un suivi terminé (#910) : `GET /me/coaches` le rend encore, pour relire son archive.
+const ENDED_MARC = {
+  ...MARC,
+  status: "ENDED",
+  endedAt: "2026-11-20T10:00:00.000Z",
+} satisfies CoachAthleteDto;
+
+const MARC_THREAD = {
+  id: "conv_marc",
+  kind: "DIRECT",
+  participants: [{ userId: "u_marc", name: "Marc", capability: "coach", lastReadAt: null }],
+  unreadCount: 0,
+  followEndedAt: "2026-11-20T10:00:00.000Z",
+} as ConversationDto;
+
+describe("MyCoachesScreen — quitter un coach (#910)", () => {
+  it("quitte un coach en deux temps, en disant ce qui reste et ce qui cesse", async () => {
+    const left = { ...RELATION, status: "ENDED", endedAt: "2026-11-25T10:00:00.000Z" } as const;
+    myCoaches.mockResolvedValue([RELATION]);
+    leaveCoach.mockResolvedValue(left);
+    const { user } = await render();
+
+    await user.click(await screen.findByRole("button", { name: "follow.end.athlete.action" }));
+    expect(leaveCoach).not.toHaveBeenCalled();
+    expect(screen.getByText("follow.end.athlete.hint")).toBeInTheDocument();
+
+    myCoaches.mockResolvedValue([left]);
+    await user.click(screen.getByRole("button", { name: "follow.end.athlete.confirm" }));
+
+    await waitFor(() => expect(leaveCoach).toHaveBeenCalledWith("u_coach"));
+    // Il ne reste plus de coach en cours : l'adresse revient, l'ancien coach passe à l'archive.
+    expect(await screen.findByText("coach.missing.title")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "follow.archive.coaches" })).toBeInTheDocument();
+  });
+
+  it("range à part, repliés, les coachs dont le suivi a pris fin", async () => {
+    myCoaches.mockResolvedValue([RELATION, ENDED_MARC]);
+    const { user } = await render();
+
+    await screen.findByText("Julie Renaud");
+    expect(screen.queryByText("Marc Keller")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "follow.end.athlete.action" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "follow.archive.coaches" }));
+
+    expect(await screen.findByText("Marc Keller")).toBeInTheDocument();
+    expect(screen.getByText("follow.endedOn")).toBeInTheDocument();
+  });
+
+  // Sans coach en cours, on dit où se faire inviter — et l'archive reste dessous.
+  it("revient à « aucun coach » quand il ne reste que des suivis terminés", async () => {
+    myCoaches.mockResolvedValue([ENDED_MARC]);
+    await render();
+
+    expect(await screen.findByText("coach.missing.title")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "follow.archive.coaches" })).toBeInTheDocument();
+  });
+
+  // Par son id : la messagerie n'ouvre `?coach=` que vers un coach encore suivi.
+  it("rouvre le fil d'un ancien coach par son id", async () => {
+    myCoaches.mockResolvedValue([ENDED_MARC]);
+    listConversations.mockResolvedValue([MARC_THREAD]);
+    const { user } = await render();
+
+    await user.click(await screen.findByRole("button", { name: "follow.archive.coaches" }));
+
+    const link = await screen.findByRole("link", { name: "follow.archive.thread" });
+    expect(link.getAttribute("href")).toBe("/messages?conversation=conv_marc&as=athlete");
   });
 });
