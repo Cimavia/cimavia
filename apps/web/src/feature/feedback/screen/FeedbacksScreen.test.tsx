@@ -53,6 +53,8 @@ vi.mock("@/shared/lib/auth", () => ({
   },
 }));
 vi.mock("@/feature/athlete/hook/useAthletes", () => ({
+  // La fiche lit les liens du Coach (#910) : aucun ici, le suivi ne s'y joue pas.
+  useAthletes: () => ({ data: [] }),
   useAthleteSheet: () => ({ data: null, isPending: false }),
   useSaveAthleteSheet: () => ({ mutate: vi.fn(), isPending: false }),
 }));

@@ -1980,6 +1980,18 @@
       "athletes": "Suivi terminé ({{count}})",
       "athletes_other": "Suivis terminés ({{count}})",
       "thread": "Relire le fil"
+    },
+    "end": {
+      "coach": {
+        "description": "Mettre fin au suivi range cet athlète dans tes suivis terminés.",
+        "action": "Mettre fin au suivi",
+        "confirm": "Confirmer la fin du suivi",
+        "hint": "Ses cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune diffusion, ni débrief, ni message avec {{name}}.",
+        "done": "Suivi de {{name}} terminé"
+      },
+      "athlete": {
+        "done": "Tu as quitté {{name}}"
+      }
     }
   }
 }
