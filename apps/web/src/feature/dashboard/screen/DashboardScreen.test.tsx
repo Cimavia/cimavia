@@ -552,6 +552,19 @@ describe("DashboardScreen — les suivis terminés (#910)", () => {
     expect(view.queryByText("Tom Girard")).toBeNull();
   });
 
+  it("ne compte pas non plus ses cycles parmi les planifications", async () => {
+    const view = await mount({
+      athletes: [LEA, TOM],
+      plans: [
+        plan("ath_lea", THIS_MONDAY),
+        { ...plan("ath_tom", THIS_MONDAY), followEndedAt: "2026-11-20T10:00:00.000Z" },
+      ],
+    });
+
+    const plans = await tile(view, "dashboard.tiles.plans");
+    await waitFor(() => expect(plans.getByText("1")).toBeInTheDocument());
+  });
+
   it("range l'archive à part, repliée, avec sa date de fin", async () => {
     const view = await mount({ athletes: [LEA, TOM] });
 

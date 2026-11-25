@@ -194,7 +194,9 @@ export function DashboardScreen() {
     },
     {
       labelKey: "dashboard.tiles.plans",
-      count: plans.data?.length ?? null,
+      // Comme la tuile voisine, le travail en cours : le cycle d'un suivi terminé se relit dans
+      // « Planifications », il ne compte plus parmi ce que le Coach diffuse (#910).
+      count: plans.data?.filter((item) => item.followEndedAt == null).length ?? null,
       hintKey: "dashboard.tiles.plansHint",
     },
     {
