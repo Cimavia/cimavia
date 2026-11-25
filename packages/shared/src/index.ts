@@ -10,7 +10,7 @@ export {
   createAccountApi,
   invitationKeys,
 } from "./api/account.api";
-export { acceptInvitationMutation } from "./api/account.cache";
+export { acceptInvitationMutation, endRelationMutation } from "./api/account.cache";
 export type {
   AccountErasureApi,
   ConfirmedErasure,

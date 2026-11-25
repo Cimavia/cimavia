@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
-import { coachKeys } from "./account.api";
-import { acceptInvitationMutation, withJoinedCoaches } from "./account.cache";
+import { athleteKeys, coachKeys } from "./account.api";
+import {
+  acceptInvitationMutation,
+  endRelationMutation,
+  withEndedLink,
+  withJoinedCoaches,
+} from "./account.cache";
 
 const RELATION = {
   id: "rel_1",
@@ -12,6 +17,7 @@ const RELATION = {
   status: "ACTIVE",
   invitedAt: "2026-03-12T09:00:00.000Z",
   joinedAt: "2026-03-12T09:00:00.000Z",
+  endedAt: null,
   organizationName: null,
   isSelf: false,
 } as CoachAthleteDto;
@@ -89,5 +95,74 @@ describe("withJoinedCoaches", () => {
   // Jamais lue : on n'invente pas une liste aux seuls coachs obtenus.
   it("laisse intacte une liste jamais lue", () => {
     expect(withJoinedCoaches(undefined, [RELATION])).toBeUndefined();
+  });
+});
+
+// Le même lien, rompu (#909) : même id, statut et date de fin posés.
+const ENDED = { ...RELATION, status: "ENDED", endedAt: "2026-11-20T10:00:00.000Z" } as const;
+
+function setupEnd(side: "coach" | "athlete") {
+  const cache = { setQueryData: vi.fn(), invalidateQueries: vi.fn() };
+  const api = {
+    endWithAthlete: vi.fn().mockResolvedValue(ENDED),
+    leaveCoach: vi.fn().mockResolvedValue(ENDED),
+  };
+  return { cache, api, mutation: endRelationMutation(cache, api, side) };
+}
+
+describe("endRelationMutation", () => {
+  it("côté coach, désigne l'athlète sur la route du coach", async () => {
+    const { api, mutation } = setupEnd("coach");
+
+    await expect(mutation.mutationFn("u_athlete")).resolves.toEqual(ENDED);
+    expect(api.endWithAthlete).toHaveBeenCalledWith("u_athlete");
+    expect(api.leaveCoach).not.toHaveBeenCalled();
+  });
+
+  it("côté athlète, désigne le coach sur la route de l'athlète", async () => {
+    const { api, mutation } = setupEnd("athlete");
+
+    await mutation.mutationFn("u_coach");
+    expect(api.leaveCoach).toHaveBeenCalledWith("u_coach");
+    expect(api.endWithAthlete).not.toHaveBeenCalled();
+  });
+
+  // Chacun pose le lien dans SA liste : celle du coach est `athleteKeys`, celle de l'athlète
+  // `coachKeys` — la même ligne lue par ses deux bouts.
+  it.each([
+    ["coach", athleteKeys.list()],
+    ["athlete", coachKeys.list()],
+  ] as const)("côté %s, pose le lien rompu dans sa liste sans attendre", (side, key) => {
+    const { cache, mutation } = setupEnd(side);
+
+    mutation.onSuccess(ENDED);
+
+    const [posted, updater] = cache.setQueryData.mock.lastCall ?? [];
+    expect(posted).toEqual(key);
+    expect(updater([OTHER, RELATION])).toEqual([OTHER, ENDED]);
+  });
+
+  // Cycles, séances, fil direct passent en lecture : tout ce qui est en cache est périmé.
+  it("périme tout le cache, sans énumérer de clés", () => {
+    const { cache, mutation } = setupEnd("coach");
+
+    mutation.onSuccess(ENDED);
+
+    expect(cache.invalidateQueries).toHaveBeenCalledExactlyOnceWith();
+  });
+});
+
+describe("withEndedLink", () => {
+  it("remplace le lien à sa place, les autres intacts", () => {
+    expect(withEndedLink([RELATION, OTHER], ENDED)).toEqual([ENDED, OTHER]);
+  });
+
+  // Un lien que la liste ne porte pas (liste d'avant son arrivée) : rien n'est inventé.
+  it("laisse la liste telle quelle quand le lien n'y figure pas", () => {
+    expect(withEndedLink([OTHER], ENDED)).toEqual([OTHER]);
+  });
+
+  it("laisse intacte une liste jamais lue", () => {
+    expect(withEndedLink(undefined, ENDED)).toBeUndefined();
   });
 });
