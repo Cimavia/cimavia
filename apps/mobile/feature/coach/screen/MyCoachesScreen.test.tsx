@@ -515,6 +515,39 @@ describe("MyCoachesScreen — anciens coachs (#911)", () => {
     expect(screen.queryByText("follow.archive.thread")).toBeNull();
   });
 
+  // Liste des fils illisible : sans un mot, l'action absente passerait pour un fil jamais écrit.
+  it("dit la panne des fils dans l'archive, et offre de les relire", async () => {
+    listConversations.mockRejectedValueOnce(new ApiError(500, "boom", null));
+    listConversations.mockResolvedValueOnce([PAUL_THREAD]);
+    myCoaches.mockResolvedValue([FORMER]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("follow.archive.coaches");
+
+    pressButton(container, "follow.archive.coaches");
+    await screen.findByText("common.retry");
+    pressButton(container, "common.retry");
+
+    expect(await screen.findByText("follow.archive.thread")).toBeTruthy();
+    expect(screen.queryByText("common.retry")).toBeNull();
+  });
+
+  // TanStack efface l'erreur pendant la relance : sans en tenir compte, l'avis disparaîtrait le
+  // temps de la requête, et l'archive clignoterait sous le doigt.
+  it("garde l'avis de panne pendant la relance des fils", async () => {
+    listConversations.mockRejectedValueOnce(new ApiError(500, "boom", null));
+    listConversations.mockReturnValueOnce(new Promise(() => undefined));
+    myCoaches.mockResolvedValue([FORMER]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("follow.archive.coaches");
+
+    pressButton(container, "follow.archive.coaches");
+    await screen.findByText("common.retry");
+    pressButton(container, "common.retry");
+
+    await waitFor(() => expect(listConversations).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("common.retry")).not.toBeNull();
+  });
+
   // Personne de quitté : l'archive ne se monte pas, et ne lit pas les fils pour rien.
   it("ne lit pas les fils d'un athlète qui n'a quitté personne", async () => {
     myCoaches.mockResolvedValue([RELATION]);

@@ -1,6 +1,6 @@
 import { cmvColors } from "@cmv/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, View } from "react-native";
 import { CmvAvatar } from "./CmvAvatar";
 import { CmvText } from "./CmvText";
@@ -20,6 +20,11 @@ type CmvArchiveListProps = {
   /** L'intitulé du repli, compte compris : « Suivis terminés (2) ». */
   title: string;
   items: readonly CmvArchiveItem[];
+  /**
+   * Ce qui se dit en tête de l'archive dépliée, au-dessus des lignes : la panne d'une lecture dont
+   * dépendent leurs actions. Sans elle, une action absente ne se distingue pas d'un fil jamais écrit.
+   */
+  notice?: ReactNode;
 };
 
 /**
@@ -31,7 +36,7 @@ type CmvArchiveListProps = {
  * Les actions sont des boutons discrets, sous l'identité : posés à côté du nom, ils l'écraseraient
  * sur un écran de téléphone. Rien sans ligne : une archive vide n'a rien à annoncer.
  */
-export function CmvArchiveList({ title, items }: Readonly<CmvArchiveListProps>) {
+export function CmvArchiveList({ title, items, notice }: Readonly<CmvArchiveListProps>) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
 
@@ -53,6 +58,7 @@ export function CmvArchiveList({ title, items }: Readonly<CmvArchiveListProps>) 
 
       {open ? (
         <View className="gap-3">
+          {notice}
           {items.map((item) => (
             <View
               key={item.id}

@@ -122,17 +122,28 @@ function FormerCoaches({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
   const { t } = useTranslation();
   const endedText = useFollowEndedText();
   const threadActions = useArchiveThreadActions("athlete");
-  const { data: conversations } = useConversations("athlete");
+  const conversations = useConversations("athlete");
 
   const items = coaches.map((coach) => ({
     id: coach.id,
     name: coach.coachName,
     detail: endedText(coach.endedAt),
-    actions: threadActions(directConversationWith(conversations, coach.coachId, "coach")),
+    actions: threadActions(directConversationWith(conversations.data, coach.coachId, "coach")),
   }));
 
+  // Liste des fils illisible : « Relire le fil » manque à toutes les lignes, et l'archive dit
+  // pourquoi — sinon l'athlète croirait n'avoir jamais écrit à ces coachs. L'avis reste pendant
+  // la relance : TanStack y efface `error` (pas `errorUpdatedAt`), et l'archive clignoterait.
+  const threadsFailed =
+    conversations.data === undefined &&
+    (conversations.isError || (conversations.isFetching && conversations.errorUpdatedAt > 0));
+
   return (
-    <CmvArchiveList title={t("follow.archive.coaches", { count: coaches.length })} items={items} />
+    <CmvArchiveList
+      title={t("follow.archive.coaches", { count: coaches.length })}
+      items={items}
+      notice={threadsFailed ? <CmvErrorState onRetry={() => conversations.refetch()} /> : null}
+    />
   );
 }
 
