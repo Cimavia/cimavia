@@ -242,6 +242,23 @@ describe("AthleteSheetScreen — suivi terminé (#911)", () => {
     expect(container.textContent).not.toContain("athlete.sheet.add");
   });
 
+  // Offert puis retiré à l'arrivée d'un suivi terminé, « Modifier » emporterait la frappe.
+  it("n'offre pas de modifier tant que la liste se lit", async () => {
+    listAthletes.mockReturnValue(new Promise(() => undefined));
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("Épaule gauche fragile")).toBeTruthy();
+    expect(container.textContent).not.toContain("athlete.sheet.edit");
+  });
+
+  // Illisible, la liste ne ferme rien : l'API tranchera en 409 si le suivi a pris fin.
+  it("offre de modifier quand la liste n'a pas pu être lue", async () => {
+    listAthletes.mockRejectedValue(FAILURE);
+    const { findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.edit")).toBeTruthy();
+  });
+
   // La fin du suivi arrive pendant la saisie, par une relecture de la liste : l'édition se ferme.
   it("ferme une édition ouverte quand la liste relue dit le suivi terminé", async () => {
     const { container, findByText, queryClient } = renderRn(<AthleteSheetScreen />);

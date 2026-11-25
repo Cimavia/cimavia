@@ -21,6 +21,7 @@ import { CmvTextField } from "@/shared/component/CmvTextField";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
+import { useLatch } from "@/shared/hook/useLatch";
 import { isStaleWriteError } from "@/shared/lib/api";
 import { formatInstantDate } from "@/shared/util/date.util";
 
@@ -32,16 +33,22 @@ import { formatInstantDate } from "@/shared/util/date.util";
  * est chargée par le tableau de bord d'où l'on arrive.
  *
  * Suivi terminé (#911) : la fiche se relit, elle ne se modifie plus — l'API refuserait l'écriture
- * en 409. Tant que la liste n'est pas lue, rien ne la dit close : l'édition reste offerte, et c'est
- * l'API qui tranche, comme avant #909.
+ * en 409. Tant que la liste se lit pour la première fois, on ne sait pas : la fiche se lit, sans
+ * « Modifier » — offert puis retiré à l'arrivée d'un suivi terminé, il emporterait la frappe, comme
+ * le composeur d'un débrief. Illisible, ou en pause hors ligne sans cache, la liste ne ferme rien :
+ * l'édition s'offre, et c'est l'API qui tranche, comme avant #909.
  */
 export function AthleteSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const athletes = useAthletes();
   const athlete = (athletes.data ?? []).find((relation) => relation.athleteId === id) ?? null;
   const followEndedText = useFollowEndedText();
-  const closedNote =
-    athlete != null && isEndedLink(athlete) ? followEndedText(athlete.endedAt) : null;
+  // Su une fois, ça ne se désapprend pas sur une relance, que TanStack remet en `pending` (#911).
+  const known = useLatch(
+    id,
+    athletes.data != null || athletes.isError || athletes.fetchStatus === "paused",
+  );
+  const closedNote = known ? closedNoteOf(athlete, followEndedText) : undefined;
 
   return (
     <CmvScreen>
@@ -53,6 +60,14 @@ export function AthleteSheetScreen() {
       </ScrollView>
     </CmvScreen>
   );
+}
+
+/** « Suivi terminé le … » sur un lien rompu, `null` sur un suivi qui court — ou un athlète absent. */
+function closedNoteOf(
+  athlete: CoachAthleteDto | null,
+  followEndedText: (endedAt: string | null) => string,
+): string | null {
+  return athlete != null && isEndedLink(athlete) ? followEndedText(athlete.endedAt) : null;
 }
 
 // L'en-tête : qui l'on regarde, et depuis quand on le suit.
@@ -96,13 +111,14 @@ function AthleteIdentity({ athlete }: Readonly<{ athlete: CoachAthleteDto | null
  * Le brouillon porte la version de la fiche sur laquelle il a commencé (#440), figée à « Modifier » :
  * c'est elle que l'API compare, pas celle d'une relecture arrivée pendant la saisie.
  *
- * `followEnded` (« Suivi terminé le … », `null` sur un suivi qui court) ferme l'édition, même
- * ouverte : la fin du suivi peut arriver pendant la saisie, par une relecture de la liste.
+ * `followEnded` (« Suivi terminé le … », `null` sur un suivi qui court, `undefined` tant qu'on ne
+ * le sait pas) n'ouvre l'édition que sur `null`, et la ferme même ouverte : la fin du suivi peut
+ * arriver pendant la saisie, par une relecture de la liste.
  */
 function SheetNote({
   athleteId,
   followEnded,
-}: Readonly<{ athleteId: string; followEnded: string | null }>) {
+}: Readonly<{ athleteId: string; followEnded: string | null | undefined }>) {
   const { t } = useTranslation();
   const { data: sheet, isPending, isError, isFetching, refetch } = useAthleteSheet(athleteId);
   const save = useSaveAthleteSheet(athleteId);
@@ -111,7 +127,7 @@ function SheetNote({
 
   // `draft` à `null` EST le mode lecture — mais on n'affiche rien tant que la fiche n'est pas
   // résolue : un « Aucune note » sur une requête en cours serait faux, pas vide.
-  const isEditing = draft != null && followEnded == null;
+  const isEditing = draft != null && followEnded === null;
   const isReading = !isPending && !isError && !isEditing;
 
   // « Recharger » REMPLACE la saisie par la dernière version (maquette #597), en restant en
@@ -207,13 +223,17 @@ function StaleNotice({
  * Mode lecture. « Aucune fiche » et « fiche vidée » se rendent pareil, mais le BOUTON diffère :
  * « Ajouter » quand rien n'a jamais été écrit, « Modifier » ensuite — le coach sait ainsi s'il
  * repart de zéro ou s'il reprend quelque chose que l'API a déjà. Suivi terminé (`followEnded`) :
- * la fiche le dit, et ne s'offre plus à modifier.
+ * la fiche le dit, et ne s'offre plus à modifier — pas davantage tant qu'on l'ignore (`undefined`).
  */
 function SheetReading({
   sheet,
   followEnded,
   onEdit,
-}: Readonly<{ sheet: AthleteSheetDto | null; followEnded: string | null; onEdit: () => void }>) {
+}: Readonly<{
+  sheet: AthleteSheetDto | null;
+  followEnded: string | null | undefined;
+  onEdit: () => void;
+}>) {
   const { t } = useTranslation();
   const hasContent = sheet != null && sheet.content.trim().length > 0;
 
@@ -229,7 +249,7 @@ function SheetReading({
       ) : (
         <CmvText className="text-cmv-text-lo text-sm">{t("athlete.sheet.empty")}</CmvText>
       )}
-      {followEnded != null ? null : (
+      {followEnded !== null ? null : (
         <CmvButton
           label={sheet == null ? t("athlete.sheet.add") : t("athlete.sheet.edit")}
           onPress={onEdit}
