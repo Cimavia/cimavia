@@ -11,6 +11,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SharedByLine } from "@/feature/library/component/SharedByLine";
+import { FollowEndedLine } from "@/feature/plan/component/FollowEndedLine";
 import { CMV_TABLE, CmvBadge, CmvPager } from "@/shared/component";
 import { cn } from "@/shared/util/cn.util";
 import { formatDate } from "@/shared/util/date.util";
@@ -89,6 +90,7 @@ export function PlanHistoryTable({ plans }: Readonly<PlanHistoryTableProps>) {
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-cmv-text-hi">{plan.title}</span>
             <SharedByLine owner={plan.coachName} myAccess={plan.myAccess} />
+            <FollowEndedLine followEndedAt={plan.followEndedAt} />
           </span>
           <span className="font-cmv-display text-cmv-text-mid tabular-nums">
             {t("plan.history.weeks", { n: plan.weekCount })}

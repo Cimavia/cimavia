@@ -2,6 +2,7 @@ import type { PlanAthleteRow, PlanConcurrency, PlanDeadline, PlanSummaryDto } fr
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { SharedByLine } from "@/feature/library/component/SharedByLine";
+import { FollowEndedLine } from "@/feature/plan/component/FollowEndedLine";
 import { PlanHistoryTable } from "@/feature/plan/component/PlanHistoryTable";
 import { CMV_TABLE, CmvAvatar, CmvBadge } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
@@ -150,6 +151,11 @@ function CurrentPlanCell({ row }: Readonly<{ row: PlanAthleteRow<PlanSummaryDto>
       </span>
       {/* Le cycle courant d'un athlète suivi à plusieurs peut être celui d'un autre Coach (#607). */}
       <SharedByLine owner={plan.coachName} myAccess={plan.myAccess} />
+      {/* Le DTO du cycle élu, parmi ceux de la ligne : la fin du suivi (#910) n'est pas une donnée
+          de l'élection, elle se lit sur le cycle lui-même. */}
+      <FollowEndedLine
+        followEndedAt={row.plans.find((item) => item.id === plan.id)?.followEndedAt ?? null}
+      />
     </span>
   );
 }

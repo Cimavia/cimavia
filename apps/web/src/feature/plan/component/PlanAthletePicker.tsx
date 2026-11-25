@@ -1,3 +1,4 @@
+import { isEndedLink } from "@cmv/shared";
 import { useTranslation } from "react-i18next";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { CmvSelect } from "@/shared/component";
@@ -7,6 +8,11 @@ type PlanAthletePickerProps = {
   /** `null` = destinataire pas encore choisi (#144). */
   athleteId: string | null;
   isPublished: boolean;
+  /**
+   * Le cycle ne s'écrit plus : Lecture (#607) ou suivi terminé (#910). L'en-tête du formulaire le
+   * dit déjà, comme la diffusion — rien de plus sous le champ.
+   */
+  isClosed: boolean;
   /** Un justificatif PDF est joint à la facturation du cycle : il nomme son destinataire (#472). */
   hasInvoiceDocument: boolean;
   /** Le cycle d'un autre Coach, ouvert en Écriture : le réaffecter reste à son propriétaire (#607). */
@@ -34,6 +40,7 @@ type PlanAthletePickerProps = {
 export function PlanAthletePicker({
   athleteId,
   isPublished,
+  isClosed,
   hasInvoiceDocument,
   isOwnerOnly,
   isBusy,
@@ -45,7 +52,7 @@ export function PlanAthletePicker({
 
   // Diffusé, la raison est déjà dite par l'en-tête du formulaire : seul le justificatif s'ajoute.
   // Une seule raison sous le champ : celle du geste à faire passe avant celle qu'on constate.
-  const lockedReason = lockedReasonKey(isPublished, hasInvoiceDocument, isOwnerOnly);
+  const lockedReason = lockedReasonKey(isPublished || isClosed, hasInvoiceDocument, isOwnerOnly);
 
   return (
     <div className="flex flex-col gap-cmv-xs">
@@ -61,11 +68,16 @@ export function PlanAthletePicker({
           onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
           placeholder={t("plan.header.athletePlaceholder")}
           // « (moi) » sur sa propre entrée, comme partout où un coach lit sa liste d'athlètes (#14).
-          options={(athletes ?? []).map((relation) => ({
-            value: relation.athleteId,
-            label: athleteLabel(relation.athleteId, relation.athleteName),
-          }))}
-          disabled={isPublished || lockedReason != null || isBusy}
+          // Un suivi terminé ne se choisit plus (409 côté API, #909) — sauf le destinataire actuel,
+          // celui d'un cycle d'archive, que le champ doit encore nommer (#910). Ce cycle est fermé
+          // (`isClosed`) : la valeur du champ ne s'éloigne donc jamais de celle enregistrée.
+          options={(athletes ?? [])
+            .filter((relation) => !isEndedLink(relation) || relation.athleteId === athleteId)
+            .map((relation) => ({
+              value: relation.athleteId,
+              label: athleteLabel(relation.athleteId, relation.athleteName),
+            }))}
+          disabled={isPublished || isClosed || lockedReason != null || isBusy}
         />
       </span>
       {lockedReason == null ? null : (
@@ -76,15 +88,15 @@ export function PlanAthletePicker({
 }
 
 /**
- * Pourquoi le destinataire est figé, quand ce n'est pas la diffusion — que l'en-tête dit déjà.
- * `null` : rien de plus à dire.
+ * Pourquoi le destinataire est figé, quand ce n'est ni la diffusion ni la fermeture du cycle — que
+ * l'en-tête dit déjà (`toldAbove`). `null` : rien de plus à dire.
  */
 function lockedReasonKey(
-  isPublished: boolean,
+  toldAbove: boolean,
   hasInvoiceDocument: boolean,
   isOwnerOnly: boolean,
 ): string | null {
-  if (isPublished) return null;
+  if (toldAbove) return null;
   if (isOwnerOnly) return "plan.header.athleteOwnerOnly";
   return hasInvoiceDocument ? "plan.header.athleteLockedDocument" : null;
 }

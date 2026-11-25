@@ -33,6 +33,12 @@ type PlanStatusLineProps = {
   audience: PlanAudience | null;
   /** De quoi nommer les cycles qu'une audience désigne par leur id. */
   titlesById: ReadonlyMap<string, string>;
+  /**
+   * Le suivi du couple a pris fin (#910) : la pastille reste, l'indice se tait. Ni « tes ajustements
+   * lui sont visibles », ni « il manque la facturation » — plus rien ne s'y écrit, et le bandeau du
+   * cycle le dit.
+   */
+  isFollowEnded: boolean;
 };
 
 /**
@@ -60,6 +66,7 @@ export function PlanStatusLine({
   requiresBilling,
   audience,
   titlesById,
+  isFollowEnded,
 }: Readonly<PlanStatusLineProps>) {
   const { t } = useTranslation();
   const isPublished = status === PlanStatus.PUBLISHED;
@@ -67,16 +74,37 @@ export function PlanStatusLine({
   return (
     <div className="flex flex-wrap items-center gap-cmv-sm">
       <CmvBadge variant={isPublished ? "accent" : "neutral"}>{t(`plan.status.${status}`)}</CmvBadge>
-      {isPublished ? (
-        <AudienceHint audience={audience} titlesById={titlesById} />
-      ) : (
-        <DraftHint
+      {isFollowEnded ? null : (
+        <StatusHint
+          isPublished={isPublished}
           hasAthlete={hasAthlete}
           isBillingFilled={isBillingFilled}
           requiresBilling={requiresBilling}
+          audience={audience}
+          titlesById={titlesById}
         />
       )}
     </div>
+  );
+}
+
+/** Diffusé, ce que l'athlète en voit ; en brouillon, ce qui manque pour le diffuser. */
+function StatusHint({
+  isPublished,
+  hasAthlete,
+  isBillingFilled,
+  requiresBilling,
+  audience,
+  titlesById,
+}: Readonly<{ isPublished: boolean } & Omit<PlanStatusLineProps, "status" | "isFollowEnded">>) {
+  return isPublished ? (
+    <AudienceHint audience={audience} titlesById={titlesById} />
+  ) : (
+    <DraftHint
+      hasAthlete={hasAthlete}
+      isBillingFilled={isBillingFilled}
+      requiresBilling={requiresBilling}
+    />
   );
 }
 

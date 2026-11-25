@@ -762,6 +762,7 @@
       "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
       "lockedReadOnly": "Ce cycle t'est ouvert en lecture : son en-tête se consulte, il ne se modifie pas.",
+      "lockedFollowEnded": "Le suivi de ce cycle a pris fin : son en-tête se relit, il ne se réécrit plus.",
       "stale": "Ce cycle a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Ex. Cycle force — automne",
@@ -842,6 +843,7 @@
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé.",
       "readOnly": "Lecture seule : planification de {{owner}} ({{right}}). Tu peux la consulter et copier ses semaines, pas la modifier.",
       "sharedWrite": "Planification de {{owner}} ({{right}}). Tu peux la modifier et la diffuser ; la supprimer, gérer ses accès ou la réaffecter restent à {{owner}}.",
+      "followEnded": "{{ended}} : ce cycle se relit, rien ne s'y écrit plus — ni par toi, ni par ceux à qui il est ouvert.",
       "titleWithAthlete": "{{title}} — {{name}}",
       "audience": {
         "VISIBLE_UPCOMING": "Ton athlète voit ce cycle. Il démarre le {{date}}.",

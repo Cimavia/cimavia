@@ -1,6 +1,5 @@
 import {
   blockNumbers,
-  canWrite,
   type DosageColumn,
   DosageColumnKind,
   type DosageSessionType,
@@ -11,6 +10,7 @@ import {
   type MetricValue,
   type PlanDto,
   PlanStatus,
+  planWriteMode,
   required,
   revertedDosage,
   type ScheduledSessionCopyDto,
@@ -213,7 +213,10 @@ function DosageEditor({
 
   const input = useMemo(() => dosageInput(drafts, base), [drafts, base]);
   const isDirty = input.length > 0 || refused.hasRefused;
-  const readOnly = !canWrite(required(plan.myAccess, "droit du coach sur son cycle"));
+  // Lecture (#607) ou suivi terminé (#910) : le dosage se relit, ne s'enregistre plus.
+  const readOnly =
+    planWriteMode(required(plan.myAccess, "droit du coach sur son cycle"), plan.followEndedAt) !==
+    "WRITE";
   const athleteName =
     plan.athleteId == null || plan.athleteName == null
       ? t("plan.session.dosage.theAthlete")
@@ -341,7 +344,8 @@ function DosageEditor({
             isReloading={isReloading}
           />
         ) : null}
-        {plan.status === PlanStatus.PUBLISHED ? (
+        {/* Suivi terminé (#910), plus rien n'en parvient à l'athlète : l'avertissement mentirait. */}
+        {plan.status === PlanStatus.PUBLISHED && plan.followEndedAt == null ? (
           <p className="text-cmv-caption text-cmv-warning-on">
             {t("plan.composition.willSeeUpdate", { name: athleteName })}
           </p>

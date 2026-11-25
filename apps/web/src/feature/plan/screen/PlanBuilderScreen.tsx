@@ -1,5 +1,4 @@
 import {
-  canWrite,
   isOwner,
   isSelfCoached,
   type MyAccess,
@@ -8,7 +7,9 @@ import {
   type PlanSummaryDto,
   type PlanWeekDto,
   PlanWeekType,
+  type PlanWriteMode,
   planAudience,
+  planWriteMode,
   ReminderEntityType,
   required,
   type ScheduledSessionDto,
@@ -52,6 +53,7 @@ import {
   CmvReadOnlyBanner,
 } from "@/shared/component";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { type SaveBeforeLeaving, useLeaveGuard } from "@/shared/hook/useLeaveGuard";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
 import { useStaleReload } from "@/shared/hook/useStaleReload";
@@ -249,7 +251,13 @@ export function PlanBuilderScreen() {
   // Écriture. Supprimer, gérer les accès, réaffecter et programmer un rappel restent au propriétaire.
   const access = required(plan.myAccess, "droit du coach sur son cycle");
   const isMine = isOwner(access);
-  const readOnly = !canWrite(access);
+  // Lecture (#607) ou suivi terminé (#910) : le contenu ne s'écrit plus. Le second laisse au
+  // propriétaire ce que l'API permet encore — supprimer un brouillon, gérer les accès.
+  const mode = planWriteMode(access, plan.followEndedAt);
+  const readOnly = mode !== "WRITE";
+  // Diffusé, ce qu'on y change parvient à l'athlète — plus une fois le suivi terminé (#910) : le
+  // panneau de séance ne l'annonce alors plus.
+  const reachesAthlete = isPublished && mode !== "FOLLOW_ENDED";
 
   function onOpenCreate(date: string) {
     setEdit({ date, sessionId: null });
@@ -277,9 +285,7 @@ export function PlanBuilderScreen() {
       actions={
         <>
           <DosageButton plan={plan} />
-          {/* En Lecture, le cycle se consulte et se quitte — par le retour du bandeau, qui mène
-              où menait « Fermer » (#746) : rien d'autre ne s'y fait (#607). */}
-          {readOnly ? null : (
+          {hasBuilderActions(mode, isMine) ? (
             <>
               {isMine ? (
                 <OwnerTools plan={plan} athleteName={athleteNameOf(plan, athleteLabel)} />
@@ -289,6 +295,7 @@ export function PlanBuilderScreen() {
                 version={plan.updatedAt}
                 isPublished={isPublished}
                 canDelete={isMine}
+                canPublish={mode === "WRITE"}
                 hasWeeks={plan.weeks.length > 0}
                 hasAthlete={hasAthlete}
                 isBillingFilled={billing != null}
@@ -299,7 +306,7 @@ export function PlanBuilderScreen() {
                 onDeleted={guard.release}
               />
             </>
-          )}
+          ) : null}
         </>
       }
     >
@@ -311,9 +318,15 @@ export function PlanBuilderScreen() {
           requiresBilling={!isSelfCoached(plan)}
           audience={audience}
           titlesById={titlesById}
+          isFollowEnded={mode === "FOLLOW_ENDED"}
         />
 
-        <SharedPlanBanner access={access} owner={plan.coachName} />
+        <PlanAccessBanner
+          mode={mode}
+          access={access}
+          owner={plan.coachName}
+          followEndedAt={plan.followEndedAt}
+        />
 
         {/* Le presse-papier survit à la navigation (c'est ce qui rend le collage inter-cycle
             possible) : sans ce bandeau, des boutons « Coller ici » apparaîtraient sur un cycle
@@ -408,7 +421,7 @@ export function PlanBuilderScreen() {
           planStartDate={plan.startDate}
           weeks={plan.weeks}
           planId={planId}
-          isPublished={isPublished}
+          isPublished={reachesAthlete}
           readOnly={readOnly}
           athleteName={athleteNameOf(plan, athleteLabel)}
           onClose={() => setEdit(null)}
@@ -472,16 +485,45 @@ function OwnerTools({
 }
 
 /**
- * Ce que l'écran dit du cycle d'un autre Coach (#607) : en Lecture, qu'il se consulte seulement ;
- * en Écriture, ce qui reste à son propriétaire. Rien sur le sien.
+ * La barre d'actions du cycle s'offre-t-elle ? En Lecture, il se consulte et se quitte — par le
+ * retour du bandeau, qui mène où menait « Fermer » (#746) : rien d'autre ne s'y fait (#607). Suivi
+ * terminé, son propriétaire le supprime encore et gère ses accès, sans plus le diffuser (#910).
  */
-function SharedPlanBanner({ access, owner }: Readonly<{ access: MyAccess; owner: string }>) {
+function hasBuilderActions(mode: PlanWriteMode, isMine: boolean): boolean {
+  if (mode === "READ") return false;
+  return mode === "WRITE" || isMine;
+}
+
+/**
+ * Ce que l'écran dit du cycle d'un autre Coach (#607) : en Lecture, qu'il se consulte seulement ;
+ * en Écriture, ce qui reste à son propriétaire. Rien sur le sien — sauf quand le suivi a pris fin
+ * (#910) : le cycle est alors fermé à tous, et c'est ce que le bandeau dit d'abord.
+ */
+function PlanAccessBanner({
+  mode,
+  access,
+  owner,
+  followEndedAt,
+}: Readonly<{
+  mode: PlanWriteMode;
+  access: MyAccess;
+  owner: string;
+  followEndedAt: string | null;
+}>) {
   const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
+  if (mode === "FOLLOW_ENDED") {
+    return (
+      <CmvReadOnlyBanner
+        message={t("plan.builder.followEnded", { ended: followEndedText(followEndedAt) })}
+      />
+    );
+  }
   if (isOwner(access)) return null;
   const right = myRightText(access, t);
   return (
     <CmvReadOnlyBanner
-      message={t(canWrite(access) ? "plan.builder.sharedWrite" : "plan.builder.readOnly", {
+      message={t(mode === "WRITE" ? "plan.builder.sharedWrite" : "plan.builder.readOnly", {
         owner,
         right,
       })}

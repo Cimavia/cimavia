@@ -16,6 +16,7 @@ const DRAFT = {
   requiresBilling: true,
   audience: { kind: "NOT_PUBLISHED" } as PlanAudience,
   titlesById: TITLES,
+  isFollowEnded: false,
 } as const;
 
 const published = (audience: PlanAudience | null) =>
@@ -129,5 +130,25 @@ describe("PlanStatusLine — ce que l'athlète voit du cycle", () => {
     const { container } = renderWithProviders(<PlanStatusLine {...published(null)} />);
 
     expect(container.textContent).not.toContain("plan.builder.audience");
+  });
+});
+
+// #910 : le bandeau du cycle dit la fin du suivi ; la ligne n'a plus rien à promettre ni à réclamer.
+describe("PlanStatusLine — un suivi terminé", () => {
+  it("garde la pastille et tait l'audience d'un cycle diffusé", () => {
+    const { container, getByText } = renderWithProviders(
+      <PlanStatusLine {...published({ kind: "VISIBLE_ALONE" })} isFollowEnded />,
+    );
+
+    expect(getByText(`plan.status.${PlanStatus.PUBLISHED}`)).toBeInTheDocument();
+    expect(container.textContent).not.toContain("plan.builder.audience");
+  });
+
+  it("ne réclame plus la facturation d'un brouillon", () => {
+    const { queryByText } = renderWithProviders(
+      <PlanStatusLine {...DRAFT} isBillingFilled={false} isFollowEnded />,
+    );
+
+    expect(queryByText("plan.builder.billingRequired")).toBeNull();
   });
 });

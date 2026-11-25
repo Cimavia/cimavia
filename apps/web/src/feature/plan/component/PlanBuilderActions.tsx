@@ -13,6 +13,11 @@ type PlanBuilderActionsProps = {
   isPublished: boolean;
   /** Supprimer le cycle reste au propriétaire (#607) : ouvert en Écriture, il se diffuse seulement. */
   canDelete: boolean;
+  /**
+   * Diffuser : pas sur le cycle d'un suivi terminé (#910) — il n'a plus de destinataire à qui
+   * parvenir. Supprimer le brouillon, lui, reste au propriétaire.
+   */
+  canPublish: boolean;
   hasWeeks: boolean;
   /** Un cycle sans destinataire n'a personne à qui être diffusé (#144) — l'API refuse en 400. */
   hasAthlete: boolean;
@@ -73,6 +78,7 @@ export function PlanBuilderActions({
   version,
   isPublished,
   canDelete,
+  canPublish,
   hasWeeks,
   hasAthlete,
   isBillingFilled,
@@ -131,16 +137,18 @@ export function PlanBuilderActions({
           (l'API refuse sinon), et ne part pas sur une saisie non enregistrée ni pendant une
           écriture. Info-bulle sur un span : un bouton désactivé ne déclenche pas toujours le
           `title` natif selon le navigateur. */}
-      <span title={publishBlockedTitle == null ? undefined : t(publishBlockedTitle)}>
-        <CmvButton
-          onClick={() => publish.mutate(atVersion)}
-          disabled={
-            isPublished || !hasWeeks || publishBlockedTitle != null || isBusy || publish.isPending
-          }
-        >
-          {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
-        </CmvButton>
-      </span>
+      {canPublish ? (
+        <span title={publishBlockedTitle == null ? undefined : t(publishBlockedTitle)}>
+          <CmvButton
+            onClick={() => publish.mutate(atVersion)}
+            disabled={
+              isPublished || !hasWeeks || publishBlockedTitle != null || isBusy || publish.isPending
+            }
+          >
+            {isPublished ? t("plan.builder.published") : t("plan.builder.publish")}
+          </CmvButton>
+        </span>
+      ) : null}
     </>
   );
 }

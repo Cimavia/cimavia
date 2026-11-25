@@ -23,6 +23,7 @@ vi.mock("@/shared/lib/auth", () => ({
 const props = {
   athleteId: null,
   isPublished: false,
+  isClosed: false,
   hasInvoiceDocument: false,
   isOwnerOnly: false,
   isBusy: false,
@@ -42,6 +43,32 @@ describe("PlanAthletePicker", () => {
     const { getAllByRole } = renderWithProviders(<PlanAthletePicker {...props} />);
 
     expect(getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual([""]);
+  });
+
+  // Un suivi terminé ne reçoit plus de cycle (#909) : l'API refuserait en 409 (#910).
+  it("n'offre pas l'athlète dont le suivi a pris fin", () => {
+    athletes.data = [...ATHLETES, { athleteId: "ath_tom", athleteName: "Tom", status: "ENDED" }];
+    const { getAllByRole } = renderWithProviders(<PlanAthletePicker {...props} />);
+
+    expect(getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual([
+      "",
+      "ath_lea",
+      "ath_noah",
+    ]);
+  });
+
+  // Le cycle d'archive nomme encore son destinataire, et ne se réaffecte plus : l'API refuserait.
+  it("nomme encore l'ex-athlète destinataire du cycle fermé, sans le laisser changer", () => {
+    athletes.data = [...ATHLETES, { athleteId: "ath_tom", athleteName: "Tom", status: "ENDED" }];
+    const { getByRole, queryByText } = renderWithProviders(
+      <PlanAthletePicker {...props} athleteId="ath_tom" isClosed />,
+    );
+
+    const select = getByRole("combobox") as HTMLSelectElement;
+    expect(select.value).toBe("ath_tom");
+    expect(select.disabled).toBe(true);
+    // L'en-tête du formulaire dit déjà pourquoi : rien de plus sous le champ.
+    expect(queryByText("plan.header.athleteOwnerOnly")).toBeNull();
   });
 
   it("transmet l'athlète choisi", async () => {

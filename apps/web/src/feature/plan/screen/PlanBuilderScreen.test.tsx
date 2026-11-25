@@ -1043,6 +1043,34 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     expect(theirs.queryByRole("button", { name: "library.access.title" })).toBeNull();
   });
 
+  it("suivi terminé (#910) : son cycle se supprime encore, ne s'écrit ni ne se diffuse plus", async () => {
+    const { container, getByRole, getByText, queryByRole, queryByText } = await mount({
+      weeks: [week],
+      followEndedAt: "2026-11-20T09:00:00.000Z",
+    });
+
+    expect(getByText("plan.builder.followEnded")).toBeTruthy();
+    expect(getByText("plan.builder.delete")).toBeTruthy();
+    expect(queryByText("plan.builder.publish")).toBeNull();
+    expect(queryByRole("button", { name: "plan.builder.addWeek" })).toBeNull();
+    expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
+    expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(true);
+    expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("suivi terminé : un droit d'Écriture n'y écrit pas plus, et le bandeau le dit d'abord", async () => {
+    const { getByText, queryByRole, queryByText } = await mount({
+      ...shared(MyAccessLevel.WRITE),
+      followEndedAt: "2026-11-20T09:00:00.000Z",
+    });
+
+    expect(getByText("plan.builder.followEnded")).toBeTruthy();
+    expect(queryByText("plan.builder.sharedWrite")).toBeNull();
+    expect(queryByText("plan.builder.delete")).toBeNull();
+    expect(queryByText("plan.builder.publish")).toBeNull();
+    expect(queryByRole("button", { name: "plan.builder.addWeek" })).toBeNull();
+  });
+
   it("sans entreprise, pas d'« Accès » sur son propre cycle", async () => {
     const { queryByRole } = await mount({});
 

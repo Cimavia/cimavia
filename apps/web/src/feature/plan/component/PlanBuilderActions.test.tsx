@@ -26,6 +26,7 @@ beforeEach(() => {
 
 // Un brouillon à qui plus rien ne manque : chaque test n'en dégrade qu'un aspect à la fois.
 const READY: ComponentProps<typeof PlanBuilderActions> = {
+  canPublish: true,
   planId: "pln_1",
   version: "2026-10-12T08:00:00.000Z",
   isPublished: false,

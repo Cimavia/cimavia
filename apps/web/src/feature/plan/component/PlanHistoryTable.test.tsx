@@ -126,4 +126,13 @@ describe("PlanHistoryTable", () => {
 
     expect(getAllByText("library.access.sharedBy")).toHaveLength(1);
   });
+
+  it("date la fin du suivi sous le seul cycle d'archive (#910)", async () => {
+    const { getAllByText } = await mount([
+      ONGOING,
+      { ...ENDED, followEndedAt: "2026-08-01T09:00:00.000Z" },
+    ]);
+
+    expect(getAllByText("follow.endedOn")).toHaveLength(1);
+  });
 });
