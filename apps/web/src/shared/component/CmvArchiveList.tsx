@@ -36,7 +36,8 @@ export function CmvArchiveList({ title, items }: Readonly<CmvArchiveListProps>) 
       <button
         type="button"
         aria-expanded={open}
-        aria-controls={listId}
+        // Repliée, la liste n'est pas rendue : l'attribut désignerait un id absent du DOM.
+        aria-controls={open ? listId : undefined}
         onClick={() => setOpen((value) => !value)}
         className="inline-flex items-center gap-cmv-xs self-start text-cmv-caption text-cmv-text-mid uppercase tracking-wide hover:text-cmv-text-hi"
       >
