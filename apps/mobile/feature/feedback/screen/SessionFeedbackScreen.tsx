@@ -1,5 +1,5 @@
 import type { MediaRecapLine, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
+import { canDebrief, feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { type ComponentProps, useState } from "react";
@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { FeedbackBlocksSection } from "@/feature/feedback/component/FeedbackBlocksSection";
+import { FeedbackMediaList } from "@/feature/feedback/component/FeedbackMediaList";
 import { FeedbackMediaSection } from "@/feature/feedback/component/FeedbackMediaSection";
 import {
   FeedbackReplyComposer,
@@ -14,13 +15,16 @@ import {
   FeedbackReplySelf,
 } from "@/feature/feedback/component/FeedbackReplySection";
 import { FeedbackTextSection } from "@/feature/feedback/component/FeedbackTextSection";
+import { TrackedBlockList } from "@/feature/feedback/component/TrackedBlockList";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useSessionFeedback } from "@/feature/feedback/hook/useSessionFeedback";
+import type { ResolveMediaUrl } from "@/feature/message/component/MessageBubble";
 import { useConversationWithCoach } from "@/feature/message/hook/useConversation";
 import { useLocalBlockTracking } from "@/feature/plan/hook/useLocalBlockTracking";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 
@@ -33,21 +37,22 @@ import { authClient } from "@/shared/lib/auth";
  *
  * L'écran ne fait que charger le débrief et disposer ses deux sections : le texte et les médias
  * ont chacun leurs mutations et leurs erreurs, qui ne se croisent jamais.
+ *
+ * Suivi terminé (#911) : le débrief se relit, plus rien ne s'y écrit. La séance le dit, et le
+ * formulaire attend sa réponse — offert puis retiré à son arrivée, il emporterait la frappe (même
+ * choix que le web, #910). Illisible, elle ne ferme rien : elle fait perdre le rappel des coches,
+ * pas le droit d'écrire (#722), et l'API refuse en 409 l'envoi d'un suivi terminé.
  */
 export function SessionFeedbackScreen() {
-  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
-  const session = useScheduledSession(id);
+  const { feedback, refetch, session, isLoading, failed, closed } = useFeedbackState(id);
   const { data: user } = authClient.useSession();
-  // `undefined` et non `null`, qui veut dire « pas encore de débrief » : une relecture ratée, 401
-  // compris (#439), ne doit pas démonter le texte en cours de saisie.
-  const failed = isError && feedback === undefined;
+  const ready = !isLoading && !failed;
 
   const queryClient = useQueryClient();
   // Les hooks partent inconditionnellement : c'est un coach inconnu et `feedbackId: null` qui
   // disent l'attente.
-  const { isSelf, conversation } = useSessionThread(session.data?.coachId);
+  const { isSelf, conversation } = useSessionThread(session.data);
   const freshMediaUrl = useFreshMediaUrl(myFeedbackKeys.detail(id));
   const reply = useFeedbackReply(
     {
@@ -71,47 +76,34 @@ export function SessionFeedbackScreen() {
           et que le détail côté coach. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerClassName="gap-6 p-4">
-          {isPending ? <ActivityIndicator /> : null}
+          {isLoading ? <ActivityIndicator /> : null}
 
           {failed ? <CmvErrorState onRetry={() => refetch()} /> : null}
 
-          {isPending || failed ? null : (
-            <>
-              <View className="gap-1">
-                <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
-                  {t("feedback.title")}
-                </CmvText>
-                <CmvText className="text-cmv-text-mid text-sm">{t("feedback.subtitle")}</CmvText>
-              </View>
+          {ready && closed != null ? (
+            <ClosedFeedback
+              session={closed}
+              feedback={feedback ?? null}
+              currentUserId={user?.user.id ?? ""}
+              resolveMediaUrl={freshMediaUrl}
+            />
+          ) : null}
 
-              {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe
-                  jamais dans un autre. */}
-              <WritingSections
-                key={id}
-                sessionId={id}
-                session={session.data ?? null}
-                feedback={feedback ?? null}
-              />
-
-              <FeedbackMediaSection sessionId={id} feedback={feedback ?? null} />
-
-              {/* La conversation avec le coach, LÀ OÙ ELLE A COMMENCÉ. Rien tant que le débrief
-                  n'existe pas : on ne répond pas à ce qu'on n'a pas encore écrit. */}
-              {feedback == null ? null : (
-                <Replies
-                  isSelf={isSelf}
-                  messages={feedback.messages}
-                  currentUserId={user?.user.id ?? ""}
-                  resolveMediaUrl={freshMediaUrl}
-                />
-              )}
-            </>
-          )}
+          {ready && closed == null ? (
+            <OpenFeedback
+              sessionId={id}
+              session={session.data ?? null}
+              feedback={feedback ?? null}
+              isSelf={isSelf}
+              currentUserId={user?.user.id ?? ""}
+              resolveMediaUrl={freshMediaUrl}
+            />
+          ) : null}
         </ScrollView>
 
         {/* ⚠️ Lire ici ne marque RIEN comme lu : `markRead` est par FIL, pas par message, et
             l'appeler éteindrait des non-lus que l'athlète n'a jamais vus (tranché en #190). */}
-        {feedback == null || isSelf ? null : (
+        {feedback == null || isSelf || !ready || closed != null ? null : (
           <FeedbackReplyComposer
             reply={reply}
             preUploadErrorKey={preUploadErrorKey}
@@ -126,11 +118,148 @@ export function SessionFeedbackScreen() {
 }
 
 /**
+ * Ce que l'écran lit avant de rien rendre : le débrief et sa séance.
+ *
+ * `failed` regarde `undefined` et non `null`, qui veut dire « pas encore de débrief » : une
+ * relecture ratée, 401 compris (#439), ne doit pas démonter le texte en cours de saisie. `closed`
+ * est la séance dont le suivi a pris fin (#911), `null` tant qu'elle se débriefe — ou qu'elle n'est
+ * pas lue.
+ *
+ * La séance ne fait attendre que tant qu'elle est en vol : hors ligne et sans cache, sa lecture est
+ * en pause pour de bon, et l'attendre laisserait l'écran sur un spinner. Le formulaire s'offre
+ * alors comme si elle avait échoué.
+ */
+function useFeedbackState(id: string) {
+  const { data: feedback, isPending, isError, refetch } = useSessionFeedback(id);
+  const session = useScheduledSession(id);
+  return {
+    feedback,
+    refetch,
+    session,
+    isLoading: isPending || (session.isPending && session.fetchStatus !== "paused"),
+    failed: isError && feedback === undefined,
+    closed: session.data != null && !canDebrief(session.data) ? session.data : null,
+  };
+}
+
+/**
+ * Le débrief qui s'écrit encore : le texte et les coches, les médias, puis la conversation avec le
+ * coach, LÀ OÙ ELLE A COMMENCÉ — rien tant que le débrief n'existe pas : on ne répond pas à ce
+ * qu'on n'a pas encore écrit.
+ */
+function OpenFeedback({
+  sessionId,
+  session,
+  feedback,
+  isSelf,
+  currentUserId,
+  resolveMediaUrl,
+}: Readonly<{
+  sessionId: string;
+  session: ScheduledSessionDto | null;
+  feedback: SessionFeedbackDto | null;
+  isSelf: boolean;
+  currentUserId: string;
+  resolveMediaUrl: ResolveMediaUrl;
+}>) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <FeedbackHeading subtitle={t("feedback.subtitle")} />
+
+      {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe jamais
+          dans un autre. */}
+      <WritingSections
+        key={sessionId}
+        sessionId={sessionId}
+        session={session}
+        feedback={feedback}
+      />
+
+      <FeedbackMediaSection sessionId={sessionId} feedback={feedback} />
+
+      {feedback == null ? null : (
+        <Replies
+          isSelf={isSelf}
+          messages={feedback.messages}
+          currentUserId={currentUserId}
+          resolveMediaUrl={resolveMediaUrl}
+        />
+      )}
+    </>
+  );
+}
+
+/** Le titre du débrief, et ce qui se dit dessous : la consigne, ou la fin du suivi. */
+function FeedbackHeading({ subtitle }: Readonly<{ subtitle: string }>) {
+  const { t } = useTranslation();
+
+  return (
+    <View className="gap-1">
+      <CmvText className="font-cmv-display text-cmv-text-hi text-xl">{t("feedback.title")}</CmvText>
+      <CmvText className="text-cmv-text-mid text-sm">{subtitle}</CmvText>
+    </View>
+  );
+}
+
+/**
+ * Le débrief d'une séance dont le suivi a pris fin (#911), en lecture : ce qui a été envoyé, et les
+ * réponses échangées. Ni champ, ni coche, ni ajout, ni retrait, ni barre de réponse — et la phrase
+ * de fin dit pourquoi. Jamais sa propre séance : un auto-coaching n'a pas de lien à rompre.
+ */
+function ClosedFeedback({
+  session,
+  feedback,
+  currentUserId,
+  resolveMediaUrl,
+}: Readonly<{
+  session: ScheduledSessionDto;
+  feedback: SessionFeedbackDto | null;
+  currentUserId: string;
+  resolveMediaUrl: ResolveMediaUrl;
+}>) {
+  const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
+  const ended = followEndedText(session.followEndedAt);
+
+  return (
+    <>
+      <FeedbackHeading subtitle={t("feedback.followEnded", { ended })} />
+
+      {feedback == null ? (
+        <CmvText className="text-cmv-text-mid">{t("feedback.followEndedEmpty")}</CmvText>
+      ) : (
+        <>
+          <TrackedBlockList blocks={feedback.trackedBlocks} />
+          {/* `null` = débrief sans texte : légitime, un débrief peut n'être que des médias. */}
+          <CmvText className="text-cmv-text-hi">
+            {feedback.content ?? t("feedback.coach.mediaOnly")}
+          </CmvText>
+          <FeedbackMediaList media={feedback.media} resolveMediaUrl={resolveMediaUrl} />
+          <FeedbackReplyMessages
+            messages={feedback.messages}
+            currentUserId={currentUserId}
+            resolveMediaUrl={resolveMediaUrl}
+          />
+          <CmvText className="text-cmv-text-mid text-sm">
+            {t("feedback.reply.followEnded", { ended })}
+          </CmvText>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
  * Le fil du coach DE CETTE SÉANCE (#599) : suivi par plusieurs coachs, l'athlète répond à celui
  * qui l'a programmée — et à personne tant que la séance ne l'a pas dit. Une séance qu'il s'est
  * programmée lui-même n'a personne à qui répondre : le fil `(soi, soi)` n'existe pas.
  */
-function useSessionThread(coachId: string | undefined) {
+function useSessionThread(session: ScheduledSessionDto | undefined) {
+  // Rien ne s'écrira dans le fil d'une séance close : ne pas le demander — le get-or-create rendrait
+  // le fil pour rien, et un 400 s'il n'a jamais existé.
+  const coachId = session != null && canDebrief(session) ? session.coachId : undefined;
   const isSelf = useIsSelfAthlete()(coachId ?? "");
   const conversation = useConversationWithCoach(isSelf ? null : (coachId ?? null));
   return { isSelf, conversation };

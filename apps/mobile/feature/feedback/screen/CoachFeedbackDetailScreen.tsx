@@ -1,11 +1,4 @@
-import {
-  type CoachFeedbackSummaryDto,
-  type FeedbackMediaDto,
-  type MediaRecapLine,
-  MediaType,
-  nextVoiceNoteInFeedback,
-  type SessionFeedbackDto,
-} from "@cmv/shared";
+import type { CoachFeedbackSummaryDto, MediaRecapLine, SessionFeedbackDto } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -13,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
+import { FeedbackMediaList } from "@/feature/feedback/component/FeedbackMediaList";
 import {
   FeedbackReplyComposer,
   FeedbackReplyMessages,
@@ -26,18 +20,10 @@ import {
 } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useConversationWith } from "@/feature/message/hook/useConversation";
-import {
-  CmvAudioPlayer,
-  CmvErrorState,
-  CmvImageViewer,
-  CmvScreen,
-  CmvText,
-  CmvVideoPlayer,
-} from "@/shared/component";
+import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
-import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -162,7 +148,7 @@ function FeedbackBody({
             dans l'ordre où l'athlète l'a envoyé. */}
         <TrackedBlockList blocks={feedback?.trackedBlocks ?? []} />
 
-        <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
+        <FeedbackMediaList media={feedback?.media ?? []} resolveMediaUrl={freshMediaUrl} />
 
         {isSelf ? (
           <FeedbackReplySelf />
@@ -185,64 +171,5 @@ function FeedbackBody({
         />
       )}
     </KeyboardAvoidingView>
-  );
-}
-
-/**
- * Les médias joints, un rendu par type.
- *
- * Le branchement est EXHAUSTIF, et pas « audio d'un côté, tout le reste en image » : c'est
- * exactement ce qui rendait une vidéo par `<Image>` — un bloc vide, sans erreur ni indice, là où
- * l'athlète avait déposé sa voie (#151).
- *
- * Les notes vocales s'enchaînent, photos et vidéos sautées (#529).
- */
-function FeedbackMedia({
-  media,
-  sessionId,
-}: Readonly<{ media: readonly FeedbackMediaDto[]; sessionId: string }>) {
-  const { t } = useTranslation();
-  const freshUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
-  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
-
-  if (media.length === 0) return null;
-
-  return (
-    <View className="gap-3 border-cmv-border border-t pt-4">
-      <CmvText className="text-cmv-text-mid text-xs uppercase">{t("feedback.coach.media")}</CmvText>
-      {media.map((item) => {
-        if (item.type === MediaType.AUDIO) {
-          return (
-            <CmvAudioPlayer
-              key={item.id}
-              url={item.url}
-              durationSeconds={item.durationSeconds}
-              resolveUrl={() => freshUrl(item.id)}
-              cue={chain.cueOf(item.id)}
-            />
-          );
-        }
-        if (item.type === MediaType.VIDEO) {
-          return (
-            <CmvVideoPlayer
-              key={item.id}
-              mediaId={item.id}
-              durationSeconds={item.durationSeconds}
-              sizeBytes={item.sizeBytes}
-              resolveUrl={() => freshUrl(item.id)}
-              containerClassName="h-48 w-full items-center justify-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface"
-              thumbnailClassName="h-48 w-full overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
-            />
-          );
-        }
-        return (
-          <CmvImageViewer
-            key={item.id}
-            url={item.url}
-            containerClassName="h-48 w-full overflow-hidden rounded-lg"
-          />
-        );
-      })}
-    </View>
   );
 }

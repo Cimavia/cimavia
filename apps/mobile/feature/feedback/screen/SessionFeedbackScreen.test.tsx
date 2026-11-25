@@ -79,11 +79,17 @@ const SESSION = blockSession();
 /** Une case du premier bloc : son exercice `a1`, au rang voulu. */
 const check = (row: number) => ({ key: "a1", row });
 
-function mockSession(data: ScheduledSessionDto | null): void {
-  vi.mocked(useScheduledSession).mockReturnValue({ data } as unknown as ReturnType<
+function mockSession(
+  data: ScheduledSessionDto | null | undefined,
+  state: { isPending?: boolean; isError?: boolean; fetchStatus?: "fetching" | "paused" } = {},
+): void {
+  vi.mocked(useScheduledSession).mockReturnValue({ data, ...state } as unknown as ReturnType<
     typeof useScheduledSession
   >);
 }
+
+/** La séance d'un suivi terminé (#911) : son débrief se relit, ne s'écrit plus. */
+const ENDED_SESSION = { ...SESSION, followEndedAt: "2026-11-20T10:00:00.000Z" };
 
 // Ce que l'écran a donné, au dernier rendu, à la section qui enregistre le texte.
 function textSectionProps() {
@@ -120,6 +126,73 @@ beforeEach(() => {
     step: null,
     audioError: null,
   } as unknown as ReturnType<typeof useFeedbackReply>);
+});
+
+describe("SessionFeedbackScreen — suivi terminé (#911)", () => {
+  it("relit le débrief envoyé, ses réponses, sans champ ni barre de réponse", () => {
+    mockSession(ENDED_SESSION);
+    mockFeedback({ data: detail({ messages: [COACH_REPLY] }) });
+    const { getByText, queryByPlaceholderText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(getByText("feedback.followEnded")).toBeTruthy();
+    expect(getByText("Bien tenu")).toBeTruthy();
+    expect(getByText("Bien joué, on garde cette voie")).toBeTruthy();
+    expect(getByText("feedback.reply.followEnded")).toBeTruthy();
+    expect(queryByPlaceholderText("messages.placeholder")).toBeNull();
+    expect(FeedbackTextSection).not.toHaveBeenCalled();
+    expect(FeedbackBlocksSection).not.toHaveBeenCalled();
+  });
+
+  // Un débrief peut n'être que des médias : pas de texte inventé.
+  it("dit d'un débrief sans texte qu'il n'en a pas", () => {
+    mockSession(ENDED_SESSION);
+    mockFeedback({ data: detail({ content: null }) });
+
+    expect(renderRn(<SessionFeedbackScreen />).getByText("feedback.coach.mediaOnly")).toBeTruthy();
+  });
+
+  it("dit qu'aucun débrief n'a été envoyé avant la fin du suivi", () => {
+    mockSession(ENDED_SESSION);
+    mockFeedback({ data: null });
+    const { getByText, queryByText } = renderRn(<SessionFeedbackScreen />);
+
+    expect(getByText("feedback.followEndedEmpty")).toBeTruthy();
+    expect(queryByText("feedback.reply.followEnded")).toBeNull();
+    expect(FeedbackTextSection).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Le formulaire attend la séance : offert puis retiré à son arrivée, il emporterait la frappe.
+   * Illisible, la séance ne ferme rien (#722) — l'API tranchera en 409.
+   */
+  it("attend la séance avant d'offrir le formulaire, et l'offre si elle est illisible", () => {
+    mockSession(undefined, { isPending: true });
+    const { container, rerender } = renderRn(<SessionFeedbackScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(FeedbackTextSection).not.toHaveBeenCalled();
+
+    mockSession(undefined, { isError: true });
+    rerender(<SessionFeedbackScreen />);
+
+    expect(FeedbackTextSection).toHaveBeenCalled();
+  });
+
+  // Hors ligne et sans cache, la lecture est en pause pour de bon : l'attendre figerait l'écran.
+  it("n'attend pas une séance dont la lecture est en pause hors ligne", () => {
+    mockSession(undefined, { isPending: true, fetchStatus: "paused" });
+    const { container } = renderRn(<SessionFeedbackScreen />);
+
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    expect(FeedbackTextSection).toHaveBeenCalled();
+  });
+
+  it("ne demande pas le fil d'une séance close, où rien ne s'écrira", () => {
+    mockSession(ENDED_SESSION);
+    renderRn(<SessionFeedbackScreen />);
+
+    expect(useConversationWithCoach).toHaveBeenLastCalledWith(null);
+  });
 });
 
 describe("SessionFeedbackScreen", () => {
