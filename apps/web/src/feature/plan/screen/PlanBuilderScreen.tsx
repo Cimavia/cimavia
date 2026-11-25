@@ -353,9 +353,10 @@ export function PlanBuilderScreen() {
             Clé sur le statut : la diffusion remonte le formulaire, qui repart des valeurs
             ENREGISTRÉES — ses champs grisés ne doivent pas garder une saisie qui n'est pas partie
             (#326). Clé sur la relecture aussi : « Recharger » le remonte sur la dernière version
-            (#604). */}
+            (#604). Et sur le mode : un suivi qui prend fin pendant la saisie fige l'en-tête sur ce
+            qui est enregistré, pas sur un brouillon qui ne partira plus (#910). */}
         <PlanHeaderForm
-          key={`${plan.status}:${headerReload.generation}`}
+          key={`${plan.status}:${mode}:${headerReload.generation}`}
           plan={plan}
           hasInvoiceDocument={billing?.documentFileName != null}
           readOnly={readOnly}

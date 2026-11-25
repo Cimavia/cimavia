@@ -1071,6 +1071,28 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     expect(queryByRole("button", { name: "plan.builder.addWeek" })).toBeNull();
   });
 
+  // Le suivi prend fin ailleurs pendant la saisie (autre onglet, l'athlète part) : au refetch, le
+  // champ grisé ne doit pas garder un destinataire qui n'est pas parti — l'enregistrer prendrait 409.
+  it("suivi terminé pendant la saisie : l'en-tête repart du cycle enregistré", async () => {
+    const { getByRole, user } = await mount({ weeks: [week] });
+    // Le cycle relu arrive fermé. L'écran le lit à son prochain rendu, que la saisie déclenche
+    // elle-même : elle lui signale un en-tête non enregistré.
+    vi.mocked(usePlan).mockReturnValue({
+      data: plan({ weeks: [week], followEndedAt: "2026-11-20T09:00:00.000Z" }),
+      isPending: false,
+      error: null,
+      refetch,
+    } as unknown as ReturnType<typeof usePlan>);
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+
+    const picker = await waitFor(() => {
+      const select = getByRole("combobox") as HTMLSelectElement;
+      expect(select.disabled).toBe(true);
+      return select;
+    });
+    expect(picker.value).toBe("ath_lea");
+  });
+
   it("sans entreprise, pas d'« Accès » sur son propre cycle", async () => {
     const { queryByRole } = await mount({});
 
