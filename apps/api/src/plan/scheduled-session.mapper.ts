@@ -20,7 +20,7 @@ import { parseCustomMetrics, parseInstructions } from "../util/exercise-json.uti
 export const SESSION_DETAIL_INCLUDE = {
   exercises: { orderBy: { position: "asc" }, include: { documents: true, tags: true } },
   blocks: SCHEDULED_SESSION_BLOCKS_INCLUDE,
-  plan: { select: { coach: { select: { name: true } } } },
+  plan: { select: { coach: { select: { name: true } }, followEndedAt: true } },
 } satisfies Prisma.ScheduledSessionInclude;
 
 export type ScheduledSessionWithExercises = Prisma.ScheduledSessionGetPayload<{
@@ -78,6 +78,7 @@ export async function toScheduledSessionDto(
     updatedAt: session.updatedAt.toISOString(),
     coachId: session.coachId,
     coachName: session.plan.coach.name,
+    followEndedAt: session.plan.followEndedAt?.toISOString() ?? null,
     exercises,
     blocks: blocks.map(toScheduledSessionBlockDto),
   };

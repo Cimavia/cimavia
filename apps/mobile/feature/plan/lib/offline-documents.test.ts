@@ -70,6 +70,7 @@ function session(
     updatedAt,
     coachId: "coach-1",
     coachName: "Julie Renaud",
+    followEndedAt: null,
     blocks: [],
     exercises: [
       {
@@ -109,6 +110,7 @@ function plan(
     startDate: "2026-08-17",
     status: PlanStatus.PUBLISHED,
     publishedAt: "2026-08-10T00:00:00.000Z",
+    followEndedAt: null,
     weekCount: 1,
     sessionCount: sessionIds.length,
     createdAt: "2026-08-01T00:00:00.000Z",

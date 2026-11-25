@@ -135,6 +135,7 @@ export function toPlanSummaryDto(plan: PlanWithCounts, access: PlanAccess): Plan
     startDate: toIsoDate(plan.startDate),
     status: plan.status,
     publishedAt: plan.publishedAt?.toISOString() ?? null,
+    followEndedAt: plan.followEndedAt?.toISOString() ?? null,
     weekCount: plan._count.weeks,
     sessionCount: plan._count.scheduledSessions,
     createdAt: plan.createdAt.toISOString(),

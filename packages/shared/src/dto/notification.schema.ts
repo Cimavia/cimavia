@@ -55,6 +55,14 @@ export const NotificationType = {
    */
   ORGANIZATION_COACH_JOINED: "ORGANIZATION_COACH_JOINED",
   /**
+   * Un lien rompu (#909), appris par l'autre partie : l'athlète a quitté son Coach, ou le Coach a
+   * mis fin au suivi. Deux types et non un : le titre sous lequel on la lit se déduit du type seul
+   * (`capabilityOfNotification`), et un compte à double capacité peut être des deux côtés.
+   * `actorName` est celui qui a rompu ; aucun sujet.
+   */
+  RELATION_ENDED_BY_ATHLETE: "RELATION_ENDED_BY_ATHLETE",
+  RELATION_ENDED_BY_COACH: "RELATION_ENDED_BY_COACH",
+  /**
    * Rappel du coach arrivé à échéance (#51). Le SEUL type qui n'existe pas dans l'enum Prisma : il
    * n'est jamais persisté, l'entrée est calculée à chaque lecture depuis la table `reminder`
    * (`reminderToNotificationDto`). Il est pourtant POUSSÉ, à l'échéance, par le tick des rappels
@@ -128,6 +136,11 @@ export const NotificationEntityType = {
    * jour où une invitation aura sa propre page.
    */
   INVITATION: "INVITATION",
+  /**
+   * Le lien coach↔athlète (#909), que la rupture vient de passer à ENDED. Comme l'invitation, sa
+   * cible se lit par capacité : le tableau de suivi du Coach, « Mes coachs » de l'athlète.
+   */
+  COACH_ATHLETE: "COACH_ATHLETE",
 } as const;
 export type NotificationEntityType = TypesValuesOf<typeof NotificationEntityType>;
 export const notificationEntityTypeSchema = z.enum(NotificationEntityType);
@@ -154,6 +167,8 @@ export const NOTIFICATION_ENTITY_TYPE = {
   [NotificationType.INVITATION_DECLINED]: NotificationEntityType.INVITATION,
   [NotificationType.ORGANIZATION_INVITATION_RECEIVED]: NotificationEntityType.INVITATION,
   [NotificationType.ORGANIZATION_COACH_JOINED]: NotificationEntityType.INVITATION,
+  [NotificationType.RELATION_ENDED_BY_ATHLETE]: NotificationEntityType.COACH_ATHLETE,
+  [NotificationType.RELATION_ENDED_BY_COACH]: NotificationEntityType.COACH_ATHLETE,
 } as const satisfies Record<PersistedNotificationType, NotificationEntityType>;
 
 /**
@@ -169,6 +184,7 @@ export const PUSH_ID_KEY = {
   [NotificationEntityType.CONVERSATION]: "conversationId",
   [NotificationEntityType.INVOICE]: "invoiceId",
   [NotificationEntityType.INVITATION]: "invitationId",
+  [NotificationEntityType.COACH_ATHLETE]: "relationId",
 } as const satisfies Record<NotificationEntityType, string>;
 
 type PushIdKeyOf<T extends PersistedNotificationType> =
@@ -207,6 +223,8 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.ORGANIZATION_INVITATION_RECEIVED]:
     "notification.type.organizationInvitationReceived",
   [NotificationType.ORGANIZATION_COACH_JOINED]: "notification.type.organizationCoachJoined",
+  [NotificationType.RELATION_ENDED_BY_ATHLETE]: "notification.type.relationEndedByAthlete",
+  [NotificationType.RELATION_ENDED_BY_COACH]: "notification.type.relationEndedByCoach",
   [NotificationType.REMINDER_DUE]: "notification.type.reminderDue",
 } as const satisfies Record<NotificationType, string>;
 
@@ -267,6 +285,9 @@ export const NOTIFICATION_CATEGORY = {
   [NotificationType.INVITATION_DECLINED]: NotificationCategory.INVITATION,
   [NotificationType.ORGANIZATION_INVITATION_RECEIVED]: NotificationCategory.INVITATION,
   [NotificationType.ORGANIZATION_COACH_JOINED]: NotificationCategory.INVITATION,
+  // La fin d'un lien clôt le fil que l'invitation avait ouvert : même pastille.
+  [NotificationType.RELATION_ENDED_BY_ATHLETE]: NotificationCategory.INVITATION,
+  [NotificationType.RELATION_ENDED_BY_COACH]: NotificationCategory.INVITATION,
   [NotificationType.REMINDER_DUE]: NotificationCategory.REMINDER,
 } as const satisfies Record<NotificationType, NotificationCategory>;
 

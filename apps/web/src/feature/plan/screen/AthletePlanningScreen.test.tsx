@@ -77,6 +77,7 @@ function plan(id: string, title: string, weeks: PlanWeekDto[]): PlanDto {
     startDate: weeks[0]?.startDate ?? THIS_MONDAY,
     status: PlanStatus.PUBLISHED,
     publishedAt: "2026-10-01T10:00:00Z",
+    followEndedAt: null,
     weekCount: weeks.length,
     sessionCount: weeks.flatMap((w) => w.sessions).length,
     createdAt: "2026-10-01T10:00:00Z",

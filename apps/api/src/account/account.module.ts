@@ -11,6 +11,7 @@ import { CounterpartService } from "./service/counterpart.service";
 import { InvitationService } from "./service/invitation.service";
 import { OrganizationLinkService } from "./service/organization-link.service";
 import { RelationService } from "./service/relation.service";
+import { RelationEndService } from "./service/relation-end.service";
 import { UserDirectoryService } from "./service/user-directory.service";
 
 // Comptes, rôles, relation coach↔athlète et fiche athlète (cf. architecture-choice §2).
@@ -27,6 +28,7 @@ import { UserDirectoryService } from "./service/user-directory.service";
   providers: [
     InvitationService,
     RelationService,
+    RelationEndService,
     AthleteSheetService,
     CapabilityService,
     CounterpartService,

@@ -105,6 +105,7 @@ const plan = (over: Partial<PlanDto>): PlanDto =>
     startDate: "2026-10-19",
     status: PlanStatus.DRAFT,
     publishedAt: null,
+    followEndedAt: null,
     weekCount: 0,
     sessionCount: 0,
     weeks: [],
@@ -439,6 +440,7 @@ describe("PlanBuilderScreen — les semaines", () => {
     updatedAt: "2026-08-10T00:00:00.000Z",
     coachId: "coach_1",
     coachName: "Julie Renaud",
+    followEndedAt: null,
     exercises: [],
     blocks: [],
   };

@@ -154,6 +154,25 @@ describe("routeForNotification", () => {
     expect(routeForNotification(received, ATHLETE)).toEqual({ to: "/my-coach" });
   });
 
+  // La fin d'un lien (#909) mène là où l'autre partie a quitté les suivis en cours.
+  it("mène la fin d'un suivi au tableau de suivi du coach et à « Mon coach » de l'athlète", () => {
+    const left = notification(
+      NotificationEntityType.COACH_ATHLETE,
+      "rel-1",
+      NotificationType.RELATION_ENDED_BY_ATHLETE,
+    );
+    const ended = notification(
+      NotificationEntityType.COACH_ATHLETE,
+      "rel-1",
+      NotificationType.RELATION_ENDED_BY_COACH,
+    );
+    expect(routeForNotification(left, COACH)).toStrictEqual({
+      to: "/",
+      search: { q: undefined, filter: undefined, athlete: undefined },
+    });
+    expect(routeForNotification(ended, ATHLETE)).toEqual({ to: "/my-coach" });
+  });
+
   // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur
   // tableau de bord, la destination que la table donne déjà à toute invitation reçue en coach.
   it("mène le coach invité par une entreprise à la carte de son tableau de bord", () => {

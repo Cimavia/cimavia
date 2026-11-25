@@ -53,7 +53,7 @@ export class FeedbackMediaService {
     scheduledSessionId: string,
     input: RequestFeedbackUploadUrlInput,
   ): Promise<MediaUploadTicketDto> {
-    const session = await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    const session = await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
     await this.assertQuotaLeft(scheduledSessionId, input.type);
 
     const storagePath = buildMediaKey(session.athleteId, scheduledSessionId, input.fileName);
@@ -63,12 +63,17 @@ export class FeedbackMediaService {
   /**
    * Étape 2 bis : recoller les parts. Le storage compare le décompte annoncé à ce qu'il a
    * réellement reçu et refuse en 409 si ça diverge (cf. `completeMultipartUpload`).
+   *
+   * Sur une séance qu'on peut encore débriefer seulement (#909) : après la rupture, le
+   * rattachement serait refusé, et l'objet assemblé — souvent une vidéo lourde — resterait sans
+   * ligne en base. Le 409 dit au client de renoncer (`abortUpload`, lui, reste ouvert).
    */
   async completeUpload(
     scheduledSessionId: string,
     input: CompleteMultipartUploadInput,
   ): Promise<void> {
-    await this.assertOwnedKey(scheduledSessionId, input.storagePath);
+    const session = await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
+    assertKeyUnder(mediaKeyPrefix(session.athleteId, scheduledSessionId), input.storagePath);
     await this.storage.completeMultipartUpload(input.storagePath, input.uploadId, input.partCount);
   }
 
@@ -140,7 +145,7 @@ export class FeedbackMediaService {
   }
 
   async remove(scheduledSessionId: string, mediaId: string): Promise<void> {
-    await this.athletePlans.getPublishedSessionOrThrow(scheduledSessionId);
+    await this.athletePlans.getDebriefableSessionOrThrow(scheduledSessionId);
     const media = await this.db.feedbackMedia.findFirst({
       where: { id: mediaId, sessionFeedback: { scheduledSessionId } },
     });

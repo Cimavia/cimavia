@@ -39,6 +39,7 @@ import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { currentActor, exercisedOrThrow } from "../../tenancy/tenant-context.type";
 import { toDbDate, toIsoDate } from "../../util/date.util";
+import { assertFollowOngoing } from "../../util/follow-ended.util";
 import { toInvoiceDto } from "../invoice.mapper";
 
 /**
@@ -400,9 +401,13 @@ export class InvoiceService {
    * Le cycle sur lequel on peut SAISIR des termes : ouvert en écriture au Coach (403 en Lecture,
    * #607), brouillon, adressé, et pas à soi-même. Ces refus sont des règles d'écriture — la
    * lecture, elle, passe par `getReadablePlanOrThrow` (#211).
+   *
+   * Ni sur un cycle dont le suivi est terminé (#909) : on n'émet plus rien au nom d'un couple
+   * rompu. Une facture déjà émise, elle, se règle ou s'annule encore (`getWritableIssuedOrThrow`).
    */
   private async getDraftablePlanOrThrow(planId: string): Promise<BillablePlan> {
     const { row: plan } = await this.access.loadFor(this.getReadablePlanOrThrow(planId), "write");
+    assertFollowOngoing(plan.followEndedAt);
     if (plan.status === PlanStatus.PUBLISHED) {
       throw new BadRequestException("Cycle déjà diffusé : sa facturation est figée");
     }

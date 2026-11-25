@@ -195,6 +195,28 @@ describe("Invitations qui m'attendent, et refus (#146)", () => {
     expect((await athlete.get("/invitations/for-me")).body).toEqual([]);
   });
 
+  // Deux invitations du même Coach, acceptées ensemble : les deux créent le lien, la seconde bute
+  // sur l'unicité du couple — un refus qui dit pourquoi, pas un 500.
+  it("deux invitations du même coach acceptées ensemble : un lien, et un refus lisible", async () => {
+    const coach = await signUpWith("fm-twice-coach@cmv.test", { isCoach: true, isAthlete: false });
+    const athlete = await signUp("fm-twice@cmv.test", Role.ATHLETE);
+    const first = await inviteFor(coach, athlete);
+    const second = await inviteFor(coach, athlete);
+
+    const answers = await Promise.all(
+      [first, second].map((invitation) =>
+        athlete.post(`/invitations/${invitation.body.id}/accept`),
+      ),
+    );
+
+    expect(answers.map((answer) => answer.status).sort()).toEqual([201, 409]);
+    expect(answers.find((answer) => answer.status === 409)?.body.detail).toBe(
+      "Tu es déjà suivi par ce coach",
+    );
+    // Le refus a tout défait : l'invitation perdante reste en attente, et se refuse encore.
+    expect((await athlete.get("/invitations/for-me")).body).toHaveLength(1);
+  });
+
   // Une invitation déjà consommée ne se rejoue pas : ni pour rejoindre une seconde fois, ni pour
   // la retourner en refus après coup — le coach lirait « refusée » une invitation acceptée.
   it("refuse une invitation inconnue ou déjà consommée, à l'acceptation comme au refus (404)", async () => {

@@ -32,6 +32,7 @@ const existingPlan: PlanSummaryDto = {
   startDate: "2026-10-19",
   status: "DRAFT",
   publishedAt: null,
+  followEndedAt: null,
   weekCount: 4,
   sessionCount: 12,
   createdAt: "2026-10-01T10:00:00Z",

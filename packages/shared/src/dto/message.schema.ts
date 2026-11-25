@@ -414,6 +414,9 @@ export const conversationDtoSchema = z.object({
   lastMessagePreview: z.string().nullable(), // texte du dernier message ; null si média ou vide
   unreadCount: z.number().int(),
   createdAt: z.iso.datetime(),
+  // La fin du suivi d'un fil direct Coach↔athlète dont le lien est rompu (#909) : il se relit et
+  // ne s'écrit plus. `null` : le suivi continue, ou le fil n'est pas de cette forme.
+  followEndedAt: z.iso.datetime().nullable(),
 });
 export type ConversationDto = z.infer<typeof conversationDtoSchema>;
 

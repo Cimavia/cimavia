@@ -6,6 +6,7 @@ import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { productToday, toIsoDate } from "../../util/date.util";
+import { assertFollowOngoing } from "../../util/follow-ended.util";
 import {
   ATHLETE_PLAN_ACCESS,
   PLAN_COUNTS_INCLUDE,
@@ -29,7 +30,14 @@ import { SESSION_DETAIL_INCLUDE, toScheduledSessionDto } from "../scheduled-sess
  * servie par ce service ne peut l'être — le filtre `PUBLISHED` et le verrou de `publish` s'en
  * portent garants.
  */
-export type PublishedSession = ScheduledSession & { athleteId: string };
+/**
+ * Une séance diffusée, son athlète résolu, et la fin du suivi de son cycle (#909) : `null` tant
+ * que le lien du couple tient.
+ */
+export type PublishedSession = ScheduledSession & {
+  athleteId: string;
+  followEndedAt: Date | null;
+};
 
 @Injectable()
 export class AthletePlanService {
@@ -113,15 +121,34 @@ export class AthletePlanService {
    * Renvoie la ligne (et non un DTO) : l'appelant a besoin du `coachId` à dénormaliser.
    */
   async getPublishedSessionOrThrow(id: string): Promise<PublishedSession> {
-    const session = await this.db.scheduledSession.findFirst({
+    const found = await this.db.scheduledSession.findFirst({
       where: { id, plan: { status: PlanStatus.PUBLISHED } },
+      include: { plan: { select: { followEndedAt: true } } },
     });
-    if (session == null) {
+    if (found == null) {
       throw new NotFoundException("Séance introuvable");
     }
+    const { plan, ...session } = found;
     // Le destinataire est résolu ICI, au point de contrôle unique des écritures athlète : ses
     // appelants (débrief, médias, messagerie) bâtissent des clés de storage dessus et ne doivent
     // pas avoir à redemander si l'athlète existe. Sur un cycle diffusé, il existe.
-    return { ...session, athleteId: athleteRecipientOrThrow(session) };
+    return {
+      ...session,
+      athleteId: athleteRecipientOrThrow(session),
+      followEndedAt: plan.followEndedAt,
+    };
+  }
+
+  /**
+   * La séance qu'un athlète peut encore DÉBRIEFER : diffusée, et dans un suivi qui continue —
+   * 409 `FOLLOW_ENDED` une fois le lien du couple rompu (#909). Le débrief déjà déposé se relit ;
+   * il ne se complète plus. Recoller un envoi découpé déjà commencé non plus : l'objet assemblé
+   * resterait sans débrief. L'abandonner reste permis — ses parts ne doivent pas traîner dans le
+   * bucket (`FeedbackMediaService.abortUpload`).
+   */
+  async getDebriefableSessionOrThrow(id: string): Promise<PublishedSession> {
+    const session = await this.getPublishedSessionOrThrow(id);
+    assertFollowOngoing(session.followEndedAt);
+    return session;
   }
 }

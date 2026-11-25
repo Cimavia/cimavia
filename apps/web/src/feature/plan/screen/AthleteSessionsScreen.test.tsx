@@ -56,6 +56,7 @@ const plan = (id: string, title: string, sessions: ScheduledSessionSummaryDto[])
   startDate: THIS_MONDAY,
   status: PlanStatus.PUBLISHED,
   publishedAt: "2026-10-01T10:00:00Z",
+  followEndedAt: null,
   weekCount: 1,
   sessionCount: sessions.length,
   createdAt: "2026-10-01T10:00:00Z",

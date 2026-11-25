@@ -24,6 +24,7 @@ function plan(over: Partial<PlanSummaryDto> & Pick<PlanSummaryDto, "id">): PlanS
     startDate: "2026-07-13",
     status: PlanStatus.PUBLISHED,
     publishedAt: "2026-07-01T10:00:00Z",
+    followEndedAt: null,
     weekCount: 10,
     sessionCount: 30,
     createdAt: "2026-07-01T10:00:00Z",

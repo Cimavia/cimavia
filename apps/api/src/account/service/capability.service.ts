@@ -88,6 +88,10 @@ export class CapabilityService {
    * l'UI de prévenir, pas à l'API de refuser.
    *
    * Ses invitations en attente ne bloquent pas davantage : elles sont retirées (#314).
+   *
+   * Un lien rompu (#909) ne retient personne, d'un côté comme de l'autre : seul un lien `ACTIVE`
+   * porte la capacité. Le côté athlète comptait tous les liens, et un athlète parti de son coach
+   * restait athlète malgré lui.
    */
   private async assertRemovable(userId: string, input: UpdateCapabilitiesInput): Promise<void> {
     if (!input.isCoach) {
@@ -104,7 +108,9 @@ export class CapabilityService {
     }
 
     if (!input.isAthlete) {
-      const coach = await this.prisma.coachAthlete.count({ where: { athleteId: userId } });
+      const coach = await this.prisma.coachAthlete.count({
+        where: { athleteId: userId, status: CoachAthleteStatus.ACTIVE },
+      });
       if (coach > 0) {
         throw new ProblemException(
           HttpStatus.CONFLICT,

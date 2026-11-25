@@ -29,6 +29,8 @@ export const ProblemType = {
   STRUCTURE_NAME_TAKEN: "urn:cimavia:problem:structure-name-taken",
   /** 403 : le mot de passe qui confirme la suppression du compte n'est pas le bon (#256). */
   ERASURE_PASSWORD_REJECTED: "urn:cimavia:problem:erasure-password-rejected",
+  /** 409 : le lien du couple est rompu, son archive se relit et ne s'écrit plus (#909). */
+  FOLLOW_ENDED: "urn:cimavia:problem:follow-ended",
 } as const;
 
 export type ProblemType = (typeof ProblemType)[keyof typeof ProblemType];

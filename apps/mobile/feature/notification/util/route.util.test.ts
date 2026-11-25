@@ -223,6 +223,15 @@ describe("routeForNotification — l'invitation (#146)", () => {
     expect(hrefOf(received, ATHLETE)).toBe("/join");
   });
 
+  // La fin d'un lien (#909) : là où l'autre partie a quitté les suivis en cours.
+  it("mène la fin d'un suivi au tableau de bord du coach et à « Mes coachs » de l'athlète", () => {
+    const relation = { entityType: NotificationEntityType.COACH_ATHLETE, entityId: "rel-1" };
+    const left = entry({ type: NotificationType.RELATION_ENDED_BY_ATHLETE, ...relation });
+    const ended = entry({ type: NotificationType.RELATION_ENDED_BY_COACH, ...relation });
+    expect(hrefOf(left, COACH)).toBe("/dashboard");
+    expect(hrefOf(ended, ATHLETE)).toBe("/join");
+  });
+
   // L'invitation d'une entreprise (#601) ne vise que des Coachs : sa carte attend sur leur accueil.
   it("mène le coach invité par une entreprise à la carte de son tableau de bord", () => {
     const dto = entry({

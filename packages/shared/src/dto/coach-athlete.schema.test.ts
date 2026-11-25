@@ -11,7 +11,7 @@ describe("CoachAthleteStatus", () => {
   // Miroir de l'enum Prisma `CoachAthleteStatus` : une valeur de plus ou de moins d'un seul côté
   // ferait refuser par le schéma une relation que la base, elle, accepte.
   it("porte exactement les statuts de l'enum en base", () => {
-    expect(Object.values(CoachAthleteStatus)).toEqual(["PENDING", "ACTIVE"]);
+    expect(Object.values(CoachAthleteStatus)).toEqual(["PENDING", "ACTIVE", "ENDED"]);
   });
 });
 
@@ -25,6 +25,7 @@ describe("coachAthleteDtoSchema", () => {
     status: CoachAthleteStatus.ACTIVE,
     invitedAt: "2026-09-01T10:00:00.000Z",
     joinedAt: "2026-09-02T10:00:00.000Z",
+    endedAt: null,
     organizationName: null,
     isSelf: false,
   };
@@ -45,6 +46,18 @@ describe("coachAthleteDtoSchema", () => {
     expect(coachAthleteDtoSchema.parse(viaCompany)).toEqual(viaCompany);
     const { organizationName: _omitted, ...withoutProvenance } = relation;
     expect(coachAthleteDtoSchema.safeParse(withoutProvenance).success).toBe(false);
+  });
+
+  // La rupture (#909) garde la ligne : elle se lit avec sa date de fin, et sa date de rattachement.
+  it("accepte un lien rompu, avec sa date de fin", () => {
+    const ended = {
+      ...relation,
+      status: CoachAthleteStatus.ENDED,
+      endedAt: "2026-11-23T10:00:00.000Z",
+    };
+    expect(coachAthleteDtoSchema.parse(ended)).toEqual(ended);
+    const { endedAt: _omitted, ...withoutEnd } = relation;
+    expect(coachAthleteDtoSchema.safeParse(withoutEnd).success).toBe(false);
   });
 
   it("refuse un statut inconnu", () => {

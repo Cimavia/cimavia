@@ -3,10 +3,14 @@ import type { TypesValuesOf } from "../type/generics.type";
 
 // Statut de la relation coach↔athlète.
 // PENDING : invitation acceptée mais lien pas encore actif (réservé si besoin d'un palier) ;
-// ACTIVE  : relation effective. La réversibilité (athlète autonome v1.0) = suppression de la ligne.
+// ACTIVE  : relation effective ;
+// ENDED   : lien rompu par l'un ou l'autre (#909). La ligne reste — rompre n'efface rien, c'est
+//           l'archive du couple, lisible des deux côtés et fermée en écriture (Tranché en #213).
+//           Une nouvelle invitation nominative la ramène à ACTIVE.
 export const CoachAthleteStatus = {
   PENDING: "PENDING",
   ACTIVE: "ACTIVE",
+  ENDED: "ENDED",
 } as const;
 
 export type CoachAthleteStatus = TypesValuesOf<typeof CoachAthleteStatus>;
@@ -38,6 +42,11 @@ export const coachAthleteDtoSchema = z.object({
   status: coachAthleteStatusSchema,
   invitedAt: z.iso.datetime(),
   joinedAt: z.iso.datetime().nullable(),
+  /**
+   * La date de la rupture (#909), renseignée avec `ENDED` et seulement avec lui. `null` = suivi en
+   * cours : un lien qui n'a pas pris fin n'a pas de date de fin, rien n'est indisponible.
+   */
+  endedAt: z.iso.datetime().nullable(),
   /**
    * L'entreprise dont le lien est né — « via F » (#602). `null` = lien DIRECT, noué par
    * l'invitation d'un Coach : « aucune entreprise », pas une donnée indisponible. Le rendu laisse

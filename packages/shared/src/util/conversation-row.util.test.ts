@@ -24,6 +24,7 @@ const conversation = (
   lastMessageType: null,
   lastMessagePreview: null,
   unreadCount: 0,
+  followEndedAt: null,
   createdAt,
 });
 

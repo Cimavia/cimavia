@@ -101,6 +101,17 @@ export type OrganizationCoachJoinedEvent = {
 };
 
 /**
+ * Un lien rompu (#909). `endedBy` dit qui l'a rompu — l'autre partie est le destinataire, et le
+ * type s'en déduit : on la lit sous le titre de celui qui n'a rien fait.
+ */
+export type RelationEndedEvent = {
+  relationId: string;
+  coachId: string;
+  athleteId: string;
+  endedBy: "coach" | "athlete";
+};
+
+/**
  * L'athlète a répondu — rejoint ou refusé. Une seule charge pour les deux, comme les trois
  * ajustements de cycle : mêmes parties, même entité, seul le sens de la réponse change.
  */
@@ -475,6 +486,31 @@ export class NotificationService {
         title: "Nouveau coach",
         body: `${coachName ?? "Un coach"} te suit désormais, via ${organizationName ?? "ton entreprise"}.`,
       },
+    );
+  }
+
+  /**
+   * Un lien rompu (#909), appris par l'autre partie : sans elle, un Coach découvrirait un athlète
+   * passé aux archives sans savoir pourquoi, un athlète un Coach qui ne le suit plus. L'entité est
+   * le lien lui-même, qui reste en base, à ENDED.
+   */
+  async notifyRelationEnded(event: RelationEndedEvent): Promise<void> {
+    this.logger.info({ event: "relation.ended", ...event }, "Lien coach-athlète rompu");
+    const byCoach = event.endedBy === "coach";
+    const actorName = await this.userName(byCoach ? event.coachId : event.athleteId);
+    await this.emit(
+      {
+        recipientId: byCoach ? event.athleteId : event.coachId,
+        type: byCoach
+          ? NotificationType.RELATION_ENDED_BY_COACH
+          : NotificationType.RELATION_ENDED_BY_ATHLETE,
+        entityId: event.relationId,
+        actorName,
+        subjectLabel: null,
+      },
+      byCoach
+        ? { title: "Suivi terminé", body: `${actorName ?? "Ton coach"} a mis fin à ton suivi.` }
+        : { title: "Suivi terminé", body: `${actorName ?? "Un athlète"} a quitté ton espace.` },
     );
   }
 

@@ -8,6 +8,7 @@ import type { NotificationService } from "../../notification/notification.servic
 import type { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import type { TenantContext } from "../../tenancy/tenant-context.type";
+import { FollowEndedException } from "../../util/follow-ended.util";
 import type { ConversationService, JoinedConversation } from "./conversation.service";
 import { MessageService } from "./message.service";
 import type { MessageAttachmentResolver } from "./message-attachment.resolver";
@@ -113,6 +114,7 @@ function build(setup: Setup = {}) {
   } as unknown as TenantPrisma;
   const notifyMessageReceived = vi.fn().mockResolvedValue(undefined);
   const getJoinedOrThrow = vi.fn().mockResolvedValue(conversation);
+  const getWritableOrThrow = vi.fn().mockResolvedValue(conversation);
   const assertAttachable = vi.fn().mockResolvedValue(undefined);
 
   const service = new MessageService(
@@ -121,7 +123,7 @@ function build(setup: Setup = {}) {
       createDownloadUrl: vi.fn().mockResolvedValue("https://signed"),
       assertAttachable,
     } as unknown as StorageService,
-    { getJoinedOrThrow } as unknown as ConversationService,
+    { getJoinedOrThrow, getWritableOrThrow } as unknown as ConversationService,
     { notifyMessageReceived } as unknown as NotificationService,
     {
       getPublishedSessionOrThrow: vi.fn().mockResolvedValue(setup.session ?? null),
@@ -137,6 +139,7 @@ function build(setup: Setup = {}) {
     updateMany,
     notifyMessageReceived,
     getJoinedOrThrow,
+    getWritableOrThrow,
     assertAttachable,
   };
 }
@@ -384,6 +387,19 @@ describe("MessageService.send — médias (#468)", () => {
     await service.send("conv1", { type: MessageType.TEXT, content: "Salut" });
 
     expect(assertAttachable).not.toHaveBeenCalled();
+  });
+});
+
+// Le fil direct d'un suivi terminé se relit, et ne s'écrit plus (#909).
+describe("MessageService.send — suivi terminé", () => {
+  it("n'écrit rien dans un fil que la conversation déclare fermé", async () => {
+    const { service, create, notifyMessageReceived, getWritableOrThrow } = build();
+    getWritableOrThrow.mockRejectedValue(new FollowEndedException());
+
+    await expect(service.send("conv1", TEXT)).rejects.toBeInstanceOf(FollowEndedException);
+    expect(getWritableOrThrow).toHaveBeenCalledWith("conv1");
+    expect(create).not.toHaveBeenCalled();
+    expect(notifyMessageReceived).not.toHaveBeenCalled();
   });
 });
 

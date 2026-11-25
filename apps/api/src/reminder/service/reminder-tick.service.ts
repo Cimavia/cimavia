@@ -165,6 +165,7 @@ export class ReminderTickService {
     return runAsCoach(this.cls, coachId, async () => {
       // La clôture d'abord : un rappel dont la facture est réglée ne doit plus partir en push.
       await this.closeSettledOverdue();
+      await this.closeEndedFollow();
       // La génération ensuite : un rappel créé par CE tick et déjà dû doit partir en push dans la
       // foulée, pas au tick suivant.
       const created = await this.generate(coachId, now);
@@ -225,6 +226,56 @@ export class ReminderTickService {
       where: { ...overdue, entityId: { in: settled.map((invoice) => invoice.id) } },
       data: { status: ReminderStatus.DONE },
     });
+  }
+
+  /**
+   * Les rappels générés d'un suivi terminé (#909) : « fin de cycle » sur un cycle du couple,
+   * « facture en retard » sur une facture de ce cycle. Le tick n'en génère plus ; ceux d'avant la
+   * rupture s'effacent ici, sous l'acteur du Coach, comme `closeSettledOverdue` — la rupture, que
+   * l'athlète peut faire, n'écrit pas dans les rappels du Coach.
+   *
+   * Supprimés, et non écartés : un rappel généré puis traité ne renaît pas (index d'unicité). Un
+   * `DISMISSED` survivrait donc à une réactivation, et la facture toujours impayée du suivi repris
+   * ne serait plus relancée. Supprimé, il renaît au tick qui suit la reprise, dans la fenêtre de
+   * génération — comme s'il n'avait jamais été vu. Rien n'est perdu : c'est le tick qui l'avait
+   * écrit, pas le Coach.
+   *
+   * Sauf celui que le Coach a annoté : la note le lui approprie (#105), comme un rappel saisi à la
+   * main, et l'effacer la perdrait. Il reste, et part à son échéance. Une échéance repoussée sans
+   * note ne se distingue pas de celle du tick : effacée, elle renaît à la date générée.
+   */
+  private async closeEndedFollow(): Promise<void> {
+    const generated = {
+      status: ReminderStatus.PENDING,
+      reason: { in: [ReminderReason.PLAN_ENDING, ReminderReason.INVOICE_OVERDUE] },
+      note: null,
+    };
+    const reminders = await this.db.reminder.findMany({
+      where: generated,
+      select: { entityType: true, entityId: true },
+    });
+    const idsOf = (entityType: ReminderEntityType) =>
+      reminders.filter((reminder) => reminder.entityType === entityType).map((r) => r.entityId);
+    const planIds = idsOf(ReminderEntityType.PLAN);
+    const invoiceIds = idsOf(ReminderEntityType.INVOICE);
+    if (planIds.length === 0 && invoiceIds.length === 0) return;
+
+    const ended = { followEndedAt: { not: null } };
+    const [plans, invoices] = await Promise.all([
+      planIds.length === 0
+        ? []
+        : this.db.plan.findMany({ where: { id: { in: planIds }, ...ended }, select: { id: true } }),
+      invoiceIds.length === 0
+        ? []
+        : this.db.invoice.findMany({
+            where: { id: { in: invoiceIds }, plan: ended },
+            select: { id: true },
+          }),
+    ]);
+    const endedIds = [...plans, ...invoices].map((row) => row.id);
+    if (endedIds.length === 0) return;
+
+    await this.db.reminder.deleteMany({ where: { ...generated, entityId: { in: endedIds } } });
   }
 
   /**
@@ -318,6 +369,7 @@ export class ReminderTickService {
    * à vie (#107).
    *
    * Les cycles DRAFT sont ignorés : un cycle jamais diffusé n'a pas de renouvellement à proposer.
+   * Ceux d'un suivi terminé aussi (#909) : on ne renouvelle pas le cycle d'un athlète parti.
    */
   private async planEndingRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     /**
@@ -328,7 +380,7 @@ export class ReminderTickService {
      */
     const [plans, weekCounts] = await Promise.all([
       this.db.plan.findMany({
-        where: { ...ownedBy(coachId), status: PlanStatus.PUBLISHED },
+        where: { ...ownedBy(coachId), status: PlanStatus.PUBLISHED, followEndedAt: null },
         select: { id: true, startDate: true, publishedAt: true },
       }),
       this.db.planWeek.groupBy({ by: ["planId"], where: ownedBy(coachId), _count: { _all: true } }),
@@ -364,12 +416,19 @@ export class ReminderTickService {
    * dont la `dueDate` est passée. L'échéance du rappel est le **lendemain** de celle de la facture,
    * l'instant exact où elle bascule en retard — encore une fois dérivée de la donnée, pas de `now`.
    *
-   * Les brouillons et les factures annulées sont hors du lot : rien à relancer.
+   * Les brouillons et les factures annulées sont hors du lot : rien à relancer. Celles d'un suivi
+   * terminé aussi (#909) : le Coach peut encore les dire payées ou les annuler, mais le tick ne
+   * relance pas un athlète parti. Une facture sans cycle n'a pas de suivi qui la dise terminée.
    */
   private async invoiceOverdueRows(coachId: string, now: Date): Promise<ReminderSeed[]> {
     const invoices = await this.db.invoice.findMany({
       // Un athlète qui a supprimé son compte ne se relance plus (#256) : le statut reste au coach.
-      where: { ...ownedBy(coachId), status: InvoiceStatus.PENDING, erasedAthleteName: null },
+      where: {
+        ...ownedBy(coachId),
+        status: InvoiceStatus.PENDING,
+        erasedAthleteName: null,
+        OR: [{ planId: null }, { plan: { followEndedAt: null } }],
+      },
       select: { id: true, dueDate: true, issuedAt: true },
     });
 

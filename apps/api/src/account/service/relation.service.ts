@@ -26,6 +26,9 @@ export class RelationService {
    *
    * En TÊTE de liste, et pas par commodité d'affichage : c'est le destinataire le plus probable
    * d'un cycle qu'on est en train d'écrire pour soi.
+   *
+   * Les liens rompus (#909) y restent, avec leur statut `ENDED` : c'est par eux que le Coach relit
+   * l'archive d'un ancien athlète. Le client les range à part.
    */
   async listAthletes(): Promise<CoachAthleteDto[]> {
     const relations = await this.db.coachAthlete.findMany({
@@ -57,6 +60,8 @@ export class RelationService {
       // date du jour laisserait croire à un événement qui n'a pas eu lieu.
       invitedAt: new Date(0).toISOString(),
       joinedAt: null,
+      // On ne rompt pas avec soi-même : ce suivi-là n'a pas de fin.
+      endedAt: null,
       // Aucune entreprise : on se coache soi-même, en direct.
       organizationName: null,
       isSelf: true,
@@ -69,6 +74,9 @@ export class RelationService {
    *
    * Même ordre que `listAthletes`, le plus récent lien d'abord : c'est le coach qu'on vient de
    * rejoindre qu'on cherche des yeux.
+   *
+   * Comme `listAthletes`, les liens rompus (#909) y restent : l'athlète y retrouve ses anciens
+   * coachs et leur historique.
    */
   async myCoaches(): Promise<CoachAthleteDto[]> {
     const relations = await this.db.coachAthlete.findMany({

@@ -42,15 +42,22 @@ export class MessageMediaService {
     conversationId: string,
     input: RequestMessageUploadUrlInput,
   ): Promise<MediaUploadTicketDto> {
-    await this.conversations.getJoinedOrThrow(conversationId);
+    await this.conversations.getWritableOrThrow(conversationId);
 
     const storagePath = buildMessageMediaKey(conversationId, input.fileName);
     return this.storage.createUploadTicket(storagePath, input.mimeType, input.size);
   }
 
-  /** Recoller les parts. Le storage refuse en 409 s'il en manque une (cf. StorageService). */
+  /**
+   * Recoller les parts. Le storage refuse en 409 s'il en manque une (cf. StorageService).
+   *
+   * Sur un fil où l'on peut encore écrire seulement (#909) : dans le fil d'un lien rompu, l'envoi
+   * serait refusé et l'objet assemblé resterait sans message. Le 409 dit au client de renoncer
+   * (`abortUpload`, lui, reste ouvert).
+   */
   async completeUpload(conversationId: string, input: CompleteMultipartUploadInput): Promise<void> {
-    await this.assertOwnedKey(conversationId, input.storagePath);
+    await this.conversations.getWritableOrThrow(conversationId);
+    assertKeyUnder(messageMediaKeyPrefix(conversationId), input.storagePath);
     await this.storage.completeMultipartUpload(input.storagePath, input.uploadId, input.partCount);
   }
 
