@@ -453,6 +453,20 @@ describe("ConversationThread — suivi terminé (#911)", () => {
     expect(getByText("messages.followEnded")).toBeTruthy();
   });
 
+  // Le refus qui a fermé le fil a déjà sa phrase : redit en panne au-dessus, il ferait doublon.
+  it("ne redit pas en panne le refus qui a fermé le fil", () => {
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new ApiError(409, "Ce suivi est terminé", null),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const { getByText, queryByText } = renderRn(<ConversationThread {...ended} />);
+
+    expect(getByText("messages.followEnded")).toBeTruthy();
+    expect(queryByText("Ce suivi est terminé")).toBeNull();
+  });
+
   it("garde la barre d'envoi d'un fil dont le suivi court", () => {
     mockMessages({ data: [] });
     const { queryByPlaceholderText, queryByText } = renderRn(<ConversationThread {...base} />);

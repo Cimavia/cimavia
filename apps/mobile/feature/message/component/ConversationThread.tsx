@@ -185,7 +185,8 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
           </View>
         )}
 
-        {send.isError ? (
+        {/* Le refus qui a fermé le fil (#911) ne se redit pas en panne au-dessus de la fin du suivi. */}
+        {send.isError && conversation.followEndedAt == null ? (
           <CmvText className="px-4 pb-1 text-cmv-error-on text-sm">
             {apiErrorMessage(send.error) ?? t("messages.sendError")}
           </CmvText>
