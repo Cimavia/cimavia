@@ -5,7 +5,7 @@ import type {
   SessionFeedbackDto,
   VoiceNoteCue,
 } from "@cmv/shared";
-import { coachFeedbackKeys, STRUCTURE_PRESETS } from "@cmv/shared";
+import { athleteKeys, coachFeedbackKeys, STRUCTURE_PRESETS } from "@cmv/shared";
 import { act, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAthletes } from "@/feature/athlete/hook/useAthletes";
@@ -614,6 +614,18 @@ describe("CoachFeedbackDetailScreen — après une réponse", () => {
     void options?.onSent?.();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: coachFeedbackKeys.all });
+  });
+});
+
+// Les liens portent la fin du suivi (#911) : relus après un refus, ils ferment la barre de réponse.
+describe("CoachFeedbackDetailScreen — réponse refusée pour suivi terminé", () => {
+  it("relit la liste des athlètes", () => {
+    const { queryClient } = renderRn(<CoachFeedbackDetailScreen />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    void vi.mocked(useFeedbackReply).mock.lastCall?.[2]();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: athleteKeys.list() });
   });
 });
 

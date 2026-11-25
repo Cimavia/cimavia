@@ -1,5 +1,5 @@
 import type { MessageDto, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { myFeedbackKeys } from "@cmv/shared";
+import { myFeedbackKeys, myPlanKeys } from "@cmv/shared";
 import { blockSession } from "@cmv/shared/test/block-session";
 import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -312,6 +312,16 @@ describe("SessionFeedbackScreen", () => {
     void vi.mocked(useFeedbackReply).mock.lastCall?.[0].onSent?.();
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: myFeedbackKeys.detail("s-1") });
+  });
+
+  // La séance porte la fin du suivi (#911) : relue après un refus, elle ferme la barre de réponse.
+  it("relit sa séance quand une réponse est refusée pour suivi terminé", () => {
+    const { queryClient } = renderRn(<SessionFeedbackScreen />);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    void vi.mocked(useFeedbackReply).mock.lastCall?.[2]();
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myPlanKeys.all });
   });
 
   // SON débrief se répond en athlète, même sélecteur laissé sur « coach » (#343).

@@ -1,5 +1,5 @@
 import type { MediaRecapLine, ScheduledSessionDto, SessionFeedbackDto } from "@cmv/shared";
-import { canDebrief, feedbackTrackingInput, myFeedbackKeys } from "@cmv/shared";
+import { canDebrief, feedbackTrackingInput, myFeedbackKeys, myPlanKeys } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { type ComponentProps, useState } from "react";
@@ -65,6 +65,9 @@ export function SessionFeedbackScreen() {
     },
     // Son débrief, donc en athlète — quel que soit le sélecteur (#343).
     "athlete",
+    // Refusée pour suivi terminé : la séance relue porte la fin, le débrief passe en lecture — et
+    // le planning avec elle, qui marque ses séances.
+    () => queryClient.invalidateQueries({ queryKey: myPlanKeys.all }),
   );
 
   const [preUploadErrorKey, setPreUploadErrorKey] = useState<string | null>(null);

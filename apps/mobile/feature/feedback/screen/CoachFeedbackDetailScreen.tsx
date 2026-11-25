@@ -1,4 +1,5 @@
 import {
+  athleteKeys,
   type CoachFeedbackSummaryDto,
   isEndedLink,
   type MediaRecapLine,
@@ -130,6 +131,8 @@ function FeedbackBody({
     },
     // Le débrief d'un de ses athlètes, donc en coach — quel que soit le sélecteur (#343).
     "coach",
+    // Refusée pour suivi terminé : les liens relus disent la fin, la barre laisse place à la phrase.
+    () => queryClient.invalidateQueries({ queryKey: athleteKeys.list() }),
   );
 
   // Refus qui PRÉCÈDE l'upload (permission galerie, permission/erreur micro) : porté à la main, il

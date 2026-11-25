@@ -22,7 +22,7 @@ import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel } from "@/shared/hook/useAthleteLabel";
 import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useLatch } from "@/shared/hook/useLatch";
-import { isStaleWriteError } from "@/shared/lib/api";
+import { apiErrorMessage, isStaleWriteError } from "@/shared/lib/api";
 import { formatInstantDate } from "@/shared/util/date.util";
 
 /**
@@ -193,7 +193,11 @@ function SheetNote({
             </View>
           </View>
           {save.isError && !isStale ? (
-            <CmvText className="text-cmv-error-on text-sm">{t("athlete.sheet.error")}</CmvText>
+            <CmvText className="text-cmv-error-on text-sm">
+              {/* Le refus de l'API se dit tel quel (« Ce suivi est terminé ») : une panne réseau
+                  n'en est pas une. */}
+              {apiErrorMessage(save.error) ?? t("athlete.sheet.error")}
+            </CmvText>
           ) : null}
         </>
       ) : null}

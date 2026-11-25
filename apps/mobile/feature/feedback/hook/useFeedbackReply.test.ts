@@ -1,3 +1,4 @@
+import { ApiError, ProblemType } from "@cmv/shared";
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
@@ -9,6 +10,7 @@ vi.mock("@/feature/message/hook/useMessageMedia", () => ({ useSendMessageMedia: 
 
 const mutateAsync = vi.fn().mockResolvedValue(undefined);
 const onSent = vi.fn();
+const onFollowEnded = vi.fn();
 
 function setup(feedbackId: string | null, conversationId: string | undefined) {
   vi.mocked(useSendMessage).mockReturnValue({
@@ -25,7 +27,11 @@ function setup(feedbackId: string | null, conversationId: string | undefined) {
   } as unknown as ReturnType<typeof useSendMessageMedia>);
 
   return renderHook(() =>
-    useFeedbackReply({ feedbackId, conversationId, isThreadError: false, onSent }, "coach"),
+    useFeedbackReply(
+      { feedbackId, conversationId, isThreadError: false, onSent },
+      "coach",
+      onFollowEnded,
+    ),
   ).result.current;
 }
 
@@ -56,8 +62,23 @@ describe("useFeedbackReply (mobile)", () => {
 
     expect(mutateAsync).toHaveBeenCalledWith(
       { type: "TEXT", content: "Reçu" },
-      { onSuccess: onSent },
+      expect.objectContaining({ onSuccess: onSent }),
     );
+  });
+
+  // Un refus de fin de suivi (#911) fait relire à l'écran ce qui dit la fin : sans ça, la barre
+  // resterait ouverte sur un fil fermé, et chaque nouvel essai buterait sur le même 409.
+  it.each([
+    { type: ProblemType.FOLLOW_ENDED, relu: 1 },
+    { type: ProblemType.STALE_WRITE, relu: 0 },
+  ])("relit l'écran sur un refus $type : $relu fois", async ({ type, relu }) => {
+    onFollowEnded.mockClear();
+    await setup("f-1", "c-1").sendText("Reçu");
+    const options = mutateAsync.mock.lastCall?.[1] as { onError: (error: unknown) => void };
+
+    options.onError(new ApiError(409, "Refus", null, true, type));
+
+    expect(onFollowEnded).toHaveBeenCalledTimes(relu);
   });
 
   it("n'est pas prêt tant que le fil n'est pas résolu", () => {
