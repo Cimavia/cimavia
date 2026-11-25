@@ -1,7 +1,8 @@
 import type { TrainingCapability } from "../capability";
-import { type MyAccess, MyAccessLevel } from "../dto/access.schema";
+import type { MyAccess } from "../dto/access.schema";
 import { type CoachAthleteDto, CoachAthleteStatus } from "../dto/coach-athlete.schema";
 import type { ConversationDto } from "../dto/message.schema";
+import { canWrite } from "./access.util";
 import { directCounterpartId } from "./conversation-row.util";
 
 /**
@@ -49,7 +50,7 @@ export function splitFollows<T extends FollowLink>(links: readonly T[]): SplitFo
  * - `FOLLOW_ENDED` : le suivi du couple a pris fin, le cycle est fermé à tous (tranché en #909),
  *   propriétaire compris. Il l'emporte sur le droit : un Coach en Écriture n'y écrit pas plus.
  * - `READ` : un droit de Lecture sur le cycle d'un autre Coach (#607).
- * - `WRITE` : le sien, ou un droit d'Écriture.
+ * - `WRITE` : le sien, ou un droit d'Écriture — la règle de `canWrite`, qu'on ne réécrit pas ici.
  *
  * Un mode et non un booléen : les deux fermetures ne se disent pas pareil — « suivi terminé » n'est
  * pas « lecture seule », et le Coach n'y peut rien demander à personne.
@@ -58,7 +59,7 @@ export type PlanWriteMode = "WRITE" | "READ" | "FOLLOW_ENDED";
 
 export function planWriteMode(access: MyAccess, followEndedAt: string | null): PlanWriteMode {
   if (followEndedAt != null) return "FOLLOW_ENDED";
-  return access.level === MyAccessLevel.READ ? "READ" : "WRITE";
+  return canWrite(access) ? "WRITE" : "READ";
 }
 
 /**
