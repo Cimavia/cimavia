@@ -126,6 +126,37 @@ describe("SessionDetailScreen", () => {
     expect(getByText("plan.sessionStatus.DONE").getAttribute("data-variant")).toBe("success");
   });
 
+  /**
+   * Suivi terminé (#911) : la séance se relit, son débrief ne s'écrit plus. La phrase prend la place
+   * du bouton ; une séance faite garde de quoi relire ce qui a été envoyé.
+   */
+  it("tait le débrief d'une séance non faite dont le suivi a pris fin, et dit pourquoi", async () => {
+    loaded({ exercises: [], followEndedAt: "2026-11-20T10:00:00.000Z" });
+    const { findByText, queryByText, getByText } = renderRn(<SessionDetailScreen />);
+
+    expect(await findByText("plan.session.followEnded")).toBeTruthy();
+    expect(queryByText("feedback.open")).toBeNull();
+    expect(queryByText("feedback.openRead")).toBeNull();
+    // Plus de « tu peux quand même la débriefer » : il n'y a plus de débrief à promettre.
+    expect(getByText("plan.session.emptyDescriptionClosed")).toBeTruthy();
+    expect(queryByText("plan.session.emptyDescription")).toBeNull();
+  });
+
+  it("rouvre en lecture le débrief envoyé avant la fin du suivi", async () => {
+    loaded({
+      exercises: [],
+      status: ScheduledSessionStatus.DONE,
+      followEndedAt: "2026-11-20T10:00:00.000Z",
+    });
+    const { container, findByText, queryByText } = renderRn(<SessionDetailScreen />);
+    await findByText("feedback.openRead");
+
+    expect(queryByText("feedback.openDone")).toBeNull();
+    pressButton(container, "feedback.openRead");
+
+    expect(router.push).toHaveBeenCalledWith(`/session/${SESSION_ID}/feedback`);
+  });
+
   /** #722 : une séance composée par blocs se lit bloc par bloc, plus exercice par exercice. */
   it("lit une séance par blocs bloc par bloc, et mène à l'écran d'un bloc", async () => {
     const { blocks, exercises } = blockSession();

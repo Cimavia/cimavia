@@ -187,7 +187,9 @@
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "emptyTitle": "Pas de déroulé détaillé",
-      "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer."
+      "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
+      "emptyDescriptionClosed": "Cette séance n'a pas d'exercice listé.",
+      "followEnded": "{{ended}} : cette séance se relit, elle ne se débriefe plus."
     },
     "timer": {
       "pause": "Pause",
@@ -258,6 +260,7 @@
     "subtitle": "Ton retour est visible immédiatement par ton coach.",
     "open": "Débriefer la séance",
     "openDone": "Voir / modifier mon débrief",
+    "openRead": "Relire mon débrief",
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",

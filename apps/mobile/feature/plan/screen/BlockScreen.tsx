@@ -1,5 +1,6 @@
 import {
   type BlockCheck,
+  canDebrief,
   flowPhrase,
   type ReadBlock,
   readScheduledBlocks,
@@ -75,7 +76,9 @@ export function BlockScreen() {
             planId={session.planId}
             sessionId={session.id}
             tracking={local.tracking[read.block.id] ?? null}
-            onToggle={(check) => local.toggle(read.block.id, check)}
+            // Suivi terminé (#911) : le décompte se relit, il ne se coche plus. Le chrono, lui,
+            // reste — il n'écrit rien.
+            onToggle={canDebrief(session) ? (check) => local.toggle(read.block.id, check) : null}
           />
         )}
       </ScrollView>
@@ -120,7 +123,7 @@ function BlockBody({
   planId: string;
   sessionId: string;
   tracking: SessionBlockTracking | null;
-  onToggle: (check: BlockCheck) => void;
+  onToggle: ((check: BlockCheck) => void) | null;
 }>) {
   const { t } = useTranslation();
   const text = usePhraseText();
