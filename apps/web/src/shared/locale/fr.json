@@ -1972,5 +1972,14 @@
     "legalNotice": "Mentions légales",
     "terms": "Conditions d'utilisation",
     "accountDeletion": "Suppression du compte"
+  },
+  "follow": {
+    "ended": "Suivi terminé",
+    "endedOn": "Suivi terminé le {{date}}",
+    "archive": {
+      "athletes": "Suivi terminé ({{count}})",
+      "athletes_other": "Suivis terminés ({{count}})",
+      "thread": "Relire le fil"
+    }
   }
 }
