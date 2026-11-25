@@ -1,10 +1,21 @@
-import type { CoachAthleteDto } from "@cmv/shared";
+import { type CoachAthleteDto, directConversationWith, splitFollows } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { accountApi } from "@/feature/coach/api";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
 import { useMyCoaches, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
+import { useConversations } from "@/feature/message/hook/useMessages";
 import { AppShell } from "@/feature/shell";
-import { CMV_TABLE, CmvAvatar, CmvCard, CmvErrorState } from "@/shared/component";
+import {
+  CMV_TABLE,
+  CmvArchiveList,
+  CmvAvatar,
+  CmvCard,
+  CmvConfirmButton,
+  CmvErrorState,
+} from "@/shared/component";
+import { useEndFollow } from "@/shared/hook/useEndFollow";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { authClient } from "@/shared/lib/auth";
 import { cn } from "@/shared/util/cn.util";
 import { formatInstantDate } from "@/shared/util/date.util";
@@ -15,8 +26,12 @@ import { formatInstantDate } from "@/shared/util/date.util";
 
 const COACH_COLUMNS = ["coach", "origin", "since"] as const;
 
-/** L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu. */
-const GRID = "grid grid-cols-[2fr_2fr_1fr_auto] items-center gap-cmv-lg";
+/**
+ * L'en-tête et les lignes partagent leur grille — sinon les intitulés se décalent du contenu. Deux
+ * colonnes d'action, le fil puis le départ : armé, le départ passe sur sa propre rangée, en pleine
+ * largeur, pour dire ce qu'il engage (#910).
+ */
+const GRID = "grid grid-cols-[2fr_2fr_1fr_auto_auto] items-center gap-cmv-lg";
 
 /**
  * « Mes coachs » côté web (#28, #599) — équivalent de `JoinCoachScreen` sur mobile. Un athlète est
@@ -31,6 +46,10 @@ const GRID = "grid grid-cols-[2fr_2fr_1fr_auto] items-center gap-cmv-lg";
  *
  * Chaque lien dit d'où il vient (#602, maquette entreprise, frame 9) : « via F » quand une
  * entreprise l'a créé, rien quand il est direct.
+ *
+ * L'athlète quitte un coach depuis sa ligne (#910). Les coachs quittés — ou qui ont mis fin au
+ * suivi — passent dans « Anciens coachs », replié sous le tableau : leur fil se relit. Sans coach
+ * en cours, la carte « pas de coach » revient, l'archive dessous.
  */
 export function MyCoachesScreen() {
   const { t } = useTranslation();
@@ -54,7 +73,7 @@ export function MyCoachesScreen() {
       {coaches == null ? null : (
         <div className="flex flex-col gap-cmv-lg">
           <PendingInvitations />
-          {coaches.length === 0 ? <NoCoachCard /> : <CoachTable coaches={coaches} />}
+          <Follows coaches={coaches} />
         </div>
       )}
     </AppShell>
@@ -81,6 +100,59 @@ function PendingInvitations() {
   );
 }
 
+/**
+ * Les suivis en cours, puis l'archive de ceux qui ont pris fin (#910). Montée seulement s'il y en a :
+ * elle lit les fils pour s'y rouvrir, et un athlète qui n'a quitté personne n'a rien à y relire.
+ */
+function Follows({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
+  const { ongoing, ended } = splitFollows(coaches);
+  return (
+    <>
+      {ongoing.length === 0 ? <NoCoachCard /> : <CoachTable coaches={ongoing} />}
+      {ended.length === 0 ? null : <FormerCoaches coaches={ended} />}
+    </>
+  );
+}
+
+/**
+ * Les anciens coachs, le plus récent d'abord : leur fil se relit par son id — la messagerie n'ouvre
+ * `?coach=` que vers un coach encore suivi. Sans fil, rien à relire, pas de bouton.
+ */
+function FormerCoaches({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
+  const { t } = useTranslation();
+  const endedText = useFollowEndedText();
+  const { data: conversations } = useConversations({ poll: false });
+
+  const items = coaches.map((coach) => {
+    const thread = directConversationWith(conversations, coach.coachId, "coach");
+    return {
+      id: coach.id,
+      name: coach.coachName,
+      detail: endedText(coach.endedAt),
+      actions:
+        thread == null ? null : (
+          <Link
+            to="/messages"
+            search={{
+              athlete: undefined,
+              coach: undefined,
+              conversation: thread.id,
+              as: "athlete",
+              q: undefined,
+            }}
+            className={MESSAGE_LINK}
+          >
+            {t("follow.archive.thread")}
+          </Link>
+        ),
+    };
+  });
+
+  return (
+    <CmvArchiveList title={t("follow.archive.coaches", { count: coaches.length })} items={items} />
+  );
+}
+
 /** Les coachs de l'athlète, chacun avec son fil (#599), et l'adresse qui en amène un autre. */
 function CoachTable({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
   const { t } = useTranslation();
@@ -95,7 +167,9 @@ function CoachTable({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
                 {t(`coach.table.columns.${column}`)}
               </span>
             ))}
-            {/* La colonne du bouton n'a pas d'intitulé : « Message » se lit sur le bouton. */}
+            {/* Les colonnes des boutons n'ont pas d'intitulé : « Message » et « Quitter » se lisent
+                sur les boutons. */}
+            <span />
             <span />
           </div>
 
@@ -112,6 +186,7 @@ function CoachTable({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
 
 function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   const { t } = useTranslation();
+  const leave = useEndFollow("athlete", accountApi);
 
   return (
     <div className={cn(GRID, CMV_TABLE.row, "px-cmv-lg py-cmv-md")}>
@@ -147,13 +222,28 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
           q: undefined,
         }}
         aria-label={t("coach.linked.messageTo", { name: coach.coachName })}
-        className="inline-flex items-center rounded-cmv-md border border-cmv-border px-cmv-lg py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:text-cmv-text-hi"
+        className={MESSAGE_LINK}
       >
         {t("coach.linked.message")}
       </Link>
+
+      {/* Les seuls liens à rompre : ni l'auto-coaching (absent de cette liste), ni un suivi terminé
+          (rangé dans l'archive). Armé, il prend sa rangée pour dire ce qui reste et ce qui cesse. */}
+      <CmvConfirmButton
+        label={t("follow.end.athlete.action")}
+        confirmLabel={t("follow.end.athlete.confirm")}
+        cancelLabel={t("common.cancel")}
+        confirmHint={t("follow.end.athlete.hint", { name: coach.coachName })}
+        disabled={leave.isPending}
+        onConfirm={() => leave.mutate(coach.coachId)}
+        armedClassName="col-span-full justify-end"
+      />
     </div>
   );
 }
+
+const MESSAGE_LINK =
+  "inline-flex items-center rounded-cmv-md border border-cmv-border px-cmv-lg py-cmv-sm text-cmv-body text-cmv-text-mid transition-colors hover:border-cmv-border-hi hover:text-cmv-text-hi";
 
 /**
  * L'athlète n'a pas de coach : on lui dit à quelle adresse son coach doit l'inviter (#390).

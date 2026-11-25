@@ -1,6 +1,7 @@
 import type { ScheduledSessionDto } from "@cmv/shared";
 import { ScheduledSessionStatus } from "@cmv/shared";
 import { blockSession } from "@cmv/shared/test/block-session";
+import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderInRoute } from "../../../../test/render";
 import { AthleteSessionScreen } from "./AthleteSessionScreen";
@@ -209,6 +210,51 @@ describe("AthleteSessionScreen", () => {
     expect(
       getByText("plan.athlete.sessionStatus.DONE").closest('[class*="text-cmv-"]'),
     ).toHaveClass("text-cmv-success-on");
+  });
+
+  /**
+   * #910 : le suivi a pris fin. La séance se relit ; rien ne part plus vers le Coach — ni débrief,
+   * ni message par un lien qui n'ouvre qu'un fil encore suivi.
+   */
+  describe("un suivi terminé", () => {
+    const ENDED_AT = "2026-11-20T09:00:00.000Z";
+
+    it("ferme le débrief et le fil, et dit pourquoi", async () => {
+      getSessionMock.mockResolvedValue({ ...session(), followEndedAt: ENDED_AT });
+      const { findByText, queryByRole, queryByText } = await setup();
+
+      expect(await findByText("plan.athlete.followEnded")).toBeInTheDocument();
+      expect(queryByRole("button", { name: OPEN_FEEDBACK })).toBeNull();
+      expect(queryByRole("button", { name: "feedback.openRead" })).toBeNull();
+      expect(queryByRole("link", { name: CONTACT })).toBeNull();
+      expect(queryByText("plan.athlete.blocks.sent")).toBeNull();
+      // Le décompte ne se coche plus : il ne partirait jamais.
+      expect(queryByRole("button", { name: "plan.athlete.blocks.tracking" })).toBeNull();
+      expect(queryByRole("region", { name: "plan.athlete.blocks.tracking" })).toBeNull();
+    });
+
+    it("ne promet plus de débrief sur une séance sans exercice", async () => {
+      getSessionMock.mockResolvedValue({ ...emptySession(), followEndedAt: ENDED_AT });
+      const { findByText, queryByText } = await setup();
+
+      expect(await findByText("plan.athlete.emptyDescriptionClosed")).toBeInTheDocument();
+      expect(queryByText("plan.athlete.emptyDescription")).toBeNull();
+    });
+
+    it("laisse relire le débrief déjà envoyé", async () => {
+      getSessionMock.mockResolvedValue({
+        ...session(),
+        status: ScheduledSessionStatus.DONE,
+        followEndedAt: ENDED_AT,
+      });
+      const { findByRole, router, user } = await setup();
+
+      await user.click(await findByRole("button", { name: "feedback.openRead" }));
+
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe(`/sessions/${SESSION_ID}/feedback`),
+      );
+    });
   });
 
   /** #722 : une séance composée par blocs se lit bloc par bloc, et se coche dans le rail. */

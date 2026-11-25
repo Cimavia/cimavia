@@ -7,7 +7,8 @@ import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 
 type FeedbackMediaGalleryProps = {
   media: readonly FeedbackMediaDto[];
-  onRemove: (mediaId: string) => void;
+  /** `null` sur un débrief qui ne s'écrit plus (#910) : ses médias se relisent, sans retrait. */
+  onRemove: ((mediaId: string) => void) | null;
   isRemoving: boolean;
   resolveMediaUrl: ResolveMediaUrl;
 };
@@ -71,9 +72,11 @@ export function FeedbackMediaGallery({
               <span className="flex-1 truncate text-cmv-caption text-cmv-text-lo">
                 {item.fileName}
               </span>
-              <CmvButton variant="ghost" disabled={isRemoving} onClick={() => onRemove(item.id)}>
-                {t("feedback.media.remove")}
-              </CmvButton>
+              {onRemove == null ? null : (
+                <CmvButton variant="ghost" disabled={isRemoving} onClick={() => onRemove(item.id)}>
+                  {t("feedback.media.remove")}
+                </CmvButton>
+              )}
             </div>
           </div>
         </CmvCard>

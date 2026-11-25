@@ -525,6 +525,98 @@ describe("DashboardScreen — la fiche athlète", () => {
   });
 });
 
+// Un suivi terminé (#910) : le lien reste listé par l'API, pour relire son archive.
+const TOM = {
+  ...athlete("ath_tom", "Tom Girard"),
+  id: "rel_tom",
+  status: "ENDED",
+  endedAt: "2026-11-20T10:00:00.000Z",
+} as CoachAthleteDto;
+
+const TOM_THREAD = {
+  id: "conv_tom",
+  kind: "DIRECT",
+  participants: [{ userId: "ath_tom", name: "Tom", capability: "athlete", lastReadAt: null }],
+  unreadCount: 0,
+  followEndedAt: "2026-11-20T10:00:00.000Z",
+} as ConversationDto;
+
+describe("DashboardScreen — les suivis terminés (#910)", () => {
+  it("ne compte ni ne suit l'athlète dont le suivi a pris fin", async () => {
+    const view = await mount({ athletes: [LEA, NOAH, TOM] });
+
+    const athletes = await tile(view, "dashboard.tiles.athletes");
+    await waitFor(() => expect(athletes.getByText("2")).toBeInTheDocument());
+    await view.findByText("Noah Fontaine");
+    // Replié : l'archive s'annonce, son contenu attend qu'on l'ouvre.
+    expect(view.queryByText("Tom Girard")).toBeNull();
+  });
+
+  it("ne compte pas non plus ses cycles parmi les planifications", async () => {
+    const view = await mount({
+      athletes: [LEA, TOM],
+      plans: [
+        plan("ath_lea", THIS_MONDAY),
+        { ...plan("ath_tom", THIS_MONDAY), followEndedAt: "2026-11-20T10:00:00.000Z" },
+      ],
+    });
+
+    const plans = await tile(view, "dashboard.tiles.plans");
+    await waitFor(() => expect(plans.getByText("1")).toBeInTheDocument());
+  });
+
+  it("range l'archive à part, repliée, avec sa date de fin", async () => {
+    const view = await mount({ athletes: [LEA, TOM] });
+
+    await view.user.click(await view.findByRole("button", { name: "follow.archive.athletes" }));
+
+    expect(await view.findByText("Tom Girard")).toBeInTheDocument();
+    expect(view.getByText("follow.endedOn")).toBeInTheDocument();
+  });
+
+  it("n'annonce aucune archive sans suivi terminé", async () => {
+    const view = await mount();
+
+    await view.findByText("Noah Fontaine");
+    expect(view.queryByRole("button", { name: "follow.archive.athletes" })).toBeNull();
+  });
+
+  // Par son id : la messagerie n'ouvre `?athlete=` que vers un athlète encore suivi.
+  it("rouvre le fil terminé par son id", async () => {
+    const view = await mount({ athletes: [LEA, TOM], conversations: [CONVERSATION, TOM_THREAD] });
+
+    await view.user.click(await view.findByRole("button", { name: "follow.archive.athletes" }));
+    await view.user.click(await view.findByRole("button", { name: "follow.archive.thread" }));
+
+    expect(view.router.state.location.pathname).toBe("/messages");
+    expect(view.router.state.location.search).toMatchObject({
+      conversation: "conv_tom",
+      as: "coach",
+    });
+  });
+
+  it("n'offre pas de fil quand il n'y en a jamais eu", async () => {
+    const view = await mount({ athletes: [LEA, TOM] });
+
+    await view.user.click(await view.findByRole("button", { name: "follow.archive.athletes" }));
+
+    await view.findByText("Tom Girard");
+    expect(view.queryByRole("button", { name: "follow.archive.thread" })).toBeNull();
+  });
+
+  it("ouvre la fiche de l'ex-athlète, qui se relit", async () => {
+    const view = await mount({ athletes: [LEA, TOM] });
+
+    await view.user.click(await view.findByRole("button", { name: "follow.archive.athletes" }));
+    const row = (await view.findByText("Tom Girard")).closest("li");
+    if (row == null) throw new Error("ligne de Tom introuvable");
+    await view.user.click(within(row).getByRole("button", { name: "dashboard.table.openSheet" }));
+
+    expect(view.router.state.location.search).toEqual({ athlete: "ath_tom" });
+    expect(await view.findByRole("complementary", { name: "Tom Girard" })).toBeInTheDocument();
+  });
+});
+
 const ORGANIZATION_INVITATION: PendingOrganizationInvitationDto = {
   id: "oinv_1",
   organizationName: "Fontainebleau Escalade",

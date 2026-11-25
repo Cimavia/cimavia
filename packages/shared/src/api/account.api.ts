@@ -65,7 +65,10 @@ export const counterpartKeys = {
 
 export type AccountApi = {
   // ── Côté coach ─────────────────────────────────────────────────────────────
-  /** Les athlètes du coach courant (relations `ACTIVE`). */
+  /**
+   * Les athlètes du coach courant : les suivis en cours, et ceux qui ont pris fin (`ENDED`, #909),
+   * gardés pour relire leur archive. C'est aux écrans de les ranger à part (`splitFollows`).
+   */
   listAthletes: () => Promise<CoachAthleteDto[]>;
   /** `null` tant que le coach n'a rien écrit — l'absence de fiche est un état normal. */
   getAthleteSheet: (athleteId: string) => Promise<AthleteSheetDto | null>;
@@ -82,11 +85,16 @@ export type AccountApi = {
    * 409 sur tout autre état ; son destinataire, s'il tente encore de l'accepter, lit « retirée ».
    */
   revokeInvitation: (invitationId: string) => Promise<void>;
+  /**
+   * Met fin au suivi de l'un de ses athlètes (#909) et rend le lien rompu. Idempotent : un lien déjà
+   * rompu revient tel quel. 404 si ce n'est pas l'un des siens.
+   */
+  endWithAthlete: (athleteId: string) => Promise<CoachAthleteDto>;
 
   // ── Côté athlète ───────────────────────────────────────────────────────────
   /**
-   * Les coachs de l'athlète courant, un par lien (#599). Liste vide = athlète autonome, ou qui se
-   * coache seul : un état prévu du modèle, pas une erreur.
+   * Les coachs de l'athlète courant, un par lien (#599), ceux qu'il a quittés compris (#909). Liste
+   * vide = athlète autonome, ou qui se coache seul : un état prévu du modèle, pas une erreur.
    */
   myCoaches: () => Promise<CoachAthleteDto[]>;
   /**
@@ -106,6 +114,8 @@ export type AccountApi = {
   acceptInvitation: (invitationId: string) => Promise<CoachAthleteDto[]>;
   /** Refuse une invitation. Le geste est SANS RETOUR : le coach devra réémettre. */
   declineInvitation: (invitationId: string) => Promise<void>;
+  /** Quitte l'un de ses Coachs (#909) : même réponse, même idempotence que `endWithAthlete`. */
+  leaveCoach: (coachId: string) => Promise<CoachAthleteDto>;
 
   // ── Les deux côtés à la fois ───────────────────────────────────────────────
   /**
@@ -128,12 +138,14 @@ export function createAccountApi(api: ApiClient): AccountApi {
     createInvitation: (input) => api.post<InvitationDto>("/invitations", input),
     deleteInvitation: (invitationId) => api.delete<void>(`/invitations/${invitationId}`),
     revokeInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/revoke`),
+    endWithAthlete: (athleteId) => api.post<CoachAthleteDto>(`/athletes/${athleteId}/end`),
 
     myCoaches: () => api.get<CoachAthleteDto[]>("/me/coaches"),
     myInvitations: () => api.get<PendingInvitationDto[]>("/invitations/for-me"),
     acceptInvitation: (invitationId) =>
       api.post<CoachAthleteDto[]>(`/invitations/${invitationId}/accept`),
     declineInvitation: (invitationId) => api.post<void>(`/invitations/${invitationId}/decline`),
+    leaveCoach: (coachId) => api.post<CoachAthleteDto>(`/me/coaches/${coachId}/leave`),
 
     myCounterparts: () => api.get<CounterpartsDto>("/me/counterparts"),
   };

@@ -1,9 +1,10 @@
-import { type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
+import { canDebrief, type ScheduledSessionDto, ScheduledSessionStatus } from "@cmv/shared";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CmvButton, CmvCard } from "@/shared/component";
 import { useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 
 type AthleteSessionRailProps = {
   session: ScheduledSessionDto;
@@ -30,6 +31,10 @@ export function AthleteSessionRail({
   const { t } = useTranslation();
   // Une séance qu'il s'est programmée lui-même : il n'y a personne à qui écrire.
   const isSelf = useIsSelfAthlete()(session.coachId);
+  // Suivi terminé (#910) : la séance se relit, rien ne part plus vers le Coach — ni débrief, ni
+  // message par ce lien, qui n'ouvre qu'un fil encore suivi.
+  const isOpen = canDebrief(session);
+  const followEndedText = useFollowEndedText();
 
   return (
     // `sticky` : le sommaire suit le défilement, c'est toute sa raison d'être.
@@ -48,7 +53,7 @@ export function AthleteSessionRail({
 
       {/* Le fil du coach DE CETTE SÉANCE (#599), pas « le » coach : un athlète suivi par
           plusieurs coachs écrit à celui qui l'a programmée. */}
-      {isSelf ? null : (
+      {isSelf || !isOpen ? null : (
         <Link
           to="/messages"
           search={{
@@ -64,18 +69,41 @@ export function AthleteSessionRail({
         </Link>
       )}
 
-      {/* INCONDITIONNEL (#276) : une séance sans exercice se débriefe comme les autres. Seul le
-          SOMMAIRE ci-dessus dépend de la composition — il n'y a rien à sommer. */}
-      <CmvButton onClick={onOpenFeedback}>
-        {/* Le libellé dit si le débrief existe DÉJÀ : « débriefer » sur une séance débriefée
-            laisserait croire qu'on écrase. Il suit le STATUT, jamais la composition. */}
-        {session.status === ScheduledSessionStatus.DONE
-          ? t("feedback.openDone")
-          : t("feedback.open")}
-      </CmvButton>
-      {blocks == null ? null : (
+      {/* Indépendant de la composition (#276) : une séance sans exercice se débriefe comme les
+          autres. Seul le SOMMAIRE ci-dessus en dépend — il n'y a rien à sommer. */}
+      {isOpen ? (
+        <CmvButton onClick={onOpenFeedback}>
+          {/* Le libellé dit si le débrief existe DÉJÀ : « débriefer » sur une séance débriefée
+              laisserait croire qu'on écrase. Il suit le STATUT, jamais la composition. */}
+          {session.status === ScheduledSessionStatus.DONE
+            ? t("feedback.openDone")
+            : t("feedback.open")}
+        </CmvButton>
+      ) : (
+        <ClosedDebrief
+          // Un débrief envoyé se relit encore ; une séance jamais débriefée n'a rien à rouvrir.
+          onRead={session.status === ScheduledSessionStatus.DONE ? onOpenFeedback : null}
+          note={t("plan.athlete.followEnded", { ended: followEndedText(session.followEndedAt) })}
+        />
+      )}
+      {blocks == null || !isOpen ? null : (
         <p className="text-cmv-caption text-cmv-text-lo">{t("plan.athlete.blocks.sent")}</p>
       )}
     </aside>
+  );
+}
+
+/** Le débrief d'une séance dont le suivi a pris fin (#910) : ce qui en reste, et pourquoi. */
+function ClosedDebrief({ onRead, note }: Readonly<{ onRead: (() => void) | null; note: string }>) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-cmv-xs">
+      {onRead == null ? null : (
+        <CmvButton variant="secondary" onClick={onRead}>
+          {t("feedback.openRead")}
+        </CmvButton>
+      )}
+      <p className="text-cmv-caption text-cmv-text-lo">{note}</p>
+    </div>
   );
 }

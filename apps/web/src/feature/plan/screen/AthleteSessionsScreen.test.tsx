@@ -203,4 +203,13 @@ describe("AthleteSessionsScreen", () => {
     const titles = getAllByText(/Première|Deuxième/).map((node) => node.textContent);
     expect(titles).toEqual(["Première", "Deuxième"]);
   });
+
+  it("marque « suivi terminé » les séances d'un cycle archivé (#910), et elles seules", async () => {
+    const { getAllByText } = await mount({
+      data: [{ ...BLOC, followEndedAt: "2026-10-01T09:00:00.000Z" }, FALAISE],
+    });
+
+    // À venir : « Force max » (BLOC, archivé) et « Voie longue » (FALAISE, en cours).
+    expect(getAllByText("follow.ended")).toHaveLength(1);
+  });
 });

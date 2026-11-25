@@ -67,6 +67,15 @@ describe("createAccountApi — moitié coach", () => {
     expect(calls).toEqual([{ method: "POST", path: "/invitations/inv_1/revoke", body: undefined }]);
   });
 
+  // Une transition sur le lien, pas une suppression (#909) : il reste, archive du couple.
+  it("met fin au suivi d'un athlète en le désignant", async () => {
+    const { api, calls } = spyClient();
+
+    await createAccountApi(api).endWithAthlete("ath_1");
+
+    expect(calls).toEqual([{ method: "POST", path: "/athletes/ath_1/end", body: undefined }]);
+  });
+
   // PUT et non PATCH : la fiche est UN champ texte libre, remplacé en entier à chaque
   // enregistrement. Il n'y a rien à fusionner — la version lue part avec (#440).
   it("lit et remplace la fiche d'un athlète", async () => {
@@ -112,6 +121,14 @@ describe("createAccountApi — moitié athlète", () => {
     await createAccountApi(api).acceptInvitation("inv_1");
 
     expect(calls).toEqual([{ method: "POST", path: "/invitations/inv_1/accept", body: undefined }]);
+  });
+
+  // Le pendant de `endWithAthlete`, sur la route de l'athlète : le Coach se désigne par son id.
+  it("quitte un coach en le désignant", async () => {
+    const { api, calls } = spyClient();
+    await createAccountApi(api).leaveCoach("u_coach");
+
+    expect(calls).toEqual([{ method: "POST", path: "/me/coaches/u_coach/leave", body: undefined }]);
   });
 });
 

@@ -1,3 +1,6 @@
+import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
+import { isEndedLink } from "./follow.util";
+
 /**
  * L'athlète a-t-il un coach, et le sait-on ? (#364, #599)
  *
@@ -9,13 +12,16 @@
  *
  * Une liste DÉJÀ lue l'emporte sur une erreur de relecture : le cache dit vrai, la panne est
  * passagère, et la remplacer par un écran d'erreur ferait disparaître ce que l'athlète voyait.
+ *
+ * Seul un suivi EN COURS compte (#909) : un Coach quitté reste dans la liste pour relire l'archive,
+ * mais l'athlète qui n'a plus que lui n'a plus de coach.
  */
 export type CoachPresence = "loading" | "error" | "none" | "some";
 
 export function coachPresence(query: {
-  data: readonly unknown[] | undefined;
+  data: readonly Pick<CoachAthleteDto, "status">[] | undefined;
   isError: boolean;
 }): CoachPresence {
-  if (query.data != null) return query.data.length > 0 ? "some" : "none";
+  if (query.data != null) return query.data.some((link) => !isEndedLink(link)) ? "some" : "none";
   return query.isError ? "error" : "loading";
 }

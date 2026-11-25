@@ -1,4 +1,10 @@
-import { ApiError, type AthleteSheetDto, athleteKeys, ProblemType } from "@cmv/shared";
+import {
+  ApiError,
+  type AthleteSheetDto,
+  athleteKeys,
+  type CoachAthleteDto,
+  ProblemType,
+} from "@cmv/shared";
 import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AthleteSheetPanel } from "@/feature/athlete/component/AthleteSheetPanel";
@@ -10,6 +16,9 @@ vi.mock("@/feature/athlete/api", async () => {
     accountApi: {
       getAthleteSheet: vi.fn(),
       saveAthleteSheet: vi.fn(),
+      listAthletes: vi.fn(),
+      endWithAthlete: vi.fn(),
+      leaveCoach: vi.fn(),
     },
     athleteKeys: shared.athleteKeys,
     invitationKeys: shared.invitationKeys,
@@ -22,6 +31,21 @@ vi.mock("@/shared/lib/auth", () => ({
 const { accountApi } = await import("@/feature/athlete/api");
 const getAthleteSheet = vi.mocked(accountApi.getAthleteSheet);
 const saveAthleteSheet = vi.mocked(accountApi.saveAthleteSheet);
+const listAthletes = vi.mocked(accountApi.listAthletes);
+const endWithAthlete = vi.mocked(accountApi.endWithAthlete);
+
+// Le lien du Coach avec Léa, tel que `GET /athletes` le rend : c'est lui qui dit si le suivi court.
+const LINK = {
+  id: "rel_1",
+  coachId: "coach_1",
+  coachName: "Julie",
+  athleteId: "ath_1",
+  athleteName: "Léa",
+  status: "ACTIVE",
+  endedAt: null,
+  isSelf: false,
+} as CoachAthleteDto;
+const ENDED_LINK = { ...LINK, status: "ENDED", endedAt: "2026-11-20T10:00:00.000Z" } as const;
 
 const SHEET: AthleteSheetDto = {
   id: "sheet_1",
@@ -35,6 +59,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   getAthleteSheet.mockResolvedValue(SHEET);
   saveAthleteSheet.mockResolvedValue(SHEET);
+  listAthletes.mockResolvedValue([LINK]);
+  endWithAthlete.mockResolvedValue(ENDED_LINK);
 });
 
 const render = () =>
@@ -252,5 +278,85 @@ describe("AthleteSheetPanel — la version lue (#440)", () => {
 
     expect(await screen.findByText("Fiche trop longue")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "common.staleReload" })).toBeNull();
+  });
+});
+
+describe("AthleteSheetPanel — la fin du suivi (#910)", () => {
+  const endButton = () => screen.queryByRole("button", { name: "follow.end.coach.action" });
+
+  it("met fin au suivi en deux temps, en disant ce qui reste et ce qui cesse", async () => {
+    const { user } = render();
+
+    await user.click(await screen.findByRole("button", { name: "follow.end.coach.action" }));
+    expect(endWithAthlete).not.toHaveBeenCalled();
+    expect(screen.getByText("follow.end.coach.hint")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.confirm" }));
+
+    await waitFor(() => expect(endWithAthlete).toHaveBeenCalledWith("ath_1"));
+  });
+
+  it("une fois rompu, la fiche se relit sans s'enregistrer", async () => {
+    const { user } = render();
+    await user.click(await screen.findByRole("button", { name: "follow.end.coach.action" }));
+    listAthletes.mockResolvedValue([ENDED_LINK]);
+
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.confirm" }));
+
+    expect(await screen.findByText("athlete.sheet.followEnded")).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(submitButton()).toBeNull();
+    expect(endButton()).toBeNull();
+    // Plus rien à annuler : le panneau se ferme.
+    // La croix du panneau, et le pied qui ne dit plus « Annuler ».
+    expect(screen.getAllByRole("button", { name: "common.close" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "common.cancel" })).toBeNull();
+  });
+
+  // Rompre grise le champ et retire l'enregistrement : la saisie resterait affichée comme partie.
+  it("ne rompt pas sur une saisie de la fiche non enregistrée, et dit quoi faire d'abord", async () => {
+    const { user } = render();
+    const field = await screen.findByRole("textbox");
+    await user.type(field, " Genou.");
+
+    expect(screen.getByText("follow.end.coach.unsavedSheet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.action" }));
+    expect(screen.queryByRole("button", { name: "follow.end.coach.confirm" })).toBeNull();
+
+    // Revenue à la version enregistrée, la saisie n'a plus rien à perdre : le geste se rouvre.
+    await user.clear(field);
+    await user.type(field, SHEET.content);
+    expect(screen.queryByText("follow.end.coach.unsavedSheet")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "follow.end.coach.action" }));
+    expect(screen.getByRole("button", { name: "follow.end.coach.confirm" })).toBeInTheDocument();
+  });
+
+  it("ouvre en lecture la fiche d'un suivi déjà terminé", async () => {
+    listAthletes.mockResolvedValue([ENDED_LINK]);
+    render();
+
+    expect(await screen.findByText("athlete.sheet.followEnded")).toBeInTheDocument();
+    expect(await screen.findByText(SHEET.content)).toBeDisabled();
+    expect(submitButton()).toBeNull();
+    expect(endButton()).toBeNull();
+  });
+
+  // Un compte qui se coache n'a pas de lien à rompre (#14).
+  it("n'offre pas de rompre l'auto-coaching", async () => {
+    listAthletes.mockResolvedValue([{ ...LINK, isSelf: true }]);
+    render();
+
+    await screen.findByRole("textbox");
+    await waitFor(() => expect(listAthletes).toHaveBeenCalled());
+    expect(endButton()).toBeNull();
+  });
+
+  // Sans la liste, on ne sait pas si le suivi court : ni bouton, ni lecture seule inventée.
+  it("ne propose rien tant que le lien n'est pas connu", async () => {
+    listAthletes.mockRejectedValue(new Error("réseau"));
+    render();
+
+    expect(await screen.findByRole("textbox")).toBeEnabled();
+    expect(endButton()).toBeNull();
   });
 });

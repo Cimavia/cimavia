@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { coachPresence } from "./coach-presence.util";
 
+const ACTIVE = { status: "ACTIVE" } as const;
+const ENDED = { status: "ENDED" } as const;
+
 describe("coachPresence", () => {
   it("attend tant que la liste n'est pas lue", () => {
     expect(coachPresence({ data: undefined, isError: false })).toBe("loading");
@@ -16,12 +19,18 @@ describe("coachPresence", () => {
   });
 
   it("dit « au moins un » dès qu'un coach est là", () => {
-    expect(coachPresence({ data: [{}], isError: false })).toBe("some");
+    expect(coachPresence({ data: [ACTIVE], isError: false })).toBe("some");
+  });
+
+  // Un Coach quitté reste listé pour son archive, mais ne suit plus personne (#909).
+  it("dit « aucun » quand il ne reste que des suivis terminés", () => {
+    expect(coachPresence({ data: [ENDED], isError: false })).toBe("none");
+    expect(coachPresence({ data: [ENDED, ACTIVE], isError: false })).toBe("some");
   });
 
   // Une relecture en échec ne retire pas ce qui est en cache.
   it("garde la liste lue malgré une relecture en échec", () => {
-    expect(coachPresence({ data: [{}], isError: true })).toBe("some");
+    expect(coachPresence({ data: [ACTIVE], isError: true })).toBe("some");
     expect(coachPresence({ data: [], isError: true })).toBe("none");
   });
 });

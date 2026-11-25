@@ -313,7 +313,10 @@ liste des domaines vivent dans l'index.
 > séparément aurait fait réécrire deux fois les mêmes chaînes, la seconde annulant le registre de la
 > première : la formulation proposée par #214 était elle-même vouvoyée. Le vrai recours — rompre une
 > relation — reste cadré en [#213](https://github.com/Cimavia/cimavia/issues/213), et ces deux
-> libellés redeviendront des instructions le jour où il existera.
+> libellés redeviendront des instructions le jour où il existera. C'est fait en
+> [#910](https://github.com/Cimavia/cimavia/issues/910) sur le web : ils nomment le geste et où il
+> se fait (la fiche de l'athlète, « Mes coachs »). Le mobile suit en
+> [#911](https://github.com/Cimavia/cimavia/issues/911), avec ses propres chaînes.
 
 ---
 

@@ -1,3 +1,5 @@
+export type { CmvArchiveItem } from "./CmvArchiveList";
+export { CmvArchiveList } from "./CmvArchiveList";
 export { CmvAvatar } from "./CmvAvatar";
 export { CmvBadge } from "./CmvBadge";
 export { CmvButton } from "./CmvButton";

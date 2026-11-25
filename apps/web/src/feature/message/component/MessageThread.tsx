@@ -23,6 +23,7 @@ import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/messag
 import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
 import { CmvErrorState } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { useStickToBottom } from "@/shared/hook/useStickToBottom";
 import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
@@ -69,6 +70,7 @@ export function MessageThread({ conversation }: Readonly<MessageThreadProps>) {
   const conversationId = conversation.id;
   const lastReadAt = conversation.lastReadAt;
   const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
   const { data: session } = authClient.useSession();
   const messages = useThreadMessages(conversationId);
   const freshMediaUrl = useFreshMediaUrl(
@@ -157,26 +159,32 @@ export function MessageThread({ conversation }: Readonly<MessageThreadProps>) {
         </div>
       )}
 
-      <Composer
-        // Envoyer, c'est vouloir voir son message partir : le geste ramène au bas, d'où qu'on écrive.
-        onSendText={(content) => {
-          stickToBottom();
-          return send.mutateAsync({ type: "TEXT", content });
-        }}
-        onSendFiles={(files) => {
-          stickToBottom();
-          media.sendFiles(files);
-        }}
-        onRecordedAudio={(audio) => {
-          stickToBottom();
-          media.sendAudio(audio);
-        }}
-        sending={send.isPending}
-        mediaBusy={media.isUploading}
-        progress={media.progress}
-        retry={media.retry}
-        step={media.step}
-      />
+      {conversation.followEndedAt == null ? (
+        <Composer
+          // Envoyer, c'est vouloir voir son message partir : le geste ramène au bas, d'où qu'on écrive.
+          onSendText={(content) => {
+            stickToBottom();
+            return send.mutateAsync({ type: "TEXT", content });
+          }}
+          onSendFiles={(files) => {
+            stickToBottom();
+            media.sendFiles(files);
+          }}
+          onRecordedAudio={(audio) => {
+            stickToBottom();
+            media.sendAudio(audio);
+          }}
+          sending={send.isPending}
+          mediaBusy={media.isUploading}
+          progress={media.progress}
+          retry={media.retry}
+          step={media.step}
+        />
+      ) : (
+        <p className="border-cmv-border border-t px-cmv-lg py-cmv-md text-cmv-body text-cmv-text-mid">
+          {t("messages.followEnded", { ended: followEndedText(conversation.followEndedAt) })}
+        </p>
+      )}
     </div>
   );
 }

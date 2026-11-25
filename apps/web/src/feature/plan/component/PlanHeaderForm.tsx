@@ -193,9 +193,7 @@ export function PlanHeaderForm({
           {/* Fermé et EXPLIQUÉ, jamais masqué : faire disparaître les champs laisserait croire
               qu'un cycle ne se nomme pas, alors qu'il ne se renomme plus. Même grammaire que
               « Coller ici », « Supprimer le cycle » et le sélecteur de destinataire. */}
-          <p className="text-cmv-caption text-cmv-text-lo">
-            {t(headerHintKey(isPublished, readOnly))}
-          </p>
+          <p className="text-cmv-caption text-cmv-text-lo">{t(headerHintKey(plan, readOnly))}</p>
         </div>
 
         {isStale ? (
@@ -222,6 +220,7 @@ export function PlanHeaderForm({
           <PlanAthletePicker
             athleteId={athleteId}
             isPublished={isPublished}
+            isClosed={readOnly}
             hasInvoiceDocument={hasInvoiceDocument}
             isOwnerOnly={!canReassign}
             isBusy={isSaving}
@@ -280,9 +279,14 @@ export function PlanHeaderForm({
   );
 }
 
-/** Ce que l'en-tête dit de lui-même : diffusé, il ne se réécrit plus ; en Lecture, il se lit. */
-function headerHintKey(isPublished: boolean, readOnly: boolean): string {
-  if (isPublished) return "plan.header.lockedPublished";
+/**
+ * Ce que l'en-tête dit de lui-même : suivi terminé, il se relit (#910) ; diffusé, il ne se réécrit
+ * plus ; en Lecture, il se lit. Le suivi terminé passe devant : un cycle diffusé à un ex-athlète
+ * n'a plus d'athlète qui s'entraîne dessus.
+ */
+function headerHintKey(plan: Pick<PlanDto, "status" | "followEndedAt">, readOnly: boolean): string {
+  if (plan.followEndedAt != null) return "plan.header.lockedFollowEnded";
+  if (plan.status === PlanStatus.PUBLISHED) return "plan.header.lockedPublished";
   return readOnly ? "plan.header.lockedReadOnly" : "plan.header.hint";
 }
 

@@ -1,5 +1,5 @@
 import type { CoachAthleteDto } from "../dto/coach-athlete.schema";
-import { type AccountApi, coachKeys } from "./account.api";
+import { type AccountApi, athleteKeys, coachKeys } from "./account.api";
 import type { CacheClient } from "./cache-client";
 
 /**
@@ -56,4 +56,46 @@ export function withJoinedCoaches(
   if (coaches == null) return undefined;
   const joined = new Set(relations.map((relation) => relation.coachId));
   return [...relations, ...coaches.filter((coach) => !joined.has(coach.coachId))];
+}
+
+/**
+ * Mettre fin à un suivi (#909), d'un côté ou de l'autre, et ce que ça fait au cache — les options
+ * du `useMutation` des deux clients, telles quelles.
+ *
+ * Le lien rompu est posé tout de suite dans la liste de qui rompt : la ligne quitte les suivis en
+ * cours sans attendre la relecture. Puis l'invalidation est **globale**, pour la raison de
+ * l'acceptation prise à l'envers : rompre change tout ce que le couple peut écrire — ses cycles,
+ * ses séances, son fil direct passent en lecture (`followEndedAt`), ses contreparties peuvent
+ * tomber. Chaque réponse en cache serait resservie ouverte, et le geste suivant prendrait un 409.
+ */
+export function endRelationMutation(
+  cache: Pick<CacheClient, "setQueryData"> & { invalidateQueries(): unknown },
+  api: Pick<AccountApi, "endWithAthlete" | "leaveCoach">,
+  side: "coach" | "athlete",
+) {
+  return {
+    // L'autre partie : l'athlète que le Coach détache, ou le Coach que l'athlète quitte.
+    mutationFn: (counterpartId: string) =>
+      side === "coach" ? api.endWithAthlete(counterpartId) : api.leaveCoach(counterpartId),
+    onSuccess: (relation: CoachAthleteDto) => {
+      const key = side === "coach" ? athleteKeys.list() : coachKeys.list();
+      cache.setQueryData(key, (links: CoachAthleteDto[] | undefined) =>
+        withEndedLink(links, relation),
+      );
+      cache.invalidateQueries();
+    },
+  };
+}
+
+/**
+ * La liste, le lien rompu à la place de sa version d'avant — même ligne, même place : c'est le rendu
+ * (`splitFollows`) qui le range parmi les suivis terminés. `undefined` quand la liste n'a jamais été
+ * lue : la relecture qui suit dira la vraie.
+ */
+export function withEndedLink(
+  links: readonly CoachAthleteDto[] | undefined,
+  relation: CoachAthleteDto,
+): CoachAthleteDto[] | undefined {
+  if (links == null) return undefined;
+  return links.map((link) => (link.id === relation.id ? relation : link));
 }

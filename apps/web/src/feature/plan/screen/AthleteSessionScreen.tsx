@@ -1,4 +1,9 @@
-import { readScheduledBlocks, type ScheduledSessionDto, SESSION_STATUS_BADGE } from "@cmv/shared";
+import {
+  canDebrief,
+  readScheduledBlocks,
+  type ScheduledSessionDto,
+  SESSION_STATUS_BADGE,
+} from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -109,6 +114,9 @@ function LoadedSession({
   const localBlocks = useLocalBlockTracking(session.id, session.blocks);
   const [selected, setSelected] = useState<string | null>(null);
   const trackingPanel = useRef<HTMLElement>(null);
+  // Suivi terminé (#910) : la séance se relit, son décompte ne se coche plus — il ne partirait
+  // jamais, le débrief qui l'emporte étant fermé.
+  const isOpen = canDebrief(session);
 
   /**
    * « Mon suivi » d'un bloc s'ouvre dans le rail : sous `xl`, le rail passe SOUS les blocs, et le
@@ -141,7 +149,9 @@ function LoadedSession({
                   {t("plan.athlete.emptyTitle")}
                 </h3>
                 <p className="text-cmv-body text-cmv-text-mid">
-                  {t("plan.athlete.emptyDescription")}
+                  {isOpen
+                    ? t("plan.athlete.emptyDescription")
+                    : t("plan.athlete.emptyDescriptionClosed")}
                 </p>
               </div>
             </CmvCard>
@@ -150,7 +160,7 @@ function LoadedSession({
               blocks={blocks}
               tracking={localBlocks.tracking}
               selected={selected}
-              onSelect={trackBlock}
+              onSelect={isOpen ? trackBlock : null}
             />
           )}
         </section>
@@ -164,7 +174,7 @@ function LoadedSession({
                 tracking={localBlocks.tracking}
                 selected={selected}
                 onSelect={setSelected}
-                onToggle={localBlocks.toggle}
+                onToggle={isOpen ? localBlocks.toggle : null}
                 trackingRef={trackingPanel}
               />
             )

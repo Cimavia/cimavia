@@ -40,6 +40,7 @@ const plan = (
   coachName: "Julie Renaud",
   startDate: MONDAY,
   weekCount: 1,
+  followEndedAt: null,
   weeks: [{ weekNumber: 1, type: PlanWeekType.TRAINING, note: null, startDate: MONDAY, sessions }],
 });
 

@@ -423,6 +423,20 @@ describe("DosageScreen", () => {
     expect(view.queryByRole("button", { name: /plan\.dosage\.save/ })).toBeNull();
   });
 
+  it("se lit sans s'enregistrer sur le cycle d'un suivi terminé, sans rien annoncer à l'athlète", async () => {
+    vi.mocked(getPlan).mockResolvedValue(
+      plan({
+        status: PlanStatus.PUBLISHED,
+        followEndedAt: "2026-11-20T09:00:00.000Z",
+      } as Partial<PlanDto>),
+    );
+    const view = await mount();
+
+    expect(await view.findByRole("combobox", { name: "plan.dosage.sessionType" })).toBeTruthy();
+    expect(view.queryByRole("button", { name: /plan\.dosage\.save/ })).toBeNull();
+    expect(view.queryByText("plan.composition.willSeeUpdate")).toBeNull();
+  });
+
   it("dit une panne de lecture, et relit sur demande", async () => {
     vi.mocked(getScheduledSessionCopies).mockRejectedValueOnce(new Error("panne"));
     const view = await mount();

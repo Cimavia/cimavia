@@ -23,7 +23,7 @@ type CmvConfirmButtonProps = {
    * `title` sur un bouton désactivé ne s'affiche pas de façon fiable (le navigateur ne lui passe
    * pas le survol) : la raison vit sur une enveloppe, et le bouton laisse passer le pointeur.
    */
-  disabledReason?: string;
+  disabledReason?: string | undefined;
   /**
    * La place de l'état armé, quand il ne tient pas où était le bouton : sur une carte étroite, il
    * passe sous le titre, sur toute sa largeur (#690). Omis, il prend la place du bouton.

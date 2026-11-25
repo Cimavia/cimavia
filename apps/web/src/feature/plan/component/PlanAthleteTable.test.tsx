@@ -189,4 +189,13 @@ describe("PlanAthleteTable", () => {
 
     expect(queryByText("library.access.sharedBy")).toBeNull();
   });
+
+  it("date la fin du suivi sous un cycle courant d'archive (#910), et rien sous un autre", async () => {
+    const { getAllByText } = await mount([
+      { ...LEA_ONGOING, followEndedAt: "2026-09-01T09:00:00.000Z" },
+      VOLUME,
+    ]);
+
+    expect(getAllByText("follow.endedOn")).toHaveLength(1);
+  });
 });

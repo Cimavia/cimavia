@@ -608,3 +608,18 @@ describe("PlanHeaderForm — le cycle d'un autre Coach (#607)", () => {
     expect(getByRole("button", { name: "plan.header.submit" })).toBeTruthy();
   });
 });
+
+describe("PlanHeaderForm — un suivi terminé (#910)", () => {
+  // Diffusé à un ex-athlète, le cycle n'a plus personne qui s'entraîne dessus : « diffusé » mentirait.
+  it("dit que l'en-tête se relit, pas que l'athlète s'entraîne dessus", () => {
+    const { getByText, queryByText, queryByRole } = renderWithProviders(
+      form(plan({ status: PlanStatus.PUBLISHED, followEndedAt: "2026-11-20T10:00:00.000Z" }), {
+        readOnly: true,
+      }),
+    );
+
+    expect(getByText("plan.header.lockedFollowEnded")).toBeTruthy();
+    expect(queryByText("plan.header.lockedPublished")).toBeNull();
+    expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
+  });
+});

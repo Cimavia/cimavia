@@ -723,8 +723,10 @@
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "contactCoach": "Écrire à {{name}}",
+      "followEnded": "{{ended}} : cette séance se relit, elle ne se débriefe plus.",
       "emptyTitle": "Pas de déroulé détaillé",
       "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
+      "emptyDescriptionClosed": "Cette séance n'a pas d'exercice listé.",
       "cycle": {
         "week": "S{{number}}/{{total}} · {{type}}",
         "coach": "par {{name}}"
@@ -762,6 +764,7 @@
       "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
       "lockedReadOnly": "Ce cycle t'est ouvert en lecture : son en-tête se consulte, il ne se modifie pas.",
+      "lockedFollowEnded": "Le suivi de ce cycle a pris fin : son en-tête se relit, il ne se réécrit plus.",
       "stale": "Ce cycle a été modifié pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
       "titleLabel": "Titre du cycle",
       "titlePlaceholder": "Ex. Cycle force — automne",
@@ -842,6 +845,7 @@
       "deleteDisabledPublished": "Un cycle diffusé ne peut pas être supprimé.",
       "readOnly": "Lecture seule : planification de {{owner}} ({{right}}). Tu peux la consulter et copier ses semaines, pas la modifier.",
       "sharedWrite": "Planification de {{owner}} ({{right}}). Tu peux la modifier et la diffuser ; la supprimer, gérer ses accès ou la réaffecter restent à {{owner}}.",
+      "followEnded": "{{ended}} : ce cycle se relit, rien ne s'y écrit plus — ni par toi, ni par ceux à qui il est ouvert.",
       "titleWithAthlete": "{{title}} — {{name}}",
       "audience": {
         "VISIBLE_UPCOMING": "Ton athlète voit ce cycle. Il démarre le {{date}}.",
@@ -1196,6 +1200,7 @@
     "attach": "Joindre des photos, des vidéos ou des PDF",
     "record": "Enregistrer un message vocal",
     "loadError": "Impossible de charger la conversation.",
+    "followEnded": "{{ended}} : ce fil se relit, on n'y écrit plus.",
     "media": {
       "uploading": "Envoi en cours… {{percent}} %",
       "retrying": "Connexion interrompue — nouvelle tentative {{attempt}}/{{max}}…",
@@ -1339,6 +1344,7 @@
       "label": "Notes",
       "placeholder": "Ex. Objectif 8a en salle d'ici juin. Épaule droite sensible — surveiller le volume de tractions.",
       "stale": "Cette fiche a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "followEnded": "{{ended}} : cette fiche se relit, elle ne se modifie plus.",
       "submit": "Enregistrer la fiche",
       "submitting": "Enregistrement…"
     },
@@ -1426,6 +1432,9 @@
       "openSheet": "Voir la fiche athlète"
     },
     "openDone": "Voir / modifier mon débrief",
+    "openRead": "Relire mon débrief",
+    "followEnded": "{{ended}} : ce débrief se relit, il ne se complète plus.",
+    "followEndedEmpty": "Cette séance n'a pas été débriefée avant la fin du suivi.",
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",
@@ -1501,7 +1510,8 @@
     "reply": {
       "title": "Réponses",
       "threadError": "Impossible d'ouvrir la conversation. Réessaie dans un instant.",
-      "self": "Ce débrief est le tien : il n'y a personne à qui répondre."
+      "self": "Ce débrief est le tien : il n'y a personne à qui répondre.",
+      "followEnded": "{{ended}} : les réponses se relisent, on n'y répond plus."
     }
   },
   "invoice": {
@@ -1744,8 +1754,8 @@
       "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette. Tes invitations en attente, elles, seront retirées et ne reviendront pas.",
       "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
-        "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
-        "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
+        "ACTIVE_ATHLETES": "Des athlètes te sont encore rattachés : mets fin à leur suivi depuis leur fiche, puis tu pourras cesser de coacher.",
+        "ACTIVE_COACH": "Tu es encore rattaché à un coach : quitte-le depuis « Mes coachs », puis tu pourras retirer cette casquette."
       }
     },
     "about": {
@@ -1972,5 +1982,32 @@
     "legalNotice": "Mentions légales",
     "terms": "Conditions d'utilisation",
     "accountDeletion": "Suppression du compte"
+  },
+  "follow": {
+    "ended": "Suivi terminé",
+    "endedOn": "Suivi terminé le {{date}}",
+    "archive": {
+      "athletes": "Suivi terminé ({{count}})",
+      "athletes_other": "Suivis terminés ({{count}})",
+      "thread": "Relire le fil",
+      "coaches": "Ancien coach ({{count}})",
+      "coaches_other": "Anciens coachs ({{count}})"
+    },
+    "end": {
+      "coach": {
+        "description": "Mettre fin au suivi range cet athlète dans tes suivis terminés.",
+        "unsavedSheet": "Ta saisie de la fiche n'est pas enregistrée : enregistre-la avant de mettre fin au suivi.",
+        "action": "Mettre fin au suivi",
+        "confirm": "Confirmer la fin du suivi",
+        "hint": "Ses cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune diffusion, ni débrief, ni message avec {{name}}.",
+        "done": "Suivi de {{name}} terminé"
+      },
+      "athlete": {
+        "action": "Quitter",
+        "confirm": "Confirmer le départ",
+        "hint": "Tes cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune séance, ni débrief, ni message avec {{name}}.",
+        "done": "Tu as quitté {{name}}"
+      }
+    }
   }
 }

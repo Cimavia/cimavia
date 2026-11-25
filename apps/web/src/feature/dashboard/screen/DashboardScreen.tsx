@@ -4,6 +4,7 @@ import {
   countOverdueInvoices,
   countPendingInvoices,
   countUnreadFeedbacks,
+  splitFollows,
   todayIsoDate,
 } from "@cmv/shared";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
@@ -16,6 +17,7 @@ import { OrganizationInvitationCard } from "@/feature/company/component/Organiza
 import { useMyOrganizationInvitations } from "@/feature/company/hook/useOrganization";
 import { AthleteTrackingSection } from "@/feature/dashboard/component/AthleteTrackingSection";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
+import { EndedAthletesSection } from "@/feature/dashboard/component/EndedAthletesSection";
 import { useFeedbacks } from "@/feature/feedback/hook/useFeedbacks";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
 import { useConversations } from "@/feature/message/hook/useMessages";
@@ -121,6 +123,12 @@ export function DashboardScreen() {
     });
   const [invitationOpen, setInvitationOpen] = useState(false);
 
+  /**
+   * Les suivis en cours d'un côté, ceux qui ont pris fin de l'autre (#910) : la tuile et le tableau
+   * ne comptent que les premiers, les seconds se relisent à part. `null` = liste illisible.
+   */
+  const follows = athletes.data == null ? null : splitFollows(athletes.data);
+
   // `todayIsoDate()` et non un instant : `Invoice.dueDate` est une date CIVILE, la lire en heure
   // locale ferait basculer de jour aux abords de minuit.
   const today = todayIsoDate();
@@ -181,12 +189,14 @@ export function DashboardScreen() {
   const overviewTiles: OverviewTile[] = [
     {
       labelKey: "dashboard.tiles.athletes",
-      count: athletes.data?.length ?? null,
+      count: follows?.ongoing.length ?? null,
       hintKey: "dashboard.tiles.athletesHint",
     },
     {
       labelKey: "dashboard.tiles.plans",
-      count: plans.data?.length ?? null,
+      // Comme la tuile voisine, le travail en cours : le cycle d'un suivi terminé se relit dans
+      // « Planifications », il ne compte plus parmi ce que le Coach diffuse (#910).
+      count: plans.data?.filter((item) => item.followEndedAt == null).length ?? null,
       hintKey: "dashboard.tiles.plansHint",
     },
     {
@@ -215,7 +225,7 @@ export function DashboardScreen() {
    * pas un tableau vide qui laisserait croire que le coach n'a aucun athlète.
    */
   const rows = buildAthleteRows({
-    athletes: athletes.data,
+    athletes: follows?.ongoing,
     plans: plans.data,
     feedbacks: feedbacks.data,
     conversations: conversations.data,
@@ -232,6 +242,7 @@ export function DashboardScreen() {
    */
   const plansLoaded = plans.data != null;
 
+  // Parmi TOUS ses athlètes : la fiche d'un suivi terminé se relit (#910).
   const sheetAthlete: CoachAthleteDto | null =
     (athletes.data ?? []).find((athlete) => athlete.athleteId === sheetAthleteId) ?? null;
 
@@ -312,6 +323,14 @@ export function DashboardScreen() {
             plansLoaded={plansLoaded}
             onOpenSheet={openSheet}
             onInvite={() => setInvitationOpen(true)}
+          />
+        )}
+
+        {follows == null ? null : (
+          <EndedAthletesSection
+            athletes={follows.ended}
+            conversations={conversations.data}
+            onOpenSheet={openSheet}
           />
         )}
       </div>

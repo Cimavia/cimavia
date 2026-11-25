@@ -17,6 +17,11 @@ type FeedbackReplyThreadProps = {
    * répondre, et le fil `(soi, soi)` ne peut pas exister.
    */
   isSelf?: boolean;
+  /**
+   * Le fil ne s'écrit plus (#910) : le suivi du couple a pris fin. La phrase qui le dit remplace
+   * le composeur ; les réponses déjà échangées restent. `null` : le fil s'écrit.
+   */
+  closedNote?: string | null;
   /** Ce qu'il faut recharger après un envoi — la boîte du coach, ou le débrief de l'athlète. */
   onSent: () => void;
   /** Re-signe le média d'une réponse : c'est le DÉBRIEF qui la porte ici, pas le fil. */
@@ -43,6 +48,7 @@ export function FeedbackReplyThread({
   conversationId,
   isThreadError,
   isSelf = false,
+  closedNote = null,
   onSent,
   resolveMediaUrl,
 }: Readonly<FeedbackReplyThreadProps>) {
@@ -93,8 +99,24 @@ export function FeedbackReplyThread({
         </div>
       ) : null}
 
-      {/* L'échec de RÉSOLUTION du fil se dit à part : il ne vient pas de ce qu'on a écrit, et
-          masquer le composer sans rien dire laisserait croire qu'on n'a pas le droit de répondre. */}
+      {closedNote != null ? (
+        <p className="text-cmv-body text-cmv-text-mid">{closedNote}</p>
+      ) : (
+        <ReplyComposer reply={reply} />
+      )}
+    </section>
+  );
+}
+
+/**
+ * De quoi répondre, et ce qui l'empêche pour l'instant. L'échec de RÉSOLUTION du fil se dit à
+ * part : il ne vient pas de ce qu'on a écrit, et masquer le composer sans rien dire laisserait
+ * croire qu'on n'a pas le droit de répondre.
+ */
+function ReplyComposer({ reply }: Readonly<{ reply: ReturnType<typeof useFeedbackReply> }>) {
+  const { t } = useTranslation();
+  return (
+    <>
       {reply.hasThreadError ? (
         <p className="text-cmv-body text-cmv-error-on">{t("feedback.reply.threadError")}</p>
       ) : null}
@@ -113,6 +135,6 @@ export function FeedbackReplyThread({
           step={reply.step}
         />
       </div>
-    </section>
+    </>
   );
 }

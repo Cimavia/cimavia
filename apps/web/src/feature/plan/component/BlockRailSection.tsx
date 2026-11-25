@@ -18,7 +18,11 @@ type BlockRailSectionProps = {
   tracking: BlockSessionTracking;
   selected: string | null;
   onSelect: (blockId: string) => void;
-  onToggle: (blockId: string, check: BlockCheck) => void;
+  /**
+   * `null` : la séance ne se débriefe plus (#910). Le sommaire reste, « Mon suivi » part — ses
+   * coches ne partiraient jamais.
+   */
+  onToggle: ((blockId: string, check: BlockCheck) => void) | null;
   /** Le panneau « Mon suivi », que l'écran amène à la vue quand un bloc l'ouvre. */
   trackingRef?: Ref<HTMLElement>;
 };
@@ -65,27 +69,29 @@ export function BlockRailSection({
         </nav>
       </CmvCard>
 
-      <CmvCard>
-        <section
-          ref={trackingRef}
-          tabIndex={-1}
-          aria-label={t("plan.athlete.blocks.tracking")}
-          className="flex flex-col gap-cmv-sm"
-        >
-          <span className="text-cmv-caption text-cmv-text-mid">
-            {t("plan.athlete.blocks.tracking")}
-          </span>
-          {current == null ? (
-            <p className="text-cmv-body text-cmv-text-lo">{t("plan.athlete.blocks.choose")}</p>
-          ) : (
-            <BlockTrackingList
-              read={current}
-              tracking={tracking[current.block.id] ?? null}
-              onToggle={(check) => onToggle(current.block.id, check)}
-            />
-          )}
-        </section>
-      </CmvCard>
+      {onToggle == null ? null : (
+        <CmvCard>
+          <section
+            ref={trackingRef}
+            tabIndex={-1}
+            aria-label={t("plan.athlete.blocks.tracking")}
+            className="flex flex-col gap-cmv-sm"
+          >
+            <span className="text-cmv-caption text-cmv-text-mid">
+              {t("plan.athlete.blocks.tracking")}
+            </span>
+            {current == null ? (
+              <p className="text-cmv-body text-cmv-text-lo">{t("plan.athlete.blocks.choose")}</p>
+            ) : (
+              <BlockTrackingList
+                read={current}
+                tracking={tracking[current.block.id] ?? null}
+                onToggle={(check) => onToggle(current.block.id, check)}
+              />
+            )}
+          </section>
+        </CmvCard>
+      )}
     </>
   );
 }
