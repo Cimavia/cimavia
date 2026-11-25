@@ -1,4 +1,11 @@
-import { type CoachAthleteDto, CoachAthleteStatus, required } from "@cmv/shared";
+import {
+  type CoachAthleteDto,
+  CoachAthleteStatus,
+  InvitationRole,
+  InvitationStatus,
+  normalizeEmail,
+  required,
+} from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { CoachAthlete, Prisma } from "@prisma/client";
 import { PrismaService } from "../../infra/prisma/prisma.service";
@@ -71,8 +78,12 @@ export class RelationEndService {
 }
 
 /**
- * Le lien à ENDED, puis la fin du suivi sur les cycles du couple — dans la transaction de
- * l'appelant. L'écriture conditionnée sur ACTIVE rend la rupture idempotente sous concurrence :
+ * Le lien à ENDED, puis la fin du suivi sur les cycles du couple, et le retrait des invitations
+ * du Coach encore en attente pour cet athlète — dans la transaction de l'appelant. Une invitation
+ * d'avant la rupture ne doit pas la défaire : retirée ici, elle ne s'accepte plus, et toute
+ * invitation encore en attente à l'acceptation est donc postérieure à la rupture — sans comparer
+ * deux dates d'horloges différentes. L'acceptation, elle, réserve l'invitation par une écriture
+ * conditionnelle, qui attend celle-ci (`InvitationService.accept`). L'écriture conditionnée sur ACTIVE rend la rupture idempotente sous concurrence :
  * la seconde attend le verrou de la première, puis ne trouve plus rien à rompre.
  *
  * Ce verrou, tenu jusqu'au commit, est aussi celui qu'attend la création d'un cycle
@@ -94,6 +105,19 @@ async function endLink(
     await tx.plan.updateMany({
       where: { coachId: relation.coachId, athleteId: relation.athleteId, followEndedAt: null },
       data: { followEndedAt: endedAt },
+    });
+    const athlete = await tx.user.findUniqueOrThrow({
+      where: { id: relation.athleteId },
+      select: { email: true },
+    });
+    await tx.invitation.updateMany({
+      where: {
+        coachId: relation.coachId,
+        email: normalizeEmail(athlete.email),
+        role: InvitationRole.ATHLETE,
+        status: InvitationStatus.PENDING,
+      },
+      data: { status: InvitationStatus.REVOKED },
     });
   }
   return { relation, ended: count > 0 };

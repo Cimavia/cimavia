@@ -253,8 +253,8 @@ export class InvitationService {
    * à aucun si elle n'en a pas encore. Celle d'un Coach en rend un seul.
    *
    * L'invitation d'un Coach dont le lien est rompu (#909) le RÉACTIVE plutôt que d'en créer un
-   * second (un lien par couple) : le suivi reprend, et avec lui l'écriture dans ses cycles — si
-   * elle a été émise après la rupture. Celle
+   * second (un lien par couple) : le suivi reprend, et avec lui l'écriture dans ses cycles. Une
+   * invitation d'avant la rupture n'y arrive pas : la rupture l'a retirée (`endLink`). Celle
    * d'une entreprise, non — son rattachement saute les liens existants, rompus compris : quitter un
    * Coach ne s'annule pas parce qu'une entreprise invite.
    */
@@ -275,11 +275,6 @@ export class InvitationService {
     if (existing != null && existing.status !== CoachAthleteStatus.ENDED) {
       throw new ConflictException("Tu es déjà suivi par ce coach");
     }
-    // Seule une invitation émise APRÈS la fin du suivi le rouvre : une invitation d'avant, restée
-    // en attente, annulerait sans son accord la rupture voulue par l'un ou l'autre.
-    if (existing?.endedAt != null && invitation.createdAt <= existing.endedAt) {
-      throw new ConflictException("Cette invitation précède la fin du suivi");
-    }
     // Accepter exige la capacité athlète : seul un compte qui CUMULE peut présenter la sienne
     // (#9/#10). Ce refus-là n'est pas une boucle, il a son propre message.
     if (coachId === athlete.id) {
@@ -288,6 +283,9 @@ export class InvitationService {
     await this.graph.assertNoCycle([coachId], [athlete.id]);
 
     const relation = await this.prisma.$transaction(async (tx) => {
+      // Le lien d'abord, l'invitation ensuite : l'ordre de la rupture (`endLink`), qui verrouille
+      // le lien puis retire les invitations en attente — l'ordre inverse s'interbloquerait avec
+      // elle.
       const joined =
         existing == null
           ? await tx.coachAthlete.create({
@@ -299,13 +297,17 @@ export class InvitationService {
               },
             })
           : await reopenLink(tx, existing.id);
-      await tx.invitation.update({
-        where: { id: invitation.id },
-        data: {
-          status: InvitationStatus.ACCEPTED,
-          acceptedById: athlete.id,
-        },
+      // L'invitation se RÉSERVE sous condition qu'elle soit encore en attente : une rupture
+      // concurrente l'a peut-être retirée, et une invitation d'avant la rupture ne la défait pas.
+      const claimed = await tx.invitation.updateMany({
+        where: { id: invitation.id, status: InvitationStatus.PENDING },
+        data: { status: InvitationStatus.ACCEPTED, acceptedById: athlete.id },
       });
+      if (claimed.count === 0) {
+        // Le refus que mérite son état : retirée (410), déjà utilisée, expirée.
+        await this.findActionable(athlete, invitation.id);
+        throw new ConflictException("Invitation déjà utilisée");
+      }
       return joined;
     });
     await this.notifications.notifyInvitationAccepted({

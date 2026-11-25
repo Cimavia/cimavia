@@ -323,14 +323,17 @@ describe("Rupture d'un lien : ce qu'elle libère, et ce qui ne la défait pas", 
     expect((await deleteAtLatest(world.c, `/plans/${world.planTe.id}`)).status).toBe(204);
   });
 
-  it("une invitation d'avant la rupture ne la défait pas ; une nouvelle, si", async () => {
+  it("la rupture retire l'invitation d'avant, qui ne la défait plus ; une nouvelle, si", async () => {
     const world = await sharedPlanWorld("relation-end-stale");
     const stale = await inviteFor(world.c, world.te);
     expect(stale.status).toBe(201);
-    expect((await world.c.post(`/athletes/${await idOf(world.te)}/end`)).status).toBe(200);
+    expect((await world.te.post(`/me/coaches/${world.ids.c}/leave`)).status).toBe(200);
 
+    // Retirée par la rupture : elle quitte « Mes invitations », et ne s'accepte plus.
+    const pending = (await world.te.get("/invitations/for-me")).body as { id: string }[];
+    expect(pending.map((invitation) => invitation.id)).not.toContain(stale.body.id);
     const refused = await world.te.post(`/invitations/${stale.body.id}/accept`);
-    expect(refused.status).toBe(409);
+    expect(refused.status).toBe(410);
     expectFollowEnded(
       await patchAtLatest(world.c, `/plans/${world.planTe.id}`, { title: "Toujours fermé" }),
     );
