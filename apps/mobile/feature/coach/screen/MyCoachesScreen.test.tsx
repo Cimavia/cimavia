@@ -1,4 +1,4 @@
-import type { CoachAthleteDto, PendingInvitationDto } from "@cmv/shared";
+import type { CoachAthleteDto, ConversationDto, PendingInvitationDto } from "@cmv/shared";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { router } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,13 +16,21 @@ vi.mock("@/feature/coach/api", async (importOriginal) => {
       myInvitations: vi.fn(),
       acceptInvitation: vi.fn(),
       declineInvitation: vi.fn(),
+      leaveCoach: vi.fn(),
     },
   };
 });
 
-// Ouvrir le fil d'un coach résout la conversation à deux (#612) : seul l'appel est remplacé.
-const { createConversation } = vi.hoisted(() => ({ createConversation: vi.fn() }));
-vi.mock("@/feature/message/api", () => ({ messageApi: { createConversation } }));
+// Ouvrir le fil d'un coach résout la conversation à deux (#612) : seul l'appel est remplacé. La
+// liste des fils, elle, sert l'archive (#911) : c'est par elle qu'un ancien coach se relit.
+const { createConversation, listConversations } = vi.hoisted(() => ({
+  createConversation: vi.fn(),
+  listConversations: vi.fn(),
+}));
+vi.mock("@/feature/message/api", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/feature/message/api")>();
+  return { ...original, messageApi: { createConversation, listConversations } };
+});
 
 // `useFocusEffect` capturé plutôt qu'exécuté : le test du premier plan le rejoue quand il veut.
 const focus = vi.hoisted(() => ({ effect: null as (() => void) | null }));
@@ -34,7 +42,10 @@ vi.mock("expo-router", () => ({
 }));
 // Le sélecteur d'espace vit dans un fournisseur posé à la racine de l'app : on lit ce qu'on lui
 // demande, sans le monter.
-vi.mock("@/shared/hook/useExercisedCapability", () => ({ useCapabilitySwitch: vi.fn() }));
+vi.mock("@/shared/hook/useExercisedCapability", () => ({
+  useCapabilitySwitch: vi.fn(),
+  useExercisedCapability: (pinned?: string) => pinned ?? "athlete",
+}));
 
 const session = vi.hoisted(() => ({
   current: { user: { id: "ath_1", email: "lea@exemple.fr" } } as unknown,
@@ -49,6 +60,7 @@ const select = vi.fn();
 const myInvitations = vi.mocked(accountApi.myInvitations);
 const acceptInvitation = vi.mocked(accountApi.acceptInvitation);
 const declineInvitation = vi.mocked(accountApi.declineInvitation);
+const leaveCoach = vi.mocked(accountApi.leaveCoach);
 
 const INVITATION = {
   id: "inv_1",
@@ -73,6 +85,31 @@ const RELATION = {
 
 const MARC = { ...RELATION, id: "rel_2", coachId: "u_marc", coachName: "Marc Keller" };
 
+/** Un coach quitté (#909) : il reste dans la liste, pour relire l'archive. */
+const FORMER = {
+  ...RELATION,
+  id: "rel_3",
+  coachId: "u_paul",
+  coachName: "Paul Mercier",
+  status: "ENDED",
+  endedAt: "2026-11-20T10:00:00.000Z",
+} satisfies CoachAthleteDto;
+
+/** Le fil à deux avec Paul — celui que l'archive rouvre. */
+const PAUL_THREAD = {
+  id: "cv-paul",
+  kind: "DIRECT",
+  participants: [{ userId: "u_paul", name: "Paul Mercier", capability: "coach", lastReadAt: null }],
+  lastReadAt: null,
+  lastMessageAt: null,
+  lastMessageSenderId: null,
+  lastMessageType: null,
+  lastMessagePreview: null,
+  unreadCount: 0,
+  createdAt: "2026-03-12T09:00:00.000Z",
+  followEndedAt: "2026-11-20T10:00:00.000Z",
+} satisfies ConversationDto;
+
 /** L'invitation d'une entreprise (#602) : ses Coachs, ceux qui suivront l'athlète s'il accepte. */
 const FROM_ORGANIZATION = {
   ...INVITATION,
@@ -91,6 +128,12 @@ beforeEach(() => {
   myInvitations.mockResolvedValue([]);
   acceptInvitation.mockResolvedValue([RELATION]);
   declineInvitation.mockResolvedValue(undefined);
+  leaveCoach.mockResolvedValue({
+    ...RELATION,
+    status: "ENDED",
+    endedAt: "2026-11-25T10:00:00.000Z",
+  });
+  listConversations.mockResolvedValue([]);
 });
 
 describe("MyCoachesScreen — l'invitation qui m'attend (#146)", () => {
@@ -358,6 +401,128 @@ describe("MyCoachesScreen — ses coachs (#599)", () => {
 
     await waitFor(() => expect(router.push).toHaveBeenCalledWith("/messages/cv-julie"));
     expect(select).toHaveBeenCalledWith("athlete");
+  });
+});
+
+describe("MyCoachesScreen — quitter un coach (#911)", () => {
+  /** Le départ est armé en deux temps : un seul appui ne doit rien rompre. */
+  it("ne quitte le coach qu'après confirmation, en disant ce qui reste", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    pressButton(container, "follow.end.athlete.action");
+    expect(leaveCoach).not.toHaveBeenCalled();
+    expect(screen.getByText("follow.end.athlete.hint")).toBeTruthy();
+
+    pressButton(container, "follow.end.athlete.confirm");
+    await waitFor(() => expect(leaveCoach).toHaveBeenCalledWith("u_coach"));
+  });
+
+  /** Le lien rompu passe aussitôt dans l'archive, et le bloc « pas de coach » revient. */
+  it("range le coach quitté dans l'archive, sans attendre la relecture", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+    // La relecture qui suit tarde : c'est le lien posé dans le cache qui doit faire le travail.
+    myCoaches.mockReturnValue(new Promise(() => undefined));
+
+    pressButton(container, "follow.end.athlete.action");
+    pressButton(container, "follow.end.athlete.confirm");
+
+    expect(await screen.findByText("coach.join.title")).toBeTruthy();
+    expect(screen.getByText("follow.archive.coaches")).toBeTruthy();
+    expect(screen.queryByText("coach.message")).toBeNull();
+  });
+
+  it.each([
+    [
+      "tel que l'API l'a formulé",
+      new ApiError(409, "Suivi déjà terminé", null),
+      "Suivi déjà terminé",
+    ],
+    ["par le message générique sans formulation", new Error("réseau"), "follow.end.athlete.error"],
+  ])("dit l'échec du départ %s, sur la carte", async (_, failure, message) => {
+    leaveCoach.mockRejectedValue(failure);
+    myCoaches.mockResolvedValue([RELATION]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    pressButton(container, "follow.end.athlete.action");
+    pressButton(container, "follow.end.athlete.confirm");
+
+    expect(await screen.findByText(message)).toBeTruthy();
+    expect(screen.getByText("coach.message")).toBeTruthy();
+  });
+});
+
+describe("MyCoachesScreen — anciens coachs (#911)", () => {
+  /** Un coach quitté n'est plus un coach : ni ligne, ni « Message », ni départ à proposer. */
+  it("range un coach quitté à part, replié, et ne le compte pas parmi ses coachs", async () => {
+    myCoaches.mockResolvedValue([RELATION, FORMER]);
+    const { container } = renderRn(<MyCoachesScreen />);
+
+    await screen.findByText("Julie Renaud");
+    expect(screen.getAllByText("coach.message")).toHaveLength(1);
+    expect(screen.queryByText("Paul Mercier")).toBeNull();
+    // Le repli dit son état au lecteur d'écran, pas seulement par le chevron.
+    const toggle = screen.getByRole("button", { name: "follow.archive.coaches" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    pressButton(container, "follow.archive.coaches");
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Paul Mercier")).toBeTruthy();
+    expect(screen.getByText("follow.endedOn")).toBeTruthy();
+  });
+
+  /** Sans coach EN COURS, l'athlète n'a plus de coach : il l'apprend, l'archive dessous. */
+  it("redit l'absence de coach à qui n'a plus que d'anciens coachs", async () => {
+    myCoaches.mockResolvedValue([FORMER]);
+    renderRn(<MyCoachesScreen />);
+
+    expect(await screen.findByText("coach.join.title")).toBeTruthy();
+    expect(screen.getByText("follow.archive.coaches")).toBeTruthy();
+  });
+
+  it("rouvre le fil d'un ancien coach par son id, à titre d'athlète", async () => {
+    vi.mocked(useCapabilitySwitch).mockReturnValue({ visible: true, current: "coach", select });
+    listConversations.mockResolvedValue([PAUL_THREAD]);
+    myCoaches.mockResolvedValue([FORMER]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("follow.archive.coaches");
+
+    pressButton(container, "follow.archive.coaches");
+    await screen.findByText("follow.archive.thread");
+    pressButton(container, "follow.archive.thread");
+
+    expect(router.push).toHaveBeenCalledWith("/messages/cv-paul");
+    expect(select).toHaveBeenCalledWith("athlete");
+    expect(listConversations).toHaveBeenCalledWith("athlete");
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  // Jamais écrit, ou fils pas encore lus : rien à relire, donc pas de bouton.
+  it("ne propose pas de fil à relire quand il n'y en a pas", async () => {
+    myCoaches.mockResolvedValue([FORMER]);
+    const { container } = renderRn(<MyCoachesScreen />);
+    await screen.findByText("follow.archive.coaches");
+
+    pressButton(container, "follow.archive.coaches");
+
+    await screen.findByText("Paul Mercier");
+    await waitFor(() => expect(listConversations).toHaveBeenCalled());
+    expect(screen.queryByText("follow.archive.thread")).toBeNull();
+  });
+
+  // Personne de quitté : l'archive ne se monte pas, et ne lit pas les fils pour rien.
+  it("ne lit pas les fils d'un athlète qui n'a quitté personne", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    renderRn(<MyCoachesScreen />);
+    await screen.findByText("Julie Renaud");
+
+    expect(screen.queryByText("follow.archive.coaches")).toBeNull();
+    expect(listConversations).not.toHaveBeenCalled();
   });
 });
 

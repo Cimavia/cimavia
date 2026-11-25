@@ -916,5 +916,22 @@
     "legalNotice": "Mentions légales",
     "terms": "Conditions d'utilisation",
     "accountDeletion": "Suppression du compte"
+  },
+  "follow": {
+    "ended": "Suivi terminé",
+    "endedOn": "Suivi terminé le {{date}}",
+    "archive": {
+      "thread": "Relire le fil",
+      "coaches": "Ancien coach ({{count}})",
+      "coaches_other": "Anciens coachs ({{count}})"
+    },
+    "end": {
+      "athlete": {
+        "action": "Quitter ce coach",
+        "confirm": "Confirmer le départ",
+        "hint": "Tes cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune séance, ni débrief, ni message avec {{name}}.",
+        "error": "Le départ n'a pas abouti. Vérifie ta connexion, puis réessaie."
+      }
+    }
   }
 }

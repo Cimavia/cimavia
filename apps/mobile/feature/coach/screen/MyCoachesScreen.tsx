@@ -1,13 +1,29 @@
-import { type CoachAthleteDto, coachPresence } from "@cmv/shared";
+import {
+  type CoachAthleteDto,
+  coachPresence,
+  directConversationWith,
+  splitFollows,
+} from "@cmv/shared";
 import { useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { PendingInvitationCard } from "@/feature/coach/component/PendingInvitationCard";
-import { useMyCoaches, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
-import { useOpenCoachConversation } from "@/feature/message/hook/useConversation";
-import { CmvAvatar, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
+import { useLeaveCoach, useMyCoaches, useMyInvitations } from "@/feature/coach/hook/useMyCoach";
+import { useConversations, useOpenCoachConversation } from "@/feature/message/hook/useConversation";
+import {
+  CmvAvatar,
+  CmvButton,
+  CmvConfirmButton,
+  CmvErrorState,
+  CmvScreen,
+  CmvText,
+} from "@/shared/component";
+import { CmvArchiveList } from "@/shared/component/CmvArchiveList";
+import { useArchiveThreadActions } from "@/shared/hook/useArchiveThreadActions";
 import { useCapabilitySwitch } from "@/shared/hook/useExercisedCapability";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
+import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
 import { openUnder } from "@/shared/lib/open-under";
 import { formatInstantDate } from "@/shared/util/date.util";
@@ -30,6 +46,10 @@ import { formatInstantDate } from "@/shared/util/date.util";
  *
  * Quatre états et non deux (#364) : tant que la liste charge ou qu'elle a échoué, on ne dit pas
  * « aucun coach » — c'était le cas avant, l'écran rendait l'absence pendant le chargement.
+ *
+ * L'athlète quitte un coach depuis sa carte (#911). Les coachs quittés — ou qui ont mis fin au
+ * suivi — passent dans « Anciens coachs », replié sous la liste : leur fil se relit. Sans coach en
+ * cours, le bloc « pas de coach » revient, l'archive dessous.
  */
 export function MyCoachesScreen() {
   const { t } = useTranslation();
@@ -52,8 +72,7 @@ export function MyCoachesScreen() {
         <PendingInvitations />
         {presence === "loading" ? <ActivityIndicator /> : null}
         {presence === "error" ? <CmvErrorState onRetry={() => coaches.refetch()} /> : null}
-        {presence === "none" ? <NoCoachBlock /> : null}
-        {presence === "some" ? <CoachList coaches={coaches.data ?? []} /> : null}
+        {coaches.data == null ? null : <Follows coaches={coaches.data} />}
       </ScrollView>
     </CmvScreen>
   );
@@ -80,6 +99,43 @@ function PendingInvitations() {
   );
 }
 
+/**
+ * Les suivis en cours, puis l'archive de ceux qui ont pris fin (#911). Montée seulement s'il y en a :
+ * elle lit les fils pour s'y rouvrir, et un athlète qui n'a quitté personne n'a rien à y relire.
+ */
+function Follows({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
+  const { ongoing, ended } = splitFollows(coaches);
+  return (
+    <>
+      {ongoing.length === 0 ? <NoCoachBlock /> : <CoachList coaches={ongoing} />}
+      {ended.length === 0 ? null : <FormerCoaches coaches={ended} />}
+    </>
+  );
+}
+
+/**
+ * Les anciens coachs, le plus récent d'abord. Leur fil se relit par son id, à titre d'athlète :
+ * `useOpenCoachConversation` ouvrirait — ou créerait — un fil avec un coach encore suivi, et l'API
+ * refuse d'en créer un vers un suivi terminé. Sans fil, rien à relire, pas de bouton.
+ */
+function FormerCoaches({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
+  const { t } = useTranslation();
+  const endedText = useFollowEndedText();
+  const threadActions = useArchiveThreadActions("athlete");
+  const { data: conversations } = useConversations("athlete");
+
+  const items = coaches.map((coach) => ({
+    id: coach.id,
+    name: coach.coachName,
+    detail: endedText(coach.endedAt),
+    actions: threadActions(directConversationWith(conversations, coach.coachId, "coach")),
+  }));
+
+  return (
+    <CmvArchiveList title={t("follow.archive.coaches", { count: coaches.length })} items={items} />
+  );
+}
+
 function CoachList({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
   const { t } = useTranslation();
 
@@ -100,6 +156,7 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
   const { t } = useTranslation();
   const capabilitySwitch = useCapabilitySwitch();
   const open = useOpenCoachConversation();
+  const leave = useLeaveCoach();
 
   /**
    * Écrire à son coach est un geste d'ATHLÈTE : le fil se résout et se lit à ce titre. Un compte à
@@ -144,6 +201,24 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
         <CmvText className="text-cmv-error-on text-sm">{t("coach.messageError")}</CmvText>
       ) : null}
       <CmvButton label={t("coach.message")} onPress={openThread} disabled={open.isPending} />
+      {/* Les seuls liens à rompre : ni l'auto-coaching (absent de cette liste), ni un suivi terminé
+          (rangé dans l'archive). Armé, il dit ce qui reste et ce qui cesse (#911). Pas en rouge :
+          rien ne s'efface, l'archive se relit. */}
+      <CmvConfirmButton
+        label={t("follow.end.athlete.action")}
+        confirmLabel={t("follow.end.athlete.confirm")}
+        cancelLabel={t("common.cancel")}
+        confirmHint={t("follow.end.athlete.hint", { name: coach.coachName })}
+        variant="ghost"
+        disabled={leave.isPending}
+        onConfirm={() => leave.mutate(coach.coachId)}
+      />
+      {/* Pas de toast sur mobile : l'échec se dit sur la carte, celle qu'on voulait quitter. */}
+      {leave.isError ? (
+        <CmvText className="text-cmv-error-on text-sm">
+          {apiErrorMessage(leave.error) ?? t("follow.end.athlete.error")}
+        </CmvText>
+      ) : null}
     </View>
   );
 }
