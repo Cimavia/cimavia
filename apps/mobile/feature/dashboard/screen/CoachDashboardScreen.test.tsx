@@ -246,6 +246,70 @@ describe("CoachDashboardScreen — la liste des athlètes", () => {
   });
 });
 
+describe("CoachDashboardScreen — les suivis terminés (#911)", () => {
+  // Paul est parti : il ne compte plus parmi les athlètes suivis, mais son archive se relit.
+  const PAUL = {
+    ...ATHLETE,
+    id: "ca-2",
+    athleteId: "ath-2",
+    athleteName: "Paul Mercier",
+    status: "ENDED",
+    endedAt: "2026-11-20T09:00:00.000Z",
+  } as CoachAthleteDto;
+  const PAUL_THREAD = {
+    id: "c-2",
+    kind: "DIRECT",
+    participants: [{ userId: "ath-2", name: "Paul", capability: "athlete", lastReadAt: null }],
+    unreadCount: 0,
+  } as ConversationDto;
+
+  beforeEach(() => {
+    calls.athletes.mockResolvedValue([ATHLETE, PAUL]);
+    calls.conversations.mockResolvedValue([CONVERSATION, PAUL_THREAD]);
+  });
+
+  it("ne compte ni ne liste l'athlète parti parmi les suivis", async () => {
+    const { container } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    expect(countOn(container, "athletes")).toBe("1");
+    expect(container.textContent).not.toContain("Paul Mercier");
+    expect(container.textContent).toContain("follow.archive.athletes");
+  });
+
+  it("ouvre sa fiche et son fil depuis l'archive dépliée", async () => {
+    const { container, findByText } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    pressButton(container, "follow.archive.athletes");
+    expect(await findByText("Paul Mercier")).toBeTruthy();
+    expect(container.textContent).toContain("follow.endedOn");
+
+    pressButton(container, "follow.archive.sheet");
+    expect(router.push).toHaveBeenCalledWith("/athlete/ath-2");
+    pressButton(container, "follow.archive.thread");
+    expect(router.push).toHaveBeenCalledWith("/messages/c-2");
+  });
+
+  it("n'offre pas de fil à relire quand le couple ne s'est jamais écrit", async () => {
+    calls.conversations.mockResolvedValue([CONVERSATION]);
+    const { container } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    pressButton(container, "follow.archive.athletes");
+    await waitFor(() => expect(container.textContent).toContain("follow.archive.sheet"));
+    expect(container.textContent).not.toContain("follow.archive.thread");
+  });
+
+  it("ne montre aucune archive sans suivi terminé", async () => {
+    calls.athletes.mockResolvedValue([ATHLETE]);
+    const { container } = renderRn(<CoachDashboardScreen />);
+    await loaded(container);
+
+    expect(container.textContent).not.toContain("follow.archive.athletes");
+  });
+});
+
 describe("CoachDashboardScreen — la panne et le rafraîchissement", () => {
   it("n'affirme rien tant qu'une source charge", () => {
     calls.reminders.mockReturnValue(new Promise(() => undefined));

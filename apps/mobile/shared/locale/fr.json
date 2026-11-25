@@ -928,6 +928,9 @@
     "ended": "Suivi terminé",
     "endedOn": "Suivi terminé le {{date}}",
     "archive": {
+      "athletes": "Suivi terminé ({{count}})",
+      "athletes_other": "Suivis terminés ({{count}})",
+      "sheet": "Voir la fiche",
       "thread": "Relire le fil",
       "coaches": "Ancien coach ({{count}})",
       "coaches_other": "Anciens coachs ({{count}})"
