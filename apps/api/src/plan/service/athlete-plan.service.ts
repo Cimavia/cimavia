@@ -142,8 +142,9 @@ export class AthletePlanService {
   /**
    * La séance qu'un athlète peut encore DÉBRIEFER : diffusée, et dans un suivi qui continue —
    * 409 `FOLLOW_ENDED` une fois le lien du couple rompu (#909). Le débrief déjà déposé se relit ;
-   * il ne se complète plus. Clore un envoi découpé déjà commencé reste permis : ce n'est pas
-   * débriefer, et ses parts ne doivent pas traîner dans le bucket.
+   * il ne se complète plus. Recoller un envoi découpé déjà commencé non plus : l'objet assemblé
+   * resterait sans débrief. L'abandonner reste permis — ses parts ne doivent pas traîner dans le
+   * bucket (`FeedbackMediaService.abortUpload`).
    */
   async getDebriefableSessionOrThrow(id: string): Promise<PublishedSession> {
     const session = await this.getPublishedSessionOrThrow(id);

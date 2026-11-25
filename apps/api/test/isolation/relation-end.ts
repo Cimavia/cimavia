@@ -61,6 +61,9 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
   let invoiceId: string;
   let threadId: string;
   let ended: CoachAthleteDto;
+  // Des envois commencés avant la rupture : ils ne se recollent plus après.
+  let debriefUpload: string;
+  let messageUpload: string;
 
   const sessionPath = () => `/me/scheduled-sessions/${world.planTi.sessionId}`;
   const addSession = (coach: Agent) =>
@@ -100,6 +103,13 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
       .put(sheetPath())
       .send({ content: "Objectif 8a", expectedUpdatedAt: null });
     expect(sheet.status).toBe(200);
+
+    const image = { type: "IMAGE", fileName: "voie.jpg", mimeType: "image/jpeg", size: 2_000 };
+    debriefUpload = (await world.ti.post(`${sessionPath()}/feedback/media/upload-url`).send(image))
+      .body.storagePath;
+    messageUpload = (
+      await world.ti.post(`/conversations/${threadId}/messages/upload-url`).send(image)
+    ).body.storagePath;
 
     // La facture est échue (2026-01-05) : le tick d'avant la rupture la relance.
     expect((await tick()).status).toBe(200);
@@ -199,6 +209,12 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
     expect((await world.ti.get(`${sessionPath()}/feedback`)).body.content).toBe("Faite");
 
     expectFollowEnded(await world.ti.put(`${sessionPath()}/feedback`).send({ content: "Encore" }));
+    // Un envoi découpé commencé avant ne se recolle plus : l'objet resterait sans débrief.
+    expectFollowEnded(
+      await world.ti
+        .post(`${sessionPath()}/feedback/media/upload/complete`)
+        .send({ storagePath: debriefUpload, uploadId: "envoi-d-avant", partCount: 1 }),
+    );
     expectFollowEnded(
       await world.ti
         .post(`${sessionPath()}/feedback/media/upload-url`)
@@ -218,6 +234,11 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
       expect((await threadOf(agent))?.followEndedAt).toBe(ended.endedAt);
       expect((await agent.get(`/conversations/${threadId}/messages`)).body).toHaveLength(2);
       expectFollowEnded(await send(agent, "Encore là ?"));
+      expectFollowEnded(
+        await agent
+          .post(`/conversations/${threadId}/messages/upload/complete`)
+          .send({ storagePath: messageUpload, uploadId: "envoi-d-avant", partCount: 1 }),
+      );
       // Marquer lu n'écrit rien du couple : ça reste permis.
       expect((await agent.post(`/conversations/${threadId}/read`)).status).toBeLessThan(300);
     }
