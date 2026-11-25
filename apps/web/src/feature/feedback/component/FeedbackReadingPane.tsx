@@ -178,15 +178,17 @@ export function FeedbackReadingPane({ feedback, onOpenSheet }: Readonly<Feedback
 
 /**
  * Le suivi de CE Coach avec l'athlète a-t-il pris fin (#910) ? `note` est ce que le fil de réponse
- * dit alors à la place du composeur, `null` sinon. `isKnown` reste faux tant que ses liens ne sont
- * pas lus : le composeur se montre, fermé, sans fil demandé. C'est son lien qui compte, pas le
+ * dit alors à la place du composeur, `null` sinon. `isKnown` reste faux tant que ses liens se
+ * chargent : le composeur se montre, fermé, sans fil demandé. Illisibles, ils ne tranchent plus
+ * rien : le fil se demande comme avant #910, et l'API refuse en 409 l'envoi d'un suivi terminé —
+ * mieux qu'un composeur éteint sans raison ni relance. C'est son lien qui compte, pas le
  * cycle : un débrief d'un cycle partagé (#610) se répond par le fil de chaque Coach avec l'athlète.
  */
 function useClosedReply(athleteId: string): { isKnown: boolean; note: string | null } {
   const { t } = useTranslation();
-  const { data: links } = useAthletes();
+  const { data: links, isError } = useAthletes();
   const followEndedText = useFollowEndedText();
-  if (links == null) return { isKnown: false, note: null };
+  if (links == null) return { isKnown: isError, note: null };
   const link = links.find((candidate) => candidate.athleteId === athleteId);
   if (link == null || !isEndedLink(link)) return { isKnown: true, note: null };
   return {
