@@ -1,4 +1,5 @@
 import type {
+  CoachAthleteDto,
   CoachFeedbackSummaryDto,
   MessageDto,
   SessionFeedbackDto,
@@ -7,6 +8,7 @@ import type {
 import { coachFeedbackKeys, STRUCTURE_PRESETS } from "@cmv/shared";
 import { act, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import {
   useCoachFeedbackDetail,
   useCoachFeedbacks,
@@ -14,6 +16,7 @@ import {
 } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { CoachFeedbackDetailScreen } from "@/feature/feedback/screen/CoachFeedbackDetailScreen";
+import { useConversationWith } from "@/feature/message/hook/useConversation";
 import { CmvButton, type RecordedAudio } from "@/shared/component";
 import { press, pressButton, renderRn } from "@/test/render";
 
@@ -36,9 +39,8 @@ const { freshUrl, session, cues } = vi.hoisted(() => ({
   cues: new Map<string, VoiceNoteCue | undefined>(),
 }));
 vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => freshUrl }));
-vi.mock("@/feature/message/hook/useConversation", () => ({
-  useConversationWith: () => ({ data: { id: "c-1" }, isError: false }),
-}));
+vi.mock("@/feature/message/hook/useConversation", () => ({ useConversationWith: vi.fn() }));
+vi.mock("@/feature/athlete/hook/useAthletes", () => ({ useAthletes: vi.fn() }));
 vi.mock("@/shared/lib/auth", () => ({
   authClient: { useSession: () => ({ data: session.current }) },
 }));
@@ -130,6 +132,17 @@ function detail(overrides: Partial<SessionFeedbackDto> = {}): SessionFeedbackDto
   } as SessionFeedbackDto;
 }
 
+// Le lien du coach avec l'athlète du débrief : il dit si le suivi court encore (#911).
+const LINK = { athleteId: "a-1", status: "ACTIVE", endedAt: null } as CoachAthleteDto;
+
+function mockLinks(state: Record<string, unknown>): void {
+  vi.mocked(useAthletes).mockReturnValue({
+    data: [LINK],
+    isError: false,
+    ...state,
+  } as unknown as ReturnType<typeof useAthletes>);
+}
+
 function mockDetail(state: Record<string, unknown>): void {
   vi.mocked(useCoachFeedbackDetail).mockReturnValue({
     data: detail(),
@@ -144,6 +157,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   session.current = { user: { id: "coach-1" } };
   mockDetail({});
+  mockLinks({});
+  vi.mocked(useConversationWith).mockReturnValue({
+    data: { id: "c-1" },
+    isError: false,
+  } as unknown as ReturnType<typeof useConversationWith>);
   vi.mocked(useCoachFeedbacks).mockReturnValue({ data: [SUMMARY] } as unknown as ReturnType<
     typeof useCoachFeedbacks
   >);
@@ -436,6 +454,52 @@ describe("CoachFeedbackDetailScreen — son propre débrief", () => {
     expect(queryByText("feedback.reply.title")).not.toBeNull();
     expect(queryByText("feedback.reply.self")).not.toBeNull();
     expect(container.querySelector('[data-icon="add-circle-outline"]')).toBeNull();
+  });
+});
+
+/**
+ * Le suivi a pris fin (#911) : le débrief et ses réponses se relisent, on n'y répond plus. Le fil
+ * n'est même pas demandé — son get-or-create prendrait un 409.
+ */
+describe("CoachFeedbackDetailScreen — suivi terminé (#911)", () => {
+  const ENDED = { ...LINK, status: "ENDED", endedAt: "2026-11-20T09:00:00.000Z" };
+  const composer = (container: HTMLElement) =>
+    container.querySelector('[data-icon="add-circle-outline"]');
+
+  it("remplace la barre par la fin du suivi, sans demander le fil, réponses gardées", () => {
+    mockLinks({ data: [ENDED] });
+    mockDetail({ data: detail({ messages: [message()] }) });
+    const { container, queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.reply.followEnded")).not.toBeNull();
+    expect(queryByText("Bien joué")).not.toBeNull();
+    expect(composer(container)).toBeNull();
+    expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith(null);
+  });
+
+  // Un champ posé puis retiré à l'arrivée d'un suivi terminé emporterait la frappe.
+  it("ne pose ni barre ni fil tant que les liens se lisent", () => {
+    mockLinks({ data: undefined });
+    const { container, queryByText } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(queryByText("feedback.reply.followEnded")).toBeNull();
+    expect(composer(container)).toBeNull();
+    expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith(null);
+  });
+
+  // Illisibles, les liens ne tranchent plus rien : l'API dira le 409 si le suivi a pris fin.
+  it("demande le fil comme avant quand les liens n'ont pas pu être lus", () => {
+    mockLinks({ data: undefined, isError: true });
+    const { container } = renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(composer(container)).not.toBeNull();
+    expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith("a-1");
+  });
+
+  it("demande le fil de l'athlète sur un suivi qui court", () => {
+    renderRn(<CoachFeedbackDetailScreen />);
+
+    expect(vi.mocked(useConversationWith)).toHaveBeenLastCalledWith("a-1");
   });
 });
 

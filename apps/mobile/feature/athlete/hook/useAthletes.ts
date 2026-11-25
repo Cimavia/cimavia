@@ -8,7 +8,8 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, athleteKeys, invitationKeys } from "@/feature/athlete/api";
 
-// Les athlètes du coach courant (relations ACTIVE). Cache persisté, comme le reste du mobile.
+// Les athlètes du coach courant : les suivis en cours ET ceux qui ont pris fin, à relire (#909) —
+// `splitFollows` les sépare. Cache persisté, comme le reste du mobile.
 export function useAthletes() {
   return useQuery<CoachAthleteDto[]>({
     queryKey: athleteKeys.list(),

@@ -721,7 +721,8 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "error": "Impossible d'enregistrer la note. Vérifie ta connexion.",
-      "stale": "Cette note a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version."
+      "stale": "Cette note a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "followEnded": "{{ended}} : cette fiche se relit, elle ne se modifie plus."
     },
     "self": "{{name}} (moi)"
   },

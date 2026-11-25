@@ -1,5 +1,5 @@
 import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto, ProblemType } from "@cmv/shared";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
@@ -217,6 +217,42 @@ describe("AthleteSheetScreen — l'édition", () => {
 
     expect(await findByText("athlete.sheet.error")).toBeTruthy();
     await waitFor(() => expect(field(container).value).toBe("Épaule rétablie"));
+  });
+});
+
+// Le suivi a pris fin (#911) : la fiche se relit, l'API refuserait l'écriture en 409.
+describe("AthleteSheetScreen — suivi terminé (#911)", () => {
+  const ENDED = { ...ATHLETE, status: "ENDED", endedAt: "2026-11-20T09:00:00.000Z" };
+
+  it("se relit sans s'offrir à modifier, et dit pourquoi", async () => {
+    listAthletes.mockResolvedValue([ENDED] as CoachAthleteDto[]);
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.followEnded")).toBeTruthy();
+    expect(container.textContent).toContain("Épaule gauche fragile");
+    expect(container.textContent).not.toContain("athlete.sheet.edit");
+  });
+
+  it("n'offre pas d'écrire une fiche jamais écrite", async () => {
+    listAthletes.mockResolvedValue([ENDED] as CoachAthleteDto[]);
+    getSheet.mockResolvedValue(null);
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.empty")).toBeTruthy();
+    expect(container.textContent).not.toContain("athlete.sheet.add");
+  });
+
+  // La fin du suivi arrive pendant la saisie, par une relecture de la liste : l'édition se ferme.
+  it("ferme une édition ouverte quand la liste relue dit le suivi terminé", async () => {
+    const { container, findByText, queryClient } = renderRn(<AthleteSheetScreen />);
+    await findByText("Épaule gauche fragile");
+    pressButton(container, "athlete.sheet.edit");
+    expect(container.querySelector("textarea")).not.toBeNull();
+
+    act(() => queryClient.setQueryData(athleteKeys.list(), [ENDED]));
+
+    expect(await findByText("athlete.sheet.followEnded")).toBeTruthy();
+    expect(container.querySelector("textarea")).toBeNull();
   });
 });
 

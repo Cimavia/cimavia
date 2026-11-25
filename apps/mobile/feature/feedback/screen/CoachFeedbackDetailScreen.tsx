@@ -1,10 +1,16 @@
-import type { CoachFeedbackSummaryDto, MediaRecapLine, SessionFeedbackDto } from "@cmv/shared";
+import {
+  type CoachFeedbackSummaryDto,
+  isEndedLink,
+  type MediaRecapLine,
+  type SessionFeedbackDto,
+} from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
 import { FeedbackMediaList } from "@/feature/feedback/component/FeedbackMediaList";
 import {
@@ -23,6 +29,7 @@ import { useConversationWith } from "@/feature/message/hook/useConversation";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
@@ -98,12 +105,17 @@ function FeedbackBody({
   const { data: session } = authClient.useSession();
 
   const isSelf = useIsSelfAthlete()(summary?.athleteId ?? "");
+  const closedNote = useClosedReplyNote(summary?.athleteId ?? null);
 
   // Les hooks sont appelés INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc
   // avant que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
   // Et `null` AUSSI sur son propre débrief : la requête prendrait un 409 (#198), affiché en
-  // « réessaie dans un instant » — une panne passagère qui n'en est pas une.
-  const conversation = useConversationWith(isSelf ? null : (summary?.athleteId ?? null));
+  // « réessaie dans un instant » — une panne passagère qui n'en est pas une. Pas davantage tant
+  // qu'on ignore si le suivi court, ni sur un suivi terminé : rien ne s'y écrira, et le get-or-create
+  // rendrait le fil pour rien — ou un 400 s'il n'a jamais existé.
+  const conversation = useConversationWith(
+    isSelf || closedNote !== null ? null : (summary?.athleteId ?? null),
+  );
   const queryClient = useQueryClient();
   const freshMediaUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
   const reply = useFeedbackReply(
@@ -162,14 +174,52 @@ function FeedbackBody({
       </ScrollView>
 
       {isSelf ? null : (
-        <FeedbackReplyComposer
-          reply={reply}
-          preUploadErrorKey={preUploadErrorKey}
-          onPreUploadError={setPreUploadErrorKey}
-          recap={recap}
-          onRecap={setRecap}
-        />
+        <ReplyFloor closedNote={closedNote}>
+          <FeedbackReplyComposer
+            reply={reply}
+            preUploadErrorKey={preUploadErrorKey}
+            onPreUploadError={setPreUploadErrorKey}
+            recap={recap}
+            onRecap={setRecap}
+          />
+        </ReplyFloor>
       )}
     </KeyboardAvoidingView>
   );
+}
+
+/**
+ * Le plancher de la réponse : le composeur, ou ce qui se dit à sa place sur un suivi terminé. Rien
+ * tant qu'on l'ignore (`undefined`) : son champ s'éditerait, et l'arrivée d'un suivi terminé le
+ * retirerait avec la frappe.
+ */
+function ReplyFloor({
+  closedNote,
+  children,
+}: Readonly<{ closedNote: string | null | undefined; children: ReactNode }>) {
+  if (closedNote === undefined) return null;
+  if (closedNote === null) return children;
+  return (
+    <View className="border-cmv-border border-t bg-cmv-surface p-4">
+      <CmvText className="text-cmv-text-mid text-sm">{closedNote}</CmvText>
+    </View>
+  );
+}
+
+/**
+ * Le suivi de CE Coach avec l'athlète a-t-il pris fin (#911, pendant du web de #910) ? Rend ce qui
+ * se dit alors à la place du composeur, `null` sur un suivi qui court, et `undefined` tant que ses
+ * liens se chargent : ni composeur ni fil demandé. Illisibles, ils ne tranchent plus
+ * rien (`null`) : le fil se demande comme avant, et l'API refuse en 409 l'envoi d'un suivi terminé
+ * — mieux qu'un composeur éteint sans raison ni relance. C'est le lien qui compte, pas le cycle :
+ * un débrief d'un cycle partagé (#610) se répond par le fil de chaque Coach avec l'athlète.
+ */
+function useClosedReplyNote(athleteId: string | null): string | null | undefined {
+  const { t } = useTranslation();
+  const { data: links, isError } = useAthletes();
+  const followEndedText = useFollowEndedText();
+  if (links == null) return isError ? null : undefined;
+  const link = links.find((candidate) => candidate.athleteId === athleteId);
+  if (link == null || !isEndedLink(link)) return null;
+  return t("feedback.reply.followEnded", { ended: followEndedText(link.endedAt) });
 }
