@@ -130,6 +130,7 @@ export function AthleteWeekGrid({ week, today, planningFrom }: Readonly<AthleteW
                     session={entry.session}
                     planLabel={showPlanTitle ? entry.planTitle : null}
                     planningFrom={planningFrom}
+                    followEndedAt={entry.followEndedAt}
                   />
                 ))
               )}

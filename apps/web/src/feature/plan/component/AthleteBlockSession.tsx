@@ -26,7 +26,8 @@ type AthleteBlockSessionProps = {
   blocks: readonly ReadBlock[];
   tracking: BlockSessionTracking;
   selected: string | null;
-  onSelect: (blockId: string) => void;
+  /** `null` : la séance ne se débriefe plus (#910), son décompte ne s'ouvre plus. */
+  onSelect: ((blockId: string) => void) | null;
 };
 
 /**
@@ -66,9 +67,11 @@ export function AthleteBlockSession({
                   <CmvBadge>{read.block.name}</CmvBadge>
                   <TallyBadge tally={sessionBlockTally(read.block, tracking)} />
                   <span className="flex-1" />
-                  <CmvButton variant="ghost" onClick={() => onSelect(read.block.id)}>
-                    {t("plan.athlete.blocks.tracking")}
-                  </CmvButton>
+                  {onSelect == null ? null : (
+                    <CmvButton variant="ghost" onClick={() => onSelect(read.block.id)}>
+                      {t("plan.athlete.blocks.tracking")}
+                    </CmvButton>
+                  )}
                 </>
               }
               exercises={read.exercises.map(({ row, content }) => ({

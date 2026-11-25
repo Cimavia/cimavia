@@ -40,6 +40,8 @@ export type CalendarPlan<S extends CalendarSession> = {
   coachName: string;
   startDate: string;
   weekCount: number;
+  /** La fin du suivi du cycle (#909), `null` tant qu'il court. */
+  followEndedAt: string | null;
   weeks: readonly CalendarWeek<S>[];
 };
 
@@ -52,6 +54,8 @@ export type AthleteCalendarEntry<S extends CalendarSession> = {
   session: S;
   planId: string;
   planTitle: string;
+  /** Celle du cycle (#910) : la séance d'un suivi terminé se marque, elle ne se débriefe plus. */
+  followEndedAt: string | null;
 };
 
 export type AthleteCalendarDay<S extends CalendarSession> = {
@@ -128,7 +132,12 @@ export function athleteCalendarWeek<S extends CalendarSession>(
 
     for (const session of [...week.sessions].sort((a, b) => a.position - b.position)) {
       const bucket = entriesByDate.get(session.scheduledDate);
-      const entry = { session, planId: plan.id, planTitle: plan.title };
+      const entry = {
+        session,
+        planId: plan.id,
+        planTitle: plan.title,
+        followEndedAt: plan.followEndedAt,
+      };
       if (bucket == null) entriesByDate.set(session.scheduledDate, [entry]);
       else bucket.push(entry);
     }

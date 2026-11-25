@@ -6,7 +6,7 @@ const TODAY = "2026-09-09";
 type Session = { id: string; scheduledDate: string };
 
 function plan(title: string, ...weeks: Session[][]): SessionsSource<Session> {
-  return { title, weeks: weeks.map((sessions) => ({ sessions })) };
+  return { title, followEndedAt: null, weeks: weeks.map((sessions) => ({ sessions })) };
 }
 
 const ids = (entries: { session: Session }[]) => entries.map(({ session }) => session.id);
@@ -87,5 +87,21 @@ describe("splitSessionsByDate", () => {
 
   it("rend deux segments vides sans cycle", () => {
     expect(splitSessionsByDate([], TODAY)).toEqual({ upcoming: [], past: [] });
+  });
+
+  it("marque chaque séance de la fin du suivi de son cycle (#910), et d'elle seule", () => {
+    const ended = {
+      ...plan("Archivé", [{ id: "a", scheduledDate: "2026-09-10" }]),
+      followEndedAt: "2026-09-01T09:00:00.000Z",
+    };
+    const split = splitSessionsByDate(
+      [ended, plan("En cours", [{ id: "b", scheduledDate: "2026-09-11" }])],
+      TODAY,
+    );
+
+    expect(split.upcoming.map(({ followEndedAt }) => followEndedAt)).toEqual([
+      "2026-09-01T09:00:00.000Z",
+      null,
+    ]);
   });
 });

@@ -18,11 +18,17 @@ export type SessionsSegment = (typeof SESSION_SEGMENTS)[number];
  */
 export type SessionsSource<S extends { scheduledDate: string }> = {
   title: string;
+  /** La fin du suivi du cycle (#909), `null` tant qu'il court. */
+  followEndedAt: string | null;
   weeks: readonly { sessions: readonly S[] }[];
 };
 
-/** Une séance et le cycle d'où elle vient — le nom voyage avec elle, il ne se rejoint pas au rendu. */
-export type SessionEntry<S> = { session: S; planTitle: string };
+/**
+ * Une séance et le cycle d'où elle vient — son nom et la fin de son suivi voyagent avec elle, ils ne
+ * se rejoignent pas au rendu. La seconde marque la séance d'un suivi terminé (#910) : elle se
+ * relit, ne se débriefe plus.
+ */
+export type SessionEntry<S> = { session: S; planTitle: string; followEndedAt: string | null };
 
 /**
  * `today` (date ISO du jour, `todayIsoDate()`) appartient aux séances à venir : celle du jour reste
@@ -40,7 +46,11 @@ export function splitSessionsByDate<S extends { scheduledDate: string }>(
 ): Record<SessionsSegment, SessionEntry<S>[]> {
   const entries = plans.flatMap((plan) =>
     plan.weeks.flatMap((week) =>
-      week.sessions.map((session) => ({ session, planTitle: plan.title })),
+      week.sessions.map((session) => ({
+        session,
+        planTitle: plan.title,
+        followEndedAt: plan.followEndedAt,
+      })),
     ),
   );
 

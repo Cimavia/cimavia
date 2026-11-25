@@ -26,6 +26,11 @@ type AthleteSessionCardProps = {
    * Optionnelle, la liste l'aurait omise sans y penser, et la grille aussi.
    */
   planningFrom: string | undefined;
+  /**
+   * La fin du suivi de son cycle (#910), `null` tant qu'il court. Requise comme `planningFrom` :
+   * la grille et la liste la tiennent de l'entrée, et l'oublier effacerait la marque sans bruit.
+   */
+  followEndedAt: string | null;
 };
 
 /**
@@ -42,6 +47,7 @@ export function AthleteSessionCard({
   session,
   planLabel = null,
   planningFrom,
+  followEndedAt,
 }: Readonly<AthleteSessionCardProps>) {
   const { t } = useTranslation();
 
@@ -67,6 +73,11 @@ export function AthleteSessionCard({
           verticale, la carte fait la taille de son texte : la marge vaut alors zéro. C'est ce qui
           aligne les « Fait » d'une même rangée sans donner deux rendus à un seul composant.
           `self-start` : sans lui, la colonne flex étirerait la pastille sur toute la largeur. */}
+      {/* La marque d'une archive (#910) : la séance se relit, son débrief ne s'ouvre plus. Sans
+          date — la carte est petite, la séance la donne. */}
+      {followEndedAt == null ? null : (
+        <span className="text-cmv-caption text-cmv-text-lo">{t("follow.ended")}</span>
+      )}
       <span className="mt-auto self-start">
         <CmvBadge variant={SESSION_STATUS_BADGE[session.status]}>
           {t(`plan.athlete.sessionStatus.${session.status}`)}

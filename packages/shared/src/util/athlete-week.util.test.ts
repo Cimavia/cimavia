@@ -34,6 +34,7 @@ function plan(
     coachName,
     startDate,
     weekCount: weeks.length,
+    followEndedAt: null,
     weeks: weeks.map((week, index) => {
       const monday = new Date(`${startDate}T00:00:00Z`);
       monday.setUTCDate(monday.getUTCDate() + index * 7);
@@ -105,6 +106,18 @@ describe("athleteCalendarWeek", () => {
   it("nomme le coach de chaque cycle de la semaine", () => {
     const week = athleteCalendarWeek([BLOC, FALAISE], MONDAY);
     expect(week?.cycles.map((cycle) => cycle.coachName)).toEqual(["Julie Renaud", "Marc Keller"]);
+  });
+
+  it("marque les séances d'un cycle dont le suivi a pris fin (#910), pas celles des autres", () => {
+    const ended = { ...BLOC, followEndedAt: "2026-10-01T09:00:00.000Z" };
+    const week = athleteCalendarWeek([ended, FALAISE], MONDAY);
+
+    expect(
+      week?.days[0]?.entries.map((entry) => [entry.planId, entry.followEndedAt] as const),
+    ).toEqual([
+      ["bloc", "2026-10-01T09:00:00.000Z"],
+      ["falaise", null],
+    ]);
   });
 
   it("annonce les cycles qui couvrent la semaine, avec leur numéro et leur note", () => {
