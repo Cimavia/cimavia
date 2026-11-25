@@ -88,7 +88,7 @@ export class ConversationService {
       throw new BadRequestException("Participant inconnu");
     }
 
-    const conversation = existing ?? (await this.ensureFor(members));
+    const conversation = existing ?? (await this.createFor(members));
     const [dto] = await this.toDtos([conversation], actor);
     return required(dto, "[message] conversation créée mais non mappable");
   }
@@ -158,10 +158,12 @@ export class ConversationService {
    * autres viennent de l'appelant, qui les a vérifiés (`create`) ou choisis (`ensure`).
    */
   private async ensureFor(members: readonly ConversationMember[]): Promise<JoinedConversation> {
-    const participantKey = participantKeyOf(members);
-    const existing = await this.findByKey(participantKey);
-    if (existing != null) return existing;
+    return (await this.findByKey(participantKeyOf(members))) ?? this.createFor(members);
+  }
 
+  /** La création seule, pour qui vient de chercher le fil sans le trouver (`create`). */
+  private async createFor(members: readonly ConversationMember[]): Promise<JoinedConversation> {
+    const participantKey = participantKeyOf(members);
     const data: Prisma.ConversationCreateInput = {
       kind: conversationKindOf(members),
       participantKey,
