@@ -297,14 +297,15 @@ export class PlanService {
    *
    * Puis 409 `FOLLOW_ENDED` sur un cycle dont le suivi est terminé (#909), quel que soit le droit
    * de l'acteur : l'écriture y est fermée à tous. Le partage et la suppression d'un brouillon
-   * restent au propriétaire — ils ne réécrivent rien de ce que le couple a produit.
+   * restent au propriétaire — ils ne réécrivent rien de ce que le couple a produit. Changer de
+   * destinataire n'a pas besoin d'y figurer : `update` l'atteint par une écriture, donc déjà gardée.
    */
   async getForOrThrow(
     id: string,
     gesture: AccessGesture,
   ): Promise<{ plan: PlanWithAccess; context: AccessContext }> {
     const { row, context } = await this.access.loadFor(this.getReadableOrThrow(id), gesture);
-    if (gesture === "write" || gesture === "reassign") assertFollowOngoing(row.followEndedAt);
+    if (gesture === "write") assertFollowOngoing(row.followEndedAt);
     return { plan: row, context };
   }
 
