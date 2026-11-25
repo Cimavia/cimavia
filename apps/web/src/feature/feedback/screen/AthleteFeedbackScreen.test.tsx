@@ -369,6 +369,22 @@ describe("AthleteFeedbackScreen", () => {
       getSessionMock.mockResolvedValue({ ...session(), followEndedAt: "2026-11-20T09:00:00.000Z" });
     });
 
+    // Le débrief répond avant la séance : le formulaire ne s'offre pas pour se retirer ensuite.
+    it("attend la séance avant d'offrir le formulaire", async () => {
+      let answer: (value: unknown) => void = () => {};
+      getSessionMock.mockReturnValue(new Promise((resolve) => (answer = resolve)) as never);
+      const { findByText, getByText, queryByLabelText } = await setup();
+
+      await waitFor(() => expect(getFeedbackMock).toHaveBeenCalled());
+      expect(getByText("common.loading")).toBeInTheDocument();
+      expect(queryByLabelText(CONTENT)).toBeNull();
+
+      answer({ ...session(), followEndedAt: "2026-11-20T09:00:00.000Z" });
+
+      expect(await findByText("feedback.followEnded")).toBeInTheDocument();
+      expect(queryByLabelText(CONTENT)).toBeNull();
+    });
+
     it("relit le débrief envoyé, sans champ, ni ajout, ni retrait, ni composeur", async () => {
       getFeedbackMock.mockResolvedValue(
         feedback({

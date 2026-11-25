@@ -50,9 +50,12 @@ export function AthleteFeedbackScreen() {
   const { from } = route.useSearch();
   const session = useMyScheduledSession(sessionId);
   const { data: feedback, isPending, isError, refetch } = useMyFeedback(sessionId);
-  // Suivi terminé (#910) : le débrief se relit, plus rien ne s'y écrit. La séance le dit ; tant
-  // qu'elle n'est pas lue, le formulaire reste, et l'API refuserait l'envoi.
+  // Suivi terminé (#910) : le débrief se relit, plus rien ne s'y écrit. La séance le dit, et le
+  // formulaire attend sa réponse — offert puis retiré à son arrivée, il emporterait la frappe.
+  // Illisible, elle ne ferme rien : elle fait perdre le rappel des coches, pas le droit d'écrire
+  // (#722), et l'API refuse en 409 l'envoi d'un suivi terminé.
   const closed = session.data != null && !canDebrief(session.data) ? session.data : null;
+  const isLoading = isPending || (!isError && session.isPending);
 
   return (
     <AppShell
@@ -66,7 +69,7 @@ export function AthleteFeedbackScreen() {
         link: { to: "/sessions/$sessionId", params: { sessionId }, search: { from } },
       }}
     >
-      {isPending ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
+      {isLoading ? <p className="text-cmv-text-mid">{t("common.loading")}</p> : null}
 
       {isError ? (
         <CmvErrorState
@@ -79,7 +82,7 @@ export function AthleteFeedbackScreen() {
 
       {/* Une autre séance repart d'un formulaire neuf : la frappe d'un débrief ne passe jamais
           dans un autre, même quand la route garde l'écran monté. */}
-      {isPending || isError || closed != null ? null : (
+      {isLoading || isError || closed != null ? null : (
         <FeedbackBody
           key={sessionId}
           sessionId={sessionId}
@@ -87,7 +90,7 @@ export function AthleteFeedbackScreen() {
           feedback={feedback ?? null}
         />
       )}
-      {isPending || isError || closed == null ? null : (
+      {isLoading || isError || closed == null ? null : (
         <ClosedFeedback sessionId={sessionId} session={closed} feedback={feedback ?? null} />
       )}
     </AppShell>
