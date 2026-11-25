@@ -12,6 +12,7 @@ import {
 } from "@cmv/shared";
 import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
+import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import {
   type Agent,
   billAndPublish,
@@ -23,7 +24,7 @@ import {
   required,
   signUp,
 } from "../support/actors";
-import { baseURL } from "../support/app";
+import { app, baseURL } from "../support/app";
 import { fromTemplate } from "../support/fixtures";
 import { grantPlan, type SharedPlanWorld, sharedPlanWorld } from "../support/plan-sharing";
 import { deleteAtLatest, patchAtLatest } from "../support/version";
@@ -281,6 +282,25 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
  * `relation-end-solo-` et `relation-end-org-`.
  */
 describe("Rupture d'un lien : ce qu'elle libère, et ce qui ne la défait pas", () => {
+  // Un couple sans lien ne devrait pas exister ; s'il en reste un, son fil reste ouvert, et le
+  // service comme le scope le disent — sinon il s'annonce ouvert et chaque envoi tombe en 500.
+  it("le fil direct d'un couple sans lien reste ouvert, et s'annonce comme tel", async () => {
+    const coach = await signUp("relation-end-unlinked-c@cmv.test", Role.COACH);
+    const athlete = await signUp("relation-end-unlinked-a@cmv.test", Role.ATHLETE);
+    const athleteId = await link(coach, athlete);
+    const thread = await openWith(coach, athleteId, "athlete");
+    await app.get(PrismaService).coachAthlete.deleteMany({ where: { athleteId } });
+
+    const listed = (await coach.get("/conversations")).body as ConversationDto[];
+    expect(
+      listed.find((conversation) => conversation.id === thread.body.id)?.followEndedAt,
+    ).toBeNull();
+    const sent = await coach
+      .post(`/conversations/${thread.body.id}/messages`)
+      .send({ type: MessageType.TEXT, content: "Toujours là" });
+    expect(sent.status).toBe(201);
+  });
+
   it("l'athlète qui a quitté son seul Coach peut renoncer à la capacité athlète", async () => {
     const coach = await signUp("relation-end-solo-c@cmv.test", Role.COACH);
     const solo = await signUp("relation-end-solo-a@cmv.test", Role.ATHLETE);

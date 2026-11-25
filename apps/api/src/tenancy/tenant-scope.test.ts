@@ -341,22 +341,22 @@ describe("participation", () => {
     },
   );
 
-  // Le fil DIRECT d'un couple rompu se relit, ne s'écrit plus (#909) : l'interlocuteur n'est plus
-  // lié à l'acteur par un lien actif. Les fils de groupe, et le DIRECT de deux Coachs, sans
-  // participant de l'autre côté du lien, restent ouverts.
+  // Le fil DIRECT d'un couple rompu se relit, ne s'écrit plus (#909) : l'interlocuteur a avec
+  // l'acteur un lien ROMPU — pas seulement « aucun lien actif », un couple sans lien reste ouvert
+  // comme le dit le service. Les fils de groupe, et le DIRECT de deux Coachs, restent ouverts.
   it.each([
     [
       "COACH",
       {
         capability: "ATHLETE",
-        user: { athleteRelations: { none: { coachId: ACTOR, status: "ACTIVE" } } },
+        user: { athleteRelations: { some: { coachId: ACTOR, status: "ENDED" } } },
       },
     ],
     [
       "ATHLETE",
       {
         capability: "COACH",
-        user: { coachRelations: { none: { athleteId: ACTOR, status: "ACTIVE" } } },
+        user: { coachRelations: { some: { athleteId: ACTOR, status: "ENDED" } } },
       },
     ],
   ] as const)("ferme en écriture le fil DIRECT d'un lien rompu (%s)", (capability, counterpart) => {

@@ -202,20 +202,25 @@ function athleteTraining(toPlan: (plan: TenantFilter) => TenantFilter): Capabili
 
 /**
  * Un fil `DIRECT` du couple se ferme en écriture avec le lien (#909, MC-18) : l'acteur n'y écrit
- * plus dès que l'interlocuteur de l'autre côté n'est plus lié à lui par un lien actif. Ses fils de
- * GROUPE ne bougent pas, ni un fil `DIRECT` entre deux Coachs d'une entreprise, qui n'a pas de
- * participant de l'autre côté du lien.
+ * plus quand l'interlocuteur de l'autre côté a avec lui un lien ROMPU. Ses fils de GROUPE ne
+ * bougent pas, ni un fil `DIRECT` entre deux Coachs d'une entreprise, qui n'a pas de participant
+ * de l'autre côté du lien.
+ *
+ * Un lien rompu qui EXISTE, et non « pas de lien actif » : un couple sans lien (donnée d'avant
+ * #909, nettoyage à la main) garde son fil ouvert, comme avant — c'est ce que dit aussi
+ * `ConversationService.followEndsOf`, qui l'annonce ouvert. Les deux doivent dire la même chose,
+ * sinon le fil s'annonce ouvert et chaque envoi tombe en 500.
  */
 function directClosed(actorId: string, capability: ParticipantCapability): TenantFilter {
   const counterpart =
     capability === "COACH"
       ? {
           capability: "ATHLETE",
-          user: { athleteRelations: { none: { coachId: actorId, status: "ACTIVE" } } },
+          user: { athleteRelations: { some: { coachId: actorId, status: "ENDED" } } },
         }
       : {
           capability: "COACH",
-          user: { coachRelations: { none: { athleteId: actorId, status: "ACTIVE" } } },
+          user: { coachRelations: { some: { athleteId: actorId, status: "ENDED" } } },
         };
   return { kind: "DIRECT", participants: { some: counterpart } };
 }
