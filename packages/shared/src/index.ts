@@ -946,6 +946,14 @@ export type {
   FeedbackReplyTarget,
 } from "./util/feedback-reply.util";
 export { feedbackReplyAttachment, feedbackReplySurface } from "./util/feedback-reply.util";
+export type { PlanWriteMode, SplitFollows } from "./util/follow.util";
+export {
+  canDebrief,
+  directConversationWith,
+  isEndedLink,
+  planWriteMode,
+  splitFollows,
+} from "./util/follow.util";
 export type { Formatters } from "./util/formatter.util";
 export { createFormatters } from "./util/formatter.util";
 export type { ColumnFillMode as ColumnFillModeType, ColumnFillPlan } from "./util/grid-fill.util";
