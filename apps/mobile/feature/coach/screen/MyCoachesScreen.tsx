@@ -202,8 +202,9 @@ function CoachRow({ coach }: Readonly<{ coach: CoachAthleteDto }>) {
       ) : null}
       <CmvButton label={t("coach.message")} onPress={openThread} disabled={open.isPending} />
       {/* Les seuls liens à rompre : ni l'auto-coaching (absent de cette liste), ni un suivi terminé
-          (rangé dans l'archive). Armé, il dit ce qui reste et ce qui cesse (#911). Pas en rouge :
-          rien ne s'efface, l'archive se relit. */}
+          (rangé dans l'archive). Armé, il dit ce qui reste et ce qui cesse (#911). Discret au
+          repos — rien ne s'efface, l'archive se relit —, mais rouge une fois armé, comme sur le
+          web : le lien, lui, ne revient que par une nouvelle invitation. */}
       <CmvConfirmButton
         label={t("follow.end.athlete.action")}
         confirmLabel={t("follow.end.athlete.confirm")}
