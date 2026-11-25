@@ -53,6 +53,7 @@ export function PlanWeekList({ week, today }: Readonly<PlanWeekListProps>) {
                     key={entry.session.id}
                     session={entry.session}
                     planLabel={showPlanTitle ? entry.planTitle : null}
+                    followEndedAt={entry.followEndedAt}
                   />
                 ))
               )}

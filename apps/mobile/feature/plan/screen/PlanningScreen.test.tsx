@@ -224,6 +224,16 @@ describe("PlanWeekList", () => {
     expect(variant(ScheduledSessionStatus.DONE)).toBe("success");
     expect(variant(ScheduledSessionStatus.PLANNED)).toBe("neutral");
   });
+
+  // La séance d'un suivi terminé (#911) se marque, pas sa voisine d'un cycle qui court.
+  it("marque « Suivi terminé » la séance d'un cycle d'archive, et elle seule", () => {
+    const ended = { ...BLOC, followEndedAt: "2026-11-20T10:00:00.000Z" };
+    const { getAllByText } = renderRn(
+      <PlanWeekList week={weekOf([ended, FALAISE])} today={MONDAY} />,
+    );
+
+    expect(getAllByText("follow.ended")).toHaveLength(1);
+  });
 });
 
 /**
@@ -496,5 +506,15 @@ describe("CurrentWeekSection", () => {
 
     expect(queryByText(/plan\.cycle\.week/)).toBeNull();
     expect(getAllByText("plan.rest")).toHaveLength(7);
+  });
+
+  /** Le bandeau d'un cycle d'archive dit quand le suivi a pris fin (#911) — date comprise. */
+  it("date la fin du suivi sur le bandeau d'un cycle d'archive, et rien sur les autres", () => {
+    const ended = { ...BLOC, followEndedAt: "2026-11-20T10:00:00.000Z" };
+    const { getAllByText } = renderRn(
+      <CurrentWeekSection week={weekOf([ended, FALAISE])} today={MONDAY} />,
+    );
+
+    expect(getAllByText("follow.endedOn")).toHaveLength(1);
   });
 });

@@ -74,6 +74,8 @@ export type AthleteCalendarCycle = {
   weekCount: number;
   type: PlanWeekType;
   note: string | null;
+  /** La fin du suivi du cycle (#909) : son bandeau le dit, ses séances se relisent (#911). */
+  followEndedAt: string | null;
 };
 
 export type AthleteCalendarWeek<S extends CalendarSession> = {
@@ -128,6 +130,7 @@ export function athleteCalendarWeek<S extends CalendarSession>(
       weekCount: plan.weekCount,
       type: week.type,
       note: week.note,
+      followEndedAt: plan.followEndedAt,
     });
 
     for (const session of [...week.sessions].sort((a, b) => a.position - b.position)) {

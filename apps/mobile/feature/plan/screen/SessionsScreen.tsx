@@ -72,6 +72,7 @@ export function SessionsScreen() {
             <SessionCard
               session={entry.session}
               planLabel={showPlanTitle ? entry.planTitle : null}
+              followEndedAt={entry.followEndedAt}
             />
           </View>
         ))}

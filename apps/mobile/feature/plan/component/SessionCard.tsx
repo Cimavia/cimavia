@@ -17,10 +17,19 @@ type SessionCardProps = {
    * qui le sait — la carte, elle, ne voit qu'une séance.
    */
   planLabel?: string | null;
+  /**
+   * La fin du suivi de son cycle (#911), `null` tant qu'il court. Requise : la liste et la semaine
+   * la tiennent de l'entrée, et l'oublier effacerait la marque sans bruit.
+   */
+  followEndedAt: string | null;
 };
 
 // Une séance dans la vue semaine ou la liste : titre, volume, statut. Mène au détail.
-export function SessionCard({ session, planLabel = null }: Readonly<SessionCardProps>) {
+export function SessionCard({
+  session,
+  planLabel = null,
+  followEndedAt,
+}: Readonly<SessionCardProps>) {
   const { t } = useTranslation();
   const router = useRouter();
 
@@ -48,6 +57,11 @@ export function SessionCard({ session, planLabel = null }: Readonly<SessionCardP
           variant={SESSION_STATUS_BADGE[session.status]}
         />
       </View>
+      {/* La marque d'une archive (#911) : la séance se relit, son débrief ne s'écrit plus. Sans
+          date — la carte est petite, le détail de la séance la donne. */}
+      {followEndedAt == null ? null : (
+        <CmvText className="text-cmv-text-lo text-xs">{t("follow.ended")}</CmvText>
+      )}
     </Pressable>
   );
 }
