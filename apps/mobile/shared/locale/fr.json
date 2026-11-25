@@ -332,6 +332,7 @@
     "placeholder": "Écris un message…",
     "send": "Envoyer le message",
     "sendError": "Message non envoyé. Vérifie ta connexion.",
+    "followEnded": "{{ended}} : ce fil se relit, on n'y écrit plus.",
     "empty": {
       "title": "Aucun message",
       "description": "Écris le premier message à {{names}}."

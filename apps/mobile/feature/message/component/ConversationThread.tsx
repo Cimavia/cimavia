@@ -25,6 +25,7 @@ import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
 import { apiErrorMessage } from "@/shared/lib/api";
 import { authClient } from "@/shared/lib/auth";
@@ -80,6 +81,9 @@ export function ThreadHeader({ conversation }: Readonly<{ conversation: Conversa
  * masquer.
  *
  * À plusieurs (#612), chaque bulle reçue porte son auteur, et « Lu par » suit mon dernier message.
+ *
+ * Un fil direct dont le suivi a pris fin (#911) se relit et ne s'écrit plus : la phrase de fin
+ * prend la place de la barre d'envoi, des deux côtés du couple. Il se marque encore lu.
  */
 export function ConversationThread({ conversation }: Readonly<ConversationThreadProps>) {
   const { t } = useTranslation();
@@ -161,9 +165,13 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
             <CmvText className="font-cmv-display text-cmv-text-hi text-xl">
               {t("messages.empty.title")}
             </CmvText>
-            <CmvText className="text-center text-cmv-text-mid">
-              {emptyThreadText(conversation, t)}
-            </CmvText>
+            {/* « Écris le premier message » n'a plus de sens sur un fil fermé : la phrase de fin, en
+                bas, dit pourquoi il est vide pour de bon. */}
+            {conversation.followEndedAt == null ? (
+              <CmvText className="text-center text-cmv-text-mid">
+                {emptyThreadText(conversation, t)}
+              </CmvText>
+            ) : null}
           </View>
         ) : (
           <View className="flex-1">
@@ -196,27 +204,43 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
           </CmvText>
         ))}
 
-        <Composer
-          onSendText={(content) => send.mutateAsync({ type: "TEXT", content })}
-          onPickMedia={(source) => {
-            setPreUploadErrorKey(null);
-            setRecap([]);
-            void media.pickAndSend(setPreUploadErrorKey, source).then(setRecap);
-          }}
-          // Une capture lancée à la main efface les échecs précédents ; une note relayée au
-          // plafond, elle, part sans rien effacer — l'échec de la note d'avant resterait sinon
-          // tu (#858).
-          onCaptureStart={() => {
-            setPreUploadErrorKey(null);
-            media.clearAudioError();
-          }}
-          onRecordAudio={media.recordAndSend}
-          onMediaError={setPreUploadErrorKey}
-          sending={send.isPending}
-          mediaBusy={media.isUploading}
-          step={media.step}
-        />
+        {conversation.followEndedAt == null ? null : (
+          <FollowEndedNote followEndedAt={conversation.followEndedAt} />
+        )}
+        {conversation.followEndedAt != null ? null : (
+          <Composer
+            onSendText={(content) => send.mutateAsync({ type: "TEXT", content })}
+            onPickMedia={(source) => {
+              setPreUploadErrorKey(null);
+              setRecap([]);
+              void media.pickAndSend(setPreUploadErrorKey, source).then(setRecap);
+            }}
+            // Une capture lancée à la main efface les échecs précédents ; une note relayée au
+            // plafond, elle, part sans rien effacer — l'échec de la note d'avant resterait sinon
+            // tu (#858).
+            onCaptureStart={() => {
+              setPreUploadErrorKey(null);
+              media.clearAudioError();
+            }}
+            onRecordAudio={media.recordAndSend}
+            onMediaError={setPreUploadErrorKey}
+            sending={send.isPending}
+            mediaBusy={media.isUploading}
+            step={media.step}
+          />
+        )}
       </KeyboardAvoidingView>
     </CmvScreen>
+  );
+}
+
+/** Au plancher d'un fil fermé (#911), là où serait la barre d'envoi : pourquoi on n'y écrit plus. */
+function FollowEndedNote({ followEndedAt }: Readonly<{ followEndedAt: string }>) {
+  const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
+  return (
+    <CmvText className="border-cmv-border border-t px-4 py-3 text-cmv-text-mid text-sm">
+      {t("messages.followEnded", { ended: followEndedText(followEndedAt) })}
+    </CmvText>
   );
 }
