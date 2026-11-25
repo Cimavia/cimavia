@@ -411,6 +411,15 @@ describe("MyCoachesScreen — quitter un coach (#910)", () => {
     expect(screen.getByRole("button", { name: "follow.archive.coaches" })).toBeInTheDocument();
   });
 
+  // L'archive lit les fils pour s'y rouvrir : sans ancien coach, rien à relire, rien à demander.
+  it("ne lit pas les fils quand aucun suivi n'a pris fin", async () => {
+    myCoaches.mockResolvedValue([RELATION]);
+    await render();
+
+    await screen.findByText("Julie Renaud");
+    expect(listConversations).not.toHaveBeenCalled();
+  });
+
   // Par son id : la messagerie n'ouvre `?coach=` que vers un coach encore suivi.
   it("rouvre le fil d'un ancien coach par son id", async () => {
     myCoaches.mockResolvedValue([ENDED_MARC]);

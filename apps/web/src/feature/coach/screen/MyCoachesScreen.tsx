@@ -100,13 +100,16 @@ function PendingInvitations() {
   );
 }
 
-/** Les suivis en cours, puis l'archive de ceux qui ont pris fin (#910). */
+/**
+ * Les suivis en cours, puis l'archive de ceux qui ont pris fin (#910). Montée seulement s'il y en a :
+ * elle lit les fils pour s'y rouvrir, et un athlète qui n'a quitté personne n'a rien à y relire.
+ */
 function Follows({ coaches }: Readonly<{ coaches: CoachAthleteDto[] }>) {
   const { ongoing, ended } = splitFollows(coaches);
   return (
     <>
       {ongoing.length === 0 ? <NoCoachCard /> : <CoachTable coaches={ongoing} />}
-      <FormerCoaches coaches={ended} />
+      {ended.length === 0 ? null : <FormerCoaches coaches={ended} />}
     </>
   );
 }
