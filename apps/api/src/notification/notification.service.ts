@@ -643,12 +643,18 @@ export class NotificationService implements OnModuleDestroy {
    * erreur et le renvoyait. La trace, elle, reste attendue : c'est une écriture en base, et le
    * centre que le client relit juste après doit la porter.
    *
-   * Rien ne lève ici : `push` et `email` absorbent chacun leur échec et le journalisent (Pino →
-   * Axiom, et Sentry par son intégration Pino). Ce qui reste à tenir, c'est de ne pas les perdre :
-   * chacun est suivi jusqu'à son terme, pour l'arrêt de l'API et pour les tests (`settled`).
+   * `push` et `email` absorbent chacun leur échec et le journalisent (Pino → Axiom, et Sentry par
+   * son intégration Pino). Ce qui leur échapperait quand même — une lecture posée un jour hors de
+   * leur `try` — est rattrapé ici : plus personne n'attend la promesse, un rejet deviendrait une
+   * `unhandledRejection`, qui arrête le process, et ferait échouer l'attente de l'arrêt avant les
+   * autres envois. Chaque envoi est suivi jusqu'à son terme, pour l'arrêt et les tests (`settled`).
    */
   private deliverLater(delivery: Promise<void>): void {
-    const tracked = delivery.finally(() => this.deliveries.delete(tracked));
+    const tracked = delivery
+      .catch((error: unknown) => {
+        this.logger.error({ err: error }, "Échec d'une notification partie après la réponse");
+      })
+      .finally(() => this.deliveries.delete(tracked));
     this.deliveries.add(tracked);
   }
 
@@ -670,8 +676,8 @@ export class NotificationService implements OnModuleDestroy {
    * Un redémarrage de l'API (une promotion, un conteneur relancé) laisse finir un push ou un e-mail
    * en route. Il les attend AVANT que Prisma se déconnecte, puisque l'e-mail lit encore la préférence
    * et l'adresse : les deux modules sont globaux, et Nest détruit les globaux dans l'ordre inverse de
-   * leur import — `PrismaModule` est importé avant `NotificationModule` dans `AppModule`, et un
-   * test le tient.
+   * leur import — `PrismaModule` est importé avant `NotificationModule` dans `AppModule`. Rien
+   * d'autre ne l'impose : `test/shutdown.e2e-spec.ts` le vérifie sur l'app montée.
    *
    * L'attente a la borne du conteneur : son délai de grâce (10 s chez Docker par défaut) avant
    * l'arrêt forcé. Un fournisseur en panne au même moment y perd son envoi (dette N-13).

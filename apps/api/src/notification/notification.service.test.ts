@@ -719,6 +719,30 @@ describe("NotificationService — la requête n'attend que la trace", () => {
     await stopping;
     expect(stopped).toBe(true);
   });
+
+  /**
+   * Plus personne n'attend un envoi parti après la réponse : s'il lève malgré son `try`, le rejet
+   * deviendrait une `unhandledRejection`. Provoqué ici par le journal lui-même, qui casse dans le
+   * `catch` de l'e-mail — le seul endroit de ce canal qui ne soit pas déjà sous garde.
+   */
+  it("un envoi qui lève malgré tout est journalisé, et l'attente aboutit", async () => {
+    const { service, logger } = serviceWith({
+      failing: { mail: true },
+      emailWanted: true,
+      recipient: { email: "coach@cmv.test", locale: "fr" },
+    });
+    logger.error.mockImplementationOnce(() => {
+      throw new Error("journal indisponible");
+    });
+
+    await service.notifyFeedbackReceived(FEEDBACK);
+    await expect(service.settled()).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenLastCalledWith(
+      { err: expect.objectContaining({ message: "journal indisponible" }) },
+      "Échec d'une notification partie après la réponse",
+    );
+  });
 });
 
 /**
