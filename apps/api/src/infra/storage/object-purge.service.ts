@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { PrismaService } from "../prisma/prisma.service";
 import { keysCitedByRows } from "./object-references";
@@ -27,9 +28,10 @@ function reasonOf(err: unknown): string {
  *
  * Par le client de base : la file ne relève d'aucun tenant, le compte n'existe plus.
  *
- * Chaque lot relit les citations avant de rien retirer (#73) : une clé mise en file au remplacement
- * d'un justificatif peut être rattachée de nouveau avant le passage, par un client qui la rejoue.
- * Citée, elle n'est plus orpheline — sa prise en charge part, l'objet reste.
+ * La citation se relit juste avant CHAQUE retrait (#73), et non au début du lot : une clé mise en
+ * file au remplacement d'un justificatif peut être rattachée de nouveau pendant le passage, par un
+ * client qui la rejoue. Citée, elle reste en file sans que son objet parte : sa prise en charge ne
+ * se retire jamais sur la foi d'une lecture, c'est l'objet retiré qui la solde.
  */
 @Injectable()
 export class ObjectPurgeService {
@@ -50,17 +52,9 @@ export class ObjectPurgeService {
       take: limit,
       select: { id: true, key: true },
     });
-    const cited = await keysCitedByRows(
-      this.prisma,
-      pending.map((object) => object.key),
-    );
-    if (cited.size > 0) {
-      await this.prisma.pendingObjectDeletion.deleteMany({ where: { key: { in: [...cited] } } });
-    }
     let purged = 0;
     for (const object of pending) {
       if (Date.now() >= deadline) break;
-      if (cited.has(object.key)) continue;
       if (await this.purgeOne(object)) purged += 1;
     }
     return purged;
@@ -84,15 +78,20 @@ export class ObjectPurgeService {
    *
    * Par le client de base, hors de la transaction de l'appelant : la file n'a pas de scope tenant,
    * et l'objet ne se retire qu'une fois la ligne partie pour de bon.
+   *
+   * Une ligne qui cite encore la clé ne peut être qu'une AUTRE ligne, l'appelant ayant écrit la
+   * sienne : une clé rattachée deux fois (S-2), ou un justificatif d'avant le contrôle de préfixe
+   * (#293). L'objet reste, comme il resterait par la file.
    */
   async deleteOrDefer(key: string): Promise<void> {
     try {
+      if (await this.isCited(key)) return;
       await this.storage.deleteObject(key);
       return;
     } catch (err) {
       this.logger.warn(
         { reason: reasonOf(err) },
-        "objet à retirer : stockage en échec, confié à la file",
+        "objet à retirer : retrait en échec, confié à la file",
       );
     }
     try {
@@ -107,6 +106,14 @@ export class ObjectPurgeService {
   }
 
   private async purgeOne({ id, key }: { id: string; key: string }): Promise<boolean> {
+    if (await this.isCited(key)) {
+      // Reportée comme un échec : elle ne doit pas occuper la tête du lot à chaque passage.
+      await this.prisma.pendingObjectDeletion.updateMany({
+        where: { id },
+        data: { attempts: { increment: 1 } },
+      });
+      return false;
+    }
     try {
       await this.storage.deleteObject(key);
     } catch (err) {
@@ -124,5 +131,17 @@ export class ObjectPurgeService {
     // `deleteMany` : le tick et la fin d'un effacement peuvent traiter la même ligne.
     await this.prisma.pendingObjectDeletion.deleteMany({ where: { id } });
     return true;
+  }
+
+  /**
+   * Une ligne cite-t-elle encore cette clé ? Toutes les colonnes dans UN instantané
+   * (`RepeatableRead`), comme le balayage (#72) : lues une à une, une copie créée et sa source
+   * supprimée entre deux lectures feraient passer pour orpheline une clé encore citée.
+   */
+  private async isCited(key: string): Promise<boolean> {
+    const cited = await this.prisma.$transaction((tx) => keysCitedByRows(tx, [key]), {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    });
+    return cited.size > 0;
   }
 }

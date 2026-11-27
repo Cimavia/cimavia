@@ -22,7 +22,11 @@ function citingTables(cited: string[] = []) {
     feedbackMedia: none(),
     message: none(),
     invoice: {
-      findMany: vi.fn().mockResolvedValue(cited.map((documentPath) => ({ documentPath }))),
+      findMany: vi.fn(async ({ where }: { where: { documentPath: { in: string[] } } }) =>
+        where.documentPath.in
+          .filter((key) => cited.includes(key))
+          .map((documentPath) => ({ documentPath })),
+      ),
     },
   };
 }
@@ -39,12 +43,18 @@ function purgeWith(
     createMany: vi.fn().mockResolvedValue({ count: 1 }),
   };
   const logger = { warn: vi.fn(), error: vi.fn() };
+  const tables = { pendingObjectDeletion: queue, ...citingTables(cited) };
+  // L'instantané des citations : la transaction rend la main au client lui-même.
+  const db = {
+    ...tables,
+    $transaction: vi.fn((work: (tx: typeof tables) => unknown) => work(tables)),
+  };
   const service = new ObjectPurgeService(
-    { pendingObjectDeletion: queue, ...citingTables(cited) } as unknown as PrismaService,
+    db as unknown as PrismaService,
     { deleteObject } as unknown as StorageService,
     logger as unknown as PinoLogger,
   );
-  return { service, queue, deleteObject, logger };
+  return { service, queue, deleteObject, logger, db };
 }
 
 describe("ObjectPurgeService.drain", () => {
@@ -95,7 +105,9 @@ describe("ObjectPurgeService.drain", () => {
     await expect(service.drainSafely()).resolves.toBe(1);
   });
 
-  it("ne retire pas un objet cité de nouveau : sa prise en charge part, l'objet reste", async () => {
+  // Rattachée de nouveau, la clé reste en file : c'est l'objet retiré qui solde une prise en
+  // charge, jamais une lecture — redevenue orpheline, elle partira au passage suivant.
+  it("ne retire pas un objet cité de nouveau, et le garde en file", async () => {
     const { service, queue, deleteObject } = purgeWith(
       [
         { id: "1", key: "rattache-de-nouveau.pdf" },
@@ -106,8 +118,26 @@ describe("ObjectPurgeService.drain", () => {
     );
     await expect(service.drain()).resolves.toBe(1);
     expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["b"]);
-    expect(queue.deleteMany).toHaveBeenCalledWith({
-      where: { key: { in: ["rattache-de-nouveau.pdf"] } },
+    expect(queue.deleteMany).toHaveBeenCalledExactlyOnceWith({ where: { id: "2" } });
+    expect(queue.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "1" },
+      data: { attempts: { increment: 1 } },
+    });
+  });
+
+  // Le cas que la lecture en tête de lot laissait passer : citée APRÈS le début du passage.
+  it("relit la citation juste avant chaque retrait, dans un instantané", async () => {
+    const { service, deleteObject, db } = purgeWith([
+      { id: "1", key: "a" },
+      { id: "2", key: "rattachee-pendant.pdf" },
+    ]);
+    deleteObject.mockImplementationOnce(async () => {
+      db.invoice.findMany.mockResolvedValue([{ documentPath: "rattachee-pendant.pdf" }]);
+    });
+    await expect(service.drain()).resolves.toBe(1);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["a"]);
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
     });
   });
 
@@ -125,6 +155,13 @@ describe("ObjectPurgeService.drain", () => {
 
 describe("ObjectPurgeService.deleteOrDefer", () => {
   const KEY = "athlete/a1/invoice/p1/secret-nom.pdf";
+
+  it("ne retire pas un objet qu'une autre ligne cite encore, ni ne le met en file", async () => {
+    const { service, queue, deleteObject } = purgeWith([], vi.fn(), [KEY]);
+    await service.deleteOrDefer(KEY);
+    expect(deleteObject).not.toHaveBeenCalled();
+    expect(queue.createMany).not.toHaveBeenCalled();
+  });
 
   it("retire l'objet sans passer par la file quand le stockage répond", async () => {
     const { service, queue, deleteObject, logger } = purgeWith([]);
