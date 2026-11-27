@@ -7,6 +7,7 @@ import {
   createSignedUrlSharing,
   resolveUsableSignedUrl,
   stabilizeFeedbackUrls,
+  stabilizeMessagePageUrls,
   stabilizeMessageUrls,
 } from "./signed-url-keeper.util";
 
@@ -211,6 +212,42 @@ describe("resolveUsableSignedUrl", () => {
   });
 });
 
+describe("stabilizeMessagePageUrls", () => {
+  it("garde l'URL d'un média dans la page où il est, quelle qu'elle soit", () => {
+    const keeper = createSignedUrlKeeper();
+    stabilizeMessagePageUrls(
+      keeper,
+      {
+        pages: [
+          { items: [textMessage("m2")], nextCursor: "c-m2" },
+          { items: [audioMessage("m1", signed("a", 0))], nextCursor: null },
+        ],
+        pageParams: [null, "c-m2"],
+      },
+      at(0),
+    );
+
+    const later = stabilizeMessagePageUrls(
+      keeper,
+      {
+        pages: [
+          { items: [textMessage("m2")], nextCursor: "c-m2" },
+          { items: [audioMessage("m1", signed("a", 10))], nextCursor: null },
+        ],
+        pageParams: [null, "c-m2"],
+      },
+      at(10),
+    );
+    expect(later?.pages[1]?.items[0]?.media?.url).toBe(signed("a", 0));
+    expect(later?.pageParams).toEqual([null, "c-m2"]);
+    expect(later?.pages[0]?.nextCursor).toBe("c-m2");
+  });
+
+  it("laisse passer une requête qui n'a encore rien rendu", () => {
+    expect(stabilizeMessagePageUrls(createSignedUrlKeeper(), undefined, at(0))).toBeUndefined();
+  });
+});
+
 describe("createSignedUrlSharing", () => {
   // Un partage structurel minimal : rend l'ancienne valeur quand elle est égale à la nouvelle.
   const replaceEqualDeep = (previous: unknown, next: unknown) =>
@@ -220,13 +257,27 @@ describe("createSignedUrlSharing", () => {
    * Le vrai gain : quand la réponse ne diffère que par ses signatures, le cache garde l'objet
    * précédent — aucun écran ne se redessine, aucun lecteur ne recharge.
    */
-  it("rend la réponse précédente quand seules les URLs ont changé", () => {
+  it("rend les pages précédentes quand seules les URLs ont changé", () => {
     let now = at(0);
     const sharing = createSignedUrlSharing(replaceEqualDeep, () => now);
-    const first = sharing.keepThreadUrls(undefined, [audioMessage("m1", signed("a", 0))]);
+    const pagesAt = (seconds: number) => ({
+      pages: [{ items: [audioMessage("m1", signed("a", seconds))], nextCursor: null }],
+      pageParams: [null],
+    });
+    const first = sharing.keepThreadPageUrls(undefined, pagesAt(0));
 
     now = at(10);
-    expect(sharing.keepThreadUrls(first, [audioMessage("m1", signed("a", 10))])).toBe(first);
+    expect(sharing.keepThreadPageUrls(first, pagesAt(10))).toBe(first);
+  });
+
+  // Le résultat de `select` repasse par le même partage : un fil à plat n'est pas une page.
+  it("partage le fil à plat que la requête tire de ses pages, sans le relire en pages", () => {
+    const sharing = createSignedUrlSharing(replaceEqualDeep, () => at(0));
+    const thread = [audioMessage("m1", signed("a", 0))];
+    const first = sharing.keepThreadPageUrls(undefined, thread);
+
+    expect(first).toBe(thread);
+    expect(sharing.keepThreadPageUrls(first, [audioMessage("m1", signed("a", 0))])).toBe(first);
   });
 
   it("stabilise un débrief et remplit la table partagée", () => {

@@ -180,6 +180,13 @@ export {
   SELF_RELATION_ID,
   UNKNOWN_COUNTERPARTS,
 } from "./dto/coach-athlete.schema";
+export type { CursorPage } from "./dto/cursor-page.schema";
+export {
+  CURSOR_PAGE_MAX_LIMIT,
+  cursorPageQuerySchema,
+  cursorPageSchema,
+  pageCursorSchema,
+} from "./dto/cursor-page.schema";
 export type {
   AttachDocumentInput,
   CreateExerciseInput,
@@ -383,6 +390,8 @@ export type {
   MessageFileMimeType,
   MessageMediaDto,
   MessageMediaKind,
+  MessagePageDto,
+  MessagePageQuery,
   MessageType as MessageTypeType,
   RequestMessageUploadUrlInput,
   SendMessageInput,
@@ -413,6 +422,7 @@ export {
   MESSAGE_FILE_MIME_TYPES,
   MESSAGE_IMAGE_MIME_TYPES,
   MESSAGE_MEDIA_BATCH_SLOTS,
+  MESSAGE_PAGE_SIZE,
   MESSAGE_TEXT_MAX_LENGTH,
   MESSAGE_VIDEO_MIME_TYPES,
   MessageAttachmentType,
@@ -423,6 +433,8 @@ export {
   messageDtoSchema,
   messageFileMimeTypeSchema,
   messageMediaDtoSchema,
+  messagePageDtoSchema,
+  messagePageQuerySchema,
   messageTypeSchema,
   participantCapabilitySchema,
   requestMessageUploadUrlSchema,
@@ -1030,6 +1042,13 @@ export {
 } from "./util/message-attachment.util";
 export { draftAfterSend } from "./util/message-draft.util";
 export { checkMessageFile, type MessageFileCheck } from "./util/message-file.util";
+export type { MessagePages, OlderPageState } from "./util/message-pages.util";
+export {
+  olderPageCursor,
+  refreshNewestPage,
+  shouldLoadOlderPage,
+  threadOfPages,
+} from "./util/message-pages.util";
 export type { ReadMarker } from "./util/message-read.util";
 export {
   createReadMarker,
@@ -1289,6 +1308,7 @@ export {
   createSignedUrlSharing,
   resolveUsableSignedUrl,
   stabilizeFeedbackUrls,
+  stabilizeMessagePageUrls,
   stabilizeMessageUrls,
 } from "./util/signed-url-keeper.util";
 export type { ResendState, SignupMode } from "./util/signup.util";

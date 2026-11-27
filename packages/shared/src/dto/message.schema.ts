@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { TrainingCapability } from "../capability";
 import type { TypesValuesOf } from "../type/generics.type";
+import { cursorPageQuerySchema, cursorPageSchema } from "./cursor-page.schema";
 import { MAX_DOCUMENT_SIZE_BYTES } from "./exercise.schema";
 import {
   feedbackImageMimeTypeSchema,
@@ -368,6 +369,16 @@ export const messageDtoSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 export type MessageDto = z.infer<typeof messageDtoSchema>;
+
+/**
+ * Un fil se sert par pages (#77), de la plus récente à la plus ancienne. 50 : de quoi remplir
+ * l'écran d'un fil ouvert, et largement plus qu'un échange de la journée.
+ */
+export const MESSAGE_PAGE_SIZE = 50;
+export const messagePageQuerySchema = cursorPageQuerySchema(MESSAGE_PAGE_SIZE);
+export type MessagePageQuery = z.infer<typeof messagePageQuerySchema>;
+export const messagePageDtoSchema = cursorPageSchema(messageDtoSchema);
+export type MessagePageDto = z.infer<typeof messagePageDtoSchema>;
 
 /**
  * À deux ou à plusieurs (#611). Une conversation à deux est `DIRECT`, à trois ou plus `GROUP` —
