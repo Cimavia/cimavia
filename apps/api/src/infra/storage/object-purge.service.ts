@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { PrismaService } from "../prisma/prisma.service";
+import { keysCitedByRows } from "./object-references";
 import { StorageService } from "./storage.service";
 
 /** Par passage : un compte volumineux se vide en plusieurs ticks, sans tenir une requête. */
@@ -17,6 +18,10 @@ export const OBJECT_PURGE_BUDGET_MS = 20_000;
  * un stockage en panne laisse la file intacte, et le passage suivant recommence.
  *
  * Par le client de base : la file ne relève d'aucun tenant, le compte n'existe plus.
+ *
+ * Chaque lot relit les citations avant de rien retirer (#73) : une clé mise en file au remplacement
+ * d'un justificatif peut être rattachée de nouveau avant le passage, par un client qui la rejoue.
+ * Citée, elle n'est plus orpheline — sa prise en charge part, l'objet reste.
  */
 @Injectable()
 export class ObjectPurgeService {
@@ -37,9 +42,17 @@ export class ObjectPurgeService {
       take: limit,
       select: { id: true, key: true },
     });
+    const cited = await keysCitedByRows(
+      this.prisma,
+      pending.map((object) => object.key),
+    );
+    if (cited.size > 0) {
+      await this.prisma.pendingObjectDeletion.deleteMany({ where: { key: { in: [...cited] } } });
+    }
     let purged = 0;
     for (const object of pending) {
       if (Date.now() >= deadline) break;
+      if (cited.has(object.key)) continue;
       if (await this.purgeOne(object)) purged += 1;
     }
     return purged;

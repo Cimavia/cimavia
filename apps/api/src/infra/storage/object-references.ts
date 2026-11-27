@@ -88,9 +88,33 @@ export async function referencedObjectKeys(
   db: ReferenceDb,
   keys: readonly string[],
 ): Promise<Set<string>> {
+  return keysReadBy(db, keys, Object.values(OBJECT_KEY_COLUMNS));
+}
+
+/** Les colonnes qui CITENT un objet : la file, elle, ne fait que le prendre en charge. */
+const CITING_COLUMNS = Object.entries(OBJECT_KEY_COLUMNS)
+  .filter(([column]) => column !== "PendingObjectDeletion.key")
+  .map(([, readColumn]) => readColumn);
+
+/**
+ * Parmi ces clés, celles qu'une LIGNE cite encore — la file exceptée, qui les porterait toutes
+ * quand c'est elle qui demande (#73). Même portée que `referencedObjectKeys` : tous les tenants.
+ */
+export async function keysCitedByRows(
+  db: ReferenceDb,
+  keys: readonly string[],
+): Promise<Set<string>> {
+  return keysReadBy(db, keys, CITING_COLUMNS);
+}
+
+async function keysReadBy(
+  db: ReferenceDb,
+  keys: readonly string[],
+  columns: readonly ColumnReader[],
+): Promise<Set<string>> {
   const referenced = new Set<string>();
   for (const batch of chunked(keys)) {
-    for (const readColumn of Object.values(OBJECT_KEY_COLUMNS)) {
+    for (const readColumn of columns) {
       for (const key of await readColumn(db, batch)) if (key != null) referenced.add(key);
     }
   }

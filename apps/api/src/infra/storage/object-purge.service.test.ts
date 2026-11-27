@@ -4,7 +4,25 @@ import type { PrismaService } from "../prisma/prisma.service";
 import { ObjectPurgeService } from "./object-purge.service";
 import type { StorageService } from "./storage.service";
 
-function purgeWith(rows: { id: string; key: string }[], deleteObject = vi.fn()) {
+/** Les tables qui citent une clé : vides, sauf `cited`, citées par un justificatif de facture. */
+function citingTables(cited: string[] = []) {
+  const none = () => ({ findMany: vi.fn().mockResolvedValue([]) });
+  return {
+    exerciseDocument: none(),
+    scheduledSessionExerciseDocument: none(),
+    feedbackMedia: none(),
+    message: none(),
+    invoice: {
+      findMany: vi.fn().mockResolvedValue(cited.map((documentPath) => ({ documentPath }))),
+    },
+  };
+}
+
+function purgeWith(
+  rows: { id: string; key: string }[],
+  deleteObject = vi.fn(),
+  cited: string[] = [],
+) {
   const queue = {
     findMany: vi.fn().mockResolvedValue(rows),
     deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -12,7 +30,7 @@ function purgeWith(rows: { id: string; key: string }[], deleteObject = vi.fn()) 
   };
   const logger = { warn: vi.fn() };
   const service = new ObjectPurgeService(
-    { pendingObjectDeletion: queue } as unknown as PrismaService,
+    { pendingObjectDeletion: queue, ...citingTables(cited) } as unknown as PrismaService,
     { deleteObject } as unknown as StorageService,
     logger as unknown as PinoLogger,
   );
@@ -65,6 +83,22 @@ describe("ObjectPurgeService.drain", () => {
   it("drainSafely rend le nombre retiré quand tout va bien", async () => {
     const { service } = purgeWith([{ id: "1", key: "a" }]);
     await expect(service.drainSafely()).resolves.toBe(1);
+  });
+
+  it("ne retire pas un objet cité de nouveau : sa prise en charge part, l'objet reste", async () => {
+    const { service, queue, deleteObject } = purgeWith(
+      [
+        { id: "1", key: "rattache-de-nouveau.pdf" },
+        { id: "2", key: "b" },
+      ],
+      vi.fn(),
+      ["rattache-de-nouveau.pdf"],
+    );
+    await expect(service.drain()).resolves.toBe(1);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["b"]);
+    expect(queue.deleteMany).toHaveBeenCalledWith({
+      where: { key: { in: ["rattache-de-nouveau.pdf"] } },
+    });
   });
 
   it("passe d'abord les objets les moins tentés, par lots bornés", async () => {

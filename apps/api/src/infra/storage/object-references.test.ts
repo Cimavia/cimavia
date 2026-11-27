@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
-import { OBJECT_KEY_COLUMNS, referencedObjectKeys } from "./object-references";
+import { keysCitedByRows, OBJECT_KEY_COLUMNS, referencedObjectKeys } from "./object-references";
 
 type Db = Parameters<typeof referencedObjectKeys>[0];
 
@@ -105,5 +105,14 @@ describe("referencedObjectKeys", () => {
 
     await expect(referencedObjectKeys(db as unknown as Db, [])).resolves.toEqual(new Set());
     expect(db.message.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("keysCitedByRows", () => {
+  it("réunit les clés citées par une ligne, sans compter la file", async () => {
+    const db = dbWith({ invoice: [{ documentPath: "e" }], pendingObjectDeletion: [{ key: "f" }] });
+
+    await expect(keysCitedByRows(db as unknown as Db, ["e", "f"])).resolves.toEqual(new Set(["e"]));
+    expect(db.pendingObjectDeletion.findMany).not.toHaveBeenCalled();
   });
 });
