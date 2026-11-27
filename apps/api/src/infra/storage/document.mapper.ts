@@ -18,6 +18,16 @@ export type DocumentRow = {
 };
 
 /**
+ * Les clés d'objet de ces documents, à retirer du stockage quand leurs lignes sont parties : un LINK
+ * n'y a rien, un FILE sans clé non plus.
+ */
+export function fileKeysOf(docs: readonly Pick<DocumentRow, "type" | "storagePath">[]): string[] {
+  return docs.flatMap((doc) =>
+    doc.type === DocumentType.FILE && doc.storagePath != null ? [doc.storagePath] : [],
+  );
+}
+
+/**
  * Mappe un document vers son DTO de sortie.
  * FILE  → `url` = URL GET signée courte sur l'objet privé (régénérée à chaque lecture).
  * LINK  → `url` = lien externe stocké tel quel.
