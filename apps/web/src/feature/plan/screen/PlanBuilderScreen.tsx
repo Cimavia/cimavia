@@ -26,6 +26,7 @@ import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { planKeys } from "@/feature/plan/api";
+import { DuplicatePlanButton } from "@/feature/plan/component/DuplicatePlanButton";
 import { PlanAccessButton } from "@/feature/plan/component/PlanAccessButton";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
@@ -164,6 +165,8 @@ function useUnsavedInputs() {
     return saved;
   });
   return {
+    // N'importe laquelle des trois : ce que la garde demanderait avant de quitter l'écran.
+    hasUnsaved: pending.length > 0,
     isHeaderUnsaved: header.save != null,
     reportHeader: header.report,
     isBillingUnsaved: billing.save != null,
@@ -219,8 +222,15 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
-  const { isHeaderUnsaved, reportHeader, isBillingUnsaved, reportBilling, reportPanel, guard } =
-    useUnsavedInputs();
+  const {
+    hasUnsaved,
+    isHeaderUnsaved,
+    reportHeader,
+    isBillingUnsaved,
+    reportBilling,
+    reportPanel,
+    guard,
+  } = useUnsavedInputs();
   useRequestedSession(plan, isFetching, setEdit);
 
   // Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
@@ -285,6 +295,7 @@ export function PlanBuilderScreen() {
       actions={
         <>
           <DosageButton plan={plan} />
+          <DuplicatePlanButton plan={plan} isUnsaved={hasUnsaved} isBusy={isBusy} />
           {hasBuilderActions(mode, isMine) ? (
             <>
               {isMine ? (

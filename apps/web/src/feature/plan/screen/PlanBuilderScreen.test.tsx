@@ -54,9 +54,11 @@ vi.mock("@/feature/invoice/hook/useInvoices", () => ({
 }));
 const publishPlan = vi.hoisted(() => vi.fn());
 const deletePlan = vi.hoisted(() => vi.fn());
+const duplicatePlan = vi.hoisted(() => vi.fn());
 vi.mock("@/feature/plan/hook/usePlans", () => ({
   useDeletePlan: () => ({ mutate: deletePlan, isPending: false }),
   usePublishPlan: () => ({ mutate: publishPlan, isPending: false }),
+  useDuplicatePlan: () => ({ mutate: duplicatePlan, isPending: false }),
   // Les autres cycles du coach, dont l'écran tire ce que l'athlète voit de celui-ci (#172).
   usePlans: vi.fn(),
 }));
@@ -779,6 +781,24 @@ describe("PlanBuilderScreen — diffuser une saisie non enregistrée", () => {
     expect(getByTitle("plan.builder.headerUnsaved")).toContainElement(publishButton(getByText));
   });
 
+  it("ne duplique pas un cycle dont la saisie n'est pas enregistrée : la copie part de l'enregistré (#5)", async () => {
+    const { getByRole, getByTitle, user } = await mount({ weeks: [week] }, billing);
+    const duplicateButton = () =>
+      getByRole("button", { name: "plan.duplicate.action" }) as HTMLButtonElement;
+    expect(duplicateButton().disabled).toBe(false);
+
+    await user.selectOptions(getByRole("combobox"), "ath_tom");
+
+    expect(duplicateButton().disabled).toBe(true);
+    expect(getByTitle("plan.duplicate.unsaved")).toContainElement(duplicateButton());
+    await user.click(duplicateButton());
+    expect(duplicatePlan).not.toHaveBeenCalled();
+
+    // Revenue à l'enregistré, la saisie ne retient plus rien.
+    await user.selectOptions(getByRole("combobox"), "ath_lea");
+    expect(duplicateButton().disabled).toBe(false);
+  });
+
   it("rouvre la diffusion quand la saisie revient à ce qui est enregistré", async () => {
     const { getByRole, getByText, user } = await mount({ weeks: [week] }, billing);
 
@@ -1005,8 +1025,9 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     expect(queryByRole("button", { name: "plan.week.addSession" })).toBeNull();
     expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
     expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(true);
-    // La semaine se copie encore : vers un cycle qu'on écrit.
+    // La semaine se copie encore : vers un cycle qu'on écrit. Le cycle entier aussi (#5).
     expect(getByRole("button", { name: "plan.week.copy" })).toBeTruthy();
+    expect(getByRole("button", { name: "plan.duplicate.action" })).toBeTruthy();
 
     // Plus de « Fermer » : il menait où mène le retour du bandeau (#746).
     expect(queryByRole("button", { name: "common.close" })).toBeNull();
@@ -1056,6 +1077,8 @@ describe("PlanBuilderScreen — le cycle d'un autre Coach", () => {
     expect(queryByRole("button", { name: "plan.header.submit" })).toBeNull();
     expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(true);
     expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    // Reprendre le cycle d'un athlète parti : l'archive se duplique (#5).
+    expect(getByRole("button", { name: "plan.duplicate.action" })).toBeTruthy();
   });
 
   it("suivi terminé : un droit d'Écriture n'y écrit pas plus, et le bandeau le dit d'abord", async () => {

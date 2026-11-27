@@ -855,6 +855,13 @@
         "ENDED_LAST": "Ce cycle est terminé. C'est le dernier que ton athlète a reçu."
       }
     },
+    "duplicate": {
+      "action": "Dupliquer",
+      "pending": "Duplication…",
+      "suffix": "(copie)",
+      "hint": "Crée un brouillon sans athlète, qui commence après la fin de ce cycle",
+      "unsaved": "Enregistre ou annule ta saisie avant de dupliquer : la copie part de ce qui est enregistré"
+    },
     "access": {
       "mine": "Planification · à toi",
       "ofOwner": "Planification de {{owner}}",
@@ -883,6 +890,7 @@
     },
     "toast": {
       "created": "Cycle « {{title}} » créé",
+      "duplicated": "Copie « {{title}} » créée : choisis son athlète et vérifie son début",
       "published": "Cycle « {{title}} » diffusé à l'athlète (planification + facturation)",
       "deleted": "Cycle supprimé",
       "weekAdded": "Semaine ajoutée",

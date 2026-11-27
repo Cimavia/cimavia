@@ -4,6 +4,7 @@ import type {
   CopyPlanWeekInput,
   CreatePlanInput,
   CreateScheduledSessionInput,
+  DuplicatePlanInput,
   ElementAccessDto,
   PlanDto,
   PlanSummaryDto,
@@ -60,6 +61,11 @@ export function updatePlan(planId: string, input: UpdatePlanInput): Promise<Plan
 // Un DELETE n'a pas de corps : la version du cycle affiché voyage dans la requête (#604).
 export function deletePlan(planId: string, query: VersionQuery): Promise<void> {
   return api.delete<void>(`/plans/${planId}?${new URLSearchParams(query)}`);
+}
+
+// Un nouveau brouillon, au Coach qui duplique, depuis un cycle qu'il peut lire (#5).
+export function duplicatePlan(planId: string, input: DuplicatePlanInput): Promise<PlanDto> {
+  return api.post<PlanDto>(`/plans/${planId}/duplicate`, input);
 }
 
 // Diffusion : le cycle devient visible de l'athlète (et lui est notifié). Elle cite la version du
