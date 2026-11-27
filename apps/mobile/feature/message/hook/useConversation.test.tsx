@@ -26,6 +26,7 @@ import {
 
 const {
   getMessagePageMock,
+  getMessagesSinceMock,
   markReadMock,
   sendMessageMock,
   listConversationsMock,
@@ -34,6 +35,7 @@ const {
   exercised,
 } = vi.hoisted(() => ({
   getMessagePageMock: vi.fn(),
+  getMessagesSinceMock: vi.fn(),
   markReadMock: vi.fn(),
   sendMessageMock: vi.fn(),
   listConversationsMock: vi.fn(),
@@ -45,6 +47,7 @@ const {
 vi.mock("@/feature/message/api", async () => ({
   messageApi: {
     getMessagePage: getMessagePageMock,
+    getMessagesSince: getMessagesSinceMock,
     markRead: markReadMock,
     sendMessage: sendMessageMock,
     listConversations: listConversationsMock,
@@ -145,11 +148,11 @@ describe("useMessages", () => {
   });
 
   /**
-   * Deux pages chargées, un message arrivé : la plus récente relue a perdu m3 par le bas. Relues
-   * depuis SON curseur, les pages d'avant glissaient d'autant, et m1 — en tête, sous les yeux du
-   * lecteur remonté — disparaissait.
+   * Deux pages chargées, un message arrivé. Relue comme « les 50 plus récents », la plus récente
+   * perdait m3 par le bas, et les pages d'avant glissaient d'autant. Elle se relit depuis sa
+   * frontière, et la page d'avant, lue à l'instant, n'est pas redemandée (#782).
    */
-  it("relit chaque page au sondage sans faire glisser le fil chargé", async () => {
+  it("relit la page la plus récente depuis sa frontière, sans redemander la page d'avant", async () => {
     getMessagePageMock
       .mockResolvedValueOnce(page([textMessage("m3"), textMessage("m4")], "c-m3"))
       .mockResolvedValueOnce(page([textMessage("m1"), textMessage("m2")]));
@@ -164,15 +167,13 @@ describe("useMessages", () => {
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     await act(() => result.current.fetchNextPage());
 
-    getMessagePageMock
-      .mockResolvedValueOnce(page([textMessage("m4"), textMessage("m5")], "c-m4"))
-      .mockResolvedValueOnce(page([textMessage("m1"), textMessage("m2")]));
+    getMessagesSinceMock.mockResolvedValueOnce(
+      page([textMessage("m3"), textMessage("m4"), textMessage("m5")], "c-m3"),
+    );
     await act(() => result.current.refetch());
 
-    expect(getMessagePageMock.mock.calls.slice(2)).toEqual([
-      ["c1", null, null],
-      ["c1", "c-m3", null],
-    ]);
+    expect(getMessagesSinceMock.mock.calls).toEqual([["c1", "c-m3", null]]);
+    expect(getMessagePageMock).toHaveBeenCalledTimes(2);
     await waitFor(() =>
       expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4", "m5"]),
     );
