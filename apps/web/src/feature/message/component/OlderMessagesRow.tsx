@@ -7,18 +7,18 @@ import { CmvButton } from "@/shared/component/CmvButton";
  * ce qu'il en est — rien tant que tout va bien, une ligne pendant le chargement, une ligne et un
  * bouton quand il a échoué. Pas de maquette : les tokens de légende du fil.
  *
- * La région `role="status"` est TOUJOURS montée, comme celle de la pastille : une région qui naît
- * avec son contenu n'est pas annoncée.
+ * La région `<output>` (rôle `status`) est TOUJOURS montée, comme celle de la pastille : une
+ * région qui naît avec son contenu n'est pas annoncée.
  */
 export function OlderMessagesRow({ older }: Readonly<{ older: OlderMessages }>) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center gap-cmv-xs">
       <div ref={older.sentinelRef} aria-hidden className="h-px w-full" />
-      <div role="status" className="text-cmv-caption text-cmv-text-mid">
+      <output className="block text-cmv-caption text-cmv-text-mid">
         {older.loading ? t("messages.older.loading") : null}
         {older.failed && !older.loading ? t("messages.older.error") : null}
-      </div>
+      </output>
       {older.failed && !older.loading ? (
         <CmvButton variant="secondary" onClick={older.retry}>
           {t("common.retry")}

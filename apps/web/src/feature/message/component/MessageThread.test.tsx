@@ -341,7 +341,7 @@ describe("MessageThread — messages précédents (#77)", () => {
   it("annonce le chargement de la page d'avant", () => {
     mockThread([message("m1")], 1, { isFetchingNextPage: true });
     const view = renderWithProviders(<MessageThread {...props} />);
-    expect(view.getByText("messages.older.loading")).toHaveAttribute("role", "status");
+    expect(view.getByText("messages.older.loading")).toHaveRole("status");
   });
 
   it("dit l'échec de la page d'avant, et la redemande sur « Réessayer »", async () => {
@@ -350,7 +350,7 @@ describe("MessageThread — messages précédents (#77)", () => {
     const view = renderWithProviders(<MessageThread {...props} />);
 
     seeSentinel();
-    expect(await view.findByText("messages.older.error")).toHaveAttribute("role", "status");
+    expect(await view.findByText("messages.older.error")).toHaveRole("status");
 
     act(() => view.getByRole("button", { name: "common.retry" }).click());
     expect(stick.holdPosition).toHaveBeenCalledTimes(2);
