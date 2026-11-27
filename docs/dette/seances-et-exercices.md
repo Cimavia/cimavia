@@ -11,9 +11,36 @@ liste des domaines vivent dans l'index.
 |---|---|---|---|
 | P2-2 | **Pas de pagination** sur `GET /exercises` et `GET /sessions` : tout est renvoyé. | 🟢 | [#79](https://github.com/Cimavia/cimavia/issues/79) |
 | P2-4 | **`crypto.randomUUID()` pour la clé objet**, alors que les `id` de tables sont des `cuid`. | 🟢 | — *(incohérence assumée, déclencheur : aucun)* |
-| P2-5 | **Suppression d'un document : pas de rollback**. L'objet S3 part **avant** la ligne — ordre choisi volontairement. | 🟢 | [#75](https://github.com/Cimavia/cimavia/issues/75) |
 
-*Résolues, à l'[archive](archive.md) : P2-1, P2-3.*
+*Résolues, à l'[archive](archive.md) : P2-1, P2-3, P2-5.*
+
+> **Tranché en [#75](https://github.com/Cimavia/cimavia/issues/75)** (la ligne d'abord, l'objet
+> par la file de retrait) : l'issue laissait le choix entre garder l'ordre « objet puis ligne » en
+> journalisant l'incohérence, et l'inverser en s'appuyant sur le balayage de #72. Ni l'un ni
+> l'autre : le balayage est **manuel** (« Tranché en #267 »), et un journal ne répare rien.
+>
+> - **La ligne part d'abord, toujours.** L'arbitrage de P2 tient — une ligne sans objet casse
+>   l'affichage, un objet sans ligne ne coûte que du stockage —, mais dans l'ordre « objet puis
+>   ligne », une base qui refusait la seconde étape produisait justement la ligne sans objet.
+> - **L'objet passe par `ObjectPurgeService`, comme le justificatif de #73** : la citation relue
+>   dans un instantané (une séance planifiée, une variante ou une copie figée partagent la clé),
+>   le retrait, et le stockage en panne, la clé en file `PendingObjectDeletion`, que le tick vide
+>   sans opérateur. La base en panne à son tour, l'erreur se journalise et le balayage ramasse.
+> - **Un geste fait ne rend jamais de 500.** La suppression d'un exercice retirait déjà sa ligne
+>   d'abord, mais un objet en échec y rendait un 500 sur un exercice bel et bien supprimé, et
+>   arrêtait le retrait des documents suivants.
+> - **Les quatre gestes qui retirent un document passent par là** : retrait d'un document,
+>   suppression d'un exercice, consigne réécrite (#330), retrait d'un média de débrief par
+>   l'athlète — qui citait P2-5 pour le même ordre. `DocumentCleanupService` disparaît : il ne
+>   faisait plus que ce que la file fait mieux.
+> - **Un seul décompte par geste** (`deleteManyOrDefer`), les retraits en parallèle : la règle de
+>   #330, étendue à la suppression d'un exercice, qui comptait document par document.
+> - **Contreparties** : la course « une diffusion copie le document dans les millisecondes qui
+>   suivent son retrait » reste ouverte, comme en #330. Un document rattaché pendant la
+>   suppression de son exercice part dans la cascade sans que sa clé ait été lue — le rattachement
+>   ne fait pas avancer la version de l'exercice : son objet attend le balayage. Et un stockage muet
+>   fait attendre la réponse jusqu'au délai TCP avant la mise en file (BO-4) ; la lecture des
+>   citations parcourt des colonnes sans index (BO-3).
 
 ---
 
@@ -681,7 +708,9 @@ liste des domaines vivent dans l'index.
 >   réessayer le builder sur une version périmée, donc un 409. Un échec se journalise — le nom de
 >   l'erreur, jamais l'erreur S3 entière, qui porte la clé — et laisse l'objet orphelin, P2-1
 >   ([#72](https://github.com/Cimavia/cimavia/issues/72)). Un seul décompte des clés, les
->   suppressions en parallèle : la réponse les attend.
+>   suppressions en parallèle : la réponse les attend. *Amendé en
+>   [#75](https://github.com/Cimavia/cimavia/issues/75)* : l'objet en échec ne reste plus orphelin,
+>   sa clé rejoint la file `PendingObjectDeletion`, par `ObjectPurgeService.deleteManyOrDefer`.
 > - **Aucune copie ne reprend une image que sa consigne ne cite pas** (`withoutUncitedImages`) —
 >   séance planifiée, copie de semaine et copie figée (#609). Filet pour les orphelins d'avant
 >   #330, et pour l'image d'un enregistrement en cours.

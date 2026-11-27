@@ -218,6 +218,7 @@ l'[index](../dette-technique.md).
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
 | ~~P2-3~~ | ~~**Pas de drag & drop** dans le SessionBuilder~~ : réordonnancement par boutons ↑/↓. | ✅ | jamais vraie pour le `SessionBuilder`, qui a le glisser **depuis son commit de création** — [#165](https://github.com/Cimavia/cimavia/issues/165) l'annonçait (« absorbe #93 ») sans que #93 soit fermée. [#93](https://github.com/Cimavia/cimavia/issues/93), recyclée, a couvert les **deux surfaces qui manquaient** : la séance planifiée et les séances d'une journée |
+| ~~P2-5~~ | ~~**Suppression d'un document : pas de rollback**~~. L'objet S3 partait **avant** la ligne — ordre choisi volontairement : une base qui refusait ensuite la ligne laissait un document pointer vers un objet disparu. | ✅ | résolue en [#75](https://github.com/Cimavia/cimavia/issues/75) — la ligne d'abord, l'objet par `ObjectPurgeService` et sa file, pour les quatre gestes qui retirent un document (« Tranché en #75 ») |
 | ~~P2-1~~ | ~~**Objets orphelins en object storage**~~ : upload réussi mais `POST /documents` échoué → fichier dans le bucket sans ligne en base. | ✅ | résolue en [#72](https://github.com/Cimavia/cimavia/issues/72) — `sweep-orphans.cli`, un balayage lancé à la main sous l'identité root du stockage, en simulation par défaut. L'automatiser reste ouvert : BO-1 |
 
 ### Post-MVP — Quitter une saisie non enregistrée ([#327](https://github.com/Cimavia/cimavia/issues/327))
