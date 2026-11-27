@@ -27,8 +27,9 @@ function purgeWith(
     findMany: vi.fn().mockResolvedValue(rows),
     deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    createMany: vi.fn().mockResolvedValue({ count: 1 }),
   };
-  const logger = { warn: vi.fn() };
+  const logger = { warn: vi.fn(), error: vi.fn() };
   const service = new ObjectPurgeService(
     { pendingObjectDeletion: queue, ...citingTables(cited) } as unknown as PrismaService,
     { deleteObject } as unknown as StorageService,
@@ -110,5 +111,39 @@ describe("ObjectPurgeService.drain", () => {
         orderBy: [{ attempts: "asc" }, { createdAt: "asc" }],
       }),
     );
+  });
+});
+
+describe("ObjectPurgeService.deleteOrDefer", () => {
+  const KEY = "athlete/a1/invoice/p1/secret-nom.pdf";
+
+  it("retire l'objet sans passer par la file quand le stockage répond", async () => {
+    const { service, queue, deleteObject, logger } = purgeWith([]);
+    await service.deleteOrDefer(KEY);
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(queue.createMany).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("confie la clé à la file quand le stockage échoue, sans lever ni journaliser la clé", async () => {
+    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: KEY }],
+      skipDuplicates: true,
+    });
+    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret-nom.pdf");
+  });
+
+  it("ne lève pas quand la file échoue à son tour : l'objet reste au balayage", async () => {
+    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    queue.createMany.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledOnce();
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-nom.pdf");
   });
 });

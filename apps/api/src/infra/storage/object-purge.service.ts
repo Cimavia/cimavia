@@ -68,6 +68,31 @@ export class ObjectPurgeService {
     }
   }
 
+  /**
+   * Retire l'objet d'une ligne qui vient de partir, sans faire échouer l'appelant : son écriture
+   * est faite, un 500 lui dirait le contraire (#73). Le stockage en panne, la clé rejoint la file,
+   * que le tick vide sans opérateur. La base en panne à son tour, l'objet reste orphelin : c'est le
+   * balayage de #72 qui le ramasse.
+   *
+   * Par le client de base, hors de la transaction de l'appelant : la file n'a pas de scope tenant,
+   * et l'objet ne se retire qu'une fois la ligne partie pour de bon.
+   */
+  async deleteOrDefer(key: string): Promise<void> {
+    try {
+      await this.storage.deleteObject(key);
+      return;
+    } catch (err) {
+      // Ni ici ni plus bas, la clé : elle porte le nom du fichier.
+      this.logger.warn({ err }, "objet à retirer : stockage en échec, confié à la file");
+    }
+    try {
+      // `skipDuplicates` : la clé peut déjà attendre son tour, un double envoi l'y aurait mise.
+      await this.prisma.pendingObjectDeletion.createMany({ data: [{ key }], skipDuplicates: true });
+    } catch (err) {
+      this.logger.error({ err }, "objet à retirer : ni retiré ni mis en file, laissé au balayage");
+    }
+  }
+
   private async purgeOne({ id, key }: { id: string; key: string }): Promise<boolean> {
     try {
       await this.storage.deleteObject(key);
