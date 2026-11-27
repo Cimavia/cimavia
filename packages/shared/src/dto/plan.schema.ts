@@ -130,6 +130,17 @@ export const copyPlanWeekSchema = z
 export type CopyPlanWeekInput = z.infer<typeof copyPlanWeekSchema>;
 
 /**
+ * Dupliquer un cycle (#5). Seul le TITRE voyage : le client le compose avec un suffixe traduit
+ * (« (copie) »), que l'API ne connaît pas.
+ *
+ * Ni athlète, ni date de début : la copie naît sans destinataire, et commence le lundi qui suit la
+ * fin de sa source (`planFollowingStartDate`). Les deux se corrigent ensuite dans l'en-tête du
+ * constructeur, comme sur tout brouillon (#144, #207) — un second formulaire les doublerait.
+ */
+export const duplicatePlanSchema = createPlanSchema.pick({ title: true }).strict();
+export type DuplicatePlanInput = z.infer<typeof duplicatePlanSchema>;
+
+/**
  * Poser une séance dans une semaine, depuis une séance-type (`sourceSessionId`) : l'API en copie
  * titre, notes et blocs (#723). Il n'y a plus de séance ad hoc composée exercice par exercice —
  * une séance se compose par blocs, et ses blocs viennent d'un modèle ; on l'ajuste ensuite.
