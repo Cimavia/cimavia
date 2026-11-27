@@ -63,6 +63,19 @@ describe("createMessageApi", () => {
     ]);
   });
 
+  it("relit la page la plus récente depuis sa frontière (#77)", async () => {
+    const { api, calls } = spyClient();
+    const messages = createMessageApi(api);
+
+    await messages.getMessagesSince("cnv_1", "eyJ0Ijo-x_1", null);
+    await messages.getMessagesSince("cnv_1", "eyJ0Ijo-x_1", "athlete");
+
+    expect(calls.map((c) => c.path)).toEqual([
+      "/conversations/cnv_1/messages?since=eyJ0Ijo-x_1",
+      "/conversations/cnv_1/messages?since=eyJ0Ijo-x_1&as=athlete",
+    ]);
+  });
+
   it("lit et envoie les messages d'un fil", async () => {
     const { api, calls } = spyClient();
     const messages = createMessageApi(api);

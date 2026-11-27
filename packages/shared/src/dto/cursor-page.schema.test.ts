@@ -41,6 +41,15 @@ describe("cursorPageQuerySchema", () => {
     expect(schema.parse({ as: "coach" })).toEqual({ limit: 50, as: "coach" });
   });
 
+  it("lit la frontière d'une page relue", () => {
+    expect(schema.parse({ since: "abc_-1" })).toEqual({ limit: 50, since: "abc_-1" });
+  });
+
+  // Les deux à la fois ne désignent aucune page : l'une remonte, l'autre relit la plus récente.
+  it("refuse une page d'avant ET une relecture", () => {
+    expect(schema.safeParse({ before: "abc", since: "abc" }).success).toBe(false);
+  });
+
   // Écarté, `?cursor=` ferait servir la page la plus récente en boucle.
   it.each(["cursor", "Before", "after"])("refuse un paramètre inconnu : %s", (key) => {
     expect(schema.safeParse({ [key]: "abc" }).success).toBe(false);

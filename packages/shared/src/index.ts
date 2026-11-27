@@ -1364,6 +1364,13 @@ export {
   settingValues,
   structureDuration,
 } from "./util/structure-settings.util";
+export type { OlderPageResult } from "./util/thread-pages.util";
+export {
+  createThreadPages,
+  isOlderPageFresh,
+  OLDER_PAGE_MAX_AGE_MS,
+  olderPageOutcome,
+} from "./util/thread-pages.util";
 export {
   formatTrainingDuration,
   parseTrainingDuration,

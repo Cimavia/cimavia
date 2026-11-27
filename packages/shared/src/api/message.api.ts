@@ -87,6 +87,16 @@ export type MessageApi = {
     before: string | null,
     as: TrainingCapability | null,
   ) => Promise<MessagePageDto>;
+  /**
+   * La page la plus récente RELUE depuis sa frontière (`since`, son `nextCursor`) : ce qu'elle
+   * tenait et ce qui est arrivé depuis, sans rien pousser vers la page d'avant. Au-delà du plafond
+   * de page, l'API rend la plus récente avec un curseur neuf (`cursorPageQuerySchema`).
+   */
+  getMessagesSince: (
+    conversationId: string,
+    since: string,
+    as: TrainingCapability | null,
+  ) => Promise<MessagePageDto>;
   sendMessage: (
     conversationId: string,
     input: SendMessageInput,
@@ -129,7 +139,13 @@ export function createMessageApi(api: ApiClient): MessageApi {
     createConversation: (input, as) =>
       api.post<ConversationDto>(`/conversations${asQuery(as)}`, input),
     getMessagePage: (conversationId, before, as) =>
-      api.get<MessagePageDto>(`/conversations/${conversationId}/messages${pageQuery(before, as)}`),
+      api.get<MessagePageDto>(
+        `/conversations/${conversationId}/messages${pageQuery("before", before, as)}`,
+      ),
+    getMessagesSince: (conversationId, since, as) =>
+      api.get<MessagePageDto>(
+        `/conversations/${conversationId}/messages${pageQuery("since", since, as)}`,
+      ),
     sendMessage: (conversationId, input, as) =>
       api.post<MessageDto>(`/conversations/${conversationId}/messages${asQuery(as)}`, input),
     // Corps vide explicite : sans lui le client n'envoie pas de Content-Type, et l'API refuse un
@@ -152,12 +168,17 @@ export function createMessageApi(api: ApiClient): MessageApi {
 }
 
 /**
- * `?before=…&as=…`, ou ce qui en reste : la première page n'a pas de curseur. Assemblée à la main :
- * le paquet compilé pour l'API n'a pas la bibliothèque DOM, donc pas `URLSearchParams`.
+ * `?before=…&as=…` (ou `?since=…`), ou ce qui en reste : la première page n'a pas de curseur.
+ * Assemblée à la main : le paquet compilé pour l'API n'a pas la bibliothèque DOM, donc pas
+ * `URLSearchParams`.
  */
-function pageQuery(before: string | null, as: TrainingCapability | null): string {
+function pageQuery(
+  name: "before" | "since",
+  cursor: string | null,
+  as: TrainingCapability | null,
+): string {
   const params = [
-    before == null ? null : `before=${encodeURIComponent(before)}`,
+    cursor == null ? null : `${name}=${encodeURIComponent(cursor)}`,
     as == null ? null : `${AS_CAPABILITY_PARAM}=${as}`,
   ].filter((param) => param != null);
   return params.length === 0 ? "" : `?${params.join("&")}`;
