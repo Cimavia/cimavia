@@ -109,6 +109,40 @@ describe("Messagerie : le fil par pages (#77)", () => {
   });
 
   /**
+   * Le sondage relit la page la plus récente depuis sa frontière : en entier, ce qui est arrivé
+   * compris, et sous le même curseur — la page d'avant se relit donc à l'identique.
+   */
+  it("relit la page la plus récente depuis sa frontière, ce qui est arrivé compris", async () => {
+    const first = await page(athlete, conversationId, "?limit=10");
+    const sent = await athlete
+      .post(`/conversations/${conversationId}/messages`)
+      .send({ type: "TEXT", content: "Arrivé pendant le sondage" });
+    expect(sent.status).toBe(201);
+
+    const { status, body } = await page(athlete, conversationId, `?since=${first.body.nextCursor}`);
+
+    expect(status).toBe(200);
+    expect(body.items.map(({ id }) => id)).toEqual([
+      ...first.body.items.map(({ id }) => id),
+      sent.body.id,
+    ]);
+    expect(body.nextCursor).toBe(first.body.nextCursor);
+  });
+
+  it("rend la page la plus récente, à son curseur, quand la relecture dépasse le plafond", async () => {
+    const since = encodeCursor({ createdAt: dateAt(0), id: idAt(0) });
+
+    const { status, body } = await page(athlete, conversationId, `?since=${since}`);
+
+    expect(status).toBe(200);
+    expect(body.items).toHaveLength(MESSAGE_PAGE_SIZE);
+    expect(body.nextCursor).not.toBeNull();
+    expect(body.nextCursor).not.toBe(since);
+    const latest = await page(athlete, conversationId);
+    expect(body).toEqual(latest.body);
+  });
+
+  /**
    * Les non-lus et la marque de lecture se lisent sur la table, pas sur la page chargée : un fil
    * ouvert sur sa dernière page marque lu jusqu'au dernier message, et la liste a compté ce que la
    * page ne montrait pas.
@@ -153,12 +187,19 @@ describe("Messagerie : le fil par pages (#77)", () => {
 
       expect(status).toBe(200);
       expect(body.items.map(({ id }) => id)).toEqual([own.body.id]);
+
+      // Une relecture depuis le début des temps, idem : rien que le sien, et rien avant.
+      const epoch = encodeCursor({ createdAt: new Date(0), id: idAt(0) });
+      const since = await page(outsider, outsiderConversationId, `?since=${epoch}`);
+      expect(since.status).toBe(200);
+      expect(since.body).toEqual({ items: [own.body], nextCursor: null });
     });
 
     it("le fil d'un autre reste introuvable, avec ou sans curseur (404)", async () => {
       const cursor = encodeCursor({ createdAt: dateAt(60), id: idAt(60) });
       expect((await page(outsider, conversationId)).status).toBe(404);
       expect((await page(outsider, conversationId, `?before=${cursor}`)).status).toBe(404);
+      expect((await page(outsider, conversationId, `?since=${cursor}`)).status).toBe(404);
     });
   });
 
@@ -166,6 +207,8 @@ describe("Messagerie : le fil par pages (#77)", () => {
     it.each([
       ["un curseur qui ne vient pas de l'API", "?before=bm9uLWN1cnNldXI"],
       ["un curseur hors du format base64url", "?before=a%2Bb"],
+      ["une relecture au curseur illisible", "?since=bm9uLWN1cnNldXI"],
+      ["une page d'avant ET une relecture", "?before=YWJj&since=YWJj"],
       ["une taille nulle", "?limit=0"],
       ["une taille au-delà du plafond", "?limit=101"],
       ["une taille illisible", "?limit=beaucoup"],

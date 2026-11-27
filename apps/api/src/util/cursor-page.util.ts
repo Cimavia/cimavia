@@ -1,3 +1,4 @@
+import { CURSOR_PAGE_MAX_LIMIT } from "@cmv/shared";
 import { BadRequestException } from "@nestjs/common";
 
 /**
@@ -70,6 +71,40 @@ export function olderThan(position: CursorPosition | null) {
       { createdAt: position.createdAt, id: { lt: position.id } },
     ],
   };
+}
+
+/**
+ * Le complément exact d'`olderThan` : ce qui n'est PAS plus ancien que la position, elle comprise.
+ * C'est la page la plus récente relue depuis sa frontière (`?since=`) — `olderThan` et lui
+ * partagent le fil sans trou ni recouvrement. Même borne d'index, même `OU` à l'intérieur.
+ */
+export function notOlderThan(position: CursorPosition) {
+  return {
+    createdAt: { gte: position.createdAt },
+    OR: [
+      { createdAt: { gt: position.createdAt } },
+      { createdAt: position.createdAt, id: { gte: position.id } },
+    ],
+  };
+}
+
+/**
+ * La page la plus récente relue depuis `since`, à partir des lignes lues par `NEWEST_FIRST` sous
+ * `notOlderThan`, avec `take: CURSOR_PAGE_MAX_LIMIT + 1` :
+ * - tout tient sous le plafond → toutes les lignes, et `since` pour curseur — la frontière reste
+ *   où elle était, même si la ligne qui la portait a disparu —, ou `null` s'il n'y a plus rien
+ *   avant (`hasOlder`) ;
+ * - ça déborde (le fil rouvert après une longue absence) → la page la plus récente, de `limit`,
+ *   avec son curseur à elle : le client recoud ses pages d'avant à partir de lui.
+ */
+export async function windowSinceOf<T extends CursorPosition>(
+  newestFirst: readonly T[],
+  limit: number,
+  since: string,
+  hasOlder: () => Promise<boolean>,
+): Promise<{ rows: T[]; nextCursor: string | null }> {
+  if (newestFirst.length > CURSOR_PAGE_MAX_LIMIT) return cursorPageOf(newestFirst, limit);
+  return { rows: newestFirst.toReversed(), nextCursor: (await hasOlder()) ? since : null };
 }
 
 /**

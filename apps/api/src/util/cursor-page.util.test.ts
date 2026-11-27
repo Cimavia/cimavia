@@ -1,7 +1,14 @@
-import { pageCursorSchema } from "@cmv/shared";
+import { CURSOR_PAGE_MAX_LIMIT, pageCursorSchema } from "@cmv/shared";
 import { BadRequestException } from "@nestjs/common";
-import { describe, expect, it } from "vitest";
-import { cursorPageOf, decodeCursor, encodeCursor, olderThan } from "./cursor-page.util";
+import { describe, expect, it, vi } from "vitest";
+import {
+  cursorPageOf,
+  decodeCursor,
+  encodeCursor,
+  notOlderThan,
+  olderThan,
+  windowSinceOf,
+} from "./cursor-page.util";
 
 const AT = new Date("2026-11-27T10:00:00.123Z");
 const row = (id: string, createdAt = AT) => ({ id, createdAt });
@@ -40,6 +47,49 @@ describe("olderThan", () => {
       createdAt: { lte: AT },
       OR: [{ createdAt: { lt: AT } }, { createdAt: AT, id: { lt: "m5" } }],
     });
+  });
+});
+
+describe("notOlderThan", () => {
+  // Le complément d'`olderThan` : la position elle-même en fait partie.
+  it("garde ce qui est plus récent, et à la même date ce qui a un id supérieur ou égal", () => {
+    expect(notOlderThan(row("m5"))).toEqual({
+      createdAt: { gte: AT },
+      OR: [{ createdAt: { gt: AT } }, { createdAt: AT, id: { gte: "m5" } }],
+    });
+  });
+});
+
+describe("windowSinceOf", () => {
+  const since = encodeCursor(row("m2"));
+  const newestFirst = (count: number) =>
+    Array.from({ length: count }, (_, i) => row(`m${count - i}`));
+
+  it("rend toute la fenêtre, et garde la frontière tant qu'il reste plus ancien", async () => {
+    const page = await windowSinceOf(newestFirst(3), 2, since, async () => true);
+    expect(page.rows.map(({ id }) => id)).toEqual(["m1", "m2", "m3"]);
+    expect(page.nextCursor).toBe(since);
+  });
+
+  // Ce qui était plus ancien a disparu (un compte effacé quitte les fils de groupe).
+  it("n'a plus de curseur quand rien ne reste avant la frontière", async () => {
+    expect((await windowSinceOf(newestFirst(2), 2, since, async () => false)).nextCursor).toBe(
+      null,
+    );
+  });
+
+  it("rend la page la plus récente, à son curseur, quand la fenêtre déborde le plafond", async () => {
+    const hasOlder = vi.fn();
+    const rows = newestFirst(CURSOR_PAGE_MAX_LIMIT + 1);
+
+    const page = await windowSinceOf(rows, 2, since, hasOlder);
+
+    expect(page.rows.map(({ id }) => id)).toEqual([
+      `m${CURSOR_PAGE_MAX_LIMIT}`,
+      `m${CURSOR_PAGE_MAX_LIMIT + 1}`,
+    ]);
+    expect(decodeCursor(page.nextCursor ?? "")).toEqual(row(`m${CURSOR_PAGE_MAX_LIMIT}`));
+    expect(hasOlder).not.toHaveBeenCalled();
   });
 });
 

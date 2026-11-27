@@ -471,6 +471,47 @@ describe("MessageService.listMessages (#77)", () => {
     });
   });
 
+  /**
+   * Le sondage relit la page la plus récente depuis sa frontière : relue comme « les 50 plus
+   * récents », elle perdait par le bas ce qui arrivait en haut, et le client recousait du cache des
+   * messages aux URLs mortes, effacés compris.
+   */
+  it("relit depuis la frontière, jusqu'au plafond, et garde la frontière s'il reste plus ancien", async () => {
+    const since = encodeCursor({ createdAt: MY_LAST, id: "m2" });
+    const { service, findMany, findFirst } = build({
+      rows: [textRow("m3", AFTER), textRow("m2", MY_LAST)],
+    });
+
+    const page = await service.listMessages("conv1", { limit: 50, since });
+
+    expect(findMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        conversationId: "conv1",
+        createdAt: { gte: MY_LAST },
+        OR: [{ createdAt: { gt: MY_LAST } }, { createdAt: MY_LAST, id: { gte: "m2" } }],
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 101,
+    });
+    expect(findFirst).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        conversationId: "conv1",
+        createdAt: { lte: MY_LAST },
+        OR: [{ createdAt: { lt: MY_LAST } }, { createdAt: MY_LAST, id: { lt: "m2" } }],
+      },
+      select: { id: true },
+    });
+    expect(page.items.map(({ id }) => id)).toEqual(["m2", "m3"]);
+    expect(page.nextCursor).toBe(since);
+  });
+
+  it("relit sans curseur une frontière sous laquelle il ne reste rien", async () => {
+    const since = encodeCursor({ createdAt: MY_LAST, id: "m2" });
+    const { service } = build({ rows: [textRow("m2", MY_LAST)], latestFromMe: null });
+
+    expect((await service.listMessages("conv1", { limit: 50, since })).nextCursor).toBeNull();
+  });
+
   it("refuse un curseur illisible sans lire la base", async () => {
     const { service, findMany } = build();
 
