@@ -8,6 +8,7 @@ import type { NotificationService } from "../../notification/notification.servic
 import type { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import type { TenantContext } from "../../tenancy/tenant-context.type";
+import { decodeCursor, encodeCursor } from "../../util/cursor-page.util";
 import { FollowEndedException } from "../../util/follow-ended.util";
 import type { ConversationService, JoinedConversation } from "./conversation.service";
 import { MessageService } from "./message.service";
@@ -78,6 +79,8 @@ type Setup = {
   latestFromMe?: Date | null;
   session?: { id: string; athleteId: string | null } | null;
   feedback?: { id: string; athleteId: string } | null;
+  /** Ce que `findMany` rend, déjà dans l'ordre de `NEWEST_FIRST`. */
+  rows?: Record<string, unknown>[];
 };
 
 /**
@@ -98,8 +101,9 @@ function build(setup: Setup = {}) {
     createdAt: new Date("2026-10-02T12:00:00Z"),
   });
   const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+  const findMany = vi.fn().mockResolvedValue(setup.rows ?? []);
   const db = {
-    message: { findFirst },
+    message: { findFirst, findMany },
     conversationParticipant: { updateMany },
     scheduledSession: { findFirst: vi.fn().mockResolvedValue(setup.session ?? null) },
     sessionFeedback: { findFirst: vi.fn().mockResolvedValue(setup.feedback ?? null) },
@@ -135,6 +139,7 @@ function build(setup: Setup = {}) {
   return {
     service,
     findFirst,
+    findMany,
     create,
     updateMany,
     notifyMessageReceived,
@@ -400,6 +405,120 @@ describe("MessageService.send — suivi terminé", () => {
     expect(getWritableOrThrow).toHaveBeenCalledWith("conv1");
     expect(create).not.toHaveBeenCalled();
     expect(notifyMessageReceived).not.toHaveBeenCalled();
+  });
+});
+
+/** Une ligne `message` texte, telle que Prisma la rend. */
+const textRow = (id: string, createdAt: Date) => ({
+  id,
+  conversationId: "conv1",
+  senderId: "c1",
+  type: MessageType.TEXT,
+  content: id,
+  storagePath: null,
+  scheduledSessionId: null,
+  sessionFeedbackId: null,
+  createdAt,
+});
+
+/**
+ * L'ordre et l'absence de trou entre deux pages se prouvent contre Postgres, dans l'e2e
+ * (`messaging.ts`). Ici, ce que le service DEMANDE à la base et ce qu'il fait de la ligne de trop.
+ */
+describe("MessageService.listMessages (#77)", () => {
+  it("lit une ligne de plus que la page, du plus récent au plus ancien, sous le fil rejoint", async () => {
+    const { service, findMany, getJoinedOrThrow } = build();
+
+    await service.listMessages("conv1", { limit: 2 });
+
+    expect(getJoinedOrThrow).toHaveBeenCalledWith("conv1");
+    expect(findMany).toHaveBeenCalledExactlyOnceWith({
+      where: { conversationId: "conv1" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 3,
+    });
+  });
+
+  it("rend la page dans l'ordre chronologique, avec le curseur de la plus ancienne gardée", async () => {
+    const { service } = build({
+      rows: [textRow("m3", AFTER), textRow("m2", MY_LAST), textRow("m1", BEFORE)],
+    });
+
+    const page = await service.listMessages("conv1", { limit: 2 });
+
+    expect(page.items.map(({ id }) => id)).toEqual(["m2", "m3"]);
+    expect(decodeCursor(page.nextCursor ?? "")).toEqual({ createdAt: MY_LAST, id: "m2" });
+  });
+
+  it("dit qu'il ne reste rien de plus ancien quand la base n'a pas rendu de ligne de trop", async () => {
+    const { service } = build({ rows: [textRow("m1", BEFORE)] });
+
+    expect((await service.listMessages("conv1", { limit: 2 })).nextCursor).toBeNull();
+  });
+
+  it("cherche avant la position du curseur reçu", async () => {
+    const { service, findMany } = build();
+
+    await service.listMessages("conv1", {
+      limit: 50,
+      before: encodeCursor({ createdAt: MY_LAST, id: "m2" }),
+    });
+
+    expect(findMany.mock.calls[0]?.[0].where).toEqual({
+      conversationId: "conv1",
+      createdAt: { lte: MY_LAST },
+      OR: [{ createdAt: { lt: MY_LAST } }, { createdAt: MY_LAST, id: { lt: "m2" } }],
+    });
+  });
+
+  /**
+   * Le sondage relit la page la plus récente depuis sa frontière : relue comme « les 50 plus
+   * récents », elle perdait par le bas ce qui arrivait en haut, et le client recousait du cache des
+   * messages aux URLs mortes, effacés compris.
+   */
+  it("relit depuis la frontière, jusqu'au plafond, et garde la frontière s'il reste plus ancien", async () => {
+    const since = encodeCursor({ createdAt: MY_LAST, id: "m2" });
+    const { service, findMany, findFirst } = build({
+      rows: [textRow("m3", AFTER), textRow("m2", MY_LAST)],
+    });
+
+    const page = await service.listMessages("conv1", { limit: 50, since });
+
+    expect(findMany).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        conversationId: "conv1",
+        createdAt: { gte: MY_LAST },
+        OR: [{ createdAt: { gt: MY_LAST } }, { createdAt: MY_LAST, id: { gte: "m2" } }],
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 101,
+    });
+    expect(findFirst).toHaveBeenCalledExactlyOnceWith({
+      where: {
+        conversationId: "conv1",
+        createdAt: { lte: MY_LAST },
+        OR: [{ createdAt: { lt: MY_LAST } }, { createdAt: MY_LAST, id: { lt: "m2" } }],
+      },
+      select: { id: true },
+    });
+    expect(page.items.map(({ id }) => id)).toEqual(["m2", "m3"]);
+    expect(page.nextCursor).toBe(since);
+  });
+
+  it("relit sans curseur une frontière sous laquelle il ne reste rien", async () => {
+    const since = encodeCursor({ createdAt: MY_LAST, id: "m2" });
+    const { service } = build({ rows: [textRow("m2", MY_LAST)], latestFromMe: null });
+
+    expect((await service.listMessages("conv1", { limit: 50, since })).nextCursor).toBeNull();
+  });
+
+  it("refuse un curseur illisible sans lire la base", async () => {
+    const { service, findMany } = build();
+
+    await expect(service.listMessages("conv1", { limit: 50, before: "bm9u" })).rejects.toThrow(
+      "Curseur de page illisible",
+    );
+    expect(findMany).not.toHaveBeenCalled();
   });
 });
 

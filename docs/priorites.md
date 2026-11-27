@@ -75,7 +75,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 |---|---|---|---|
 | #350 | E-mail et push attendus dans la requête métier, sans délai maximum | 🟠 | ✅ |
 | #809 | Une vidéo met très longtemps à se charger sur l'app mobile hors wifi | 🟠 | ✅ |
-| #77 | Messages : pagination par curseur | 🟡 | |
+| #77 | Messages : pagination par curseur | 🟡 | ✅ |
 | #201 | Débriefs : la boîte de réception servie par l'API | 🟡 | |
 | #139 | Endpoint d'agrégat du dashboard coach | ⚪ | |
 | #140 | Pagination du tableau de suivi | ⚪ | |

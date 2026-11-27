@@ -232,7 +232,7 @@ describe("Rupture d'un lien : l'archive se relit, et ne s'écrit plus", () => {
     }
     for (const agent of [world.c, world.ti]) {
       expect((await threadOf(agent))?.followEndedAt).toBe(ended.endedAt);
-      expect((await agent.get(`/conversations/${threadId}/messages`)).body).toHaveLength(2);
+      expect((await agent.get(`/conversations/${threadId}/messages`)).body.items).toHaveLength(2);
       expectFollowEnded(await send(agent, "Encore là ?"));
       expectFollowEnded(
         await agent

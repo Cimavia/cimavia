@@ -57,7 +57,7 @@ describe("Fils et débriefs d'un cycle partagé : la séance citée doit se lire
     expect(fromTi.status).toBe(201);
 
     const thread = await world.m.get(`/conversations/${threadM}/messages`);
-    const titles = thread.body
+    const titles = thread.body.items
       .map((message: { attachment: { sessionTitle: string } | null }) => message.attachment)
       .filter((attachment: unknown) => attachment != null)
       .map((attachment: { sessionTitle: string }) => attachment.sessionTitle);

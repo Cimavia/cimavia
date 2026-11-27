@@ -2,7 +2,8 @@ import type { ConversationDto, MessageDto, VoiceNoteCue } from "@cmv/shared";
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageList } from "@/feature/message/component/MessageList";
-import { renderRn } from "@/test/render";
+import type { OlderMessages } from "@/feature/message/hook/useOlderMessages";
+import { pressButton, renderRn } from "@/test/render";
 
 /**
  * Le lecteur a ses propres tests : ce que le fil décide est QUELLE note suit celle qui finit. Le
@@ -40,7 +41,9 @@ const DIRECT = {
   participants: [{ userId: "athlete-1", name: "Léa", capability: "athlete", lastReadAt: null }],
 } as ConversationDto;
 
-function renderThread(messages: MessageDto[]) {
+const IDLE: OlderMessages = { loading: false, failed: false, loadMore: vi.fn(), retry: vi.fn() };
+
+function renderThread(messages: MessageDto[], older: OlderMessages = IDLE) {
   return renderRn(
     <MessageList
       conversation={DIRECT}
@@ -48,6 +51,7 @@ function renderThread(messages: MessageDto[]) {
       currentUserId="coach-1"
       readBy={null}
       resolveMediaUrl={vi.fn()}
+      older={older}
     />,
   );
 }
@@ -75,5 +79,39 @@ describe("MessageList — les notes vocales s'enchaînent (#529)", () => {
     finish("v-1");
 
     expect(cues.get(url("v-3"))?.cued).toBe(false);
+  });
+});
+
+/**
+ * La tête du fil (#77), en pied de la liste inversée. L'arrivée en tête elle-même (`onEndReached`)
+ * demande une vraie mise en page, que jsdom n'a pas : elle s'éprouve sur l'émulateur, et ce qu'elle
+ * déclenche dans `useOlderMessages`.
+ */
+describe("MessageList — messages précédents (#77)", () => {
+  it("ne dit rien tant que la remontée se passe bien", () => {
+    const { queryByText, queryByRole } = renderThread([message("t-1", "TEXT")]);
+
+    expect(queryByText("messages.older.loading")).toBeNull();
+    expect(queryByText("messages.older.error")).toBeNull();
+    expect(queryByRole("button", { name: "common.retry" })).toBeNull();
+  });
+
+  it("dit que la page d'avant arrive", () => {
+    const { getByText } = renderThread([message("t-1", "TEXT")], { ...IDLE, loading: true });
+
+    expect(getByText("messages.older.loading")).toBeTruthy();
+  });
+
+  it("dit l'échec, et relance sur « Réessayer »", () => {
+    const retry = vi.fn();
+    const { container, getByText } = renderThread([message("t-1", "TEXT")], {
+      ...IDLE,
+      failed: true,
+      retry,
+    });
+
+    expect(getByText("messages.older.error")).toBeTruthy();
+    pressButton(container, "common.retry");
+    expect(retry).toHaveBeenCalledOnce();
   });
 });

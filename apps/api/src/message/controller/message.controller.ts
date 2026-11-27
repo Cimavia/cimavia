@@ -3,12 +3,14 @@ import {
   abortMultipartUploadSchema,
   type CompleteMultipartUploadInput,
   completeMultipartUploadSchema,
+  type MessagePageQuery,
+  messagePageQuerySchema,
   type RequestMessageUploadUrlInput,
   requestMessageUploadUrlSchema,
   type SendMessageInput,
   sendMessageSchema,
 } from "@cmv/shared";
-import { Body, Controller, Get, HttpCode, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { RateLimit, RateLimitPolicy } from "../../rate-limit/rate-limit.policy";
@@ -28,9 +30,14 @@ export class MessageController {
     private readonly media: MessageMediaService,
   ) {}
 
+  // Par pages, de la plus récente vers le passé (#77) : `?before=` reprend le `nextCursor` de la
+  // page d'après.
   @Get()
-  list(@Param("conversationId") conversationId: string) {
-    return this.messages.listMessages(conversationId);
+  list(
+    @Param("conversationId") conversationId: string,
+    @Query(new ZodSchemaPipe(messagePageQuerySchema)) query: MessagePageQuery,
+  ) {
+    return this.messages.listMessages(conversationId, query);
   }
 
   // Média : demander un ticket d'upload avant d'envoyer le fichier vers l'object storage. Le

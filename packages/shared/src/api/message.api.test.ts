@@ -42,12 +42,46 @@ describe("createMessageApi", () => {
     ]);
   });
 
+  /**
+   * La page la plus récente n'a pas de curseur ; les suivantes rendent tel quel celui que la page
+   * d'après a donné (#77), à côté du titre.
+   */
+  it("lit une page du fil, avec ou sans curseur, à son titre", async () => {
+    const { api, calls } = spyClient();
+    const messages = createMessageApi(api);
+
+    await messages.getMessagePage("cnv_1", null, null);
+    await messages.getMessagePage("cnv_1", "eyJ0Ijo-x_1", null);
+    await messages.getMessagePage("cnv_1", null, "athlete");
+    await messages.getMessagePage("cnv_1", "eyJ0Ijo-x_1", "coach");
+
+    expect(calls.map((c) => c.path)).toEqual([
+      "/conversations/cnv_1/messages",
+      "/conversations/cnv_1/messages?before=eyJ0Ijo-x_1",
+      "/conversations/cnv_1/messages?as=athlete",
+      "/conversations/cnv_1/messages?before=eyJ0Ijo-x_1&as=coach",
+    ]);
+  });
+
+  it("relit la page la plus récente depuis sa frontière (#77)", async () => {
+    const { api, calls } = spyClient();
+    const messages = createMessageApi(api);
+
+    await messages.getMessagesSince("cnv_1", "eyJ0Ijo-x_1", null);
+    await messages.getMessagesSince("cnv_1", "eyJ0Ijo-x_1", "athlete");
+
+    expect(calls.map((c) => c.path)).toEqual([
+      "/conversations/cnv_1/messages?since=eyJ0Ijo-x_1",
+      "/conversations/cnv_1/messages?since=eyJ0Ijo-x_1&as=athlete",
+    ]);
+  });
+
   it("lit et envoie les messages d'un fil", async () => {
     const { api, calls } = spyClient();
     const messages = createMessageApi(api);
 
     await messages.listConversations(null);
-    await messages.getMessages("cnv_1", null);
+    await messages.getMessagePage("cnv_1", null, null);
     await messages.sendMessage("cnv_1", { type: "TEXT", content: "Salut" }, null);
 
     expect(calls).toEqual([
@@ -134,7 +168,7 @@ describe("createMessageApi — titre exercé", () => {
       "coach",
     );
     await messages.listCandidates("coach");
-    await messages.getMessages("cnv_1", "athlete");
+    await messages.getMessagePage("cnv_1", null, "athlete");
     await messages.sendMessage("cnv_1", { type: "TEXT", content: "Salut" }, "athlete");
     await messages.markRead("cnv_1", "athlete");
 
@@ -179,6 +213,11 @@ describe("messageKeys", () => {
       messageKeys.thread("cnv_1", "athlete"),
     );
     expect(messageKeys.conversations("coach")).not.toEqual(messageKeys.conversations("athlete"));
+  });
+
+  // Un cache qui tenait le fil en tableau (avant #77) ne doit être relu par personne en pages.
+  it("ne range pas les pages du fil sous la clé de l'ancien tableau", () => {
+    expect(messageKeys.thread("cnv_1", null)).not.toEqual(["messages", "thread", "cnv_1", null]);
   });
 
   it("sépare les fils entre eux", () => {

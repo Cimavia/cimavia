@@ -32,6 +32,9 @@ function grow(metrics: Metrics, by: number) {
   });
 }
 
+/** Ce que `holdPosition` a rendu au dernier « retenir ». */
+let restore: () => void = () => undefined;
+
 function Harness() {
   const thread = useStickToBottom();
   return (
@@ -45,6 +48,14 @@ function Harness() {
       </button>
       <button type="button" onClick={thread.scrollToBottom}>
         descendre
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          restore = thread.holdPosition();
+        }}
+      >
+        retenir
       </button>
     </div>
   );
@@ -87,6 +98,54 @@ afterEach(() => {
   for (const key of ["scrollTop", "scrollHeight", "clientHeight", "scrollTo"] as const) {
     Reflect.deleteProperty(HTMLElement.prototype, key);
   }
+});
+
+describe("useStickToBottom — page ajoutée au-dessus (#77)", () => {
+  it("garde sous les yeux ce que le lecteur lisait quand une page s'ajoute en haut", () => {
+    const { metrics, scrollAt } = setup({ scrollTop: 600 });
+    scrollAt(100);
+    fireEvent.click(screen.getByText("retenir"));
+
+    grow(metrics, 500);
+    expect(metrics.scrollTop).toBe(100);
+    restore();
+    expect(metrics.scrollTop).toBe(600);
+  });
+
+  // Chrome et Firefox ancrent le défilement d'eux-mêmes : la correction ne s'y ajoute pas.
+  it("ne corrige pas deux fois derrière un navigateur qui a déjà ancré", () => {
+    const { metrics, scrollAt } = setup({ scrollTop: 600 });
+    scrollAt(100);
+    fireEvent.click(screen.getByText("retenir"));
+
+    metrics.scrollHeight += 500;
+    metrics.scrollTop = 600;
+    restore();
+    expect(metrics.scrollTop).toBe(600);
+  });
+
+  // Le réseau est lent : le lecteur a redescendu pendant le chargement, il n'est pas renvoyé.
+  it("garde ce que le lecteur a défilé pendant que la page chargeait", () => {
+    const { metrics, scrollAt } = setup({ scrollTop: 600 });
+    scrollAt(100);
+    fireEvent.click(screen.getByText("retenir"));
+    scrollAt(400);
+
+    grow(metrics, 500);
+    restore();
+    expect(metrics.scrollTop).toBe(900);
+  });
+
+  it("ne décroche ni ne recolle le lecteur en le remettant en place", () => {
+    const { metrics, scrollAt } = setup({ scrollTop: 600 });
+    scrollAt(100);
+    fireEvent.click(screen.getByText("retenir"));
+    grow(metrics, 500);
+    restore();
+
+    scrollAt(650);
+    expect(screen.getByText("décroché")).toBeInTheDocument();
+  });
 });
 
 describe("isNearBottom", () => {

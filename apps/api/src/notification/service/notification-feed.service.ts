@@ -56,7 +56,8 @@ export class NotificationFeedService {
   /**
    * Les plus récentes d'abord, bornées à `NOTIFICATION_PAGE_SIZE`. Un centre de notifications
    * montre ce qui vient d'arriver, pas un historique complet — d'où la borne plutôt qu'une
-   * pagination (dette assumée, même famille que P2-2 / P5-1).
+   * pagination (dette assumée, même famille que P2-2 ; le curseur des messages, #77, est celui
+   * que #78 reprendra).
    *
    * Un rappel dû est daté de son ÉCHÉANCE (`createdAt` = `dueAt`, cf. `reminderToNotificationDto`) :
    * il se range donc au moment où il commence à compter, pas à celui où le coach l'a saisi.

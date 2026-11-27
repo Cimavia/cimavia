@@ -9,11 +9,10 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P5-1 | **Pas de pagination sur les messages** : `GET /conversations/:id/messages` renvoie tout le fil. | 🟢 | [#77](https://github.com/Cimavia/cimavia/issues/77) |
 | P5-2 | **Audio non transcodé, durée déclarative** (comme la vidéo, P4-1/P4-2). | 🟢 | [#80](https://github.com/Cimavia/cimavia/issues/80) · [#81](https://github.com/Cimavia/cimavia/issues/81) |
 | P5-3 | **Interop note vocale web → iOS** : l'enregistreur web demande l'AAC en MP4, lu sur iPhone depuis Chrome (#394). Restent deux cas que la recette n'a pas vus : un Chromium sans encodeur AAC (Linux, sans doute Android) met de l'**Opus dans le MP4**, dont la lecture sur iOS n'est pas vérifiée ; Firefox n'a que le webm, refusé au débrief mais accepté en messagerie, où l'app iOS affiche la note « indisponible ». | 🟢 | — *(déclencheur : une note « indisponible » signalée sur iPhone, ou un Coach qui enregistre depuis Firefox ou Chromium sous Linux)* |
 
-*Résolues, à l'[archive](archive.md) : P5-4, P5-5, P2-1 / P3-2.*
+*Résolues, à l'[archive](archive.md) : P5-1, P5-4, P5-5, P2-1 / P3-2.*
 
 > **Tranché en #190** (répondre à un débrief) : la réponse est un **`Message` rattaché**
 > (`Message.sessionFeedbackId`), pas une entité nouvelle — le champ était au schéma et validé
@@ -970,3 +969,79 @@ liste des domaines vivent dans l'index.
 > millisecondes l'une de l'autre, peuvent lire le même `lastMessageAt` et prendre la même date :
 > leur ordre devient celui de Postgres, et celle validée après une lecture du fil peut passer pour
 > lue. Il faut donc réunir un recul et deux écritures au même instant dans le même fil.
+
+## Post-MVP — Pagination du fil ([#77](https://github.com/Cimavia/cimavia/issues/77))
+
+> **Tranché en [#77](https://github.com/Cimavia/cimavia/issues/77)** (le fil se lit par pages) :
+> `GET /conversations/:id/messages` rend `{ items, nextCursor }` : les 50 messages les plus récents
+> (`limit` de 1 à 100), dans l'ordre de lecture ; `?before=<nextCursor>` donne la page d'avant. Le
+> web remonte quand un repère posé en tête du fil entre à l'écran, le mobile à l'`onEndReached` de
+> sa liste inversée.
+>
+> - **Rupture assumée** : une seule forme de réponse, sans compatibilité avec les binaires mobiles
+>   déjà installés. Un binaire d'avant #77 ne lit plus le fil ; la bêta installe le build de la
+>   promotion.
+> - **Le curseur est une position, pas une ligne** : le `(createdAt, id)` du plus ancien message de
+>   la page, en base64url, opaque pour les clients. L'API le décode sans relire la base. Un curseur
+>   forgé ne montre rien de plus : le filtre reste sous le scope de tenancy (e2e
+>   `message-pages`). L'`id` départage les messages de même date, que #867 laisse passer pendant un
+>   recul d'horloge : sans lui, une page coupée au milieu d'une égalité en perdrait. L'encadré de
+>   #867 dit que « le fil se trie sur la seule `createdAt` » : depuis #77, l'ordre d'une égalité est
+>   celui des `id`, stable mais sans rapport avec l'envoi.
+> - **Le filtre est `createdAt ≤ X ET (createdAt < X OU (createdAt = X ET id < Y))`.** Le `OU` reste
+>   à l'intérieur, parce que l'extension de tenancy ajoute son scope en `ET`. La borne `≤`, redondante,
+>   donne une plage à l'index `(conversationId, createdAt)`.
+> - **La requête est stricte**, `as` toléré : un client qui enverrait `?cursor=` au lieu de
+>   `?before=` reçoit un 400, plutôt que la première page en boucle.
+> - **La page la plus récente se relit depuis sa frontière** (`?since=<son nextCursor>`), en
+>   entier : ce qu'elle tenait, ce qui est arrivé depuis, URLs re-signées et messages effacés
+>   compris (un compte supprimé quitte les fils de groupe). Elle garde son curseur, et les pages
+>   d'avant se relisent aux mêmes : le fil chargé ne glisse pas sous le lecteur remonté. Relue
+>   comme « les 50 plus récents », chaque arrivée poussait un message vers la page d'avant ; la
+>   première version recousait donc côté client les messages poussés, depuis le cache. Ils
+>   gardaient leurs URLs de la première lecture, mortes au bout de 5 min et pourtant inscrites
+>   comme fraîches dans la table des URLs, et un message effacé y restait, devant de plus anciens
+>   que lui (revue de la PR #928). `since` est borné à 100 lignes : au-delà (un fil rouvert après
+>   une longue absence, ou plus de 50 messages arrivés fil ouvert), l'API rend la page la plus récente à
+>   son curseur à elle, et les pages d'avant se recousent à partir de lui — le lecteur remonté se
+>   décale alors une fois. `before` et `since` s'excluent (400).
+> - **Une page d'avant ne se relit que périmée** (`createThreadPages`) : un de ses médias porte
+>   une URL que la table ne garantit plus, ou elle a plus de 5 min, ou on ignore quand elle a été
+>   lue (cache restauré au démarrage). Sinon, la relecture la rend telle quelle, sans requête. Relues
+>   toutes les 10 s, elles comptaient sur le plafond global de 300 requêtes par minute et par acteur
+>   (#782), tous appareils confondus : un coach remonté d'une quarantaine de pages passait en 429
+>   sur toutes ses routes. Le coût d'un fil ouvert est désormais d'une requête toutes les 10 s, plus
+>   une par page remontée toutes les 4 à 5 min.
+> - **Les options de la requête infinie du fil vivent dans `@cmv/shared`** (`createThreadPages`),
+>   une par app comme la table des URLs : le web et le mobile n'y ajoutent que leur sondage et leur
+>   partage structurel.
+> - **Le web garde le lecteur en place** quand la page s'ajoute au-dessus (`holdPosition` de
+>   `useStickToBottom`). La cible part du dernier `scrollTop` connu, celui du dernier défilement :
+>   `dernier haut + (nouvelle hauteur − ancienne)`. Elle est juste que le navigateur ait déjà ancré
+>   de lui-même (`overflow-anchor`) ou non (Safari), et garde ce que le lecteur a défilé pendant le
+>   chargement. Le mobile n'en a pas besoin : sa liste inversée est ancrée au bas, et la page
+>   s'ajoute à l'autre bout.
+> - **Un échec arrête la remontée** : elle ne repart que sur « Réessayer » (`shouldLoadOlderPage`,
+>   la même règle aux deux clients). La relancer à chaque arrivée en tête martèlerait une API en
+>   panne. L'échec est **retenu par le client** jusqu'à « Réessayer », et non lu de la requête : un
+>   sondage réussi efface l'erreur de TanStack sans recharger la page d'avant, et le lecteur resté
+>   en tête n'aurait plus ni bouton, ni page.
+> - **Une page d'avant interrompue se redemande** une fois la relecture finie
+>   (`olderPageOutcome`). Une relecture lancée pendant qu'elle était en route (l'invalidation d'un
+>   envoi, `refetchQueries` d'un média à re-signer, le retour au premier plan du mobile) l'annule
+>   sans erreur. Le repère web, resté à l'écran, ne se manifestait plus, et la liste mobile ne
+>   rappelle `onEndReached` qu'à une autre longueur de contenu : la remontée restait figée, sans
+>   indicateur ni « Réessayer ». Le web observe le repère à neuf, et ne redemande que s'il est
+>   encore à l'écran ; le mobile redemande.
+> - **Une erreur ne jette pas le fil chargé** : au web comme au mobile (#439), l'écran d'erreur ne
+>   remplace le fil que si rien n'est en cache. Une page d'avant ratée passe la requête en
+>   erreur, ses messages toujours là.
+> - **Le repère web déclenche au rappel de l'`IntersectionObserver`**, et non sur un état relu
+>   par un effet : l'effet tourne dans le rendu même où la page arrivée repousse le repère, et y
+>   lisait la visibilité d'avant, soit une page de trop à chaque remontée. Le repère est observé à
+>   neuf à chaque nouvelle tête du fil : resté à l'écran après une page courte, il en redemande
+>   une.
+> - **Le curseur est générique** (`cursorPageQuerySchema` et `cursorPageSchema` dans
+>   `@cmv/shared`, `cursor-page.util` dans l'API) : #78 (les notifications) le reprend tel quel.
+> - **La clé de cache du fil change** (`thread-pages`) : un cache persisté sous l'ancienne forme,
+>   un tableau, n'est jamais relu comme des pages.

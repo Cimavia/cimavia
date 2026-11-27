@@ -1,5 +1,5 @@
-import type { MessageDto, SendMessageInput } from "@cmv/shared";
-import { FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
+import type { MessageDto, MessagePageDto, MessagePageQuery, SendMessageInput } from "@cmv/shared";
+import { CURSOR_PAGE_MAX_LIMIT, FEEDBACK_EVENT_MESSAGE_TYPES, MessageType } from "@cmv/shared";
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { ConversationParticipant, Prisma } from "@prisma/client";
 import { ClsService } from "nestjs-cls";
@@ -15,6 +15,14 @@ import {
   exercisedOrThrow,
   type TenantContext,
 } from "../../tenancy/tenant-context.type";
+import {
+  cursorPageOf,
+  decodeCursor,
+  NEWEST_FIRST,
+  notOlderThan,
+  olderThan,
+  windowSinceOf,
+} from "../../util/cursor-page.util";
 import { appendMessage } from "../append-message";
 import { toMessageDto } from "../message.mapper";
 import { ConversationService, type JoinedConversation } from "./conversation.service";
@@ -46,20 +54,56 @@ export class MessageService {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Fil chronologique (du plus ancien au plus récent). Pas de pagination en MVP (dette P2-2) : le
-  // volume d'un fil reste modeste ; à cursoriser si un fil devient très long.
-  async listMessages(conversationId: string): Promise<MessageDto[]> {
+  /**
+   * Une page du fil (#77) : les `limit` messages qui précèdent le curseur, la plus récente sans
+   * lui, chacune dans l'ordre chronologique. Ce qui arrive pendant qu'on remonte ne décale rien :
+   * la page d'avant se cale sur une position, pas sur un rang.
+   *
+   * `?since=` relit la page la plus récente depuis sa frontière, ce qui est arrivé compris
+   * (`cursorPageQuerySchema`) : c'est ainsi que les clients la sondent.
+   *
+   * Rien de ce qui dépend du fil entier n'est calculé ici : la marque de lecture et les non-lus
+   * (`markRead`, la liste des conversations) relisent la table, pas la page servie.
+   */
+  async listMessages(conversationId: string, query: MessagePageQuery): Promise<MessagePageDto> {
     await this.conversations.getJoinedOrThrow(conversationId);
-    const messages = await this.db.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: "asc" },
-    });
-    const attachments = await this.attachments.resolve(messages);
-    return Promise.all(
-      messages.map((message) =>
+    const page =
+      query.since == null
+        ? await this.pageBefore(conversationId, query.before, query.limit)
+        : await this.windowSince(conversationId, query.since, query.limit);
+    const attachments = await this.attachments.resolve(page.rows);
+    const items = await Promise.all(
+      page.rows.map((message) =>
         toMessageDto(message, this.storage, attachments.get(message.id) ?? null),
       ),
     );
+    return { items, nextCursor: page.nextCursor };
+  }
+
+  private async pageBefore(conversationId: string, before: string | undefined, limit: number) {
+    const position = before == null ? null : decodeCursor(before);
+    const newestFirst = await this.db.message.findMany({
+      where: { conversationId, ...olderThan(position) },
+      orderBy: [...NEWEST_FIRST],
+      take: limit + 1,
+    });
+    return cursorPageOf(newestFirst, limit);
+  }
+
+  private async windowSince(conversationId: string, since: string, limit: number) {
+    const position = decodeCursor(since);
+    const newestFirst = await this.db.message.findMany({
+      where: { conversationId, ...notOlderThan(position) },
+      orderBy: [...NEWEST_FIRST],
+      take: CURSOR_PAGE_MAX_LIMIT + 1,
+    });
+    return windowSinceOf(newestFirst, limit, since, async () => {
+      const older = await this.db.message.findFirst({
+        where: { conversationId, ...olderThan(position) },
+        select: { id: true },
+      });
+      return older != null;
+    });
   }
 
   // Envoi d'un message (texte ou média déjà uploadé). Le média a transité par l'object storage via

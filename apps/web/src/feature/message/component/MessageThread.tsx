@@ -18,8 +18,10 @@ import { messageKeys } from "@/feature/message/api";
 import { Composer } from "@/feature/message/component/Composer";
 import { MessageBubble } from "@/feature/message/component/MessageBubble";
 import { NewMessagesPill } from "@/feature/message/component/NewMessagesPill";
+import { OlderMessagesRow } from "@/feature/message/component/OlderMessagesRow";
 import { ParticipantAvatars } from "@/feature/message/component/ParticipantAvatars";
 import { useMarkRead, useSendMessage, useThreadMessages } from "@/feature/message/hook/useMessages";
+import { useOlderMessages } from "@/feature/message/hook/useOlderMessages";
 import { useSendMessageMedia } from "@/feature/message/hook/useSendMessageMedia";
 import { CmvErrorState } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
@@ -94,6 +96,7 @@ export function MessageThread({ conversation }: Readonly<MessageThreadProps>) {
   const [readMarker] = useState(createReadMarker);
   const { thread, unseen } = useThreadScroll(items, currentUserId);
   const { atBottom, stickToBottom } = thread;
+  const older = useOlderMessages(messages, thread.holdPosition);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `messages.dataUpdatedAt` est un déclencheur, pas une donnée lue — chaque sondage redonne sa chance à un marquage en échec.
   useEffect(() => {
     // Lu, c'est vu (#367) : un lecteur parti dans l'historique n'a pas sous les yeux ce qui arrive
@@ -116,7 +119,9 @@ export function MessageThread({ conversation }: Readonly<MessageThreadProps>) {
         </div>
       </header>
 
-      {messages.isError ? (
+      {/* Avec des messages en cache, un sondage ou une page d'avant ratés ne jettent pas le fil :
+          la page d'avant le dit en tête (#77), le sondage suivant rattrape. */}
+      {messages.isError && messages.data === undefined ? (
         <div className="flex flex-1 items-center justify-center p-cmv-lg">
           <CmvErrorState
             title={t("common.errorTitle")}
@@ -129,6 +134,7 @@ export function MessageThread({ conversation }: Readonly<MessageThreadProps>) {
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div ref={thread.scrollRef} className="flex flex-1 flex-col overflow-y-auto p-cmv-lg">
             <div ref={thread.contentRef} className="flex flex-1 flex-col gap-cmv-sm">
+              <OlderMessagesRow older={older} />
               {items.length === 0 && !messages.isPending ? (
                 <div className="m-auto flex flex-col items-center gap-cmv-xs text-center">
                   <p className="text-cmv-text-hi">{t("messages.empty.title")}</p>

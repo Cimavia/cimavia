@@ -34,7 +34,7 @@ vi.mock("@/feature/message/api", async (importOriginal) => {
       listConversations: vi.fn(),
       listCandidates: vi.fn(),
       createConversation: vi.fn(),
-      getMessages: vi.fn(),
+      getMessagePage: vi.fn(),
       markRead: vi.fn(async () => undefined),
       sendMessage: vi.fn(),
     },
@@ -140,7 +140,10 @@ beforeEach(() => {
   vi.mocked(messageApi.listConversations).mockResolvedValue([conversation()]);
   vi.mocked(messageApi.listCandidates).mockResolvedValue(COACH_CANDIDATES);
   vi.mocked(messageApi.createConversation).mockResolvedValue(conversation());
-  vi.mocked(messageApi.getMessages).mockResolvedValue([message("m-1")]);
+  vi.mocked(messageApi.getMessagePage).mockResolvedValue({
+    items: [message("m-1")],
+    nextCursor: null,
+  });
 });
 
 describe("MessagesScreen — la liste", () => {
@@ -305,7 +308,7 @@ describe("MessagesScreen — le fil", () => {
         null,
       ),
     );
-    await waitFor(() => expect(messageApi.getMessages).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(messageApi.getMessagePage).toHaveBeenCalledTimes(2));
     expect(messageApi.listConversations).toHaveBeenCalledTimes(2);
   });
 

@@ -34,7 +34,7 @@ describe("Débriefs d'un cycle partagé : notifiés à chaque Coach, lus par cha
     return threads.find((thread) => directCounterpartId(thread, "athlete") === athleteId);
   };
   const messagesOf = async (coach: Agent, threadId: string) =>
-    (await coach.get(`/conversations/${threadId}/messages`)).body as ThreadMessage[];
+    (await coach.get(`/conversations/${threadId}/messages`)).body.items as ThreadMessage[];
   const noticesIn = async (coach: Agent, athleteId: string, id: string) => {
     const thread = await threadWith(coach, athleteId);
     if (thread == null) return [];

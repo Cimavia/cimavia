@@ -14,6 +14,6 @@ import { replaceEqualDeep } from "@tanstack/react-query";
 // la simuler (`vi.useFakeTimers`) après l'import.
 export const {
   keeper: signedUrlKeeper,
-  keepThreadUrls,
+  keepThreadPageUrls,
   keepFeedbackUrls,
 } = createSignedUrlSharing(replaceEqualDeep, () => Date.now());

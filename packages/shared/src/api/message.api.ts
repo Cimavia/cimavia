@@ -4,6 +4,7 @@ import type {
   ConversationDto,
   CreateConversationInput,
   MessageDto,
+  MessagePageDto,
   RequestMessageUploadUrlInput,
   SendMessageInput,
 } from "../dto/message.schema";
@@ -12,14 +13,14 @@ import type {
   CompleteMultipartUploadInput,
   MediaUploadTicketDto,
 } from "../dto/upload.schema";
-import { asKey, asQuery } from "./as-capability";
+import { AS_CAPABILITY_PARAM, asKey, asQuery } from "./as-capability";
 import type { ApiClient } from "./client";
 
 /**
  * Appels HTTP de la messagerie, partagés web ↔ mobile.
  *
  * C'est le module le plus dupliqué du dépôt avant promotion : **quatre des six appels étaient
- * rigoureusement identiques** dans les deux apps (`getMessages`, `sendMessage`, `markRead`,
+ * rigoureusement identiques** dans les deux apps (la lecture du fil, `sendMessage`, `markRead`,
  * `requestUploadUrl`), au caractère près. Seuls les deux premiers différaient — et encore, par
  * l'argument, pas par la route.
  *
@@ -51,10 +52,17 @@ export const messageKeys = {
    * compte à double capacité a des fils des deux côtés, et l'id seul ne dit pas de quel côté il est.
    */
   conversationWithCoach: (coachId: string) => ["messages", "with-coach", coachId] as const,
-  /** Le contenu d'un fil dépend du titre : on y participe à l'un ou à l'autre (#611), et le même id
-   * ne s'ouvre pas selon le côté d'où on le lit. */
+  /**
+   * Le contenu d'un fil dépend du titre : on y participe à l'un ou à l'autre (#611), et le même id
+   * ne s'ouvre pas selon le côté d'où on le lit.
+   *
+   * `thread-pages` et non plus `thread` depuis #77 : le cache tient des PAGES, plus un tableau. Le
+   * cache persisté du mobile est jeté à chaque montée de version (#187), mais pas celui d'un poste
+   * de développement, ni un onglet resté ouvert sur le web : changer la clé laisse l'ancienne forme
+   * là où personne ne la lit plus.
+   */
   thread: (conversationId: string, as: TrainingCapability | null) =>
-    ["messages", "thread", conversationId, asKey(as)] as const,
+    ["messages", "thread-pages", conversationId, asKey(as)] as const,
 };
 
 export type MessageApi = {
@@ -70,7 +78,25 @@ export type MessageApi = {
     input: CreateConversationInput,
     as: TrainingCapability | null,
   ) => Promise<ConversationDto>;
-  getMessages: (conversationId: string, as: TrainingCapability | null) => Promise<MessageDto[]>;
+  /**
+   * Une page du fil (#77) : la plus récente sans `before`, sinon celle qui précède ce curseur —
+   * le `nextCursor` de la page d'après, rendu tel quel.
+   */
+  getMessagePage: (
+    conversationId: string,
+    before: string | null,
+    as: TrainingCapability | null,
+  ) => Promise<MessagePageDto>;
+  /**
+   * La page la plus récente RELUE depuis sa frontière (`since`, son `nextCursor`) : ce qu'elle
+   * tenait et ce qui est arrivé depuis, sans rien pousser vers la page d'avant. Au-delà du plafond
+   * de page, l'API rend la plus récente avec un curseur neuf (`cursorPageQuerySchema`).
+   */
+  getMessagesSince: (
+    conversationId: string,
+    since: string,
+    as: TrainingCapability | null,
+  ) => Promise<MessagePageDto>;
   sendMessage: (
     conversationId: string,
     input: SendMessageInput,
@@ -112,8 +138,14 @@ export function createMessageApi(api: ApiClient): MessageApi {
       api.get<ConversationCandidatesDto>(`/conversations/candidates${asQuery(as)}`),
     createConversation: (input, as) =>
       api.post<ConversationDto>(`/conversations${asQuery(as)}`, input),
-    getMessages: (conversationId, as) =>
-      api.get<MessageDto[]>(`/conversations/${conversationId}/messages${asQuery(as)}`),
+    getMessagePage: (conversationId, before, as) =>
+      api.get<MessagePageDto>(
+        `/conversations/${conversationId}/messages${pageQuery("before", before, as)}`,
+      ),
+    getMessagesSince: (conversationId, since, as) =>
+      api.get<MessagePageDto>(
+        `/conversations/${conversationId}/messages${pageQuery("since", since, as)}`,
+      ),
     sendMessage: (conversationId, input, as) =>
       api.post<MessageDto>(`/conversations/${conversationId}/messages${asQuery(as)}`, input),
     // Corps vide explicite : sans lui le client n'envoie pas de Content-Type, et l'API refuse un
@@ -133,4 +165,21 @@ export function createMessageApi(api: ApiClient): MessageApi {
     abortMediaUpload: (conversationId, input, as) =>
       api.post<void>(`/conversations/${conversationId}/messages/upload/abort${asQuery(as)}`, input),
   };
+}
+
+/**
+ * `?before=…&as=…` (ou `?since=…`), ou ce qui en reste : la première page n'a pas de curseur.
+ * Assemblée à la main : le paquet compilé pour l'API n'a pas la bibliothèque DOM, donc pas
+ * `URLSearchParams`.
+ */
+function pageQuery(
+  name: "before" | "since",
+  cursor: string | null,
+  as: TrainingCapability | null,
+): string {
+  const params = [
+    cursor == null ? null : `${name}=${encodeURIComponent(cursor)}`,
+    as == null ? null : `${AS_CAPABILITY_PARAM}=${as}`,
+  ].filter((param) => param != null);
+  return params.length === 0 ? "" : `?${params.join("&")}`;
 }

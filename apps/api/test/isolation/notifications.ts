@@ -435,7 +435,7 @@ describe("Centre de notifications (#48)", () => {
       ),
       "fil du coach",
     ) as { lastReadAt: string | null };
-    const pending = thread.body.filter(
+    const pending = thread.body.items.filter(
       (m: { type: string; createdAt: string }) =>
         m.type === "FEEDBACK_CREATED" && (lastReadAt == null || m.createdAt > lastReadAt),
     );

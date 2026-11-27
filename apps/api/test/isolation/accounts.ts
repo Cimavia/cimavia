@@ -223,11 +223,13 @@ describe("Plusieurs coachs par athlète (#599)", () => {
     const withM = required(threadsOfM.body[0], "fil de M") as { id: string };
     const messagesOfM = await coachM.get(`/conversations/${withM.id}/messages`);
     expect(
-      messagesOfM.body.map((message: { content: string | null }) => message.content),
+      messagesOfM.body.items.map((message: { content: string | null }) => message.content),
     ).not.toContain("Pour C seulement");
 
     const messagesOfC = await coachC.get(`/conversations/${withC.body.id}/messages`);
-    expect(messagesOfC.body.map((message: { type: string }) => message.type)).toEqual(["TEXT"]);
+    expect(messagesOfC.body.items.map((message: { type: string }) => message.type)).toEqual([
+      "TEXT",
+    ]);
   });
 });
 

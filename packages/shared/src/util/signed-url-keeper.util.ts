@@ -1,5 +1,6 @@
 import type { SessionFeedbackDto } from "../dto/feedback.schema";
 import type { MessageDto } from "../dto/message.schema";
+import type { MessagePages } from "./message-pages.util";
 import { isSignedUrlUsable, keepSignedUrl, type SignedUrlReceipt } from "./signed-url.util";
 
 /**
@@ -63,6 +64,25 @@ export function stabilizeMessageUrls(
   nowMs: number,
 ): MessageDto[] {
   return messages.map((message) => stabilizeMessage(keeper, message, nowMs));
+}
+
+/**
+ * Les pages d'un fil (#77), URLs stabilisées page par page. `undefined` passe tel quel : une
+ * requête qui n'a encore rien rendu.
+ */
+export function stabilizeMessagePageUrls(
+  keeper: SignedUrlKeeper,
+  data: MessagePages | undefined,
+  nowMs: number,
+): MessagePages | undefined {
+  if (data == null) return undefined;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: stabilizeMessageUrls(keeper, page.items, nowMs),
+    })),
+  };
 }
 
 /**
@@ -136,8 +156,15 @@ export function createSignedUrlSharing(replaceEqualDeep: ReplaceEqualDeep, now: 
 
   return {
     keeper,
-    keepThreadUrls: (previous: unknown, next: unknown) =>
-      replaceEqualDeep(previous, stabilizeMessageUrls(keeper, next as MessageDto[], now())),
+    // TanStack passe aussi par `structuralSharing` le résultat de `select` : le fil à plat
+    // (`threadOfPages`), tiré de pages DÉJÀ stabilisées. Il n'y a plus qu'à le partager.
+    keepThreadPageUrls: (previous: unknown, next: unknown) =>
+      replaceEqualDeep(
+        previous,
+        Array.isArray(next)
+          ? next
+          : stabilizeMessagePageUrls(keeper, next as MessagePages | undefined, now()),
+      ),
     keepFeedbackUrls: (previous: unknown, next: unknown) =>
       replaceEqualDeep(
         previous,

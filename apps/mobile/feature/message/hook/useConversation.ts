@@ -2,22 +2,27 @@ import {
   type ConversationCandidatesDto,
   type ConversationDto,
   type CreateConversationInput,
+  createThreadPages,
   isFollowEndedError,
-  type MessageDto,
+  type MessagePages,
   type SendMessageInput,
   type TrainingCapability,
   withConversation,
 } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
-import { keepThreadUrls } from "@/shared/lib/signed-url";
+import { keepThreadPageUrls, signedUrlKeeper } from "@/shared/lib/signed-url";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.
 const POLL_INTERVAL_MS = 10_000;
+
+// UNE pour l'app, comme la table des URLs qu'elle consulte : elle retient quand chaque page
+// d'avant a été lue. L'horloge est lue à l'appel, pour les faux minuteurs des tests.
+const threadPagesOptions = createThreadPages(signedUrlKeeper, () => Date.now());
 
 /**
  * Les fils de l'acteur, sous le titre qu'il exerce — chacun porte SA marque de lecture (#611). Pas
@@ -134,19 +139,34 @@ export function useOpenCoachConversation() {
   });
 }
 
+/**
+ * Le fil, page par page (#77) : la plus récente d'abord, les précédentes à la demande
+ * (`fetchNextPage`, quand le lecteur remonte). `data` est le fil À PLAT, dans l'ordre de lecture —
+ * l'écran ne voit pas les pages.
+ *
+ * Le sondage relit la page la plus récente depuis sa frontière, et les pages d'avant seulement
+ * quand elles sont périmées (`createThreadPages`) : le fil chargé ne glisse pas sous le lecteur
+ * remonté, et le coût ne grandit pas avec la remontée. Un cache restauré au démarrage relit
+ * chaque page une fois : on ignore quand elle a été lue.
+ */
 export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.
   const [focused, setFocused] = useState(false);
   const as = useExercisedCapability();
+  const queryClient = useQueryClient();
+  const queryKey =
+    conversationId != null ? messageKeys.thread(conversationId, as) : messageKeys.all;
 
-  const query = useQuery<MessageDto[]>({
-    queryKey: conversationId != null ? messageKeys.thread(conversationId, as) : messageKeys.all,
-    queryFn: () => messageApi.getMessages(conversationId as string, as),
+  const query = useInfiniteQuery({
+    queryKey,
+    ...threadPagesOptions(messageApi, conversationId as string, as, () =>
+      queryClient.getQueryData<MessagePages>(queryKey),
+    ),
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
     // Chaque sondage re-signe les médias : sans ça, une note vocale repart de zéro toutes les 10 s.
-    structuralSharing: keepThreadUrls,
+    structuralSharing: keepThreadPageUrls,
   });
 
   /**

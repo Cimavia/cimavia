@@ -9,9 +9,11 @@ import {
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, View } from "react-native";
+import type { OlderMessages } from "@/feature/message/hook/useOlderMessages";
 import { CmvText } from "@/shared/component";
 import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
 import { MessageBubble, type ResolveMediaUrl } from "./MessageBubble";
+import { OlderMessagesRow } from "./OlderMessagesRow";
 
 type MessageListProps = {
   /** De quoi nommer l'auteur des bulles reçues, à plusieurs (#612). */
@@ -22,6 +24,8 @@ type MessageListProps = {
   /** Qui a lu mon dernier message, à plusieurs ; `null` sinon (`readByOf`). */
   readBy: ReadBy | null;
   resolveMediaUrl: ResolveMediaUrl;
+  /** La remontée vers les messages plus anciens, page par page (#77). */
+  older: OlderMessages;
 };
 
 export function MessageList({
@@ -30,6 +34,7 @@ export function MessageList({
   currentUserId,
   readBy,
   resolveMediaUrl,
+  older,
 }: Readonly<MessageListProps>) {
   const { t } = useTranslation();
   // `inverted` colle le fil au bas de l'écran (dernier message visible, comme une messagerie) et
@@ -49,6 +54,10 @@ export function MessageList({
       // message de son « Lu par ».
       extraData={`${chain.cuedId ?? ""}|${readBy?.messageId ?? ""}|${readByLine ?? ""}`}
       contentContainerClassName="gap-2 p-4"
+      // Inversée, la FIN de la liste est la tête du fil : y arriver charge la page d'avant, qui
+      // s'ajoute au bout de `data` — loin du bas où la liste est ancrée, donc sans rien décaler.
+      onEndReached={older.loadMore}
+      ListFooterComponent={<OlderMessagesRow older={older} />}
       renderItem={({ item }) => (
         <View className="gap-1">
           <MessageBubble
