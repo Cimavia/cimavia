@@ -56,7 +56,7 @@ liste des domaines vivent dans l'index.
 | N-10 | **Le filtre par catégorie n'a pas d'index dédié** (#694) : `type IN (…)` trié par date parcourt l'index `(recipientId, createdAt)` jusqu'à trouver 50 lignes du type demandé. Pour une catégorie rare chez un destinataire qui a beaucoup reçu, c'est toutes ses lignes — quelques milliers au plus aujourd'hui, et la purge des lues à six mois ([#76](https://github.com/Cimavia/cimavia/issues/76)) borne désormais ce qu'il garde. | 🟢 | — *(déclencheur : une lecture filtrée lente en observabilité ; la sortie est un index `(recipientId, type, createdAt)`)* |
 | N-11 | **Le push Android s'affiche sous un canal nommé en anglais** (règle dure n°6) : l'API n'envoie pas de `channelId`, et `expo-notifications` range la notification dans son canal de repli, « Miscellaneous » — le nom que montre Réglages › Cimavia › Notifications, à côté de « Minuteurs ». Trouvé en #348, même famille que NV-1, mais ici le canal est à nous. | 🟢 | [#891](https://github.com/Cimavia/cimavia/issues/891) |
 | N-12 | **La purge des notifications lues parcourt toute la table** (#76) : `readAt < seuil`, chez tous les destinataires, ne s'appuie sur aucun index — `(recipientId, readAt)` commence par le destinataire. Un parcours séquentiel par tick horaire, sans conséquence au volume de la bêta. | 🟢 | — *(déclencheur : un tick qui ralentit, ou une table `notification` volumineuse ; la sortie est un index partiel sur `readAt` des seules lues)* |
-| N-13 | **Le push n'a pas de délai maximum** : `expo-server-sdk` appelle le `fetch` d'undici sans délai réglé, jusqu'à ~300 s avant les en-têtes. Depuis #350, aucune requête ne l'attend plus ; restent le tick des rappels, qui attend chaque push, et l'arrêt de l'API, que seul l'arrêt forcé du conteneur borne alors. | 🟢 | — *(déclencheur : un tick ou un arrêt bloqué sur Expo en observabilité ; la sortie est un `httpAgent` undici à délais courts passé au client Expo)* |
+| N-13 | **Le push n'a pas de délai maximum** : `expo-server-sdk` appelle le `fetch` d'undici sans délai réglé, jusqu'à ~300 s avant les en-têtes. Depuis #350, aucune requête d'utilisateur ne l'attend plus ; restent le tick des rappels, qui attend chaque push — le `curl` du cron abandonne à 60 s et le job sort en échec —, et l'arrêt de l'API, que seul l'arrêt forcé du conteneur borne alors. | 🟢 | — *(déclencheur : un tick ou un arrêt bloqué sur Expo en observabilité ; la sortie est un `httpAgent` undici à délais courts passé au client Expo)* |
 
 *Résolues, à l'[archive](archive.md) : N-2.*
 
@@ -67,22 +67,25 @@ liste des domaines vivent dans l'index.
 > conséquences que le code ne justifie pas seul :
 >
 > - **La trace reste attendue.** C'est une écriture en base, et le centre que le client relit
->   juste après doit la porter. Le **tick des rappels** attend aussi son push : aucune requête
->   derrière, et `pushedAt` veut dire « push tenté » (**N-13**).
+>   juste après doit la porter. Le **tick des rappels** attend aussi ses push : sa réponse,
+>   personne ne l'attend qu'un automate — le cron `reminder-tick.yml`, borné à 60 s —, et c'est
+>   voulu. Un Expo muet y fait sortir le job en échec, la panne se voit, pendant que le serveur
+>   finit le tick (**N-13**) ; détaché, le push aurait tu cette panne derrière un 200.
 > - **L'arrêt laisse finir ce qui est en route.** Chaque envoi est suivi jusqu'à son terme ;
 >   `onModuleDestroy` attend ceux déjà partis — un instantané, pour ne pas tourner sans fin sous
 >   trafic — avant que Prisma se déconnecte, l'e-mail lisant encore la préférence et l'adresse. Ça
->   tient à l'ordre de Nest, constaté sur `AppModule` et tenu par un test : les deux modules sont
->   globaux, ils se détruisent dans l'ordre inverse de leur import, et `PrismaModule` est importé
->   avant. La borne reste le délai de grâce du conteneur (10 s chez Docker) : un fournisseur en
+>   tient à l'ordre de Nest, que vérifie `shutdown.e2e-spec.ts` sur l'app montée : les deux
+>   modules sont globaux, ils se détruisent dans l'ordre inverse de leur import, et `PrismaModule`
+>   est importé avant. La borne reste le délai de grâce du conteneur (10 s chez Docker) : un fournisseur en
 >   panne au même moment y perd son envoi.
 > - **Un test lit après `settled()`**, jamais dès la réponse. Unitaires comme e2e
 >   (`deliveredMails`) : sinon un « aucun e-mail » passe au vert avant que l'e-mail soit parti.
 > - **Délais SMTP courts, pas de pool.** `MailService` borne le DNS, la connexion et l'accueil à
 >   10 s, l'inactivité de la socket à 30 s, contre 2 et 10 min par défaut chez nodemailer — ce
 >   qui protège aussi les envois encore attendus par leur requête (invitation, réinitialisation,
->   vérification, effacement). Un pool n'aurait servi qu'à épargner la poignée de main TLS, que plus aucun
->   201 n'attend ; au volume de la bêta il n'économise rien, et il fallait le fermer à l'arrêt et
+>   vérification, effacement). Un pool n'aurait servi qu'à épargner la poignée de main TLS, que seuls les
+>   envois directs attendent encore — une invitation, une réinitialisation, des gestes uniques
+>   et non des rafales ; au volume de la bêta il n'économise rien, et il fallait le fermer à l'arrêt et
 >   survivre aux connexions que le serveur coupe.
 
 > **Tranché en #537** (le push suit chaque envoi, la trace chaque série) : retour du Coach bêta,
