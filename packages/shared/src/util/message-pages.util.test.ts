@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type MessageDto, MessageType } from "../dto/message.schema";
-import {
-  olderPageCursor,
-  refreshNewestPage,
-  shouldLoadOlderPage,
-  threadOfPages,
-} from "./message-pages.util";
+import { olderPageCursor, shouldLoadOlderPage, threadOfPages } from "./message-pages.util";
 
 function message(id: string): MessageDto {
   return {
@@ -80,49 +75,5 @@ describe("shouldLoadOlderPage", () => {
 
   it("ne repart pas seule après un échec", () => {
     expect(shouldLoadOlderPage({ ...idle, isFetchNextPageError: true })).toBe(false);
-  });
-});
-
-describe("refreshNewestPage", () => {
-  const page = (idList: string[], nextCursor: string | null) => ({
-    items: idList.map(message),
-    nextCursor,
-  });
-
-  it("rend la page lue telle quelle à la première lecture", () => {
-    const fetched = page(["m3", "m4"], "c-m3");
-    expect(refreshNewestPage(undefined, fetched)).toBe(fetched);
-  });
-
-  /**
-   * Deux messages arrivés : la page relue (les 3 plus récents) a perdu m3 et m4 par le bas. Ils
-   * restent, et la frontière avec la page d'avant ne bouge pas.
-   */
-  it("absorbe ce qui est arrivé, et garde sa frontière avec la page d'avant", () => {
-    const refreshed = refreshNewestPage(
-      page(["m3", "m4", "m5"], "c-m3"),
-      page(["m5", "m6", "m7"], "c-m5"),
-    );
-    expect(ids(refreshed.items)).toEqual(["m3", "m4", "m5", "m6", "m7"]);
-    expect(refreshed.nextCursor).toBe("c-m3");
-  });
-
-  it("prend de la relecture les messages qu'elle porte encore — leurs URLs sont les fraîches", () => {
-    const fresh = { ...message("m4"), content: "relu" };
-    const refreshed = refreshNewestPage(page(["m3", "m4"], "c-m3"), {
-      items: [message("m3"), fresh],
-      nextCursor: "c-m3",
-    });
-    expect(refreshed.items[1]).toBe(fresh);
-  });
-
-  it("repart de la relecture quand elle ne recoupe plus la page d'avant : rien de recousu à trou", () => {
-    const fetched = page(["m60", "m61"], "c-m60");
-    expect(refreshNewestPage(page(["m3", "m4"], "c-m3"), fetched)).toBe(fetched);
-  });
-
-  it("rend la page lue quand le fil était vide", () => {
-    const fetched = page(["m1"], null);
-    expect(refreshNewestPage(page([], null), fetched)).toBe(fetched);
   });
 });

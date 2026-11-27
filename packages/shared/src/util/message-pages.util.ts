@@ -48,31 +48,3 @@ export type OlderPageState = {
 export function shouldLoadOlderPage(state: OlderPageState): boolean {
   return state.hasNextPage && !state.isFetchingNextPage && !state.isFetchNextPageError;
 }
-
-/**
- * La page la plus récente RELUE — par le sondage, une invalidation, un retour au premier plan —,
- * recousue sur celle qu'on avait. Elle garde sa frontière basse (`nextCursor`) et absorbe ce qui
- * est arrivé depuis : les pages plus anciennes se relisent alors aux mêmes curseurs, et le fil
- * chargé ne glisse pas.
- *
- * Sans elle, TanStack relit autant de pages qu'il en avait, la première étant « les 50 plus
- * récents » : chaque message arrivé en poussait un hors du bas de la première page, et ainsi de
- * suite jusqu'au plus ancien chargé, qui disparaissait sous les yeux du lecteur remonté.
- *
- * Recousue seulement si la page relue contient encore le plus récent de celle d'avant. Sinon,
- * plus de 50 messages sont arrivés entre-temps (un fil rouvert après une longue absence) : les
- * recoudre laisserait un trou, et la page relue repart seule.
- */
-export function refreshNewestPage(
-  previous: CursorPage<MessageDto> | undefined,
-  fetched: CursorPage<MessageDto>,
-): CursorPage<MessageDto> {
-  const newest = previous?.items.at(-1);
-  if (previous == null || newest == null) return fetched;
-  const fetchedIds = new Set(fetched.items.map(({ id }) => id));
-  if (!fetchedIds.has(newest.id)) return fetched;
-  // Ce que la page relue ne porte plus, ce sont les plus anciens d'avant : ils restent en tête.
-  // Les autres sont pris de la relecture, qui a leurs URLs fraîches.
-  const kept = previous.items.filter(({ id }) => !fetchedIds.has(id));
-  return { items: [...kept, ...fetched.items], nextCursor: previous.nextCursor };
-}

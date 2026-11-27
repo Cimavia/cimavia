@@ -1045,7 +1045,6 @@ export { checkMessageFile, type MessageFileCheck } from "./util/message-file.uti
 export type { MessagePages, OlderPageState } from "./util/message-pages.util";
 export {
   olderPageCursor,
-  refreshNewestPage,
   shouldLoadOlderPage,
   threadOfPages,
 } from "./util/message-pages.util";
