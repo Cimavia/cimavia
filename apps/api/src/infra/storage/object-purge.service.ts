@@ -11,6 +11,14 @@ export const OBJECT_PURGE_BATCH_SIZE = 200;
 export const OBJECT_PURGE_BUDGET_MS = 20_000;
 
 /**
+ * Le NOM de l'erreur, jamais l'erreur : le SDK S3 recopie sur l'exception les champs de la réponse
+ * (`Key`, `Resource`), donc la clé et le nom du fichier qu'elle porte. Comme le balayage (#72).
+ */
+function reasonOf(err: unknown): string {
+  return err instanceof Error ? err.name : typeof err;
+}
+
+/**
  * Vide la file des objets à retirer du stockage (#256).
  *
  * L'effacement d'un compte écrit ses clés dans la transaction qui supprime ses lignes, puis appelle
@@ -82,14 +90,19 @@ export class ObjectPurgeService {
       await this.storage.deleteObject(key);
       return;
     } catch (err) {
-      // Ni ici ni plus bas, la clé : elle porte le nom du fichier.
-      this.logger.warn({ err }, "objet à retirer : stockage en échec, confié à la file");
+      this.logger.warn(
+        { reason: reasonOf(err) },
+        "objet à retirer : stockage en échec, confié à la file",
+      );
     }
     try {
       // `skipDuplicates` : la clé peut déjà attendre son tour, un double envoi l'y aurait mise.
       await this.prisma.pendingObjectDeletion.createMany({ data: [{ key }], skipDuplicates: true });
     } catch (err) {
-      this.logger.error({ err }, "objet à retirer : ni retiré ni mis en file, laissé au balayage");
+      this.logger.error(
+        { reason: reasonOf(err) },
+        "objet à retirer : ni retiré ni mis en file, laissé au balayage",
+      );
     }
   }
 
@@ -98,7 +111,10 @@ export class ObjectPurgeService {
       await this.storage.deleteObject(key);
     } catch (err) {
       // L'id et non la clé : une clé porte le nom du fichier, qui n'a rien à faire dans les logs.
-      this.logger.warn({ err, pendingId: id }, "objet à retirer : échec, repris au prochain tick");
+      this.logger.warn(
+        { reason: reasonOf(err), pendingId: id },
+        "objet à retirer : échec, repris au prochain tick",
+      );
       await this.prisma.pendingObjectDeletion.updateMany({
         where: { id },
         data: { attempts: { increment: 1 } },

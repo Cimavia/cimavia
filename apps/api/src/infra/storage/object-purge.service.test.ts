@@ -4,6 +4,15 @@ import type { PrismaService } from "../prisma/prisma.service";
 import { ObjectPurgeService } from "./object-purge.service";
 import type { StorageService } from "./storage.service";
 
+/** Ce que le SDK S3 lève : la réponse recopiée sur l'exception, clé comprise. */
+function s3Failure(key: string): Error {
+  return Object.assign(new Error("Access Denied."), {
+    name: "AccessDenied",
+    Key: key,
+    Resource: `/cimavia/${key}`,
+  });
+}
+
 /** Les tables qui citent une clé : vides, sauf `cited`, citées par un justificatif de facture. */
 function citingTables(cited: string[] = []) {
   const none = () => ({ findMany: vi.fn().mockResolvedValue([]) });
@@ -51,7 +60,7 @@ describe("ObjectPurgeService.drain", () => {
   });
 
   it("garde la ligne d'un objet en échec et continue avec les suivants", async () => {
-    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure("secret-nom.pdf"));
     const { service, queue, logger } = purgeWith(
       [
         { id: "1", key: "secret-nom.pdf" },
@@ -126,20 +135,23 @@ describe("ObjectPurgeService.deleteOrDefer", () => {
   });
 
   it("confie la clé à la file quand le stockage échoue, sans lever ni journaliser la clé", async () => {
-    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure(KEY));
     const { service, queue, logger } = purgeWith([], deleteObject);
     await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
     expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
       data: [{ key: KEY }],
       skipDuplicates: true,
     });
-    expect(logger.warn).toHaveBeenCalledOnce();
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { reason: "AccessDenied" },
+      expect.any(String),
+    );
     expect(logger.error).not.toHaveBeenCalled();
     expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret-nom.pdf");
   });
 
   it("ne lève pas quand la file échoue à son tour : l'objet reste au balayage", async () => {
-    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure(KEY));
     const { service, queue, logger } = purgeWith([], deleteObject);
     queue.createMany.mockRejectedValueOnce(new Error("base indisponible"));
     await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
