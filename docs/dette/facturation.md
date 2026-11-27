@@ -9,9 +9,9 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P6-2 | **Objet S3 orphelin quand un cycle est supprimé** : un cycle DRAFT cascade sa facture en base **sans** purger le justificatif. Le balayage de [#72](https://github.com/Cimavia/cimavia/issues/72) le ramasse, mais à la main. | 🟡 | [#73](https://github.com/Cimavia/cimavia/issues/73) |
+| P6-4 | **Deux remplacements concurrents du justificatif laissent un PDF orphelin** : les deux lisent le même ancien chemin, écrivent sans condition et purgent le même objet ; le PDF du perdant reste au bucket, sans ligne. C'est la dérive qu'on préfère (aucun affichage cassé), et le balayage de #72 la ramasse. Relevé à la revue de #73. | 🟢 | — *(déclencheur : des orphelins sous `invoice/` au balayage ; la sortie est une écriture conditionnée à l'ancien chemin, ou la purge du chemin réellement écrasé)* |
 
-*Résolues, à l'[archive](archive.md) : P6-1, P6-3.*
+*Résolues, à l'[archive](archive.md) : P6-1, P6-2, P6-3.*
 
 ---
 
@@ -30,6 +30,31 @@ liste des domaines vivent dans l'index.
 > facturation est refusé (400) — **sauf en auto-coaching**, où #14 a levé ce gating (on ne se
 > facture pas soi-même), et le refus est précédé depuis #144 de celui du destinataire manquant. Ce verrou a rendu nécessaire l'ajout d'une facturation aux setups
 > P4/P5 qui diffusaient un cycle — d'où le helper `billAndPublish` des e2e.
+
+> **Tranché en [#73](https://github.com/Cimavia/cimavia/issues/73)** (le justificatif part APRÈS
+> son cycle, et jamais en faisant échouer le geste) : l'issue prescrivait l'inverse — purger l'objet
+> avant la cascade. Or `DELETE /plans/:id` échoue légitimement : 409 `STALE_WRITE` quand un autre
+> Coach a retouché le cycle, ou l'a **diffusé** entre la lecture et l'écriture. L'objet parti
+> d'abord, le cycle survivant garderait un justificatif qui répond 404 — chez l'athlète même, si la
+> diffusion a gagné. C'est la dérive « ligne sans objet », que le projet refuse depuis P2.
+>
+> - **La clé se lit dans la transaction, l'objet part après le commit** : la cascade emporte la
+>   facture, il faut la lire avant ; et rien ne se retire tant que la ligne peut encore rester.
+> - **Un stockage en panne ne rend pas un 500** sur un geste écrit : `ObjectPurgeService.deleteOrDefer`
+>   confie la clé à la file `PendingObjectDeletion`, que le tick vide. Pas dans la transaction : la
+>   file n'a pas de scope tenant, l'extension la refuse. La base en panne à son tour, l'objet reste
+>   orphelin, et c'est le balayage manuel de #72 qui le ramasse.
+> - **Le remplacement et le retrait du justificatif passent par le même chemin** : ils écrivaient
+>   déjà la ligne d'abord, mais un `deleteObject` en échec y rendait un 500 sur un PDF bel et bien
+>   remplacé ou retiré.
+> - **Pas de décompte de références** : la clé est segmentée sous un seul cycle (`planId @unique`),
+>   aucune autre ligne ne la partage — à l'inverse des documents de cycle (`DocumentCleanupService`).
+>
+> - **La file relit les citations avant de retirer** (`keysCitedByRows`, un lot à la fois) : une
+>   clé mise en file au remplacement, puis rattachée de nouveau par un client qui la rejoue avant le
+>   tick, aurait été retirée sous la facture. Citée, elle sort de la file et l'objet reste. Jusqu'ici,
+>   seul l'effacement d'un compte y écrivait, des clés que plus personne ne peut rattacher ; #73 y
+>   fait entrer des gestes courants. S-2 (a), une clé rattachée deux fois, reste ouverte hors file.
 
 ---
 
