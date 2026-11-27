@@ -70,6 +70,7 @@ function mockThread(
     isError: false,
     hasNextPage: true,
     fetchNextPage,
+    isFetching: false,
     isFetchingNextPage: false,
     ...state,
   } as unknown as ReturnType<typeof useThreadMessages>);
@@ -344,7 +345,7 @@ describe("MessageThread — messages précédents (#77)", () => {
   });
 
   it("dit l'échec de la page d'avant, et la redemande sur « Réessayer »", async () => {
-    fetchNextPage.mockResolvedValue({ isError: true });
+    fetchNextPage.mockResolvedValue({ isFetchNextPageError: true });
     mockThread([message("m1")]);
     const view = renderWithProviders(<MessageThread {...props} />);
 

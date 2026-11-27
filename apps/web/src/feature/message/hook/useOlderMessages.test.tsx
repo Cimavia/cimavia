@@ -28,8 +28,9 @@ const message = (id: string) => ({ id }) as MessageDto;
 function query(overrides: Partial<Query> = {}): Query {
   return {
     data: [message("m3")],
-    fetchNextPage: vi.fn().mockResolvedValue({ isError: false }),
+    fetchNextPage: vi.fn().mockResolvedValue({ isFetchNextPageError: false, hasNextPage: false }),
     hasNextPage: true,
+    isFetching: false,
     isFetchingNextPage: false,
     ...overrides,
   } as Query;
@@ -140,7 +141,9 @@ describe("useOlderMessages (#77)", () => {
    * l'erreur disparaissait, et le lecteur resté en tête n'avait plus ni bouton, ni page.
    */
   it("retient l'échec jusqu'à « Réessayer », sans repartir seule entre-temps", async () => {
-    const thread = query({ fetchNextPage: vi.fn().mockResolvedValue({ isError: true }) });
+    const thread = query({
+      fetchNextPage: vi.fn().mockResolvedValue({ isFetchNextPageError: true }),
+    });
     const { hold, restore, rerender } = setup(thread);
     intersect(true);
     await waitFor(() => expect(older.failed).toBe(true));
@@ -160,13 +163,53 @@ describe("useOlderMessages (#77)", () => {
 
   // La position retenue avant un échec ne vaut pas pour la tête que changerait un autre rendu.
   it("oublie la position retenue quand la page n'est pas arrivée", async () => {
-    const thread = query({ fetchNextPage: vi.fn().mockResolvedValue({ isError: true }) });
+    const thread = query({
+      fetchNextPage: vi.fn().mockResolvedValue({ isFetchNextPageError: true }),
+    });
     const { restore, rerender } = setup(thread);
     intersect(true);
     await waitFor(() => expect(older.failed).toBe(true));
 
     rerender({ ...thread, data: [message("m2"), message("m3")] });
     expect(restore).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Une relecture lancée pendant que la page était en route — l'invalidation d'un envoi — l'annule
+   * sans erreur. Le repère, resté à l'écran, ne se manifestait plus : la remontée restait figée,
+   * sans indicateur ni « Réessayer ».
+   */
+  it("redemande une page interrompue, une fois la relecture finie", async () => {
+    const interrupted = { isFetchNextPageError: false, hasNextPage: true, data: [message("m3")] };
+    const thread = query({ fetchNextPage: vi.fn().mockResolvedValue(interrupted) });
+    const { restore, rerender } = setup(thread);
+    intersect(true);
+    // La relecture qui l'annule est partie : la page rend la main pendant qu'elle tourne.
+    rerender({ ...thread, isFetching: true });
+    await act(() => Promise.resolve());
+
+    // Rien ne repart tant qu'elle tourne, et la position retenue est oubliée.
+    rerender({ ...thread, data: [message("m2"), message("m3")], isFetching: true });
+    expect(restore).not.toHaveBeenCalled();
+    expect(observers).toBe(2);
+
+    rerender({ ...thread, data: [message("m2"), message("m3")], isFetching: false });
+    expect(observers).toBe(3);
+    intersect(true);
+    expect(thread.fetchNextPage).toHaveBeenCalledTimes(2);
+    expect(older.failed).toBe(false);
+  });
+
+  it("ne redemande rien d'une page interrompue si le repère a quitté l'écran", async () => {
+    const interrupted = { isFetchNextPageError: false, hasNextPage: true, data: [message("m3")] };
+    const thread = query({ fetchNextPage: vi.fn().mockResolvedValue(interrupted) });
+    const { rerender } = setup(thread);
+    intersect(true);
+    await act(() => Promise.resolve());
+
+    rerender({ ...thread, isFetching: false });
+    intersect(false);
+    expect(thread.fetchNextPage).toHaveBeenCalledOnce();
   });
 
   it("ne casse rien sans IntersectionObserver", () => {
