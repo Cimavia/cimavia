@@ -95,7 +95,7 @@ Repriorisation du 2026-11-04 (skill `prioriser`), état des issues au **2026-11-
 | #290 | L'app web ne prend une nouvelle version qu'après un rechargement forcé | 🟠 | ✅ |
 | #394 | Recette sur iPhone réel du code écrit pour iOS | 🟠 | ✅ |
 | #255 | Le profil EAS production n'a pas d'URL d'API | 🟠 | |
-| #800 | Une version plus récente de SILO est disponible | 🟠 | |
+| #800 | Une version plus récente de SILO est disponible | 🟠 | ✅ |
 | #784 | Personne n'est prévenu quand l'API ou le stockage de preview tombe | 🟡 | |
 | #212 | Dire au démarrage ce qui n'est pas configuré, ni migré | 🟡 | ✅ |
 | #418 | La promotion ne sait viser que preview | 🟡 | |
