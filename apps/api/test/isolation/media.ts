@@ -706,12 +706,12 @@ describe("Rattacher la clé objet d'un autre tenant (#293)", () => {
     const victim = await coachDocument(coachB);
     const url = `/conversations/${conversationId}/messages`;
     // Compté avant : le fil porte déjà l'annonce du média de débrief joint plus haut (#96).
-    const before = (await athleteA1.get(url)).body.length;
+    const before = (await athleteA1.get(url)).body.items.length;
 
     const res = await athleteA1.post(url).send({ ...photo, storagePath: victim.storagePath });
     expect(res.status).toBe(403);
 
-    expect((await athleteA1.get(url)).body).toHaveLength(before);
+    expect((await athleteA1.get(url)).body.items).toHaveLength(before);
     expect(await victim.exists()).toBe(200);
   });
 

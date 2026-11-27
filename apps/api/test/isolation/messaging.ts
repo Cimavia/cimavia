@@ -102,8 +102,8 @@ describe("Messagerie : fil texte & isolation (P5)", () => {
 
     const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
     expect(list.status).toBe(200);
-    expect(list.body).toHaveLength(1);
-    expect(list.body[0].id).toBe(sent.body.id);
+    expect(list.body.items).toHaveLength(1);
+    expect(list.body.items[0].id).toBe(sent.body.id);
   });
 
   it("le dernier message et le non-lu remontent dans la liste de l'athlète", async () => {
@@ -213,11 +213,11 @@ describe("Messagerie : un recul de l'horloge (#867)", () => {
     }
 
     const thread = await athlete.get(`/conversations/${conversationId}/messages`);
-    expect(thread.body.map((message: { content: string }) => message.content)).toEqual([
+    expect(thread.body.items.map((message: { content: string }) => message.content)).toEqual([
       "Avant le recul",
       "Après le recul",
     ]);
-    const [, second] = thread.body as { createdAt: string }[];
+    const [, second] = thread.body.items as { createdAt: string }[];
     expect(
       new Date(required(second, "message d'après le recul").createdAt).getTime(),
     ).toBeGreaterThan(new Date(first.body.createdAt).getTime());
@@ -296,7 +296,7 @@ describe("Messagerie : médias (P5)", () => {
     expect(sent.body.media.url).toContain("X-Amz-Signature");
 
     const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
-    expect(list.body.at(-1).id).toBe(sent.body.id);
+    expect(list.body.items.at(-1).id).toBe(sent.body.id);
   });
 
   // #468 : le `type` pilote le lecteur à l'affichage. Une note vocale rattachée en image, ou une
@@ -363,7 +363,7 @@ describe("Messagerie : médias (P5)", () => {
       expect(sent.body.media.url).toContain("X-Amz-Signature");
 
       const list = await athleteA1.get(`/conversations/${conversationId}/messages`);
-      expect(list.body.at(-1).id).toBe(sent.body.id);
+      expect(list.body.items.at(-1).id).toBe(sent.body.id);
     });
 
     it("le schéma rejette un autre format que le PDF, au ticket comme à l'envoi (400)", async () => {
@@ -783,7 +783,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
    */
   it("résout le libellé du rattachement pour qui a le droit de lire la cible", async () => {
     const thread = await coachA.get(`/conversations/${conversationAId}/messages`);
-    const attached = thread.body.find(
+    const attached = thread.body.items.find(
       (m: { sessionFeedbackId: string | null }) => m.sessionFeedbackId === feedbackA1Id,
     );
     expect(attached.attachment).toMatchObject({
@@ -864,7 +864,7 @@ describe("Réponses à un débrief : lecture, isolation et « répondu » (#196)
     expect(refused.status).toBe(400);
 
     const after = await coachA.get(`/conversations/${conversationAId}/messages`);
-    expect(after.body.length).toBe(before.body.length);
+    expect(after.body.items.length).toBe(before.body.items.length);
   });
 
   it("le débrief jamais répondu n'a ni réponse ni date", async () => {
