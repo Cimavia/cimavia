@@ -33,14 +33,30 @@ liste des domaines vivent dans l'index.
 >   suppression d'un exercice, consigne réécrite (#330), retrait d'un média de débrief par
 >   l'athlète — qui citait P2-5 pour le même ordre. `DocumentCleanupService` disparaît : il ne
 >   faisait plus que ce que la file fait mieux.
-> - **Un seul décompte par geste** (`deleteManyOrDefer`), les retraits en parallèle : la règle de
->   #330, étendue à la suppression d'un exercice, qui comptait document par document.
+> - **Par lots de 10** (`deleteManyOrDefer`, `OBJECT_DELETE_CONCURRENCY`) : un décompte par lot,
+>   relu juste avant ses retraits comme la file le fait avant chacun des siens (#73), puis les
+>   retraits du lot en parallèle — la règle de #330, étendue à la suppression d'un exercice, qui
+>   comptait document par document. Sans borne, un exercice de 80 pièces jointes occupait les 50
+>   sockets du client S3 face à un stockage muet (BO-4), et les autres utilisateurs attendaient.
+> - **Un lot en échec arrête le geste** : le reste rejoint la file sans tentative. Chaque lot
+>   suivant attendrait sinon le délai TCP à son tour (BO-4), et la réponse passerait les 100 s de
+>   Cloudflare Tunnel pour un exercice bel et bien supprimé.
+> - **Un double retrait répond 404, pas 500** : la ligne part par `deleteMany`, et seule la requête
+>   qui l'a retirée purge l'objet — l'autre répond comme si elle ne l'avait pas trouvée.
+> - **Une ligne de journal par geste**, situé par l'appelant (`exerciseId`, `documentId`,
+>   `mediaId`) et jamais par la clé, qui porte le nom du fichier. La lecture des citations en
+>   échec a son propre message : aucun retrait n'a été tenté.
 > - **Contreparties** : la course « une diffusion copie le document dans les millisecondes qui
 >   suivent son retrait » reste ouverte, comme en #330. Un document rattaché pendant la
 >   suppression de son exercice part dans la cascade sans que sa clé ait été lue — le rattachement
 >   ne fait pas avancer la version de l'exercice : son objet attend le balayage. Et un stockage muet
 >   fait attendre la réponse jusqu'au délai TCP avant la mise en file (BO-4) ; la lecture des
->   citations parcourt des colonnes sans index (BO-3).
+>   citations parcourt des colonnes sans index (BO-3). Enfin, des citations illisibles mettent en
+>   file TOUTES les clés, celles qu'une copie partage comprises : elles y restent tant que la copie
+>   vit, relues à chaque tick (BO-3 encore). Accepté — la base est alors en panne, l'écriture en
+>   file échoue presque toujours avec elle ; la file relit avant de retirer, donc sans risque ; et
+>   le jour où la dernière copie part, c'est elle qui ramasse l'objet, que rien d'autre ne
+>   retirerait sans le balayage.
 
 ---
 
@@ -672,7 +688,7 @@ liste des domaines vivent dans l'index.
 >   cite, sous la **même clé objet**, comme une séance planifiée. Pièces jointes et liens restent
 >   à la source : la variante sert à changer structure, colonnes ou consigne.
 > - **`DocumentCleanupService` compte aussi les autres documents de bibliothèque** qui portent la
->   clé. Supprimer la source, ou une de ses images, ne purge plus celle de la variante — et le
+>   clé *(remplacé par `ObjectPurgeService` en #75, qui compte toutes les colonnes de clé)*. Supprimer la source, ou une de ses images, ne purge plus celle de la variante — et le
 >   ménage des images retirées de la consigne ([#330](https://github.com/Cimavia/cimavia/issues/330))
 >   en hérite.
 > - **Ce qui se contrôle** (`assertInstructionImagesOwned`, piège n°3 de `architecture-choice.md`
@@ -701,7 +717,8 @@ liste des domaines vivent dans l'index.
 >   l'enregistrement ne cite plus redevient « en attente » (`forgetUncitedSent`) : remise par
 >   Ctrl+Z, elle repart, au lieu de citer un document supprimé et de prendre un 400.
 > - **Le serveur fait le ménage à chaque écriture de `instructions`** (`uncitedInstructionImages`) :
->   les lignes dans la transaction, les objets après, par `DocumentCleanupService` — un objet
+>   les lignes dans la transaction, les objets après, par `DocumentCleanupService` (remplacé par
+>   `ObjectPurgeService` en #75) — un objet
 >   qu'une séance planifiée ou une variante porte encore reste. `instructions` absent : rien ne
 >   bouge ; `null` : toutes les images partent, pièces jointes et liens jamais.
 > - **La purge des objets ne fait pas échouer la réponse.** L'écriture est faite : un 500 ferait

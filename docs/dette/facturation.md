@@ -48,7 +48,7 @@ liste des domaines vivent dans l'index.
 >   déjà la ligne d'abord, mais un `deleteObject` en échec y rendait un 500 sur un PDF bel et bien
 >   remplacé ou retiré.
 > - **Pas de décompte de références** : la clé est segmentée sous un seul cycle (`planId @unique`),
->   aucune autre ligne ne la partage — à l'inverse des documents de cycle (`DocumentCleanupService`).
+>   aucune autre ligne ne la partage — à l'inverse des documents de cycle (`DocumentCleanupService`, remplacé par `ObjectPurgeService` en #75).
 >
 > - **La citation se relit juste avant CHAQUE retrait**, direct ou par la file, dans un instantané
 >   (`RepeatableRead`, comme le balayage) : une clé mise en file au remplacement, puis rattachée de
@@ -62,7 +62,7 @@ liste des domaines vivent dans l'index.
 >   contrôle de préfixe (#293). Sans elle, le même geste garderait l'objet stockage en panne et le
 >   retirerait stockage en état.
 > - **Les journaux ne portent que le nom de l'erreur** : le SDK S3 recopie la clé sur l'exception,
->   et avec elle le nom du fichier. Même règle que le balayage et `DocumentCleanupService`.
+>   et avec elle le nom du fichier. Même règle que le balayage et `DocumentCleanupService` (remplacé par `ObjectPurgeService` en #75).
 
 ---
 
