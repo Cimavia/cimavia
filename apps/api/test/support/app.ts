@@ -7,6 +7,7 @@ import { configureApp, createHttpAdapter } from "../../src/app.setup";
 import type { MailMessage } from "../../src/infra/mail/mail.service";
 import { MailService } from "../../src/infra/mail/mail.service";
 import { PRISMA_LOG, PrismaService } from "../../src/infra/prisma/prisma.service";
+import { NotificationService } from "../../src/notification/notification.service";
 import { StartupReportService } from "../../src/startup/startup-report.service";
 import { listenToQueries, QUERY_LOG } from "./query-count";
 import { ResettableThrottlerStorage } from "./rate-limit";
@@ -73,6 +74,24 @@ const mailServiceDouble = {
     return Promise.resolve(true);
   },
 };
+
+/**
+ * Les e-mails partis, une fois livré tout ce que les notifications ont lancé après la réponse.
+ *
+ * Depuis #350, push et e-mail d'une notification ne sont plus attendus par la requête : lire
+ * `sentMails` dès la réponse reçue, c'est lire avant l'envoi — et un « aucun e-mail » y passerait
+ * au vert sans rien prouver. Les e-mails envoyés directement (invitation, réinitialisation) restent
+ * attendus par leur requête, et se lisent sans ce détour.
+ */
+export async function deliveredMails(): Promise<MailMessage[]> {
+  await settleDeliveries();
+  return sentMails;
+}
+
+/** Attend la fin des push et e-mails que les notifications ont lancés après leur réponse (#350). */
+export function settleDeliveries(): Promise<void> {
+  return app.get(NotificationService).settled();
+}
 
 const throttlerStorage = new ResettableThrottlerStorage();
 

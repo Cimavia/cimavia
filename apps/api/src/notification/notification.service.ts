@@ -11,7 +11,7 @@ import {
   NotificationType,
   pushPayloadOf,
 } from "@cmv/shared";
-import { Injectable } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
 import { ClsService } from "nestjs-cls";
@@ -210,11 +210,14 @@ type PlanChangeType =
  *    *en plus* du push, jamais à sa place : le push est éphémère (téléphone éteint, permission
  *    refusée, ou compte qui n'a jamais ouvert le mobile — le cas du coach sur web). Chacun a donc
  *    son garde-fou : un push injoignable n'empêche pas la trace, une écriture qui échoue
- *    n'empêche pas la livraison.
+ *    n'empêche pas la livraison. Et la requête n'attend que la trace : push et e-mail partent
+ *    après la réponse (#350, `deliverLater`).
  */
 @Injectable()
-export class NotificationService {
+export class NotificationService implements OnModuleDestroy {
   private readonly expo: Expo;
+  /** Push et e-mails partis après la réponse, pas encore aboutis (`deliverLater`). */
+  private readonly deliveries = new Set<Promise<void>>();
 
   constructor(
     @InjectPinoLogger(NotificationService.name) private readonly logger: PinoLogger,
@@ -625,12 +628,56 @@ export class NotificationService {
     };
     if (channels.trace) await this.persist(record);
     if (channels.push) {
-      await this.push(event.recipientId, {
-        ...text,
-        data: pushPayloadOf(event.type, event.entityId),
-      });
+      this.deliverLater(
+        this.push(event.recipientId, { ...text, data: pushPayloadOf(event.type, event.entityId) }),
+      );
     }
-    if (channels.trace) await this.email(record);
+    if (channels.trace) this.deliverLater(this.email(record));
+  }
+
+  /**
+   * Push et e-mail partent APRÈS la réponse (#350) : la requête métier n'attend que la trace.
+   *
+   * Les attendre faisait payer au client chaque aller-retour vers Expo et le fournisseur SMTP — et,
+   * quand l'un ne répondait plus, des minutes : le message était enregistré, le client voyait une
+   * erreur et le renvoyait. La trace, elle, reste attendue : c'est une écriture en base, et le
+   * centre que le client relit juste après doit la porter.
+   *
+   * Rien ne lève ici : `push` et `email` absorbent chacun leur échec et le journalisent (Pino →
+   * Axiom, et Sentry par son intégration Pino). Ce qui reste à tenir, c'est de ne pas les perdre :
+   * chacun est suivi jusqu'à son terme, pour l'arrêt de l'API et pour les tests (`settled`).
+   */
+  private deliverLater(delivery: Promise<void>): void {
+    const tracked = delivery.finally(() => this.deliveries.delete(tracked));
+    this.deliveries.add(tracked);
+  }
+
+  /**
+   * Attend que ce qui est DÉJÀ parti soit livré ou abandonné. Une suite de tests s'en sert avant
+   * d'affirmer qu'un e-mail est parti, ou surtout qu'il ne l'est PAS : sans elle, un non-envoi se
+   * lirait avant l'envoi.
+   *
+   * Un instantané, pas « jusqu'à ce que plus rien ne soit en route » : à l'arrêt, Nest détruit les
+   * modules AVANT de fermer le serveur HTTP, et sous trafic une attente qui recommencerait tant
+   * qu'arrivent des envois ne rendrait jamais la main. Ce qui part pendant l'attente n'a rien de
+   * plus que ce qu'avait une requête en vol à l'arrêt avant #350.
+   */
+  async settled(): Promise<void> {
+    await Promise.all([...this.deliveries]);
+  }
+
+  /**
+   * Un redémarrage de l'API (une promotion, un conteneur relancé) laisse finir un push ou un e-mail
+   * en route. Il les attend AVANT que Prisma se déconnecte, puisque l'e-mail lit encore la préférence
+   * et l'adresse : les deux modules sont globaux, et Nest détruit les globaux dans l'ordre inverse de
+   * leur import — `PrismaModule` est importé avant `NotificationModule` dans `AppModule`, et un
+   * test le tient.
+   *
+   * L'attente a la borne du conteneur : son délai de grâce (10 s chez Docker par défaut) avant
+   * l'arrêt forcé. Un fournisseur en panne au même moment y perd son envoi (dette N-13).
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.settled();
   }
 
   /**
@@ -643,9 +690,10 @@ export class NotificationService {
    * d'appareil ferait un comportement qui change tout seul le jour où l'utilisateur installe
    * l'app — et Expo ne confirme de toute façon la livraison qu'en différé (dette N-7).
    *
-   * **Placé après la persistance et le push, et il dégrade seul** : un envoi impossible ne doit ni
-   * empêcher la trace, ni la livraison, ni l'action métier (règles 2 et 3). Il hérite en outre de
-   * la garde anti-auto-notification, qui vit dans `emit` au-dessus.
+   * **Lancé après la persistance, à côté du push, et il dégrade seul** : un envoi impossible ne doit
+   * ni empêcher la trace, ni la livraison, ni l'action métier (règles 2 et 3) — et depuis #350, la
+   * requête ne l'attend plus (`deliverLater`). Il hérite en outre de la garde
+   * anti-auto-notification, qui vit dans `emit` au-dessus.
    */
   private async email(record: NotificationRecord): Promise<void> {
     try {
