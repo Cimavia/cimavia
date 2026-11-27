@@ -407,11 +407,16 @@ describe("Justificatif de facture : remplacement et retrait", () => {
     const plan = await coach
       .post("/plans")
       .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    expect(plan.status).toBe(201);
     const id: string = plan.body.id;
-    await coach.put(`/plans/${id}/billing`).send({ amountCents: 5000, dueDate: monday });
+    const billing = await coach
+      .put(`/plans/${id}/billing`)
+      .send({ amountCents: 5000, dueDate: monday });
+    expect(billing.status).toBe(200);
     const attached = await coach
       .put(`/plans/${id}/billing/document`)
       .send(await uploadPdf(`${title}.pdf`, id));
+    expect(attached.status).toBe(200);
     const documentUrl: string = attached.body.documentUrl;
     expect((await fetch(documentUrl)).status).toBe(200);
     return { id, documentUrl };
