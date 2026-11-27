@@ -2,7 +2,7 @@ import { Role } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Agent, inviteFor, link, linkRelation, signUp } from "../support/actors";
 import { mondayOfCurrentWeek } from "../support/fixtures";
-import { publishAtLatest } from "../support/version";
+import { deleteAtLatest, publishAtLatest, versionOf } from "../support/version";
 
 describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", () => {
   let coachA: Agent;
@@ -366,13 +366,14 @@ describe("Facturation liée au cycle : brouillon, émission & isolation (P6)", (
  */
 describe("Justificatif de facture : remplacement et retrait", () => {
   let coach: Agent;
+  let athleteId: string;
   let planId: string;
 
   const monday = mondayOfCurrentWeek();
 
-  async function uploadPdf(fileName: string) {
+  async function uploadPdf(fileName: string, plan = planId) {
     const signed = await coach
-      .post(`/plans/${planId}/billing/document/upload-url`)
+      .post(`/plans/${plan}/billing/document/upload-url`)
       .send({ fileName, mimeType: "application/pdf", size: 1_000 });
     expect(signed.status).toBe(201);
     const put = await fetch(signed.body.uploadUrl, {
@@ -394,11 +395,32 @@ describe("Justificatif de facture : remplacement et retrait", () => {
     const athlete = await signUp("doc-athlete@cmv.test", Role.ATHLETE);
     const invitation = await inviteFor(coach, athlete);
     const accepted = await athlete.post(`/invitations/${invitation.body.id}/accept`);
+    athleteId = accepted.body[0].athleteId;
     const plan = await coach
       .post("/plans")
-      .send({ athleteId: accepted.body[0].athleteId, title: "Facturé", startDate: monday });
+      .send({ athleteId, title: "Facturé", startDate: monday });
     planId = plan.body.id;
   });
+
+  /** Un brouillon diffusable, justificatif joint : ce que supprimer le cycle doit nettoyer (#73). */
+  async function draftWithPdf(title: string) {
+    const plan = await coach
+      .post("/plans")
+      .send({ athleteId, title, startDate: monday, weeks: [{ type: "TRAINING" }] });
+    expect(plan.status).toBe(201);
+    const id: string = plan.body.id;
+    const billing = await coach
+      .put(`/plans/${id}/billing`)
+      .send({ amountCents: 5000, dueDate: monday });
+    expect(billing.status).toBe(200);
+    const attached = await coach
+      .put(`/plans/${id}/billing/document`)
+      .send(await uploadPdf(`${title}.pdf`, id));
+    expect(attached.status).toBe(200);
+    const documentUrl: string = attached.body.documentUrl;
+    expect((await fetch(documentUrl)).status).toBe(200);
+    return { id, documentUrl };
+  }
 
   // Le justificatif se rattache à LA facture brouillon : sans termes saisis, il n'y en a pas.
   it("refuse un PDF tant que la facturation n'est pas saisie", async () => {
@@ -438,5 +460,33 @@ describe("Justificatif de facture : remplacement et retrait", () => {
     // Même clé renvoyée (un double envoi du formulaire) : ce n'est pas un remplacement.
     const again = await coach.put(`/plans/${planId}/billing/document`).send(secondDocument);
     expect((await fetch(again.body.documentUrl)).status).toBe(200);
+  });
+
+  it("supprimer un brouillon facturé retire son justificatif du bucket", async () => {
+    const { id, documentUrl } = await draftWithPdf("supprime");
+
+    expect((await deleteAtLatest(coach, `/plans/${id}`)).status).toBe(204);
+
+    expect((await fetch(documentUrl)).status).toBe(404);
+  });
+
+  // L'objet ne part qu'une fois la ligne partie : dans l'autre ordre, la suppression perdante
+  // aurait retiré le justificatif de la facture que la diffusion vient d'émettre à l'athlète.
+  it("suppression et diffusion lancées ensemble : le justificatif suit le cycle qui reste", async () => {
+    const { id, documentUrl } = await draftWithPdf("course");
+    const read = await versionOf(coach, `/plans/${id}`);
+
+    const [published, removed] = await Promise.all([
+      coach.post(`/plans/${id}/publish`).send({ expectedUpdatedAt: read }),
+      coach.delete(`/plans/${id}`).query({ expectedUpdatedAt: read }),
+    ]);
+
+    if (published.status === 200) {
+      expect(removed.status).toBe(409);
+      expect((await fetch(documentUrl)).status).toBe(200);
+    } else {
+      expect([published.status, removed.status]).toEqual([404, 204]);
+      expect((await fetch(documentUrl)).status).toBe(404);
+    }
   });
 });

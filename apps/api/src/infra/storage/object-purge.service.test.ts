@@ -4,19 +4,57 @@ import type { PrismaService } from "../prisma/prisma.service";
 import { ObjectPurgeService } from "./object-purge.service";
 import type { StorageService } from "./storage.service";
 
-function purgeWith(rows: { id: string; key: string }[], deleteObject = vi.fn()) {
+/** Ce que le SDK S3 lève : la réponse recopiée sur l'exception, clé comprise. */
+function s3Failure(key: string): Error {
+  return Object.assign(new Error("Access Denied."), {
+    name: "AccessDenied",
+    Key: key,
+    Resource: `/cimavia/${key}`,
+  });
+}
+
+/** Les tables qui citent une clé : vides, sauf `cited`, citées par un justificatif de facture. */
+function citingTables(cited: string[] = []) {
+  const none = () => ({ findMany: vi.fn().mockResolvedValue([]) });
+  return {
+    exerciseDocument: none(),
+    scheduledSessionExerciseDocument: none(),
+    feedbackMedia: none(),
+    message: none(),
+    invoice: {
+      findMany: vi.fn(async ({ where }: { where: { documentPath: { in: string[] } } }) =>
+        where.documentPath.in
+          .filter((key) => cited.includes(key))
+          .map((documentPath) => ({ documentPath })),
+      ),
+    },
+  };
+}
+
+function purgeWith(
+  rows: { id: string; key: string }[],
+  deleteObject = vi.fn(),
+  cited: string[] = [],
+) {
   const queue = {
     findMany: vi.fn().mockResolvedValue(rows),
     deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    createMany: vi.fn().mockResolvedValue({ count: 1 }),
   };
-  const logger = { warn: vi.fn() };
+  const logger = { warn: vi.fn(), error: vi.fn() };
+  const tables = { pendingObjectDeletion: queue, ...citingTables(cited) };
+  // L'instantané des citations : la transaction rend la main au client lui-même.
+  const db = {
+    ...tables,
+    $transaction: vi.fn((work: (tx: typeof tables) => unknown) => work(tables)),
+  };
   const service = new ObjectPurgeService(
-    { pendingObjectDeletion: queue } as unknown as PrismaService,
+    db as unknown as PrismaService,
     { deleteObject } as unknown as StorageService,
     logger as unknown as PinoLogger,
   );
-  return { service, queue, deleteObject, logger };
+  return { service, queue, deleteObject, logger, db };
 }
 
 describe("ObjectPurgeService.drain", () => {
@@ -32,7 +70,7 @@ describe("ObjectPurgeService.drain", () => {
   });
 
   it("garde la ligne d'un objet en échec et continue avec les suivants", async () => {
-    const deleteObject = vi.fn().mockRejectedValueOnce(new Error("panne"));
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure("secret-nom.pdf"));
     const { service, queue, logger } = purgeWith(
       [
         { id: "1", key: "secret-nom.pdf" },
@@ -67,6 +105,42 @@ describe("ObjectPurgeService.drain", () => {
     await expect(service.drainSafely()).resolves.toBe(1);
   });
 
+  // Rattachée de nouveau, la clé reste en file : c'est l'objet retiré qui solde une prise en
+  // charge, jamais une lecture — redevenue orpheline, elle partira au passage suivant.
+  it("ne retire pas un objet cité de nouveau, et le garde en file", async () => {
+    const { service, queue, deleteObject } = purgeWith(
+      [
+        { id: "1", key: "rattache-de-nouveau.pdf" },
+        { id: "2", key: "b" },
+      ],
+      vi.fn(),
+      ["rattache-de-nouveau.pdf"],
+    );
+    await expect(service.drain()).resolves.toBe(1);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["b"]);
+    expect(queue.deleteMany).toHaveBeenCalledExactlyOnceWith({ where: { id: "2" } });
+    expect(queue.updateMany).toHaveBeenCalledExactlyOnceWith({
+      where: { id: "1" },
+      data: { attempts: { increment: 1 } },
+    });
+  });
+
+  // Le cas que la lecture en tête de lot laissait passer : citée APRÈS le début du passage.
+  it("relit la citation juste avant chaque retrait, dans un instantané", async () => {
+    const { service, deleteObject, db } = purgeWith([
+      { id: "1", key: "a" },
+      { id: "2", key: "rattachee-pendant.pdf" },
+    ]);
+    deleteObject.mockImplementationOnce(async () => {
+      db.invoice.findMany.mockResolvedValue([{ documentPath: "rattachee-pendant.pdf" }]);
+    });
+    await expect(service.drain()).resolves.toBe(1);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["a"]);
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
+    });
+  });
+
   it("passe d'abord les objets les moins tentés, par lots bornés", async () => {
     const { service, queue } = purgeWith([]);
     await expect(service.drain(5)).resolves.toBe(0);
@@ -76,5 +150,49 @@ describe("ObjectPurgeService.drain", () => {
         orderBy: [{ attempts: "asc" }, { createdAt: "asc" }],
       }),
     );
+  });
+});
+
+describe("ObjectPurgeService.deleteOrDefer", () => {
+  const KEY = "athlete/a1/invoice/p1/secret-nom.pdf";
+
+  it("ne retire pas un objet qu'une autre ligne cite encore, ni ne le met en file", async () => {
+    const { service, queue, deleteObject } = purgeWith([], vi.fn(), [KEY]);
+    await service.deleteOrDefer(KEY);
+    expect(deleteObject).not.toHaveBeenCalled();
+    expect(queue.createMany).not.toHaveBeenCalled();
+  });
+
+  it("retire l'objet sans passer par la file quand le stockage répond", async () => {
+    const { service, queue, deleteObject, logger } = purgeWith([]);
+    await service.deleteOrDefer(KEY);
+    expect(deleteObject).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(queue.createMany).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("confie la clé à la file quand le stockage échoue, sans lever ni journaliser la clé", async () => {
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure(KEY));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: KEY }],
+      skipDuplicates: true,
+    });
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { reason: "AccessDenied" },
+      expect.any(String),
+    );
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret-nom.pdf");
+  });
+
+  it("ne lève pas quand la file échoue à son tour : l'objet reste au balayage", async () => {
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure(KEY));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    queue.createMany.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledOnce();
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-nom.pdf");
   });
 });

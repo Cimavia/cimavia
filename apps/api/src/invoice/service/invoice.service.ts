@@ -33,6 +33,7 @@ import {
 import { AccessService } from "../../access/service/access.service";
 import { UserDirectoryService } from "../../account/service/user-directory.service";
 import { buildObjectKey } from "../../infra/storage/object-key";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -74,6 +75,7 @@ export class InvoiceService {
     private readonly reminders: ReminderService,
     private readonly access: AccessService,
     private readonly cls: ClsService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   // ── Builder : facture DRAFT du cycle ─────────────────────────────────────────
@@ -300,13 +302,16 @@ export class InvoiceService {
       },
     });
     // L'ancien objet n'est plus référencé : on le purge (sa clé est sous le préfixe de cette facture ; rattachée deux fois, elle serait purgée sous l'autre : S-2).
+    // Après l'écriture, et sans la faire échouer : un stockage en panne ne rend pas un 500 sur un
+    // justificatif bel et bien remplacé, il confie l'ancien objet à la file (#73).
     if (previousPath != null && previousPath !== input.storagePath) {
-      await this.storage.deleteObject(previousPath);
+      await this.purge.deleteOrDefer(previousPath);
     }
     return this.toDto(updated);
   }
 
-  // Retirer le PDF de la facture DRAFT (purge l'objet). Le cycle diffusé fige tout : refusé alors.
+  // Retirer le PDF de la facture DRAFT (purge l'objet, ou le confie à la file si le stockage est en
+  // panne : le retrait est fait, #73). Le cycle diffusé fige tout : refusé alors.
   async removeDocument(planId: string): Promise<InvoiceDto> {
     await this.getDraftablePlanOrThrow(planId);
     const draft = await this.getDraftInvoiceOrThrow(planId);
@@ -322,7 +327,7 @@ export class InvoiceService {
         documentSizeBytes: null,
       },
     });
-    await this.storage.deleteObject(draft.documentPath);
+    await this.purge.deleteOrDefer(draft.documentPath);
     return this.toDto(updated);
   }
 
