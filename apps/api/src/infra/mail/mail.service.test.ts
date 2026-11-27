@@ -72,11 +72,23 @@ describe("MailService — transport ouvert", () => {
   it("ouvre un transport sans authentification quand aucun identifiant n'est fourni", () => {
     const mail = new MailService(loggerSpy(), configWith(MAILPIT));
     expect(mail.isConfigured).toBe(true);
-    expect(createTransport).toHaveBeenCalledWith({
-      host: "localhost",
-      port: 1025,
-      secure: false,
-    });
+    expect(createTransport).toHaveBeenCalledWith(
+      expect.not.objectContaining({ auth: expect.anything() }),
+    );
+    expect(createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ host: "localhost", port: 1025, secure: false }),
+    );
+  });
+
+  // Sans délais, nodemailer attend deux minutes une connexion et dix une socket muette (#350) :
+  // une panne du fournisseur tenait la requête qui envoyait bien après l'abandon du client.
+  it("borne chaque étape de l'envoi bien en deçà des défauts de nodemailer", () => {
+    new MailService(loggerSpy(), configWith(MAILPIT));
+    const [options] = createTransport.mock.calls[0] as unknown as [Record<string, number>];
+    for (const step of ["dnsTimeout", "connectionTimeout", "greetingTimeout"]) {
+      expect(options[step]).toBeLessThanOrEqual(10_000);
+    }
+    expect(options.socketTimeout).toBeLessThanOrEqual(30_000);
   });
 
   it("authentifie dès que les deux identifiants sont là", () => {

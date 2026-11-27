@@ -11,6 +11,25 @@ import { createTransport, type Transporter } from "nodemailer";
  */
 const SMTPS_PORT = 465;
 
+/**
+ * Les délais du transport, bien en deçà de ceux de nodemailer (#350) : deux minutes pour se
+ * connecter et dix sur une socket muette, par défaut. Un fournisseur qui ne répond plus tenait
+ * alors la requête qui envoyait — une invitation, un lien de réinitialisation — bien après que le
+ * client a abandonné, et l'action déjà faite revenait en erreur.
+ *
+ * Un serveur SMTP sain répond en moins d'une seconde à chacune de ces étapes : dix secondes
+ * laissent passer un réseau lent sans faire attendre une panne. La socket a plus de marge parce
+ * qu'elle couvre aussi le transfert du message lui-même — et elle borne l'INACTIVITÉ, pas la durée
+ * totale : un serveur qui distillerait un octet toutes les 29 s tiendrait encore. C'est la panne
+ * franche qu'on vise, celle d'un fournisseur qui ne répond plus.
+ */
+const SMTP_TIMEOUTS = {
+  dnsTimeout: 10_000,
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 30_000,
+} as const;
+
 export type MailMessage = {
   to: string;
   subject: string;
@@ -57,6 +76,7 @@ export class MailService {
       host: smtp.host,
       port: smtp.port,
       secure: smtp.port === SMTPS_PORT,
+      ...SMTP_TIMEOUTS,
       ...(smtp.auth != null && { auth: smtp.auth }),
     });
     this.from = smtp.from;
