@@ -1,10 +1,10 @@
-import { shouldLoadOlderPage } from "@cmv/shared";
-import { useCallback, useState } from "react";
+import { olderPageOutcome, shouldLoadOlderPage } from "@cmv/shared";
+import { useCallback, useEffect, useState } from "react";
 import type { useMessages } from "@/feature/message/hook/useConversation";
 
 type ThreadQuery = Pick<
   ReturnType<typeof useMessages>,
-  "fetchNextPage" | "hasNextPage" | "isFetchingNextPage"
+  "data" | "fetchNextPage" | "hasNextPage" | "isFetching" | "isFetchingNextPage"
 >;
 
 /** La remontée du fil telle que la liste l'affiche et la pilote (#77). */
@@ -27,17 +27,33 @@ export type OlderMessages = {
  * longueur de contenu. Le lecteur resté en tête n'aurait plus ni bouton, ni page. Seul
  * « Réessayer » le lève.
  *
+ * Une page INTERROMPUE — annulée sans erreur par une relecture lancée pendant qu'elle était en
+ * route (`olderPageOutcome`) — se redemande une fois la relecture finie : la liste a déjà dit
+ * qu'elle était au bout, et ne le redirait qu'à une autre longueur de contenu.
+ *
  * Rien à retenir de la position, contrairement au web : la liste inversée est ancrée au bas, et
  * la page d'avant s'ajoute au bout opposé.
  */
 export function useOlderMessages(query: ThreadQuery): OlderMessages {
-  const { fetchNextPage, hasNextPage, isFetchingNextPage } = query;
+  const { fetchNextPage, hasNextPage, isFetching, isFetchingNextPage } = query;
+  const firstId = query.data?.[0]?.id ?? null;
   const [failed, setFailed] = useState(false);
+  const [interrupted, setInterrupted] = useState(false);
 
   const retry = useCallback(() => {
     setFailed(false);
-    void fetchNextPage().then(({ isError }) => setFailed(isError));
-  }, [fetchNextPage]);
+    void fetchNextPage().then((result) => {
+      const outcome = olderPageOutcome(firstId, result);
+      setFailed(outcome === "failed");
+      setInterrupted(outcome === "interrupted");
+    });
+  }, [fetchNextPage, firstId]);
+
+  useEffect(() => {
+    if (!interrupted || isFetching) return;
+    setInterrupted(false);
+    retry();
+  }, [interrupted, isFetching, retry]);
 
   const loadMore = useCallback(() => {
     if (shouldLoadOlderPage({ hasNextPage, isFetchingNextPage, isFetchNextPageError: failed })) {
