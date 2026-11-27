@@ -124,7 +124,7 @@ sa bibliothèque.
 Les liens `sourceExerciseId` / `sourceSessionId` sont **nullables (`onDelete: SetNull`)** et ne servent qu'à la traçabilité : **l'affichage n'en dépend jamais**. Conséquences voulues :
 - le coach peut supprimer un exercice de sa bibliothèque **sans jamais bloquer** (pas de `Restrict`, pas de 409 à vie) ni dégrader une planif déjà diffusée ;
 - l'athlète voit les documents alors qu'il n'a **aucun scope** sur la bibliothèque du coach — c'est la copie qui le lui permet ;
-- la contrepartie : un objet S3 n'est purgé que s'il n'est plus référencé par une copie (`DocumentCleanupService`).
+- la contrepartie : un objet S3 n'est purgé que s'il n'est plus référencé par une copie (`ObjectPurgeService`, qui relit les citations avant chaque retrait).
 
 La bibliothèque, elle, garde son `Restrict`/409 : un modèle de séance doit rester cohérent.
 

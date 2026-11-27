@@ -9,13 +9,15 @@ import {
 } from "@cmv/shared";
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { toDocumentDto } from "../../infra/storage/document.mapper";
+import { fileKeysOf, toDocumentDto } from "../../infra/storage/document.mapper";
 import { buildObjectKey } from "../../infra/storage/object-key";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { DocumentCleanupService } from "./document-cleanup.service";
 import { ExerciseService } from "./exercise.service";
+
+const DOCUMENT_NOT_FOUND = "Document introuvable";
 
 @Injectable()
 export class ExerciseDocumentService {
@@ -24,7 +26,7 @@ export class ExerciseDocumentService {
     private readonly storage: StorageService,
     // Le contrôle d'appartenance de l'exercice parent vit dans ExerciseService (source unique).
     private readonly exercises: ExerciseService,
-    private readonly cleanup: DocumentCleanupService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   // Étape 1 : URL PUT signée pour uploader un fichier directement vers l'object storage.
@@ -82,19 +84,26 @@ export class ExerciseDocumentService {
   }
 
   async remove(exerciseId: string, documentId: string): Promise<void> {
-    // Le droit d'abord : un lecteur purgerait l'objet sans pouvoir supprimer la ligne.
+    // Le droit d'abord : lire l'exercice ne suffit pas à en retirer un document.
     await this.exercises.getForOrThrow(exerciseId, "write");
     const doc = await this.db.exerciseDocument.findFirst({
       where: { id: documentId, exerciseId },
     });
     if (doc == null) {
-      throw new NotFoundException("Document introuvable");
+      throw new NotFoundException(DOCUMENT_NOT_FOUND);
     }
-    // Supprime d'abord l'objet S3 (FILE) puis la ligne : un objet orphelin coûte, une ligne
-    // orpheline casse l'affichage. En cas d'échec S3, on n'efface pas la référence.
-    // L'objet est conservé s'il est encore affiché par une séance planifiée (copie du document).
-    await this.cleanup.deleteObjectIfUnreferenced(doc);
-    await this.db.exerciseDocument.delete({ where: { id: documentId } });
+    // La ligne d'abord, l'objet ensuite (#75) : une ligne sans objet casserait l'affichage, un
+    // objet sans ligne ne coûte que du stockage — et il ne reste pas. Le stockage en panne, sa clé
+    // rejoint la file que le tick vide ; la base en panne à son tour, le balayage le ramasse. Un
+    // ordre inverse, sans reprise, laissait un document pointer vers un objet disparu (P2-5).
+    // L'objet reste tant qu'une séance planifiée ou une variante partage sa clé.
+    const { count } = await this.db.exerciseDocument.deleteMany({
+      where: { id: documentId, exerciseId },
+    });
+    // Retiré entre-temps par une autre requête (double clic, requête rejouée) : c'est elle qui
+    // purge, et celle-ci répond comme si elle ne l'avait pas trouvé, plutôt qu'un 500.
+    if (count === 0) throw new NotFoundException(DOCUMENT_NOT_FOUND);
+    await this.purge.deleteManyOrDefer(fileKeysOf([doc]), { documentId });
   }
 }
 

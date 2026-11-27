@@ -338,14 +338,17 @@ describe("Médias de débrief (P4)", () => {
     expect(signed.status).toBe(409);
   });
 
-  it("supprimer un média libère une place dans le quota", async () => {
+  it("supprimer un média libère une place dans le quota, et retire son objet", async () => {
     const feedback = await athleteA1.get(`/me/scheduled-sessions/${sessionId}/feedback`);
     const firstPhoto = feedback.body.media.find((m: { type: string }) => m.type === "IMAGE");
+    expect((await fetch(firstPhoto.url)).status).toBe(200);
 
     const removed = await athleteA1.delete(
       `/me/scheduled-sessions/${sessionId}/feedback/media/${firstPhoto.id}`,
     );
     expect(removed.status).toBe(204);
+    // La ligne d'abord, l'objet ensuite (#75) : il ne reste rien derrière le média retiré.
+    expect((await fetch(firstPhoto.url)).status).toBe(404);
 
     const signed = await athleteA1
       .post(`/me/scheduled-sessions/${sessionId}/feedback/media/upload-url`)

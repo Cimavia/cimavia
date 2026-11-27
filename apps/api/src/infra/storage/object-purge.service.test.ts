@@ -1,7 +1,7 @@
 import type { PinoLogger } from "nestjs-pino";
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaService } from "../prisma/prisma.service";
-import { ObjectPurgeService } from "./object-purge.service";
+import { OBJECT_DELETE_CONCURRENCY, ObjectPurgeService } from "./object-purge.service";
 import type { StorageService } from "./storage.service";
 
 /** Ce que le SDK S3 lève : la réponse recopiée sur l'exception, clé comprise. */
@@ -180,7 +180,7 @@ describe("ObjectPurgeService.deleteOrDefer", () => {
       skipDuplicates: true,
     });
     expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
-      { reason: "AccessDenied" },
+      { count: 1, reason: "AccessDenied" },
       expect.any(String),
     );
     expect(logger.error).not.toHaveBeenCalled();
@@ -194,5 +194,122 @@ describe("ObjectPurgeService.deleteOrDefer", () => {
     await expect(service.deleteOrDefer(KEY)).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalledOnce();
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-nom.pdf");
+  });
+});
+
+describe("ObjectPurgeService.deleteManyOrDefer", () => {
+  it("compte les clés d'un lot en un seul instantané, doublons compris une fois", async () => {
+    const { service, db, deleteObject } = purgeWith([]);
+    await service.deleteManyOrDefer(["a", "b", "a"]);
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(db.invoice.findMany).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ where: { documentPath: { in: ["a", "b"] } } }),
+    );
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["a", "b"]);
+  });
+
+  it("retire les objets que plus rien ne cite et garde celui qu'une ligne cite encore", async () => {
+    const { service, queue, deleteObject } = purgeWith([], vi.fn(), ["partage.jpg"]);
+    await service.deleteManyOrDefer(["seul.jpg", "partage.jpg"]);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["seul.jpg"]);
+    expect(queue.createMany).not.toHaveBeenCalled();
+  });
+
+  it("ne met en file que les clés en échec, en une seule écriture", async () => {
+    const deleteObject = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(s3Failure("b-secret.jpg"))
+      .mockRejectedValueOnce(s3Failure("c-secret.jpg"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    await expect(
+      service.deleteManyOrDefer(["a.jpg", "b-secret.jpg", "c-secret.jpg"], { exerciseId: "e1" }),
+    ).resolves.toBeUndefined();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: "b-secret.jpg" }, { key: "c-secret.jpg" }],
+      skipDuplicates: true,
+    });
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { exerciseId: "e1", count: 2, reason: "AccessDenied" },
+      "objet à retirer : retrait en échec, confié à la file",
+    );
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret");
+  });
+
+  it("confie toutes les clés à la file quand la citation ne se lit pas", async () => {
+    const { service, queue, db, deleteObject, logger } = purgeWith([]);
+    db.$transaction.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.deleteManyOrDefer(["a", "b"])).resolves.toBeUndefined();
+    expect(deleteObject).not.toHaveBeenCalled();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: "a" }, { key: "b" }],
+      skipDuplicates: true,
+    });
+    // Aucun retrait n'a été tenté : le journal ne doit pas dire qu'il a échoué.
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { count: 2, reason: "Error" },
+      "objet à retirer : citations illisibles, confié à la file sans retrait",
+    );
+  });
+
+  it("situe l'échec de la file par le contexte de l'appelant, sans la clé", async () => {
+    const deleteObject = vi.fn().mockRejectedValue(s3Failure("secret-nom.pdf"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    queue.createMany.mockRejectedValueOnce(new Error("base indisponible"));
+    await service.deleteManyOrDefer(["secret-nom.pdf"], { mediaId: "m1" });
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(
+      { mediaId: "m1", count: 1, reason: "Error" },
+      expect.any(String),
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-nom.pdf");
+  });
+
+  it("borne les retraits simultanés, sans en perdre un", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const deleteObject = vi.fn(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight -= 1;
+    });
+    const { service } = purgeWith([], deleteObject);
+    const keys = Array.from({ length: 25 }, (_, index) => `k${index}`);
+    await service.deleteManyOrDefer(keys);
+    expect(deleteObject).toHaveBeenCalledTimes(25);
+    expect(peak).toBe(OBJECT_DELETE_CONCURRENCY);
+  });
+
+  it("s'arrête au premier lot en échec : le reste rejoint la file sans tentative", async () => {
+    const deleteObject = vi.fn().mockRejectedValueOnce(s3Failure("k0"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    const keys = Array.from({ length: 25 }, (_, index) => `k${index}`);
+    await service.deleteManyOrDefer(keys, { exerciseId: "e1" });
+    expect(deleteObject).toHaveBeenCalledTimes(OBJECT_DELETE_CONCURRENCY);
+    const queued = queue.createMany.mock.calls[0]?.[0].data.map(({ key }: { key: string }) => key);
+    expect(queued).toEqual(["k0", ...keys.slice(OBJECT_DELETE_CONCURRENCY)]);
+    expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+      { exerciseId: "e1", count: 16, reason: "AccessDenied" },
+      "objet à retirer : retrait en échec, confié à la file",
+    );
+  });
+
+  it("relit les citations avant chaque lot : une clé citée entre-temps reste", async () => {
+    const { service, db, deleteObject } = purgeWith([]);
+    const keys = Array.from({ length: 15 }, (_, index) => `k${index}`);
+    deleteObject.mockImplementation(async () => {
+      db.invoice.findMany.mockResolvedValue([{ documentPath: "k14" }]);
+    });
+    await service.deleteManyOrDefer(keys);
+    expect(db.$transaction).toHaveBeenCalledTimes(2);
+    expect(deleteObject).not.toHaveBeenCalledWith("k14");
+    expect(deleteObject).toHaveBeenCalledTimes(14);
+  });
+
+  it("ne touche à rien sans clé", async () => {
+    const { service, db, queue } = purgeWith([]);
+    await service.deleteManyOrDefer([]);
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(queue.createMany).not.toHaveBeenCalled();
   });
 });

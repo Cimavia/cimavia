@@ -11,6 +11,7 @@ import { MediaType, maxFeedbackMediaCount } from "@cmv/shared";
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { assertKeyUnder, buildObjectKey } from "../../infra/storage/object-key";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import { AthletePlanService } from "../../plan/service/athlete-plan.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -25,9 +26,12 @@ import { FeedbackService } from "./feedback.service";
  *
  * Différence avec un document : un média n'est JAMAIS copié ni partagé (une planif copie les
  * documents du coach en partageant leur clé objet ; un débrief appartient à l'athlète seul). Sa
- * clé n'appartient donc qu'à lui, et sa suppression purge l'objet sans garde de comptage — ce qui
- * n'est vrai que parce que le rattachement refuse toute clé hors de la séance (`assertOwnedKey`).
+ * clé n'appartient donc qu'à lui — ce qui n'est vrai que parce que le rattachement refuse toute clé
+ * hors de la séance (`assertOwnedKey`). Son retrait passe pourtant par `ObjectPurgeService`, comme
+ * un document (#75) : c'est la file qui reprend l'objet quand le stockage est en panne.
  */
+const MEDIA_NOT_FOUND = "Média introuvable";
+
 @Injectable()
 export class FeedbackMediaService {
   constructor(
@@ -36,6 +40,7 @@ export class FeedbackMediaService {
     private readonly feedback: FeedbackService,
     // Garde « séance de l'athlète courant, dans un cycle PUBLISHED » — source unique (P3).
     private readonly athletePlans: AthletePlanService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   /**
@@ -150,14 +155,18 @@ export class FeedbackMediaService {
       where: { id: mediaId, sessionFeedback: { scheduledSessionId } },
     });
     if (media == null) {
-      throw new NotFoundException("Média introuvable");
+      throw new NotFoundException(MEDIA_NOT_FOUND);
     }
 
-    // L'objet d'abord, la ligne ensuite : un objet orphelin ne coûte que du stockage, une ligne
-    // orpheline casserait l'affichage (même arbitrage qu'en bibliothèque — dette P2-5). Pas de
-    // garde de comptage : la clé n'est partagée avec personne.
-    await this.storage.deleteObject(media.storagePath);
-    await this.db.feedbackMedia.delete({ where: { id: mediaId } });
+    // La ligne d'abord, l'objet ensuite, comme en bibliothèque (#75) : une ligne sans objet
+    // casserait l'affichage, un objet sans ligne ne coûte que du stockage — et il ne reste pas. Le
+    // stockage en panne, sa clé rejoint la file que le tick vide, sans 500 pour un média bel et
+    // bien retiré.
+    const { count } = await this.db.feedbackMedia.deleteMany({ where: { id: mediaId } });
+    // Retiré entre-temps par une autre requête (double appui, requête rejouée) : c'est elle qui
+    // purge, et celle-ci répond comme si elle ne l'avait pas trouvé, plutôt qu'un 500.
+    if (count === 0) throw new NotFoundException(MEDIA_NOT_FOUND);
+    await this.purge.deleteOrDefer(media.storagePath, { mediaId });
   }
 
   /**

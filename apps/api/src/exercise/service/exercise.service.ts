@@ -36,6 +36,8 @@ import {
 } from "../../custom-metric/service/custom-metric.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { explainForeignKeyViolation } from "../../infra/prisma/prisma-error";
+import { fileKeysOf } from "../../infra/storage/document.mapper";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -63,7 +65,6 @@ import {
   toExerciseDto,
 } from "../exercise.mapper";
 import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
-import { DocumentCleanupService } from "./document-cleanup.service";
 import { ExerciseCopyService } from "./exercise-copy.service";
 
 const EXERCISE_NOT_FOUND = "Exercice introuvable";
@@ -75,12 +76,12 @@ export class ExerciseService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
-    private readonly cleanup: DocumentCleanupService,
     private readonly metrics: CustomMetricService,
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly grants: AccessGrantService,
     private readonly copies: ExerciseCopyService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   private async toDto(
@@ -250,7 +251,7 @@ export class ExerciseService {
    * La consigne cite ses images par l'identifiant d'un document de la SOURCE. Recopiée telle
    * quelle, elle désignait des documents que la variante n'a pas : ni l'éditeur ni l'athlète ne
    * les affichaient, sans un message. Chaque image citée est donc rattachée à la variante, sous la
-   * MÊME clé objet — aucun binaire dupliqué, comme une séance planifiée (`DocumentCleanupService`
+   * MÊME clé objet — aucun binaire dupliqué, comme une séance planifiée (`ObjectPurgeService`
    * compte ces copies avant de purger).
    *
    * Seules les images de consigne suivent. Pièces jointes et liens restent à la source : la
@@ -390,8 +391,8 @@ export class ExerciseService {
       return this.getReadableOrThrow(id, tx);
     });
     // Sans faire échouer la réponse : l'écriture est faite, et un 500 ferait réessayer le builder
-    // sur une version périmée (409). Un objet laissé là relève de P2-1.
-    await this.cleanup.purgeUnreferencedObjectsSafely(dropped);
+    // sur une version périmée (409). Le stockage en panne, les clés rejoignent la file (#75).
+    await this.purge.deleteManyOrDefer(fileKeysOf(dropped), { exerciseId: id });
     return this.toDto(saved, context, catalogOf);
   }
 
@@ -426,12 +427,12 @@ export class ExerciseService {
     );
 
     // Les lignes ExerciseDocument sont parties en cascade, mais PAS les objets en storage : on les
-    // supprime explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
+    // retire explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
     // séance planifiée ou une copie figée affiche encore — elles partagent la clé objet (P3,
-    // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé.
-    for (const document of exercise.documents) {
-      await this.cleanup.deleteObjectIfUnreferenced(document);
-    }
+    // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé. Et sans la faire
+    // échouer (#75) : l'exercice est supprimé, un 500 dirait le contraire, et un objet en échec
+    // arrêtait le retrait des suivants. Le stockage en panne, les clés rejoignent la file.
+    await this.purge.deleteManyOrDefer(fileKeysOf(exercise.documents), { exerciseId: id });
   }
 
   /**

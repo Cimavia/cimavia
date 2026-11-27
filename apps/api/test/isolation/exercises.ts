@@ -360,6 +360,22 @@ describe("Isolation bibliothèque d'exercices (P2)", () => {
     await coachA.delete(`/exercises/${exerciseAId}/documents/${attached.body.id}`);
   });
 
+  // La ligne d'abord, l'objet ensuite (#75) : retiré, le document n'a plus d'objet derrière lui.
+  it("retirer un document retire son objet du stockage", async () => {
+    const file = pdf("a-retirer.pdf");
+    const attached = await coachA.post(`/exercises/${exerciseAId}/documents`).send({
+      type: "FILE",
+      storagePath: await putExerciseFile(coachA, exerciseAId, file),
+      ...file,
+    });
+    expect((await fetch(attached.body.url)).status).toBe(200);
+
+    const removed = await coachA.delete(`/exercises/${exerciseAId}/documents/${attached.body.id}`);
+
+    expect(removed.status).toBe(204);
+    expect((await fetch(attached.body.url)).status).toBe(404);
+  });
+
   it("refuse un PDF comme image de consigne", async () => {
     // Le PDF reste une pièce jointe légitime, mais il n'a aucun rendu inline dans un document —
     // ni sur le web ni en React Native.
