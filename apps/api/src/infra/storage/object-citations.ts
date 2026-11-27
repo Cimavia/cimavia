@@ -25,13 +25,10 @@ type CitationReader = Pick<
  * Chez TOUS les Coachs (piège n°8, #605), donc par le client de base : la planification de M peut
  * recopier un document de C sous la clé de C. Sûr parce que les clés viennent de lignes que
  * l'appelant a lues lui-même, et qu'il n'en sort que des clés qu'il connaissait déjà.
- *
- * `exceptDocumentId` : le document qui part, quand il n'est pas encore supprimé.
  */
 export async function citedStorageKeys(
   db: CitationReader,
   keys: readonly string[],
-  exceptDocumentId?: string,
 ): Promise<Set<string>> {
   const cited = new Set<string>();
   const select = { storagePath: true } as const;
@@ -39,10 +36,7 @@ export async function citedStorageKeys(
     const where = { storagePath: { in: storagePath } };
     const rows = [
       ...(await db.scheduledSessionExerciseDocument.findMany({ where, select })),
-      ...(await db.exerciseDocument.findMany({
-        where: exceptDocumentId == null ? where : { ...where, id: { not: exceptDocumentId } },
-        select,
-      })),
+      ...(await db.exerciseDocument.findMany({ where, select })),
     ];
     for (const row of rows) if (row.storagePath != null) cited.add(row.storagePath);
   }

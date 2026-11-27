@@ -65,7 +65,6 @@ import {
   toExerciseDto,
 } from "../exercise.mapper";
 import { exerciseListWhere, type ListExercisesFilters } from "../exercise.where";
-import { DocumentCleanupService } from "./document-cleanup.service";
 import { ExerciseCopyService } from "./exercise-copy.service";
 
 const EXERCISE_NOT_FOUND = "Exercice introuvable";
@@ -77,7 +76,6 @@ export class ExerciseService {
   constructor(
     @Inject(TENANT_PRISMA) private readonly db: TenantPrisma,
     private readonly storage: StorageService,
-    private readonly cleanup: DocumentCleanupService,
     private readonly metrics: CustomMetricService,
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
@@ -253,7 +251,7 @@ export class ExerciseService {
    * La consigne cite ses images par l'identifiant d'un document de la SOURCE. Recopiée telle
    * quelle, elle désignait des documents que la variante n'a pas : ni l'éditeur ni l'athlète ne
    * les affichaient, sans un message. Chaque image citée est donc rattachée à la variante, sous la
-   * MÊME clé objet — aucun binaire dupliqué, comme une séance planifiée (`DocumentCleanupService`
+   * MÊME clé objet — aucun binaire dupliqué, comme une séance planifiée (`ObjectPurgeService`
    * compte ces copies avant de purger).
    *
    * Seules les images de consigne suivent. Pièces jointes et liens restent à la source : la
@@ -393,8 +391,8 @@ export class ExerciseService {
       return this.getReadableOrThrow(id, tx);
     });
     // Sans faire échouer la réponse : l'écriture est faite, et un 500 ferait réessayer le builder
-    // sur une version périmée (409). Un objet laissé là relève de P2-1.
-    await this.cleanup.purgeUnreferencedObjectsSafely(dropped);
+    // sur une version périmée (409). Le stockage en panne, les clés rejoignent la file (#75).
+    await this.purge.deleteManyOrDefer(fileKeysOf(dropped));
     return this.toDto(saved, context, catalogOf);
   }
 

@@ -62,7 +62,7 @@ export type CopyOptions = {
  * variante », et la copie figée qu'une séance garde de l'exercice qu'elle perd.
  *
  * Les documents suivent sous la MÊME clé objet — aucun binaire dupliqué, la garde de purge compte
- * ces lignes avant d'effacer (`DocumentCleanupService`). La consigne est réécrite vers les copies
+ * ces lignes avant d'effacer (`ObjectPurgeService`). La consigne est réécrite vers les copies
  * de ses images. Les métriques maison que ses métriques suggérées citent (#718) passent du catalogue du propriétaire de la source à celui de l'acteur (`adoptMetrics`) :
  * `CustomMetric` est le catalogue d'UN Coach.
  *

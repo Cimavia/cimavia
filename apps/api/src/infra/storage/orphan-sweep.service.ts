@@ -108,7 +108,7 @@ export class OrphanSweepService {
       } catch (err) {
         report.failed.push(orphan.key);
         // Le nom de l'erreur, jamais l'erreur entière : le SDK S3 y recopie la clé, qui porte le
-        // nom du fichier (cf. DocumentCleanupService).
+        // nom du fichier (cf. ObjectPurgeService).
         const reason = err instanceof Error ? err.name : typeof err;
         this.logger.warn(
           { family: orphan.family, reason },

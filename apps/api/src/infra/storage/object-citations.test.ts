@@ -28,13 +28,6 @@ describe("citedStorageKeys", () => {
     await expect(citedStorageKeys(db, ["a", "b", "c"])).resolves.toEqual(new Set(["a", "b"]));
   });
 
-  it("écarte le document qui part, et lui seul", async () => {
-    const { db, copyFindMany, originalFindMany } = readerWith([], []);
-    await citedStorageKeys(db, ["a"], "doc-1");
-    expect(originalFindMany.mock.calls[0]?.[0].where).toMatchObject({ id: { not: "doc-1" } });
-    expect(copyFindMany.mock.calls[0]?.[0].where).not.toHaveProperty("id");
-  });
-
   it("n'interroge rien sans clé", async () => {
     const { db, copyFindMany } = readerWith([], []);
     await expect(citedStorageKeys(db, [])).resolves.toEqual(new Set());

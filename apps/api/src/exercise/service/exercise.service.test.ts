@@ -9,7 +9,6 @@ import type { ObjectPurgeService } from "../../infra/storage/object-purge.servic
 import type { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { StaleWriteException } from "../../util/stale-write.util";
-import type { DocumentCleanupService } from "./document-cleanup.service";
 import { ExerciseService } from "./exercise.service";
 import type { ExerciseCopyService } from "./exercise-copy.service";
 
@@ -53,7 +52,6 @@ function serviceWith({ written = 1, ownSessions = 0 } = {}) {
   const service = new ExerciseService(
     db as unknown as TenantPrisma,
     {} as StorageService,
-    {} as DocumentCleanupService,
     {} as CustomMetricService,
     {} as PrismaService,
     access as unknown as AccessService,
