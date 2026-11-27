@@ -85,9 +85,13 @@ describe("MailService — transport ouvert", () => {
   it("borne chaque étape de l'envoi bien en deçà des défauts de nodemailer", () => {
     new MailService(loggerSpy(), configWith(MAILPIT));
     const [options] = createTransport.mock.calls[0] as unknown as [Record<string, number>];
+    // Strictement positifs : nodemailer lit `options.x || DÉFAUT`, et 0 rendrait la borne de deux
+    // ou dix minutes qu'on retire ici.
     for (const step of ["dnsTimeout", "connectionTimeout", "greetingTimeout"]) {
+      expect(options[step]).toBeGreaterThan(0);
       expect(options[step]).toBeLessThanOrEqual(10_000);
     }
+    expect(options.socketTimeout).toBeGreaterThan(0);
     expect(options.socketTimeout).toBeLessThanOrEqual(30_000);
   });
 
