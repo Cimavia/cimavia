@@ -14,8 +14,9 @@ function serviceWith(doc: { id: string; type: DocumentType; storagePath: string 
   const db = {
     exerciseDocument: {
       findFirst: vi.fn().mockResolvedValue(doc),
-      delete: vi.fn(async () => {
+      deleteMany: vi.fn(async () => {
         order.push("ligne");
+        return { count: 1 };
       }),
     },
   };
@@ -63,15 +64,29 @@ describe("ExerciseDocumentService.remove", () => {
       type: DocumentType.FILE,
       storagePath: KEY,
     });
-    db.exerciseDocument.delete.mockRejectedValueOnce(new Error("base indisponible"));
+    db.exerciseDocument.deleteMany.mockRejectedValueOnce(new Error("base indisponible"));
     await expect(service.remove("e1", "d1")).rejects.toThrow("base indisponible");
+    expect(purge.deleteManyOrDefer).not.toHaveBeenCalled();
+  });
+
+  it("404 sans purge quand une autre requête vient de retirer la ligne (double clic)", async () => {
+    const { service, db, purge } = serviceWith({
+      id: "d1",
+      type: DocumentType.FILE,
+      storagePath: KEY,
+    });
+    db.exerciseDocument.deleteMany.mockResolvedValueOnce({ count: 0 });
+    await expect(service.remove("e1", "d1")).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.exerciseDocument.deleteMany).toHaveBeenCalledWith({
+      where: { id: "d1", exerciseId: "e1" },
+    });
     expect(purge.deleteManyOrDefer).not.toHaveBeenCalled();
   });
 
   it("404 sur un document inconnu de l'exercice, sans rien retirer", async () => {
     const { service, db, purge } = serviceWith(null);
     await expect(service.remove("e1", "inconnu")).rejects.toBeInstanceOf(NotFoundException);
-    expect(db.exerciseDocument.delete).not.toHaveBeenCalled();
+    expect(db.exerciseDocument.deleteMany).not.toHaveBeenCalled();
     expect(purge.deleteManyOrDefer).not.toHaveBeenCalled();
   });
 });

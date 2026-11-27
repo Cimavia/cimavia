@@ -30,6 +30,8 @@ import { FeedbackService } from "./feedback.service";
  * hors de la séance (`assertOwnedKey`). Son retrait passe pourtant par `ObjectPurgeService`, comme
  * un document (#75) : c'est la file qui reprend l'objet quand le stockage est en panne.
  */
+const MEDIA_NOT_FOUND = "Média introuvable";
+
 @Injectable()
 export class FeedbackMediaService {
   constructor(
@@ -153,14 +155,17 @@ export class FeedbackMediaService {
       where: { id: mediaId, sessionFeedback: { scheduledSessionId } },
     });
     if (media == null) {
-      throw new NotFoundException("Média introuvable");
+      throw new NotFoundException(MEDIA_NOT_FOUND);
     }
 
     // La ligne d'abord, l'objet ensuite, comme en bibliothèque (#75) : une ligne sans objet
     // casserait l'affichage, un objet sans ligne ne coûte que du stockage — et il ne reste pas. Le
     // stockage en panne, sa clé rejoint la file que le tick vide, sans 500 pour un média bel et
     // bien retiré.
-    await this.db.feedbackMedia.delete({ where: { id: mediaId } });
+    const { count } = await this.db.feedbackMedia.deleteMany({ where: { id: mediaId } });
+    // Retiré entre-temps par une autre requête (double appui, requête rejouée) : c'est elle qui
+    // purge, et celle-ci répond comme si elle ne l'avait pas trouvé, plutôt qu'un 500.
+    if (count === 0) throw new NotFoundException(MEDIA_NOT_FOUND);
     await this.purge.deleteOrDefer(media.storagePath, { mediaId });
   }
 

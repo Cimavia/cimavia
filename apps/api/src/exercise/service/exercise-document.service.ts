@@ -17,6 +17,8 @@ import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
 import { ExerciseService } from "./exercise.service";
 
+const DOCUMENT_NOT_FOUND = "Document introuvable";
+
 @Injectable()
 export class ExerciseDocumentService {
   constructor(
@@ -88,14 +90,19 @@ export class ExerciseDocumentService {
       where: { id: documentId, exerciseId },
     });
     if (doc == null) {
-      throw new NotFoundException("Document introuvable");
+      throw new NotFoundException(DOCUMENT_NOT_FOUND);
     }
     // La ligne d'abord, l'objet ensuite (#75) : une ligne sans objet casserait l'affichage, un
     // objet sans ligne ne coûte que du stockage — et il ne reste pas. Le stockage en panne, sa clé
     // rejoint la file que le tick vide ; la base en panne à son tour, le balayage le ramasse. Un
     // ordre inverse, sans reprise, laissait un document pointer vers un objet disparu (P2-5).
     // L'objet reste tant qu'une séance planifiée ou une variante partage sa clé.
-    await this.db.exerciseDocument.delete({ where: { id: documentId } });
+    const { count } = await this.db.exerciseDocument.deleteMany({
+      where: { id: documentId, exerciseId },
+    });
+    // Retiré entre-temps par une autre requête (double clic, requête rejouée) : c'est elle qui
+    // purge, et celle-ci répond comme si elle ne l'avait pas trouvé, plutôt qu'un 500.
+    if (count === 0) throw new NotFoundException(DOCUMENT_NOT_FOUND);
     await this.purge.deleteManyOrDefer(fileKeysOf([doc]), { documentId });
   }
 }

@@ -189,13 +189,14 @@ describe("FeedbackMediaService.remove", () => {
     const order: string[] = [];
     const remove = vi.fn(async () => {
       order.push("ligne");
+      return { count: 1 };
     });
     const deleteOrDefer = vi.fn(async () => {
       order.push("objet");
     });
     const service = new FeedbackMediaService(
       {
-        feedbackMedia: { findFirst: vi.fn().mockResolvedValue(media), delete: remove },
+        feedbackMedia: { findFirst: vi.fn().mockResolvedValue(media), deleteMany: remove },
       } as unknown as TenantPrisma,
       {} as StorageService,
       {} as FeedbackService,
@@ -218,6 +219,13 @@ describe("FeedbackMediaService.remove", () => {
     const { service, remove, deleteOrDefer } = build({ id: "m1", storagePath: KEY });
     remove.mockRejectedValueOnce(new Error("base indisponible"));
     await expect(service.remove("ss1", "m1")).rejects.toThrow("base indisponible");
+    expect(deleteOrDefer).not.toHaveBeenCalled();
+  });
+
+  it("404 sans purge quand une autre requête vient de retirer la ligne (double appui)", async () => {
+    const { service, remove, deleteOrDefer } = build({ id: "m1", storagePath: KEY });
+    remove.mockResolvedValueOnce({ count: 0 });
+    await expect(service.remove("ss1", "m1")).rejects.toThrow("Média introuvable");
     expect(deleteOrDefer).not.toHaveBeenCalled();
   });
 
