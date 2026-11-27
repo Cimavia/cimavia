@@ -196,3 +196,59 @@ describe("ObjectPurgeService.deleteOrDefer", () => {
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain("secret-nom.pdf");
   });
 });
+
+describe("ObjectPurgeService.deleteManyOrDefer", () => {
+  it("compte toutes les clés en un seul instantané, doublons compris une fois", async () => {
+    const { service, db, deleteObject } = purgeWith([]);
+    await service.deleteManyOrDefer(["a", "b", "a"]);
+    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(db.invoice.findMany).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ where: { documentPath: { in: ["a", "b"] } } }),
+    );
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["a", "b"]);
+  });
+
+  it("retire les objets que plus rien ne cite et garde celui qu'une ligne cite encore", async () => {
+    const { service, queue, deleteObject } = purgeWith([], vi.fn(), ["partage.jpg"]);
+    await service.deleteManyOrDefer(["seul.jpg", "partage.jpg"]);
+    expect(deleteObject.mock.calls.map(([key]) => key)).toEqual(["seul.jpg"]);
+    expect(queue.createMany).not.toHaveBeenCalled();
+  });
+
+  it("ne met en file que les clés en échec, en une seule écriture", async () => {
+    const deleteObject = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(s3Failure("b-secret.jpg"))
+      .mockRejectedValueOnce(s3Failure("c-secret.jpg"));
+    const { service, queue, logger } = purgeWith([], deleteObject);
+    await expect(
+      service.deleteManyOrDefer(["a.jpg", "b-secret.jpg", "c-secret.jpg"]),
+    ).resolves.toBeUndefined();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: "b-secret.jpg" }, { key: "c-secret.jpg" }],
+      skipDuplicates: true,
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("secret");
+  });
+
+  it("confie toutes les clés à la file quand la citation ne se lit pas", async () => {
+    const { service, queue, db, deleteObject, logger } = purgeWith([]);
+    db.$transaction.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.deleteManyOrDefer(["a", "b"])).resolves.toBeUndefined();
+    expect(deleteObject).not.toHaveBeenCalled();
+    expect(queue.createMany).toHaveBeenCalledExactlyOnceWith({
+      data: [{ key: "a" }, { key: "b" }],
+      skipDuplicates: true,
+    });
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("ne touche à rien sans clé", async () => {
+    const { service, db, queue } = purgeWith([]);
+    await service.deleteManyOrDefer([]);
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(queue.createMany).not.toHaveBeenCalled();
+  });
+});

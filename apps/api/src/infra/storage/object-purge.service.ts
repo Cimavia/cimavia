@@ -80,33 +80,66 @@ export class ObjectPurgeService {
    * et l'objet ne se retire qu'une fois la ligne partie pour de bon.
    *
    * Une ligne qui cite encore la clé ne peut être qu'une AUTRE ligne, l'appelant ayant écrit la
-   * sienne : une clé rattachée deux fois (S-2), ou un justificatif d'avant le contrôle de préfixe
-   * (#293). L'objet reste, comme il resterait par la file.
+   * sienne : une clé rattachée deux fois (S-2), un justificatif d'avant le contrôle de préfixe
+   * (#293), ou la copie d'un document qu'une séance planifiée ou une variante partage (P3, #315).
+   * L'objet reste, comme il resterait par la file.
    */
   async deleteOrDefer(key: string): Promise<void> {
+    await this.deleteManyOrDefer([key]);
+  }
+
+  /**
+   * La même chose pour les objets de plusieurs lignes parties ensemble — les documents d'un
+   * exercice supprimé, les images qu'une consigne ne cite plus (#75). Un seul décompte pour toutes
+   * les clés, les retraits en parallèle : la réponse les attend (#330).
+   *
+   * La citation illisible, aucune clé n'est jugée : toutes rejoignent la file, qui relira chacune
+   * avant de la retirer.
+   */
+  async deleteManyOrDefer(keys: readonly string[]): Promise<void> {
+    const unique = [...new Set(keys)];
+    if (unique.length === 0) return;
+    let deferred: string[];
     try {
-      if (await this.isCited(key)) return;
-      await this.storage.deleteObject(key);
-      return;
-    } catch (err) {
-      this.logger.warn(
-        { reason: reasonOf(err) },
-        "objet à retirer : retrait en échec, confié à la file",
+      const cited = await this.citedKeys(unique);
+      const orphans = unique.filter((key) => !cited.has(key));
+      const results = await Promise.allSettled(
+        orphans.map((key) => this.storage.deleteObject(key)),
       );
+      deferred = orphans.filter((_, index) => {
+        const result = results[index];
+        if (result?.status !== "rejected") return false;
+        this.warnDeferred(result.reason);
+        return true;
+      });
+    } catch (err) {
+      this.warnDeferred(err);
+      deferred = unique;
     }
+    if (deferred.length === 0) return;
     try {
       // `skipDuplicates` : la clé peut déjà attendre son tour, un double envoi l'y aurait mise.
-      await this.prisma.pendingObjectDeletion.createMany({ data: [{ key }], skipDuplicates: true });
+      await this.prisma.pendingObjectDeletion.createMany({
+        data: deferred.map((key) => ({ key })),
+        skipDuplicates: true,
+      });
     } catch (err) {
       this.logger.error(
-        { reason: reasonOf(err) },
+        { reason: reasonOf(err), count: deferred.length },
         "objet à retirer : ni retiré ni mis en file, laissé au balayage",
       );
     }
   }
 
+  private warnDeferred(err: unknown): void {
+    this.logger.warn(
+      { reason: reasonOf(err) },
+      "objet à retirer : retrait en échec, confié à la file",
+    );
+  }
+
   private async purgeOne({ id, key }: { id: string; key: string }): Promise<boolean> {
-    if (await this.isCited(key)) {
+    if ((await this.citedKeys([key])).size > 0) {
       // Reportée comme un échec : elle ne doit pas occuper la tête du lot à chaque passage.
       await this.prisma.pendingObjectDeletion.updateMany({
         where: { id },
@@ -134,14 +167,13 @@ export class ObjectPurgeService {
   }
 
   /**
-   * Une ligne cite-t-elle encore cette clé ? Toutes les colonnes dans UN instantané
+   * Parmi ces clés, celles qu'une ligne cite encore. Toutes les colonnes dans UN instantané
    * (`RepeatableRead`), comme le balayage (#72) : lues une à une, une copie créée et sa source
    * supprimée entre deux lectures feraient passer pour orpheline une clé encore citée.
    */
-  private async isCited(key: string): Promise<boolean> {
-    const cited = await this.prisma.$transaction((tx) => keysCitedByRows(tx, [key]), {
+  private citedKeys(keys: readonly string[]): Promise<Set<string>> {
+    return this.prisma.$transaction((tx) => keysCitedByRows(tx, keys), {
       isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
     });
-    return cited.size > 0;
   }
 }
