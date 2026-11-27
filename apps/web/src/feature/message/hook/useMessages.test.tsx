@@ -5,16 +5,19 @@ import { messageKeys } from "@/feature/message/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useConversations, useConversationWith, useThreadMessages } from "./useMessages";
 
-const { getMessagePageMock, listConversationsMock, createConversationMock } = vi.hoisted(() => ({
-  getMessagePageMock: vi.fn(),
-  listConversationsMock: vi.fn(),
-  createConversationMock: vi.fn(),
-}));
+const { getMessagePageMock, getMessagesSinceMock, listConversationsMock, createConversationMock } =
+  vi.hoisted(() => ({
+    getMessagePageMock: vi.fn(),
+    getMessagesSinceMock: vi.fn(),
+    listConversationsMock: vi.fn(),
+    createConversationMock: vi.fn(),
+  }));
 
 vi.mock("@/feature/message/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/message/api")>()),
   messageApi: {
     getMessagePage: getMessagePageMock,
+    getMessagesSince: getMessagesSinceMock,
     listConversations: listConversationsMock,
     createConversation: createConversationMock,
   },
@@ -44,6 +47,7 @@ const voiceNote = (signedAt: string): MessageDto => ({
 
 beforeEach(() => {
   getMessagePageMock.mockReset();
+  getMessagesSinceMock.mockReset();
   listConversationsMock.mockReset().mockResolvedValue([]);
   createConversationMock.mockReset();
 });
@@ -104,11 +108,11 @@ describe("useThreadMessages", () => {
   });
 
   /**
-   * Deux pages chargées, un message arrivé : la plus récente relue a perdu m3 par le bas. Relues
-   * depuis SON curseur, les pages d'avant glissaient d'autant, et m1 — sous les yeux du lecteur
-   * remonté — disparaissait. Elle garde sa frontière : la page d'avant se relit au même curseur.
+   * Deux pages chargées, un message arrivé. Relue comme « les 50 plus récents », la plus récente
+   * perdait m3 par le bas, et les pages d'avant glissaient d'autant. Elle se relit depuis sa
+   * frontière, et la page d'avant, lue à l'instant, n'est pas redemandée (#782).
    */
-  it("relit chaque page au sondage sans faire glisser le fil chargé", async () => {
+  it("relit la page la plus récente depuis sa frontière, sans redemander la page d'avant", async () => {
     getMessagePageMock
       .mockResolvedValueOnce({ items: [textMessage("m3"), textMessage("m4")], nextCursor: "c-m3" })
       .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
@@ -117,17 +121,35 @@ describe("useThreadMessages", () => {
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     await act(() => result.current.fetchNextPage());
 
-    getMessagePageMock
-      .mockResolvedValueOnce({ items: [textMessage("m4"), textMessage("m5")], nextCursor: "c-m4" })
-      .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
+    getMessagesSinceMock.mockResolvedValueOnce({
+      items: [textMessage("m3"), textMessage("m4"), textMessage("m5")],
+      nextCursor: "c-m3",
+    });
     await act(() => result.current.refetch());
 
-    expect(getMessagePageMock.mock.calls.slice(2)).toEqual([
-      ["c1", null, null],
-      ["c1", "c-m3", null],
-    ]);
+    expect(getMessagesSinceMock.mock.calls).toEqual([["c1", "c-m3", null]]);
+    expect(getMessagePageMock).toHaveBeenCalledTimes(2);
     await waitFor(() =>
       expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4", "m5"]),
+    );
+  });
+
+  // Un compte effacé quitte les fils de groupe : ses messages disparaissent, au lieu de rester
+  // recousus du cache en tête de la page, devant de plus anciens qu'eux.
+  it("ne garde rien de ce que la relecture ne porte plus", async () => {
+    getMessagePageMock
+      .mockResolvedValueOnce({ items: [textMessage("m3"), textMessage("m4")], nextCursor: "c-m3" })
+      .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useThreadMessages("c1"), { wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    await act(() => result.current.fetchNextPage());
+
+    getMessagesSinceMock.mockResolvedValueOnce({ items: [textMessage("m4")], nextCursor: "c-m3" });
+    await act(() => result.current.refetch());
+
+    await waitFor(() =>
+      expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m4"]),
     );
   });
 });
