@@ -993,16 +993,28 @@ liste des domaines vivent dans l'index.
 >   donne une plage à l'index `(conversationId, createdAt)`.
 > - **La requête est stricte**, `as` toléré : un client qui enverrait `?cursor=` au lieu de
 >   `?before=` reçoit un 400, plutôt que la première page en boucle.
-> - **Le sondage relit toutes les pages chargées**, comme toute relecture d'une requête infinie de
->   TanStack : une URL re-signée ou un média retiré plus haut dans le fil se voient. La page la plus
->   récente, relue, **garde sa frontière** et absorbe ce qui est arrivé (`refreshNewestPage`) : les
->   pages d'avant se relisent aux mêmes curseurs. Sans ça, TanStack relisait « les 50 plus récents »
->   puis recalculait chaque curseur : chaque message arrivé faisait glisser le fil chargé d'un cran,
->   et le plus ancien disparaissait sous les yeux du lecteur remonté. Plus de 50 messages arrivés
->   depuis (un fil rouvert après une longue absence) : la page relue ne recoupe plus l'ancienne, et
->   elle repart seule plutôt que de laisser un trou. Le coût est d'une requête par page remontée,
->   toutes les 10 s. Ne sonder que la première page est à ouvrir sur une plainte de lenteur ou une
->   charge mesurée sur l'API.
+> - **La page la plus récente se relit depuis sa frontière** (`?since=<son nextCursor>`), en
+>   entier : ce qu'elle tenait, ce qui est arrivé depuis, URLs re-signées et messages effacés
+>   compris (un compte supprimé quitte les fils de groupe). Elle garde son curseur, et les pages
+>   d'avant se relisent aux mêmes : le fil chargé ne glisse pas sous le lecteur remonté. Relue
+>   comme « les 50 plus récents », chaque arrivée poussait un message vers la page d'avant ; la
+>   première version recousait donc côté client les messages poussés, depuis le cache. Ils
+>   gardaient leurs URLs de la première lecture, mortes au bout de 5 min et pourtant inscrites
+>   comme fraîches dans la table des URLs, et un message effacé y restait, devant de plus anciens
+>   que lui (revue de la PR #928). `since` est borné à 100 lignes : au-delà (un fil rouvert après
+>   une longue absence, ou plus de 50 messages arrivés fil ouvert), l'API rend la page la plus récente à
+>   son curseur à elle, et les pages d'avant se recousent à partir de lui — le lecteur remonté se
+>   décale alors une fois. `before` et `since` s'excluent (400).
+> - **Une page d'avant ne se relit que périmée** (`createThreadPages`) : un de ses médias porte
+>   une URL que la table ne garantit plus, ou elle a plus de 5 min, ou on ignore quand elle a été
+>   lue (cache restauré au démarrage). Sinon, la relecture la rend telle quelle, sans requête. Relues
+>   toutes les 10 s, elles comptaient sur le plafond global de 300 requêtes par minute et par acteur
+>   (#782), tous appareils confondus : un coach remonté d'une quarantaine de pages passait en 429
+>   sur toutes ses routes. Le coût d'un fil ouvert est désormais d'une requête toutes les 10 s, plus
+>   une par page remontée toutes les 4 à 5 min.
+> - **Les options de la requête infinie du fil vivent dans `@cmv/shared`** (`createThreadPages`),
+>   une par app comme la table des URLs : le web et le mobile n'y ajoutent que leur sondage et leur
+>   partage structurel.
 > - **Le web garde le lecteur en place** quand la page s'ajoute au-dessus (`holdPosition` de
 >   `useStickToBottom`). La cible part du dernier `scrollTop` connu, celui du dernier défilement :
 >   `dernier haut + (nouvelle hauteur − ancienne)`. Elle est juste que le navigateur ait déjà ancré
@@ -1014,6 +1026,13 @@ liste des domaines vivent dans l'index.
 >   panne. L'échec est **retenu par le client** jusqu'à « Réessayer », et non lu de la requête : un
 >   sondage réussi efface l'erreur de TanStack sans recharger la page d'avant, et le lecteur resté
 >   en tête n'aurait plus ni bouton, ni page.
+> - **Une page d'avant interrompue se redemande** une fois la relecture finie
+>   (`olderPageOutcome`). Une relecture lancée pendant qu'elle était en route (l'invalidation d'un
+>   envoi, `refetchQueries` d'un média à re-signer, le retour au premier plan du mobile) l'annule
+>   sans erreur. Le repère web, resté à l'écran, ne se manifestait plus, et la liste mobile ne
+>   rappelle `onEndReached` qu'à une autre longueur de contenu : la remontée restait figée, sans
+>   indicateur ni « Réessayer ». Le web observe le repère à neuf, et ne redemande que s'il est
+>   encore à l'écran ; le mobile redemande.
 > - **Une erreur ne jette pas le fil chargé** : au web comme au mobile (#439), l'écran d'erreur ne
 >   remplace le fil que si rien n'est en cache. Une page d'avant ratée passe la requête en
 >   erreur, ses messages toujours là.
