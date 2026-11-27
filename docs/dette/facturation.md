@@ -9,7 +9,7 @@ liste des domaines vivent dans l'index.
 
 | # | Dette | Statut | Suivi |
 |---|---|---|---|
-| P6-4 | **Deux remplacements concurrents du justificatif laissent un PDF orphelin** : les deux lisent le même ancien chemin, écrivent sans condition et purgent le même objet ; le PDF du perdant reste au bucket, sans ligne. C'est la dérive qu'on préfère (aucun affichage cassé), et le balayage de #72 la ramasse. Relevé à la revue de #73. | 🟢 | — *(déclencheur : des orphelins sous `invoice/` au balayage ; la sortie est une écriture conditionnée à l'ancien chemin, ou la purge du chemin réellement écrasé)* |
+| P6-4 | **Deux remplacements concurrents du justificatif laissent un PDF orphelin** : les deux lisent le même ancien chemin, écrivent sans condition et purgent le même objet ; le PDF du perdant reste au bucket, sans ligne. Même issue quand le justificatif est remplacé PENDANT la suppression du cycle : `delete` lit l'ancien chemin sans verrou sur la facture, et le remplacement ne fait pas avancer la version du cycle — la cascade emporte la facture au nouveau chemin, et les deux gestes purgent l'ancien. C'est la dérive qu'on préfère (aucun affichage cassé), et le balayage de #72 la ramasse. Relevé aux revues de #73. | 🟢 | — *(déclencheur : des orphelins sous `invoice/` au balayage ; la sortie est une écriture conditionnée à l'ancien chemin, ou la purge du chemin réellement écrasé)* |
 
 *Résolues, à l'[archive](archive.md) : P6-1, P6-2, P6-3.*
 
@@ -50,11 +50,19 @@ liste des domaines vivent dans l'index.
 > - **Pas de décompte de références** : la clé est segmentée sous un seul cycle (`planId @unique`),
 >   aucune autre ligne ne la partage — à l'inverse des documents de cycle (`DocumentCleanupService`).
 >
-> - **La file relit les citations avant de retirer** (`keysCitedByRows`, un lot à la fois) : une
->   clé mise en file au remplacement, puis rattachée de nouveau par un client qui la rejoue avant le
->   tick, aurait été retirée sous la facture. Citée, elle sort de la file et l'objet reste. Jusqu'ici,
->   seul l'effacement d'un compte y écrivait, des clés que plus personne ne peut rattacher ; #73 y
->   fait entrer des gestes courants. S-2 (a), une clé rattachée deux fois, reste ouverte hors file.
+> - **La citation se relit juste avant CHAQUE retrait**, direct ou par la file, dans un instantané
+>   (`RepeatableRead`, comme le balayage) : une clé mise en file au remplacement, puis rattachée de
+>   nouveau par un client qui la rejoue, aurait été retirée sous la facture. Lue une fois en tête de
+>   lot, elle laissait les 20 s du passage ouvertes. Citée, la clé RESTE en file : c'est l'objet
+>   retiré qui solde une prise en charge, jamais une lecture — sinon un remplacement qui l'y remet
+>   entre-temps (`skipDuplicates`) serait effacé avec elle. Jusqu'ici, seul l'effacement d'un compte
+>   y écrivait, des clés que plus personne ne peut rattacher ; #73 y fait entrer des gestes courants.
+> - **Le retrait direct relit aussi** : l'appelant a écrit sa ligne, une citation restante est donc
+>   celle d'une AUTRE ligne — une clé rattachée deux fois (S-2 a), ou un justificatif d'avant le
+>   contrôle de préfixe (#293). Sans elle, le même geste garderait l'objet stockage en panne et le
+>   retirerait stockage en état.
+> - **Les journaux ne portent que le nom de l'erreur** : le SDK S3 recopie la clé sur l'exception,
+>   et avec elle le nom du fichier. Même règle que le balayage et `DocumentCleanupService`.
 
 ---
 

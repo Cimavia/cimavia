@@ -34,7 +34,8 @@ export function emptySweepReport(): SweepReport {
 
 /**
  * Le balayage des objets sans ligne en base (#72) — le filet commun à tous les chemins qui laissent
- * un objet derrière eux (P2-1, P3-2, P6-2…).
+ * un objet derrière eux (P2-1, P3-2, un objet que ni le stockage ni la file n'ont pris en charge —
+ * #73…).
  *
  * Lancé à la main (`sweep-orphans.cli`), sous l'identité root du stockage : lister le bucket est un
  * droit que la clé d'API n'a pas (« Tranché en #267 »). Simulation par défaut — `remove` ne vient
