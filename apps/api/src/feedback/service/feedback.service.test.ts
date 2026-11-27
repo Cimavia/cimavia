@@ -211,7 +211,7 @@ describe("FeedbackMediaService.remove", () => {
     const { service, deleteOrDefer, order } = build({ id: "m1", storagePath: KEY });
     await service.remove("ss1", "m1");
     expect(order).toEqual(["ligne", "objet"]);
-    expect(deleteOrDefer).toHaveBeenCalledExactlyOnceWith(KEY);
+    expect(deleteOrDefer).toHaveBeenCalledExactlyOnceWith(KEY, { mediaId: "m1" });
   });
 
   it("ne retire pas l'objet quand la ligne ne part pas", async () => {

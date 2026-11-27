@@ -69,10 +69,10 @@ describe("ExerciseService.delete", () => {
     const { service, purge, order } = serviceWith();
     await service.delete("e1", AT_VERSION);
     expect(order).toEqual(["ligne", "objets"]);
-    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith([
-      "coach/c/exercises/e1/a.jpg",
-      "coach/c/exercises/e1/b.pdf",
-    ]);
+    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith(
+      ["coach/c/exercises/e1/a.jpg", "coach/c/exercises/e1/b.pdf"],
+      { exerciseId: "e1" },
+    );
   });
 
   it("ne purge rien quand la suppression est refusée sur une version périmée (409)", async () => {

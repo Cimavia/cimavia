@@ -161,7 +161,7 @@ export class FeedbackMediaService {
     // stockage en panne, sa clé rejoint la file que le tick vide, sans 500 pour un média bel et
     // bien retiré.
     await this.db.feedbackMedia.delete({ where: { id: mediaId } });
-    await this.purge.deleteOrDefer(media.storagePath);
+    await this.purge.deleteOrDefer(media.storagePath, { mediaId });
   }
 
   /**

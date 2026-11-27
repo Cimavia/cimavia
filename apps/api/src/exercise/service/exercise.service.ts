@@ -392,7 +392,7 @@ export class ExerciseService {
     });
     // Sans faire échouer la réponse : l'écriture est faite, et un 500 ferait réessayer le builder
     // sur une version périmée (409). Le stockage en panne, les clés rejoignent la file (#75).
-    await this.purge.deleteManyOrDefer(fileKeysOf(dropped));
+    await this.purge.deleteManyOrDefer(fileKeysOf(dropped), { exerciseId: id });
     return this.toDto(saved, context, catalogOf);
   }
 
@@ -432,7 +432,7 @@ export class ExerciseService {
     // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé. Et sans la faire
     // échouer (#75) : l'exercice est supprimé, un 500 dirait le contraire, et un objet en échec
     // arrêtait le retrait des suivants. Le stockage en panne, les clés rejoignent la file.
-    await this.purge.deleteManyOrDefer(fileKeysOf(exercise.documents));
+    await this.purge.deleteManyOrDefer(fileKeysOf(exercise.documents), { exerciseId: id });
   }
 
   /**

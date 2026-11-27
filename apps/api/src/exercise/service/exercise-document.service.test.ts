@@ -44,7 +44,7 @@ describe("ExerciseDocumentService.remove", () => {
     await service.remove("e1", "d1");
     expect(exercises.getForOrThrow).toHaveBeenCalledWith("e1", "write");
     expect(order).toEqual(["ligne", "objet"]);
-    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith([KEY]);
+    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith([KEY], { documentId: "d1" });
   });
 
   it("ne demande rien au stockage pour un lien", async () => {
@@ -54,7 +54,7 @@ describe("ExerciseDocumentService.remove", () => {
       storagePath: null,
     });
     await service.remove("e1", "d2");
-    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith([]);
+    expect(purge.deleteManyOrDefer).toHaveBeenCalledExactlyOnceWith([], { documentId: "d2" });
   });
 
   it("ne retire rien quand la ligne ne part pas", async () => {

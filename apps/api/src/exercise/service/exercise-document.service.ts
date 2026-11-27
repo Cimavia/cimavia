@@ -96,7 +96,7 @@ export class ExerciseDocumentService {
     // ordre inverse, sans reprise, laissait un document pointer vers un objet disparu (P2-5).
     // L'objet reste tant qu'une séance planifiée ou une variante partage sa clé.
     await this.db.exerciseDocument.delete({ where: { id: documentId } });
-    await this.purge.deleteManyOrDefer(fileKeysOf([doc]));
+    await this.purge.deleteManyOrDefer(fileKeysOf([doc]), { documentId });
   }
 }
 
