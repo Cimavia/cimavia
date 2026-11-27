@@ -1,16 +1,13 @@
 import type { CopyPlanWeekInput, PlanDto } from "@cmv/shared";
 import { PlanStatus, planWeekCopyShiftDays, required } from "@cmv/shared";
 import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
-import { toScheduledSessionBlockDto } from "../../session/session-block.mapper";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
-import { shiftDbDate, toIsoDate } from "../../util/date.util";
-import { parseCustomMetrics, parseInstructions } from "../../util/exercise-json.util";
+import { toIsoDate } from "../../util/date.util";
 import { assertReadAtVersion, writeAtVersion } from "../../util/stale-write.util";
 import { WEEK_NOT_FOUND } from "../plan-week.version";
+import { copyScheduledSessions } from "../scheduled-session.copier";
 import { SESSION_DETAIL_INCLUDE } from "../scheduled-session.mapper";
-import { copiedBlocksOf, insertScheduledSessionExercises } from "../scheduled-session.writer";
 import { PlanService } from "./plan.service";
 
 /**
@@ -115,65 +112,12 @@ export class PlanWeekCopyService {
        */
       await tx.scheduledSession.deleteMany({ where: { planWeekId: target.id } });
 
-      for (const session of sessions) {
-        const created = await tx.scheduledSession.create({
-          // coachId injecté par le tenancy layer ; athleteId dénormalisé explicitement — celui du
-          // plan CIBLE, jamais celui de la source : une copie inter-planification change d'athlète.
-          // `status` est laissé à son défaut (PLANNED) : il décrit l'exécution, pas la composition.
-          data: {
-            athleteId: targetPlan.athleteId,
-            planId: targetPlan.id,
-            planWeekId: target.id,
-            sourceSessionId: session.sourceSessionId,
-            title: session.title,
-            notes: session.notes,
-            // Décalage multiple de 7 (deux lundis) : le jour de semaine tient, et les triplets
-            // (semaine, date, position) restent uniques après translation.
-            scheduledDate: shiftDbDate(session.scheduledDate, shiftDays),
-            position: session.position,
-          } satisfies Omit<
-            Prisma.ScheduledSessionUncheckedCreateInput,
-            "coachId"
-          > as Prisma.ScheduledSessionUncheckedCreateInput,
-        });
-
-        // Les blocs (#716) aussi, avec la référence que la source a reçue.
-        const { blocks, placements } = copiedBlocksOf(
-          session.blocks.map(toScheduledSessionBlockDto),
-        );
-        // Les documents viennent de l'INSTANCE source, pas de la bibliothèque : `sourceExerciseId`
-        // peut être null (exercice supprimé de la bibliothèque, SetNull) alors que l'instance porte
-        // toujours ses copies. Y repasser les perdrait — c'est le sens de « copie autonome ».
-        await insertScheduledSessionExercises(
-          tx,
-          created.id,
-          // L'athlète du plan CIBLE, `null` compris : coller dans un brouillon non affecté
-          // (#144) ne doit pas y faire entrer le destinataire de la source.
-          targetPlan.athleteId,
-          // Les tags de l'instance source sont aplatis en noms : le draft attend la forme du DTO,
-          // pas les lignes de la table de copie.
-          // Consigne et métriques repassent par Zod : elles sortent de Prisma en `JsonValue`, que
-          // le draft n'accepte pas — et le faire ICI garde la copie fidèle à l'instance source.
-          session.exercises.map((exercise) => ({
-            exercise: {
-              sourceExerciseId: exercise.sourceExerciseId,
-              title: exercise.title,
-              description: exercise.description,
-              instructions: parseInstructions(exercise.instructions),
-              customMetrics: parseCustomMetrics(exercise.customMetrics),
-              tags: exercise.tags.map((tag) => tag.name),
-              note: exercise.note,
-            },
-            documents: exercise.documents,
-            // La copie garde la place et la grille de la source, origine comprise.
-            placement: required(
-              placements.get(exercise.id),
-              `[plan] l'exercice ${exercise.id} hors de ses blocs`,
-            ),
-          })),
-          blocks,
-        );
-      }
+      await copyScheduledSessions(
+        tx,
+        sessions,
+        { planId: targetPlan.id, planWeekId: target.id, athleteId: targetPlan.athleteId },
+        shiftDays,
+      );
     });
 
     // Aucune notification : la cible est un brouillon par construction (le cycle diffusé est
