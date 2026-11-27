@@ -1,5 +1,5 @@
 import type { FeedbackReplyInput, TrainingCapability } from "@cmv/shared";
-import { feedbackReplyAttachment, feedbackReplySurface } from "@cmv/shared";
+import { feedbackReplyAttachment, feedbackReplySurface, isFollowEndedError } from "@cmv/shared";
 import { useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
 
@@ -14,8 +14,17 @@ import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
  * `capability` : le titre de l'écran, coach ou athlète — requis, et pas le sélecteur (#343). Celui-ci
  * vit sur Factures et Messages ; laissé sur l'autre titre, il faisait refuser la réponse par l'API,
  * qui cherche le fil sous le titre reçu. Le web n'en a pas besoin : son titre vient du chemin.
+ *
+ * `onFollowEnded` : une réponse refusée parce que le suivi a pris fin (#911) — l'écran a lu ce qui
+ * dit la fin du suivi avant la rupture, et c'est à lui de le relire (la séance côté athlète, les
+ * liens côté coach) pour que la barre laisse place à la phrase de fin. Relire la seule liste des
+ * fils, comme le fait l'envoi, ne fermerait rien : ces écrans ne la lisent pas.
  */
-export function useFeedbackReply(input: FeedbackReplyInput, capability: TrainingCapability) {
+export function useFeedbackReply(
+  input: FeedbackReplyInput,
+  capability: TrainingCapability,
+  onFollowEnded: () => void,
+) {
   const attachment = feedbackReplyAttachment(input.feedbackId);
   const thread = input.conversationId ?? "";
   const send = useSendMessage(thread, { attachment, pinned: capability });
@@ -27,7 +36,15 @@ export function useFeedbackReply(input: FeedbackReplyInput, capability: Training
 
   return {
     ...feedbackReplySurface(input, send.isPending, (content) =>
-      send.mutateAsync({ type: "TEXT", content }, { onSuccess: input.onSent }),
+      send.mutateAsync(
+        { type: "TEXT", content },
+        {
+          onSuccess: input.onSent,
+          onError: (error) => {
+            if (isFollowEndedError(error)) onFollowEnded();
+          },
+        },
+      ),
     ),
     pickAndSend: media.pickAndSend,
     recordAndSend: media.recordAndSend,

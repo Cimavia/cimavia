@@ -187,7 +187,9 @@
       "showInstructions": "Voir la consigne",
       "hideInstructions": "Masquer la consigne",
       "emptyTitle": "Pas de déroulé détaillé",
-      "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer."
+      "emptyDescription": "Cette séance n'a pas d'exercice listé. Tu peux quand même la débriefer.",
+      "emptyDescriptionClosed": "Cette séance n'a pas d'exercice listé.",
+      "followEnded": "{{ended}} : cette séance se relit, elle ne se débriefe plus."
     },
     "timer": {
       "pause": "Pause",
@@ -258,6 +260,9 @@
     "subtitle": "Ton retour est visible immédiatement par ton coach.",
     "open": "Débriefer la séance",
     "openDone": "Voir / modifier mon débrief",
+    "openRead": "Relire mon débrief",
+    "followEnded": "{{ended}} : ce débrief se relit, il ne se complète plus.",
+    "followEndedEmpty": "Cette séance n'a pas été débriefée avant la fin du suivi.",
     "contentLabel": "Retour sur la séance",
     "contentPlaceholder": "Sensations, difficultés, ce qui a marché…",
     "contentHint": "Tu peux compléter ton débrief plus tard.",
@@ -319,13 +324,15 @@
     "reply": {
       "title": "Réponses",
       "threadError": "Impossible d'ouvrir la conversation. Réessaie dans un instant.",
-      "self": "Ce débrief est le tien : il n'y a personne à qui répondre."
+      "self": "Ce débrief est le tien : il n'y a personne à qui répondre.",
+      "followEnded": "{{ended}} : les réponses se relisent, on n'y répond plus."
     }
   },
   "messages": {
     "placeholder": "Écris un message…",
     "send": "Envoyer le message",
     "sendError": "Message non envoyé. Vérifie ta connexion.",
+    "followEnded": "{{ended}} : ce fil se relit, on n'y écrit plus.",
     "empty": {
       "title": "Aucun message",
       "description": "Écris le premier message à {{names}}."
@@ -714,7 +721,8 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "error": "Impossible d'enregistrer la note. Vérifie ta connexion.",
-      "stale": "Cette note a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version."
+      "stale": "Cette note a été modifiée pendant que tu l'éditais. Ta saisie reste affichée ; recharge pour repartir de sa dernière version.",
+      "followEnded": "{{ended}} : cette fiche se relit, elle ne se modifie plus."
     },
     "self": "{{name}} (moi)"
   },
@@ -733,8 +741,8 @@
       "warnCoach": "Ta bibliothèque et tes cycles seront conservés, mais disparaîtront de ta navigation. Ils reviendront si tu réactives cette casquette. Tes invitations en attente, elles, seront retirées et ne reviendront pas.",
       "atLeastOne": "Garde au moins une casquette.",
       "blocked": {
-        "ACTIVE_ATHLETES": "Des athlètes te sont rattachés : tu ne peux pas cesser de coacher tant que ces relations existent.",
-        "ACTIVE_COACH": "Tu es rattaché à un coach : cette casquette ne peut pas être retirée tant que la relation existe."
+        "ACTIVE_ATHLETES": "Des athlètes te sont encore rattachés : mets fin à leur suivi depuis leur fiche, sur le web, puis tu pourras cesser de coacher.",
+        "ACTIVE_COACH": "Tu es encore rattaché à un coach : quitte-le depuis « Mes coachs », puis tu pourras retirer cette casquette."
       }
     },
     "about": {
@@ -916,5 +924,25 @@
     "legalNotice": "Mentions légales",
     "terms": "Conditions d'utilisation",
     "accountDeletion": "Suppression du compte"
+  },
+  "follow": {
+    "ended": "Suivi terminé",
+    "endedOn": "Suivi terminé le {{date}}",
+    "archive": {
+      "athletes": "Suivi terminé ({{count}})",
+      "athletes_other": "Suivis terminés ({{count}})",
+      "sheet": "Voir la fiche",
+      "thread": "Relire le fil",
+      "coaches": "Ancien coach ({{count}})",
+      "coaches_other": "Anciens coachs ({{count}})"
+    },
+    "end": {
+      "athlete": {
+        "action": "Quitter ce coach",
+        "confirm": "Confirmer le départ",
+        "hint": "Tes cycles, débriefs et factures restent lisibles, des deux côtés, et une facture due reste due. Plus aucune séance, ni débrief, ni message avec {{name}}.",
+        "error": "Le départ n'a pas abouti. Vérifie ta connexion, puis réessaie."
+      }
+    }
   }
 }

@@ -172,4 +172,16 @@ describe("SessionsScreen", () => {
   it("tait le nom du cycle quand l'athlète n'en suit qu'un", () => {
     expect(mount([BLOC]).queryByText("Cycle Bloc")).toBeNull();
   });
+
+  /**
+   * La séance à venir d'un suivi terminé (#911) reste dans la liste — elle se relit —, mais
+   * marquée : sans quoi l'athlète l'ouvrirait pour la débriefer.
+   */
+  it("marque « Suivi terminé » les séances d'un cycle d'archive, et elles seules", () => {
+    const ended = { ...BLOC, followEndedAt: "2026-11-20T10:00:00.000Z" };
+    const { getAllByText, getByText } = mount([ended, FALAISE]);
+
+    expect(getByText("Force max")).toBeTruthy();
+    expect(getAllByText("follow.ended")).toHaveLength(1);
+  });
 });

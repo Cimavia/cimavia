@@ -1,5 +1,5 @@
 import { type AthleteSheetDto, athleteKeys, type CoachAthleteDto, ProblemType } from "@cmv/shared";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { useLocalSearchParams } from "expo-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { accountApi } from "@/feature/athlete/api";
@@ -217,6 +217,91 @@ describe("AthleteSheetScreen — l'édition", () => {
 
     expect(await findByText("athlete.sheet.error")).toBeTruthy();
     await waitFor(() => expect(field(container).value).toBe("Épaule rétablie"));
+  });
+});
+
+// Le suivi a pris fin (#911) : la fiche se relit, l'API refuserait l'écriture en 409.
+describe("AthleteSheetScreen — suivi terminé (#911)", () => {
+  const ENDED = { ...ATHLETE, status: "ENDED", endedAt: "2026-11-20T09:00:00.000Z" };
+
+  it("se relit sans s'offrir à modifier, et dit pourquoi", async () => {
+    listAthletes.mockResolvedValue([ENDED] as CoachAthleteDto[]);
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.followEnded")).toBeTruthy();
+    expect(container.textContent).toContain("Épaule gauche fragile");
+    expect(container.textContent).not.toContain("athlete.sheet.edit");
+  });
+
+  it("n'offre pas d'écrire une fiche jamais écrite", async () => {
+    listAthletes.mockResolvedValue([ENDED] as CoachAthleteDto[]);
+    getSheet.mockResolvedValue(null);
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.empty")).toBeTruthy();
+    expect(container.textContent).not.toContain("athlete.sheet.add");
+  });
+
+  // Offert puis retiré à l'arrivée d'un suivi terminé, « Modifier » emporterait la frappe.
+  it("n'offre pas de modifier tant que la liste se lit", async () => {
+    listAthletes.mockReturnValue(new Promise(() => undefined));
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("Épaule gauche fragile")).toBeTruthy();
+    expect(container.textContent).not.toContain("athlete.sheet.edit");
+  });
+
+  // La liste lue datait d'avant la rupture : le refus la fait relire, et l'édition se ferme sur la
+  // phrase de fin plutôt que de laisser le coach buter sur le même 409.
+  it("ferme l'édition sur un refus de fin de suivi, la liste relue", async () => {
+    listAthletes.mockResolvedValueOnce([ATHLETE]).mockResolvedValue([ENDED] as CoachAthleteDto[]);
+    saveSheet.mockRejectedValue(
+      new ApiError(409, "Ce suivi est terminé", null, true, ProblemType.FOLLOW_ENDED),
+    );
+    const { container, findByText } = renderRn(<AthleteSheetScreen />);
+    await findByText("athlete.sheet.edit");
+    pressButton(container, "athlete.sheet.edit");
+    pressButton(container, "athlete.sheet.save");
+
+    expect(await findByText("athlete.sheet.followEnded")).toBeTruthy();
+    expect(container.querySelector("textarea")).toBeNull();
+    expect(listAthletes).toHaveBeenCalledTimes(2);
+  });
+
+  // Le refus de l'API se dit tel quel tant que la liste n'est pas relue — pas « échec ».
+  it("dit le refus de l'API plutôt qu'un échec générique", async () => {
+    listAthletes.mockResolvedValueOnce([ATHLETE]).mockReturnValue(new Promise(() => undefined));
+    saveSheet.mockRejectedValue(
+      new ApiError(409, "Ce suivi est terminé", null, true, ProblemType.FOLLOW_ENDED),
+    );
+    const { container, findByText, queryByText } = renderRn(<AthleteSheetScreen />);
+    await findByText("athlete.sheet.edit");
+    pressButton(container, "athlete.sheet.edit");
+    pressButton(container, "athlete.sheet.save");
+
+    expect(await findByText("Ce suivi est terminé")).toBeTruthy();
+    expect(queryByText("athlete.sheet.error")).toBeNull();
+  });
+
+  // Illisible, la liste ne ferme rien : l'API tranchera en 409 si le suivi a pris fin.
+  it("offre de modifier quand la liste n'a pas pu être lue", async () => {
+    listAthletes.mockRejectedValue(FAILURE);
+    const { findByText } = renderRn(<AthleteSheetScreen />);
+
+    expect(await findByText("athlete.sheet.edit")).toBeTruthy();
+  });
+
+  // La fin du suivi arrive pendant la saisie, par une relecture de la liste : l'édition se ferme.
+  it("ferme une édition ouverte quand la liste relue dit le suivi terminé", async () => {
+    const { container, findByText, queryClient } = renderRn(<AthleteSheetScreen />);
+    await findByText("Épaule gauche fragile");
+    pressButton(container, "athlete.sheet.edit");
+    expect(container.querySelector("textarea")).not.toBeNull();
+
+    act(() => queryClient.setQueryData(athleteKeys.list(), [ENDED]));
+
+    expect(await findByText("athlete.sheet.followEnded")).toBeTruthy();
+    expect(container.querySelector("textarea")).toBeNull();
   });
 });
 

@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { PlanWeekList } from "@/feature/plan/component/PlanWeekList";
 import { CmvBadge, CmvText } from "@/shared/component";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
 // `pnpm check:i18n`, qui vérifie qu'elles existent toutes au catalogue.
@@ -52,9 +53,13 @@ export function CurrentWeekSection({ week, today }: Readonly<CurrentWeekSectionP
  * Un cycle en cours : son nom, son coach, son avancement, la note que le coach a laissée sur la
  * semaine. Le coach est nommé parce qu'un athlète suivi par plusieurs en reçoit les cycles côte à
  * côte (#599) : sans lui, deux cycles concurrents ne diraient pas qui attend quoi.
+ *
+ * Celui d'un suivi terminé le dit, date comprise (#911) : c'est la ligne qui explique pourquoi les
+ * séances dessous ne se débriefent plus.
  */
 function CycleLine({ cycle }: Readonly<{ cycle: AthleteCalendarCycle }>) {
   const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
 
   return (
     <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface px-3 py-2">
@@ -76,6 +81,11 @@ function CycleLine({ cycle }: Readonly<{ cycle: AthleteCalendarCycle }>) {
       </CmvText>
       {cycle.note == null ? null : (
         <CmvText className="text-cmv-text-mid text-sm">{cycle.note}</CmvText>
+      )}
+      {cycle.followEndedAt == null ? null : (
+        <CmvText className="text-cmv-text-lo text-xs">
+          {followEndedText(cycle.followEndedAt)}
+        </CmvText>
       )}
     </View>
   );

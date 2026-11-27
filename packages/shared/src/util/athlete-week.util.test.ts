@@ -120,6 +120,17 @@ describe("athleteCalendarWeek", () => {
     ]);
   });
 
+  // Le bandeau du cycle le dit aussi (#911) : c'est lui que l'athlète lit avant les jours.
+  it("porte la fin du suivi sur le cycle de la semaine, et rien sur un suivi qui court", () => {
+    const ended = { ...BLOC, followEndedAt: "2026-10-01T09:00:00.000Z" };
+    const week = athleteCalendarWeek([ended, FALAISE], MONDAY);
+
+    expect(week?.cycles.map((cycle) => [cycle.planId, cycle.followEndedAt] as const)).toEqual([
+      ["bloc", "2026-10-01T09:00:00.000Z"],
+      ["falaise", null],
+    ]);
+  });
+
   it("annonce les cycles qui couvrent la semaine, avec leur numéro et leur note", () => {
     const week = athleteCalendarWeek([BLOC, FALAISE], "2026-10-19");
     expect(week?.cycles).toEqual([
@@ -131,6 +142,7 @@ describe("athleteCalendarWeek", () => {
         weekCount: 2,
         type: PlanWeekType.DELOAD,
         note: "Décharge",
+        followEndedAt: null,
       },
     ]);
   });

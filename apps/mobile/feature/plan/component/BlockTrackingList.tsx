@@ -19,7 +19,11 @@ import { usePhraseText } from "@/shared/hook/usePhraseText";
 type BlockTrackingListProps = {
   read: ReadBlock;
   tracking: SessionBlockTracking | null;
-  onToggle: (check: BlockCheck) => void;
+  /**
+   * `null` : le décompte se relit, ne se coche plus — le suivi de la séance a pris fin (#911), et
+   * la coche ne partirait jamais, le débrief qui l'emporte étant fermé.
+   */
+  onToggle: ((check: BlockCheck) => void) | null;
 };
 
 /**
@@ -68,7 +72,7 @@ export function BlockTrackingList({ read, tracking, onToggle }: Readonly<BlockTr
                   : t("plan.blocks.blockDone")
               }
               checked={ticked[rowIndex]?.[boxIndex] === true}
-              onPress={() => onToggle(checkOf(rowIndex, box))}
+              onPress={onToggle == null ? null : () => onToggle(checkOf(rowIndex, box))}
             />
           ))}
         </View>
@@ -83,10 +87,11 @@ function CheckBox({
   label,
   checked,
   onPress,
-}: Readonly<{ label: string; checked: boolean; onPress: () => void }>) {
+}: Readonly<{ label: string; checked: boolean; onPress: (() => void) | null }>) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={onPress ?? undefined}
+      disabled={onPress == null}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel={label}

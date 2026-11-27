@@ -1,18 +1,19 @@
 import {
+  athleteKeys,
   type CoachFeedbackSummaryDto,
-  type FeedbackMediaDto,
+  isEndedLink,
   type MediaRecapLine,
-  MediaType,
-  nextVoiceNoteInFeedback,
   type SessionFeedbackDto,
 } from "@cmv/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, ScrollView, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useAthletes } from "@/feature/athlete/hook/useAthletes";
 import { coachFeedbackKeys } from "@/feature/feedback/api";
+import { FeedbackMediaList } from "@/feature/feedback/component/FeedbackMediaList";
 import {
   FeedbackReplyComposer,
   FeedbackReplyMessages,
@@ -26,18 +27,12 @@ import {
 } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useFeedbackReply } from "@/feature/feedback/hook/useFeedbackReply";
 import { useConversationWith } from "@/feature/message/hook/useConversation";
-import {
-  CmvAudioPlayer,
-  CmvErrorState,
-  CmvImageViewer,
-  CmvScreen,
-  CmvText,
-  CmvVideoPlayer,
-} from "@/shared/component";
+import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
 import { useAthleteLabel, useIsSelfAthlete } from "@/shared/hook/useAthleteLabel";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { useFreshMediaUrl } from "@/shared/hook/useFreshMediaUrl";
-import { useVoiceNoteChain } from "@/shared/hook/useVoiceNoteChain";
+import { useLatch } from "@/shared/hook/useLatch";
 import { authClient } from "@/shared/lib/auth";
 import { formatFullDay } from "@/shared/util/date.util";
 
@@ -112,12 +107,17 @@ function FeedbackBody({
   const { data: session } = authClient.useSession();
 
   const isSelf = useIsSelfAthlete()(summary?.athleteId ?? "");
+  const closedNote = useClosedReplyNote(summary?.athleteId ?? null);
 
   // Les hooks sont appelés INCONDITIONNELLEMENT : la barre vit au niveau de la mise en page, donc
   // avant que le débrief soit chargé. `null` dit l'attente, plutôt qu'un appel sous condition.
   // Et `null` AUSSI sur son propre débrief : la requête prendrait un 409 (#198), affiché en
-  // « réessaie dans un instant » — une panne passagère qui n'en est pas une.
-  const conversation = useConversationWith(isSelf ? null : (summary?.athleteId ?? null));
+  // « réessaie dans un instant » — une panne passagère qui n'en est pas une. Pas davantage tant
+  // qu'on ignore si le suivi court, ni sur un suivi terminé : rien ne s'y écrira, et le get-or-create
+  // rendrait le fil pour rien — ou un 400 s'il n'a jamais existé.
+  const conversation = useConversationWith(
+    isSelf || closedNote !== null ? null : (summary?.athleteId ?? null),
+  );
   const queryClient = useQueryClient();
   const freshMediaUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
   const reply = useFeedbackReply(
@@ -131,6 +131,8 @@ function FeedbackBody({
     },
     // Le débrief d'un de ses athlètes, donc en coach — quel que soit le sélecteur (#343).
     "coach",
+    // Refusée pour suivi terminé : les liens relus disent la fin, la barre laisse place à la phrase.
+    () => queryClient.invalidateQueries({ queryKey: athleteKeys.list() }),
   );
 
   // Refus qui PRÉCÈDE l'upload (permission galerie, permission/erreur micro) : porté à la main, il
@@ -162,7 +164,7 @@ function FeedbackBody({
             dans l'ordre où l'athlète l'a envoyé. */}
         <TrackedBlockList blocks={feedback?.trackedBlocks ?? []} />
 
-        <FeedbackMedia media={feedback?.media ?? []} sessionId={sessionId} />
+        <FeedbackMediaList media={feedback?.media ?? []} resolveMediaUrl={freshMediaUrl} />
 
         {isSelf ? (
           <FeedbackReplySelf />
@@ -176,73 +178,58 @@ function FeedbackBody({
       </ScrollView>
 
       {isSelf ? null : (
-        <FeedbackReplyComposer
-          reply={reply}
-          preUploadErrorKey={preUploadErrorKey}
-          onPreUploadError={setPreUploadErrorKey}
-          recap={recap}
-          onRecap={setRecap}
-        />
+        <ReplyFloor closedNote={closedNote}>
+          <FeedbackReplyComposer
+            reply={reply}
+            preUploadErrorKey={preUploadErrorKey}
+            onPreUploadError={setPreUploadErrorKey}
+            recap={recap}
+            onRecap={setRecap}
+          />
+        </ReplyFloor>
       )}
     </KeyboardAvoidingView>
   );
 }
 
 /**
- * Les médias joints, un rendu par type.
- *
- * Le branchement est EXHAUSTIF, et pas « audio d'un côté, tout le reste en image » : c'est
- * exactement ce qui rendait une vidéo par `<Image>` — un bloc vide, sans erreur ni indice, là où
- * l'athlète avait déposé sa voie (#151).
- *
- * Les notes vocales s'enchaînent, photos et vidéos sautées (#529).
+ * Le plancher de la réponse : le composeur, ou ce qui se dit à sa place sur un suivi terminé. Rien
+ * tant qu'on l'ignore (`undefined`) : son champ s'éditerait, et l'arrivée d'un suivi terminé le
+ * retirerait avec la frappe.
  */
-function FeedbackMedia({
-  media,
-  sessionId,
-}: Readonly<{ media: readonly FeedbackMediaDto[]; sessionId: string }>) {
-  const { t } = useTranslation();
-  const freshUrl = useFreshMediaUrl(coachFeedbackKeys.bySession(sessionId));
-  const chain = useVoiceNoteChain((id) => nextVoiceNoteInFeedback(media, id));
-
-  if (media.length === 0) return null;
-
+function ReplyFloor({
+  closedNote,
+  children,
+}: Readonly<{ closedNote: string | null | undefined; children: ReactNode }>) {
+  if (closedNote === undefined) return null;
+  if (closedNote === null) return children;
   return (
-    <View className="gap-3 border-cmv-border border-t pt-4">
-      <CmvText className="text-cmv-text-mid text-xs uppercase">{t("feedback.coach.media")}</CmvText>
-      {media.map((item) => {
-        if (item.type === MediaType.AUDIO) {
-          return (
-            <CmvAudioPlayer
-              key={item.id}
-              url={item.url}
-              durationSeconds={item.durationSeconds}
-              resolveUrl={() => freshUrl(item.id)}
-              cue={chain.cueOf(item.id)}
-            />
-          );
-        }
-        if (item.type === MediaType.VIDEO) {
-          return (
-            <CmvVideoPlayer
-              key={item.id}
-              mediaId={item.id}
-              durationSeconds={item.durationSeconds}
-              sizeBytes={item.sizeBytes}
-              resolveUrl={() => freshUrl(item.id)}
-              containerClassName="h-48 w-full items-center justify-center gap-2 rounded-lg border border-cmv-border bg-cmv-surface"
-              thumbnailClassName="h-48 w-full overflow-hidden rounded-lg border border-cmv-border bg-cmv-surface"
-            />
-          );
-        }
-        return (
-          <CmvImageViewer
-            key={item.id}
-            url={item.url}
-            containerClassName="h-48 w-full overflow-hidden rounded-lg"
-          />
-        );
-      })}
+    <View className="border-cmv-border border-t bg-cmv-surface p-4">
+      <CmvText className="text-cmv-text-mid text-sm">{closedNote}</CmvText>
     </View>
   );
+}
+
+/**
+ * Le suivi de CE Coach avec l'athlète a-t-il pris fin (#911, pendant du web de #910) ? Rend ce qui
+ * se dit alors à la place du composeur, `null` sur un suivi qui court, et `undefined` tant qu'on ne
+ * le sait pas : ni composeur ni fil demandé. On ne le sait pas tant que le résumé n'a pas dit QUEL
+ * athlète, ni tant que ses liens se lisent pour la première fois.
+ *
+ * Illisibles, ou en pause hors ligne sans cache, les liens ne tranchent plus rien (`null`) : le fil
+ * se demande comme avant, et l'API refuse en 409 l'envoi d'un suivi terminé — mieux qu'un plancher
+ * vide sans raison ni relance. Une fois su, ça ne se désapprend pas sur une relance : TanStack
+ * remet une liste sans donnée en `pending` à chaque relecture, et le composeur partirait avec sa
+ * frappe. C'est le lien qui compte, pas le cycle : un débrief d'un cycle partagé (#610) se répond
+ * par le fil de chaque Coach avec l'athlète.
+ */
+function useClosedReplyNote(athleteId: string | null): string | null | undefined {
+  const { t } = useTranslation();
+  const { data: links, isError, fetchStatus } = useAthletes();
+  const followEndedText = useFollowEndedText();
+  const settled = useLatch(athleteId ?? "", links != null || isError || fetchStatus === "paused");
+  if (athleteId == null || !settled) return undefined;
+  const link = links?.find((candidate) => candidate.athleteId === athleteId);
+  if (link == null || !isEndedLink(link)) return null;
+  return t("feedback.reply.followEnded", { ended: followEndedText(link.endedAt) });
 }

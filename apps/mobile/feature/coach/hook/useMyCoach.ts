@@ -1,14 +1,16 @@
 import {
   acceptInvitationMutation,
   type CoachAthleteDto,
+  endRelationMutation,
   type PendingInvitationDto,
 } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, coachKeys, invitationKeys } from "@/feature/coach/api";
 
 /**
- * Les coachs de l'athlète courant (#599), les plus récemment rejoints d'abord. Liste vide =
- * athlète autonome : ce n'est pas une erreur, l'autonomie est un état prévu du modèle.
+ * Les coachs de l'athlète courant (#599), les plus récemment rejoints d'abord, ceux qu'il a quittés
+ * compris (#909) : c'est à l'écran de les ranger à part (`splitFollows`). Liste vide = athlète
+ * autonome : ce n'est pas une erreur, l'autonomie est un état prévu du modèle.
  */
 export function useMyCoaches() {
   return useQuery<CoachAthleteDto[]>({
@@ -23,6 +25,16 @@ export function useMyCoaches() {
  */
 export function useAcceptInvitation() {
   return useMutation(acceptInvitationMutation(useQueryClient(), accountApi));
+}
+
+/**
+ * Quitte l'un de ses coachs (#911). La mutation et ce qu'elle fait au cache viennent de
+ * `@cmv/shared`, celles du web (#910) : le lien rompu passe aussitôt dans la liste, puis tout se
+ * relit — cycles, séances et fil du couple passent en lecture. Pas de toast sur mobile : l'échec se
+ * dit sur la carte, et le succès se voit, la carte passant dans « Anciens coachs ».
+ */
+export function useLeaveCoach() {
+  return useMutation(endRelationMutation(useQueryClient(), accountApi, "athlete"));
 }
 
 /**

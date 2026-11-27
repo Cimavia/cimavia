@@ -5,10 +5,12 @@ import type {
   InvitationDto,
   UpdateAthleteSheetInput,
 } from "@cmv/shared";
+import { isFollowEndedError } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accountApi, athleteKeys, invitationKeys } from "@/feature/athlete/api";
 
-// Les athlètes du coach courant (relations ACTIVE). Cache persisté, comme le reste du mobile.
+// Les athlètes du coach courant : les suivis en cours ET ceux qui ont pris fin, à relire (#909) —
+// `splitFollows` les sépare. Cache persisté, comme le reste du mobile.
 export function useAthletes() {
   return useQuery<CoachAthleteDto[]>({
     queryKey: athleteKeys.list(),
@@ -75,6 +77,14 @@ export function useSaveAthleteSheet(athleteId: string) {
     mutationFn: (input: UpdateAthleteSheetInput) => accountApi.saveAthleteSheet(athleteId, input),
     onSuccess: (sheet) => {
       queryClient.setQueryData(athleteKeys.sheet(athleteId), sheet);
+    },
+    // Refusée parce que le suivi a pris fin (#911) : la liste lue date d'avant la rupture. Relue,
+    // elle porte la fin du suivi, et la fiche ferme son édition — sinon chaque essai finirait sur
+    // le même refus.
+    onError: (error) => {
+      if (isFollowEndedError(error)) {
+        void queryClient.invalidateQueries({ queryKey: athleteKeys.list() });
+      }
     },
   });
 }

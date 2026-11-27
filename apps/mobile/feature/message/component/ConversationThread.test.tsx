@@ -423,6 +423,59 @@ describe("ConversationThread — autour du fil", () => {
   });
 });
 
+describe("ConversationThread — suivi terminé (#911)", () => {
+  const ended = { conversation: conversation({ followEndedAt: "2026-11-20T10:00:00.000Z" }) };
+
+  /** Le fil se relit, on n'y écrit plus : la phrase prend la place de la barre d'envoi. */
+  it("remplace la barre d'envoi par la phrase de fin, et garde les messages", () => {
+    mockMessages({ data: [message({ senderId: "coach-1", content: "À jeudi" })] });
+    const { getByText, queryByPlaceholderText } = renderRn(<ConversationThread {...ended} />);
+
+    expect(getByText("À jeudi")).toBeTruthy();
+    expect(getByText("messages.followEnded")).toBeTruthy();
+    expect(queryByPlaceholderText("messages.placeholder")).toBeNull();
+  });
+
+  // Marquer lu un fil fermé reste permis (tranché en #909) : la pastille s'éteint comme ailleurs.
+  it("marque encore lu ce qu'il reçoit d'avant la fin", async () => {
+    mockMessages({ data: [message({ senderId: "coach-1" })] });
+    renderRn(<ConversationThread {...ended} />);
+
+    await waitFor(() => expect(markRead).toHaveBeenCalledOnce());
+  });
+
+  it("ne propose pas d'écrire le premier message d'un fil fermé", () => {
+    mockMessages({ data: [] });
+    const { getByText, queryByText } = renderRn(<ConversationThread {...ended} />);
+
+    expect(getByText("messages.empty.title")).toBeTruthy();
+    expect(queryByText(/messages\.empty\.description/)).toBeNull();
+    expect(getByText("messages.followEnded")).toBeTruthy();
+  });
+
+  // Le refus qui a fermé le fil a déjà sa phrase : redit en panne au-dessus, il ferait doublon.
+  it("ne redit pas en panne le refus qui a fermé le fil", () => {
+    vi.mocked(useSendMessage).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new ApiError(409, "Ce suivi est terminé", null),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    const { getByText, queryByText } = renderRn(<ConversationThread {...ended} />);
+
+    expect(getByText("messages.followEnded")).toBeTruthy();
+    expect(queryByText("Ce suivi est terminé")).toBeNull();
+  });
+
+  it("garde la barre d'envoi d'un fil dont le suivi court", () => {
+    mockMessages({ data: [] });
+    const { queryByPlaceholderText, queryByText } = renderRn(<ConversationThread {...base} />);
+
+    expect(queryByPlaceholderText("messages.placeholder")).not.toBeNull();
+    expect(queryByText("messages.followEnded")).toBeNull();
+  });
+});
+
 describe("ConversationThread — en-tête (#612)", () => {
   // La capacité, pas la provenance : « via F » reste dans le sélecteur (tranché en #598).
   it("nomme l'autre et sa capacité dans un fil à deux", () => {

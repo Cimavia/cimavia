@@ -131,6 +131,17 @@ export function isStaleWriteError(error: unknown): boolean {
 }
 
 /**
+ * L'écriture a été refusée parce que le suivi du couple a pris fin (#909) : ce que le client a lu
+ * date d'avant la rupture. Comme pour `isStaleWriteError`, c'est le `type` qui le dit, pas le 409 :
+ * c'est sur lui que le client décide de relire ce qui a changé (#911).
+ */
+export function isFollowEndedError(error: unknown): boolean {
+  return (
+    error instanceof ApiError && error.status === 409 && error.type === ProblemType.FOLLOW_ENDED
+  );
+}
+
+/**
  * La réponse d'erreur, décodée. Une réponse qui n'est pas un `application/problem+json` n'a pas été
  * écrite par l'API (page d'un proxy, portail captif) ; son message sert aux logs, jamais à l'écran.
  */

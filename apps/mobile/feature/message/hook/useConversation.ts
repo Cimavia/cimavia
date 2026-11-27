@@ -2,6 +2,7 @@ import {
   type ConversationCandidatesDto,
   type ConversationDto,
   type CreateConversationInput,
+  isFollowEndedError,
   type MessageDto,
   type SendMessageInput,
   type TrainingCapability,
@@ -195,6 +196,14 @@ export function useSendMessage(conversationId: string, options?: SendMessageOpti
       // La liste des fils porte l'aperçu du dernier message : sans ça, le coach revient sur une
       // liste qui date d'avant son propre envoi (#309).
       void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+    },
+    // Refusé parce que le suivi a pris fin (#911) : le fil a été lu avant la rupture. Relire la
+    // liste lui apporte sa fin de suivi, et l'écran remplace la barre par la phrase qui le dit —
+    // sinon chaque essai finirait sur le même refus.
+    onError: (error) => {
+      if (isFollowEndedError(error)) {
+        void queryClient.invalidateQueries({ queryKey: messageKeys.conversations(as) });
+      }
     },
   });
 }

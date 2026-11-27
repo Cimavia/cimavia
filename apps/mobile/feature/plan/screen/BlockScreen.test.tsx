@@ -84,6 +84,22 @@ describe("BlockScreen — lecture et suivi", () => {
     expect(stored()["blk-1"]).toEqual({ checked: [{ key: "a1", row: 0 }] });
   });
 
+  /**
+   * Suivi terminé (#911) : la coche ne partirait jamais, le débrief qui l'emporte étant fermé. Les
+   * cases se relisent, ne se cochent plus ; le chrono reste, il n'écrit rien.
+   */
+  it("ne coche plus rien sur un suivi terminé, et garde le chrono", () => {
+    query({ data: { ...blockSession(), followEndedAt: "2026-11-20T10:00:00.000Z" } });
+    renderRn(<BlockScreen />);
+
+    const [box] = screen.getAllByRole("checkbox") as [HTMLElement, ...HTMLElement[]];
+    expect(box.getAttribute("aria-disabled")).toBe("true");
+    press(box);
+
+    expect(stored()).toBeNull();
+    expect(screen.getByText("plan.blocks.runTimer")).toBeTruthy();
+  });
+
   it("revient en arrière", () => {
     renderRn(<BlockScreen />);
 

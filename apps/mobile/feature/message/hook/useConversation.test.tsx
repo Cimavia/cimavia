@@ -1,7 +1,9 @@
 import {
+  ApiError,
   type ConversationDto,
   type MessageDto,
   messageKeys,
+  ProblemType,
   type TrainingCapability,
 } from "@cmv/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -195,6 +197,24 @@ describe("invalidation de la liste des fils", () => {
     // Invalider le fil résolu rejouerait le get-or-create à chaque lecture, pour un id qui ne
     // change pas.
     expect(isInvalidated(messageKeys.conversationWithCoach("coach_1"))).toBe(false);
+  });
+
+  /**
+   * Un fil lu avant la rupture garde sa barre : relire la liste lui apporte sa fin de suivi (#911),
+   * sans quoi chaque essai finirait sur le même refus. Un autre échec, lui, ne relit rien.
+   */
+  it.each([
+    ["relit la liste des fils sur un refus pour suivi terminé", ProblemType.FOLLOW_ENDED, true],
+    ["ne relit rien sur un autre refus", ProblemType.STALE_WRITE, false],
+  ])("%s", async (_, type, invalidated) => {
+    exercised.as = "coach";
+    sendMessageMock.mockRejectedValue(new ApiError(409, "Refus", null, true, type));
+    const { wrapper, isInvalidated } = seededClient();
+    const { result } = renderHook(() => useSendMessage("c1"), { wrapper });
+
+    await result.current.mutateAsync({ type: "TEXT", content: "Ok" }).catch(() => undefined);
+
+    expect(isInvalidated(messageKeys.conversations("coach"))).toBe(invalidated);
   });
 });
 

@@ -1,4 +1,5 @@
 import {
+  canDebrief,
   type ScheduledSessionDto,
   ScheduledSessionStatus,
   SESSION_STATUS_BADGE,
@@ -12,6 +13,7 @@ import { useBlockScrollSpy } from "@/feature/plan/hook/useBlockScrollSpy";
 import { useScheduledSession } from "@/feature/plan/hook/useMyPlan";
 import { CmvBadge, CmvButton, CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { OfflineBanner } from "@/shared/component/OfflineBanner";
+import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
 import { formatFullDay } from "@/shared/util/date.util";
 
 // Valeurs attendues derrière les clés i18n assemblées de ce fichier — lues par
@@ -68,7 +70,7 @@ export function SessionDetailScreen() {
         {session == null ? null : (
           <SessionContent session={session}>
             {session.blocks.length === 0 ? (
-              <EmptySession />
+              <EmptySession isOpen={canDebrief(session)} />
             ) : (
               <SessionBlocks session={session} spy={spy} />
             )}
@@ -82,6 +84,9 @@ export function SessionDetailScreen() {
 /**
  * L'en-tête de la séance chargée — date, titre, statut, consignes — puis le bouton de débrief, au
  * dessus de son déroulé (`children`). Extrait de l'écran pour le seuil de complexité.
+ *
+ * Suivi terminé (#911) : la séance se relit, son débrief ne s'écrit plus. La phrase de fin prend la
+ * place du bouton ; il ne reste que « Relire mon débrief », s'il y en a un à relire.
  */
 function SessionContent({
   session,
@@ -108,18 +113,7 @@ function SessionContent({
         </View>
       )}
 
-      {/* Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le
-          déroulé, pas enterrée sous la liste des exercices.
-          INCONDITIONNEL (#276) : sans exercice, c'est le SEUL geste qui reste, et celui par
-          lequel la trace part au coach. Le libellé suit le STATUT, jamais la composition. */}
-      <CmvButton
-        label={
-          session.status === ScheduledSessionStatus.DONE
-            ? t("feedback.openDone")
-            : t("feedback.open")
-        }
-        onPress={() => router.push(`/session/${session.id}/feedback`)}
-      />
+      <FeedbackEntry session={session} />
 
       {children}
     </>
@@ -127,16 +121,49 @@ function SessionContent({
 }
 
 /**
+ * Débriefer est l'action attendue de l'athlète sur sa séance : elle vient AVANT le déroulé, pas
+ * enterrée sous la liste des exercices. INCONDITIONNELLE tant que le suivi court (#276) : sans
+ * exercice, c'est le SEUL geste qui reste, et celui par lequel la trace part au coach. Le libellé
+ * suit le STATUT, jamais la composition.
+ *
+ * Le suivi terminé (#911) la retire : la phrase dit pourquoi, et seul un débrief déjà envoyé — une
+ * séance faite, `DONE` suivant le débrief — se rouvre, en lecture.
+ */
+function FeedbackEntry({ session }: Readonly<{ session: ScheduledSessionDto }>) {
+  const { t } = useTranslation();
+  const followEndedText = useFollowEndedText();
+  const isDone = session.status === ScheduledSessionStatus.DONE;
+  const open = () => router.push(`/session/${session.id}/feedback`);
+
+  if (canDebrief(session)) {
+    return (
+      <CmvButton label={isDone ? t("feedback.openDone") : t("feedback.open")} onPress={open} />
+    );
+  }
+  return (
+    <View className="gap-3">
+      <CmvText className="text-cmv-text-mid text-sm">
+        {t("plan.session.followEnded", { ended: followEndedText(session.followEndedAt) })}
+      </CmvText>
+      {isDone ? <CmvButton label={t("feedback.openRead")} onPress={open} /> : null}
+    </View>
+  );
+}
+
+/**
  * Une séance sans exercice n'est PAS forcément un oubli du coach : « footing, repos actif » se
  * compose exactement comme ça (#276). On le constate sans désigner de coupable, et sans rien
- * retirer — le bouton de débrief, plus haut, reste ouvert.
+ * retirer — le bouton de débrief, plus haut, reste ouvert. Sauf sur un suivi terminé (#911), où il
+ * n'y a plus de débrief à promettre.
  */
-function EmptySession() {
+function EmptySession({ isOpen }: Readonly<{ isOpen: boolean }>) {
   const { t } = useTranslation();
   return (
     <View className="gap-1 rounded-lg border border-cmv-border bg-cmv-surface p-3">
       <CmvText className="text-cmv-text-hi">{t("plan.session.emptyTitle")}</CmvText>
-      <CmvText className="text-cmv-text-mid text-sm">{t("plan.session.emptyDescription")}</CmvText>
+      <CmvText className="text-cmv-text-mid text-sm">
+        {isOpen ? t("plan.session.emptyDescription") : t("plan.session.emptyDescriptionClosed")}
+      </CmvText>
     </View>
   );
 }

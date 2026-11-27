@@ -3,6 +3,7 @@ import {
   countOverdueInvoices,
   countPendingInvoices,
   countUnreadFeedbacks,
+  splitFollows,
   todayIsoDate,
 } from "@cmv/shared";
 import { cmvColors } from "@cmv/tokens";
@@ -14,6 +15,7 @@ import { OrganizationInvitationCard } from "@/feature/company/component/Organiza
 import { useMyOrganizationInvitations } from "@/feature/company/hook/useOrganizationInvitations";
 import { AthleteRowCard } from "@/feature/dashboard/component/AthleteRowCard";
 import { DashboardTile } from "@/feature/dashboard/component/DashboardTile";
+import { EndedAthletesSection } from "@/feature/dashboard/component/EndedAthletesSection";
 import { InvitationSection } from "@/feature/dashboard/component/InvitationSection";
 import { useCoachFeedbacks } from "@/feature/feedback/hook/useCoachFeedbacks";
 import { useInvoices } from "@/feature/invoice/hook/useInvoices";
@@ -69,13 +71,19 @@ export function CoachDashboardScreen() {
   const today = todayIsoDate();
 
   /**
+   * Les suivis en cours d'un côté, ceux qui ont pris fin de l'autre (#911) : la tuile et les lignes
+   * ne comptent que les premiers, les seconds se relisent à part. `null` = liste illisible.
+   */
+  const follows = athletes.data == null ? null : splitFollows(athletes.data);
+
+  /**
    * La jointure des quatre listes vit dans `@cmv/shared`, testée : l'écran ne fait que la rendre.
    * `plans` est volontairement absent — `GET /plans` est une surface coach que le mobile n'a pas,
    * et le builder reste web-only (#20). `buildAthleteRows` tolère chaque source manquante colonne
    * par colonne : les lignes existent, sans cycle.
    */
   const rows = buildAthleteRows({
-    athletes: athletes.data,
+    athletes: follows?.ongoing,
     plans: undefined,
     feedbacks: feedbacks.data,
     conversations: conversations.data,
@@ -177,7 +185,7 @@ export function CoachDashboardScreen() {
           <View className="flex-row gap-3">
             <DashboardTile
               label={t("dashboard.tiles.athletes")}
-              count={athletes.data?.length ?? null}
+              count={follows?.ongoing.length ?? null}
               hint={t("dashboard.tiles.athletesHint")}
             />
             {/* EXCLUT les factures en retard : les deux tuiles partitionnent l'impayé, personne
@@ -206,6 +214,10 @@ export function CoachDashboardScreen() {
               rows.map((row) => <AthleteRowCard key={row.athleteId} row={row} />)
             )}
           </View>
+        )}
+
+        {follows == null ? null : (
+          <EndedAthletesSection athletes={follows.ended} conversations={conversations.data} />
         )}
       </ScrollView>
     </CmvScreen>
