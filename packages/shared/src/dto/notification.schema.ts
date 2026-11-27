@@ -319,7 +319,8 @@ export const notificationFilterSchema = z
 export type NotificationFilter = z.infer<typeof notificationFilterSchema>;
 
 // Bornage de la liste : le centre montre les récentes, pas l'historique complet. Pas de pagination
-// en première passe (dette assumée, même famille que les exercices P2-2 et les messages P5-1).
+// en première passe (dette assumée, même famille que les exercices P2-2) : #78 reprendra le
+// curseur des messages (#77, `cursorPageSchema`).
 export const NOTIFICATION_PAGE_SIZE = 50;
 
 export const notificationDtoSchema = z.object({
