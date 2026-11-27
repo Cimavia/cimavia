@@ -4,6 +4,7 @@ import type { ClsService } from "nestjs-cls";
 import { describe, expect, it, vi } from "vitest";
 import type { AccessService } from "../../access/service/access.service";
 import type { UserDirectoryService } from "../../account/service/user-directory.service";
+import type { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import type { StorageService } from "../../infra/storage/storage.service";
 import type { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
@@ -49,7 +50,7 @@ function build(
 ) {
   const draft = setup.draft === undefined ? { documentPath: null } : setup.draft;
   const assertAttachable = vi.fn().mockResolvedValue(undefined);
-  const deleteObject = vi.fn().mockResolvedValue(undefined);
+  const deleteOrDefer = vi.fn().mockResolvedValue(undefined);
   const update = vi.fn().mockResolvedValue(INVOICE);
   const db = {
     plan: { findFirst: vi.fn().mockResolvedValue({ ...PLAN, ...setup.plan }) },
@@ -73,12 +74,13 @@ function build(
         ]),
       ),
     } as unknown as UserDirectoryService,
-    { assertAttachable, deleteObject } as unknown as StorageService,
+    { assertAttachable } as unknown as StorageService,
     {} as ReminderService,
     access,
     { get: () => ({ userId: "c1", exercised: "coach" }) } as unknown as ClsService,
+    { deleteOrDefer } as unknown as ObjectPurgeService,
   );
-  return { service, assertAttachable, deleteObject, update };
+  return { service, assertAttachable, deleteOrDefer, update };
 }
 
 describe("InvoiceService.attachDocument", () => {
@@ -107,7 +109,7 @@ describe("InvoiceService.attachDocument", () => {
 
   // Un rattachement refusé laisse le justificatif précédent en place, objet compris.
   it("n'écrit ni ne purge rien quand le storage refuse", async () => {
-    const { service, assertAttachable, update, deleteObject } = build({
+    const { service, assertAttachable, update, deleteOrDefer } = build({
       draft: { documentPath: "ancien.pdf" },
     });
     assertAttachable.mockRejectedValueOnce(new ConflictException());
@@ -115,7 +117,7 @@ describe("InvoiceService.attachDocument", () => {
     await expect(service.attachDocument(PLAN_ID, DOCUMENT)).rejects.toThrow(ConflictException);
 
     expect(update).not.toHaveBeenCalled();
-    expect(deleteObject).not.toHaveBeenCalled();
+    expect(deleteOrDefer).not.toHaveBeenCalled();
   });
 
   it("n'écrit rien pour une clé hors du cycle (403)", async () => {
@@ -142,11 +144,39 @@ describe("InvoiceService.attachDocument", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("purge l'ancien objet une fois le nouveau confronté", async () => {
-    const { service, deleteObject } = build({ draft: { documentPath: "ancien.pdf" } });
+  // Par la file en secours (#73) : un stockage en panne ne fait pas échouer un remplacement écrit.
+  it("purge l'ancien objet une fois la facture écrite", async () => {
+    const { service, deleteOrDefer, update } = build({ draft: { documentPath: "ancien.pdf" } });
 
     await service.attachDocument(PLAN_ID, DOCUMENT);
 
-    expect(deleteObject).toHaveBeenCalledExactlyOnceWith("ancien.pdf");
+    expect(deleteOrDefer).toHaveBeenCalledExactlyOnceWith("ancien.pdf");
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteOrDefer.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("ne purge rien quand la même clé est rattachée de nouveau", async () => {
+    const { service, deleteOrDefer } = build({ draft: { documentPath: DOCUMENT.storagePath } });
+
+    await service.attachDocument(PLAN_ID, DOCUMENT);
+
+    expect(deleteOrDefer).not.toHaveBeenCalled();
+  });
+});
+
+describe("InvoiceService.removeDocument", () => {
+  it("efface le justificatif de la facture, puis en purge l'objet", async () => {
+    const { service, deleteOrDefer, update } = build({ draft: { documentPath: "ancien.pdf" } });
+
+    await service.removeDocument(PLAN_ID);
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ documentPath: null }) }),
+    );
+    expect(deleteOrDefer).toHaveBeenCalledExactlyOnceWith("ancien.pdf");
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteOrDefer.mock.invocationCallOrder[0] ?? 0,
+    );
   });
 });
