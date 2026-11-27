@@ -337,6 +337,10 @@
       "title": "Aucun message",
       "description": "Écris le premier message à {{names}}."
     },
+    "older": {
+      "loading": "Chargement des messages précédents…",
+      "error": "Les messages précédents n'ont pas pu être chargés."
+    },
     "noCoach": {
       "title": "Rejoins un coach pour lui écrire",
       "description": "Quand un coach ou une entreprise t'invite par e-mail, accepte l'invitation dans « Mes coachs » : tu pourras ensuite écrire à tes coachs ici.",

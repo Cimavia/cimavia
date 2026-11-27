@@ -3,17 +3,20 @@ import {
   type ConversationDto,
   type CreateConversationInput,
   isFollowEndedError,
-  type MessageDto,
+  type MessagePages,
+  olderPageCursor,
+  refreshNewestPage,
   type SendMessageInput,
   type TrainingCapability,
+  threadOfPages,
   withConversation,
 } from "@cmv/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
-import { keepThreadUrls } from "@/shared/lib/signed-url";
+import { keepThreadPageUrls } from "@/shared/lib/signed-url";
 
 // Le fil se rafraîchit toutes les 10 s en messagerie asynchrone (CDC §5.8) — mais seulement quand
 // l'écran est au premier plan : polling en continu viderait la batterie.
@@ -134,19 +137,40 @@ export function useOpenCoachConversation() {
   });
 }
 
+/**
+ * Le fil, page par page (#77) : la plus récente d'abord, les précédentes à la demande
+ * (`fetchNextPage`, quand le lecteur remonte). `data` est le fil À PLAT, dans l'ordre de lecture —
+ * l'écran ne voit pas les pages.
+ *
+ * Le sondage relit TOUTES les pages chargées, au prix d'une requête par page remontée : une URL
+ * re-signée plus haut dans le fil se voit. La plus récente, relue, garde sa frontière
+ * (`refreshNewestPage`) : les autres se relisent aux mêmes curseurs, et le fil chargé ne glisse
+ * pas sous le lecteur remonté.
+ */
 export function useMessages(conversationId: string | undefined) {
   // Polling gated par le focus de l'écran (useFocusEffect) : pas de refetch quand l'onglet est
   // en arrière-plan. Le focusManager global (retour au premier plan) reste en plus actif.
   const [focused, setFocused] = useState(false);
   const as = useExercisedCapability();
+  const queryClient = useQueryClient();
+  const queryKey =
+    conversationId != null ? messageKeys.thread(conversationId, as) : messageKeys.all;
 
-  const query = useQuery<MessageDto[]>({
-    queryKey: conversationId != null ? messageKeys.thread(conversationId, as) : messageKeys.all,
-    queryFn: () => messageApi.getMessages(conversationId as string, as),
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: async ({ pageParam }) => {
+      const page = await messageApi.getMessagePage(conversationId as string, pageParam, as);
+      if (pageParam != null) return page;
+      // Pendant une relecture, le cache tient encore les pages d'avant.
+      return refreshNewestPage(queryClient.getQueryData<MessagePages>(queryKey)?.pages[0], page);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: olderPageCursor,
+    select: threadOfPages,
     enabled: conversationId != null,
     refetchInterval: focused && conversationId != null ? POLL_INTERVAL_MS : false,
     // Chaque sondage re-signe les médias : sans ça, une note vocale repart de zéro toutes les 10 s.
-    structuralSharing: keepThreadUrls,
+    structuralSharing: keepThreadPageUrls,
   });
 
   /**

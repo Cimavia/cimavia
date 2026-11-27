@@ -23,6 +23,7 @@ import { ParticipantAvatars } from "@/feature/message/component/ParticipantAvata
 import { MESSAGE_MEDIA_PROFILE } from "@/feature/message/constant";
 import { useMarkRead, useMessages, useSendMessage } from "@/feature/message/hook/useConversation";
 import { useSendMessageMedia } from "@/feature/message/hook/useMessageMedia";
+import { useOlderMessages } from "@/feature/message/hook/useOlderMessages";
 import { CmvErrorState, CmvScreen, CmvText } from "@/shared/component";
 import { useExercisedCapability } from "@/shared/hook/useExercisedCapability";
 import { useFollowEndedText } from "@/shared/hook/useFollowEndedText";
@@ -109,6 +110,8 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
 
   const currentUserId = session?.user.id ?? null;
   const items = messages.data ?? [];
+  const older = useOlderMessages(messages);
+
   const mediaError = mediaErrorMessage(
     media.audioError,
     preUploadErrorKey,
@@ -181,6 +184,7 @@ export function ConversationThread({ conversation }: Readonly<ConversationThread
               currentUserId={currentUserId}
               readBy={readBy}
               resolveMediaUrl={freshMediaUrl}
+              older={older}
             />
           </View>
         )}

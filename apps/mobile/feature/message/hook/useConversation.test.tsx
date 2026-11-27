@@ -2,6 +2,7 @@ import {
   ApiError,
   type ConversationDto,
   type MessageDto,
+  type MessagePages,
   messageKeys,
   ProblemType,
   type TrainingCapability,
@@ -24,7 +25,7 @@ import {
 } from "./useConversation";
 
 const {
-  getMessagesMock,
+  getMessagePageMock,
   markReadMock,
   sendMessageMock,
   listConversationsMock,
@@ -32,7 +33,7 @@ const {
   createConversationMock,
   exercised,
 } = vi.hoisted(() => ({
-  getMessagesMock: vi.fn(),
+  getMessagePageMock: vi.fn(),
   markReadMock: vi.fn(),
   sendMessageMock: vi.fn(),
   listConversationsMock: vi.fn(),
@@ -43,7 +44,7 @@ const {
 
 vi.mock("@/feature/message/api", async () => ({
   messageApi: {
-    getMessages: getMessagesMock,
+    getMessagePage: getMessagePageMock,
     markRead: markReadMock,
     sendMessage: sendMessageMock,
     listConversations: listConversationsMock,
@@ -81,6 +82,16 @@ const voiceNote = (signedAt: number): MessageDto => ({
   createdAt: "2026-09-25T12:00:00.000Z",
 });
 
+const textMessage = (id: string): MessageDto => ({
+  ...voiceNote(0),
+  id,
+  type: "TEXT",
+  content: id,
+  media: null,
+});
+
+const page = (items: MessageDto[], nextCursor: string | null = null) => ({ items, nextCursor });
+
 describe("useMessages", () => {
   /**
    * #304 : le fil est sondé toutes les 10 s et chaque réponse re-signe les médias. `CmvAudioPlayer`
@@ -91,18 +102,80 @@ describe("useMessages", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    getMessagesMock.mockResolvedValueOnce([voiceNote(0)]);
+    getMessagePageMock.mockResolvedValueOnce(page([voiceNote(0)]));
     const { result } = renderHook(() => useMessages("c1"), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
     const first = result.current.data;
 
-    getMessagesMock.mockResolvedValueOnce([voiceNote(10)]);
-    await result.current.refetch();
+    getMessagePageMock.mockResolvedValueOnce(page([voiceNote(10)]));
+    await act(() => result.current.refetch());
 
-    const cached = queryClient.getQueryData<MessageDto[]>(messageKeys.thread("c1", null));
-    expect(getMessagesMock).toHaveBeenCalledTimes(2);
-    expect(cached?.[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=0");
-    expect(cached).toBe(first);
+    const cached = queryClient.getQueryData<MessagePages>(messageKeys.thread("c1", null));
+    expect(getMessagePageMock).toHaveBeenCalledTimes(2);
+    expect(cached?.pages[0]?.items[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=0");
+    expect(result.current.data).toBe(first);
+  });
+
+  // #77 : l'écran reçoit le fil à plat, dans l'ordre de lecture ; la page d'avant part de SON curseur.
+  it("rend le fil à plat, et charge la page d'avant par son curseur", async () => {
+    getMessagePageMock
+      .mockResolvedValueOnce(page([textMessage("m3"), textMessage("m4")], "c-m3"))
+      .mockResolvedValueOnce(page([textMessage("m1"), textMessage("m2")]));
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        {children}
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMessages("c1"), { wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(() => result.current.fetchNextPage());
+
+    expect(getMessagePageMock.mock.calls).toEqual([
+      ["c1", null, null],
+      ["c1", "c-m3", null],
+    ]);
+    await waitFor(() =>
+      expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  /**
+   * Deux pages chargées, un message arrivé : la plus récente relue a perdu m3 par le bas. Relues
+   * depuis SON curseur, les pages d'avant glissaient d'autant, et m1 — en tête, sous les yeux du
+   * lecteur remonté — disparaissait.
+   */
+  it("relit chaque page au sondage sans faire glisser le fil chargé", async () => {
+    getMessagePageMock
+      .mockResolvedValueOnce(page([textMessage("m3"), textMessage("m4")], "c-m3"))
+      .mockResolvedValueOnce(page([textMessage("m1"), textMessage("m2")]));
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        {children}
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useMessages("c1"), { wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    await act(() => result.current.fetchNextPage());
+
+    getMessagePageMock
+      .mockResolvedValueOnce(page([textMessage("m4"), textMessage("m5")], "c-m4"))
+      .mockResolvedValueOnce(page([textMessage("m1"), textMessage("m2")]));
+    await act(() => result.current.refetch());
+
+    expect(getMessagePageMock.mock.calls.slice(2)).toEqual([
+      ["c1", null, null],
+      ["c1", "c-m3", null],
+    ]);
+    await waitFor(() =>
+      expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4", "m5"]),
+    );
   });
 });
 
@@ -124,7 +197,7 @@ describe("useMessages — quand le fil se relit", () => {
     const { result } = renderHook(() => useMessages(undefined), { wrapper });
 
     expect(result.current.fetchStatus).toBe("idle");
-    expect(getMessagesMock).not.toHaveBeenCalled();
+    expect(getMessagePageMock).not.toHaveBeenCalled();
   });
 
   /**
@@ -138,14 +211,14 @@ describe("useMessages — quand le fil se relit", () => {
       // biome-ignore lint/correctness/useExhaustiveDependencies: fidèle au vrai hook, qui ne rejoue qu'au changement de focus
       useEffect(callback, []);
     });
-    getMessagesMock.mockResolvedValue([]);
+    getMessagePageMock.mockResolvedValue(page([]));
     renderHook(() => useMessages("c1"), { wrapper });
-    await waitFor(() => expect(getMessagesMock).toHaveBeenCalled());
-    const arrival = getMessagesMock.mock.calls.length;
+    await waitFor(() => expect(getMessagePageMock).toHaveBeenCalled());
+    const arrival = getMessagePageMock.mock.calls.length;
 
     await act(() => vi.advanceTimersByTimeAsync(10_000));
 
-    expect(getMessagesMock.mock.calls.length).toBeGreaterThan(arrival);
+    expect(getMessagePageMock.mock.calls.length).toBeGreaterThan(arrival);
   });
 });
 
