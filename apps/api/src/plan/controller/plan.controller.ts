@@ -6,10 +6,12 @@ import { RequireCapability } from "../../auth/decorator/require-capability.decor
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { AddPlanWeekDto } from "../dto/add-plan-week.dto";
 import { CreatePlanDto } from "../dto/create-plan.dto";
+import { DuplicatePlanDto } from "../dto/duplicate-plan.dto";
 import { PublishPlanDto } from "../dto/publish-plan.dto";
 import { UpdatePlanDto } from "../dto/update-plan.dto";
 import { PlanService } from "../service/plan.service";
 import { PlanAccessService } from "../service/plan-access.service";
+import { PlanDuplicateService } from "../service/plan-duplicate.service";
 import { PlanPublishService } from "../service/plan-publish.service";
 import { PlanWeekService } from "../service/plan-week.service";
 
@@ -22,6 +24,7 @@ export class PlanController {
     private readonly planAccess: PlanAccessService,
     private readonly weeks: PlanWeekService,
     private readonly publication: PlanPublishService,
+    private readonly duplication: PlanDuplicateService,
   ) {}
 
   @Post()
@@ -71,6 +74,13 @@ export class PlanController {
   @Post(":id/weeks")
   addWeek(@Param("id") id: string, @Body() dto: AddPlanWeekDto) {
     return this.weeks.addWeek(id, dto);
+  }
+
+  // Un nouveau brouillon, au Coach qui duplique, depuis un cycle qu'il peut lire (#5). La réponse
+  // est la copie complète : le builder s'ouvre dessus.
+  @Post(":id/duplicate")
+  duplicate(@Param("id") id: string, @Body() dto: DuplicatePlanDto) {
+    return this.duplication.duplicate(id, dto);
   }
 
   // Diffusion : le cycle devient visible de l'athlète, qui reçoit une notification. Elle cite la
