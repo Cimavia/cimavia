@@ -73,9 +73,8 @@ describe("windowSinceOf", () => {
 
   // Ce qui était plus ancien a disparu (un compte effacé quitte les fils de groupe).
   it("n'a plus de curseur quand rien ne reste avant la frontière", async () => {
-    expect((await windowSinceOf(newestFirst(2), 2, since, async () => false)).nextCursor).toBe(
-      null,
-    );
+    const page = await windowSinceOf(newestFirst(2), 2, since, async () => false);
+    expect(page.nextCursor).toBeNull();
   });
 
   it("rend la page la plus récente, à son curseur, quand la fenêtre déborde le plafond", async () => {

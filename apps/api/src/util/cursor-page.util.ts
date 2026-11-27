@@ -120,5 +120,5 @@ export function cursorPageOf<T extends CursorPosition>(
   const kept = newestFirst.slice(0, limit);
   const oldest = kept.at(-1);
   const nextCursor = newestFirst.length > limit && oldest != null ? encodeCursor(oldest) : null;
-  return { rows: kept.reverse(), nextCursor };
+  return { rows: kept.toReversed(), nextCursor };
 }
