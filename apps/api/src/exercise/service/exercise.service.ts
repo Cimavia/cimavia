@@ -36,6 +36,8 @@ import {
 } from "../../custom-metric/service/custom-metric.service";
 import { PrismaService } from "../../infra/prisma/prisma.service";
 import { explainForeignKeyViolation } from "../../infra/prisma/prisma-error";
+import { fileKeysOf } from "../../infra/storage/document.mapper";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { StorageService } from "../../infra/storage/storage.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -81,6 +83,7 @@ export class ExerciseService {
     private readonly access: AccessService,
     private readonly grants: AccessGrantService,
     private readonly copies: ExerciseCopyService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   private async toDto(
@@ -426,12 +429,12 @@ export class ExerciseService {
     );
 
     // Les lignes ExerciseDocument sont parties en cascade, mais PAS les objets en storage : on les
-    // supprime explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
+    // retire explicitement, sinon ils resteraient orphelins (et facturés). Sauf ceux qu'une
     // séance planifiée ou une copie figée affiche encore — elles partagent la clé objet (P3,
-    // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé.
-    for (const document of exercise.documents) {
-      await this.cleanup.deleteObjectIfUnreferenced(document);
-    }
+    // #609). APRÈS la suppression : refusée, elle ne doit rien avoir purgé. Et sans la faire
+    // échouer (#75) : l'exercice est supprimé, un 500 dirait le contraire, et un objet en échec
+    // arrêtait le retrait des suivants. Le stockage en panne, les clés rejoignent la file.
+    await this.purge.deleteManyOrDefer(fileKeysOf(exercise.documents));
   }
 
   /**
