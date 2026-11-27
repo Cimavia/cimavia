@@ -24,6 +24,7 @@ import {
 } from "../../access/access.mapper";
 import { type AccessGesture, AccessService } from "../../access/service/access.service";
 import { holdActiveLink } from "../../account/coach-athlete.lock";
+import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { InvoiceService } from "../../invoice/service/invoice.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
@@ -58,6 +59,7 @@ export class PlanService {
     private readonly cls: ClsService,
     private readonly access: AccessService,
     private readonly planAccess: PlanAccessService,
+    private readonly purge: ObjectPurgeService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
@@ -261,7 +263,12 @@ export class PlanService {
       );
     }
     // Semaines, séances, exercices et copies de documents partent en cascade (schéma). Les objets
-    // S3 ne sont PAS touchés : ils appartiennent à la bibliothèque, les copies les partagent.
+    // S3 de ces copies ne sont PAS touchés : ils appartiennent à la bibliothèque, qui les partage.
+    //
+    // Le justificatif de la facture, si : sa clé n'appartient qu'à ce cycle (#73). Elle se lit dans
+    // la transaction, avant que la cascade n'emporte la facture, et l'objet ne part qu'APRÈS le
+    // commit. Dans l'autre ordre, un 409 — un autre Coach a retouché le cycle, ou l'a diffusé
+    // entre-temps — laisserait un cycle vivant dont le PDF répond 404.
     //
     // Les RAPPELS, eux, n'ont pas de clé étrangère vers leur cible (référence polymorphe) : rien en
     // base ne les emporte. On les purge donc explicitement, dans la MÊME transaction — sinon un
@@ -269,10 +276,16 @@ export class PlanService {
     //
     // La purge AVANT la suppression : elle retrouve la facture du cycle, que la cascade emporte.
     // Refusée, la suppression l'annule avec elle.
-    await this.db.$transaction(async (tx) => {
+    const documentPath = await this.db.$transaction(async (tx) => {
       await this.reminders.purgeForPlan(tx, id);
+      const invoice = await tx.invoice.findFirst({
+        where: { planId: id },
+        select: { documentPath: true },
+      });
       await deleteAtVersion(tx.plan, id, expected, PLAN_NOT_FOUND);
+      return invoice?.documentPath ?? null;
     });
+    if (documentPath != null) await this.purge.deleteOrDefer(documentPath);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
