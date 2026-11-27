@@ -10,6 +10,7 @@ import {
   signUp,
   signUpWith,
 } from "../support/actors";
+import { settleDeliveries } from "../support/app";
 import { fromTemplate, inPast, mondayOfCurrentWeek } from "../support/fixtures";
 import { countQueries } from "../support/query-count";
 
@@ -75,6 +76,9 @@ type Reading = { queries: number; body: unknown };
  * (une écriture qui finit après sa réponse) tombe sur cet appel, pas sur la mesure.
  */
 async function measure(agent: Agent, routes: readonly string[]): Promise<Record<string, Reading>> {
+  // Les push et e-mails du jeu de données partent après leur réponse (#350) : leurs lectures ne
+  // doivent pas tomber dans la mesure.
+  await settleDeliveries();
   const readings: Record<string, Reading> = {};
   for (const route of routes) {
     await agent.get(route);

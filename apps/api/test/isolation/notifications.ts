@@ -12,7 +12,7 @@ import {
   signUp,
   signUpWith,
 } from "../support/actors";
-import { app, baseURL, sentMails } from "../support/app";
+import { app, baseURL, deliveredMails, sentMails } from "../support/app";
 import { blocksOf } from "../support/blocks";
 import { fromTemplate, inPast, mondayOfCurrentWeek } from "../support/fixtures";
 import { deleteAtLatest, publishAtLatest, putAtLatest } from "../support/version";
@@ -847,7 +847,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
 
     expect((await billAndPublish(coach, planId)).status).toBe(200);
 
-    expect(sentMails).toEqual([]);
+    expect(await deliveredMails()).toEqual([]);
     // La trace persistée, elle, existe bien : l'e-mail est un canal de plus, pas à la place.
     expect((await athlete.get("/me/notifications")).body.length).toBeGreaterThan(0);
   });
@@ -863,7 +863,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
 
     expect((await billAndPublish(coach, planId)).status).toBe(200);
 
-    expect(sentMails).toHaveLength(1);
+    expect(await deliveredMails()).toHaveLength(1);
     const mail = required(sentMails[0], "e-mail de diffusion");
     expect(mail.to).toBe(ATHLETE);
     expect(mail.subject).toContain("Cycle avec e-mail");
@@ -894,7 +894,7 @@ describe("Notifications par e-mail : opt-in, isolation et envoi (#65)", () => {
     });
     expect((await publishAtLatest(solo, plan.body.id)).status).toBe(200);
 
-    expect(sentMails).toEqual([]);
+    expect(await deliveredMails()).toEqual([]);
   });
 });
 

@@ -102,6 +102,7 @@ describe("NotificationService — push", () => {
     });
 
     await service.notifyFeedbackReceived(FEEDBACK);
+    await service.settled();
 
     expect(sendPush).toHaveBeenCalledExactlyOnceWith([
       {
@@ -121,6 +122,7 @@ describe("NotificationService — push", () => {
     });
 
     await service.notifyFeedbackReceived(FEEDBACK);
+    await service.settled();
 
     expect(sendPush).not.toHaveBeenCalled();
     // La trace, elle, est écrite : c'est le cas même qu'elle rattrape.
@@ -507,6 +509,7 @@ describe("NotificationService — ce que chaque émetteur écrit", () => {
     });
 
     await c.emit(service);
+    await service.settled();
 
     if (c.trace == null) expect(create).not.toHaveBeenCalled();
     else expect(create).toHaveBeenCalledExactlyOnceWith({ data: c.trace });
@@ -535,6 +538,7 @@ describe("NotificationService — canaux", () => {
     const { service, create, send, sendPush } = withEverything();
 
     await service.notifyMessageReceived(MESSAGE, { push: true, trace: false });
+    await service.settled();
 
     expect(sendPush).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
@@ -546,6 +550,7 @@ describe("NotificationService — canaux", () => {
     const { service, create, send, sendPush } = withEverything();
 
     await service.notifyMessageReceived(MESSAGE, { push: false, trace: true });
+    await service.settled();
 
     expect(sendPush).not.toHaveBeenCalled();
     expect(create).toHaveBeenCalledTimes(1);
@@ -556,6 +561,7 @@ describe("NotificationService — canaux", () => {
     const { service, create, send, sendPush } = withEverything();
 
     await service.notifyFeedbackCompleted(FEEDBACK);
+    await service.settled();
 
     expect(create).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
@@ -573,6 +579,7 @@ describe("NotificationService — canaux", () => {
     const { service, sendPush } = withEverything("coach_1");
 
     await service.notifyFeedbackCompleted(FEEDBACK);
+    await service.settled();
 
     expect(sendPush).not.toHaveBeenCalled();
   });
@@ -588,6 +595,7 @@ describe("NotificationService — chaque canal dégrade seul", () => {
     });
 
     await expect(service.notifyFeedbackReceived(FEEDBACK)).resolves.toBeUndefined();
+    await service.settled();
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledTimes(1);
@@ -604,6 +612,7 @@ describe("NotificationService — chaque canal dégrade seul", () => {
     });
 
     await expect(service.notifyFeedbackReceived(FEEDBACK)).resolves.toBeUndefined();
+    await service.settled();
 
     expect(sendPush).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledWith(
@@ -622,6 +631,7 @@ describe("NotificationService — chaque canal dégrade seul", () => {
     });
 
     await expect(service.notifyFeedbackReceived(FEEDBACK)).resolves.toBeUndefined();
+    await service.settled();
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(sendPush).toHaveBeenCalledTimes(1);
@@ -639,9 +649,99 @@ describe("NotificationService — chaque canal dégrade seul", () => {
     const { service, send, logger } = serviceWith({ emailWanted: true, recipient: null });
 
     await service.notifyFeedbackReceived(FEEDBACK);
+    await service.settled();
 
     expect(send).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+  });
+});
+
+/** Une réponse qu'Expo ou le serveur SMTP ne donne que quand le test le décide. */
+function pending<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+/**
+ * La requête métier n'attend que la trace (#350). Un fournisseur qui ne répond plus tenait la
+ * requête des minutes durant : le message était enregistré, le client voyait une erreur et le
+ * renvoyait. Ici Expo et le serveur SMTP ne répondent qu'à la demande du test.
+ */
+describe("NotificationService — la requête n'attend que la trace", () => {
+  function withSilentProviders() {
+    const setup = serviceWith({
+      tokens: [{ id: "tok_1", token: VALID }],
+      emailWanted: true,
+      recipient: { email: "coach@cmv.test", locale: "fr" },
+    });
+    const expo = pending<ExpoPushTicket[]>();
+    const smtp = pending<boolean>();
+    setup.sendPush.mockReturnValue(expo.promise);
+    setup.send.mockReturnValue(smtp.promise);
+    const answer = () => {
+      expo.resolve([{ status: "ok", id: "tkt" }]);
+      smtp.resolve(true);
+    };
+    return { ...setup, answer };
+  }
+
+  it("rend la main la trace écrite, push et e-mail encore en route", async () => {
+    const { service, create, send, sendPush, answer } = withSilentProviders();
+
+    await service.notifyFeedbackReceived(FEEDBACK);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    // Partis tous les deux, aucun n'a répondu : c'est la requête qu'on n'a pas fait attendre.
+    await vi.waitFor(() => expect(sendPush).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    answer();
+    await service.settled();
+  });
+
+  // Un redémarrage de l'API ne coupe pas ce qui est en route : l'arrêt attend la fin des envois.
+  it("l'arrêt du module attend les envois encore en route", async () => {
+    const { service, send, answer } = withSilentProviders();
+    await service.notifyFeedbackReceived(FEEDBACK);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+
+    let stopped = false;
+    const stopping = service.onModuleDestroy().then(() => {
+      stopped = true;
+    });
+    // Un tour complet de la boucle d'événements : un arrêt qui n'attendrait rien aurait abouti.
+    await new Promise((tick) => setImmediate(tick));
+    expect(stopped).toBe(false);
+
+    answer();
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  /**
+   * Plus personne n'attend un envoi parti après la réponse : s'il lève malgré son `try`, le rejet
+   * deviendrait une `unhandledRejection`. Provoqué ici par le journal lui-même, qui casse dans le
+   * `catch` de l'e-mail — le seul endroit de ce canal qui ne soit pas déjà sous garde.
+   */
+  it("un envoi qui lève malgré tout est journalisé, et l'attente aboutit", async () => {
+    const { service, logger } = serviceWith({
+      failing: { mail: true },
+      emailWanted: true,
+      recipient: { email: "coach@cmv.test", locale: "fr" },
+    });
+    logger.error.mockImplementationOnce(() => {
+      throw new Error("journal indisponible");
+    });
+
+    await service.notifyFeedbackReceived(FEEDBACK);
+    await expect(service.settled()).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenLastCalledWith(
+      { err: expect.objectContaining({ message: "journal indisponible" }) },
+      "Échec d'une notification partie après la réponse",
+    );
   });
 });
 
@@ -761,6 +861,7 @@ describe("NotificationService — acteur sans nom", () => {
     });
 
     await c.emit(service);
+    await service.settled();
 
     expect(sendPush).toHaveBeenCalledWith([
       expect.objectContaining({ title: c.title, body: c.body }),
@@ -775,6 +876,7 @@ describe("NotificationService — acteur sans nom", () => {
     });
 
     await service.notifyFeedbackReceived(FEEDBACK);
+    await service.settled();
 
     expect(logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "ath_1" }),
