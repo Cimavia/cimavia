@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import { PrismaService } from "../prisma/prisma.service";
+import { chunked } from "./object-citations";
 import { keysCitedByRows } from "./object-references";
 import { StorageService } from "./storage.service";
 
@@ -12,12 +13,37 @@ export const OBJECT_PURGE_BATCH_SIZE = 200;
 export const OBJECT_PURGE_BUDGET_MS = 20_000;
 
 /**
+ * Retraits simultanés d'un même geste, au plus. Un exercice n'a pas de plafond de documents, et le
+ * client S3 n'a que 50 sockets : un stockage muet (BO-4) en tiendrait autant que de fichiers, et
+ * les URLs signées et rattachements des autres utilisateurs attendraient derrière.
+ */
+export const OBJECT_DELETE_CONCURRENCY = 10;
+
+/**
  * Le NOM de l'erreur, jamais l'erreur : le SDK S3 recopie sur l'exception les champs de la réponse
  * (`Key`, `Resource`), donc la clé et le nom du fichier qu'elle porte. Comme le balayage (#72).
  */
 function reasonOf(err: unknown): string {
   return err instanceof Error ? err.name : typeof err;
 }
+
+/** Les noms d'erreur distincts d'un même geste, en une ligne. */
+function reasonsOf(errors: readonly unknown[]): string {
+  return [...new Set(errors.map(reasonOf))].join(", ");
+}
+
+/**
+ * Ce qui situe un retrait dans les journaux : les identifiants des lignes parties (exercice,
+ * document, média), jamais une clé — elle porte le nom du fichier.
+ */
+export type PurgeContext = Readonly<Record<string, string>>;
+
+const REMOVAL_FAILED = "objet à retirer : retrait en échec, confié à la file";
+const CITATIONS_UNREADABLE =
+  "objet à retirer : citations illisibles, confié à la file sans retrait";
+
+/** Ce qui arrête un geste en cours de route, et ce que son journal en dira. */
+type Halt = { reasons: unknown[]; message: string };
 
 /**
  * Vide la file des objets à retirer du stockage (#256).
@@ -84,39 +110,41 @@ export class ObjectPurgeService {
    * (#293), ou la copie d'un document qu'une séance planifiée ou une variante partage (P3, #315).
    * L'objet reste, comme il resterait par la file.
    */
-  async deleteOrDefer(key: string): Promise<void> {
-    await this.deleteManyOrDefer([key]);
+  async deleteOrDefer(key: string, context: PurgeContext = {}): Promise<void> {
+    await this.deleteManyOrDefer([key], context);
   }
 
   /**
    * La même chose pour les objets de plusieurs lignes parties ensemble — les documents d'un
-   * exercice supprimé, les images qu'une consigne ne cite plus (#75). Un seul décompte pour toutes
-   * les clés, les retraits en parallèle : la réponse les attend (#330).
+   * exercice supprimé, les images qu'une consigne ne cite plus (#75). Un décompte par lot, les
+   * retraits d'un lot en parallèle : la réponse les attend (#330).
    *
    * La citation illisible, aucune clé n'est jugée : toutes rejoignent la file, qui relira chacune
-   * avant de la retirer.
+   * avant de la retirer — celles qu'une copie partage y attendent que leur dernière copie parte.
+   *
+   * Une ligne de journal par geste, pas par clé, situé par le `context` de l'appelant.
    */
-  async deleteManyOrDefer(keys: readonly string[]): Promise<void> {
-    const unique = [...new Set(keys)];
-    if (unique.length === 0) return;
-    let deferred: string[];
-    try {
-      const cited = await this.citedKeys(unique);
-      const orphans = unique.filter((key) => !cited.has(key));
-      const results = await Promise.allSettled(
-        orphans.map((key) => this.storage.deleteObject(key)),
-      );
-      deferred = orphans.filter((_, index) => {
-        const result = results[index];
-        if (result?.status !== "rejected") return false;
-        this.warnDeferred(result.reason);
-        return true;
-      });
-    } catch (err) {
-      this.warnDeferred(err);
-      deferred = unique;
+  async deleteManyOrDefer(keys: readonly string[], context: PurgeContext = {}): Promise<void> {
+    const deferred: string[] = [];
+    let halt: Halt | null = null;
+    for (const batch of chunked([...new Set(keys)], OBJECT_DELETE_CONCURRENCY)) {
+      // Un lot en échec dit un stockage en panne : chaque lot suivant attendrait à son tour le
+      // délai TCP (BO-4). Le reste rejoint la file sans tentative, la réponse n'attend qu'un lot.
+      if (halt != null) {
+        deferred.push(...batch);
+        continue;
+      }
+      const outcome = await this.deleteBatch(batch);
+      deferred.push(...outcome.deferred);
+      halt = outcome.halt;
     }
     if (deferred.length === 0) return;
+    if (halt != null) {
+      this.logger.warn(
+        { ...context, count: deferred.length, reason: reasonsOf(halt.reasons) },
+        halt.message,
+      );
+    }
     try {
       // `skipDuplicates` : la clé peut déjà attendre son tour, un double envoi l'y aurait mise.
       await this.prisma.pendingObjectDeletion.createMany({
@@ -125,17 +153,33 @@ export class ObjectPurgeService {
       });
     } catch (err) {
       this.logger.error(
-        { reason: reasonOf(err), count: deferred.length },
+        { ...context, count: deferred.length, reason: reasonOf(err) },
         "objet à retirer : ni retiré ni mis en file, laissé au balayage",
       );
     }
   }
 
-  private warnDeferred(err: unknown): void {
-    this.logger.warn(
-      { reason: reasonOf(err) },
-      "objet à retirer : retrait en échec, confié à la file",
+  /**
+   * Un lot : ses citations relues juste avant ses retraits, comme la file avant chacun des siens
+   * (#73) — un seul instantané en tête de geste laisserait les derniers lots partir sur une lecture
+   * vieille de plusieurs lots. Rend les clés à confier à la file, et ce qui arrête le geste.
+   */
+  private async deleteBatch(batch: string[]): Promise<{ deferred: string[]; halt: Halt | null }> {
+    let cited: Set<string>;
+    try {
+      cited = await this.citedKeys(batch);
+    } catch (err) {
+      return { deferred: batch, halt: { reasons: [err], message: CITATIONS_UNREADABLE } };
+    }
+    const orphans = batch.filter((key) => !cited.has(key));
+    const results = await Promise.allSettled(orphans.map((key) => this.storage.deleteObject(key)));
+    const failures = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
     );
+    return {
+      deferred: orphans.filter((_, index) => results[index]?.status === "rejected"),
+      halt: failures.length === 0 ? null : { reasons: failures, message: REMOVAL_FAILED },
+    };
   }
 
   private async purgeOne({ id, key }: { id: string; key: string }): Promise<boolean> {
