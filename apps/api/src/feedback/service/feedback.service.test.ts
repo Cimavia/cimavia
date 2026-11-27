@@ -1,6 +1,7 @@
 import { MediaType } from "@cmv/shared";
 import type { SessionFeedback } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
+import type { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import type { StorageService } from "../../infra/storage/storage.service";
 import type { FeedbackAnnouncerService } from "../../message/service/feedback-announcer.service";
 import type { MessageAttachmentResolver } from "../../message/service/message-attachment.resolver";
@@ -141,6 +142,7 @@ describe("FeedbackMediaService.attach", () => {
       {
         getPublishedSessionOrThrow: vi.fn().mockResolvedValue({ athleteId: "a1" }),
       } as unknown as AthletePlanService,
+      {} as ObjectPurgeService,
     );
     return { service, markSent, getOrCreateWritable, assertAttachable, create };
   }
@@ -177,5 +179,52 @@ describe("FeedbackMediaService.attach", () => {
     expect(getOrCreateWritable).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
     expect(markSent).not.toHaveBeenCalled();
+  });
+});
+
+describe("FeedbackMediaService.remove", () => {
+  const KEY = "athlete/a1/feedback/ss1/0b6f3c2e-voie.jpg";
+
+  function build(media: { id: string; storagePath: string } | null) {
+    const order: string[] = [];
+    const remove = vi.fn(async () => {
+      order.push("ligne");
+    });
+    const deleteOrDefer = vi.fn(async () => {
+      order.push("objet");
+    });
+    const service = new FeedbackMediaService(
+      {
+        feedbackMedia: { findFirst: vi.fn().mockResolvedValue(media), delete: remove },
+      } as unknown as TenantPrisma,
+      {} as StorageService,
+      {} as FeedbackService,
+      {
+        getDebriefableSessionOrThrow: vi.fn().mockResolvedValue({}),
+      } as unknown as AthletePlanService,
+      { deleteOrDefer } as unknown as ObjectPurgeService,
+    );
+    return { service, remove, deleteOrDefer, order };
+  }
+
+  it("retire la ligne, puis confie son objet à la purge (#75)", async () => {
+    const { service, deleteOrDefer, order } = build({ id: "m1", storagePath: KEY });
+    await service.remove("ss1", "m1");
+    expect(order).toEqual(["ligne", "objet"]);
+    expect(deleteOrDefer).toHaveBeenCalledExactlyOnceWith(KEY);
+  });
+
+  it("ne retire pas l'objet quand la ligne ne part pas", async () => {
+    const { service, remove, deleteOrDefer } = build({ id: "m1", storagePath: KEY });
+    remove.mockRejectedValueOnce(new Error("base indisponible"));
+    await expect(service.remove("ss1", "m1")).rejects.toThrow("base indisponible");
+    expect(deleteOrDefer).not.toHaveBeenCalled();
+  });
+
+  it("404 sur un média inconnu de la séance, sans rien retirer", async () => {
+    const { service, remove, deleteOrDefer } = build(null);
+    await expect(service.remove("ss1", "inconnu")).rejects.toThrow("Média introuvable");
+    expect(remove).not.toHaveBeenCalled();
+    expect(deleteOrDefer).not.toHaveBeenCalled();
   });
 });
