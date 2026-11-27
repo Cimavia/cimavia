@@ -8,6 +8,6 @@ import { replaceEqualDeep } from "@tanstack/react-query";
  */
 export const {
   keeper: signedUrlKeeper,
-  keepThreadUrls,
+  keepThreadPageUrls,
   keepFeedbackUrls,
 } = createSignedUrlSharing(replaceEqualDeep, Date.now);

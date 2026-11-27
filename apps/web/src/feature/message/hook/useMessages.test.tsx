@@ -1,12 +1,12 @@
-import type { MessageDto } from "@cmv/shared";
-import { renderHook, waitFor } from "@testing-library/react";
+import type { MessageDto, MessagePages } from "@cmv/shared";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { messageKeys } from "@/feature/message/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { useConversations, useConversationWith, useThreadMessages } from "./useMessages";
 
-const { getMessagesMock, listConversationsMock, createConversationMock } = vi.hoisted(() => ({
-  getMessagesMock: vi.fn(),
+const { getMessagePageMock, listConversationsMock, createConversationMock } = vi.hoisted(() => ({
+  getMessagePageMock: vi.fn(),
   listConversationsMock: vi.fn(),
   createConversationMock: vi.fn(),
 }));
@@ -14,7 +14,7 @@ const { getMessagesMock, listConversationsMock, createConversationMock } = vi.ho
 vi.mock("@/feature/message/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/message/api")>()),
   messageApi: {
-    getMessages: getMessagesMock,
+    getMessagePage: getMessagePageMock,
     listConversations: listConversationsMock,
     createConversation: createConversationMock,
   },
@@ -43,9 +43,17 @@ const voiceNote = (signedAt: string): MessageDto => ({
 });
 
 beforeEach(() => {
-  getMessagesMock.mockReset();
+  getMessagePageMock.mockReset();
   listConversationsMock.mockReset().mockResolvedValue([]);
   createConversationMock.mockReset();
+});
+
+const textMessage = (id: string): MessageDto => ({
+  ...voiceNote("0"),
+  id,
+  type: "TEXT",
+  content: id,
+  media: null,
 });
 
 describe("useThreadMessages", () => {
@@ -54,22 +62,73 @@ describe("useThreadMessages", () => {
    * nouvelle URL au `<audio>` relançait son chargement — la note vocale repartait de zéro.
    */
   it("garde l'URL du média d'une réponse à l'autre tant qu'elle est ouvrable", async () => {
-    getMessagesMock.mockResolvedValueOnce([voiceNote("120000")]);
+    getMessagePageMock.mockResolvedValueOnce({ items: [voiceNote("120000")], nextCursor: null });
     const { queryClient, wrapper } = renderWithQueryClient();
     const { result } = renderHook(() => useThreadMessages("c1"), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    const first = result.current.data;
+    const first = queryClient.getQueryData<MessagePages>(messageKeys.thread("c1", null));
 
-    getMessagesMock.mockResolvedValueOnce([voiceNote("120010")]);
-    await result.current.refetch();
+    getMessagePageMock.mockResolvedValueOnce({ items: [voiceNote("120010")], nextCursor: null });
+    await act(() => result.current.refetch());
 
     // Le CACHE, et non le rendu du hook : c'est lui que lisent toutes les surfaces, et il est à
     // jour dès que le rechargement rend la main — le rendu, lui, suit un tour plus tard.
-    const cached = queryClient.getQueryData<MessageDto[]>(messageKeys.thread("c1", null));
-    expect(getMessagesMock).toHaveBeenCalledTimes(2);
-    expect(cached?.[0]?.media?.url).toBe("https://s3.test/note.m4a?X-Amz-Date=120000");
+    const cached = queryClient.getQueryData<MessagePages>(messageKeys.thread("c1", null));
+    expect(getMessagePageMock).toHaveBeenCalledTimes(2);
+    expect(cached?.pages[0]?.items[0]?.media?.url).toBe(
+      "https://s3.test/note.m4a?X-Amz-Date=120000",
+    );
     // Rien d'autre n'avait changé : le cache garde la même réponse, et rien ne se redessine.
     expect(cached).toBe(first);
+  });
+
+  it("rend le fil à plat, et charge la page d'avant par son curseur (#77)", async () => {
+    getMessagePageMock
+      .mockResolvedValueOnce({ items: [textMessage("m3"), textMessage("m4")], nextCursor: "c-m3" })
+      .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useThreadMessages("c1"), { wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(() => result.current.fetchNextPage());
+
+    expect(getMessagePageMock.mock.calls).toEqual([
+      ["c1", null, null],
+      ["c1", "c-m3", null],
+    ]);
+    await waitFor(() =>
+      expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4"]),
+    );
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  /**
+   * Deux pages chargées, un message arrivé : la plus récente relue a perdu m3 par le bas. Relues
+   * depuis SON curseur, les pages d'avant glissaient d'autant, et m1 — sous les yeux du lecteur
+   * remonté — disparaissait. Elle garde sa frontière : la page d'avant se relit au même curseur.
+   */
+  it("relit chaque page au sondage sans faire glisser le fil chargé", async () => {
+    getMessagePageMock
+      .mockResolvedValueOnce({ items: [textMessage("m3"), textMessage("m4")], nextCursor: "c-m3" })
+      .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
+    const { wrapper } = renderWithQueryClient();
+    const { result } = renderHook(() => useThreadMessages("c1"), { wrapper });
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    await act(() => result.current.fetchNextPage());
+
+    getMessagePageMock
+      .mockResolvedValueOnce({ items: [textMessage("m4"), textMessage("m5")], nextCursor: "c-m4" })
+      .mockResolvedValueOnce({ items: [textMessage("m1"), textMessage("m2")], nextCursor: null });
+    await act(() => result.current.refetch());
+
+    expect(getMessagePageMock.mock.calls.slice(2)).toEqual([
+      ["c1", null, null],
+      ["c1", "c-m3", null],
+    ]);
+    await waitFor(() =>
+      expect(result.current.data?.map(({ id }) => id)).toEqual(["m1", "m2", "m3", "m4", "m5"]),
+    );
   });
 });
 

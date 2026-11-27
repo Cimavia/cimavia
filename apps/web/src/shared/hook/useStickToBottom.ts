@@ -31,6 +31,11 @@ export type StickToBottom = {
   stickToBottom: () => void;
   /** Ramène au bas en douceur, et y recolle : le geste du lecteur, pas celui du fil. */
   scrollToBottom: () => void;
+  /**
+   * Retient ce que le lecteur a sous les yeux avant qu'on AJOUTE du contenu au-dessus — une page
+   * plus ancienne (#77) —, et rend de quoi l'y remettre une fois le contenu posé.
+   */
+  holdPosition: () => () => void;
 };
 
 /**
@@ -109,5 +114,27 @@ export function useStickToBottom(): StickToBottom {
     node?.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
   }, [stick]);
 
-  return { scrollRef, contentRef, atBottom, stickToBottom, scrollToBottom };
+  /**
+   * Ce qui s'ajoute en haut pousse tout vers le bas : sans correction, le lecteur se retrouve sur
+   * la page qu'il vient de faire charger, au lieu de ce qu'il lisait. La correction rend au défilé
+   * ce que le contenu a gagné.
+   *
+   * La cible part du dernier `scrollTop` CONNU — celui du dernier défilement —, et non du
+   * courant : Chrome et Firefox ancrent déjà le défilement à leur façon (`overflow-anchor`) au
+   * moment de la mise en page, Safari non. Partir d'avant l'ajout vise la même position dans les
+   * deux cas, sans corriger deux fois, et garde ce que le lecteur a défilé pendant le chargement.
+   * Le contenu ajouté au BAS entre-temps (une photo qui finit de charger) est compté comme s'il
+   * était en haut : le lecteur descend d'autant.
+   */
+  const holdPosition = useCallback(() => {
+    const node = container.current;
+    if (node == null) return () => undefined;
+    const height = node.scrollHeight;
+    return () => {
+      node.scrollTop = lastTop.current + (node.scrollHeight - height);
+      lastTop.current = node.scrollTop;
+    };
+  }, []);
+
+  return { scrollRef, contentRef, atBottom, stickToBottom, scrollToBottom, holdPosition };
 }

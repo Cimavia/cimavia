@@ -29,7 +29,12 @@ vi.mock("@/shared/hook/useFreshMediaUrl", () => ({ useFreshMediaUrl: () => vi.fn
 
 const { sessionMock, stick } = vi.hoisted(() => ({
   sessionMock: vi.fn(),
-  stick: { atBottom: true, stickToBottom: vi.fn(), scrollToBottom: vi.fn() },
+  stick: {
+    atBottom: true,
+    stickToBottom: vi.fn(),
+    scrollToBottom: vi.fn(),
+    holdPosition: vi.fn(() => () => undefined),
+  },
 }));
 vi.mock("@/shared/hook/useStickToBottom", () => ({
   useStickToBottom: () => ({ scrollRef: () => undefined, contentRef: () => undefined, ...stick }),
@@ -50,13 +55,23 @@ function message(id: string, overrides: Partial<MessageDto> = {}): MessageDto {
   } as MessageDto;
 }
 
+const fetchNextPage = vi.fn();
+
 /** Un état du fil, comme un sondage le rend : `dataUpdatedAt` date chaque réponse. */
-function mockThread(data: MessageDto[], dataUpdatedAt = 1): void {
+function mockThread(
+  data: MessageDto[] | undefined,
+  dataUpdatedAt = 1,
+  state: { isFetchingNextPage?: boolean; isError?: boolean } = {},
+): void {
   vi.mocked(useThreadMessages).mockReturnValue({
     data,
     dataUpdatedAt,
     isPending: false,
     isError: false,
+    hasNextPage: true,
+    fetchNextPage,
+    isFetchingNextPage: false,
+    ...state,
   } as unknown as ReturnType<typeof useThreadMessages>);
 }
 
@@ -293,6 +308,66 @@ describe("MessageThread — à plusieurs (#612)", () => {
     const view = renderWithProviders(<MessageThread conversation={group()} />);
 
     expect(view.queryByText("messages.readBy")).toBeNull();
+  });
+});
+
+describe("MessageThread — messages précédents (#77)", () => {
+  /** jsdom n'a pas d'`IntersectionObserver` : celui-ci dit quand le repère de tête entre à l'écran. */
+  let seeSentinel: () => void = () => undefined;
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(private readonly callback: (entries: { isIntersecting: boolean }[]) => void) {}
+        observe() {
+          seeSentinel = () => act(() => this.callback([{ isIntersecting: true }]));
+        }
+        disconnect() {}
+      },
+    );
+    return () => vi.unstubAllGlobals();
+  });
+
+  it("ne dit rien en tête du fil tant que rien ne charge", () => {
+    mockThread([message("m1")]);
+    const view = renderWithProviders(<MessageThread {...props} />);
+    expect(view.queryByText("messages.older.loading")).toBeNull();
+    expect(view.queryByText("messages.older.error")).toBeNull();
+    expect(view.queryByRole("button", { name: "common.retry" })).toBeNull();
+  });
+
+  it("annonce le chargement de la page d'avant", () => {
+    mockThread([message("m1")], 1, { isFetchingNextPage: true });
+    const view = renderWithProviders(<MessageThread {...props} />);
+    expect(view.getByText("messages.older.loading")).toHaveAttribute("role", "status");
+  });
+
+  it("dit l'échec de la page d'avant, et la redemande sur « Réessayer »", async () => {
+    fetchNextPage.mockResolvedValue({ isError: true });
+    mockThread([message("m1")]);
+    const view = renderWithProviders(<MessageThread {...props} />);
+
+    seeSentinel();
+    expect(await view.findByText("messages.older.error")).toHaveAttribute("role", "status");
+
+    act(() => view.getByRole("button", { name: "common.retry" }).click());
+    expect(stick.holdPosition).toHaveBeenCalledTimes(2);
+    expect(fetchNextPage).toHaveBeenCalledTimes(2);
+  });
+
+  // La page d'avant ratée passe la requête en erreur, ses messages en cache : le fil reste.
+  it("garde le fil à l'écran quand la requête échoue avec des messages en cache", () => {
+    mockThread([message("m1")], 1, { isError: true });
+    const view = renderWithProviders(<MessageThread {...props} />);
+    expect(view.queryByText("messages.loadError")).toBeNull();
+    expect(MessageBubble).toHaveBeenCalled();
+  });
+
+  it("dit l'échec du fil quand rien n'est en cache", () => {
+    mockThread(undefined, 0, { isError: true });
+    const view = renderWithProviders(<MessageThread {...props} />);
+    expect(view.getByText("messages.loadError")).toBeInTheDocument();
   });
 });
 

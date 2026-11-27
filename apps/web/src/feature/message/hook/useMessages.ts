@@ -2,16 +2,25 @@ import {
   type ConversationCandidatesDto,
   type ConversationDto,
   type CreateConversationInput,
-  type MessageDto,
+  type MessagePages,
+  olderPageCursor,
+  refreshNewestPage,
   type SendMessageInput,
   type TrainingCapability,
+  threadOfPages,
   withConversation,
 } from "@cmv/shared";
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { messageApi, messageKeys } from "@/feature/message/api";
 import { useExercisedCapability } from "@/shared/hook/useCapabilities";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
-import { keepThreadUrls } from "@/shared/lib/signed-url";
+import { keepThreadPageUrls } from "@/shared/lib/signed-url";
 
 // Messagerie asynchrone (CDC §5.8) : les nouveaux messages remontent par polling. Sur le web,
 // `refetchOnWindowFocus` (défaut TanStack) complète l'intervalle.
@@ -111,15 +120,35 @@ export function useCreateConversation() {
   });
 }
 
+/**
+ * Le fil, par pages (#77) : la plus récente d'abord, les plus anciennes à la demande
+ * (`fetchNextPage`, quand le lecteur remonte). `data` est le fil à plat, du plus ancien au plus
+ * récent (`threadOfPages`) — les écrans le lisent comme avant.
+ *
+ * Le sondage relit TOUTES les pages chargées. La plus récente, relue, garde sa frontière
+ * (`refreshNewestPage`) : les autres se relisent aux mêmes curseurs, et le fil chargé ne glisse
+ * pas sous le lecteur remonté. Le coût grandit donc avec la remontée, une requête par page, et
+ * retombe à une au prochain fil ouvert.
+ */
 export function useThreadMessages(conversationId: string | undefined) {
   const as = useExercisedCapability();
-  return useQuery<MessageDto[]>({
-    queryKey: messageKeys.thread(conversationId ?? "", as),
-    queryFn: () => messageApi.getMessages(conversationId as string, as),
+  const queryClient = useQueryClient();
+  const queryKey = messageKeys.thread(conversationId ?? "", as);
+  return useInfiniteQuery({
+    queryKey,
+    queryFn: async ({ pageParam }) => {
+      const page = await messageApi.getMessagePage(conversationId as string, pageParam, as);
+      if (pageParam != null) return page;
+      // Pendant une relecture, le cache tient encore les pages d'avant.
+      return refreshNewestPage(queryClient.getQueryData<MessagePages>(queryKey)?.pages[0], page);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: olderPageCursor,
+    select: threadOfPages,
     enabled: conversationId != null,
     refetchInterval: conversationId != null ? THREAD_POLL_MS : false,
     // Chaque sondage re-signe les médias : sans ça, une note vocale repart de zéro toutes les 10 s.
-    structuralSharing: keepThreadUrls,
+    structuralSharing: keepThreadPageUrls,
   });
 }
 
