@@ -1,6 +1,7 @@
 import {
   daysBetweenIsoDates,
   firstMovableWeek,
+  isSelfCoached,
   mondayOfIsoWeek,
   PLAN_DESCRIPTION_MAX_LENGTH,
   PLAN_TITLE_MAX_LENGTH,
@@ -259,7 +260,9 @@ export function PlanHeaderForm({
             refusal={refusal}
             shiftDays={shiftDays}
             sessionCount={plan.sessionCount}
-            isPublished={isPublished}
+            // En auto-coaching, nul autre à prévenir ni facture à émettre : le report se dit
+            // comme celui d'un brouillon.
+            warnsAthlete={isPublished && !isSelfCoached(plan)}
           />
         </div>
 
@@ -355,18 +358,19 @@ function StartDateNotice({
   refusal,
   shiftDays,
   sessionCount,
-  isPublished,
+  warnsAthlete,
 }: Readonly<{
   refusal: PlanShiftRefusal | null;
   shiftDays: number | null;
   sessionCount: number;
-  isPublished: boolean;
+  /** Le report part vers un athlète qu'on prévient, et dont la facture ne suit pas (#231). */
+  warnsAthlete: boolean;
 }>) {
   const { t } = useTranslation();
   if (refusal != null) {
     return <p className="text-cmv-caption text-cmv-error-on">{t(REFUSAL_KEY[refusal])}</p>;
   }
-  const warning = shiftWarning(shiftDays, sessionCount, isPublished);
+  const warning = shiftWarning(shiftDays, sessionCount, warnsAthlete);
   if (warning == null) return null;
   return (
     <p className="text-cmv-caption text-cmv-warning-on">
@@ -395,20 +399,21 @@ function StartDateNotice({
  *
  * On annonce les SÉANCES : l'API les décale toutes (`shiftSessions`), mais l'échéance de la
  * facture, elle, est une saisie du coach et ne suit pas. Sur un cycle DIFFUSÉ, seul le report
- * arrive ici (#231), et sa phrase le dit : l'athlète sera prévenu, l'échéance ne bouge pas.
+ * arrive ici (#231), et sa phrase le dit : l'athlète sera prévenu, l'échéance ne bouge pas — sauf
+ * en auto-coaching, où il n'y a ni l'un ni l'autre.
  */
 function shiftWarning(
   shiftDays: number | null,
   sessionCount: number,
-  isPublished: boolean,
+  warnsAthlete: boolean,
 ): { key: string; days: number } | null {
   if (shiftDays == null || shiftDays === 0 || sessionCount === 0) return null;
-  return { key: shiftKey(shiftDays, isPublished), days: Math.abs(shiftDays) };
+  return { key: shiftKey(shiftDays, warnsAthlete), days: Math.abs(shiftDays) };
 }
 
-function shiftKey(shiftDays: number, isPublished: boolean): string {
+function shiftKey(shiftDays: number, warnsAthlete: boolean): string {
   if (shiftDays < 0) return "plan.header.startDateShiftEarlier";
-  return isPublished
+  return warnsAthlete
     ? "plan.header.startDateShiftLaterPublished"
     : "plan.header.startDateShiftLater";
 }

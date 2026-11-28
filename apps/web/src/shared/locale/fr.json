@@ -761,7 +761,7 @@
     },
     "header": {
       "title": "Le cycle",
-      "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon.",
+      "hint": "Titre, destinataire, début et description se modifient tant que le cycle est un brouillon. Diffusé, il se reporte encore, tant qu'aucune séance n'est faite.",
       "lockedPublished": "Ce cycle est diffusé : son athlète s'entraîne dessus, son en-tête ne se réécrit plus.",
       "lockedPublishedMovable": "Ce cycle est diffusé : son titre, sa description et son destinataire ne se réécrivent plus. Son début se reporte encore, tant qu'aucune séance n'est faite.",
       "lockedPublishedStarted": "Ce cycle est diffusé et une séance est déjà faite : son en-tête ne se réécrit plus. Pour décaler la suite, insère une semaine.",

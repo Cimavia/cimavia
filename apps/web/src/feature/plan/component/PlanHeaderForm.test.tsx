@@ -374,6 +374,18 @@ describe("PlanHeaderForm — un cycle diffusé", () => {
     expect(onSave).toHaveBeenCalledWith(...sent({ startDate: NEXT_MONDAY }));
   });
 
+  // Le Coach qui s'auto-coache ne se prévient pas lui-même, et n'a pas de facture à son nom.
+  it("reporte un cycle auto-coaché sans parler d'athlète ni de facture", async () => {
+    const { container, queryByText, user } = mount({ ...published(), athleteId: "coach_1" });
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+
+    expect(queryByText("plan.header.startDateShiftLater")).toBeTruthy();
+    expect(queryByText("plan.header.startDateShiftLaterPublished")).toBeNull();
+  });
+
   // Avancé, le cycle ferait tomber ses séances dans le passé, manquées sans l'avoir été.
   it("refuse de l'avancer : la raison sous la date, le bouton fermé", async () => {
     const { container, getByRole, getByText, queryByText, user } = mount(published());
