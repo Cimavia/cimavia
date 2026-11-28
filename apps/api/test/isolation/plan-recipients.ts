@@ -336,18 +336,21 @@ describe("Cycle sans destinataire : affectation & verrous (#144)", () => {
   });
 
   /**
-   * Le pendant du verrou de destinataire, sur les trois champs qui définissent le cycle (#207).
-   * Aucun client n'envoyait ces champs jusqu'ici — on ferme une porte que personne n'ouvrait,
-   * avant d'ouvrir l'interface qui, elle, s'en servira.
+   * Le pendant du verrou de destinataire, sur ce qui nomme le cycle (#207). Le début en est sorti
+   * avec #231 — un cycle diffusé se reporte, et ses e2e vivent avec le report (`plan-reschedule`).
+   * Envoyé AVEC le titre, il ne fait pas passer le titre : la requête entière est refusée.
    */
-  it("ne laisse plus réécrire le titre ni le début d'un cycle diffusé", async () => {
+  it("ne laisse plus réécrire le titre ni la description d'un cycle diffusé", async () => {
     const { planId } = await draftWithoutAthlete("Figé par la diffusion");
     await patchAtLatest(coachA, `/plans/${planId}`, { athleteId: a1Id });
     expect((await billAndPublish(coachA, planId)).status).toBe(200);
 
     expectLocked(await patchAtLatest(coachA, `/plans/${planId}`, { title: "Renommé" }));
     expectLocked(
-      await patchAtLatest(coachA, `/plans/${planId}`, { startDate: shiftIsoDate(monday, 7) }),
+      await patchAtLatest(coachA, `/plans/${planId}`, {
+        title: "Renommé",
+        startDate: shiftIsoDate(monday, 7),
+      }),
     );
     expectLocked(await patchAtLatest(coachA, `/plans/${planId}`, { description: "Ajout" }));
 
