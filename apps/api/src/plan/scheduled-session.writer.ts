@@ -1,8 +1,8 @@
+import { randomUUID } from "node:crypto";
 import {
   type BlockGrid,
   type CompositionOrigin,
   type CustomMetric,
-  imageMediaIds,
   type RichDocument,
   remapImageMediaIds,
   required,
@@ -39,7 +39,7 @@ import { withoutUncitedImages } from "../util/instruction-images.util";
  * (CONTEXT, « ScheduledSessionExercise — la copie, pas la référence »).
  *
  * `id` est celui du document SOURCE — pas celui de la copie. Il sert à remapper les images de la
- * consigne, qui référencent l'ancien identifiant (cf. `insertScheduledSessionExercises`).
+ * consigne, qui référencent l'ancien identifiant (cf. `exerciseRowsOf`).
  *
  * Dérivé de la LIGNE de destination, pas de son `UncheckedCreateInput` : ce dernier rend les
  * colonnes nullables *optionnelles*, ce qui sous `exactOptionalPropertyTypes` laisserait passer
@@ -109,45 +109,75 @@ export async function insertScheduledSessionExercises(
   drafts: readonly ScheduledSessionExerciseDraft[],
   blocks: readonly ScheduledBlockDraft[],
 ): Promise<void> {
-  const blockIds = await insertScheduledBlocks(tx, scheduledSessionId, athleteId, blocks);
-  for (const [position, draft] of drafts.entries()) {
-    await insertScheduledSessionExercise(
-      tx,
-      scheduledSessionId,
-      athleteId,
-      draft,
-      position,
-      blockIds,
-    );
-  }
+  await insertCompositions(tx, [{ scheduledSessionId, athleteId, drafts, blocks }]);
 }
 
-/** Les blocs d'abord : leurs exercices s'y rangent par identifiant. */
-async function insertScheduledBlocks(
+/** Une séance planifiée à composer : ses blocs, et les exercices qui s'y rangent. */
+export type CompositionWrite = {
+  scheduledSessionId: string;
+  athleteId: string | null;
+  drafts: readonly ScheduledSessionExerciseDraft[];
+  blocks: readonly ScheduledBlockDraft[];
+};
+
+/**
+ * Écrit la composition de PLUSIEURS séances d'un coup : une requête par table — blocs, exercices,
+ * tags, documents —, jamais une par ligne. Dupliquer un cycle de 52 semaines (#5) en écrit des
+ * milliers : ligne à ligne, chacune avec la lecture de son parent par l'extension, la copie
+ * passait les 18 s en local, et le plafond de sa transaction sur le NAS.
+ *
+ * Les identifiants sont posés ICI (`newRowId`), pas par la base : un exercice se range dans son
+ * bloc, un document pend à son exercice, et la consigne cite ses images par l'identifiant de leur
+ * copie. Les connaître avant d'écrire évite de relire chaque niveau pour le suivant.
+ */
+export async function insertCompositions(
   tx: TenantTx,
-  scheduledSessionId: string,
-  athleteId: string | null,
-  blocks: readonly ScheduledBlockDraft[],
-): Promise<string[]> {
-  const created = await Promise.all(
-    blocks.map((block, position) =>
-      tx.scheduledSessionBlock.create({
-        // coachId injecté par la couche d'isolation ; athleteId explicite, comme pour les lignes.
-        data: {
-          athleteId,
-          scheduledSessionId,
-          position,
-          ...toBlockContentData(block),
-          baseline: toJsonInput(block.baseline),
-        } satisfies Omit<
-          Prisma.ScheduledSessionBlockUncheckedCreateInput,
-          "coachId"
-        > as Prisma.ScheduledSessionBlockUncheckedCreateInput,
-        select: { id: true },
-      }),
-    ),
-  );
-  return created.map((block) => block.id);
+  writes: readonly CompositionWrite[],
+): Promise<void> {
+  const blocks: Prisma.ScheduledSessionBlockUncheckedCreateInput[] = [];
+  const exercises: ExerciseRows[] = [];
+  for (const write of writes) {
+    const blockIds = write.blocks.map(() => newRowId());
+    for (const [position, block] of write.blocks.entries()) {
+      blocks.push(blockRowOf(write, block, position, required(blockIds[position], "bloc")));
+    }
+    for (const [position, draft] of write.drafts.entries()) {
+      exercises.push(
+        exerciseRowsOf(write.scheduledSessionId, write.athleteId, draft, position, blockIds),
+      );
+    }
+  }
+  // Les blocs d'abord : leurs exercices s'y rangent par identifiant.
+  if (blocks.length > 0) await tx.scheduledSessionBlock.createMany({ data: blocks });
+  await insertExerciseRows(tx, exercises);
+}
+
+/**
+ * L'identifiant d'une ligne écrite en lot. Un UUID et non un cuid, que seule la base sait tirer :
+ * les deux cohabitent dans une colonne `String`, et aucun code ne lit la forme d'un identifiant.
+ */
+export function newRowId(): string {
+  return randomUUID();
+}
+
+function blockRowOf(
+  write: CompositionWrite,
+  block: ScheduledBlockDraft,
+  position: number,
+  id: string,
+): Prisma.ScheduledSessionBlockUncheckedCreateInput {
+  // coachId injecté par la couche d'isolation ; athleteId explicite, comme pour les lignes.
+  return {
+    id,
+    athleteId: write.athleteId,
+    scheduledSessionId: write.scheduledSessionId,
+    position,
+    ...toBlockContentData(block),
+    baseline: toJsonInput(block.baseline),
+  } satisfies Omit<
+    Prisma.ScheduledSessionBlockUncheckedCreateInput,
+    "coachId"
+  > as Prisma.ScheduledSessionBlockUncheckedCreateInput;
 }
 
 /**
@@ -257,11 +287,10 @@ export async function rewriteScheduledComposition(
     });
   }
 
-  for (const [position, { row, blockIndex, blockPosition }] of final.entries()) {
-    if (idOf.has(row.key)) continue;
+  const created = final.flatMap(({ row, blockIndex, blockPosition }, position) => {
+    if (idOf.has(row.key)) return [];
     const exerciseId = required(row.exerciseId, `[plan] l'exercice ${row.key} sans source`);
-    await insertScheduledSessionExercise(
-      tx,
+    return exerciseRowsOf(
       session.id,
       session.athleteId,
       {
@@ -278,20 +307,42 @@ export async function rewriteScheduledComposition(
       position,
       blockIds,
     );
-  }
+  });
+  await insertExerciseRows(tx, created);
 }
 
-async function insertScheduledSessionExercise(
-  tx: TenantTx,
+/** Une ligne d'exercice à écrire, avec ses tags et ses copies de documents. */
+type ExerciseRows = {
+  exercise: Prisma.ScheduledSessionExerciseUncheckedCreateInput;
+  tags: Prisma.ScheduledSessionExerciseTagUncheckedCreateInput[];
+  documents: Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput[];
+};
+
+/**
+ * Les lignes d'un exercice : la sienne, ses tags, ses documents — sauf les images que sa consigne
+ * ne cite pas (#330) —, et sa consigne réalignée sur les copies.
+ *
+ * La consigne référence ses images par l'identifiant du document SOURCE. Les copies en ont un neuf,
+ * tiré ici : sans ce remappage, les images de consigne ne désignent plus rien chez l'athlète, et
+ * l'échec est SILENCIEUX — un média introuvable ne s'affiche pas, c'est tout.
+ */
+function exerciseRowsOf(
   scheduledSessionId: string,
   athleteId: string | null,
   draft: ScheduledSessionExerciseDraft,
   position: number,
   blockIds: readonly string[],
-): Promise<void> {
+): ExerciseRows {
   const { exercise } = draft;
-  const created = await tx.scheduledSessionExercise.create({
-    data: {
+  const id = newRowId();
+  const documents = withoutUncitedImages(exercise.instructions, draft.documents);
+  const copyIdOf = new Map(documents.map((document) => [document.id, newRowId()]));
+  const instructions =
+    exercise.instructions == null ? null : remapImageMediaIds(exercise.instructions, copyIdOf);
+
+  return {
+    exercise: {
+      id,
       athleteId,
       scheduledSessionId,
       sourceExerciseId: exercise.sourceExerciseId,
@@ -299,7 +350,7 @@ async function insertScheduledSessionExercise(
       description: exercise.description,
       // Le snapshot porte la consigne, sinon une planif diffusée se dégrade : l'athlète garderait
       // le titre et perdrait ce qu'il doit faire.
-      instructions: toInstructionsInput(exercise.instructions),
+      instructions: toInstructionsInput(instructions),
       customMetrics: toCustomMetricsInput(exercise.customMetrics),
       note: exercise.note,
       position,
@@ -308,84 +359,43 @@ async function insertScheduledSessionExercise(
       Prisma.ScheduledSessionExerciseUncheckedCreateInput,
       "coachId"
     > as Prisma.ScheduledSessionExerciseUncheckedCreateInput,
-  });
-
-  await insertTags(tx, created.id, athleteId, exercise.tags);
-  await copyDocumentsAndRemapImages(tx, created.id, athleteId, draft);
+    tags: exercise.tags.map(
+      (name) =>
+        ({ athleteId, scheduledSessionExerciseId: id, name }) satisfies Omit<
+          Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
+          "coachId"
+        > as Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
+    ),
+    documents: documents.map(
+      (document) =>
+        ({
+          id: required(copyIdOf.get(document.id), "copie de document"),
+          athleteId,
+          scheduledSessionExerciseId: id,
+          type: document.type,
+          // Copié : sans lui, la planif diffusée listerait les images de consigne parmi les
+          // pièces jointes de l'athlète.
+          usage: document.usage,
+          storagePath: document.storagePath,
+          url: document.url,
+          fileName: document.fileName,
+          mimeType: document.mimeType,
+        }) satisfies Omit<
+          Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
+          "coachId"
+        > as Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
+    ),
+  };
 }
 
-async function insertTags(
-  tx: TenantTx,
-  scheduledSessionExerciseId: string,
-  athleteId: string | null,
-  tags: readonly string[],
-): Promise<void> {
-  if (tags.length === 0) return;
-  await tx.scheduledSessionExerciseTag.createMany({
-    data: tags.map((name) => ({
-      athleteId,
-      scheduledSessionExerciseId,
-      name,
-    })) satisfies Omit<
-      Prisma.ScheduledSessionExerciseTagUncheckedCreateInput,
-      "coachId"
-    >[] as Prisma.ScheduledSessionExerciseTagUncheckedCreateInput[],
-  });
-}
-
-/**
- * Recopie les documents d'un exercice — sauf les images que sa consigne ne cite pas (#330) — et
- * réaligne les images de sa consigne sur les nouvelles copies.
- *
- * Extrait de la boucle d'écriture : mêlées, les deux responsabilités poussaient
- * `insertScheduledSessionExercises` au-delà du seuil de complexité de la porte qualité.
- */
-async function copyDocumentsAndRemapImages(
-  tx: TenantTx,
-  scheduledSessionExerciseId: string,
-  athleteId: string | null,
-  draft: ScheduledSessionExerciseDraft,
-): Promise<void> {
-  const documents = withoutUncitedImages(draft.exercise.instructions, draft.documents);
-  if (documents.length === 0) return;
-
-  /**
-   * Créés UN PAR UN et non en `createMany` : il faut connaître l'identifiant de chaque copie pour
-   * remapper les images de la consigne, et `createMany` ne rend rien. Une poignée de documents par
-   * exercice — le coût est nul devant le bug qu'il évite.
-   */
-  const idByOldId = new Map<string, string>();
-  for (const document of documents) {
-    const copy = await tx.scheduledSessionExerciseDocument.create({
-      data: {
-        athleteId,
-        scheduledSessionExerciseId,
-        type: document.type,
-        // Copié : sans lui, la planif diffusée listerait les images de consigne parmi les pièces
-        // jointes de l'athlète.
-        usage: document.usage,
-        storagePath: document.storagePath,
-        url: document.url,
-        fileName: document.fileName,
-        mimeType: document.mimeType,
-      } satisfies Omit<
-        Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
-        "coachId"
-      > as Prisma.ScheduledSessionExerciseDocumentUncheckedCreateInput,
-    });
-    idByOldId.set(document.id, copy.id);
+/** Les exercices, puis ce qui pend à eux : une requête par table, aucune pour une table vide. */
+async function insertExerciseRows(tx: TenantTx, rows: readonly ExerciseRows[]): Promise<void> {
+  if (rows.length === 0) return;
+  await tx.scheduledSessionExercise.createMany({ data: rows.map((row) => row.exercise) });
+  const tags = rows.flatMap((row) => row.tags);
+  if (tags.length > 0) await tx.scheduledSessionExerciseTag.createMany({ data: tags });
+  const documents = rows.flatMap((row) => row.documents);
+  if (documents.length > 0) {
+    await tx.scheduledSessionExerciseDocument.createMany({ data: documents });
   }
-
-  /**
-   * La consigne référence ses images par l'identifiant du document de la BIBLIOTHÈQUE. Les copies
-   * en ont un neuf : sans ce remappage, les images de consigne ne désignent plus rien chez
-   * l'athlète, et l'échec est SILENCIEUX — un média introuvable ne s'affiche pas, c'est tout.
-   */
-  const { instructions } = draft.exercise;
-  if (instructions == null || imageMediaIds(instructions).length === 0) return;
-
-  await tx.scheduledSessionExercise.update({
-    where: { id: scheduledSessionExerciseId },
-    data: { instructions: toInstructionsInput(remapImageMediaIds(instructions, idByOldId)) },
-  });
 }

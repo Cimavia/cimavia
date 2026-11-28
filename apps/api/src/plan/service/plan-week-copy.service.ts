@@ -114,8 +114,16 @@ export class PlanWeekCopyService {
 
       await copyScheduledSessions(
         tx,
-        sessions,
-        { planId: targetPlan.id, planWeekId: target.id, athleteId: targetPlan.athleteId },
+        [
+          {
+            sessions,
+            target: {
+              planId: targetPlan.id,
+              planWeekId: target.id,
+              athleteId: targetPlan.athleteId,
+            },
+          },
+        ],
         shiftDays,
       );
     });

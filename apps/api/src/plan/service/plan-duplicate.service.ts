@@ -14,11 +14,12 @@ import {
 import { PlanService } from "./plan.service";
 
 /**
- * Le plafond par défaut de Prisma (5 s) est taillé pour une écriture : un cycle de douze semaines
- * en écrit plusieurs centaines d'un coup (séances, blocs, lignes, documents, tags), une à une.
- * Mesuré : 2,8 s en local pour 72 séances de trois exercices — le NAS, plus lent, passerait les 5 s.
+ * Le plafond par défaut de Prisma (5 s) est taillé pour une écriture de quelques lignes : un cycle
+ * en écrit des milliers. Écrites par lots (`copyScheduledSessions`, une requête par table), elles
+ * tiennent en 1,4 s en local (18 s ligne à ligne) pour 52 semaines — la borne — de cinq séances de
+ * six exercices. Le plafond garde la marge d'un NAS plus lent.
  */
-export const DUPLICATE_TRANSACTION = { timeout: 30_000, maxWait: 5_000 };
+export const DUPLICATE_TRANSACTION = { timeout: 15_000, maxWait: 5_000 };
 
 /**
  * Dupliquer un cycle (#5) : un nouveau BROUILLON, au Coach qui duplique, qui reprend ce que le
@@ -114,20 +115,20 @@ export class PlanDuplicateService {
         // La semaine N de la source → la semaine N de la copie.
         const copyOf = new Map(weeks.map((week, index) => [week.id, copies[index]?.id]));
 
-        // Une semaine après l'autre : chacune reçoit les séances de sa source, décalées d'autant
-        // de jours que le cycle. Une séance sans semaine copiée échoue, elle ne se perd pas.
-        for (const [weekId, weekSessions] of groupByWeek(sessions)) {
-          await copyScheduledSessions(
-            tx,
-            weekSessions,
-            {
+        // Chaque semaine reçoit les séances de sa source, décalées d'autant de jours que le cycle.
+        // Une séance sans semaine copiée échoue, elle ne se perd pas.
+        await copyScheduledSessions(
+          tx,
+          [...groupByWeek(sessions)].map(([weekId, weekSessions]) => ({
+            sessions: weekSessions,
+            target: {
               planId: plan.id,
               planWeekId: required(copyOf.get(weekId), `[plan] semaine ${weekId} non recopiée`),
               athleteId: null,
             },
-            shiftDays,
-          );
-        }
+          })),
+          shiftDays,
+        );
         return plan;
       },
       {
