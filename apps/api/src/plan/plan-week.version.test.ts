@@ -2,7 +2,7 @@ import { NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import type { TenantTx } from "../tenancy/tenancy.extension";
 import { StaleWriteException } from "../util/stale-write.util";
-import { lockWeeksInOrder, touchWeeks } from "./plan-week.version";
+import { assertDateInLockedWeek, lockWeeksInOrder, touchWeeks } from "./plan-week.version";
 
 /**
  * Une transaction factice qui retient l'ordre des écritures sur les semaines : c'est lui qu'on
@@ -93,5 +93,36 @@ describe("touchWeeks", () => {
       expect.objectContaining({ where: { planId: "pln_1" }, orderBy: { weekNumber: "asc" } }),
     );
     expect(written).toEqual(["s1", "s2"]);
+  });
+});
+
+describe("assertDateInLockedWeek (#231)", () => {
+  // Un cycle commencé le lundi 2026-10-05 : sa semaine 2 court du 12 au 18.
+  const START = new Date("2026-10-05T00:00:00.000Z");
+  const lockedTx = (week: { planId: string; weekNumber: number } | null) =>
+    ({
+      planWeek: { findFirst: vi.fn(async () => week) },
+      plan: { findFirst: vi.fn(async () => ({ startDate: START })) },
+    }) as unknown as TenantTx;
+
+  it("laisse passer une date qui tombe encore dans la semaine relue", async () => {
+    const tx = lockedTx({ planId: "p1", weekNumber: 2 });
+
+    await expect(assertDateInLockedWeek(tx, "s2", "2026-10-12")).resolves.toBeUndefined();
+  });
+
+  // La semaine visée est devenue la 3 sous une insertion : le lundi 12 n'est plus le sien.
+  it("répond 409 quand la plage relue ne contient plus la date", async () => {
+    const tx = lockedTx({ planId: "p1", weekNumber: 3 });
+
+    await expect(assertDateInLockedWeek(tx, "s2", "2026-10-12")).rejects.toBeInstanceOf(
+      StaleWriteException,
+    );
+  });
+
+  it("répond 404 quand la semaine a disparu", async () => {
+    await expect(assertDateInLockedWeek(lockedTx(null), "s2", "2026-10-12")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

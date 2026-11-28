@@ -1,7 +1,9 @@
+import { isDateInPlanWeek } from "@cmv/shared";
 import { NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import type { TenantTx } from "../tenancy/tenancy.extension";
-import { writeAtVersion } from "../util/stale-write.util";
+import { toIsoDate } from "../util/date.util";
+import { StaleWriteException, writeAtVersion } from "../util/stale-write.util";
 
 export const WEEK_NOT_FOUND = "Semaine introuvable";
 
@@ -71,5 +73,37 @@ export async function lockWeeksInOrder(tx: TenantTx, weeks: readonly WeekLock[])
       data: { updatedAt: new Date() },
     });
     if (count === 0) throw new NotFoundException(WEEK_NOT_FOUND);
+  }
+}
+
+/**
+ * La date d'une séance contre la plage de SA semaine, relue une fois le verrou de la semaine pris
+ * — ce que `lockWeeksInOrder` demande à qui verrouille sans `readAt`.
+ *
+ * Avant la transaction, la date a été jugée sur une plage qui a pu changer depuis : une semaine
+ * insérée renumérote la suite, un report déplace toutes les plages du cycle (#231). Le geste qui
+ * les déplace tient nos semaines jusqu'à son commit ; une fois le verrou à nous, la plage relue est
+ * donc la dernière. Si la date n'y tombe plus, la séance se poserait hors de sa semaine — invisible
+ * dans la grille du Coach, visible au planning de l'athlète. 409 : la grille vue est périmée.
+ *
+ * Deux lectures scopées plutôt qu'une relation imbriquée : l'extension tenant n'intercepte que le
+ * premier niveau (piège n°2 du scope automatique).
+ */
+export async function assertDateInLockedWeek(
+  tx: TenantTx,
+  weekId: string,
+  date: string,
+): Promise<void> {
+  const week = await tx.planWeek.findFirst({
+    where: { id: weekId },
+    select: { planId: true, weekNumber: true },
+  });
+  const plan =
+    week == null
+      ? null
+      : await tx.plan.findFirst({ where: { id: week.planId }, select: { startDate: true } });
+  if (week == null || plan == null) throw new NotFoundException(WEEK_NOT_FOUND);
+  if (!isDateInPlanWeek(toIsoDate(plan.startDate), week.weekNumber, date)) {
+    throw new StaleWriteException();
   }
 }
