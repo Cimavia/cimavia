@@ -282,9 +282,12 @@ liste des domaines vivent dans l'index.
 > La CAPACITÉ de décalage (`shiftSessions`) reste entière : elle sert au brouillon. Décaler un cycle
 > **diffusé** (athlète blessé, report d'une semaine) est un besoin réel, mais demande de prévenir
 > l'athlète — hors périmètre ici. Le renvoi vers #172 était une **erreur d'aiguillage** : #172 traite
-> l'invisibilité d'un cycle diffusé, pas son report. Le sujet vit désormais dans
-> [#231](https://github.com/Cimavia/cimavia/issues/231), dont le déclencheur est un coach qui le
-> demande — aucun ne l'a fait à ce jour.
+> l'invisibilité d'un cycle diffusé, pas son report. Le sujet vivait dans
+> [#231](https://github.com/Cimavia/cimavia/issues/231).
+>
+> **Révisé en #231** : `startDate` **quitte** ce verrou. Un cycle diffusé que rien n'a touché se
+> reporte vers une date plus tardive, l'athlète prévenu ; `title` et `description` restent fermés.
+> Voir « Report d'un cycle diffusé », plus bas.
 
 > **Ce que l'avertissement de décalage promet, et ce qu'il ne promet pas** : déplacer le début
 > rejoue les dates de **toutes les séances**, et l'interface le dit avant l'enregistrement — sinon
@@ -980,6 +983,54 @@ liste des domaines vivent dans l'index.
 > Retirer une semaine d'un cycle **en cours** avec notification et recalage explicite reste un
 > besoin possible, renvoyé à [#231](https://github.com/Cimavia/cimavia/issues/231) : même dispositif
 > que le report (prévenir l'athlète), même déclencheur (un coach qui le demande — aucun à ce jour).
+>
+> **Confirmé en #231** : le retrait **reste fermé**. #231 ouvre l'insertion, qui ne fait que
+> repousser ; retirer ferait remonter des séances vers des jours déjà passés, et emporterait les
+> débriefs de la semaine retirée. Le déclencheur reste le même : un coach qui le demande.
+
+---
+
+## Post-MVP — Report d'un cycle diffusé ([#231](https://github.com/Cimavia/cimavia/issues/231))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| CD-1 | **Le rappel « le cycle se termine » ne suit pas un cycle décalé** : le tick génère `PLAN_ENDING` une fois par cycle (index d'unicité), à sept jours de la fin calculée. Reporté ou rallongé d'une semaine insérée après ce point, le cycle garde un rappel daté de son ancienne fin, et aucun ne vient pour la nouvelle. Antérieur à #231 — l'ajout d'une semaine en fin de cycle diffusé, ouvert depuis #312, fait déjà de même —, mais #231 le rend plus probable. | 🟡 | — *(issue proposée avec la PR de #231 : effacer, dans la transaction du décalage, le rappel généré sans note encore `PENDING`, comme `closeEndedFollow` ; un rappel déjà traité demande en plus de lever l'unicité)* |
+| CD-2 | **Le presse-papier de semaine (#4) garde le numéro de la semaine copiée** : après une insertion, il peut nommer « semaine 3 » une semaine devenue la 4 — le même défaut qu'après un retrait. Le collage vise l'identifiant, pas le numéro : rien ne part au mauvais endroit, seul le libellé ment, jusqu'à la copie suivante. | 🟢 | — *(déclencheur : un coach que le libellé a trompé)* |
+
+> **Tranché en #231** (deux gestes, une règle) : un coach bêta l'a demandé — l'athlète blessé, le
+> cycle qui doit attendre. **Reporter le cycle entier** rouvre `startDate` sur un cycle diffusé ;
+> **insérer une semaine avant la semaine N** (`POST /plan-weeks/:id/insert-before`) fait glisser
+> la suite de sept jours, la semaine insérée prenant le rang N. La règle commune vit dans
+> `@cmv/shared` (`firstMovableWeek`, `publishedShiftRefusal`), lue par le web pour fermer le geste
+> avant le clic et par l'API pour refuser : **une séance touchée ne bouge plus**. Le report entier
+> exige donc qu'aucune ne le soit ; l'insertion, qu'aucune ne le soit à partir de N.
+
+> **Tranché en #231** (en avant seulement) : sur un cycle diffusé, `startDate` ne recule pas (409).
+> L'athlète s'est organisé sur les dates diffusées, et un cycle avancé les lui reprend ; en cours,
+> il ferait même tomber des séances dans le passé, manquées sans l'avoir été. La règle ne distingue
+> pas un cycle à venir d'un cycle commencé : un seul sens, pour une seule phrase de refus. Un
+> brouillon, lui, se déplace toujours dans les deux sens.
+
+> **Tranché en #231** (la garde jouée deux fois) : avant la transaction, pour refuser sans rien
+> écrire ; puis dans la transaction, après le décalage. Les séances déplacées sont alors
+> verrouillées par nos écritures, et le débrief qui les passerait à `DONE` écrit la même ligne :
+> arrivé avant, il est vu et le décalage s'annule ; arrivé après, il attend notre commit et se pose
+> sur une séance déjà décalée. L'insertion verrouille ses semaines dans l'ordre de leur numéro
+> (#689), et renumérote **de la dernière à la première** : `@@unique([planId, weekNumber])` n'est
+> pas différable. Un ajout en fin de cycle au même instant vise un rang pris, et reçoit le 409
+> d'une grille périmée (`staleOnCollision`).
+
+> **Tranché en #231** (un type de notification, pas d'e-mail) : `PLAN_RESCHEDULED`, un pour les
+> deux gestes — l'athlète a ses dates à relire, pas une séance à ouvrir. Le texte dit « d'une
+> semaine » ou « à partir de la semaine N », jamais une date : l'API ne met aucune date en forme.
+> Il reste hors des types envoyables par e-mail, comme les quatre ajustements de cycle : c'en est
+> un, et la frontière se tient par famille.
+
+> **Tranché en #231** (la facture émise ne suit pas) : un cycle diffusé a une facture ÉMISE, et
+> elle ne se réécrit pas — ni son échéance, que l'avertissement du report signale, ni sa `period`
+> (le mois facturé, calculé par `periodOf` à l'émission). Reporté du 30 novembre au 14 décembre, le
+> cycle reste facturé sur novembre. Sur un brouillon, la période suit d'elle-même (encadré #207) ;
+> ici, corriger une facture émise passe par son annulation, comme pour toute autre erreur.
 
 ---
 
