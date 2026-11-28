@@ -82,10 +82,13 @@ export class PlanWeekService {
     // prend : l'unicité refuse l'une des deux, et le refusé reçoit le 409 d'une grille périmée.
     const updated = await staleOnCollision(() =>
       this.db.$transaction(async (tx) => {
-        await lockWeeksInOrder(
-          tx,
-          following.map((next) => (next.id === weekId ? { ...next, readAt: expected } : next)),
-        );
+        // La semaine de la route est citée en propre, à sa version : retirée depuis la lecture,
+        // elle manquerait à `following`, et la suite glisserait sur une grille que le Coach n'a
+        // pas vue — 404 plutôt qu'un 201 qui défait le recalage du retrait.
+        await lockWeeksInOrder(tx, [
+          { id: weekId, weekNumber: week.weekNumber, readAt: expected },
+          ...following.filter((next) => next.id !== weekId),
+        ]);
         await shiftSessions(
           tx,
           { planWeekId: { in: following.map((next) => next.id) } },
