@@ -45,6 +45,19 @@ export type PlanDayReorderedEvent = {
   isoDate: string;
 };
 
+/**
+ * Un cycle diffusé a glissé dans le temps (#231). `fromWeekNumber` dit d'où : 1 = le cycle entier,
+ * reporté ; au-delà, une semaine insérée devant la suite. `weeks` dit de combien — un décalage entre
+ * deux lundis, donc des semaines entières.
+ */
+export type PlanRescheduledEvent = {
+  athleteId: string;
+  planId: string;
+  planTitle: string;
+  fromWeekNumber: number;
+  weeks: number;
+};
+
 export type FeedbackReceivedEvent = {
   coachId: string;
   // L'id, pas le nom : le résoudre ici garde la lecture de `User` (table hors scope tenant) et
@@ -183,7 +196,8 @@ type PlanChangeType =
   | typeof NotificationType.PLAN_UPDATED
   | typeof NotificationType.PLAN_SESSION_ADDED
   | typeof NotificationType.PLAN_SESSION_REMOVED
-  | typeof NotificationType.PLAN_SESSIONS_REORDERED;
+  | typeof NotificationType.PLAN_SESSIONS_REORDERED
+  | typeof NotificationType.PLAN_RESCHEDULED;
 
 /**
  * Point d'émission des notifications métier (CDC §12) : nouvelle planif, ajustement de planif,
@@ -268,6 +282,26 @@ export class NotificationService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * Les séances du cycle ont glissé (#231). Le push dit de combien et depuis où, pour que l'athlète
+   * sache quoi relire sans ouvrir l'app ; le centre n'en garde que le cycle, comme ses voisines.
+   *
+   * Pas de date dans la phrase : l'API ne met en forme aucune date, la langue de l'athlète n'étant
+   * pas la sienne. Le rang d'une semaine se lit dans toutes.
+   */
+  async notifyPlanRescheduled(event: PlanRescheduledEvent): Promise<void> {
+    this.logger.info({ event: "plan.rescheduled", ...event }, "Cycle diffusé décalé par le coach");
+    const shift = event.weeks === 1 ? "d'une semaine" : `de ${event.weeks} semaines`;
+    const body =
+      event.fromWeekNumber === 1
+        ? `Ton coach a reporté « ${event.planTitle} » ${shift}.`
+        : `Ton coach a décalé « ${event.planTitle} » ${shift} à partir de la semaine ${event.fromWeekNumber}.`;
+    await this.emitPlanChange(NotificationType.PLAN_RESCHEDULED, event, event.planTitle, {
+      title: "Cycle décalé",
+      body,
+    });
+  }
+
   async notifyPlanSessionAdded(event: PlanSessionEvent): Promise<void> {
     this.logger.info({ event: "plan.session.added", ...event }, "Séance ajoutée au cycle diffusé");
     await this.emitPlanChange(NotificationType.PLAN_SESSION_ADDED, event, event.sessionTitle, {
@@ -290,7 +324,7 @@ export class NotificationService implements OnModuleDestroy {
   }
 
   /**
-   * Ce que la diffusion d'un cycle et ses quatre ajustements ont en commun : l'athlète est le
+   * Ce que la diffusion d'un cycle et ses ajustements ont en commun : l'athlète est le
    * destinataire, le cycle la cible, et l'acteur n'est pas nommé — c'est son coach, qu'il connaît.
    * Seul le sujet change : le titre du cycle, d'une séance, ou le jour réordonné.
    */

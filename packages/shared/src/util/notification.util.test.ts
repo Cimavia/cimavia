@@ -30,6 +30,7 @@ describe("capabilityOfNotification", () => {
       NotificationType.PLAN_SESSION_ADDED,
       NotificationType.PLAN_SESSION_REMOVED,
       NotificationType.PLAN_SESSIONS_REORDERED,
+      NotificationType.PLAN_RESCHEDULED,
       NotificationType.INVOICE_ISSUED,
     ]) {
       expect(capabilityOfNotification(type)).toBe("athlete");
@@ -217,6 +218,7 @@ describe("notificationTypesOf", () => {
       NotificationType.PLAN_SESSION_ADDED,
       NotificationType.PLAN_SESSION_REMOVED,
       NotificationType.PLAN_SESSIONS_REORDERED,
+      NotificationType.PLAN_RESCHEDULED,
     ]);
     expect(notificationTypesOf(NotificationCategory.REMINDER)).toEqual([
       NotificationType.REMINDER_DUE,
@@ -308,6 +310,7 @@ describe("pushPayloadOf / pushTargetOf", () => {
     PLAN_SESSION_ADDED: "planId",
     PLAN_SESSION_REMOVED: "planId",
     PLAN_SESSIONS_REORDERED: "planId",
+    PLAN_RESCHEDULED: "planId",
     FEEDBACK_RECEIVED: "scheduledSessionId",
     MESSAGE_RECEIVED: "conversationId",
     INVOICE_ISSUED: "invoiceId",

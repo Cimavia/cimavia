@@ -71,6 +71,7 @@ const NOTIFICATION_CAPABILITY = {
   [NotificationType.PLAN_SESSION_ADDED]: "athlete",
   [NotificationType.PLAN_SESSION_REMOVED]: "athlete",
   [NotificationType.PLAN_SESSIONS_REORDERED]: "athlete",
+  [NotificationType.PLAN_RESCHEDULED]: "athlete",
   [NotificationType.INVOICE_ISSUED]: "athlete",
   // Une invitation qui attend se lit forcément en athlète : c'est la capacité qu'elle propose
   // d'exercer, et la seule qui puisse l'accepter.

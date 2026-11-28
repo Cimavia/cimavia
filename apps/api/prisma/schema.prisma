@@ -1181,6 +1181,9 @@ enum NotificationType {
   // L'ordre des séances d'une journée a changé (#148), sans qu'aucune n'ait bougé de contenu :
   // un type à part, pour ne pas envoyer l'athlète chercher une modification qui n'a pas eu lieu.
   PLAN_SESSIONS_REORDERED
+  // Les séances d'un cycle diffusé ont glissé dans le temps (#231) : reporté en entier, ou une
+  // semaine insérée devant la suite. L'athlète a ses dates à relire, rien à chercher dans une séance.
+  PLAN_RESCHEDULED
   FEEDBACK_RECEIVED
   MESSAGE_RECEIVED
   INVOICE_ISSUED

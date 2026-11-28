@@ -218,6 +218,7 @@ describe("NotificationService — push", () => {
 describe("NotificationService — ce que chaque émetteur écrit", () => {
   const NAMES = { ath_1: "Noa", coach_2: "Camille", org_1: "Club Altitude" };
   const PLAN_SESSION = { athleteId: "ath_1", planId: "plan_1", sessionTitle: "Bloc force" };
+  const RESCHEDULED = { athleteId: "ath_1", planId: "plan_1", planTitle: "Cycle hiver" };
   const INVITATION = { coachId: "coach_2", athleteId: "ath_1", invitationId: "inv_1" };
   const toAthlete = (type: PersistedNotificationType, subjectLabel: string | null) => ({
     recipientId: "ath_1",
@@ -281,6 +282,26 @@ describe("NotificationService — ce que chaque émetteur écrit", () => {
         title: "Séances réordonnées",
         body: "Ton coach a changé l'ordre de tes séances de la journée.",
         data: { type: NotificationType.PLAN_SESSIONS_REORDERED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "cycle reporté en entier",
+      emit: (s) => s.notifyPlanRescheduled({ ...RESCHEDULED, fromWeekNumber: 1, weeks: 2 }),
+      trace: toAthlete(NotificationType.PLAN_RESCHEDULED, "Cycle hiver"),
+      push: {
+        title: "Cycle décalé",
+        body: "Ton coach a reporté « Cycle hiver » de 2 semaines.",
+        data: { type: NotificationType.PLAN_RESCHEDULED, planId: "plan_1" },
+      },
+    },
+    {
+      name: "suite du cycle décalée",
+      emit: (s) => s.notifyPlanRescheduled({ ...RESCHEDULED, fromWeekNumber: 3, weeks: 1 }),
+      trace: toAthlete(NotificationType.PLAN_RESCHEDULED, "Cycle hiver"),
+      push: {
+        title: "Cycle décalé",
+        body: "Ton coach a décalé « Cycle hiver » d'une semaine à partir de la semaine 3.",
+        data: { type: NotificationType.PLAN_RESCHEDULED, planId: "plan_1" },
       },
     },
     {

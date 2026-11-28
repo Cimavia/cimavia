@@ -23,6 +23,13 @@ export const NotificationType = {
    * sujet est le JOUR réordonné, pas un titre de séance — un ordre n'appartient à aucune d'elles.
    */
   PLAN_SESSIONS_REORDERED: "PLAN_SESSIONS_REORDERED",
+  /**
+   * Les séances d'un cycle diffusé ont glissé dans le temps (#231) : le cycle reporté en entier,
+   * ou une semaine insérée qui fait glisser la suite. Un type à part pour la même raison que les
+   * quatre ci-dessus : l'athlète n'a rien à chercher dans une séance, il a ses DATES à relire. Un
+   * seul pour les deux gestes, qui lui demandent le même. Son sujet est le titre du cycle.
+   */
+  PLAN_RESCHEDULED: "PLAN_RESCHEDULED",
   FEEDBACK_RECEIVED: "FEEDBACK_RECEIVED",
   MESSAGE_RECEIVED: "MESSAGE_RECEIVED",
   INVOICE_ISSUED: "INVOICE_ISSUED",
@@ -94,8 +101,10 @@ export type PersistedNotificationType = Exclude<
  * `PLAN_SESSION_REMOVED`, `PLAN_SESSIONS_REORDERED`) en sont exclus : ils arrivent par RAFALES et
  * rien ne les groupe encore (dette N-6). Ajouter trois séances à un cycle produirait trois e-mails,
  * ce qui vide une boîte de sa valeur et nous fait classer indésirable. Ils restent servis par le
- * push et par le centre, où une rafale coûte une ligne et non un message. `REMINDER_DUE` en est absent pour une autre
- * raison : il n'est jamais persisté et ne passe pas par le point d'émission commun.
+ * push et par le centre, où une rafale coûte une ligne et non un message. Le report
+ * (`PLAN_RESCHEDULED`, #231) en est exclu aussi : il n'arrive pas en rafale, mais c'est un
+ * ajustement comme eux, et la frontière se tient par famille. `REMINDER_DUE` en est absent pour une
+ * autre raison : il n'est jamais persisté et ne passe pas par le point d'émission commun.
  *
  * Les trois types d'invitation (#146) n'y sont pas non plus, pour une raison qui leur est propre :
  * ils ne s'adressent QU'À des comptes existants. Une adresse sans compte reçoit l'e-mail
@@ -159,6 +168,7 @@ export const NOTIFICATION_ENTITY_TYPE = {
   [NotificationType.PLAN_SESSION_ADDED]: NotificationEntityType.PLAN,
   [NotificationType.PLAN_SESSION_REMOVED]: NotificationEntityType.PLAN,
   [NotificationType.PLAN_SESSIONS_REORDERED]: NotificationEntityType.PLAN,
+  [NotificationType.PLAN_RESCHEDULED]: NotificationEntityType.PLAN,
   [NotificationType.FEEDBACK_RECEIVED]: NotificationEntityType.SCHEDULED_SESSION,
   [NotificationType.MESSAGE_RECEIVED]: NotificationEntityType.CONVERSATION,
   [NotificationType.INVOICE_ISSUED]: NotificationEntityType.INVOICE,
@@ -214,6 +224,7 @@ export const NOTIFICATION_LABEL_KEY = {
   [NotificationType.PLAN_SESSION_ADDED]: "notification.type.planSessionAdded",
   [NotificationType.PLAN_SESSION_REMOVED]: "notification.type.planSessionRemoved",
   [NotificationType.PLAN_SESSIONS_REORDERED]: "notification.type.planSessionsReordered",
+  [NotificationType.PLAN_RESCHEDULED]: "notification.type.planRescheduled",
   [NotificationType.FEEDBACK_RECEIVED]: "notification.type.feedbackReceived",
   [NotificationType.MESSAGE_RECEIVED]: "notification.type.messageReceived",
   [NotificationType.INVOICE_ISSUED]: "notification.type.invoiceIssued",
@@ -277,6 +288,7 @@ export const NOTIFICATION_CATEGORY = {
   [NotificationType.PLAN_SESSION_ADDED]: NotificationCategory.PLANNING,
   [NotificationType.PLAN_SESSION_REMOVED]: NotificationCategory.PLANNING,
   [NotificationType.PLAN_SESSIONS_REORDERED]: NotificationCategory.PLANNING,
+  [NotificationType.PLAN_RESCHEDULED]: NotificationCategory.PLANNING,
   [NotificationType.FEEDBACK_RECEIVED]: NotificationCategory.FEEDBACK,
   [NotificationType.MESSAGE_RECEIVED]: NotificationCategory.MESSAGE,
   [NotificationType.INVOICE_ISSUED]: NotificationCategory.BILLING,
