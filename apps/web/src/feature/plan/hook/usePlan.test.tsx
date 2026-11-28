@@ -391,19 +391,40 @@ describe("usePlanMutations", () => {
     expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
   });
 
-  // #690 : la séance débriefée entre-temps garderait sinon une poubelle ouverte, refusée à chaque
-  // essai. Le panneau relit sa séance à l'ouverture ; la carte n'a que la grille.
-  it("relit le cycle quand la grille supprime une séance débriefée entre-temps", async () => {
-    const refused = new ApiError(409, "Séance débriefée", null);
-    deleteScheduledSessionMock.mockRejectedValue(refused);
+  /**
+   * Des gestes que l'écran ferme d'après le cycle en cache : un refus sans version dit que le cache
+   * ment, et le geste resterait ouvert, refusé à chaque essai. #690 : la séance débriefée entre-temps
+   * garderait une poubelle ouverte. #231 : une séance faite depuis le chargement ferme l'insertion
+   * et le report, que seule une relecture referme à l'écran.
+   */
+  it.each([
+    {
+      gesture: "la grille supprime une séance débriefée entre-temps",
+      mock: deleteScheduledSessionMock,
+      run: (m: Mutations) =>
+        m.removeGridSession.mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION }),
+    },
+    {
+      gesture: "une séance faite depuis le chargement refuse l'insertion d'une semaine",
+      mock: insertPlanWeekBeforeMock,
+      run: (m: Mutations) =>
+        m.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION }),
+    },
+    {
+      gesture: "une séance faite depuis le chargement refuse le report du cycle",
+      mock: updatePlanMock,
+      run: (m: Mutations) =>
+        m.saveHeader.mutateAsync({ startDate: "2026-11-30", expectedUpdatedAt: VERSION }),
+    },
+  ])("relit le cycle quand $gesture", async ({ mock, run }) => {
+    const refused = new ApiError(409, "Déjà faite", null);
+    mock.mockRejectedValue(refused);
     const { wrapper, queryClient } = renderWithQueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.removeGridSession
-        .mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION })
-        .catch(() => undefined);
+      await run(result.current).catch(() => undefined);
     });
 
     expect(onErrorMock).toHaveBeenCalledWith(refused);

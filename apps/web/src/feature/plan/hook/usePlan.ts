@@ -136,6 +136,17 @@ export function usePlanMutations(planId: string) {
   };
 
   /**
+   * Un geste que l'écran ferme d'après le cycle en CACHE, et qui sinon dit vrai : tout refus autre
+   * qu'une version périmée dit que le cache ment — une séance débriefée entre-temps (409 sans
+   * version), une semaine retirée (404). Sans relecture, le geste resterait ouvert, et chaque
+   * clic reprendrait le même refus.
+   */
+  const reloadOnRefusal = (handle: (error: unknown) => unknown) => async (error: unknown) => {
+    await handle(error);
+    if (!isStaleWriteError(error)) await invalidate();
+  };
+
+  /**
    * Ce qui définit le cycle : son titre, sa description, son début, son destinataire (#207).
    * Rangée avec les écritures du builder parce qu'elle invalide exactement les mêmes caches —
    * déplacer le début rejoue les dates de toutes les séances, et changer de destinataire déplace
@@ -148,7 +159,8 @@ export function usePlanMutations(planId: string) {
     mutationKey,
     mutationFn: (input: UpdatePlanInput) => updatePlan(planId, input),
     onSuccess: done("plan.toast.headerSaved"),
-    onError: onFormError,
+    // Le report d'un cycle diffusé se ferme sur les séances en cache (#231).
+    onError: reloadOnRefusal(onFormError),
   });
 
   const addWeek = useMutation({
@@ -189,7 +201,7 @@ export function usePlanMutations(planId: string) {
     mutationFn: ({ weekId, expectedUpdatedAt }: WeekVariables) =>
       insertPlanWeekBefore(weekId, { type: PlanWeekType.TRAINING, expectedUpdatedAt }),
     onSuccess: settled("plan.toast.weekInserted"),
-    onError: onGestureError,
+    onError: reloadOnRefusal(onGestureError),
   });
 
   /**
@@ -263,10 +275,7 @@ export function usePlanMutations(planId: string) {
     mutationKey,
     mutationFn: deleteSession,
     onSuccess: done("plan.toast.sessionDeleted"),
-    onError: async (error) => {
-      await onGestureError(error);
-      if (!isStaleWriteError(error)) await invalidate();
-    },
+    onError: reloadOnRefusal(onGestureError),
   });
 
   /**
