@@ -1,4 +1,5 @@
 import {
+  PLAN_MAX_WEEKS,
   type PlanDto,
   type PlanWeekDto,
   PlanWeekType,
@@ -11,6 +12,7 @@ import {
   copyPlanWeek,
   deletePlanWeek,
   deleteScheduledSession,
+  insertPlanWeekBefore,
   reorderPlanDay,
   updatePlanWeek,
 } from "@/feature/plan/api";
@@ -30,6 +32,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   copyPlanWeek: vi.fn(),
   deletePlanWeek: vi.fn(),
   deleteScheduledSession: vi.fn(),
+  insertPlanWeekBefore: vi.fn(),
   reorderPlanDay: vi.fn(),
   updatePlanWeek: vi.fn(),
 }));
@@ -108,7 +111,13 @@ function mount(target: PlanWeekDto, props: Props = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   clearPlanClipboard();
-  for (const fn of [copyPlanWeek, deletePlanWeek, reorderPlanDay, updatePlanWeek]) {
+  for (const fn of [
+    copyPlanWeek,
+    deletePlanWeek,
+    insertPlanWeekBefore,
+    reorderPlanDay,
+    updatePlanWeek,
+  ]) {
     vi.mocked(fn).mockResolvedValue(RESPONSE);
   }
 });
@@ -364,9 +373,90 @@ describe("PlanWeekCard — en Lecture (#607)", () => {
 
     expect(target.queryByRole("button", { name: "plan.week.paste" })).toBeNull();
     expect(target.queryByRole("button", { name: "plan.week.delete" })).toBeNull();
+    expect(target.queryByRole("button", { name: "plan.week.insertBefore" })).toBeNull();
     expect(target.queryByRole("button", { name: "plan.week.addSession" })).toBeNull();
     for (const type of target.getAllByRole("button", { name: /plan\.weekType\./ })) {
       expect((type as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+});
+
+describe("PlanWeekCard — insérer une semaine avant (#231)", () => {
+  const WEEK_2 = { id: "w-2", startDate: MONDAY_2, weekNumber: 2 };
+  const done = (id: string, date: string) => ({
+    ...session(id, date, 0),
+    status: ScheduledSessionStatus.DONE,
+  });
+
+  it("confirme en deux temps, dit ce qui glisse, et cite la version de la semaine visée", async () => {
+    const { user, target } = mount(week(WEEK_2));
+
+    await user.click(target.getByRole("button", { name: "plan.week.insertBefore" }));
+    expect(target.getByText("plan.week.insertHint")).toBeInTheDocument();
+    await user.click(target.getByRole("button", { name: "plan.week.insertConfirm" }));
+
+    await waitFor(() =>
+      expect(insertPlanWeekBefore).toHaveBeenCalledWith("w-2", {
+        type: PlanWeekType.TRAINING,
+        expectedUpdatedAt: VERSION,
+      }),
+    );
+  });
+
+  it("annonce l'athlète prévenu sur un cycle diffusé", async () => {
+    const { user, target } = mount(week(WEEK_2), { isPublished: true });
+
+    await user.click(target.getByRole("button", { name: "plan.week.insertBefore" }));
+
+    expect(target.getByText("plan.week.insertHintPublished")).toBeInTheDocument();
+  });
+
+  /** Les semaines données, telles que le constructeur les montre : la règle se juge sur toutes. */
+  function cards(weeks: PlanWeekDto[]) {
+    const view = renderWithProviders(
+      <PlanWeekList
+        planId="p-1"
+        planTitle="Cycle bloc"
+        isPublished
+        readOnly={false}
+        weeks={weeks}
+        onAddSession={vi.fn()}
+        onEditSession={vi.fn()}
+      />,
+    );
+    return Array.from(view.container.querySelectorAll("section")).map((card) => within(card));
+  }
+
+  it("ferme le geste devant une semaine faite, et l'ouvre après elle", () => {
+    const [first, second] = cards([
+      week({ id: "w-1", startDate: MONDAY_1, sessions: [done("s-done", MONDAY_1)] }),
+      week(WEEK_2),
+    ]);
+
+    expect(first?.getByRole("button", { name: "plan.week.insertBefore" })).toBeDisabled();
+    expect(second?.getByRole("button", { name: "plan.week.insertBefore" })).toBeEnabled();
+  });
+
+  it("ferme toutes les semaines jusqu'à la dernière séance faite, avec sa raison", () => {
+    const { source, target } = mount(week({ ...WEEK_2, sessions: [done("s-done", MONDAY_2)] }), {
+      isPublished: true,
+    });
+
+    for (const card of [source, target]) {
+      expect(card.getByRole("button", { name: "plan.week.insertBefore" })).toBeDisabled();
+      expect(card.getByTitle("plan.week.insertDisabledSettled")).toBeInTheDocument();
+    }
+  });
+
+  it(`ferme le geste sur un cycle de ${PLAN_MAX_WEEKS} semaines`, () => {
+    const full = cards(
+      Array.from({ length: PLAN_MAX_WEEKS }, (_, index) =>
+        week({ id: `w-${index + 1}`, startDate: MONDAY_1, weekNumber: index + 1 }),
+      ),
+    );
+
+    for (const card of full) {
+      expect(card.getByTitle("plan.week.insertDisabledFull")).toBeInTheDocument();
     }
   });
 });

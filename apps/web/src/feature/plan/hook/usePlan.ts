@@ -8,7 +8,7 @@ import type {
   UpdatePlanWeekInput,
   UpdateScheduledSessionInput,
 } from "@cmv/shared";
-import { myPlanKeys } from "@cmv/shared";
+import { myPlanKeys, PlanWeekType } from "@cmv/shared";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addPlanWeek,
@@ -21,6 +21,7 @@ import {
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
+  insertPlanWeekBefore,
   planKeys,
   reorderPlanDay,
   resetScheduledComposition,
@@ -44,7 +45,8 @@ type PasteWeekVariables = AtWeekVersion & { targetWeekId: string; sourcePlanWeek
 // La journée visée et l'ordre voulu, en entier — l'API refuse un sous-ensemble.
 type ReorderDayVariables = AtWeekVersion & { weekId: string; date: string; sessionIds: string[] };
 
-type RemoveWeekVariables = AtWeekVersion & { weekId: string };
+// Retirer une semaine, ou en insérer une devant elle : la version est celle de la semaine visée.
+type WeekVariables = AtWeekVersion & { weekId: string };
 
 // La séance ouverte, et la version sur laquelle la saisie a commencé (#604).
 type OpenedSessionVariables = { sessionId: string; expectedUpdatedAt: string };
@@ -168,13 +170,25 @@ export function usePlanMutations(planId: string) {
   // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine (côté API).
   const removeWeek = useMutation({
     mutationKey,
-    mutationFn: ({ weekId, expectedUpdatedAt }: RemoveWeekVariables) =>
+    mutationFn: ({ weekId, expectedUpdatedAt }: WeekVariables) =>
       deletePlanWeek(weekId, { expectedUpdatedAt }),
     onSuccess: async (plan, { weekId }) => {
       // Si c'était la semaine copiée, le bandeau ne doit plus proposer de la coller (#341).
       forgetPlanClipboardSource({ planWeekId: weekId });
       await settled("plan.toast.weekDeleted")(plan);
     },
+    onError: onGestureError,
+  });
+
+  /**
+   * Insère une semaine d'entraînement devant celle-ci (#231) : la suite glisse d'une semaine. Son
+   * type se change ensuite sur sa carte, comme une semaine ajoutée en fin de cycle.
+   */
+  const insertWeek = useMutation({
+    mutationKey,
+    mutationFn: ({ weekId, expectedUpdatedAt }: WeekVariables) =>
+      insertPlanWeekBefore(weekId, { type: PlanWeekType.TRAINING, expectedUpdatedAt }),
+    onSuccess: settled("plan.toast.weekInserted"),
     onError: onGestureError,
   });
 
@@ -294,6 +308,7 @@ export function usePlanMutations(planId: string) {
     addWeek,
     updateWeek,
     removeWeek,
+    insertWeek,
     pasteWeek,
     reorderDay,
     createSession,

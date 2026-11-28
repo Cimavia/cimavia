@@ -13,6 +13,7 @@ const {
   updatePlanMock,
   updatePlanWeekMock,
   deletePlanWeekMock,
+  insertPlanWeekBeforeMock,
   reorderPlanDayMock,
   deleteScheduledSessionMock,
   onSuccessMock,
@@ -25,6 +26,7 @@ const {
   updatePlanMock: vi.fn(),
   updatePlanWeekMock: vi.fn(),
   deletePlanWeekMock: vi.fn(),
+  insertPlanWeekBeforeMock: vi.fn(),
   reorderPlanDayMock: vi.fn(),
   deleteScheduledSessionMock: vi.fn(),
   onSuccessMock: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   updatePlan: updatePlanMock,
   updatePlanWeek: updatePlanWeekMock,
   deletePlanWeek: deletePlanWeekMock,
+  insertPlanWeekBefore: insertPlanWeekBeforeMock,
   reorderPlanDay: reorderPlanDayMock,
   deleteScheduledSession: deleteScheduledSessionMock,
 }));
@@ -270,6 +273,23 @@ describe("usePlanMutations", () => {
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekDeleted");
   });
 
+  // #231 : l'API décale la suite ; le client envoie une semaine d'entraînement et recharge.
+  it("insère une semaine d'entraînement devant celle demandée, et l'annonce", async () => {
+    insertPlanWeekBeforeMock.mockResolvedValue(planWith([]));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION });
+    });
+
+    expect(insertPlanWeekBeforeMock).toHaveBeenCalledWith("w-2", {
+      type: "TRAINING",
+      expectedUpdatedAt: VERSION,
+    });
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekInserted");
+  });
+
   it.each([
     ["w-1", null],
     ["w-2", "w-1"],
@@ -342,6 +362,11 @@ describe("usePlanMutations", () => {
         }),
     ],
     ["l'ajout", addPlanWeekMock, (m: Mutations) => m.addWeek.mutateAsync({} as never)],
+    [
+      "l'insertion",
+      insertPlanWeekBeforeMock,
+      (m: Mutations) => m.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION }),
+    ],
     // #690 : depuis la carte, aucun bandeau ne dirait le refus — il passerait en silence.
     [
       "la suppression depuis la grille",

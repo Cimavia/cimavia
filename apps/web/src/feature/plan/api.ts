@@ -6,6 +6,7 @@ import type {
   CreateScheduledSessionInput,
   DuplicatePlanInput,
   ElementAccessDto,
+  InsertPlanWeekInput,
   PlanDto,
   PlanSummaryDto,
   PlanWeekInput,
@@ -99,6 +100,11 @@ export function updatePlanWeek(weekId: string, input: UpdatePlanWeekInput): Prom
 // Un DELETE n'a pas de corps : la version lue voyage dans la requête (#604).
 export function deletePlanWeek(weekId: string, query: VersionQuery): Promise<PlanDto> {
   return api.delete<PlanDto>(`/plan-weeks/${weekId}?${new URLSearchParams(query)}`);
+}
+
+// Insère une semaine AVANT celle-ci (#231) : la suite glisse d'une semaine, séances comprises.
+export function insertPlanWeekBefore(weekId: string, input: InsertPlanWeekInput): Promise<PlanDto> {
+  return api.post<PlanDto>(`/plan-weeks/${weekId}/insert-before`, input);
 }
 
 // Colle le contenu d'une autre semaine ICI : la cible est la ressource, la source voyage dans le
