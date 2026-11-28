@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AccessService } from "../../access/service/access.service";
 import type { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import type { InvoiceService } from "../../invoice/service/invoice.service";
+import type { NotificationService } from "../../notification/notification.service";
 import type { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma } from "../../tenancy/tenancy.extension";
 import { PlanService } from "./plan.service";
@@ -47,6 +48,7 @@ function build({
     access,
     {} as PlanAccessService,
     { deleteOrDefer } as unknown as ObjectPurgeService,
+    {} as NotificationService,
   );
   return { service, deleteOrDefer, tx };
 }

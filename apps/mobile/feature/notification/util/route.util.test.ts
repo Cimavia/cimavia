@@ -277,6 +277,7 @@ describe("routeForPushPayload", () => {
       NotificationEntityType.PLAN,
       "p-1",
     ],
+    [NotificationType.PLAN_RESCHEDULED, { planId: "p-1" }, NotificationEntityType.PLAN, "p-1"],
     [
       NotificationType.FEEDBACK_RECEIVED,
       { scheduledSessionId: "s-1" },

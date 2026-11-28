@@ -4,6 +4,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { RequireCapability } from "../../auth/decorator/require-capability.decorator";
 import { ZodSchemaPipe } from "../../zod/zod-schema.pipe";
 import { CopyPlanWeekDto } from "../dto/copy-plan-week.dto";
+import { InsertPlanWeekDto } from "../dto/insert-plan-week.dto";
 import { UpdatePlanWeekDto } from "../dto/update-plan-week.dto";
 import { PlanWeekService } from "../service/plan-week.service";
 import { PlanWeekCopyService } from "../service/plan-week-copy.service";
@@ -35,6 +36,15 @@ export class PlanWeekController {
   @Post(":id/copy-from")
   copyFrom(@Param("id") id: string, @Body() dto: CopyPlanWeekDto) {
     return this.copies.copyWeek(id, dto);
+  }
+
+  /**
+   * Insère une semaine AVANT celle-ci (#231) : elle prend son rang, et la suite glisse d'une
+   * semaine, séances comprises. Sur un cycle diffusé, l'athlète en est prévenu.
+   */
+  @Post(":id/insert-before")
+  insertBefore(@Param("id") id: string, @Body() dto: InsertPlanWeekDto) {
+    return this.weeks.insertWeekBefore(id, dto);
   }
 
   // Renumérote les semaines suivantes et fait remonter leurs séances d'une semaine. Sans corps :

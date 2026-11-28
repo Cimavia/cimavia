@@ -4,6 +4,7 @@ import {
   createPlanSchema,
   createScheduledSessionSchema,
   duplicatePlanSchema,
+  insertPlanWeekSchema,
   PLAN_TITLE_MAX_LENGTH,
   publishPlanSchema,
   reorderPlanDaySchema,
@@ -190,6 +191,7 @@ describe("version lue (#604)", () => {
   it.each([
     ["le type ou la note", updatePlanWeekSchema, { type: "TRAINING" }],
     ["le collage", copyPlanWeekSchema, { sourcePlanWeekId: "pw_1" }],
+    ["l'insertion d'une semaine", insertPlanWeekSchema, { type: "TRAINING" }],
     ["l'ordre d'une journée", reorderPlanDaySchema, { sessionIds: ["ss_1"] }],
     ["le retrait d'un cycle, d'une semaine ou d'une séance", versionQuerySchema, {}],
     ["la diffusion d'un cycle", publishPlanSchema, {}],

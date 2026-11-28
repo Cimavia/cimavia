@@ -14,6 +14,7 @@ import {
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
+  insertPlanWeekBefore,
   listPlanOrganizations,
   listPlans,
   planKeys,
@@ -121,6 +122,12 @@ describe.each([
     () => deletePlanWeek("w-1", { expectedUpdatedAt: VERSION }),
     "delete",
     ["/plan-weeks/w-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
+  [
+    "insertPlanWeekBefore",
+    () => insertPlanWeekBefore("w-2", { type: "TRAINING", expectedUpdatedAt: VERSION }),
+    "post",
+    ["/plan-weeks/w-2/insert-before", { type: "TRAINING", expectedUpdatedAt: VERSION }],
   ],
   [
     "copyPlanWeek",

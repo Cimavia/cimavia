@@ -46,7 +46,19 @@ export async function propagateAthlete(
 ): Promise<void> {
   // `@updatedAt` fait avancer chaque semaine, et c'est voulu (#604) : un collage ou un glisser
   // pensé pour l'athlète d'avant n'a pas à passer en silence chez le suivant.
-  await tx.planWeek.updateMany({ where: { planId }, data: { athleteId } });
+  //
+  // Une à une, dans l'ordre de leur numéro, et non par un `updateMany` qui les verrouille dans
+  // l'ordre où Postgres les lit : c'est l'ordre de `lockWeeksInOrder` (#689), qu'une insertion de
+  // semaine tient sur toute la suite (#231). Dans un autre ordre, l'une des deux transactions
+  // tiendrait la semaine que l'autre attend, et Postgres la tuerait d'un 500.
+  const weeks = await tx.planWeek.findMany({
+    where: { planId },
+    select: { id: true },
+    orderBy: { weekNumber: "asc" },
+  });
+  for (const week of weeks) {
+    await tx.planWeek.update({ where: { id: week.id }, data: { athleteId } });
+  }
   await tx.scheduledSession.updateMany({ where: { planId }, data: { athleteId } });
   if (athleteId != null) {
     await invoices.followPlanAthlete(tx, planId, athleteId);

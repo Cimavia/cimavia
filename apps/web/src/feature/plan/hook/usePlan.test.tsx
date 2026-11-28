@@ -13,6 +13,7 @@ const {
   updatePlanMock,
   updatePlanWeekMock,
   deletePlanWeekMock,
+  insertPlanWeekBeforeMock,
   reorderPlanDayMock,
   deleteScheduledSessionMock,
   onSuccessMock,
@@ -25,6 +26,7 @@ const {
   updatePlanMock: vi.fn(),
   updatePlanWeekMock: vi.fn(),
   deletePlanWeekMock: vi.fn(),
+  insertPlanWeekBeforeMock: vi.fn(),
   reorderPlanDayMock: vi.fn(),
   deleteScheduledSessionMock: vi.fn(),
   onSuccessMock: vi.fn(),
@@ -41,6 +43,7 @@ vi.mock("@/feature/plan/api", async (importOriginal) => ({
   updatePlan: updatePlanMock,
   updatePlanWeek: updatePlanWeekMock,
   deletePlanWeek: deletePlanWeekMock,
+  insertPlanWeekBefore: insertPlanWeekBeforeMock,
   reorderPlanDay: reorderPlanDayMock,
   deleteScheduledSession: deleteScheduledSessionMock,
 }));
@@ -270,6 +273,23 @@ describe("usePlanMutations", () => {
     expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekDeleted");
   });
 
+  // #231 : l'API décale la suite ; le client envoie une semaine d'entraînement et recharge.
+  it("insère une semaine d'entraînement devant celle demandée, et l'annonce", async () => {
+    insertPlanWeekBeforeMock.mockResolvedValue(planWith([]));
+    const { wrapper } = renderWithQueryClient();
+
+    const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
+    await act(async () => {
+      await result.current.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION });
+    });
+
+    expect(insertPlanWeekBeforeMock).toHaveBeenCalledWith("w-2", {
+      type: "TRAINING",
+      expectedUpdatedAt: VERSION,
+    });
+    expect(onSuccessMock).toHaveBeenCalledWith("plan.toast.weekInserted");
+  });
+
   it.each([
     ["w-1", null],
     ["w-2", "w-1"],
@@ -342,6 +362,11 @@ describe("usePlanMutations", () => {
         }),
     ],
     ["l'ajout", addPlanWeekMock, (m: Mutations) => m.addWeek.mutateAsync({} as never)],
+    [
+      "l'insertion",
+      insertPlanWeekBeforeMock,
+      (m: Mutations) => m.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION }),
+    ],
     // #690 : depuis la carte, aucun bandeau ne dirait le refus — il passerait en silence.
     [
       "la suppression depuis la grille",
@@ -366,19 +391,40 @@ describe("usePlanMutations", () => {
     expect(roots).toEqual([planKeys.all, scheduledSessionKeys.all, myPlanKeys.all]);
   });
 
-  // #690 : la séance débriefée entre-temps garderait sinon une poubelle ouverte, refusée à chaque
-  // essai. Le panneau relit sa séance à l'ouverture ; la carte n'a que la grille.
-  it("relit le cycle quand la grille supprime une séance débriefée entre-temps", async () => {
-    const refused = new ApiError(409, "Séance débriefée", null);
-    deleteScheduledSessionMock.mockRejectedValue(refused);
+  /**
+   * Des gestes que l'écran ferme d'après le cycle en cache : un refus sans version dit que le cache
+   * ment, et le geste resterait ouvert, refusé à chaque essai. #690 : la séance débriefée entre-temps
+   * garderait une poubelle ouverte. #231 : une séance faite depuis le chargement ferme l'insertion
+   * et le report, que seule une relecture referme à l'écran.
+   */
+  it.each([
+    {
+      gesture: "la grille supprime une séance débriefée entre-temps",
+      mock: deleteScheduledSessionMock,
+      run: (m: Mutations) =>
+        m.removeGridSession.mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION }),
+    },
+    {
+      gesture: "une séance faite depuis le chargement refuse l'insertion d'une semaine",
+      mock: insertPlanWeekBeforeMock,
+      run: (m: Mutations) =>
+        m.insertWeek.mutateAsync({ weekId: "w-2", expectedUpdatedAt: VERSION }),
+    },
+    {
+      gesture: "une séance faite depuis le chargement refuse le report du cycle",
+      mock: updatePlanMock,
+      run: (m: Mutations) =>
+        m.saveHeader.mutateAsync({ startDate: "2026-11-30", expectedUpdatedAt: VERSION }),
+    },
+  ])("relit le cycle quand $gesture", async ({ mock, run }) => {
+    const refused = new ApiError(409, "Déjà faite", null);
+    mock.mockRejectedValue(refused);
     const { wrapper, queryClient } = renderWithQueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     const { result } = renderHook(() => usePlanMutations("plan-1"), { wrapper });
     await act(async () => {
-      await result.current.removeGridSession
-        .mutateAsync({ sessionId: "ss-1", expectedUpdatedAt: VERSION })
-        .catch(() => undefined);
+      await run(result.current).catch(() => undefined);
     });
 
     expect(onErrorMock).toHaveBeenCalledWith(refused);

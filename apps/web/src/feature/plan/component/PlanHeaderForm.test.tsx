@@ -3,6 +3,7 @@ import {
   PLAN_TITLE_MAX_LENGTH,
   type PlanDto,
   PlanStatus,
+  ScheduledSessionStatus,
   type UpdatePlanInput,
 } from "@cmv/shared";
 import { act } from "@testing-library/react";
@@ -339,24 +340,118 @@ describe("PlanHeaderForm — un début choisi hors lundi, avant le recalage", ()
  * cycle » et le sélecteur de destinataire.
  */
 describe("PlanHeaderForm — un cycle diffusé", () => {
-  it("ferme les quatre champs sans les masquer, en disant pourquoi", () => {
-    const { container, getByRole, getByText } = mount({ status: PlanStatus.PUBLISHED });
+  /** Une semaine du cycle, ses séances aux statuts donnés : tout ce que lit la règle du report. */
+  const week = (weekNumber: number, ...statuses: ScheduledSessionStatus[]) =>
+    ({ weekNumber, sessions: statuses.map((status) => ({ status })) }) as PlanDto["weeks"][number];
+  const published = (weeks: PlanDto["weeks"] = [week(1, ScheduledSessionStatus.PLANNED)]) =>
+    ({ status: PlanStatus.PUBLISHED, weeks }) satisfies Partial<PlanDto>;
+  const started = () =>
+    published([week(1, ScheduledSessionStatus.DONE), week(2, ScheduledSessionStatus.PLANNED)]);
+
+  it("ferme le titre, la description et le destinataire sans les masquer, en disant pourquoi", () => {
+    const { container, getByRole, getByText } = mount(published());
 
     expect((container.querySelector("#planTitle") as HTMLInputElement).disabled).toBe(true);
-    expect((container.querySelector("#startDate") as HTMLInputElement).disabled).toBe(true);
     expect((container.querySelector("#planDescription") as HTMLTextAreaElement).disabled).toBe(
       true,
     );
     expect((getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
-    expect(getByText("plan.header.lockedPublished")).toBeTruthy();
+    expect(getByText("plan.header.lockedPublishedMovable")).toBeTruthy();
   });
 
-  // Le bouton, lui, disparaît : le garder désactivé proposerait un geste qu'aucun champ ne peut
-  // plus alimenter.
-  it("retire le bouton d'enregistrement", () => {
-    const { queryByText } = mount({ status: PlanStatus.PUBLISHED });
+  // #231 : un athlète blessé avant d'avoir commencé reprend plus tard — le cycle entier suit.
+  it("reporte un cycle que rien n'a touché, en prévenant de ce qui suit", async () => {
+    const { container, getByRole, getByText, user } = mount(published());
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+    expect(start.disabled).toBe(false);
+    expect(start.min).toBe(MONDAY);
 
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+    expect(getByText("plan.header.startDateShiftLaterPublished")).toBeTruthy();
+    await user.click(getByRole("button", { name: "plan.header.submit" }));
+
+    expect(onSave).toHaveBeenCalledWith(...sent({ startDate: NEXT_MONDAY }));
+  });
+
+  // Le Coach qui s'auto-coache ne se prévient pas lui-même, et n'a pas de facture à son nom.
+  it("reporte un cycle auto-coaché sans parler d'athlète ni de facture", async () => {
+    const { container, queryByText, user } = mount({ ...published(), athleteId: "coach_1" });
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+
+    expect(queryByText("plan.header.startDateShiftLater")).toBeTruthy();
+    expect(queryByText("plan.header.startDateShiftLaterPublished")).toBeNull();
+  });
+
+  // Avancé, le cycle ferait tomber ses séances dans le passé, manquées sans l'avoir été.
+  it("refuse de l'avancer : la raison sous la date, le bouton fermé", async () => {
+    const { container, getByRole, getByText, queryByText, user } = mount(published());
+
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+    await user.clear(start);
+    await user.type(start, PREVIOUS_MONDAY);
+
+    expect(getByText("plan.header.startDateEarlierPublished")).toBeTruthy();
+    expect(queryByText("plan.header.startDateShiftEarlier")).toBeNull();
+    expect(
+      (getByRole("button", { name: "plan.header.submit" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  // Une séance faite ne bouge plus : la suite se décale par une semaine insérée, et l'en-tête le dit.
+  it("ferme le début dès qu'une séance est faite, et renvoie vers l'insertion", () => {
+    const { container, getByText, queryByText } = mount(started());
+
+    expect((container.querySelector("#startDate") as HTMLInputElement).disabled).toBe(true);
+    expect(getByText("plan.header.lockedPublishedStarted")).toBeTruthy();
+    // Le bouton disparaît : le garder désactivé proposerait un geste qu'aucun champ n'alimente.
     expect(queryByText("plan.header.submit")).toBeNull();
+  });
+
+  // Un débrief arrive pendant la saisie : le champ ne se ferme pas sur une date qui ne partira plus.
+  it("garde ouverte une date saisie avant qu'une séance soit faite, le temps d'y revenir", async () => {
+    const { container, getByRole, getByText, rerender, user } = mount(published());
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+
+    rerender(form(plan(started())));
+
+    expect(start.disabled).toBe(false);
+    expect(getByText("plan.header.startDateSettledPublished")).toBeTruthy();
+    expect(
+      (getByRole("button", { name: "plan.header.submit" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await user.clear(start);
+    await user.type(start, MONDAY);
+    expect(start.disabled).toBe(true);
+  });
+
+  // Ouvert en Lecture, le cycle diffusé d'un autre Coach ne se reporte pas plus qu'il ne se renomme.
+  it("en Lecture, ne se reporte pas", () => {
+    const { container, getByText, queryByText } = renderWithProviders(
+      form(plan(published()), { readOnly: true }),
+    );
+
+    expect((container.querySelector("#startDate") as HTMLInputElement).disabled).toBe(true);
+    expect(getByText("plan.header.lockedPublished")).toBeTruthy();
+    expect(queryByText("plan.header.submit")).toBeNull();
+  });
+
+  // Le brouillon n'a pas de borne : il s'avance comme il se reporte.
+  it("laisse un brouillon sans borne ni avertissement de diffusion", async () => {
+    const { container, queryByText, user } = mount();
+    const start = container.querySelector("#startDate") as HTMLInputElement;
+    expect(start.min).toBe("");
+
+    await user.clear(start);
+    await user.type(start, NEXT_MONDAY);
+
+    expect(queryByText("plan.header.startDateShiftLater")).toBeTruthy();
+    expect(queryByText("plan.header.startDateShiftLaterPublished")).toBeNull();
   });
 });
 

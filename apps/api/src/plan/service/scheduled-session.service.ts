@@ -26,7 +26,7 @@ import {
   writeAtVersion,
 } from "../../util/stale-write.util";
 import { athleteRecipientOrThrow } from "../plan.recipient";
-import { lockWeeksInOrder, touchWeeks } from "../plan-week.version";
+import { assertDateInLockedWeek, lockWeeksInOrder, touchWeeks } from "../plan-week.version";
 import { assertDateInWeek } from "../scheduled-day.rules";
 import { buildSessionDraft } from "../scheduled-session.draft";
 import {
@@ -74,6 +74,8 @@ export class ScheduledSessionService {
     // instant le même jour prennent leur rang l'une après l'autre (`touchWeeks`).
     const session = await this.db.$transaction(async (tx) => {
       await touchWeeks(tx, { id: planWeekId });
+      // Une insertion ou un report a pu déplacer la plage de la semaine pendant qu'on attendait.
+      await assertDateInLockedWeek(tx, planWeekId, input.scheduledDate);
       const created = await tx.scheduledSession.create({
         // coachId injecté par le tenancy layer ; athleteId dénormalisé explicitement.
         data: {
@@ -160,6 +162,9 @@ export class ScheduledSessionService {
         { id: week.id, weekNumber: week.weekNumber },
         { id: arrival.id, weekNumber: arrival.weekNumber },
       ]);
+      // L'arrivée a été cherchée hors transaction, sur des plages qu'une insertion ou un report a
+      // pu déplacer depuis (#231).
+      await assertDateInLockedWeek(tx, arrival.id, input.scheduledDate);
       await writeAtVersion(
         tx.scheduledSession,
         id,

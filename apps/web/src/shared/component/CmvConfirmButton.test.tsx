@@ -60,6 +60,28 @@ describe("CmvConfirmButton", () => {
     expect(getByRole("button", { name: "Confirmer" }).parentElement).toHaveClass("basis-full");
   });
 
+  // #231 : insérer une semaine ne détruit rien — ni au repos, ni armé, le rouge n'y a sa place.
+  it("prend le ton d'un changement à chaque temps, fermé compris", async () => {
+    const { user, getByRole } = setup({ tone: "change" });
+
+    const rest = getByRole("button", { name: "Supprimer" });
+    expect(rest).toHaveClass("text-cmv-accent-on");
+    expect(rest).not.toHaveClass("text-cmv-error-on");
+    await user.click(rest);
+
+    expect(getByRole("button", { name: "Confirmer" })).toHaveClass("text-cmv-accent-on");
+  });
+
+  it("reste au ton d'une suppression par défaut", () => {
+    expect(setup().getByRole("button", { name: "Supprimer" })).toHaveClass("text-cmv-error-on");
+  });
+
+  it("garde le ton d'un changement sur un bouton fermé", () => {
+    const { getByRole } = setup({ tone: "change", disabledReason: "Semaine faite" });
+
+    expect(getByRole("button", { name: "Supprimer" })).toHaveClass("text-cmv-accent-on");
+  });
+
   it("garde l'icône d'un bouton-icône fermé, et son nom accessible", () => {
     const { getByRole, queryByText } = setup({
       disabledReason: "Séance débriefée",

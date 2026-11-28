@@ -24,6 +24,11 @@ type PlanWeekCardProps = {
    */
   readOnly: boolean;
   week: PlanWeekDto;
+  /**
+   * Pourquoi insérer une semaine devant celle-ci est fermé — une séance faite à partir d'ici, ou le
+   * plafond du cycle —, `null` s'il est ouvert (#231). Jugé sur le cycle entier, par la liste.
+   */
+  insertClosedReason: { key: string; max?: number } | null;
   /** Le glisser du CYCLE, tenu par l'écran : une séance passe d'une semaine à l'autre (#689). */
   drag: CycleDrag;
   onAddSession: (date: string) => void;
@@ -36,12 +41,14 @@ export function PlanWeekCard({
   isPublished,
   readOnly,
   week,
+  insertClosedReason,
   drag,
   onAddSession,
   onEditSession,
 }: Readonly<PlanWeekCardProps>) {
   const { t } = useTranslation();
-  const { updateWeek, removeWeek, pasteWeek, removeGridSession, isBusy } = usePlanMutations(planId);
+  const { updateWeek, removeWeek, insertWeek, pasteWeek, removeGridSession, isBusy } =
+    usePlanMutations(planId);
   const { clipboard, copyWeek } = usePlanClipboard();
   // Retirer une semaine d'un cycle diffusé décalerait le planning de l'athlète (l'API refuse,
   // #312) : le geste reste visible, fermé, avec sa raison.
@@ -159,6 +166,32 @@ export function PlanWeekCard({
           {t("plan.week.copy")}
         </CmvButton>
         {renderPasteAction()}
+
+        {/* Insérer fait glisser toute la suite, séances comprises : un geste qui se confirme, et
+            qui dit avant le second clic ce qu'il emporte — l'athlète prévenu, sur un cycle diffusé. */}
+        {readOnly ? null : (
+          <CmvConfirmButton
+            tone="change"
+            label={t("plan.week.insertBefore")}
+            confirmLabel={t("plan.week.insertConfirm")}
+            confirmHint={t(isPublished ? "plan.week.insertHintPublished" : "plan.week.insertHint", {
+              number: week.weekNumber,
+            })}
+            cancelLabel={t("common.cancel")}
+            // Armé, l'avertissement prend sa ligne : coupé entre le compteur et « Copier », il ne
+            // se lisait plus.
+            armedClassName="basis-full"
+            disabled={isBusy}
+            disabledReason={
+              insertClosedReason == null
+                ? undefined
+                : t(insertClosedReason.key, { max: insertClosedReason.max })
+            }
+            onConfirm={() =>
+              insertWeek.mutate({ weekId: week.id, expectedUpdatedAt: week.updatedAt })
+            }
+          />
+        )}
 
         {readOnly ? null : (
           <CmvConfirmButton

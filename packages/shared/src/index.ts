@@ -502,6 +502,7 @@ export type {
   CreatePlanInput,
   CreateScheduledSessionInput,
   DuplicatePlanInput,
+  InsertPlanWeekInput,
   PlanDto,
   PlanStatus as PlanStatusType,
   PlanSummaryDto,
@@ -524,6 +525,7 @@ export {
   createPlanSchema,
   createScheduledSessionSchema,
   duplicatePlanSchema,
+  insertPlanWeekSchema,
   PLAN_DESCRIPTION_MAX_LENGTH,
   PLAN_MAX_WEEKS,
   PLAN_TITLE_MAX_LENGTH,
@@ -1154,6 +1156,8 @@ export {
   unassignedDraftPlans,
   visiblePlanAthleteRows,
 } from "./util/plan-row.util";
+export type { ShiftableWeek } from "./util/plan-shift.util";
+export { firstMovableWeek, PlanShiftRefusal, publishedShiftRefusal } from "./util/plan-shift.util";
 export type {
   CompositionChange,
   PlannedChanges,

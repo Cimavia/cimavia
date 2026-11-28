@@ -58,6 +58,13 @@ export async function attemptPlanWrites(
           .send({ sourcePlanWeekId: weekId, expectedUpdatedAt: ANY_VERSION }),
     ],
     [
+      "POST /plan-weeks/:id/insert-before",
+      () =>
+        intruder
+          .post(`/plan-weeks/${weekId}/insert-before`)
+          .send({ type: "TRAINING", expectedUpdatedAt: ANY_VERSION }),
+    ],
+    [
       "POST /plan-weeks/:id/sessions",
       () =>
         intruder

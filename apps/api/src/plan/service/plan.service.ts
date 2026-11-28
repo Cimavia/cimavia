@@ -6,7 +6,13 @@ import type {
   UpdatePlanInput,
   VersionQuery,
 } from "@cmv/shared";
-import { CoachAthleteStatus, daysBetweenIsoDates, PlanStatus, required } from "@cmv/shared";
+import {
+  CoachAthleteStatus,
+  DAYS_PER_WEEK,
+  daysBetweenIsoDates,
+  PlanStatus,
+  required,
+} from "@cmv/shared";
 import {
   BadRequestException,
   ConflictException,
@@ -26,6 +32,7 @@ import { type AccessGesture, AccessService } from "../../access/service/access.s
 import { holdActiveLink } from "../../account/coach-athlete.lock";
 import { ObjectPurgeService } from "../../infra/storage/object-purge.service";
 import { InvoiceService } from "../../invoice/service/invoice.service";
+import { NotificationService } from "../../notification/notification.service";
 import { ReminderService } from "../../reminder/service/reminder.service";
 import type { TenantPrisma, TenantTx } from "../../tenancy/tenancy.extension";
 import { TENANT_PRISMA } from "../../tenancy/tenancy.module";
@@ -40,7 +47,8 @@ import {
   toPlanDto,
   toPlanSummaryDto,
 } from "../plan.mapper";
-import { propagateAthlete } from "../plan.recipient";
+import { athleteRecipientOrThrow, propagateAthlete } from "../plan.recipient";
+import { assertStartMovable } from "../plan-shift.guard";
 import { touchWeeks, WEEK_NOT_FOUND } from "../plan-week.version";
 import { createWeeks, shiftSessions } from "../plan-week.writer";
 import { PlanAccessService, settledOrganizations } from "./plan-access.service";
@@ -60,6 +68,7 @@ export class PlanService {
     private readonly access: AccessService,
     private readonly planAccess: PlanAccessService,
     private readonly purge: ObjectPurgeService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async create(input: CreatePlanInput): Promise<PlanDto> {
@@ -125,8 +134,10 @@ export class PlanService {
    * Déplacer la date de début décale le cycle ENTIER : les séances suivent leur semaine, sinon
    * elles sortiraient de la plage de celle-ci (invariant « une séance tombe dans sa semaine »).
    *
-   * Tant que le cycle est un BROUILLON. Une fois diffusé, plus rien de ce qui le définit ne se
-   * réécrit : ni son en-tête (`assertHeaderWritable`), ni son destinataire (`assertReassignable`).
+   * Une fois diffusé, ni son titre, ni sa description (`assertHeaderWritable`), ni son destinataire
+   * (`assertReassignable`) ne se réécrivent. Son DÉBUT, si (#231) : un athlète blessé, et le cycle
+   * se reporte — vers plus tard, tant qu'aucune séance n'est faite (`assertStartMovable`). L'athlète
+   * en est prévenu, après le commit.
    *
    * Sous la version lue (#604) : deux Coachs d'une même entreprise peuvent retoucher le même cycle,
    * et le second enregistrement n'efface plus le premier en silence — 409 `STALE_WRITE`.
@@ -161,15 +172,8 @@ export class PlanService {
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
 
-    let shiftDays = 0;
-    if (input.startDate !== undefined) {
-      // Deux dates lisibles : celle de la base, et celle que le schéma vient de valider.
-      shiftDays = required(
-        daysBetweenIsoDates(toIsoDate(plan.startDate), input.startDate),
-        `[plan] date de début illisible pour le plan ${id}`,
-      );
-      data.startDate = toDbDate(input.startDate);
-    }
+    const shift = await this.startShift(plan, input.startDate);
+    if (input.startDate !== undefined) data.startDate = toDbDate(input.startDate);
 
     // `undefined` = ne touche pas au destinataire ; `null` = le détacher. Les deux se
     // distinguent, et c'est toute la raison d'être du `nullable().optional()` du schéma.
@@ -189,18 +193,13 @@ export class PlanService {
     // l'autre Coach pour une écriture qui n'a rien modifié.
     if (Object.keys(data).length === 0) return this.getDto(id, this.db, context);
 
-    return this.db.$transaction(async (tx) => {
+    const updated = await this.db.$transaction(async (tx) => {
       // Même verrou qu'à la création : le nouveau destinataire, revu actif sous verrou partagé.
       if (athleteChanged && input.athleteId != null) {
         await holdActiveLink(tx, plan.coachId, input.athleteId);
       }
       await writeAtVersion(tx.plan, id, expected, data, PLAN_NOT_FOUND);
-      if (shiftDays !== 0) {
-        // Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les
-        // semaines d'abord, puis leurs séances — l'ordre des verrous de `touchWeeks`.
-        await touchWeeks(tx, { planId: id });
-        await shiftSessions(tx, { planId: id }, shiftDays);
-      }
+      if (shift != null) await shiftPlan(tx, id, shift);
       if (reassigned) {
         await propagateAthlete(tx, this.invoices, id, input.athleteId ?? null);
         if (audienceChanged) await this.planAccess.resetOpened(tx, id);
@@ -210,6 +209,34 @@ export class PlanService {
       // donc NOTRE version. Relue après, elle pourrait déjà porter celle d'un autre Coach — et le
       // formulaire, qui garde une saisie faite pendant l'envoi, la citerait par-dessus lui.
       return this.getDto(id, tx, context);
+    });
+
+    // Après le commit, comme toute notification : un report annulé n'a rien à annoncer.
+    if (shift?.reschedules) await this.notifyRescheduled(plan, shift.days);
+    return updated;
+  }
+
+  /**
+   * Le déplacement du début que la saisie demande, `null` si le début ne bouge pas — absent, ou
+   * renvoyé tel quel. Le REPORT d'un cycle diffusé (#231) se juge ici, refusé sans rien écrire,
+   * puis revu sous verrou (`shiftPlan`).
+   */
+  private async startShift(plan: Plan, startDate: string | undefined): Promise<StartShift | null> {
+    const days = startShiftDays(plan, startDate);
+    if (days == null || days === 0) return null;
+    const reschedules = plan.status === PlanStatus.PUBLISHED;
+    if (reschedules) await assertStartMovable(this.db, plan.id, days);
+    return { days, reschedules };
+  }
+
+  /** Le cycle entier a glissé : l'athlète relit ses dates à partir de la semaine 1. */
+  private async notifyRescheduled(plan: Plan, shiftDays: number): Promise<void> {
+    await this.notifications.notifyPlanRescheduled({
+      athleteId: athleteRecipientOrThrow(plan),
+      planId: plan.id,
+      planTitle: plan.title,
+      fromWeekNumber: 1,
+      weeks: shiftDays / DAYS_PER_WEEK,
     });
   }
 
@@ -399,24 +426,49 @@ export class PlanService {
   }
 }
 
+/** Le début qu'une saisie déplace : de `days` jours (jamais 0), et s'il reporte un cycle diffusé. */
+type StartShift = { days: number; reschedules: boolean };
+
 /**
- * Ce qui DÉFINIT un cycle — son titre, sa description, son début — ne se réécrit plus une fois
- * diffusé, exactement comme son destinataire. Le refus est un 409 et non un 400 : la demande
- * n'est pas mal formée, c'est l'état du cycle qui ne s'y prête plus.
+ * De combien de jours la saisie déplace le début du cycle — `null` si elle n'y touche pas. Deux
+ * dates lisibles : celle de la base, et celle que le schéma vient de valider.
+ */
+function startShiftDays(plan: Plan, startDate: string | undefined): number | null {
+  if (startDate === undefined) return null;
+  return required(
+    daysBetweenIsoDates(toIsoDate(plan.startDate), startDate),
+    `[plan] date de début illisible pour le plan ${plan.id}`,
+  );
+}
+
+/**
+ * Toutes les dates de la grille bougent : un geste fondé sur l'ancienne est périmé. Les semaines
+ * d'abord, puis leurs séances — l'ordre des verrous de `touchWeeks`. Sur un REPORT, les séances
+ * déplacées sont à nous jusqu'au commit : un débrief passé entre la garde et ici se voit
+ * maintenant, et annule le report (cf. `plan-shift.guard`).
+ */
+async function shiftPlan(tx: TenantTx, planId: string, shift: StartShift): Promise<void> {
+  await touchWeeks(tx, { planId });
+  await shiftSessions(tx, { planId }, shift.days);
+  if (shift.reschedules) await assertStartMovable(tx, planId, shift.days);
+}
+
+/**
+ * Ce qui NOMME un cycle — son titre, sa description — ne se réécrit plus une fois diffusé,
+ * exactement comme son destinataire. Le refus est un 409 et non un 400 : la demande n'est pas mal
+ * formée, c'est l'état du cycle qui ne s'y prête plus.
  *
  * Le message diffère de celui du destinataire parce qu'il dit autre chose : là où l'athlète « en
  * a déjà été prévenu », ici il s'entraîne dessus — et un cycle qui bouge sous ses pieds est pire
  * qu'un cycle qu'on ne peut plus corriger.
  *
- * La CAPACITÉ de décalage (`shiftSessions`) reste entière : elle sert au brouillon. Décaler un
- * cycle DIFFUSÉ (athlète blessé, report d'une semaine) est un besoin réel, mais demande un autre
- * dispositif — l'athlète doit en être prévenu (#172). C'est cette porte-ci qui se ferme, pas la
- * mécanique derrière.
+ * Le DÉBUT en est sorti (#231) : renommer un cycle sous les pieds de l'athlète n'a aucune urgence,
+ * le reporter en a une — un athlète blessé. Il passe par sa propre garde (`assertStartMovable`), et
+ * l'athlète en est prévenu.
  */
 function assertHeaderWritable(plan: Plan, input: UpdatePlanInput): void {
   if (plan.status !== PlanStatus.PUBLISHED) return;
-  const rewritesHeader =
-    input.title !== undefined || input.description !== undefined || input.startDate !== undefined;
+  const rewritesHeader = input.title !== undefined || input.description !== undefined;
   if (!rewritesHeader) return;
   throw new ConflictException(
     "L'en-tête d'un cycle diffusé ne se réécrit plus : son athlète s'entraîne dessus",

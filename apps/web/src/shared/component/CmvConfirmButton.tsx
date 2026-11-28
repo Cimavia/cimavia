@@ -29,10 +29,16 @@ type CmvConfirmButtonProps = {
    * passe sous le titre, sur toute sa largeur (#690). Omis, il prend la place du bouton.
    */
   armedClassName?: string | undefined;
+  /**
+   * Ce que le geste fait : détruire (`danger`, par défaut) ou changer ce qui existe sans rien
+   * retirer (`change`) — insérer une semaine fait glisser la suite, elle ne supprime rien (#231).
+   * Le rouge d'une suppression y mentirait.
+   */
+  tone?: "danger" | "change";
 };
 
 /**
- * Action destructive en deux temps : un 1er clic « arme » le bouton, le 2e confirme.
+ * Action lourde de conséquences, en deux temps : un 1er clic « arme » le bouton, le 2e confirme.
  * Évite `window.confirm` (non stylable, non traduisible par i18next) tout en protégeant
  * d'un clic accidentel.
  */
@@ -46,6 +52,7 @@ export function CmvConfirmButton({
   confirmHint,
   disabledReason,
   armedClassName,
+  tone = "danger",
 }: Readonly<CmvConfirmButtonProps>) {
   const [armed, setArmed] = useState(false);
 
@@ -53,7 +60,7 @@ export function CmvConfirmButton({
     return (
       <span title={disabledReason} className="inline-flex [&>button]:pointer-events-none">
         {/* `title` gardé : c'est l'intitulé accessible d'un bouton-icône, pas une info-bulle. */}
-        <CmvButton variant={icon == null ? "danger" : "ghost"} title={label} disabled>
+        <CmvButton variant={icon == null ? tone : "ghost"} title={label} disabled>
           {icon ?? label}
         </CmvButton>
       </span>
@@ -63,7 +70,7 @@ export function CmvConfirmButton({
   if (!armed) {
     return (
       <CmvButton
-        variant={icon == null ? "danger" : "ghost"}
+        variant={icon == null ? tone : "ghost"}
         title={label}
         disabled={disabled}
         onClick={() => setArmed(true)}
@@ -79,7 +86,7 @@ export function CmvConfirmButton({
         <span className="text-cmv-caption text-cmv-text-mid">{confirmHint}</span>
       )}
       <CmvButton
-        variant="danger"
+        variant={tone}
         disabled={disabled}
         onClick={() => {
           setArmed(false);
