@@ -77,7 +77,9 @@ export const createPlanSchema = z
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 
 // Déplacer `startDate` décale le cycle entier : l'API translate les dates des séances de la
-// même durée (l'invariant « une séance tombe dans sa semaine » est ainsi préservé).
+// même durée (l'invariant « une séance tombe dans sa semaine » est ainsi préservé). Sur un cycle
+// DIFFUSÉ, seul `startDate` se réécrit, vers plus tard, et tant que rien n'est fait (#231 —
+// `publishedShiftRefusal`).
 export const updatePlanSchema = z
   .object({
     title: z.string().min(1).max(PLAN_TITLE_MAX_LENGTH).optional(),
@@ -110,6 +112,19 @@ export const updatePlanWeekSchema = z
   })
   .strict();
 export type UpdatePlanWeekInput = z.infer<typeof updatePlanWeekSchema>;
+
+/**
+ * Insérer une semaine AVANT celle de la route (#231) : elle prend son rang, et la suite glisse d'une
+ * semaine, séances comprises. Un athlète blessé en semaine 3 voit ainsi la suite reprendre une
+ * semaine plus tard, sans que ce qu'il a déjà fait ne bouge.
+ *
+ * La version citée est celle de la semaine de la route, la première à glisser : un autre Coach qui
+ * vient d'y poser ou d'y retirer une séance a changé ce qui part.
+ */
+export const insertPlanWeekSchema = planWeekInputSchema
+  .extend({ expectedUpdatedAt: expectedVersionSchema })
+  .strict();
+export type InsertPlanWeekInput = z.infer<typeof insertPlanWeekSchema>;
 
 /**
  * Copier une semaine dans une autre (#4). Seule la SOURCE voyage dans le corps : la semaine
