@@ -12,7 +12,7 @@ import {
   shiftIsoDate,
   todayIsoDate,
 } from "@cmv/shared";
-import { waitFor, within } from "@testing-library/react";
+import { act, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { listMyOrganizations } from "@/feature/library/api";
@@ -471,6 +471,34 @@ describe("PlanBuilderScreen — les semaines", () => {
     expect(queryByText("plan.session.createTitle")).toBeTruthy();
 
     await user.click(getByRole("button", { name: "common.cancel" }));
+    expect(queryByText("plan.session.createTitle")).toBeNull();
+  });
+
+  it("un autre cycle remonte le builder : ni l'en-tête ni le panneau de l'ancien ne le suivent (#5)", async () => {
+    const { container, getAllByRole, queryByText, router, user } = await mount({ weeks: [week] });
+    await user.click(getAllByRole("button", { name: "plan.week.addSession" })[0] as HTMLElement);
+    expect(queryByText("plan.session.createTitle")).toBeTruthy();
+
+    // La copie qu'on vient de dupliquer : la même route, sous un autre identifiant.
+    const copy = plan({
+      id: "pln_copie",
+      title: "Cycle bloc (copie)",
+      athleteId: null,
+      weeks: [week],
+    });
+    vi.mocked(usePlan).mockReturnValue({
+      data: copy,
+      isPending: false,
+      error: null,
+      refetch,
+    } as unknown as ReturnType<typeof usePlan>);
+    await act(() => router.navigate({ to: "/plans/$planId", params: { planId: "pln_copie" } }));
+
+    await waitFor(() =>
+      expect((container.querySelector("#planTitle") as HTMLInputElement).value).toBe(
+        "Cycle bloc (copie)",
+      ),
+    );
     expect(queryByText("plan.session.createTitle")).toBeNull();
   });
 

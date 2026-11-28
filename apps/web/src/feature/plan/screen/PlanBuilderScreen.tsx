@@ -200,10 +200,20 @@ function useRequestedSession(
   }, [requested, plan, isFetching, open, navigate]);
 }
 
+/**
+ * Un cycle, un montage : la route garde son écran quand seul `$planId` change — vers la copie
+ * qu'on vient de dupliquer (#5), comme vers tout autre cycle. Sans cette clé, l'en-tête, la
+ * facturation et le panneau ouvert restaient ceux du cycle d'avant : une saisie de la source
+ * s'affichait sur la copie, et le panneau écrivait encore dans la séance de la source.
+ */
 export function PlanBuilderScreen() {
+  const { planId } = useParams({ from: "/plans/$planId" });
+  return <PlanBuilder key={planId} planId={planId} />;
+}
+
+function PlanBuilder({ planId }: Readonly<{ planId: string }>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
-  const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isFetching, error, refetch } = usePlan(planId);
   /**

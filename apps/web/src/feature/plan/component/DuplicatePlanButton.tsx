@@ -1,6 +1,5 @@
 import { copyTitle, PLAN_TITLE_MAX_LENGTH, required } from "@cmv/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useDuplicatePlan } from "@/feature/plan/hook/usePlans";
 import { CmvButton } from "@/shared/component";
@@ -31,14 +30,8 @@ export function DuplicatePlanButton({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const duplicate = useDuplicatePlan(plan.id);
-  // Le cycle AFFICHÉ, à jour : l'écran reste monté quand seul `$planId` change (TanStack Router).
-  const shownPlanId = useRef(plan.id);
-  useEffect(() => {
-    shownPlanId.current = plan.id;
-  }, [plan.id]);
 
   function onDuplicate() {
-    const sourceId = plan.id;
     // Le suffixe tient toujours dans la borne : seul le titre se raccourcit.
     const title = required(
       copyTitle(plan.title, t("plan.duplicate.suffix"), PLAN_TITLE_MAX_LENGTH),
@@ -47,12 +40,10 @@ export function DuplicatePlanButton({
     duplicate.mutate(
       { title },
       {
-        // Parti vers un autre cycle entre-temps, le coach y reste : le toast lui dit que la copie
-        // existe, la liste la montre.
-        onSuccess: (copy) => {
-          if (shownPlanId.current !== sourceId) return;
-          void navigate({ to: "/plans/$planId", params: { planId: copy.id } });
-        },
+        // Propre à CE montage : parti vers un autre cycle entre-temps, le coach y reste — le
+        // builder se remonte par cycle, et TanStack Query oublie le rappel d'un bouton démonté. Le
+        // toast du hook lui dit, lui, que la copie existe.
+        onSuccess: (copy) => void navigate({ to: "/plans/$planId", params: { planId: copy.id } }),
       },
     );
   }

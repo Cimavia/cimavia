@@ -1,5 +1,4 @@
 import { PLAN_TITLE_MAX_LENGTH } from "@cmv/shared";
-import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DuplicatePlanButton } from "@/feature/plan/component/DuplicatePlanButton";
 import { useDuplicatePlan } from "@/feature/plan/hook/usePlans";
@@ -15,7 +14,8 @@ const hookWith = (isPending: boolean) =>
   } as unknown as ReturnType<typeof useDuplicatePlan>);
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // `reset` et non `clear` : une implémentation posée par un test ne fuit pas dans le suivant.
+  vi.resetAllMocks();
   hookWith(false);
 });
 
@@ -67,36 +67,6 @@ describe("DuplicatePlanButton", () => {
     await user.click(getByText("plan.duplicate.action"));
 
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/plans/pln_copie"));
-  });
-
-  it("laisse sur l'autre cycle le coach parti entre-temps : l'écran reste monté (#5)", async () => {
-    let created: (copy: { id: string }) => void = () => {};
-    duplicate.mockImplementation((_input, options: { onSuccess: typeof created }) => {
-      created = options.onSuccess;
-    });
-    // Seul `$planId` change : la route garde son écran, et le bouton reçoit l'autre cycle.
-    function Switching() {
-      const [plan, setPlan] = useState(PLAN);
-      return (
-        <>
-          <DuplicatePlanButton plan={plan} isUnsaved={false} isBusy={false} />
-          <button type="button" onClick={() => setPlan({ id: "pln_autre", title: "Autre" })}>
-            pln_autre
-          </button>
-        </>
-      );
-    }
-    const { getByText, router, user } = await renderInRoute(<Switching />, {
-      path: "/plans/$planId",
-      params: { planId: "pln_1" },
-    });
-
-    await user.click(getByText("plan.duplicate.action"));
-    await user.click(getByText("pln_autre"));
-    created({ id: "pln_copie" });
-
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(router.state.location.pathname).toBe("/plans/pln_1");
   });
 
   /** La copie part de l'enregistré (#326) : elle ne copierait pas ce que l'écran montre. */
