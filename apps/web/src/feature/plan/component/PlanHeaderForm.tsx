@@ -1,10 +1,13 @@
 import {
   daysBetweenIsoDates,
+  firstMovableWeek,
   mondayOfIsoWeek,
   PLAN_DESCRIPTION_MAX_LENGTH,
   PLAN_TITLE_MAX_LENGTH,
   type PlanDto,
+  PlanShiftRefusal,
   PlanStatus,
+  publishedShiftRefusal,
   sameJson,
   type UpdatePlanInput,
 } from "@cmv/shared";
@@ -133,11 +136,26 @@ export function PlanHeaderForm({
     return input;
   }
 
+  /**
+   * De combien le cycle se déplace — entre deux lundis, donc toujours un multiple de 7. `null` = la
+   * date est en cours de saisie et illisible : on n'annonce rien plutôt qu'un « 0 jour » inventé.
+   */
+  const shiftDays =
+    effectiveStartDate == null ? null : daysBetweenIsoDates(plan.startDate, effectiveStartDate);
+
+  const isPublished = plan.status === PlanStatus.PUBLISHED;
+  /**
+   * Pourquoi ce report d'un cycle DIFFUSÉ ne partira pas (#231) — la même règle que l'API, lue sur
+   * les séances en cache —, `null` s'il partira ou si le cycle est un brouillon.
+   */
+  const refusal =
+    isPublished && shiftDays != null ? publishedShiftRefusal(shiftDays, plan.weeks) : null;
+
   /** Ce qui manque pour enregistrer, ou `null` : le bouton se ferme, le dialogue le dit. */
   function missingField(): string | null {
     if (title.trim() === "") return "plan.header.titleRequired";
     if (effectiveStartDate == null) return "plan.header.startDateRequired";
-    return null;
+    return refusal == null ? null : REFUSAL_KEY[refusal];
   }
 
   /**
@@ -164,11 +182,11 @@ export function PlanHeaderForm({
     void save();
   }
 
-  const isPublished = plan.status === PlanStatus.PUBLISHED;
-  // Figé, diffusé ou en Lecture : les champs se lisent, aucun ne se saisit.
+  // Diffusé ou en Lecture : le titre, la description et le destinataire se lisent, sans se saisir.
   const isLocked = isPublished || readOnly;
+  const isStartLocked = readOnly || isStartSettled(plan, startDate);
   const hasChanges = Object.keys(changedFields()).length > 0;
-  const canSubmit = !isLocked && !isSaving && hasChanges && missingField() == null;
+  const canSubmit = !isStartLocked && !isSaving && hasChanges && missingField() == null;
   /**
    * Plus large que `hasChanges` : une date effacée ou illisible n'entre pas dans ce qui part, mais
    * l'écran ne montre plus la date enregistrée — diffuser maintenant partirait sur une valeur que
@@ -176,14 +194,6 @@ export function PlanHeaderForm({
    * illisible est donc toujours un écart.
    */
   useReportUnsaved(hasChanges || effectiveStartDate == null, save, onUnsavedChange);
-
-  /**
-   * De combien le cycle se déplace — entre deux lundis, donc toujours un multiple de 7. `null` = la
-   * date est en cours de saisie et illisible : on n'annonce rien plutôt qu'un « 0 jour » inventé.
-   */
-  const shiftDays =
-    effectiveStartDate == null ? null : daysBetweenIsoDates(plan.startDate, effectiveStartDate);
-  const warning = shiftWarning(shiftDays, plan.sessionCount);
 
   return (
     <CmvCard>
@@ -236,23 +246,21 @@ export function PlanHeaderForm({
             value={startDate}
             onChange={(event) => edit({ startDate: event.target.value })}
             onBlur={snapToMonday}
-            disabled={isLocked}
+            // Un cycle diffusé ne s'avance pas : le calendrier ne propose que la suite.
+            min={isPublished ? plan.startDate : undefined}
+            disabled={isStartLocked}
             required
             requiredMark
           />
           <p className="text-cmv-caption text-cmv-text-lo">{t("plan.header.startDateHint")}</p>
           {/* Déplacer la date REJOUE tout le cycle. Le dire avant l'enregistrement, sinon un
               report d'un mois se lit comme un simple champ de formulaire. */}
-          {warning == null ? null : (
-            <p className="text-cmv-caption text-cmv-warning-on">
-              {/* Le décalage est composé À PART puis interpolé : i18next n'accorde que sur
-                  `count`, et cette phrase en accorde DEUX — les séances et les jours. */}
-              {t(warning.key, {
-                count: plan.sessionCount,
-                shift: t("plan.header.startDateShiftDays", { count: warning.days }),
-              })}
-            </p>
-          )}
+          <StartDateNotice
+            refusal={refusal}
+            shiftDays={shiftDays}
+            sessionCount={plan.sessionCount}
+            isPublished={isPublished}
+          />
         </div>
 
         <CmvTextArea
@@ -266,7 +274,7 @@ export function PlanHeaderForm({
           rows={3}
         />
 
-        {isLocked ? null : (
+        {isStartLocked ? null : (
           <div className="flex items-center gap-cmv-sm">
             <CmvButton type="submit" onClick={onSubmit} disabled={!canSubmit}>
               {isSaving ? t("plan.header.submitting") : t("plan.header.submit")}
@@ -281,14 +289,43 @@ export function PlanHeaderForm({
 
 /**
  * Ce que l'en-tête dit de lui-même : suivi terminé, il se relit (#910) ; diffusé, il ne se réécrit
- * plus ; en Lecture, il se lit. Le suivi terminé passe devant : un cycle diffusé à un ex-athlète
- * n'a plus d'athlète qui s'entraîne dessus.
+ * plus, son début se reportant encore tant que rien n'est fait (#231) ; en Lecture, il se lit. Le
+ * suivi terminé passe devant : un cycle diffusé à un ex-athlète n'a plus d'athlète qui s'entraîne
+ * dessus.
  */
-function headerHintKey(plan: Pick<PlanDto, "status" | "followEndedAt">, readOnly: boolean): string {
+function headerHintKey(plan: PlanDto, readOnly: boolean): string {
   if (plan.followEndedAt != null) return "plan.header.lockedFollowEnded";
-  if (plan.status === PlanStatus.PUBLISHED) return "plan.header.lockedPublished";
+  if (plan.status === PlanStatus.PUBLISHED) {
+    if (readOnly) return "plan.header.lockedPublished";
+    return firstMovableWeek(plan.weeks) > 1
+      ? "plan.header.lockedPublishedStarted"
+      : "plan.header.lockedPublishedMovable";
+  }
   return readOnly ? "plan.header.lockedReadOnly" : "plan.header.hint";
 }
+
+/**
+ * Le début se reporte encore sur un cycle diffusé que rien n'a touché (#231) : l'athlète reprend
+ * plus tard, sans rien avoir manqué. Une séance faite le ferme — elle ne bouge plus, et la suite se
+ * décale alors par une semaine insérée.
+ *
+ * Sauf sur une saisie en cours : un débrief arrivé pendant qu'on choisissait la date fermerait le
+ * champ sur une valeur qui ne partira plus, sans retour possible. Il reste ouvert, avec le refus
+ * dessous, le temps d'y revenir — et se ferme dès que la date d'origine est remise.
+ */
+function isStartSettled(plan: PlanDto, startDate: string): boolean {
+  return (
+    plan.status === PlanStatus.PUBLISHED &&
+    firstMovableWeek(plan.weeks) > 1 &&
+    startDate === plan.startDate
+  );
+}
+
+/** Ce qui retient le report d'un cycle diffusé, dit sous la date et par le dialogue de sortie. */
+const REFUSAL_KEY = {
+  [PlanShiftRefusal.EARLIER]: "plan.header.startDateEarlierPublished",
+  [PlanShiftRefusal.SETTLED]: "plan.header.startDateSettledPublished",
+} as const satisfies Record<PlanShiftRefusal, string>;
 
 /** Ce qui part : les champs changés, la version s'y ajoute à l'envoi. */
 type HeaderChanges = Omit<UpdatePlanInput, "expectedUpdatedAt">;
@@ -311,6 +348,39 @@ const headerDraft = (plan: PlanDto): HeaderDraft => ({
 });
 
 /**
+ * Sous la date : pourquoi le report ne partira pas, sinon ce qu'il emportera. Le refus passe
+ * devant — annoncer des séances repoussées par un enregistrement qui n'aura pas lieu mentirait.
+ */
+function StartDateNotice({
+  refusal,
+  shiftDays,
+  sessionCount,
+  isPublished,
+}: Readonly<{
+  refusal: PlanShiftRefusal | null;
+  shiftDays: number | null;
+  sessionCount: number;
+  isPublished: boolean;
+}>) {
+  const { t } = useTranslation();
+  if (refusal != null) {
+    return <p className="text-cmv-caption text-cmv-error-on">{t(REFUSAL_KEY[refusal])}</p>;
+  }
+  const warning = shiftWarning(shiftDays, sessionCount, isPublished);
+  if (warning == null) return null;
+  return (
+    <p className="text-cmv-caption text-cmv-warning-on">
+      {/* Le décalage est composé À PART puis interpolé : i18next n'accorde que sur `count`, et
+          cette phrase en accorde DEUX — les séances et les jours. */}
+      {t(warning.key, {
+        count: sessionCount,
+        shift: t("plan.header.startDateShiftDays", { count: warning.days }),
+      })}
+    </p>
+  );
+}
+
+/**
  * Ce qu'un déplacement du début emporte, et dans quel sens. Avancer et repousser ne se disent pas
  * de la même façon : « de 7 jours » sans la direction laisse le coach deviner de quel côté son
  * cycle vient de partir.
@@ -323,16 +393,22 @@ const headerDraft = (plan: PlanDto): HeaderDraft => ({
  * TypeScript ni par i18next, et `check-i18n-keys.mjs` ne peut que la lister pour relecture
  * humaine — c'est-à-dire s'afficher en clair en production le jour où elle est renommée.
  *
- * On annonce les SÉANCES, et rien d'autre : l'API les décale toutes (`shiftSessions`), mais
- * l'échéance de la facture, elle, est une saisie du coach et ne suit pas.
+ * On annonce les SÉANCES : l'API les décale toutes (`shiftSessions`), mais l'échéance de la
+ * facture, elle, est une saisie du coach et ne suit pas. Sur un cycle DIFFUSÉ, seul le report
+ * arrive ici (#231), et sa phrase le dit : l'athlète sera prévenu, l'échéance ne bouge pas.
  */
 function shiftWarning(
   shiftDays: number | null,
   sessionCount: number,
+  isPublished: boolean,
 ): { key: string; days: number } | null {
   if (shiftDays == null || shiftDays === 0 || sessionCount === 0) return null;
-  return {
-    key: shiftDays > 0 ? "plan.header.startDateShiftLater" : "plan.header.startDateShiftEarlier",
-    days: Math.abs(shiftDays),
-  };
+  return { key: shiftKey(shiftDays, isPublished), days: Math.abs(shiftDays) };
+}
+
+function shiftKey(shiftDays: number, isPublished: boolean): string {
+  if (shiftDays < 0) return "plan.header.startDateShiftEarlier";
+  return isPublished
+    ? "plan.header.startDateShiftLaterPublished"
+    : "plan.header.startDateShiftLater";
 }
