@@ -1,14 +1,16 @@
-import { NotificationType, Role, shiftIsoDate } from "@cmv/shared";
+import { NotificationType, PLAN_MAX_WEEKS, Role, shiftIsoDate } from "@cmv/shared";
 import { beforeAll, describe, expect, it } from "vitest";
+import { PrismaService } from "../../src/infra/prisma/prisma.service";
 import { type Agent, billAndPublish, link, required, signUp } from "../support/actors";
+import { app } from "../support/app";
 import { fromTemplate, mondayOfCurrentWeek } from "../support/fixtures";
-import { expectLocked, patchAtLatest } from "../support/version";
+import { atWeekVersion, expectLocked, patchAtLatest } from "../support/version";
 
 /**
- * Décaler un cycle DIFFUSÉ (#231) : le reporter en entier. Une règle — une séance faite ne bouge
- * plus —, et l'athlète prévenu.
+ * Décaler un cycle DIFFUSÉ (#231) : le reporter en entier, ou insérer une semaine devant la suite.
+ * Une règle pour les deux — une séance faite ne bouge plus —, et l'athlète prévenu de chacun.
  */
-describe("Cycle diffusé : report (#231)", () => {
+describe("Cycle diffusé : report et semaine insérée (#231)", () => {
   let coach: Agent;
   let athlete: Agent;
   let athleteId: string;
@@ -119,6 +121,117 @@ describe("Cycle diffusé : report (#231)", () => {
         200,
       );
       expect(await rescheduledFor(planId)).toEqual([]);
+    });
+  });
+
+  describe("insérer une semaine", () => {
+    const insert = async (planId: string, weekId: string) =>
+      coach
+        .post(`/plan-weeks/${weekId}/insert-before`)
+        .send(await atWeekVersion(coach, planId, weekId, { type: "DELOAD", note: "Blessure" }));
+
+    it("insère avant la semaine 2 : la suite glisse d'une semaine, la semaine faite reste", async () => {
+      const { planId, weekIds, sessionIds } = await cycle("Athlète blessé");
+      expect((await debrief(required(sessionIds[0], "S1"))).status).toBe(200);
+
+      const res = await insert(planId, required(weekIds[1], "semaine 2"));
+
+      expect(res.status).toBe(201);
+      expect(
+        res.body.weeks.map((w: { weekNumber: number; type: string; note: string | null }) => [
+          w.weekNumber,
+          w.type,
+          w.note,
+        ]),
+      ).toEqual([
+        [1, "TRAINING", null],
+        [2, "DELOAD", "Blessure"],
+        [3, "TRAINING", null],
+        [4, "DELOAD", null],
+      ]);
+      expect(await datesOf(planId)).toEqual([
+        [1, [day(0)]],
+        [2, []],
+        [3, [day(14)]],
+        [4, [day(21)]],
+      ]);
+      expect(await rescheduledFor(planId)).toEqual([
+        expect.objectContaining({ subjectLabel: "Athlète blessé" }),
+      ]);
+    });
+
+    it("la semaine insérée appartient à l'athlète du cycle : il la lit", async () => {
+      const { planId, weekIds } = await cycle("Lue par l'athlète");
+      expect((await insert(planId, required(weekIds[0], "semaine 1"))).status).toBe(201);
+
+      expect((await athletePlan(planId))?.weeks).toHaveLength(4);
+    });
+
+    it("refuse d'insérer devant une semaine faite (409), sans rien renuméroter", async () => {
+      const { planId, weekIds, sessionIds } = await cycle("Semaine faite");
+      expect((await debrief(required(sessionIds[1], "S2"))).status).toBe(200);
+
+      expectLocked(await insert(planId, required(weekIds[0], "semaine 1")));
+      expectLocked(await insert(planId, required(weekIds[1], "semaine 2")));
+
+      expect(await datesOf(planId)).toEqual([
+        [1, [day(0)]],
+        [2, [day(7)]],
+        [3, [day(14)]],
+      ]);
+      expect(await rescheduledFor(planId)).toEqual([]);
+      // Après la semaine faite, la suite glisse encore.
+      expect((await insert(planId, required(weekIds[2], "semaine 3"))).status).toBe(201);
+    });
+
+    it("insère aussi dans un brouillon, sans notification", async () => {
+      const { planId, weekIds } = await cycle("Brouillon inséré", { publish: false });
+
+      expect((await insert(planId, required(weekIds[0], "semaine 1"))).status).toBe(201);
+      expect(await datesOf(planId)).toEqual([
+        [1, []],
+        [2, [day(7)]],
+        [3, [day(14)]],
+        [4, [day(21)]],
+      ]);
+      expect(await rescheduledFor(planId)).toEqual([]);
+    });
+
+    it("refuse sur une version périmée de la semaine, sans rien écrire", async () => {
+      const { planId, weekIds } = await cycle("Version périmée");
+      const weekId = required(weekIds[1], "semaine 2");
+      const read = await atWeekVersion(coach, planId, weekId, { type: "TRAINING" });
+      expect(
+        (await coach.patch(`/plan-weeks/${weekId}`).send({ ...read, note: "Retouchée" })).status,
+      ).toBe(200);
+
+      const stale = await coach.post(`/plan-weeks/${weekId}/insert-before`).send(read);
+
+      expect(stale.status).toBe(409);
+      expect((await coach.get(`/plans/${planId}`)).body.weeks).toHaveLength(3);
+    });
+
+    it(`refuse au-delà de ${PLAN_MAX_WEEKS} semaines`, async () => {
+      const { planId, weekIds } = await cycle("Plein", { publish: false });
+      const prisma = app.get(PrismaService);
+      const coachId = required(
+        (await prisma.plan.findUnique({ where: { id: planId } }))?.coachId,
+        "propriétaire",
+      );
+      await prisma.planWeek.createMany({
+        data: Array.from({ length: PLAN_MAX_WEEKS - 3 }, (_, index) => ({
+          planId,
+          coachId,
+          athleteId,
+          weekNumber: 4 + index,
+          type: "TRAINING" as const,
+        })),
+      });
+
+      const res = await insert(planId, required(weekIds[0], "semaine 1"));
+
+      expect(res.status).toBe(400);
+      expect((await coach.get(`/plans/${planId}`)).body.weeks).toHaveLength(PLAN_MAX_WEEKS);
     });
   });
 });
