@@ -26,6 +26,7 @@ import { PlanBillingSection } from "@/feature/invoice";
 import { usePlanBilling } from "@/feature/invoice/hook/useInvoices";
 import { myRightText } from "@/feature/library/util/access-text.util";
 import { planKeys } from "@/feature/plan/api";
+import { DuplicatePlanButton } from "@/feature/plan/component/DuplicatePlanButton";
 import { PlanAccessButton } from "@/feature/plan/component/PlanAccessButton";
 import { PlanBuilderActions } from "@/feature/plan/component/PlanBuilderActions";
 import { PlanHeaderForm } from "@/feature/plan/component/PlanHeaderForm";
@@ -164,6 +165,8 @@ function useUnsavedInputs() {
     return saved;
   });
   return {
+    // N'importe laquelle des trois : ce que la garde demanderait avant de quitter l'écran.
+    hasUnsaved: pending.length > 0,
     isHeaderUnsaved: header.save != null,
     reportHeader: header.report,
     isBillingUnsaved: billing.save != null,
@@ -197,10 +200,20 @@ function useRequestedSession(
   }, [requested, plan, isFetching, open, navigate]);
 }
 
+/**
+ * Un cycle, un montage : la route garde son écran quand seul `$planId` change — vers la copie
+ * qu'on vient de dupliquer (#5), comme vers tout autre cycle. Sans cette clé, l'en-tête, la
+ * facturation et le panneau ouvert restaient ceux du cycle d'avant : une saisie de la source
+ * s'affichait sur la copie, et le panneau écrivait encore dans la séance de la source.
+ */
 export function PlanBuilderScreen() {
+  const { planId } = useParams({ from: "/plans/$planId" });
+  return <PlanBuilder key={planId} planId={planId} />;
+}
+
+function PlanBuilder({ planId }: Readonly<{ planId: string }>) {
   const { t } = useTranslation();
   const athleteLabel = useAthleteLabel();
-  const { planId } = useParams({ from: "/plans/$planId" });
 
   const { data: plan, isPending, isFetching, error, refetch } = usePlan(planId);
   /**
@@ -219,8 +232,15 @@ export function PlanBuilderScreen() {
   const { data: billing } = usePlanBilling(planId, isBillable(plan));
 
   const [edit, setEdit] = useState<SessionEdit | null>(null);
-  const { isHeaderUnsaved, reportHeader, isBillingUnsaved, reportBilling, reportPanel, guard } =
-    useUnsavedInputs();
+  const {
+    hasUnsaved,
+    isHeaderUnsaved,
+    reportHeader,
+    isBillingUnsaved,
+    reportBilling,
+    reportPanel,
+    guard,
+  } = useUnsavedInputs();
   useRequestedSession(plan, isFetching, setEdit);
 
   // Dans le shell, et non sur une page nue : une lecture qui traîne laissait le Coach sans retour
@@ -285,6 +305,7 @@ export function PlanBuilderScreen() {
       actions={
         <>
           <DosageButton plan={plan} />
+          <DuplicatePlanButton plan={plan} isUnsaved={hasUnsaved} isBusy={isBusy} />
           {hasBuilderActions(mode, isMine) ? (
             <>
               {isMine ? (

@@ -10,6 +10,7 @@ import {
   deletePlanWeek,
   deleteScheduledSession,
   doseScheduledSession,
+  duplicatePlan,
   getPlan,
   getScheduledSession,
   getScheduledSessionCopies,
@@ -90,6 +91,12 @@ describe.each([
     () => deletePlan("p-1", { expectedUpdatedAt: VERSION }),
     "delete",
     ["/plans/p-1?expectedUpdatedAt=2026-10-12T08%3A00%3A00.000Z"],
+  ],
+  [
+    "duplicatePlan",
+    () => duplicatePlan("p-1", { title: "Bloc (copie)" }),
+    "post",
+    ["/plans/p-1/duplicate", { title: "Bloc (copie)" }],
   ],
   [
     "publishPlan",

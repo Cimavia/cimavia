@@ -9,6 +9,7 @@ import {
   planAudience,
   planCycleDays,
   planEndDate,
+  planFollowingStartDate,
   planPhase,
   planState,
   planWeekCopyShiftDays,
@@ -109,6 +110,23 @@ describe("isDateInPlanWeek", () => {
     expect(isDateInPlanWeek(MONDAY, 1, "2026-13-40")).toBe(false);
     expect(isDateInPlanWeek(MONDAY, 0, "2026-10-12")).toBe(false);
     expect(isDateInPlanWeek("pas-une-date", 1, "2026-10-12")).toBe(false);
+  });
+});
+
+describe("planFollowingStartDate", () => {
+  it("rend le lundi qui suit la dernière semaine", () => {
+    expect(planFollowingStartDate(MONDAY, 1)).toBe("2026-10-19");
+    expect(planFollowingStartDate(MONDAY, 4)).toBe("2026-11-09");
+  });
+
+  it("rend son propre lundi pour un cycle sans semaine", () => {
+    expect(planFollowingStartDate(MONDAY, 0)).toBe(MONDAY);
+  });
+
+  it("rend null sur un nombre de semaines invalide ou une date illisible", () => {
+    expect(planFollowingStartDate(MONDAY, -1)).toBeNull();
+    expect(planFollowingStartDate(MONDAY, 1.5)).toBeNull();
+    expect(planFollowingStartDate("pas-une-date", 2)).toBeNull();
   });
 });
 

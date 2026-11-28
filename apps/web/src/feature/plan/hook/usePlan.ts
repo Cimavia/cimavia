@@ -60,7 +60,7 @@ export const planDetailQuery = (id: string) => ({
  * carte de la semaine doit attendre la relecture, sans quoi son geste suivant citerait la version
  * d'avant.
  */
-const planWriteKey = (planId: string) => ["plans", "write", planId] as const;
+export const planWriteKey = (planId: string) => ["plans", "write", planId] as const;
 
 /** La lecture d'une séance planifiée, partagée par le panneau et son « Recharger » (#604). */
 export const scheduledSessionDetailQuery = (id: string) => ({

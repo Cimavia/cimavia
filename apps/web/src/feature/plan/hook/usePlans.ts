@@ -1,8 +1,16 @@
-import type { CreatePlanInput, PlanSummaryDto } from "@cmv/shared";
+import type { CreatePlanInput, DuplicatePlanInput, PlanSummaryDto } from "@cmv/shared";
 import { myPlanKeys, notificationKeys, reminderKeys } from "@cmv/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoiceKeys } from "@/feature/invoice/api";
-import { createPlan, deletePlan, listPlans, planKeys, publishPlan } from "@/feature/plan/api";
+import {
+  createPlan,
+  deletePlan,
+  duplicatePlan,
+  listPlans,
+  planKeys,
+  publishPlan,
+} from "@/feature/plan/api";
+import { planWriteKey } from "@/feature/plan/hook/usePlan";
 import { forgetPlanClipboardSource } from "@/feature/plan/hook/usePlanClipboard";
 import { useStaleWriteError } from "@/feature/plan/hook/useStaleWriteError";
 import { useMutationToast } from "@/shared/hook/useMutationToast";
@@ -25,6 +33,31 @@ export function useCreatePlan() {
     onSuccess: (plan) => {
       void queryClient.invalidateQueries({ queryKey: planKeys.all });
       toast.onSuccess("plan.toast.created", { title: plan.title });
+    },
+    onError: toast.onError,
+  });
+}
+
+/**
+ * Dupliquer un cycle (#5). La copie naît sans athlète et commence après sa source : le toast le
+ * dit, sinon le coach chercherait ses séances aux dates de l'original.
+ *
+ * Sous la clé d'écriture de la SOURCE : le builder se fige le temps de la copie (jusqu'à 30 s sur
+ * le NAS), sans quoi une écriture partie entre-temps ferait une copie d'un autre état que celui
+ * qu'on voit — et « Supprimer » enverrait vers la liste pendant qu'on attend la copie.
+ */
+export function useDuplicatePlan(planId: string) {
+  const queryClient = useQueryClient();
+  const toast = useMutationToast();
+  return useMutation({
+    mutationKey: planWriteKey(planId),
+    mutationFn: (input: DuplicatePlanInput) => duplicatePlan(planId, input),
+    onSuccess: (plan) => {
+      void queryClient.invalidateQueries({ queryKey: planKeys.all });
+      // L'API rend la copie entière : son constructeur s'ouvre dessus, sans relecture ni
+      // « Chargement… ». Posée APRÈS l'invalidation, qui la marquerait périmée.
+      queryClient.setQueryData(planKeys.detail(plan.id), plan);
+      toast.onSuccess("plan.toast.duplicated", { title: plan.title });
     },
     onError: toast.onError,
   });

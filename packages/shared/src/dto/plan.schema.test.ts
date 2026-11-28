@@ -3,6 +3,8 @@ import {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
+  duplicatePlanSchema,
+  PLAN_TITLE_MAX_LENGTH,
   publishPlanSchema,
   reorderPlanDaySchema,
   updatePlanSchema,
@@ -89,6 +91,26 @@ describe("updateScheduledSessionSchema", () => {
       expectedUpdatedAt: VERSION,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("duplicatePlanSchema", () => {
+  it("ne demande que le titre de la copie", () => {
+    expect(duplicatePlanSchema.parse({ title: "Bloc force (copie)" })).toEqual({
+      title: "Bloc force (copie)",
+    });
+  });
+
+  it("refuse un titre vide ou au-delà de la borne", () => {
+    expect(duplicatePlanSchema.safeParse({ title: "" }).success).toBe(false);
+    expect(
+      duplicatePlanSchema.safeParse({ title: "a".repeat(PLAN_TITLE_MAX_LENGTH + 1) }).success,
+    ).toBe(false);
+  });
+
+  it("refuse un athlète ou une date : la copie les reçoit dans l'en-tête", () => {
+    expect(duplicatePlanSchema.safeParse({ title: "Bloc", athleteId: "a_1" }).success).toBe(false);
+    expect(duplicatePlanSchema.safeParse({ title: "Bloc", startDate: MONDAY }).success).toBe(false);
   });
 });
 

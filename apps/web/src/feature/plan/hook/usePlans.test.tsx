@@ -5,22 +5,35 @@ import { invoiceKeys } from "@/feature/invoice/api";
 import { planKeys } from "@/feature/plan/api";
 import { renderWithQueryClient } from "../../../../test/query";
 import { clearPlanClipboard, usePlanClipboard } from "./usePlanClipboard";
-import { useCreatePlan, useDeletePlan, usePlans, usePublishPlan } from "./usePlans";
+import {
+  useCreatePlan,
+  useDeletePlan,
+  useDuplicatePlan,
+  usePlans,
+  usePublishPlan,
+} from "./usePlans";
 
-const { deletePlanMock, createPlanMock, listPlansMock, publishPlanMock, toastMock } = vi.hoisted(
-  () => ({
-    deletePlanMock: vi.fn(),
-    createPlanMock: vi.fn(),
-    listPlansMock: vi.fn(),
-    publishPlanMock: vi.fn(),
-    toastMock: { onSuccess: vi.fn(), onError: vi.fn(), onFailure: vi.fn() },
-  }),
-);
+const {
+  deletePlanMock,
+  createPlanMock,
+  duplicatePlanMock,
+  listPlansMock,
+  publishPlanMock,
+  toastMock,
+} = vi.hoisted(() => ({
+  deletePlanMock: vi.fn(),
+  createPlanMock: vi.fn(),
+  duplicatePlanMock: vi.fn(),
+  listPlansMock: vi.fn(),
+  publishPlanMock: vi.fn(),
+  toastMock: { onSuccess: vi.fn(), onError: vi.fn(), onFailure: vi.fn() },
+}));
 
 vi.mock("@/feature/plan/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/feature/plan/api")>()),
   deletePlan: deletePlanMock,
   createPlan: createPlanMock,
+  duplicatePlan: duplicatePlanMock,
   listPlans: listPlansMock,
   publishPlan: publishPlanMock,
 }));
@@ -107,6 +120,55 @@ describe("usePlans", () => {
     const { result } = renderHook(() => usePlans(), { wrapper });
 
     await waitFor(() => expect(result.current.data).toEqual([{ id: "plan-1" }]));
+  });
+});
+
+describe("useDuplicatePlan", () => {
+  it("duplique le cycle, rafraîchit la liste, pose la copie en cache et la nomme", async () => {
+    const copy = { id: "plan-copie", title: "Bloc (copie)" };
+    duplicatePlanMock.mockResolvedValue(copy);
+    const { wrapper, stale, queryClient } = seeded();
+    const { result } = renderHook(() => useDuplicatePlan("plan-1"), { wrapper });
+
+    await act(() => result.current.mutateAsync({ title: "Bloc (copie)" }));
+
+    expect(duplicatePlanMock).toHaveBeenCalledWith("plan-1", { title: "Bloc (copie)" });
+    expect(stale(planKeys.list())).toBe(true);
+    // Le constructeur de la copie s'ouvre sans relecture : son détail est là, et frais.
+    expect(queryClient.getQueryData(planKeys.detail("plan-copie"))).toEqual(copy);
+    expect(stale(planKeys.detail("plan-copie"))).toBe(false);
+    expect(toastMock.onSuccess).toHaveBeenCalledWith("plan.toast.duplicated", {
+      title: "Bloc (copie)",
+    });
+  });
+
+  it("dit l'échec sans rien invalider", async () => {
+    const failure = new Error("404");
+    duplicatePlanMock.mockRejectedValue(failure);
+    const { wrapper, stale } = seeded();
+    const { result } = renderHook(() => useDuplicatePlan("plan-1"), { wrapper });
+
+    await act(() => result.current.mutateAsync({ title: "Bloc (copie)" }).catch(() => {}));
+
+    expect(toastMock.onError.mock.lastCall?.[0]).toBe(failure);
+    expect(stale(planKeys.list())).toBe(false);
+  });
+
+  it("occupe la source le temps de la copie : le builder lit son occupation sur cette clé", async () => {
+    let finish: (plan: { id: string; title: string }) => void = () => {};
+    duplicatePlanMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const { wrapper, queryClient } = seeded();
+    const { result } = renderHook(() => useDuplicatePlan("plan-1"), { wrapper });
+
+    act(() => result.current.mutate({ title: "Bloc (copie)" }));
+
+    await waitFor(() =>
+      expect(queryClient.isMutating({ mutationKey: ["plans", "write", "plan-1"] })).toBe(1),
+    );
+    await act(async () => finish({ id: "plan-copie", title: "Bloc (copie)" }));
+    await waitFor(() =>
+      expect(queryClient.isMutating({ mutationKey: ["plans", "write", "plan-1"] })).toBe(0),
+    );
   });
 });
 

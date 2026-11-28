@@ -501,6 +501,7 @@ export type {
   CopyPlanWeekInput,
   CreatePlanInput,
   CreateScheduledSessionInput,
+  DuplicatePlanInput,
   PlanDto,
   PlanStatus as PlanStatusType,
   PlanSummaryDto,
@@ -522,6 +523,7 @@ export {
   copyPlanWeekSchema,
   createPlanSchema,
   createScheduledSessionSchema,
+  duplicatePlanSchema,
   PLAN_DESCRIPTION_MAX_LENGTH,
   PLAN_MAX_WEEKS,
   PLAN_TITLE_MAX_LENGTH,
@@ -895,6 +897,7 @@ export {
   toggleParticipant,
   withConversation,
 } from "./util/conversation-view.util";
+export { copyTitle } from "./util/copy-title.util";
 export {
   DAYS_PER_WEEK,
   dateToIsoDate,
@@ -1122,6 +1125,7 @@ export {
   planAudience,
   planCycleDays,
   planEndDate,
+  planFollowingStartDate,
   planPhase,
   planState,
   planWeekCopyShiftDays,

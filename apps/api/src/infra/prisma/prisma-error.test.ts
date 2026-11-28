@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   explainForeignKeyViolation,
   isForeignKeyViolation,
+  isSerializationFailure,
   isUniqueViolation,
+  retryOnSerializationFailure,
 } from "./prisma-error";
 
 const knownError = (code: string) =>
@@ -68,5 +70,46 @@ describe("explainForeignKeyViolation", () => {
       failure,
     );
     expect(explain).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSerializationFailure", () => {
+  it("reconnaît le conflit d'une lecture répétable", () => {
+    expect(isSerializationFailure(knownError("P2034"))).toBe(true);
+  });
+
+  it.each([
+    ["une clé étrangère", knownError("P2003")],
+    ["une panne sans code", new Error("base injoignable")],
+  ])("ne prend pas %s pour un conflit", (_label, error) => {
+    expect(isSerializationFailure(error)).toBe(false);
+  });
+});
+
+describe("retryOnSerializationFailure", () => {
+  it("rejoue la transaction après un conflit, et rend celle qui passe", async () => {
+    const transaction = vi
+      .fn()
+      .mockRejectedValueOnce(knownError("P2034"))
+      .mockResolvedValueOnce("copie");
+
+    await expect(retryOnSerializationFailure(transaction)).resolves.toBe("copie");
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("rend le dernier conflit une fois les essais épuisés", async () => {
+    const conflict = knownError("P2034");
+    const transaction = vi.fn().mockRejectedValue(conflict);
+
+    await expect(retryOnSerializationFailure(transaction, 2)).rejects.toBe(conflict);
+    expect(transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("ne rejoue pas une autre erreur", async () => {
+    const failure = knownError("P2003");
+    const transaction = vi.fn().mockRejectedValue(failure);
+
+    await expect(retryOnSerializationFailure(transaction)).rejects.toBe(failure);
+    expect(transaction).toHaveBeenCalledTimes(1);
   });
 });

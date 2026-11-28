@@ -109,6 +109,21 @@ export function planEndDate(planStartDate: string, weekCount: number): string | 
   return shiftIsoDate(planStartDate, weekCount * DAYS_PER_WEEK - 1);
 }
 
+/**
+ * Le lundi qui suit la dernière semaine du cycle : le début d'une copie (#5).
+ *
+ * La copie enchaîne le bloc suivant plutôt que de se superposer à sa source dans le calendrier ;
+ * le coach la décale ensuite s'il la destine à une autre période. Un cycle sans semaine rend son
+ * propre lundi : il ne finit nulle part, la copie part du même jour.
+ *
+ * `null` si le lundi est illisible ou `weekCount` invalide — jamais le lundi de la source, qui
+ * prétendrait avoir calculé.
+ */
+export function planFollowingStartDate(planStartDate: string, weekCount: number): string | null {
+  if (!Number.isInteger(weekCount) || weekCount < 0) return null;
+  return shiftIsoDate(planStartDate, weekCount * DAYS_PER_WEEK);
+}
+
 // La date tombe-t-elle dans la semaine `weekNumber` du plan ? (invariant vérifié à l'écriture
 // d'une séance planifiée, côté API — et réutilisable par le client pour désactiver les jours.)
 export function isDateInPlanWeek(planStartDate: string, weekNumber: number, date: string): boolean {

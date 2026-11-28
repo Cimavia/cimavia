@@ -295,8 +295,11 @@ export class PlanService {
    * illisible, il ne dit rien de son existence. Public : séances planifiées et copie de semaine
    * s'appuient dessus — un seul contrôle, un seul message.
    */
-  async getReadableOrThrow(id: string): Promise<PlanWithAccess> {
-    const plan = await this.db.plan.findFirst({ where: { id }, include: ACCESS_INCLUDE });
+  async getReadableOrThrow(
+    id: string,
+    db: TenantPrisma | TenantTx = this.db,
+  ): Promise<PlanWithAccess> {
+    const plan = await db.plan.findFirst({ where: { id }, include: ACCESS_INCLUDE });
     if (plan == null) {
       throw new NotFoundException(PLAN_NOT_FOUND);
     }

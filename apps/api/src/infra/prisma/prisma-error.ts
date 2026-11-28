@@ -33,3 +33,30 @@ export async function explainForeignKeyViolation<T>(
     throw error;
   }
 }
+
+/**
+ * La transaction a heurté une écriture concurrente (P2034, SQLSTATE 40001) : sous une lecture
+ * répétable, une ligne que son instantané voyait a été modifiée ou supprimée par une transaction
+ * validée depuis. Rejouée, elle repart d'un instantané neuf.
+ */
+export function isSerializationFailure(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+}
+
+/**
+ * Rejoue `transaction` tant qu'elle échoue sur un conflit de sérialisation, `attempts` fois au
+ * plus — le remède que Postgres prescrit à une lecture répétable. Toute autre erreur, et le
+ * dernier conflit, remontent tels quels.
+ */
+export async function retryOnSerializationFailure<T>(
+  transaction: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await transaction();
+    } catch (error) {
+      if (attempt >= attempts || !isSerializationFailure(error)) throw error;
+    }
+  }
+}

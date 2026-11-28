@@ -13,6 +13,7 @@ import { ScheduledSessionController } from "./controller/scheduled-session.contr
 import { AthletePlanService } from "./service/athlete-plan.service";
 import { PlanService } from "./service/plan.service";
 import { PlanAccessService } from "./service/plan-access.service";
+import { PlanDuplicateService } from "./service/plan-duplicate.service";
 import { PlanPublishService } from "./service/plan-publish.service";
 import { PlanWeekService } from "./service/plan-week.service";
 import { PlanWeekCopyService } from "./service/plan-week-copy.service";
@@ -47,6 +48,7 @@ import { ScheduledSessionService } from "./service/scheduled-session.service";
   providers: [
     PlanService,
     PlanAccessService,
+    PlanDuplicateService,
     PlanPublishService,
     PlanWeekService,
     PlanWeekCopyService,

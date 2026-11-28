@@ -75,6 +75,12 @@ liste des domaines vivent dans l'index.
 > `null` (`SetNull`) si le coach a supprimé l'exercice entre-temps et que repasser par la bibliothèque
 > perdrait alors des documents que l'instance porte pourtant encore. Reste à #5 : la création du plan,
 > la réassignation d'athlète, le choix du lundi, la facturation.
+>
+> Complété en [#5](https://github.com/Cimavia/cimavia/issues/5) : l'atome est remonté d'un cran. La
+> boucle sur les séances d'une semaine est devenue `copyScheduledSessions`
+> (`plan/scheduled-session.copier.ts`), qui reçoit des semaines cibles : une pour la copie de
+> semaine, toutes celles du cycle pour la duplication. Elle écrit **par lots**, une requête par
+> table (`insertCompositions`), et la création d'une séance passe par le même chemin.
 
 > **Tranché en #4** (le presse-papier, côté web) : il vit dans `sessionStorage` derrière
 > `useSyncExternalStore`, et non dans un `useState` ni un provider. Il doit survivre au **changement
@@ -96,6 +102,72 @@ liste des domaines vivent dans l'index.
 > nommant la semaine armée. Le bandeau n'est pas décoratif : le presse-papier survivant à la
 > navigation, des boutons « Coller ici » apparaîtraient sinon sur un autre cycle sans que rien ne dise
 > ce qui est armé ni d'où il vient.
+
+---
+
+## Post-MVP — Dupliquer un cycle ([#5](https://github.com/Cimavia/cimavia/issues/5))
+
+| # | Dette | Statut | Suivi |
+|---|---|---|---|
+| DUP-1 | **La duplication n'a pas de borne de débit propre**, et chaque appel tient une connexion le temps de sa transaction (1,4 s en local pour 52 semaines de cinq séances, plafond à 15 s, `DUPLICATE_TRANSACTION`). Seul le plafond global (300 / min) la compte : un Coach qui la lance en boucle occuperait le pool de Prisma, et toute l'API attendrait avec lui. La copie de semaine (#4) est dans le même cas, en plus court. | 🟢 | — *(déclencheur : des inscriptions ouvertes au-delà des invités (#263), ou une attente de pool vue dans les journaux ; une politique `RateLimit` dédiée alors)* |
+| DUP-2 | **La copie d'un cycle ouvert par un autre Coach garde ses références de bibliothèque** (`sourceSessionId`, `sourceExerciseId`), qui pointent dans la bibliothèque de ce Coach. Les lectures restent scopées, rien ne fuit : « Voir la séance-type » de Dosage y rend un 404. La copie de semaine (#4) et la séance-type partagée (#606) font déjà de même. | 🟢 | — *(déclencheur : un Coach qui le signale ; remettre alors à `null` les références qui ne sont pas à lui)* |
+
+> **Tranché en #5** (ce que la copie reprend) : la **composition** du cycle, comme la copie de
+> semaine — titre suffixé, description, semaines avec leur type et leur note, séances, blocs,
+> exercices, documents, tags. Elle ne reprend **ni l'athlète, ni la facture, ni les accès** :
+> - **l'athlète** : la copie naît sans destinataire (#144), et le coach le choisit dans l'en-tête.
+>   Garder celui de la source aurait mis deux cycles du même athlète l'un sur l'autre au premier clic.
+> - **la facture** : elle est 1:1 avec le cycle et décrit une vente (P6). Recopiée, elle aurait
+>   annoncé un montant que personne n'a convenu, et le PDF (#472) aurait dit qu'elle existait.
+> - **les accès** (#607) : la copie suit l'ouverture par défaut de son athlète une fois affectée. Les
+>   droits de la source parlaient de son athlète à elle.
+>
+> La copie naît **`DRAFT`, sans notification** : l'athlète n'a rien à lire tant qu'elle n'est pas
+> diffusée.
+
+> **Tranché en #5** (le début) : **le lundi qui suit la dernière semaine de la source**
+> (`planFollowingStartDate`, `@cmv/shared`). Le geste courant est d'enchaîner le cycle suivant, et
+> c'est aussi la seule date qui ne fait pas chevaucher la source et sa copie. Les dates des séances
+> se décalent comme en #4 : d'un multiple de 7, jamais recopiées. Un cycle sans semaine commence le
+> même lundi que sa source.
+
+> **Tranché en #5** (le geste) : **un clic**, ni boîte de dialogue ni formulaire. La copie est créée
+> tout de suite, puis le constructeur s'ouvre dessus : titre, athlète et début se corrigent dans
+> l'en-tête (#207), comme sur tout brouillon. Le titre se compose côté client (`copyTitle`, suffixe
+> traduit) et se raccourcit pour tenir dans la borne, plutôt que d'être refusé en 400.
+>
+> « Dupliquer » est offert **dans tous les modes**, Lecture et suivi terminé (#910) compris : lire
+> suffit à copier, et reprendre le cycle d'un athlète parti est le cas d'usage même. Il se ferme
+> quand l'écran montre une saisie non enregistrée (#326), puisque la copie part de l'enregistré, et
+> pendant toute écriture du cycle. Lui-même écrit sous la clé du cycle source : les écritures du
+> builder se ferment le temps de la copie. Le builder se **remonte par cycle** (clé sur `$planId`) :
+> la route garde son écran d'un cycle à l'autre, et sans cela l'en-tête, la facturation et le
+> panneau ouvert de la source suivaient le coach sur la copie.
+
+> **Tranché en #5** (toute source lisible) : la sienne, un cycle **ouvert** par un autre Coach
+> (Lecture suffit), une archive de suivi terminé ; brouillon ou diffusé. La source se lit par
+> `getReadableOrThrow` (404 sinon), et la copie appartient **au Coach qui duplique** : elle est
+> créée par l'extension de tenancy, qui y injecte son `coachId`. Copier ne passe par aucun droit
+> d'écriture sur la source.
+
+> **Tranché en #5** (la transaction) : le cycle, ses semaines et ses séances se lisent **dans** la
+> transaction, en `RepeatableRead`, le cycle en premier : l'instantané se prend sur lui. Une
+> écriture concurrente sur la source ne peut donc pas mêler deux états dans la copie — un début
+> décalé entre-temps aurait sorti chaque séance de sa semaine, et une source supprimée aurait
+> donné une copie vide annoncée créée. Le prix de l'instantané : une ligne que la copie CITE
+> (séance-type, exercice de bibliothèque) supprimée pendant la copie la fait échouer en conflit de
+> sérialisation (P2034). Elle est alors rejouée, trois fois au plus (`retryOnSerializationFailure`),
+> sur une source où la référence est déjà nulle.
+>
+> Les écritures partent **par lots**, une requête par table : ligne à ligne, chacune avec la lecture
+> de son parent par l'extension de tenancy, 52 semaines de cinq séances de six exercices prenaient
+> 18 s en local, et auraient passé tout plafond sur le NAS. Par lots : 1,4 s. Les identifiants des
+> lignes sont tirés côté API (UUID) : exercices, documents et images de consigne se citent avant
+> d'être écrits. Le plafond reste à **15 s** (5 s par défaut chez Prisma), pour la marge du NAS.
+
+> **Écart de maquette assumé** : `coach_builder_planification.dc.html` n'a pas de bouton
+> « Dupliquer ». Il ouvre la rangée d'actions du bandeau, la seule qui reste visible en Lecture et
+> sur un suivi terminé.
 
 ---
 
