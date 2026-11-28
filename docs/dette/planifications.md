@@ -1018,7 +1018,15 @@ liste des domaines vivent dans l'index.
 > sur une séance déjà décalée. L'insertion verrouille ses semaines dans l'ordre de leur numéro
 > (#689), et renumérote **de la dernière à la première** : `@@unique([planId, weekNumber])` n'est
 > pas différable. Un ajout en fin de cycle au même instant vise un rang pris, et reçoit le 409
-> d'une grille périmée (`staleOnCollision`).
+> d'une grille périmée (`staleOnCollision`). La semaine de la route y est citée **à sa version** :
+> retirée entre la lecture et le verrou, elle répond 404 au lieu de faire glisser la suite.
+>
+> Les deux gestes déplacent les bornes des semaines **sans toucher leurs séances absentes** : une
+> séance créée ou déplacée au même instant valide sa date AVANT de prendre le verrou de sa semaine.
+> Elle la **relit donc sous ce verrou** (`assertDateInLockedWeek`) — sortie des bornes, 409 d'une
+> grille périmée. Pas de version citée : deux créations concurrentes sur la même semaine se
+> refuseraient l'une l'autre. Pour la même raison d'ordre, l'affectation d'un destinataire écrit
+> ses semaines une à une par numéro, plus d'un `updateMany` au verrouillage dans l'ordre physique.
 
 > **Tranché en #231** (un type de notification, pas d'e-mail) : `PLAN_RESCHEDULED`, un pour les
 > deux gestes — l'athlète a ses dates à relire, pas une séance à ouvrir. Le texte dit « d'une
